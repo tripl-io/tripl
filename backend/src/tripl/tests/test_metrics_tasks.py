@@ -53,6 +53,19 @@ from tripl.worker.tasks.metrics import tasks as metrics
 from tripl.worker.tasks.metrics._helpers import STALE_ACTIVE_SCAN_JOB_TIMEOUT
 
 
+@pytest.fixture(autouse=True)
+def _source_never_late(monkeypatch: MonkeyPatch) -> None:
+    """Keep the source-freshness hold (#269) out of these tests.
+
+    They pin the collection window with ``_floor_to_interval`` but freshness is
+    judged against the wall clock, and ``_ANOMALY_BASE`` is fixed at import
+    time. A suite that crosses an hour boundary between import and the test
+    reads the source as late and holds the very drops these tests assert on.
+    The hold has its own tests in ``test_source_freshness.py``.
+    """
+    monkeypatch.setattr(metrics, "is_holding", lambda freshness: False)
+
+
 @pytest.fixture
 def sync_session_factory(tmp_path: Path) -> Iterator[sessionmaker[Session]]:
     engine = create_engine(f"sqlite:///{tmp_path / 'metrics_tasks.db'}")
