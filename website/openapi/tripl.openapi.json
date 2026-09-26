@@ -10523,7 +10523,7 @@
           "metrics"
         ],
         "summary": "Get Active Signals",
-        "description": "Cacheable no-args variant. For filtering by a large event-id list\n(>>a few), prefer ``POST /anomalies/signals/query`` \u2014 GET's query-string\noverflow is real once you cross ~50 ids (proxy/browser limits).\n\n``expanded=true`` (the AnomaliesPage view) also surfaces per-event scopes\nand keeps each incident's child rows, tagged ``incident_child`` rather than\ncollapsed into the parent project_total signal.",
+        "description": "Cacheable no-args variant. For filtering by a large event-id list\n(>>a few), prefer ``POST /anomalies/signals/query`` \u2014 GET's query-string\noverflow is real once you cross ~50 ids (proxy/browser limits).\n\n``expanded=true`` (the AnomaliesPage view) also surfaces per-event scopes\nand keeps each incident's child rows, tagged ``incident_child`` rather than\ncollapsed into the parent project_total signal.\n\n``needs_verdict=true`` keeps only signals with no verdict that nothing\nhides \u2014 the Anomalies page's default filter (F01, #254).",
         "operationId": "get_active_signals_api_v1_projects__slug__anomalies_signals_get",
         "parameters": [
           {
@@ -10563,6 +10563,16 @@
               "type": "boolean",
               "default": false,
               "title": "Expanded"
+            }
+          },
+          {
+            "name": "needs_verdict",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Needs Verdict"
             }
           }
         ],
@@ -11078,6 +11088,180 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/signals/verdict": {
+      "post": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Set Signal Verdict",
+        "operationId": "set_signal_verdict_api_v1_projects__slug__signals_verdict_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalVerdictRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalVerdictResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Clear Signal Verdict",
+        "operationId": "clear_signal_verdict_api_v1_projects__slug__signals_verdict_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MetricScopeType"
+            }
+          },
+          {
+            "name": "scope_ref",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Scope Ref"
+            }
+          },
+          {
+            "name": "bucket",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "scan_config_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scan Config Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/signals/verdict-counts": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Signal Verdict Counts",
+        "description": "Verdict tallies over the open signals (for the project health score).",
+        "operationId": "get_signal_verdict_counts_api_v1_projects__slug__signals_verdict_counts_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalVerdictCountsResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -23717,6 +23901,16 @@
             ],
             "title": "Z Score"
           },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalVerdictInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "baseline_expected": {
             "anyOf": [
               {
@@ -29050,6 +29244,16 @@
               }
             ],
             "title": "Z Score"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalVerdictInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -29326,6 +29530,26 @@
             "type": "boolean",
             "title": "Hidden",
             "default": false
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalVerdictInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incident": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalIncidentBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -36235,6 +36459,17 @@
         ],
         "title": "ShadowEventStatus"
       },
+      "SignalExpectedReason": {
+        "type": "string",
+        "enum": [
+          "campaign",
+          "release",
+          "seasonality",
+          "other"
+        ],
+        "title": "SignalExpectedReason",
+        "description": "Why an ``expected`` signal was expected. Documents only; it does not\nsuppress later buckets."
+      },
       "SignalExpectedRequest": {
         "properties": {
           "scan_config_id": {
@@ -36283,6 +36518,25 @@
           "bucket"
         ],
         "title": "SignalExpectedRequest"
+      },
+      "SignalIncidentBrief": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertInboxStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "SignalIncidentBrief",
+        "description": "The inbox incident a signal was routed into, for a status chip + link."
       },
       "SignalMuteRequest": {
         "properties": {
@@ -36520,6 +36774,256 @@
         "type": "object",
         "title": "SignalTriageState",
         "description": "The triage fields of one signal after a write, as the list would show them."
+      },
+      "SignalVerdict": {
+        "type": "string",
+        "enum": [
+          "expected",
+          "tracking_bug",
+          "false_positive",
+          "real_issue"
+        ],
+        "title": "SignalVerdict",
+        "description": "The verdict half of ``SignalTriageAction``: what a signal turned out to be."
+      },
+      "SignalVerdictCountsResponse": {
+        "properties": {
+          "needs_verdict": {
+            "type": "integer",
+            "title": "Needs Verdict",
+            "default": 0
+          },
+          "expected": {
+            "type": "integer",
+            "title": "Expected",
+            "default": 0
+          },
+          "tracking_bug": {
+            "type": "integer",
+            "title": "Tracking Bug",
+            "default": 0
+          },
+          "false_positive": {
+            "type": "integer",
+            "title": "False Positive",
+            "default": 0
+          },
+          "real_issue": {
+            "type": "integer",
+            "title": "Real Issue",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "SignalVerdictCountsResponse",
+        "description": "Verdicts over the project's open signals (the expanded Anomalies list).\n\n``needs_verdict`` counts signals with no verdict that no mute or\n``expected`` hides; the other four count signals by verdict, whether the\nsignal's own row or its incident's status supplied it (F15 health score)."
+      },
+      "SignalVerdictInfo": {
+        "properties": {
+          "verdict": {
+            "$ref": "#/components/schemas/SignalVerdict"
+          },
+          "expected_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalExpectedReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "signal",
+              "incident"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict",
+          "source"
+        ],
+        "title": "SignalVerdictInfo",
+        "description": "What a signal turned out to be (F01, #254).\n\n``source`` is ``signal`` when the signal's own verdict row supplies it and\n``incident`` when it is read off the status of the incident the signal was\nrouted into (the incident is the source of truth): acknowledged reads as\n``real_issue``, resolved as ``expected``, false_positive as\n``false_positive``. A signal verdict row consistent with the incident's\nstatus refines that reading (``tracking_bug`` on an acknowledged incident,\na reason on an expected one) and wins; one the incident has since moved\naway from is ignored."
+      },
+      "SignalVerdictRequest": {
+        "properties": {
+          "scan_config_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Id"
+          },
+          "scope_type": {
+            "$ref": "#/components/schemas/MetricScopeType"
+          },
+          "scope_ref": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Scope Ref"
+          },
+          "bucket": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Bucket"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/SignalVerdict"
+          },
+          "expected_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalExpectedReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "scope_ref",
+          "bucket",
+          "verdict"
+        ],
+        "title": "SignalVerdictRequest",
+        "description": "``POST /projects/{slug}/signals/verdict`` (F01, #254).\n\n``expected_reason`` belongs to ``expected`` only. ``note`` is free text on\nevery verdict; on ``expected`` it is also the chart annotation's text."
+      },
+      "SignalVerdictResponse": {
+        "properties": {
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "muted": {
+            "type": "boolean",
+            "title": "Muted",
+            "default": false
+          },
+          "muted_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Muted Until"
+          },
+          "expected": {
+            "type": "boolean",
+            "title": "Expected",
+            "default": false
+          },
+          "expected_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Note"
+          },
+          "hidden": {
+            "type": "boolean",
+            "title": "Hidden",
+            "default": false
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalVerdictInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incident": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalIncidentBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "SignalVerdictResponse",
+        "description": "The signal's triage fields, verdict and incident after a verdict write."
       },
       "SimulatedRuleFiring": {
         "properties": {

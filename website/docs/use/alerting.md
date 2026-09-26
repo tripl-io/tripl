@@ -1264,6 +1264,47 @@ second row for the same scope under a different rule name means two rules are
 watching it and you silenced one of them.
 :::
 
+### Signal verdicts and the incident {#signal-verdicts-and-incidents}
+
+A signal can also be triaged where you investigate it — its Anomalies row or its
+drilldown — by giving it a **verdict**: **expected** (with a reason:
+campaign, release, seasonality or other), **tracking bug**, **false positive**
+or **real issue**, each with an optional note and the author and time recorded.
+[Verdicts](./anomaly-detection.md#signal-verdicts) describes them in full.
+
+When the signal belongs to an incident, **the incident is the source of truth**.
+A verdict set on the signal is applied to the incident rather than stored beside
+it:
+
+| Verdict on the signal | Incident status |
+|---|---|
+| False positive | `false_positive` — tunes the scope exactly as the Inbox action does |
+| Real issue | `acknowledged` |
+| Tracking bug | `acknowledged` |
+| Expected | `resolved` |
+
+So each of these stops further deliveries for that incident, and lasts as long as
+the incident does, like the Inbox action it maps to. The signal, in turn, shows
+the incident's state: acknowledge, resolve or mark the incident a false positive
+in the Inbox and the signal's verdict display follows, marked as coming from the
+incident. A signal no rule routed has no incident and reads **Not routed** on
+its drilldown signal card; its verdict is stored on the signal itself.
+
+Three edges keep the two sides in step:
+
+- **Clearing the verdict on a routed signal reopens its incident**, so the UI
+  asks for confirmation first. False-positive tuning stays, as with reopening in
+  the Inbox.
+- **An Inbox action that moves the incident drops signal verdicts that no longer
+  agree** with the new status; one that still agrees (tracking bug on an
+  acknowledged incident, say) stays as the detail.
+- **A verdict set before the signal was routed carries over**: the signal keeps
+  it, and the new incident's status is left untouched.
+
+A false positive tunes detection once whichever side it is set from — marking
+the signal a false positive is the Inbox's **False positive** action, not a
+second ratchet step on top of it.
+
 ### Notes on an incident {#incident-notes}
 
 The note is attached to the incident, survives later actions, and is only

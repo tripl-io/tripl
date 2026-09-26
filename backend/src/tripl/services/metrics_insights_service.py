@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
@@ -21,7 +21,11 @@ from tripl.core.intervals import get_interval
 from tripl.metric_grid import metric_grid_stmt, metric_grids
 from tripl.metric_monitoring import monitored_metric_criteria
 from tripl.models.distribution_drift import DistributionDrift
-from tripl.models.domain_enums import AlertInboxStatus, MetricBreakdownAnomalyKind
+from tripl.models.domain_enums import (
+    AlertInboxStatus,
+    MetricBreakdownAnomalyKind,
+    SignalVerdict,
+)
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
@@ -42,6 +46,7 @@ from tripl.schemas.event_metric import (
     SeasonalityHeatmapResponse,
     SignalSeriesResponse,
     SignalSeriesScope,
+    SignalVerdictCountsResponse,
     TopMoverItem,
 )
 from tripl.services import alerting_service, signal_triage_service
@@ -62,6 +67,7 @@ from tripl.services.monitoring_utils import (
     scan_interval_to_timedelta,
     scan_liveness_cutoff,
 )
+from tripl.services.signal_triage_service import SignalKey
 from tripl.worker.analyzers.metric_value_kind import is_count_shaped
 
 
@@ -796,6 +802,58 @@ async def get_active_signals(
     return await _with_live_state(session, project.id, signals, expanded=expanded)
 
 
+def _is_significant(signal: MetricSignalResponse) -> bool:
+    """The badge's magnitude gate, on an already-listed signal.
+
+    Reads the ``relative_effect`` the list computed (shape-aware: a fractional
+    metric is not floored like a count); falls back to the count-shaped rule
+    the badge applies to scan scopes when it is missing.
+    """
+    if signal.relative_effect is not None:
+        return signal.relative_effect >= SIGNIFICANT_MIN_REL_EFFECT
+    return is_significant_signal(signal.actual_count, signal.expected_count)
+
+
+def _needs_verdict(signal: MetricSignalResponse) -> bool:
+    return signal.verdict is None and not signal.hidden and _is_significant(signal)
+
+
+def needing_verdict(signals: list[MetricSignalResponse]) -> list[MetricSignalResponse]:
+    """The signals still waiting for a verdict: none set, none read off an
+    incident, not hidden by a mute, and significant by the same magnitude gate
+    as the sidebar badge (``is_significant_signal``), so the filter lists
+    exactly what the badge counts (F01, #254). The Anomalies page's default
+    filter (``?needs_verdict=true``)."""
+    return [signal for signal in signals if _needs_verdict(signal)]
+
+
+async def get_signal_verdict_counts(
+    session: AsyncSession, slug: str
+) -> SignalVerdictCountsResponse:
+    """Verdict tallies over the project's open signals (the expanded list).
+
+    The population is the Anomalies page's, hidden signals included, so an
+    ``expected`` signal (which is hidden) still counts as expected; a signal
+    hidden only by a mute has no verdict and is in no bucket. ``needs_verdict``
+    applies the badge's magnitude gate too, so it equals the sidebar badge.
+    """
+    signals = await get_active_signals(session, slug, expanded=True)
+    counts: dict[str, int] = {verdict.value: 0 for verdict in SignalVerdict}
+    needs = 0
+    for signal in signals:
+        if signal.verdict is not None:
+            counts[signal.verdict.verdict.value] += 1
+        elif _needs_verdict(signal):
+            needs += 1
+    return SignalVerdictCountsResponse(
+        needs_verdict=needs,
+        expected=counts[SignalVerdict.expected.value],
+        tracking_bug=counts[SignalVerdict.tracking_bug.value],
+        false_positive=counts[SignalVerdict.false_positive.value],
+        real_issue=counts[SignalVerdict.real_issue.value],
+    )
+
+
 async def _with_live_state(
     session: AsyncSession,
     project_id: uuid.UUID,
@@ -805,33 +863,15 @@ async def _with_live_state(
 ) -> list[MetricSignalResponse]:
     """The per-fetch state layered over the (cacheable) signal list.
 
-    Incident refs on the expanded list, then triage (MO-4 / JR-5) on both: the
-    collapsed list drops muted / expected signals outright, because the top bar,
-    Overview and Events count what it returns; the expanded list keeps them
-    flagged ``hidden`` so the Anomalies page can offer "Show hidden (n)".
+    Incident refs (one lookup for the list), then triage (MO-4 / JR-5) and
+    verdicts (F01, #254) on both lists: the collapsed list drops muted /
+    expected signals outright, because the top bar, Overview and Events count
+    what it returns; the expanded list keeps them flagged ``hidden`` so the
+    Anomalies page can offer "Show hidden (n)". ``incident_id`` /
+    ``incident_status`` stay an expanded-list field; ``incident`` is on both.
     """
-    if expanded:
-        signals = await _with_incident_refs(session, project_id, signals)
-    return await signal_triage_service.apply_triage(
-        session,
-        project_id,
-        signals,
-        drop_hidden=not expanded,
-        incidents_resolved=expanded,
-    )
-
-
-async def _with_incident_refs(
-    session: AsyncSession,
-    project_id: uuid.UUID,
-    signals: list[MetricSignalResponse],
-) -> list[MetricSignalResponse]:
-    """Copies of ``signals`` naming the inbox incident each was routed into (JR-6).
-
-    Applied after the cache read and after the cache write, never before: an
-    incident's status moves with triage, which invalidates nothing here, so a
-    cached status would lag the inbox for the cache's lifetime.
-    """
+    if not signals:
+        return signals
     refs = await alerting_service.incident_refs_for_signals(
         session,
         project_id,
@@ -840,6 +880,27 @@ async def _with_incident_refs(
             for signal in signals
         ),
     )
+    if expanded:
+        signals = _with_incident_refs(signals, refs)
+    return await signal_triage_service.apply_triage(
+        session,
+        project_id,
+        signals,
+        drop_hidden=not expanded,
+        refs=refs,
+    )
+
+
+def _with_incident_refs(
+    signals: list[MetricSignalResponse],
+    refs: Mapping[SignalKey, alerting_service.SignalIncidentRef],
+) -> list[MetricSignalResponse]:
+    """Copies of ``signals`` naming the inbox incident each was routed into (JR-6).
+
+    Applied after the cache read and after the cache write, never before: an
+    incident's status moves with triage, which invalidates nothing here, so a
+    cached status would lag the inbox for the cache's lifetime.
+    """
     if not refs:
         return signals
     out: list[MetricSignalResponse] = []

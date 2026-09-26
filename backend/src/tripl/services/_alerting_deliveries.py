@@ -14,6 +14,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
+from tripl import cache
 from tripl.alert_templates import has_baseline, percent_delta_or_none
 from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
@@ -33,6 +34,7 @@ from tripl.models.project_anomaly_settings import (
     ProjectAnomalySettings,
 )
 from tripl.models.scan_config import ScanConfig
+from tripl.models.signal_triage import SignalTriage
 from tripl.models.user import User
 from tripl.schemas.alerting import (
     AlertDeliveryDetailResponse,
@@ -54,6 +56,8 @@ from tripl.services._alerting_cursors import (
     encode_inbox_cursor,
 )
 from tripl.services._celery_dispatch import dispatch
+from tripl.services._signal_verdict_read import VERDICT_ACTIONS, status_agrees
+from tripl.services._signal_verdict_rows import delete_verdict_rows
 from tripl.services.project_lookup import get_project_by_slug as _get_project
 
 logger = logging.getLogger(__name__)
@@ -1310,6 +1314,49 @@ async def _tune_false_positive_thresholds(
         )
     ).all()
 
+    return await tune_false_positive_scopes(
+        session,
+        project_id=project_id,
+        scopes=[
+            FalsePositiveScope(
+                scan_config_id=scan_config_id,
+                scope_type=str(scope_type),
+                scope_ref=scope_ref,
+                scope_name=scope_name,
+            )
+            for scan_config_id, scope_type, scope_ref, scope_name in rows
+        ],
+    )
+
+
+@dataclass(frozen=True)
+class FalsePositiveScope:
+    """One scope a false-positive verdict tightens detection on."""
+
+    scan_config_id: uuid.UUID | None
+    scope_type: str
+    scope_ref: str
+    scope_name: str | None = None
+
+
+async def tune_false_positive_scopes(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    scopes: Iterable[FalsePositiveScope],
+) -> int:
+    """Ratchet each scope's ``AnomalyScopeOverride`` one false-positive step.
+
+    The ONE implementation of "a false positive makes detection stricter",
+    shared by an incident marked false positive (``_tune_false_positive_thresholds``
+    feeds it the group's delivered scopes) and by a signal verdict of
+    ``false_positive`` on a signal no rule routed (``signal_triage_service``
+    feeds it that one scope, F01 #254). Returns the number of overrides written
+    or ratcheted. DOES NOT COMMIT.
+    """
+    scopes = list(scopes)
+    if not scopes:
+        return 0
     settings = await session.scalar(
         select(ProjectAnomalySettings).where(ProjectAnomalySettings.project_id == project_id)
     )
@@ -1317,8 +1364,11 @@ async def _tune_false_positive_thresholds(
     base_count = settings.min_expected_count if settings is not None else DEFAULT_MIN_EXPECTED_COUNT
 
     seen: set[tuple[uuid.UUID | None, str, str]] = set()
-    for scan_config_id, scope_type, scope_ref, scope_name in rows:
-        scope_type = str(scope_type)
+    for scope in scopes:
+        scan_config_id = scope.scan_config_id
+        scope_type = str(scope.scope_type)
+        scope_ref = scope.scope_ref
+        scope_name = scope.scope_name
         if scope_type not in RATCHETABLE_SCOPE_TYPES:
             # Schema/distribution/variable-value drift and release regressions
             # reach the inbox too, but nothing scores them with these two knobs,
@@ -1455,6 +1505,85 @@ async def _apply_inbox_action_to_state(
     return overrides_written
 
 
+async def prune_disagreeing_signal_verdicts(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    correlation_group_ids: Iterable[uuid.UUID],
+) -> int:
+    """Delete the verdict rows on these incidents' signals that no longer agree.
+
+    Called by the inbox after it moved incidents, BEFORE its commit. A verdict
+    row the incident's new status disagrees with (``tracking_bug`` on an
+    incident just reopened, ``expected`` on one marked false positive) is
+    ignored at read time anyway; deleting it keeps a later move back — reopen,
+    then acknowledge — from resurrecting it in place of the call the inbox just
+    made. Goes through ``delete_verdict_rows``, so an ``expected`` row's chart
+    annotation goes with it. DOES NOT COMMIT. Returns the number deleted.
+
+    A signal re-delivered into a different incident belongs to the newest one
+    (``incident_refs_for_signals``), and only that incident's status is read.
+    """
+    group_ids = set(correlation_group_ids)
+    if not group_ids:
+        return 0
+    # Pending state changes must be visible to the status lookup below.
+    await session.flush()
+    item_rows = (
+        await session.execute(
+            select(
+                AlertDelivery.scan_config_id,
+                AlertDeliveryItem.scope_type,
+                AlertDeliveryItem.scope_ref,
+                AlertDeliveryItem.bucket,
+            )
+            .join(AlertDelivery, AlertDelivery.id == AlertDeliveryItem.delivery_id)
+            .where(
+                AlertDelivery.project_id == project_id,
+                AlertDeliveryItem.correlation_group_id.in_(group_ids),
+            )
+        )
+    ).all()
+    keys: set[SignalKey] = set()
+    for scan_config_id, scope_type, scope_ref, bucket in item_rows:
+        if bucket is None:
+            continue
+        scope = str(scope_type)
+        signal_scan = None if scope == MetricScopeType.metric.value else scan_config_id
+        keys.add((signal_scan, scope, scope_ref, _as_utc(bucket)))
+    if not keys:
+        return 0
+    refs = {
+        key: ref
+        for key, ref in (await incident_refs_for_signals(session, project_id, keys)).items()
+        if ref.correlation_group_id in group_ids
+    }
+    if not refs:
+        return 0
+    buckets = [key[3] for key in refs]
+    verdict_rows = (
+        await session.execute(
+            select(SignalTriage).where(
+                SignalTriage.project_id == project_id,
+                SignalTriage.action.in_(sorted(VERDICT_ACTIONS)),
+                SignalTriage.scope_ref.in_({key[2] for key in refs}),
+                SignalTriage.bucket >= min(buckets),
+                SignalTriage.bucket <= max(buckets),
+            )
+        )
+    ).scalars()
+    stale: list[SignalTriage] = []
+    for row in verdict_rows:
+        if row.bucket is None:
+            continue
+        scope = str(row.scope_type)
+        row_scan = None if scope == MetricScopeType.metric.value else row.scan_config_id
+        ref = refs.get((row_scan, scope, row.scope_ref, _as_utc(row.bucket)))
+        if ref is not None and not status_agrees(ref.status, str(row.action)):
+            stale.append(row)
+    return await delete_verdict_rows(session, project_id, stale)
+
+
 async def apply_alert_inbox_action(
     session: AsyncSession,
     slug: str,
@@ -1479,7 +1608,15 @@ async def apply_alert_inbox_action(
         user_id=user_id,
         now=now,
     )
+    # A note moves nothing, so it leaves every signal verdict as it was.
+    if data.action != "note":
+        await prune_disagreeing_signal_verdicts(
+            session, project_id=project.id, correlation_group_ids=[correlation_group_id]
+        )
     await session.commit()
+    # The sidebar badge counts only signals without a verdict, and an incident's
+    # status IS the verdict of the signals routed into it (F01, #254).
+    await cache.delete_prefix(cache.prefix_projects())
 
     # Built for THIS group alone, not by re-listing the inbox: rebuilding every
     # group's response on every click was O(project) and 404'd after a SUCCESSFUL
@@ -1499,6 +1636,41 @@ async def apply_alert_inbox_action(
         cutoff=_inbox_cutoff(now),
     )
     return AlertInboxActionResponse(group=group, overrides_written=overrides_written)
+
+
+async def apply_signal_verdict_to_incident(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    correlation_group_id: uuid.UUID,
+    action: str,
+    note: str | None,
+    user_id: uuid.UUID,
+) -> AlertCorrelationState:
+    """Apply an inbox ``action`` to the incident a signal verdict was set on.
+
+    A verdict on a signal that belongs to an incident writes through to the
+    incident, which stays the source of truth (F01, #254): the same state
+    transition, the same false-positive tuning and the same ``acted_*`` stamp
+    as a click in the inbox. DOES NOT COMMIT; the caller commits the incident
+    change together with the signal's own verdict row.
+    """
+    state = await _get_or_create_correlation_state(
+        session,
+        project_id=project_id,
+        correlation_group_id=correlation_group_id,
+    )
+    await _apply_inbox_action_to_state(
+        session,
+        project_id=project_id,
+        state=state,
+        action=action,
+        note=note,
+        muted_until=None,
+        user_id=user_id,
+        now=datetime.now(UTC),
+    )
+    return state
 
 
 def dedupe_correlation_group_ids(correlation_group_ids: list[uuid.UUID]) -> list[uuid.UUID]:
@@ -1766,8 +1938,15 @@ async def apply_alert_inbox_bulk_action(
             user_id=user_id,
             now=now,
         )
+    # Same transaction: the stale signal verdicts go with the state change.
+    if data.action != "note":
+        await prune_disagreeing_signal_verdicts(
+            session, project_id=project.id, correlation_group_ids=group_ids
+        )
     # The one and only commit. Every state row above lands together or none does.
     await session.commit()
+    # See ``apply_alert_inbox_action``: incident status feeds the sidebar badge.
+    await cache.delete_prefix(cache.prefix_projects())
 
     groups = await _build_inbox_group_batch(
         session,
@@ -1796,6 +1975,16 @@ SignalKey = tuple[uuid.UUID | None, str, str, datetime]
 class SignalIncidentRef:
     correlation_group_id: uuid.UUID
     status: str
+    # Who last decided the incident's status, when, and its note; the signal's
+    # verdict display falls back to these when the signal carries no verdict
+    # row of its own (F01, #254). NULL on an incident nobody has acted on.
+    acted_by: uuid.UUID | None = None
+    acted_at: datetime | None = None
+    note: str | None = None
+    # When the signal was first delivered into this incident. A verdict row set
+    # on the signal before then keeps winning while the incident is untouched
+    # (``_signal_verdict_read.record_prevails``).
+    routed_at: datetime | None = None
 
 
 async def incident_refs_for_signals(
@@ -1831,6 +2020,7 @@ async def incident_refs_for_signals(
                 AlertDeliveryItem.scope_ref,
                 AlertDeliveryItem.bucket,
                 AlertDeliveryItem.correlation_group_id,
+                AlertDelivery.created_at,
             )
             .join(AlertDelivery, AlertDelivery.id == AlertDeliveryItem.delivery_id)
             .where(
@@ -1845,13 +2035,18 @@ async def incident_refs_for_signals(
     ).all()
 
     group_by_key: dict[SignalKey, uuid.UUID] = {}
-    for scan_config_id, scope_type, scope_ref, bucket, group_id in rows:
+    routed_at_by_key: dict[SignalKey, datetime | None] = {}
+    for scan_config_id, scope_type, scope_ref, bucket, group_id, delivered_at in rows:
         # A catalog-metric signal carries no scan, whatever the delivery row
         # was filed under; match it on scope and bucket alone.
         signal_scan = None if scope_type == MetricScopeType.metric.value else scan_config_id
         key = (signal_scan, str(scope_type), scope_ref, _as_utc(bucket))
         if key in wanted and group_id is not None:
-            group_by_key[key] = group_id  # ascending order: the newest wins
+            # Ascending order: the newest group wins, and the first delivery
+            # into that group is when the signal was routed to it.
+            if group_by_key.get(key) != group_id:
+                routed_at_by_key[key] = _as_utc(delivered_at) if delivered_at is not None else None
+            group_by_key[key] = group_id
     if not group_by_key:
         return {}
 
@@ -1868,9 +2063,22 @@ async def incident_refs_for_signals(
     }
     now = datetime.now(UTC)
     return {
-        key: SignalIncidentRef(
-            correlation_group_id=group_id,
-            status=_effective_inbox_status(states.get(group_id), now),
-        )
+        key: _incident_ref(group_id, states.get(group_id), now, routed_at_by_key.get(key))
         for key, group_id in group_by_key.items()
     }
+
+
+def _incident_ref(
+    group_id: uuid.UUID,
+    state: AlertCorrelationState | None,
+    now: datetime,
+    routed_at: datetime | None = None,
+) -> SignalIncidentRef:
+    return SignalIncidentRef(
+        routed_at=routed_at,
+        correlation_group_id=group_id,
+        status=_effective_inbox_status(state, now),
+        acted_by=state.acted_by if state is not None else None,
+        acted_at=_as_utc(state.acted_at) if state is not None and state.acted_at else None,
+        note=state.note if state is not None else None,
+    )

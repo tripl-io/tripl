@@ -37,8 +37,15 @@ import { formatDateTime } from '@/lib/datetime'
 import { APP_LOCALE, formatNumber } from '@/lib/format'
 import type { MetricsGranularity } from '@/lib/metrics'
 import { ratioDelta } from '@/lib/percentDelta'
+import { verdictLabel } from '@/lib/signalVerdict'
 import { useTheme, type ChartStyle } from '@/components/theme-provider'
-import type { ChartAnnotation, ChartAnnotationSource, EventMetricPoint, ForecastPoint } from '@/types'
+import type {
+  ChartAnnotation,
+  ChartAnnotationSource,
+  EventMetricPoint,
+  ForecastPoint,
+  SignalVerdict,
+} from '@/types'
 import {
   annotationMarkerColor,
   annotationSourceLabel,
@@ -280,6 +287,8 @@ interface ChartDataPoint {
   is_anomaly?: boolean
   anomaly_direction?: 'spike' | 'drop' | null
   z_score?: number | null
+  /** The verdict on this flagged bucket's signal (#254), shown in the tooltip. */
+  verdict?: SignalVerdict | null
   band?: [number, number]
   /** `band` as offsets from `expected_count`, the shape ErrorBar reads. */
   expected_error?: [number, number]
@@ -572,8 +581,30 @@ export function CustomTooltip({
           zScore={point.z_score}
         />
       )}
+      {point.is_anomaly && point.verdict && <VerdictTooltipLine verdict={point.verdict} />}
       {partialNote && <p className="text-body-sm text-fg-tertiary">{partialNote}</p>}
     </div>
+  )
+}
+
+/** Past this many characters a verdict note is cut short in the tooltip. */
+const TOOLTIP_NOTE_MAX = 80
+
+/**
+ * What somebody decided the flagged bucket was (#254): "Verdict: Expected ·
+ * campaign", its note beneath, cut short — the Signal card has it whole.
+ */
+function VerdictTooltipLine({ verdict }: { verdict: SignalVerdict }) {
+  const note = verdict.note?.trim()
+  return (
+    <>
+      <p className="text-body-sm font-medium text-fg-secondary">Verdict: {verdictLabel(verdict)}</p>
+      {note && (
+        <p className="max-w-[16rem] text-body-sm text-fg-tertiary">
+          {note.length > TOOLTIP_NOTE_MAX ? `${note.slice(0, TOOLTIP_NOTE_MAX)}…` : note}
+        </p>
+      )}
+    </>
   )
 }
 

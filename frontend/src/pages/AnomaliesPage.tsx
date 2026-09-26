@@ -45,10 +45,11 @@ import {
   useSignalSeries,
 } from '@/lib/monitoringSignalSeries'
 import { Sparkline, SparklineSkeleton } from '@/components/primitives/sparkline'
-import type { MonitoringSignal, SignalSeries } from '@/types'
+import { VERDICT_OPTIONS, needsVerdict } from '@/lib/signalVerdict'
+import type { MonitoringSignal, SignalSeries, SignalVerdictKind } from '@/types'
 import { scansKey } from '@/lib/queryKeys'
 import { SignalActions } from './anomalies/SignalActions'
-import { countHiddenSignals, triageStatusLabel } from './anomalies/signalTriage'
+import { countHiddenSignals, signalIncidentId, triageStatusLabel } from './anomalies/signalTriage'
 
 // Change sits right after the scope and its trend, the one figure a reader
 // scans for (MO-19). The trend column is sm+ only: its cell is `hidden` below,
@@ -126,6 +127,30 @@ const CATALOG_METRICS = 'catalog-metrics'
 const facetKey = (scanConfigId: string | null): string => scanConfigId ?? CATALOG_METRICS
 const facetLabel = (id: string, scanNames: ScanNames): string =>
   id === CATALOG_METRICS ? 'Catalog metrics' : (scanNames.get(id) ?? `Scan ${id.slice(0, 8)}`)
+
+// ───────── Verdict filter (#254) ─────────
+//
+// The page opens on the signals nobody has answered yet: "Needs verdict" is
+// the default, absent from the URL like every other default; `?verdict=all`
+// clears it and `?verdict=<kind>` lists one verdict. Filtered here, on the one
+// shared expanded list, rather than with the server's `?needs_verdict=true`:
+// the bell and Overview read the same cache entry, and a second key would fork
+// it (tripl-jfm3.119).
+type VerdictFilter = 'needs' | 'all' | SignalVerdictKind
+const DEFAULT_VERDICT_FILTER: VerdictFilter = 'needs'
+const VERDICT_FILTERS: readonly VerdictFilter[] = [
+  'needs',
+  'all',
+  ...VERDICT_OPTIONS.map((option) => option.verdict),
+]
+const toVerdictFilter = (value: string | null): VerdictFilter =>
+  VERDICT_FILTERS.find((filter) => filter === value) ?? DEFAULT_VERDICT_FILTER
+
+function matchesVerdictFilter(signal: MonitoringSignal, filter: VerdictFilter): boolean {
+  if (filter === 'all') return true
+  if (filter === 'needs') return needsVerdict(signal)
+  return signal.verdict?.verdict === filter
+}
 
 /** `?level=` → a preset, degrading an absent or unknown value to the default. */
 const toMagnitudeLevel = (value: string | null): MagnitudeLevel =>
@@ -207,16 +232,33 @@ export default function AnomaliesPage() {
       { replace: true },
     )
   }
+  const verdictFilter = toVerdictFilter(searchParams.get('verdict'))
+  const setVerdictFilter = (next: VerdictFilter) => {
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous)
+        if (next === DEFAULT_VERDICT_FILTER) params.delete('verdict')
+        else params.set('verdict', next)
+        return params
+      },
+      { replace: true },
+    )
+  }
+  // Asking for one verdict asks for its signals, hidden or not: an "expected"
+  // one is always hidden, and the filter would otherwise list nothing.
+  const pickedVerdict = verdictFilter !== 'needs' && verdictFilter !== 'all'
   const allSignals = signalsQuery.data ?? []
   const hiddenTotal = countHiddenSignals(allSignals)
-  const signals = showHidden ? allSignals : allSignals.filter((s) => !s.hidden)
+  const signals = showHidden || pickedVerdict ? allSignals : allSignals.filter((s) => !s.hidden)
   const total = signals.length
+  // Verdict first: it decides which signals the page is about at all.
+  const byVerdict = signals.filter((s) => matchesVerdictFilter(s, verdictFilter))
   // Row sparklines, one batched request beside the signals list rather than
   // inside its shared 30 s cache (MO-19).
   const seriesQuery = useSignalSeries(slug, signalsQuery.data)
   const activePreset = MAGNITUDE_PRESETS.find((p) => p.id === level) ?? MAGNITUDE_PRESETS[0]
   const threshold = activePreset.minRelEffect
-  const byMagnitude = signals.filter((s) => relativeEffect(s) >= threshold)
+  const byMagnitude = byVerdict.filter((s) => relativeEffect(s) >= threshold)
 
   // Scan facet. Every signal already carries its scan_config_id, and
   // useExpandedSignals is one unfiltered GET shared with the bell and Overview,
@@ -243,7 +285,7 @@ export default function AnomaliesPage() {
     countsAtLevel.set(key, (countsAtLevel.get(key) ?? 0) + 1)
   }
   const scanTotals = new Map<string, number>()
-  for (const signal of signals) {
+  for (const signal of byVerdict) {
     const key = facetKey(signal.scan_config_id)
     scanTotals.set(key, (scanTotals.get(key) ?? 0) + 1)
   }
@@ -292,13 +334,16 @@ export default function AnomaliesPage() {
   // the magnitude level and scan facet. Counting the whole list offered rows the
   // filters would then keep out. `hiddenTotal` (unfiltered) still decides
   // whether anything is hidden at all.
-  const hiddenInView = countHiddenSignals(
-    allSignals.filter(
-      (s) =>
-        relativeEffect(s) >= threshold
-        && (activeScanId === ALL_SCANS || facetKey(s.scan_config_id) === activeScanId),
-    ),
-  )
+  const hiddenInView = pickedVerdict
+    ? 0
+    : countHiddenSignals(
+        allSignals.filter(
+          (s) =>
+            matchesVerdictFilter(s, verdictFilter)
+            && relativeEffect(s) >= threshold
+            && (activeScanId === ALL_SCANS || facetKey(s.scan_config_id) === activeScanId),
+        ),
+      )
   // No number when every hidden signal is outside the filters: the empty state
   // still offers the way back, and a "(0)" would read as "nothing is hidden".
   const showHiddenLabel =
@@ -306,7 +351,8 @@ export default function AnomaliesPage() {
   const visibleCount = filtered.length
   const hiddenCount = total - visibleCount
   // Split so the subtitle can name the filter responsible for each omission.
-  const belowLevelCount = total - byMagnitude.length
+  const otherVerdictCount = total - byVerdict.length
+  const belowLevelCount = byVerdict.length - byMagnitude.length
   const otherScansCount = byMagnitude.length - visibleCount
   // Rollup counts reflect what's actually shown (the filtered set).
   const spikes = filtered.filter((s) => s.direction === 'spike').length
@@ -317,12 +363,22 @@ export default function AnomaliesPage() {
   // Signals exist, but the current filters hide every one.
   const allFiltered = !isEmpty && total > 0 && visibleCount === 0
   // Which filter emptied the list decides which one the hint offers to drop.
-  const emptiedByScan = allFiltered && byMagnitude.length > 0
+  // The verdict filter first: with every open signal answered, lowering the
+  // magnitude or widening the scan cannot bring a row back.
+  const emptiedByVerdict = allFiltered && byVerdict.length === 0
+  const emptiedByScan = allFiltered && !emptiedByVerdict && byMagnitude.length > 0
   // ...and "this scan has nothing open at ALL" is not "nothing at this level":
   // lowering the magnitude filter cannot help, and the user arrived from a run
   // that counted signals which have since closed. Say that instead.
   const scanHasNothingOpen =
-    allFiltered && activeScanId !== ALL_SCANS && (scanTotals.get(activeScanId) ?? 0) === 0
+    allFiltered
+    && !emptiedByVerdict
+    && activeScanId !== ALL_SCANS
+    && (scanTotals.get(activeScanId) ?? 0) === 0
+  const verdictFilterLabel =
+    verdictFilter === 'needs'
+      ? 'Needs verdict'
+      : VERDICT_OPTIONS.find((option) => option.verdict === verdictFilter)?.label ?? 'All'
   const activeScanLabel =
     activeScanId === CATALOG_METRICS ? 'Catalog metrics' : (scanNames.get(activeScanId) ?? 'this scan')
   // Nothing open AND nothing that could ever open anything: no scan collects
@@ -350,8 +406,9 @@ export default function AnomaliesPage() {
               <Link to={getAlertingPath(slug)} className="text-accent">
                 Alerting
               </Link>
-              , are the ones an alert rule routed to your team; triage those there. Acknowledge,
-              mute or mark the rest as expected from each row’s menu.
+              , are the ones an alert rule routed to your team. Give each signal a verdict —
+              expected, tracking bug, false positive or real issue — from its row’s menu; on a
+              routed signal it updates the incident. Acknowledge or mute the rest there too.
             </>
           ) : undefined
         }
@@ -462,6 +519,11 @@ export default function AnomaliesPage() {
               signalsQuery.data
                 ? hiddenCount > 0
                   ? `${visibleCount} of ${total} open · ${[
+                      otherVerdictCount > 0
+                        ? verdictFilter === 'needs'
+                          ? `${otherVerdictCount} with a verdict`
+                          : `${otherVerdictCount} with another verdict`
+                        : null,
                       belowLevelCount > 0
                         ? `${belowLevelCount} below ${activePreset.label.toLowerCase()}`
                         : null,
@@ -489,6 +551,18 @@ export default function AnomaliesPage() {
                     {showHiddenLabel}
                   </Button>
                 )}
+                {/* What still needs somebody's call, by default (#254). */}
+                <FilterSelect
+                  label="Verdict"
+                  value={verdictFilter}
+                  onValueChange={(next) => setVerdictFilter(toVerdictFilter(next))}
+                  anyValue="all"
+                  anyLabel="All"
+                  options={[
+                    { value: 'needs', label: 'Needs verdict' },
+                    ...VERDICT_OPTIONS.map((option) => ({ value: option.verdict, label: option.label })),
+                  ]}
+                />
                 {/* Only worth the header room once there is something to choose
                     between: a single-scan project gains nothing from it. */}
                 {scanOptions.length > 1 && (
@@ -523,14 +597,20 @@ export default function AnomaliesPage() {
                 <EmptyState
                   icon={Activity}
                   title={
-                    scanHasNothingOpen
+                    emptiedByVerdict
+                      ? verdictFilter === 'needs'
+                        ? 'Every open signal has a verdict'
+                        : `No open signals marked ${verdictFilterLabel.toLowerCase()}`
+                      : scanHasNothingOpen
                       ? `No open anomalies from ${activeScanLabel}`
                       : emptiedByScan
                         ? `Nothing in ${activeScanLabel} at this level`
                         : `Nothing at the ${activePreset.label.toLowerCase()} level`
                   }
                   description={
-                    scanHasNothingOpen
+                    emptiedByVerdict
+                      ? 'Clear the verdict filter to review the answered ones.'
+                      : scanHasNothingOpen
                       ? 'A signal closes once the metric comes back to normal, so the ones an earlier run raised may already be gone.'
                       : emptiedByScan
                         ? 'Other scans still have open signals at this magnitude.'
@@ -541,6 +621,10 @@ export default function AnomaliesPage() {
                       type="button"
                       variant="outline"
                       onClick={() => {
+                        if (emptiedByVerdict) {
+                          setVerdictFilter('all')
+                          return
+                        }
                         if (!scanHasNothingOpen && !emptiedByScan) {
                           setLevel('all')
                           return
@@ -552,7 +636,9 @@ export default function AnomaliesPage() {
                         if (byMagnitude.length === 0) setLevel('all')
                       }}
                     >
-                      {scanHasNothingOpen || emptiedByScan
+                      {emptiedByVerdict
+                        ? `Show all verdicts (${formatNumber(total)})`
+                        : scanHasNothingOpen || emptiedByScan
                         ? `Show all scans (${formatNumber(byMagnitude.length || total)})`
                         : `Show all ${formatNumber(total)}`}
                     </Button>
@@ -659,6 +745,8 @@ function AnomalyRow({
   const effectDetail = formatSignalEffectDetail(signal)
   const href = slug && isLinkableScope(signal) ? getMonitoringPath(slug, signal) : undefined
   const triageStatus = triageStatusLabel(signal)
+  const incidentId = signalIncidentId(signal)
+  const incidentStatus = signal.incident?.status ?? signal.incident_status ?? null
   // The "Spike on" / "Drop on" prefix is visual on sm+ only: on a phone the
   // arrow already carries the direction and the words cost the scope name
   // most of its width (MO-20). `sr-only` rather than `hidden` keeps it in the
@@ -719,7 +807,7 @@ function AnomalyRow({
         {triageStatus && (
           <span
             className="relative shrink-0 whitespace-nowrap text-micro text-fg-tertiary"
-            title={signal.expected_note ?? undefined}
+            title={(signal.verdict ? signal.verdict.note : signal.expected_note) ?? undefined}
           >
             · {triageStatus}
           </span>
@@ -727,13 +815,13 @@ function AnomalyRow({
         {/* The incident a rule routed this signal into, so the queue that
             owes work is one click away (JR-6). `relative` lifts it over the
             row link. */}
-        {slug && signal.incident_id && (
+        {slug && incidentId && (
           <Link
-            to={getAlertingPath(slug, { incidentId: signal.incident_id })}
+            to={getAlertingPath(slug, { incidentId })}
             className="relative shrink-0 whitespace-nowrap text-micro no-underline hover:underline text-accent"
           >
             Incident
-            {signal.incident_status ? ` · ${alertInboxStatusLabel(signal.incident_status).toLowerCase()}` : ''}
+            {incidentStatus ? ` · ${alertInboxStatusLabel(incidentStatus).toLowerCase()}` : ''}
           </Link>
         )}
       </span>

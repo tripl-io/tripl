@@ -567,45 +567,163 @@ fractional metric series that floor would be a category error, so it is
 did not compute it — fall back to your own count-shaped estimate rather than
 treating the signal as having no magnitude.
 
-### Triaging a signal that is not an incident {#triaging-a-signal}
+### Triaging a signal {#triaging-a-signal}
 
-A signal that an alert rule routed to an incident is triaged in the
-[Alerting Inbox](./alerting.md), and its Anomalies row keeps an **Open incident**
-action. Every other signal can be triaged from the **⋯** menu at the end of its
-row on the Anomalies page:
+Every signal can be triaged from the **⋯** menu at the end of its row on the
+Anomalies page and from the signal card on its drilldown. Triage is two
+different things: **handling** a signal (acknowledge, mute) and giving it a
+**verdict** — a statement of what the move actually was.
+
+**Handling.** These apply only to a signal that no alert rule routed to an
+incident; an incident is handled in the [Alerting Inbox](./alerting.md), and its
+Anomalies row keeps an **Open incident** action.
 
 - **Acknowledge** — you have seen it. The signal stays listed and counted, marked
-  *Acknowledged*. **Undo acknowledge** removes the mark.
+  *Acknowledged*. **Undo acknowledge** removes the mark. Acknowledging is not a
+  verdict: an acknowledged signal still counts as needing one.
 - **Mute this scope** — for **24 hours**, **7 days** or **until unmuted**. Every
   signal on that scope (the same event, event type, project total or catalog
   metric, on the same scan) is hidden while the mute lasts, including ones that
   open later. A lapsed mute stops hiding anything on its own. Muting again
   replaces the previous length; **Unmute scope** ends it.
-- **Mark as expected…** — the move has a known cause, such as a deploy or a
-  campaign. Add an optional note, and tripl writes a slate *Expected* annotation
-  on the chart at that bucket with the note as its text, then hides that one
-  signal. **Undo expected** removes both the mark and the annotation.
 
-Muted and expected signals are **hidden**: they leave the open list and every
-count built from it — the sidebar badge, the Overview **Open signals** headline
-and the notifications bell. On the Anomalies page, **Show hidden (n)** puts them
-back in the list, marked *Muted* or *Expected*, so a verdict can be reviewed or
-undone. Triage changes nothing about detection itself: the thresholds stay where
-they were, and an acknowledged, muted or expected signal is scored exactly as
-before. A verdict given before a rule routed the signal to an incident is
-ignored from then on; the inbox decides.
+#### Verdicts {#signal-verdicts}
 
-Triage needs the editor role. Each action is recorded in the project's audit log
-(`signal.acknowledge`, `signal.mute`, `signal.mark_expected` and their undos).
-Through the API, the verdicts are `POST` / `DELETE` on
-`/projects/{slug}/anomalies/signals/acknowledge`, `…/mute` and `…/expected`,
-keyed like the signal (`scan_config_id` — `null` for a catalog metric —
-`scope_type`, `scope_ref` and `bucket`); a mute takes `duration` (`24h`, `7d` or
-`until_unmuted`) and an expected mark an optional `note`. A signal routed to an
-incident answers `409`. Expanded signals carry the result as
-`acknowledged_at`, `muted`, `muted_until` (`null` also when muted until
-unmuted), `expected`, `expected_note` and `hidden`; the collapsed list drops
-hidden signals outright.
+A verdict records what the signal turned out to be, so the knowledge stays with
+the signal instead of in someone's head. There are four:
+
+| Verdict | Means | What else it does |
+|---|---|---|
+| **Expected** | The move has a known cause. Pick a reason: **campaign**, **release**, **seasonality** or **other**. | Writes a slate *Expected* annotation on the chart at that bucket, with the note as its text, and hides that one signal. |
+| **Tracking bug** | The data is wrong, not the product: an event fired twice, stopped firing after a client change, and so on. | On an **event** signal, once it carries this verdict, the menu offers **Open a comment on the event**, which opens the event's discussion with a comment prefilled from the signal, so the bug is written down where the people who own the event will see it. |
+| **False positive** | The detector is wrong about this scope. | Tunes detection exactly like marking an incident a false positive: that scope's `sigma_threshold` rises by 0.5 and its `min_expected_count` by 5 (see [False positives self-tune the thresholds](#false-positives-self-tune-the-thresholds)). |
+| **Real issue** | The move is real and needs work. | Nothing beyond the record. |
+
+Every verdict carries an optional free-text **note**, and records **who** set it
+and **when**. The Anomalies row shows the verdict label, with the note on hover;
+the author, the time and — for a signal no rule routed — **Not routed** appear on
+the drilldown's signal card. A verdict pins one signal — one scope at one
+bucket, like an acknowledge — so the next signal on the same scope that is not
+routed to an incident starts without one. A routed signal shows its incident's
+state instead (see [below](#verdict-and-incident)). A chart's anomaly tooltip
+shows the signal's verdict, read from its incident when it has one.
+
+**Expected documents; it does not suppress.** The reason is there to say *why*
+the move was expected. It does not silence later buckets of the same scope: a
+campaign that is still running produces a new signal on the next bucket, and
+that signal needs its own verdict. To stop hearing about a scope for a while,
+mute it. Only the one signal marked expected is hidden.
+
+**A verdict can be cleared.** Clearing an expected verdict removes its
+annotation too. Clearing a false-positive verdict does not undo the tuning it
+did: like the incident action, the threshold change is permanent and is
+reversed by removing the override under **Settings → Monitoring → Scope
+overrides**.
+
+#### When the signal belongs to an incident, the incident decides {#verdict-and-incident}
+
+A signal that an alert rule routed to an incident has one source of truth: the
+**incident**. Setting a verdict on such a signal — from the Anomalies row or the
+drilldown — changes the incident's status instead of storing a separate verdict:
+
+| Verdict set on the signal | Incident becomes |
+|---|---|
+| **False positive** | `false_positive` (and tunes the scope, once) |
+| **Real issue** | `acknowledged` |
+| **Tracking bug** | `acknowledged` |
+| **Expected** | `resolved` |
+
+The other direction holds too: the signal shows the incident's state, so an
+incident acknowledged, resolved or marked a false positive in the Inbox is what
+the signal displays, and a later status change in the Inbox shows up on the
+signal. The signal's verdict is then marked as coming from the incident; its
+Anomalies row carries an **Incident** link, and its drilldown signal card shows
+the incident's status. A signal with no incident reads **Not routed** on the
+signal card.
+
+- **Clearing the verdict reopens the incident.** On a routed signal whose
+  incident is acknowledged, resolved or a false positive, clearing the verdict
+  reopens the incident — otherwise the verdict would keep reading off it — so the
+  UI asks for confirmation first. As with reopening in the Inbox, false-positive
+  tuning stays.
+- **An Inbox action drops verdicts that no longer agree.** Moving an incident in
+  the Inbox (reopening it, say) drops any verdict stored on its signals that
+  the new status contradicts; one that still agrees — *tracking bug* on an
+  acknowledged incident, an expected reason and note on a resolved one — stays
+  as the detail.
+- **A verdict set before routing carries over.** If a signal got a verdict while
+  unrouted and a rule later routes it to an incident, the verdict stays on the
+  signal and the new incident's status is left untouched.
+
+#### What a verdict changes in counts and lists {#verdict-counts}
+
+- **The sidebar Anomalies badge and the Overview headline count only signals
+  without a verdict.** A signal with a verdict has been dealt with, so it stops
+  counting as open work. An acknowledged signal has no verdict and still counts,
+  as before.
+- **The Anomalies page opens on the *Needs verdict* filter**, which lists only
+  signals without one. Turn the filter off to see signals with a verdict; they
+  stay listed, marked with it. A signal marked expected is also hidden, so it
+  appears only once **Show hidden (n)** is on.
+- **Muted and expected signals are hidden** from the open list and every count
+  built from it — the sidebar badge, the Overview **Open signals** headline and
+  the notifications bell. **Show hidden (n)** puts them back in the list, marked
+  *Muted* or *Expected*, so a decision can be reviewed or undone.
+
+Apart from a false-positive verdict, triage changes nothing about detection: the
+thresholds stay where they were, and an acknowledged, muted, expected, tracking
+bug or real issue signal is scored exactly as before.
+
+Viewers see verdicts; setting or clearing one, like every triage action, needs
+the editor role. Each action is recorded in the project's audit log
+(`signal.acknowledge`, `signal.mute`, `signal.verdict` and their undos), and a
+verdict on an **event** signal also appears in that event's history on its
+drilldown (not in the top-bar Activity feed).
+
+#### Through the API {#verdict-api}
+
+Acknowledge and mute are `POST` / `DELETE` on
+`/projects/{slug}/anomalies/signals/acknowledge` and `…/mute`, keyed like the
+signal (`scan_config_id` — `null` for a catalog metric — `scope_type`,
+`scope_ref` and `bucket`); a mute takes `duration` (`24h`, `7d` or
+`until_unmuted`). Either answers `409` on a signal routed to an incident.
+
+A verdict is set with `POST /projects/{slug}/signals/verdict`:
+
+```json
+{
+  "scope_type": "event",
+  "scope_ref": "d4c684dd-…",
+  "scan_config_id": "5b1e…",
+  "bucket": "2026-09-25T18:00:00Z",
+  "verdict": "expected",
+  "expected_reason": "campaign",
+  "note": "Autumn sale email went out at 18:00"
+}
+```
+
+`verdict` is `expected`, `tracking_bug`, `false_positive` or `real_issue`;
+`expected_reason` (`campaign`, `release`, `seasonality` or `other`) belongs to
+`expected`; `note` is optional. `DELETE` on the same path with the same key
+clears it. On a signal routed to an incident, the request updates the incident
+as in the table above.
+
+Signal payloads — the signals list behind the Anomalies page and the drilldown,
+and the anomaly points on a chart — carry two objects:
+
+- `verdict`: `{verdict, expected_reason, note, author_name, created_at, source}`,
+  where `source` is `signal` for a verdict stored on the signal and `incident`
+  when it is read from the signal's incident; `null` when there is none.
+- `incident`: `{id, status}` for the incident the signal was routed to, `null`
+  when it was not routed.
+
+Expanded signals also keep `acknowledged_at`, `muted`, `muted_until` (`null` also
+when muted until unmuted), `expected`, `expected_note` and `hidden`; the
+collapsed list drops hidden signals outright. `GET
+/projects/{slug}/anomalies/signals?needs_verdict=true` returns only signals
+without a verdict — the Anomalies page's default. Per-project totals are one
+call, `GET /projects/{slug}/signals/verdict-counts` (see the
+[Agent API guide](../integrate/agent-api-guide.md#signal-verdicts)).
 
 ### Alert rules are an additional gate
 
@@ -627,7 +745,7 @@ So the detector's `sigma_threshold` and `min_expected_count` decide what is *fla
 
 ### False positives self-tune the thresholds — per scope {#false-positives-self-tune-the-thresholds}
 
-When you mark an alert in the inbox as a **false positive**, the system doesn't just dismiss it — it **automatically nudges the detector to be stricter on the scope that produced it**. Each false-positive action raises that scope's `sigma_threshold` by 0.5 (capped at 10) and its `min_expected_count` by 5 (capped at 1000). In effect, telling the system "this wasn't real" teaches it to demand a larger, higher-volume deviation *from that series* next time.
+When you mark an alert in the inbox as a **false positive** — or give a signal the **false positive** [verdict](#signal-verdicts) on the Anomalies page or a drilldown — the system doesn't just dismiss it — it **automatically nudges the detector to be stricter on the scope that produced it**. Each false-positive action raises that scope's `sigma_threshold` by 0.5 (capped at 10) and its `min_expected_count` by 5 (capped at 1000). In effect, telling the system "this wasn't real" teaches it to demand a larger, higher-volume deviation *from that series* next time.
 
 The tuning is stored as a **scope override**: an absolute pair of values that replaces the project settings for one scope only. A scope is exactly what an anomaly is keyed by — the scan plus the project total, event type, event, or catalog metric it was raised on. Marking one noisy event a false positive therefore leaves every other event, event type, project total and metric on the sensitivity you chose. (Catalog metrics are project-wide, so their overrides are not tied to a scan.)
 

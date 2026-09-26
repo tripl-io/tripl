@@ -646,6 +646,39 @@ describe('CustomTooltip', () => {
     expect(screen.queryByText(/σ band|Deviation/)).toBeNull()
   })
 
+  it('names the verdict on a flagged bucket, with its note (#254)', () => {
+    render(
+      <CustomTooltip
+        active
+        payload={[
+          {
+            value: 0.08,
+            payload: {
+              ...point,
+              is_anomaly: true,
+              anomaly_direction: 'spike',
+              z_score: 6,
+              verdict: {
+                verdict: 'expected',
+                expected_reason: 'campaign',
+                note: 'Spring sale',
+                author_name: 'Ann',
+                created_at: '2026-01-01T11:00:00Z',
+                source: 'signal',
+              },
+            },
+          },
+        ]}
+        label="2026-01-01T10:00:00Z"
+        granularity="hour"
+        seriesLabel="%"
+      />,
+    )
+
+    expect(screen.getByText('Verdict: Expected · campaign')).toBeInTheDocument()
+    expect(screen.getByText('Spring sale')).toBeInTheDocument()
+  })
+
   it('names the zone of a sub-day bucket and not of a calendar day (MO-38)', () => {
     const { rerender } = render(
       <CustomTooltip

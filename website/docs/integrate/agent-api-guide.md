@@ -693,6 +693,68 @@ success. How charts draw these markers, and the automatic **Release *version***
 markers beside them, is in
 [Chart annotations](../use/feature-reference.md#chart-annotations).
 
+## Signal verdicts {#signal-verdicts}
+
+A verdict records what a monitoring signal turned out to be. Set one with an
+editor-level `write` key:
+
+```http
+POST /api/v1/projects/{slug}/signals/verdict
+```
+
+```json
+{
+  "scope_type": "event",
+  "scope_ref": "d4c684dd-…",
+  "scan_config_id": "5b1e…",
+  "bucket": "2026-09-25T18:00:00Z",
+  "verdict": "tracking_bug",
+  "note": "Fires twice on Android 7.4.0"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `scope_type`, `scope_ref`, `scan_config_id`, `bucket` | The signal's key, as on the signal itself. `scan_config_id` is `null` for a catalog metric. |
+| `verdict` | `expected`, `tracking_bug`, `false_positive` or `real_issue`. |
+| `expected_reason` | With `expected` only: `campaign`, `release`, `seasonality` or `other`. |
+| `note` | Optional free text. The author and time are recorded from the request. |
+
+`DELETE` on the same path with the same key clears the verdict. What each one
+does: `expected` writes an annotation on the bucket and hides that one signal
+(it does not suppress later buckets); `false_positive` tunes the scope's
+detection thresholds exactly like an incident false positive. When the signal
+belongs to an incident, the request updates the incident instead —
+`false_positive` → `false_positive`, `real_issue` and `tracking_bug` →
+`acknowledged`, `expected` → `resolved`. See
+[Verdicts](../use/anomaly-detection.md#signal-verdicts).
+
+Signal payloads carry the result as `verdict` —
+`{verdict, expected_reason, note, author_name, created_at, source}`, where
+`source` is `signal` or `incident` — and `incident` — `{id, status}` — each
+`null` when absent. To list only undecided signals, add `needs_verdict=true` to
+`GET /api/v1/projects/{slug}/anomalies/signals`.
+
+Per-project totals, for example for a health score, are one read-level call:
+
+```http
+GET /api/v1/projects/{slug}/signals/verdict-counts
+```
+
+```json
+{
+  "needs_verdict": 4,
+  "expected": 2,
+  "tracking_bug": 1,
+  "false_positive": 3,
+  "real_issue": 0
+}
+```
+
+`needs_verdict` counts the signals without a verdict; the other four count
+signals by the verdict they carry. An acknowledged signal has no verdict and
+counts under `needs_verdict`.
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.

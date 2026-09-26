@@ -182,15 +182,39 @@ class AnomalyDirection(enum.StrEnum):
 
 
 class SignalTriageAction(enum.StrEnum):
-    """What a user did about an open signal that no rule routed to an incident.
+    """What a user did about an open signal.
 
-    ``acknowledged`` and ``expected`` pin ONE bucket (one signal); ``muted``
-    covers the whole scope until ``muted_until`` (NULL = until unmuted).
+    ``acknowledged`` and the four verdicts (``expected``, ``tracking_bug``,
+    ``false_positive``, ``real_issue``) pin ONE bucket (one signal); ``muted``
+    covers the whole scope until ``muted_until`` (NULL = until unmuted). A
+    signal carries at most one verdict at a time (F01, #254).
     """
 
     acknowledged = "acknowledged"
     muted = "muted"
     expected = "expected"
+    tracking_bug = "tracking_bug"
+    false_positive = "false_positive"
+    real_issue = "real_issue"
+
+
+class SignalVerdict(enum.StrEnum):
+    """The verdict half of ``SignalTriageAction``: what a signal turned out to be."""
+
+    expected = "expected"
+    tracking_bug = "tracking_bug"
+    false_positive = "false_positive"
+    real_issue = "real_issue"
+
+
+class SignalExpectedReason(enum.StrEnum):
+    """Why an ``expected`` signal was expected. Documents only; it does not
+    suppress later buckets."""
+
+    campaign = "campaign"
+    release = "release"
+    seasonality = "seasonality"
+    other = "other"
 
 
 class MetricBreakdownAnomalyKind(enum.StrEnum):

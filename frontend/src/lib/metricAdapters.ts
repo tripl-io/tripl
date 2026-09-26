@@ -17,7 +17,27 @@ import type {
   MetricSignalResponse,
   MetricVersionSeriesResponse,
   MonitoringSignal,
+  SignalIncidentRef,
+  SignalVerdict,
 } from '@/types'
+
+/**
+ * The verdict fields (#254) the metric payloads carry on a flagged point and
+ * on the latest signal. Read structurally: the generated catalog types gain
+ * them only once the OpenAPI schema is regenerated, and until then an older
+ * payload simply has neither.
+ */
+interface VerdictFields {
+  verdict?: SignalVerdict | null
+  incident?: SignalIncidentRef | null
+}
+
+// Left undefined, not null, when the payload has none: an absent verdict is
+// "unknown", and the points stay the shape they always were.
+function verdictFieldsOf(source: object): VerdictFields {
+  const { verdict, incident } = source as VerdictFields
+  return { verdict, incident }
+}
 import {
   coarserGranularity,
   defaultGranularityForRange,
@@ -97,6 +117,7 @@ export function metricPointToEventPoint(point: MetricSeriesPoint): EventMetricPo
     is_anomaly: point.is_anomaly,
     anomaly_direction: point.anomaly_direction ?? null,
     z_score: point.z_score ?? null,
+    ...verdictFieldsOf(point),
   }
 }
 
@@ -118,6 +139,7 @@ export function metricSignalToMonitoringSignal(signal: MetricSignalResponse): Mo
     detected_at: signal.detected_at ?? null,
     // Catalog metric-scope signals are never an incident rollup child.
     incident_child: false,
+    ...verdictFieldsOf(signal),
   }
 }
 

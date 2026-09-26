@@ -83,6 +83,23 @@ describe('relativeEffect', () => {
     ])
   })
 
+  it('leaves out signals with a verdict, whatever its source (#254)', () => {
+    const answered = signal({
+      scope_ref: 'answered',
+      relative_effect: 3,
+      verdict: {
+        verdict: 'tracking_bug',
+        expected_reason: null,
+        note: null,
+        author_name: 'Ann',
+        created_at: '2026-08-19T01:00:00Z',
+        source: 'incident',
+      },
+    })
+    const open = signal({ scope_ref: 'open', relative_effect: 3 })
+    expect(selectSignificantSignals([answered, open]).map(s => s.scope_ref)).toEqual(['open'])
+  })
+
   it('sorts by the server value, biggest first', () => {
     const small = signal({ scope_ref: 'a', relative_effect: 0.6 })
     const big = signal({ scope_ref: 'b', relative_effect: 3 })

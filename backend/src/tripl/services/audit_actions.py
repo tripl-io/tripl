@@ -162,6 +162,8 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "signal.unmute",
             "signal.mark_expected",
             "signal.unmark_expected",
+            "signal.verdict",
+            "signal.clear_verdict",
         ),
     ),
     (

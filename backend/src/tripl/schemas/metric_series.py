@@ -10,10 +10,15 @@ metric series with the same chart primitives it already uses for events.
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from tripl.models.domain_enums import AnomalyDirection, ScanInterval
-from tripl.schemas.event_metric import AppVersionInfo, ForecastPoint, MetricSignalResponse
+from tripl.schemas.event_metric import (
+    AppVersionInfo,
+    ForecastPoint,
+    MetricSignalResponse,
+    SignalVerdictInfo,
+)
 
 
 class MetricSeriesPoint(BaseModel):
@@ -31,6 +36,8 @@ class MetricSeriesPoint(BaseModel):
     is_anomaly: bool = False
     anomaly_direction: AnomalyDirection | None = None
     z_score: float | None = None
+    # See ``EventMetricPoint.verdict`` (F01, #254); omitted when NULL.
+    verdict: SignalVerdictInfo | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class MetricSeriesResponse(BaseModel):
