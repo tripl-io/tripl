@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 // Props every ComposedChart was rendered with, so tests can assert on values
@@ -21,9 +21,11 @@ vi.mock('recharts', async () => {
 })
 
 import { formatMetricValue, metricAxisFormatter } from '@/lib/metricFormat'
-import type { EventMetricPoint, EventMetricsResponse } from '@/types'
+import type { ChartAnnotation, EventMetricPoint, EventMetricsResponse } from '@/types'
+import { SHOW_RELEASES_STORAGE_KEY } from '@/hooks/useShowReleases'
 import {
   AnomalyMark,
+  AutomaticAnnotationLabel,
   buildChartData,
   ChartLegend,
   CustomTooltip,
@@ -104,6 +106,8 @@ describe('MetricsChart', () => {
             label: 'v1.4 deploy',
             description: null,
             color: '#ef4444',
+            source: 'manual' as const,
+            url: null,
             created_by_user_id: null,
             created_at: '2026-01-01T09:00:00Z',
           },
@@ -136,6 +140,8 @@ describe('MetricsChart', () => {
       scope_ref: null,
       description: null,
       color: '#ef4444',
+      source: 'manual' as const,
+      url: null,
       created_by_user_id: null,
       created_at: '2026-01-01T09:00:00Z',
     }
@@ -187,6 +193,8 @@ describe('MetricsChart', () => {
             label: 'Spike',
             description: null,
             color: '#ef4444',
+            source: 'manual' as const,
+            url: null,
             created_by_user_id: null,
             created_at: '2026-01-01T18:00:00Z',
           },
@@ -217,6 +225,8 @@ describe('MetricsChart', () => {
       scope_ref: null,
       description: null,
       color: '#ef4444',
+      source: 'manual' as const,
+      url: null,
       created_by_user_id: null,
       created_at: '2026-01-01T18:45:00Z',
     }
@@ -252,6 +262,8 @@ describe('MetricsChart', () => {
       scope_ref: null,
       description: null,
       color: '#ef4444',
+      source: 'manual' as const,
+      url: null,
       created_by_user_id: null,
       created_at: '2026-01-01T09:00:00Z',
     }
@@ -279,6 +291,140 @@ describe('MetricsChart', () => {
     const summary = document.getElementById(description ?? '')?.textContent ?? ''
     expect(summary).toContain('Deploy; ')
     expect(summary).not.toMatch(/DeployJan|Deploy2026/)
+  })
+
+  describe('release and API annotations (#256)', () => {
+    const point: EventMetricPoint = {
+      bucket: '2026-01-01T10:00:00Z',
+      count: 10,
+      expected_count: null,
+      stddev: null,
+      is_anomaly: false,
+      anomaly_direction: null,
+      z_score: null,
+    }
+    const base: ChartAnnotation = {
+      id: 'base',
+      project_id: 'proj',
+      scope_type: null,
+      scope_ref: null,
+      bucket: '2026-01-01T10:00:00Z',
+      label: 'label',
+      description: null,
+      color: '#ef4444',
+      source: 'manual',
+      url: null,
+      created_by_user_id: null,
+      created_at: '2026-01-01T09:00:00Z',
+    }
+    const manual: ChartAnnotation = { ...base, id: 'm1', label: 'Hotfix deploy' }
+    const release: ChartAnnotation = {
+      ...base,
+      id: 'r1',
+      bucket: '2026-01-01T11:00:00Z',
+      label: 'Release 1.4.0',
+      source: 'release',
+    }
+
+    function summaryText(): string {
+      const description = screen.getByRole('img').getAttribute('aria-describedby')
+      return document.getElementById(description ?? '')?.textContent ?? ''
+    }
+
+    function renderChart(annotations: ChartAnnotation[]) {
+      return render(
+        <MetricsChart
+          granularity="hour"
+          data={[point, { ...point, bucket: '2026-01-01T11:00:00Z' }]}
+          annotations={annotations}
+        />,
+      )
+    }
+
+    it('offers no toggle when every annotation was placed by hand', () => {
+      renderChart([manual])
+      expect(screen.queryByTestId('show-releases-toggle')).not.toBeInTheDocument()
+    })
+
+    it('shows releases by default, with a checked toggle', () => {
+      renderChart([manual, release])
+      expect(screen.getByRole('checkbox', { name: 'Show releases' })).toBeChecked()
+      expect(summaryText()).toContain('Release 1.4.0')
+      expect(summaryText()).toContain('Hotfix deploy')
+    })
+
+    it('hides release and API markers only, and remembers the choice', () => {
+      const api: ChartAnnotation = { ...release, id: 'a1', label: 'Deploy #512', source: 'api' }
+      renderChart([manual, release, api])
+
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show releases' }))
+
+      expect(screen.getByRole('checkbox', { name: 'Show releases' })).not.toBeChecked()
+      expect(summaryText()).not.toContain('Release 1.4.0')
+      expect(summaryText()).not.toContain('Deploy #512')
+      // A manual annotation is never hidden by the toggle.
+      expect(summaryText()).toContain('Hotfix deploy')
+      expect(localStorage.getItem(SHOW_RELEASES_STORAGE_KEY)).toBe('false')
+    })
+
+    it('starts hidden when the stored preference is off', () => {
+      localStorage.setItem(SHOW_RELEASES_STORAGE_KEY, 'false')
+      renderChart([manual, release])
+      expect(screen.getByRole('checkbox', { name: 'Show releases' })).not.toBeChecked()
+      expect(summaryText()).not.toContain('Release 1.4.0')
+    })
+  })
+
+  describe('AutomaticAnnotationLabel (#256)', () => {
+    const snapped = {
+      id: 'r1',
+      bucket: '2026-01-01T11:00:00Z',
+      label: 'Release 1.4.0',
+      color: 'var(--fg-subtle)',
+      source: 'release' as const,
+      description: null,
+      url: null,
+    }
+
+    it('draws a tag icon for a release, without a link when there is no URL', () => {
+      render(
+        <svg>
+          <AutomaticAnnotationLabel x={10} y={5} anchor="start" annotation={snapped} />
+        </svg>,
+      )
+      expect(screen.getByTestId('annotation-icon-release')).toBeInTheDocument()
+      expect(screen.getByText('Release 1.4.0')).toBeInTheDocument()
+      expect(screen.getByTestId('automatic-annotation-label').tagName.toLowerCase()).toBe('g')
+    })
+
+    it('links an API marker to its URL in a new tab', () => {
+      render(
+        <svg>
+          <AutomaticAnnotationLabel
+            x={10}
+            y={5}
+            anchor="end"
+            annotation={{ ...snapped, source: 'api', label: 'Deploy #512', url: 'https://ci.example.com/runs/512' }}
+          />
+        </svg>,
+      )
+      expect(screen.getByTestId('annotation-icon-api')).toBeInTheDocument()
+      const link = screen.getByTestId('automatic-annotation-label')
+      expect(link.tagName.toLowerCase()).toBe('a')
+      expect(link.getAttribute('href')).toBe('https://ci.example.com/runs/512')
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toContain('noopener')
+      expect(link.querySelector('title')?.textContent).toContain('API: Deploy #512')
+    })
+
+    it('draws nothing without a position', () => {
+      const { container } = render(
+        <svg>
+          <AutomaticAnnotationLabel anchor="start" annotation={snapped} />
+        </svg>,
+      )
+      expect(container.querySelector('text')).toBeNull()
+    })
   })
 
   it('summarizes forecast points as a humanized range in the sr-only summary', () => {

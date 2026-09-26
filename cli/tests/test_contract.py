@@ -28,6 +28,7 @@ from tripl_cli.api.endpoints import ALL_TEMPLATES, SHARED_ENDPOINTS
 from tripl_cli.client import API_PREFIX
 from tripl_cli.diagnostics import checks, collect, scan_checks
 from tripl_cli.diagnostics.endpoints import (
+    ANNOTATE_ENDPOINTS,
     DOCTOR_ENDPOINTS,
     DRIFTS_ENDPOINTS,
     EVENTS_ENDPOINTS,
@@ -97,6 +98,7 @@ DECLARED = {
         ("drifts", DRIFTS_ENDPOINTS),
         ("events", EVENTS_ENDPOINTS),
         ("plan", PLAN_ENDPOINTS),
+        ("annotate", ANNOTATE_ENDPOINTS),
     )
     for section, endpoints in group_map.items()
 }
@@ -626,6 +628,12 @@ def test_the_declared_enums_are_the_openapi_ones(
     assert list(events.ORDER_BY) == order_by.get("enum"), (
         "tripl_cli.api.events.ORDER_BY and GET /events?order_by's Literal disagree"
     )
+    from tripl_cli.api import chart_annotations
+
+    assert list(chart_annotations.SCOPE_TYPES) == schemas["ChartAnnotationScopeType"]["enum"], (
+        "tripl_cli.api.chart_annotations.SCOPE_TYPES and the API's ChartAnnotationScopeType "
+        "disagree"
+    )
 
 
 def test_the_sse_stream_is_deliberately_absent_from_the_spec(
@@ -995,6 +1003,12 @@ def test_the_write_safety_section_agrees_with_how_many_mutations_there_are() -> 
         for group, mapping in (("scans", SCANS_ENDPOINTS), ("drifts", DRIFTS_ENDPOINTS))
         for key, entries in mapping.items()
         if any(method == "post" for method, _ in entries)
+    } | {
+        # `annotate` is a top-level verb, not a group member, so its key IS the
+        # command line rather than the second half of one.
+        f"tripl {key}"
+        for key, entries in ANNOTATE_ENDPOINTS.items()
+        if any(method == "post" for method, _ in entries)
     }
     leaves = _leaf_parsers(build_parser())
     from_parser = {
@@ -1060,7 +1074,8 @@ def test_the_write_safety_section_agrees_with_how_many_mutations_there_are() -> 
         """
         assert marker in flat, f"the exit-code table no longer says {marker!r}"
         head = flat[: flat.index(marker)]
-        return set(re.findall(r"`([a-z]+ [a-z]+)`", head[head.rindex(opener) :]))
+        # One word or two: `annotate` is a top-level write, `scans run` a grouped one.
+        return set(re.findall(r"`([a-z]+(?: [a-z]+)?)`", head[head.rindex(opener) :]))
 
     for label, marker, opener, expected in (
         ("accepted the write (exit 0)", ": the API accepted the write", ". ", verbs),

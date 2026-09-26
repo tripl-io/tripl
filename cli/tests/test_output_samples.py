@@ -17,6 +17,7 @@ from tripl_cli.cli import main
 
 from .conftest import (
     FakeInstance,
+    make_annotation,
     make_branch,
     make_drift,
     make_event,
@@ -166,6 +167,30 @@ def test_drifts_dismiss_sample(
         "tripl drifts dismiss - http://tripl.test (from $TRIPL_BASE_URL)\n"
         "\n"
         "prod: drift drift-1 (user_id, missing_field) is now false_positive.\n"
+    )
+
+
+def test_annotate_samples(
+    tripl_api: FakeInstance,
+    configured_env: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Both answers, because the difference between them is the whole point."""
+    argv = ["annotate", "Deployed web 2026.09.25", "--project", "prod"]
+    tripl_api.annotate("prod")
+    assert main(argv) == 0
+    assert capsys.readouterr().out == (
+        "tripl annotate - http://tripl.test (from $TRIPL_BASE_URL)\n"
+        "\n"
+        "prod: annotated 'Deployed web 2026.09.25' at 2026-09-25T14:02:00Z (ann-1).\n"
+    )
+    tripl_api.annotate("prod", make_annotation(), status=200)
+    assert main(argv) == 0
+    assert capsys.readouterr().out == (
+        "tripl annotate - http://tripl.test (from $TRIPL_BASE_URL)\n"
+        "\n"
+        "prod: annotation 'Deployed web 2026.09.25' already exists (ann-1, at "
+        "2026-09-25T14:02:00Z); the API de-duplicated it and nothing new was created.\n"
     )
 
 

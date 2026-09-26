@@ -86,6 +86,7 @@ from tripl.worker.tasks.metrics.metric_rows import (
     _upsert_event_metrics_rows,
 )
 from tripl.worker.tasks.metrics.regression import _recalculate_release_regressions
+from tripl.worker.tasks.metrics.release_annotations import _sync_release_annotations
 from tripl.worker.tasks.metrics.signals import (
     _get_visible_signal_scope_keys,
 )
@@ -1108,6 +1109,10 @@ def collect_metrics(
         # newest bucket the scan has stored rather than on the slice this run
         # happened to collect (tripl-0zpq.18).
         release_regressions_detected = _recalculate_release_regressions(session, config)
+        # Same anchoring and the same activation gate: a version absent at the
+        # start of that slice that activated inside it gets its
+        # "Release <version>" chart marker.
+        release_annotations_created = _sync_release_annotations(session, config)
         buffered_counts: list[int] = []
         delivery_ids = _prepare_alert_deliveries(
             session,
@@ -1166,6 +1171,7 @@ def collect_metrics(
             "anomalies_detected": anomalies_detected,
             "breakdown_anomalies_detected": breakdown_anomalies_detected,
             "release_regressions_detected": release_regressions_detected,
+            "release_annotations_created": release_annotations_created,
             "signals_added": signals_added,
             "signals_removed": signals_removed,
             "alerts_queued": len(delivery_ids),

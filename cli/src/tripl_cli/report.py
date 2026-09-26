@@ -517,7 +517,7 @@ def upgrade_document(
 
 
 def mutation_document(outcome: MutationOutcome) -> JsonDict:
-    """``tripl scans run|cancel`` and ``tripl drifts dismiss|reopen``.
+    """``tripl scans run|cancel``, ``tripl drifts dismiss|reopen`` and ``tripl annotate``.
 
     ``request`` is what WOULD be or WAS sent, method/path/params/body only. Every
     per-command key is present on every mutation, null where it does not apply.
@@ -532,6 +532,7 @@ def mutation_document(outcome: MutationOutcome) -> JsonDict:
     document["job_id"] = outcome.job_id
     document["drift_id"] = outcome.drift_id
     document["action"] = outcome.action
+    document["deduplicated"] = outcome.deduplicated
     # Null under --dry-run, always: nothing was sent, so there is no result and
     # a consumer must not be able to read one.
     document["result"] = None if outcome.result is None else dict(outcome.result)

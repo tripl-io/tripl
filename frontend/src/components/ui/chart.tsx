@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useId, useMemo, useRef, useState } from 'react'
+import { Rocket, Tag } from 'lucide-react'
 import {
   Area,
   Bar,
@@ -37,8 +38,16 @@ import { APP_LOCALE, formatNumber } from '@/lib/format'
 import type { MetricsGranularity } from '@/lib/metrics'
 import { ratioDelta } from '@/lib/percentDelta'
 import { useTheme, type ChartStyle } from '@/components/theme-provider'
-import type { ChartAnnotation, EventMetricPoint, ForecastPoint } from '@/types'
-import { annotationDisplayColor, truncateAnnotationLabel } from '@/lib/chartAnnotations'
+import type { ChartAnnotation, ChartAnnotationSource, EventMetricPoint, ForecastPoint } from '@/types'
+import {
+  annotationMarkerColor,
+  annotationSourceLabel,
+  isAutomaticAnnotation,
+  safeAnnotationUrl,
+  truncateAnnotationLabel,
+} from '@/lib/chartAnnotations'
+import { Checkbox } from '@/components/ui/checkbox'
+import { useShowReleases } from '@/hooks/useShowReleases'
 import { signalDirectionColor } from '@/lib/statusLexicon'
 import { windowPaddingBuckets } from '@/components/ui/chart-window'
 
@@ -720,11 +729,21 @@ export function MultiSeriesTooltip({
   )
 }
 
+interface SnappedAnnotation {
+  id: string
+  bucket: string
+  label: string
+  color: string
+  source: ChartAnnotationSource
+  description: string | null
+  url: string | null
+}
+
 function snapAnnotationsToBuckets(
   annotations: ChartAnnotation[] | undefined,
   data: ChartDataPoint[],
   windowEnd?: string,
-): Array<{ id: string; bucket: string; label: string; color: string }> {
+): SnappedAnnotation[] {
   if (!annotations?.length || !data.length) return []
   // Categorical x-axis only renders ReferenceLine for x values that exist
   // on rendered points, so snap each annotation to the bucket that CONTAINS
@@ -765,10 +784,113 @@ function snapAnnotationsToBuckets(
         id: annotation.id,
         bucket: containing.bucket,
         label: annotation.label,
-        color: annotationDisplayColor(annotation.color),
+        color: annotationMarkerColor(annotation),
+        // Rows cached before the column existed carry no source: manual.
+        source: annotation.source ?? 'manual',
+        description: annotation.description,
+        url: safeAnnotationUrl(annotation.url),
       }
     })
-    .filter((value): value is { id: string; bucket: string; label: string; color: string } => value !== null)
+    .filter((value): value is SnappedAnnotation => value !== null)
+}
+
+/**
+ * The label of a release or API marker (#256): a small source icon next to
+ * the line, the muted label beside it, and a native tooltip naming the source.
+ * With a URL the whole label is a link that opens in a new tab.
+ */
+// Exported for unit tests only.
+export function AutomaticAnnotationLabel({
+  x,
+  y,
+  anchor,
+  annotation,
+}: {
+  x?: number
+  y?: number
+  /** `start` draws the label right of the line, `end` left of it. */
+  anchor: 'start' | 'end'
+  annotation: SnappedAnnotation
+}) {
+  if (typeof x !== 'number' || typeof y !== 'number') return null
+  const Icon = annotation.source === 'release' ? Tag : Rocket
+  const iconSize = 10
+  const gap = 3
+  // The icon always sits against the line; the text runs away from it.
+  const iconX = anchor === 'start' ? x : x - iconSize
+  const textX = anchor === 'start' ? x + iconSize + gap : x - iconSize - gap
+  const title = [
+    `${annotationSourceLabel(annotation.source)}: ${annotation.label}`,
+    annotation.description,
+    annotation.url ? 'Opens in a new tab' : null,
+  ].filter(Boolean).join(' — ')
+  const content = (
+    <>
+      <title>{title}</title>
+      <Icon
+        x={iconX}
+        y={y}
+        width={iconSize}
+        height={iconSize}
+        color={annotation.color}
+        aria-hidden="true"
+        data-testid={`annotation-icon-${annotation.source}`}
+      />
+      <text
+        x={textX}
+        y={y}
+        textAnchor={anchor}
+        dominantBaseline="hanging"
+        fill={annotation.color}
+        fontSize="var(--text-micro)"
+      >
+        {truncateAnnotationLabel(annotation.label)}
+      </text>
+    </>
+  )
+  if (!annotation.url) {
+    return <g data-testid="automatic-annotation-label">{content}</g>
+  }
+  return (
+    <a
+      href={annotation.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="cursor-pointer"
+      data-testid="automatic-annotation-label"
+    >
+      {content}
+    </a>
+  )
+}
+
+/**
+ * Hides release and API markers on every chart at once (#256); the choice is
+ * remembered. Shown only when the window has such a marker to hide.
+ */
+function ShowReleasesToggle({
+  checked,
+  onCheckedChange,
+}: {
+  checked: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  const id = useId()
+  return (
+    <div
+      data-testid="show-releases-toggle"
+      className="mt-2 flex items-center gap-1.5 text-caption text-fg-tertiary"
+    >
+      <Checkbox
+        id={id}
+        checked={checked}
+        onCheckedChange={value => onCheckedChange(value === true)}
+      />
+      <label htmlFor={id} className="cursor-pointer select-none">
+        Show releases
+      </label>
+    </div>
+  )
 }
 
 export function MetricsChart({
@@ -803,9 +925,18 @@ export function MetricsChart({
       ),
     [data, forecast, sigmaThreshold, clampAtZero, partial, from, to, granularity],
   )
-  const snappedAnnotations = useMemo(
+  const [showReleases, setShowReleases] = useShowReleases()
+  const allSnappedAnnotations = useMemo(
     () => snapAnnotationsToBuckets(annotations, chartData, to),
     [annotations, chartData, to],
+  )
+  // The toggle hides release and API markers only; manual ones always draw.
+  const hasAutomaticAnnotations = allSnappedAnnotations.some(isAutomaticAnnotation)
+  const snappedAnnotations = useMemo(
+    () => showReleases
+      ? allSnappedAnnotations
+      : allSnappedAnnotations.filter(annotation => !isAutomaticAnnotation(annotation)),
+    [allSnappedAnnotations, showReleases],
   )
   const { ref: containerRef, ready: containerReady } = useChartContainerReady()
   const yAxisWidth = useMemo(
@@ -836,6 +967,7 @@ export function MetricsChart({
   const sigmaLabel = Number.isFinite(sigmaThreshold) && sigmaThreshold > 0
     ? sigmaThreshold
     : DEFAULT_SIGMA_THRESHOLD
+  const hasFooter = legend || hasAutomaticAnnotations
 
   const chart = (
     <div
@@ -843,7 +975,7 @@ export function MetricsChart({
       role="img"
       aria-label={`${seriesNounPlural(seriesLabel)} over time`}
       aria-describedby={descId}
-      className={cn('w-full', !legend && className)}
+      className={cn('w-full', !hasFooter && className)}
       style={{ height }}
     >
       <div id={descId} className="sr-only">
@@ -1047,47 +1179,70 @@ export function MetricsChart({
           >
             <ErrorBar dataKey="forecast_error" width={6} stroke="var(--fg-subtle)" strokeWidth={1.25} direction="y" />
           </Line>
-          {snappedAnnotations.map(annotation => (
-            <ReferenceLine
-              key={annotation.id}
-              x={annotation.bucket}
-              stroke={annotation.color}
-              strokeDasharray="2 3"
-              strokeWidth={1.5}
-              // Inside the plot, on the side with room: `top` drew the label
-              // above the plot area, where the right edge clipped a label on
-              // the newest bucket ("injected dem…", LIVE-22). A line in the
-              // right half puts its label to its left, and vice versa.
-              label={{
-                value: truncateAnnotationLabel(annotation.label),
-                position:
-                  (bucketIndex.get(annotation.bucket) ?? 0) > (chartData.length - 1) / 2
-                    ? 'insideTopRight'
-                    : 'insideTopLeft',
-                fill: annotation.color,
-                fontSize: 'var(--text-micro)',
-              }}
-              ifOverflow="extendDomain"
-            />
-          ))}
+          {snappedAnnotations.map(annotation => {
+            // Inside the plot, on the side with room: `top` drew the label
+            // above the plot area, where the right edge clipped a label on
+            // the newest bucket ("injected dem…", LIVE-22). A line in the
+            // right half puts its label to its left, and vice versa.
+            const rightHalf = (bucketIndex.get(annotation.bucket) ?? 0) > (chartData.length - 1) / 2
+            const position = rightHalf ? 'insideTopRight' : 'insideTopLeft'
+            const automatic = isAutomaticAnnotation(annotation)
+            return (
+              <ReferenceLine
+                key={annotation.id}
+                x={annotation.bucket}
+                stroke={annotation.color}
+                strokeDasharray="2 3"
+                // Release and API markers recede behind the ones people placed (#256).
+                strokeWidth={automatic ? 1 : 1.5}
+                strokeOpacity={automatic ? 0.7 : 1}
+                label={
+                  automatic
+                    ? {
+                        position,
+                        content: (props: { x?: number | string; y?: number | string }) => (
+                          <AutomaticAnnotationLabel
+                            x={typeof props.x === 'number' ? props.x : undefined}
+                            y={typeof props.y === 'number' ? props.y : undefined}
+                            anchor={rightHalf ? 'end' : 'start'}
+                            annotation={annotation}
+                          />
+                        ),
+                      }
+                    : {
+                        value: truncateAnnotationLabel(annotation.label),
+                        position,
+                        fill: annotation.color,
+                        fontSize: 'var(--text-micro)',
+                      }
+                }
+                ifOverflow="extendDomain"
+              />
+            )
+          })}
         </ComposedChart>
         </ResponsiveContainer>
       ) : null}
     </div>
   )
 
-  if (!legend) return chart
+  if (!hasFooter) return chart
   return (
     <div className={cn('w-full', className)}>
       {chart}
-      <ChartLegend
-        color={chartColor}
-        expected={hasExpected}
-        band={hasBand ? sigmaLabel : null}
-        anomaly={anomalyCount > 0}
-        partial={hasPartial}
-        forecast={forecastBuckets.length > 0}
-      />
+      {legend && (
+        <ChartLegend
+          color={chartColor}
+          expected={hasExpected}
+          band={hasBand ? sigmaLabel : null}
+          anomaly={anomalyCount > 0}
+          partial={hasPartial}
+          forecast={forecastBuckets.length > 0}
+        />
+      )}
+      {hasAutomaticAnnotations && (
+        <ShowReleasesToggle checked={showReleases} onCheckedChange={setShowReleases} />
+      )}
     </div>
   )
 }

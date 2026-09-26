@@ -558,6 +558,31 @@ def make_drift(
     }
 
 
+def make_annotation(
+    annotation_id: str = "ann-1",
+    *,
+    label: str = "Deployed web 2026.09.25",
+    bucket: str = "2026-09-25T14:02:00Z",
+    source: str = "api",
+    url: str | None = "https://github.com/acme/web/releases/tag/2026.09.25",
+) -> dict[str, Any]:
+    """``ChartAnnotationResponse``: a project-level marker posted by CI."""
+    return {
+        "id": annotation_id,
+        "project_id": "pid-1",
+        "scope_type": None,
+        "scope_ref": None,
+        "bucket": bucket,
+        "label": label,
+        "description": None,
+        "color": "#ef4444",
+        "source": source,
+        "url": url,
+        "created_by_user_id": "uid-1",
+        "created_at": bucket,
+    }
+
+
 class FakeInstance:
     """A coherent, HEALTHY tripl instance, with one override method per endpoint.
 
@@ -694,6 +719,10 @@ class FakeInstance:
         return f"{API_BASE}/projects/{slug}/event-types/{type_id}/drifts"
 
     @staticmethod
+    def annotations_url(slug: str) -> str:
+        return f"{API_BASE}/projects/{slug}/annotations"
+
+    @staticmethod
     def drift_action_url(slug: str, drift_id: str) -> str:
         """NOT nested under the event type - the action route takes the drift id alone."""
         return f"{API_BASE}/projects/{slug}/event-types/drifts/{drift_id}/actions"
@@ -784,6 +813,11 @@ class FakeInstance:
             make_drift(drift_id=drift_id, status="false_positive") if payload is _UNSET else payload
         )
         return self._respond(self.drift_action_url(slug, drift_id), status, body, method="POST")
+
+    def annotate(self, slug: str, payload: Any = _UNSET, status: int = 201) -> respx.Route:
+        """``POST .../annotations`` -> 201 new, or 200 when the API de-duplicated."""
+        body = make_annotation() if payload is _UNSET else payload
+        return self._respond(self.annotations_url(slug), status, body, method="POST")
 
     def signals(self, slug: str, payload: Any, status: int = 200) -> respx.Route:
         return self._respond(self.signals_url(slug), status, payload)

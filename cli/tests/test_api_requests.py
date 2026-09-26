@@ -12,7 +12,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from tripl_cli.api import auth as auth_api
-from tripl_cli.api import branches, data_sources, event_types, monitoring, projects, scans
+from tripl_cli.api import (
+    branches,
+    chart_annotations,
+    data_sources,
+    event_types,
+    monitoring,
+    projects,
+    scans,
+)
 from tripl_cli.api import events as events_api
 from tripl_cli.api import search as search_api
 from tripl_cli.api import variables as variables_api
@@ -74,6 +82,9 @@ def _every_builder() -> list[ApiRequest]:
         monitoring.get_coverage("prod"),
         monitoring.list_dead_events("prod"),
         monitoring.list_shadow_events("prod"),
+        chart_annotations.create_annotation(
+            "prod", label="Deployed", at=datetime(2026, 9, 25, tzinfo=UTC)
+        ),
     ]
 
 
@@ -102,6 +113,38 @@ def test_none_query_parameters_are_omitted() -> None:
     """
     assert scans.list_jobs("prod", "scan-1").params == {"limit": None}
     assert scans.list_jobs("prod", "scan-1", limit=200).params == {"limit": 200}
+
+
+def test_annotation_body_always_says_source_api_and_omits_unset_members() -> None:
+    """``release`` is the worker's and ``manual`` the app's; a client sends ``api``."""
+    at = datetime(2026, 9, 25, 14, 2, 30, 999, tzinfo=UTC)
+    plain = chart_annotations.create_annotation("prod", label="Deployed", at=at)
+    assert plain.method == "POST"
+    assert plain.path == "/projects/prod/annotations"
+    assert plain.json_body == {
+        "label": "Deployed",
+        "bucket": "2026-09-25T14:02:30Z",
+        "source": "api",
+    }
+
+    full = chart_annotations.create_annotation(
+        "prod",
+        label="Deployed",
+        at=at,
+        url="https://example.com/r/1",
+        description="web",
+        scope_type="event_type",
+        scope_ref="et-1",
+    )
+    assert full.json_body == {
+        "label": "Deployed",
+        "bucket": "2026-09-25T14:02:30Z",
+        "source": "api",
+        "url": "https://example.com/r/1",
+        "description": "web",
+        "scope_type": "event_type",
+        "scope_ref": "et-1",
+    }
 
 
 def test_drift_action_body_omits_unset_members() -> None:

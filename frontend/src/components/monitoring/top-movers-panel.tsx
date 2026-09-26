@@ -332,6 +332,8 @@ function BreakdownDrilldown({
         label: 'This anomaly',
         description: null,
         color: signalDirectionColor(item.direction),
+        source: 'manual',
+        url: null,
         created_by_user_id: null,
         created_at: bucket,
       },

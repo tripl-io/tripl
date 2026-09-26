@@ -6,7 +6,8 @@ real seeded anomalies (project-total / event-type / event / catalog-metric
 scopes, plus the schema / distribution / variable-value / release-regression
 opt-ins) and a HEALTHY quiet rule, their per-scope ``AlertRuleState`` rows, one
 locally-delivered ``AlertDelivery`` + items with rendered template output, an
-inbox correlation group, and a chart annotation explaining the injected spike.
+inbox correlation group, a chart annotation explaining the injected spike, and
+one automatic release marker.
 
 Everything is produced with ZERO network side effects: the delivery text is
 rendered via the same pure renderer the in-UI simulator uses
@@ -40,6 +41,7 @@ from tripl.models.domain_enums import (
     AlertMessageFormat,
     AnomalyDirection,
     ChartAnnotationScopeType,
+    ChartAnnotationSource,
     MetricScopeType,
 )
 from tripl.models.event import Event
@@ -55,6 +57,10 @@ from tripl.services.demo.builders.warehouse import (
     SPIKE_EVENT_NAME,
 )
 from tripl.services.demo.scenario import DemoContext
+from tripl.services.release_annotations import (
+    RELEASE_ANNOTATION_COLOR,
+    release_annotation_label,
+)
 
 # Deterministic namespace so the seeded inbox correlation-group id is stable for
 # a given project id (mirrors dispatch._CORRELATION_NAMESPACE's intent).
@@ -64,6 +70,15 @@ _DEMO_SINK_NAME = "Local demo sink (no external delivery)"
 _DISABLED_EXTERNAL_NAME = "Slack (disabled — connect a webhook to enable)"
 _FIRING_RULE_NAME = "Spike & drift watch (demo)"
 _HEALTHY_RULE_NAME = "Weekly release health (quiet)"
+
+# The demo's one automatic release marker: the newest version the synthetic
+# warehouse carries, rolled out a few days back. Seeded rather than derived,
+# because the synthetic dataset spreads its versions evenly from its first hour,
+# so the worker's gate sees them all live at once and — correctly — marks none.
+# Labelled through the worker's own helper, so a real scan of the demo can never
+# add a second "Release 1.4.0" (the release label is unique per project).
+DEMO_RELEASE_VERSION = "1.4.0"
+DEMO_RELEASE_AGE = timedelta(days=6)
 
 # Seeded catalog-metric spike: scored against the median of the whole stored
 # series, over the most recent complete buckets, so the signal is on-grid and
@@ -299,6 +314,22 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
                 "delivery. No real data or external notification is involved."
             ),
             created_by_user_id=ctx.created_by,
+        )
+    )
+    session.add(
+        ChartAnnotation(
+            project_id=ctx.project_id,
+            scope_type=None,
+            scope_ref=None,
+            bucket=(ctx.now - DEMO_RELEASE_AGE).replace(minute=0, second=0, microsecond=0),
+            label=release_annotation_label(DEMO_RELEASE_VERSION),
+            description=(
+                f"App version {DEMO_RELEASE_VERSION} reached its active share of traffic "
+                "(app_version)."
+            ),
+            color=RELEASE_ANNOTATION_COLOR,
+            source=ChartAnnotationSource.release.value,
+            created_by_user_id=None,
         )
     )
 

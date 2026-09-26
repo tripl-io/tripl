@@ -517,6 +517,71 @@ through the browser-only scan routes — it cannot introduce a new query. Creati
 or editing a scan config, like connecting a data source, stays an interactive
 owner session.
 
+## Chart annotations
+
+Annotations are the markers charts draw at a point in time. A deploy pipeline
+posts one per release so the next anomaly on a chart sits next to the deploy
+that probably caused it:
+
+```http
+POST /api/v1/projects/{slug}/annotations
+```
+
+```json
+{
+  "label": "Deployed web 2026.09.25",
+  "bucket": "2026-09-25T14:02:00Z",
+  "source": "api",
+  "url": "https://github.com/acme/web/releases/tag/2026.09.25"
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `label` | Required, 1–200 characters. |
+| `bucket` | Required. When it happened, as an ISO 8601 timestamp. |
+| `source` | `manual` (the default, what the app's own form sends) or `api`. `release` is reserved for the markers the metrics worker draws itself and answers `422` from a client. |
+| `url` | Optional link the chart tooltip opens: `http` or `https` only, at most 500 characters. |
+| `description` | Optional, up to 2000 characters. |
+| `color` | Optional. Pipeline and release markers draw muted whatever colour they carry. |
+| `scope_type`, `scope_ref` | Optional, and both or neither: `project_total`, `event_type`, `event` or `metric`, plus the id it names. Omit both for a project-level marker, which every monitoring (Volume tab) chart in the project shows. |
+
+The response is the annotation, with `source` and `url` echoed back.
+
+**Authentication.** The route is editor-level: a `write` API key backed by an
+editor or owner, like every other mutation. Bind the key to the project with
+`project_slug` so a leaked CI secret can annotate one project and nothing else.
+
+**De-duplication.** Only `source: "api"` is de-duplicated on this route: the
+same `(project, label)` posted with source `api` within the last 24 hours is not
+created again, and the API answers **`200`** with the existing
+annotation instead of **`201`** with a new one. A retried deploy job therefore
+draws one marker, not two — so check the status code, not just the body, if you
+need to know which happened. Put the version or commit in the label when two
+deploys in a day are two separate events. `release` markers are unique per
+label per project for good: one **Release *version*** marker, ever. `manual`
+annotations (the default `source`) are **never** de-duplicated — every manual
+create answers `201` with a new row, so a CI job that wants retry-safety must
+send `"source": "api"`.
+
+The same request from the command line is
+[`tripl annotate`](../run/cli.md#tripl-annotate), which prints which of the
+two answers it got. A GitHub Actions deploy step, with `curl`:
+
+```yaml
+- name: Mark the deploy on tripl charts
+  run: |
+    curl -fsS -X POST "https://tripl.example.com/api/v1/projects/prod/annotations" \
+      -H "Authorization: Bearer ${{ secrets.TRIPL_WRITE_KEY }}" \
+      -H "Content-Type: application/json" \
+      -d "{\"label\": \"Deployed web ${{ github.ref_name }}\", \"bucket\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"source\": \"api\", \"url\": \"${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}\"}"
+```
+
+`-f` fails the step on a `4xx`/`5xx`; a `200` for a de-duplicated label is a
+success. How charts draw these markers, and the automatic **Release *version***
+markers beside them, is in
+[Chart annotations](../use/feature-reference.md#chart-annotations).
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.

@@ -5588,6 +5588,10 @@ export interface components {
             /** Scope Ref */
             scope_ref?: string | null;
             scope_type?: components["schemas"]["ChartAnnotationScopeType"] | null;
+            /** @default manual */
+            source: components["schemas"]["ChartAnnotationSource"];
+            /** Url */
+            url?: string | null;
         };
         /** ChartAnnotationResponse */
         ChartAnnotationResponse: {
@@ -5622,12 +5626,26 @@ export interface components {
             /** Scope Ref */
             scope_ref: string | null;
             scope_type: components["schemas"]["ChartAnnotationScopeType"] | null;
+            source: components["schemas"]["ChartAnnotationSource"];
+            /** Url */
+            url: string | null;
         };
         /**
          * ChartAnnotationScopeType
          * @enum {string}
          */
         ChartAnnotationScopeType: "project_total" | "event_type" | "event" | "metric";
+        /**
+         * ChartAnnotationSource
+         * @description Who put a chart annotation there.
+         *
+         *     ``manual`` is a person in the UI, ``api`` is a CI/CLI client posting a
+         *     deploy marker, and ``release`` is the metrics worker marking the bucket an
+         *     app version activated in. ``release`` is reserved to the worker: the create
+         *     API refuses it, so every release marker is one the activation gate drew.
+         * @enum {string}
+         */
+        ChartAnnotationSource: "manual" | "release" | "api";
         /**
          * ClickHouseSettings
          * @description ClickHouse has no extra connection settings.
@@ -14025,6 +14043,15 @@ export interface operations {
             };
         };
         responses: {
+            /** @description A source=api annotation with the same label was already created in this project within the last 24 hours; it is returned instead of a duplicate. Manual annotations are never de-duplicated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChartAnnotationResponse"];
+                };
+            };
             /** @description Successful Response */
             201: {
                 headers: {

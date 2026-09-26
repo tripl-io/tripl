@@ -19,6 +19,7 @@ from __future__ import annotations
 from tripl_cli.api import (
     auth,
     branches,
+    chart_annotations,
     data_sources,
     event_types,
     events,
@@ -130,4 +131,11 @@ PLAN_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "variables": (("get", variables.LIST),),
     "branches": (("get", branches.LIST),),
     "search": (("get", search.SEARCH),),
+}
+
+# `tripl annotate`: one POST and nothing else. The slug is taken on trust rather
+# than resolved first - the route's own 404 names a wrong one, and a CI step
+# posting a deploy marker should cost exactly one request.
+ANNOTATE_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "annotate": (("post", chart_annotations.CREATE),),
 }

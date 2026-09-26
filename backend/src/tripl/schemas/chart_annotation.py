@@ -2,15 +2,23 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from tripl.models.domain_enums import ChartAnnotationScopeType
+from tripl.models.domain_enums import ChartAnnotationScopeType, ChartAnnotationSource
 
 # Project-wide markers leave both fields NULL; scoped markers must pair a
 # scope_type with a scope_ref so chart filters never silently match the wrong
 # series.
 ALLOWED_SCOPES = {scope.value for scope in ChartAnnotationScopeType}
+
+# ``release`` is drawn only by the metrics worker, from the activation gate; a
+# client claiming it could forge a marker the UI presents as observed data.
+CLIENT_ANNOTATION_SOURCES = frozenset(
+    {ChartAnnotationSource.manual.value, ChartAnnotationSource.api.value}
+)
+ANNOTATION_URL_MAX_LENGTH = 500
 
 
 class ChartAnnotationCreate(BaseModel):
@@ -20,6 +28,33 @@ class ChartAnnotationCreate(BaseModel):
     color: str = Field(default="#ef4444", max_length=20)
     scope_type: ChartAnnotationScopeType | None = None
     scope_ref: str | None = Field(default=None, max_length=120)
+    source: ChartAnnotationSource = ChartAnnotationSource.manual
+    url: str | None = Field(default=None, max_length=ANNOTATION_URL_MAX_LENGTH)
+
+    @field_validator("source")
+    @classmethod
+    def _check_source(cls, value: ChartAnnotationSource) -> ChartAnnotationSource:
+        if value not in CLIENT_ANNOTATION_SOURCES:
+            raise ValueError(
+                f"source must be one of {sorted(CLIENT_ANNOTATION_SOURCES)}; "
+                "release annotations are created by the metrics worker"
+            )
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def _check_url(cls, value: str | None) -> str | None:
+        # An http(s) link with a host, nothing else: the UI renders it as an
+        # anchor, and a ``javascript:`` or ``data:`` URL there is script.
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        parsed = urlparse(trimmed)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("url must be an http(s) URL")
+        return trimmed
 
     @model_validator(mode="after")
     def validate_scope(self) -> ChartAnnotationCreate:
@@ -41,6 +76,8 @@ class ChartAnnotationResponse(BaseModel):
     label: str
     description: str | None
     color: str
+    source: ChartAnnotationSource
+    url: str | None
     created_by_user_id: uuid.UUID | None
     created_at: datetime
 

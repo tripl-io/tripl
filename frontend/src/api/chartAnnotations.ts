@@ -8,6 +8,9 @@ export interface ChartAnnotationInput {
   color?: string
   scope_type?: 'project_total' | 'event_type' | 'event' | 'metric' | null
   scope_ref?: string | null
+  /** Omitted means `manual`; `release` is reserved to the metrics worker. */
+  source?: 'manual' | 'api'
+  url?: string | null
 }
 
 export const chartAnnotationsApi = {

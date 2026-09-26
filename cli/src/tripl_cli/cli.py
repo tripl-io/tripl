@@ -16,7 +16,14 @@ from tripl_cli.errors import EXIT_USAGE, TriplError
 EXIT_INTERRUPTED = 130
 
 
-def build_global_parser() -> argparse.ArgumentParser:
+# Both spellings of the instance-URL flag. `tripl annotate` takes only the second:
+# its own `--url` is the link a chart annotation opens (see build_global_parser).
+INSTANCE_URL_FLAGS: tuple[str, ...] = ("--url", "--base-url")
+
+
+def build_global_parser(
+    *, instance_url_flags: Sequence[str] = INSTANCE_URL_FLAGS
+) -> argparse.ArgumentParser:
     """The connection flags, as a parent shared by the root and every command.
 
     Every option here uses ``default=argparse.SUPPRESS``, and that is not style:
@@ -26,12 +33,20 @@ def build_global_parser() -> argparse.ArgumentParser:
     subcommand name (``tripl --url X doctor``). With SUPPRESS the attribute is
     simply absent when unset and nothing gets clobbered — hence the
     ``getattr(args, ..., None)`` reads in ``main``.
+
+    ``instance_url_flags`` exists for ``tripl annotate`` alone, whose ``--url``
+    is the release link the annotation carries — the name the API field, the
+    issue and every CI example use. That command builds its own parent with
+    ``--base-url`` only, rather than passing ``conflict_handler="resolve"``:
+    argparse shares action OBJECTS between a parent and its children, and
+    resolving the conflict removes ``--url`` from that shared action — from every
+    other command at once. ``tripl --url X annotate`` still works, because the
+    root parser keeps both spellings.
     """
     parser = argparse.ArgumentParser(add_help=False)
     connection = parser.add_argument_group("connection")
     connection.add_argument(
-        "--url",
-        "--base-url",
+        *instance_url_flags,
         dest="url",
         metavar="URL",
         default=argparse.SUPPRESS,

@@ -121,6 +121,12 @@ class TriplClient:
         self._timeout = timeout
         self._http_client = http_client
         self._user_agent = user_agent
+        # The status of the last response this client received, or None before
+        # the first. Only `tripl annotate` reads it: the annotation route answers
+        # 201 for a new row and 200 for a de-duplicated one, with the same body
+        # shape, so the code is the whole difference. Every other caller keeps
+        # reading the body alone.
+        self.last_status_code: int | None = None
 
     async def _send(
         self,
@@ -158,6 +164,7 @@ class TriplClient:
             response = await self._send(method, path, params=clean_params, json_body=json_body)
         except httpx.HTTPError as exc:
             raise TriplConnectionError(self._base_url, exc) from exc
+        self.last_status_code = response.status_code
         raise_for_status(response)
         if response.status_code == 204 or not response.content:
             return {"status": "ok"}

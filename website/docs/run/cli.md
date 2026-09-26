@@ -26,8 +26,13 @@ Two more act on a **class of objects** and are spelled `<plural-noun> <verb>`:
   one now, `cancel` an active job.
 - **`tripl drifts`** — `list` schema drifts, `dismiss` one, `reopen` one.
 
-`scans run`, `scans cancel`, `drifts dismiss` and `drifts reopen` are the CLI's
-**only mutating commands**. Read [Write safety](#write-safety) before you use one. Every other
+One more records a single fact about a project and is one word:
+
+- **`tripl annotate`** — post a deploy or release marker onto every monitoring
+  (Volume tab) chart in a project, from a CI step. See [`tripl annotate`](#tripl-annotate).
+
+`scans run`, `scans cancel`, `drifts dismiss`, `drifts reopen` and `annotate`
+are the CLI's **only mutating commands**. Read [Write safety](#write-safety) before you use one. Every other
 command that talks to an instance is read-only, and a `tk_r_` key is enough for
 all of them.
 
@@ -194,9 +199,9 @@ list`, `scans jobs` and `drifts list`, and it should be your default.** Those
 six issue nothing but `GET`, so a write key buys them nothing and risks
 everything.
 
-Four verbs mutate the instance and need a **`tk_w_` key backed by a user with
-the editor or owner role**: `scans run`, `scans cancel`, `drifts dismiss` and
-`drifts reopen`.
+Five verbs mutate the instance and need a **`tk_w_` key backed by a user with
+the editor or owner role**: `scans run`, `scans cancel`, `drifts dismiss`,
+`drifts reopen` and `annotate`.
 Give them a key of their own rather than promoting the one in your cron job —
 see [Write safety](#write-safety).
 
@@ -894,7 +899,7 @@ mode `watch` exists to avoid.
 
 ## Write safety
 
-`doctor`, `status` and `watch` only ever read. **Four verbs do not**, and this
+`doctor`, `status` and `watch` only ever read. **Five verbs do not**, and this
 is the one table to read before you run any of them:
 
 | Command | What it changes on the instance | Key | Backing role | Asks first |
@@ -903,6 +908,7 @@ is the one table to read before you run any of them:
 | `tripl scans cancel` | Stops a `pending` or `running` job. A running job is not killed: it stops at its next checkpoint — a metrics run at the next chunk boundary, keeping the metrics it already wrote; a catalog run or an event-group apply immediately before its write commits, so stopped there it writes nothing at all. Stopped after that commit, the work it had already made durable stays. Either way a stopped job stays `cancelled`. | `tk_w_` | editor or owner | **Yes** |
 | `tripl drifts dismiss` | Moves one schema drift to `false_positive` or `snoozed`, which takes it out of `doctor`'s untriaged count. | `tk_w_` | editor or owner | **Yes** |
 | `tripl drifts reopen` | Moves one schema drift back to `open`, and **discards** its resolution note and resolver. | `tk_w_` | editor or owner | **Yes** |
+| `tripl annotate` | Adds one chart annotation with source `api`. The same label posted again with source `api` within 24 hours is **de-duplicated**: nothing new is created. | `tk_w_` | editor or owner | **No** |
 
 Everything else on this page — `doctor`, `status`, `watch`, `scans list`,
 `scans jobs`, `drifts list` — is `GET`-only and needs nothing but `tk_r_`.
@@ -922,7 +928,7 @@ tripl: Forbidden (403): the API key lacks the required scope (tk_r_ keys cannot 
 Read `API detail:` — it is the server's own sentence and it says which of the
 three actually applied.
 
-### `--dry-run` is on all four
+### `--dry-run` is on all five
 
 It resolves everything a real invocation would resolve — including turning a
 `<scan>` name into a config id, which is where a typo becomes exit 2 — prints
@@ -955,13 +961,14 @@ a machine can consume.
 
 ### The confirmation rule
 
-`scans cancel`, `drifts dismiss` and `drifts reopen` prompt. `scans run` does
-not, and it has no `--yes` at all — passing one is exit 2, because a flag that
-does nothing here is a flag a script author will assume does something on the
-next command too. The reasoning is that `run` executes SQL an owner already
-authored, on a schedule that already runs it; `cancel` throws away work in
-flight, `dismiss` hides a finding from `doctor`, and `reopen` destroys the note
-that says why the finding was hidden.
+`scans cancel`, `drifts dismiss` and `drifts reopen` prompt. `scans run` and
+`annotate` do not, and neither has a `--yes` at all — passing one is exit 2,
+because a flag that does nothing here is a flag a script author will assume does
+something on the next command too. The reasoning is that `run` executes SQL an
+owner already authored, on a schedule that already runs it, and `annotate` adds
+a marker that is cheap to delete from a pipeline that has nobody to ask;
+`cancel` throws away work in flight, `dismiss` hides a finding from `doctor`,
+and `reopen` destroys the note that says why the finding was hidden.
 
 ```bash
 tripl scans cancel 'prod events' job-91c2 --project prod
@@ -1984,6 +1991,101 @@ silently change behaviour the day the index is rebuilt.
 
 **Cost:** one request, plus one to resolve `--branch` when you pass it.
 
+## `tripl annotate`
+
+Posts one marker onto every monitoring (Volume tab) chart in a project — "Deployed web 2026.09.25",
+with a link to the release — so the next anomaly on a chart sits next to the
+deploy that probably caused it. It is written for a **CI step**: one request,
+no prompt, and safe to retry.
+
+```
+usage: tripl annotate [-h] [--base-url URL] [--api-key KEY] [--config PATH]
+                      [--project SLUG] [--url URL] [--at TIMESTAMP]
+                      [--description TEXT]
+                      [--scope-type {project_total,event_type,event,metric}]
+                      [--scope-ref REF] [--dry-run] [--json]
+                      [--timeout SECONDS]
+                      <label>
+```
+
+| Flag | Meaning |
+|------|---------|
+| `<label>` | The text drawn on the chart, 1–200 characters. |
+| `--project SLUG` | **Required**, exactly once. |
+| `--url URL` | The release or pull-request link the chart tooltip opens. `http` or `https`, at most 500 characters. |
+| `--at TIMESTAMP` | When it happened, RFC 3339 (`2026-09-25T14:02:00Z`). A value with no offset is read as UTC. Default: now. |
+| `--description TEXT` | Longer text for the tooltip, up to 2000 characters. |
+| `--scope-type TYPE` | Draw it only on charts of this scope: `project_total`, `event_type`, `event` or `metric`. Needs `--scope-ref`. Omit both for a project-level marker, which every monitoring (Volume tab) chart in the project shows. |
+| `--scope-ref REF` | The event type, event or metric the scope names. Needs `--scope-type`. |
+| `--dry-run` | Build the request, print it, send nothing. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+**Write. Needs a `tk_w_` key backed by an editor or owner. Does not prompt, and
+has no `--yes`.**
+
+:::warning `--url` here is the link, not the instance
+On every other command `--url` is the instance URL. On `annotate` it is the
+link the annotation carries, because that is the API field's name and the flag
+every CI example reaches for. Give the instance with `$TRIPL_BASE_URL` (the
+usual case in CI), `--base-url`, or `--url` placed **before** the command name:
+`tripl --url https://tripl.example.com annotate ...`.
+:::
+
+```bash
+tripl annotate "Deployed web 2026.09.25" --project prod \
+  --url https://github.com/acme/web/releases/tag/2026.09.25
+```
+
+```text
+tripl annotate - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+prod: annotated 'Deployed web 2026.09.25' at 2026-09-25T14:02:00Z (ann-7f3a).
+```
+
+The annotation is created with **source `api`**. Charts draw it muted, with a
+rocket icon, and hide it together with the automatic release markers when a
+viewer turns **Show releases** off — see
+[Chart annotations](../use/feature-reference.md#chart-annotations).
+
+### A `200` means it was already there
+
+The API **de-duplicates** `api` annotations: the same label with source `api`,
+posted to the same project within 24 hours, returns the annotation that already
+exists — with
+a `200` instead of a `201` — rather than drawing it twice. A re-run deploy job
+therefore leaves one marker, not two. (Only `api` and the worker's `release`
+markers are de-duplicated; `manual` annotations from the app's form never are.)
+`annotate` still exits **0**, and says which of the two happened:
+
+```text
+tripl annotate - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+prod: annotation 'Deployed web 2026.09.25' already exists (ann-7f3a, at 2026-09-25T14:02:00Z); the API de-duplicated it and nothing new was created.
+```
+
+Under `--json` the same fact is `"deduplicated": true` in the
+[mutation document](#mutation-documents). Put something unique in the label —
+the version, the commit — if two deploys a day are two separate events.
+
+### In a GitHub Actions workflow
+
+```yaml
+- name: Mark the deploy on tripl charts
+  env:
+    TRIPL_BASE_URL: https://tripl.example.com
+    TRIPL_API_KEY: ${{ secrets.TRIPL_WRITE_KEY }}
+  run: >
+    uvx tripl annotate "Deployed web ${{ github.ref_name }}" --project prod
+    --url "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+```
+
+The same request without the CLI is in the
+[Agent API guide](../integrate/agent-api-guide.md#chart-annotations).
+
+**Cost:** one request, or none with `--dry-run`. The slug is not resolved
+first: a wrong one comes back as the route's own `404`.
+
 ## `tripl install`
 
 Every command above needs an instance to talk to. This is the one that **makes
@@ -2489,9 +2591,9 @@ produced it, but not every code is reachable from every command — `doctor` own
 
 | Code | Meaning |
 |------|---------|
-| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. |
+| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. |
 | **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss` or `drifts reopen` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
 
@@ -2586,6 +2688,10 @@ Do not promote the diagnostic cron's key to write scope so a second job can
 share it; mint a second key, and treat an exit 2 from the writing job as a
 configuration alarm rather than a flaky run.
 :::
+
+A deploy step that posts a chart marker is the one write that needs no `--yes`:
+`annotate` never prompts. It still needs that second, `tk_w_` key — see
+[`tripl annotate`](#in-a-github-actions-workflow) for a workflow step.
 
 ## `--json`
 
@@ -3367,8 +3473,8 @@ as one.
 
 ### Mutation documents
 
-`scans run`, `scans cancel` and `drifts dismiss` share one shape. **Every key is
-present on every one of them**, `null` where it does not apply, so a consumer
+`scans run`, `scans cancel`, `drifts dismiss`, `drifts reopen` and `annotate`
+share one shape. **Every key is present on every one of them**, `null` where it does not apply, so a consumer
 never has to test for existence before reading — the same rule the `doctor`
 summary follows.
 
@@ -3403,6 +3509,7 @@ summary follows.
   "job_id": null,
   "drift_id": "drift-1",
   "action": "snooze",
+  "deduplicated": null,
   "result": {
     "id": "drift-1",
     "field_name": "cart_value",
@@ -3417,10 +3524,11 @@ summary follows.
 | `dry_run` | `true` when nothing was sent. |
 | `request` | What **was** sent, or under `--dry-run` what **would** be. Exactly `method`, `path`, `params`, `body` — never headers, never the API key. `params` drops nulls, so it is what would go on the wire. |
 | `project` | The single `--project` slug. |
-| `scan` | `{id, name}` for the two `scans` verbs, `null` for `drifts dismiss`. |
+| `scan` | `{id, name}` for the two `scans` verbs, else `null`. |
 | `job_id` | `scans cancel` only, else `null`. |
-| `drift_id` | `drifts dismiss` only, else `null`. |
+| `drift_id` | `drifts dismiss` and `drifts reopen` only, else `null`. |
 | `action` | `"false_positive"` or `"snooze"` for `drifts dismiss`, else `null`. |
+| `deduplicated` | `annotate` only: `false` when the API created the annotation (`201`), `true` when it returned one that already existed (`200`). `null` for every other verb and under `--dry-run`. |
 | `result` | The API's response object, verbatim. **`null` under `--dry-run`, always** — nothing was sent, so there is no result, and the absence is the statement. |
 
 For `scans run` the same document carries `"command": "scans run"`,
@@ -3428,6 +3536,12 @@ For `scans run` the same document carries `"command": "scans run"`,
 created `ScanJobResponse`. **Read `result.status` before you call it a
 success**: a `201` with `"status": "failed"` is what a broker outage looks like,
 and it is the reason that case exits 1.
+
+For `annotate` it carries `"command": "annotate"`, `scan`, `job_id`, `drift_id`
+and `action` all `null`, `request.body` with `"source": "api"`, and `result` is
+the `ChartAnnotationResponse`. Read `deduplicated` before you report "annotation
+created": a retried job gets `true`, and the `result` it holds is the earlier
+annotation.
 
 ### `install` document
 

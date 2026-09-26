@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarPlus, Trash2 } from 'lucide-react'
+import { CalendarPlus, ExternalLink, Rocket, Tag, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { chartAnnotationsApi } from '@/api/chartAnnotations'
 import { ErrorState } from '@/components/error-state'
@@ -16,8 +16,11 @@ import { useConfirm } from '@/hooks/useConfirm'
 import {
   ANNOTATION_DEFAULT_COLOR,
   ANNOTATION_LABEL_MAX,
-  annotationDisplayColor,
+  annotationMarkerColor,
+  annotationSourceLabel,
   formatUtcOffset,
+  isAutomaticAnnotation,
+  safeAnnotationUrl,
   toDatetimeLocalValue,
 } from '@/lib/chartAnnotations'
 import { formatTimestamp } from '@/lib/datetime'
@@ -206,39 +209,70 @@ export function AnnotationsCard({
             />
           ) : annotations.length > 0 && (
             <ul className="divide-y divide-border text-body-sm">
-              {annotations.map(annotation => (
-                <li
-                  key={annotation.id}
-                  className="flex items-center justify-between gap-2 py-2"
-                >
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: annotationDisplayColor(annotation.color) }}
-                    />
-                    <span className="text-fg-tertiary">
-                      {formatTimestamp(annotation.bucket)}
-                    </span>
-                    <span className="min-w-0 break-words font-medium">{annotation.label}</span>
-                    {annotation.scope_type === null && (
-                      <Chip variant="outline" size="xs">project-wide</Chip>
+              {annotations.map(annotation => {
+                const automatic = isAutomaticAnnotation(annotation)
+                const url = safeAnnotationUrl(annotation.url)
+                return (
+                  <li
+                    key={annotation.id}
+                    className="flex items-center justify-between gap-2 py-2"
+                  >
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: annotationMarkerColor(annotation) }}
+                      />
+                      <span className="text-fg-tertiary">
+                        {formatTimestamp(annotation.bucket)}
+                      </span>
+                      <span className={`min-w-0 break-words font-medium${automatic ? ' text-fg-secondary' : ''}`}>
+                        {annotation.label}
+                      </span>
+                      {/* Who made it: the metrics worker or a deploy script,
+                          not someone in this form (#256). */}
+                      {automatic && (
+                        <Chip
+                          variant="outline"
+                          size="xs"
+                          icon={annotation.source === 'release'
+                            ? <Tag aria-hidden="true" />
+                            : <Rocket aria-hidden="true" />}
+                        >
+                          {annotationSourceLabel(annotation.source)}
+                        </Chip>
+                      )}
+                      {annotation.scope_type === null && (
+                        <Chip variant="outline" size="xs">project-wide</Chip>
+                      )}
+                      {url && (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Details for ${annotation.label} (opens in a new tab)`}
+                          className="inline-flex items-center gap-1 text-caption text-fg-tertiary hover:text-fg underline-offset-2 hover:underline"
+                        >
+                          Details
+                          <ExternalLink aria-hidden="true" className="size-3" />
+                        </a>
+                      )}
+                    </div>
+                    {canWrite && (
+                      <IconButton
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"
+                        onClick={() => void deleteAnnotation(annotation)}
+                        // Only the row being deleted waits, not every row.
+                        disabled={deleteMut.isPending && deleteMut.variables === annotation.id}
+                        label={`Delete annotation ${annotation.label}`}
+                      >
+                        <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                      </IconButton>
                     )}
-                  </div>
-                  {canWrite && (
-                    <IconButton
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"
-                      onClick={() => void deleteAnnotation(annotation)}
-                      // Only the row being deleted waits, not every row.
-                      disabled={deleteMut.isPending && deleteMut.variables === annotation.id}
-                      label={`Delete annotation ${annotation.label}`}
-                    >
-                      <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-                    </IconButton>
-                  )}
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </CardContent>

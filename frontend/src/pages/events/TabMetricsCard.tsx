@@ -73,6 +73,8 @@ function signalAnnotation(signal: MonitoringSignal | null): ChartAnnotation[] | 
       label: 'Open signal',
       description: null,
       color: 'var(--danger)',
+      source: 'manual',
+      url: null,
       created_by_user_id: null,
       created_at: signal.bucket,
     },

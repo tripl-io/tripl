@@ -583,7 +583,11 @@ see, across tabs:
   Up/Down by month) and type the time beside it; it is your local time, and
   starts at now. Annotations draw in a neutral
   colour so they cannot be mistaken for anomalies, and deleting one asks first
-  (a project-wide annotation is removed from every chart in the project).
+  (a project-wide annotation is removed from every monitoring chart in the project).
+  Markers you did not draw yourself — **Release *version*** when a new app
+  version goes live, and deploy markers posted by a pipeline — show muted with a
+  small icon; **Show releases** hides them and leaves your own annotations in
+  place. See [Chart annotations](./feature-reference.md#chart-annotations).
 - **Heatmap** — activity by hour of day and day of week; a cell's detail appears
   on hover or tap. It needs a scan that collects hourly or finer; on a 6-hour, daily or weekly scan the tab explains that there is no hour-of-day detail instead of drawing a mostly empty grid.
 - **Distribution** — whether a field's mix of values is drifting (reported as a

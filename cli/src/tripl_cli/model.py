@@ -554,6 +554,10 @@ class MutationOutcome:
     job_id: str | None = None
     drift_id: str | None = None
     action: str | None = None
+    # `annotate` only: True when the API answered 200 with an annotation that
+    # already existed, False on a 201. None for every other verb and under
+    # --dry-run, where nothing was asked.
+    deduplicated: bool | None = None
     # None under --dry-run, always. The absence IS the statement.
     result: JsonDict | None = None
 

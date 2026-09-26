@@ -568,6 +568,8 @@ def render_mutation(outcome: MutationOutcome) -> str:
             f" with body {request['body']!r}\nNothing was sent."
         )
     result = outcome.result or {}
+    if outcome.command == "annotate":
+        return _annotation_line(outcome, result)
     if outcome.command == "scans run":
         job_id = text_of(result, "id") or "(no id)"
         status = text_of(result, "status") or "unknown"
@@ -583,3 +585,22 @@ def render_mutation(outcome: MutationOutcome) -> str:
     drift_type = text_of(result, "drift_type") or "unknown"
     status = text_of(result, "status") or "unknown"
     return f"{outcome.project}: drift {outcome.drift_id} ({field}, {drift_type}) is now {status}."
+
+
+def _annotation_line(outcome: MutationOutcome, result: JsonDict) -> str:
+    """Created, or de-duplicated - and the second says so in words.
+
+    A 200 is not a failure: it is the API refusing to draw the same deploy marker
+    twice, which is what makes a retried CI job safe. It still has to read
+    differently from a 201, or an operator chasing a missing marker would be told
+    one was just created.
+    """
+    label = text_of(result, "label") or "(unlabelled)"
+    annotation_id = text_of(result, "id") or "(no id)"
+    bucket = text_of(result, "bucket") or "unknown time"
+    if outcome.deduplicated:
+        return (
+            f"{outcome.project}: annotation {label!r} already exists ({annotation_id}, "
+            f"at {bucket}); the API de-duplicated it and nothing new was created."
+        )
+    return f"{outcome.project}: annotated {label!r} at {bucket} ({annotation_id})."

@@ -183,6 +183,13 @@ export interface ForecastPoint {
   stddev: number
 }
 
+/**
+ * Who made an annotation: a person in the form (`manual`), the metrics worker
+ * when an app version activated (`release`), or a deploy script through the
+ * API or CLI (`api`).
+ */
+export type ChartAnnotationSource = 'manual' | 'release' | 'api'
+
 export interface ChartAnnotation {
   id: string
   project_id: string
@@ -192,6 +199,9 @@ export interface ChartAnnotation {
   label: string
   description: string | null
   color: string
+  source: ChartAnnotationSource
+  /** A release note, deploy or changelog link (http/https only). */
+  url: string | null
   created_by_user_id: string | null
   created_at: string
 }

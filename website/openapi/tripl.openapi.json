@@ -13144,6 +13144,16 @@
               }
             }
           },
+          "200": {
+            "description": "A source=api annotation with the same label was already created in this project within the last 24 hours; it is returned instead of a duplicate. Manual annotations are never de-duplicated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartAnnotationResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -20546,6 +20556,22 @@
               }
             ],
             "title": "Scope Ref"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChartAnnotationSource",
+            "default": "manual"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
           }
         },
         "type": "object",
@@ -20612,6 +20638,20 @@
             "type": "string",
             "title": "Color"
           },
+          "source": {
+            "$ref": "#/components/schemas/ChartAnnotationSource"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
           "created_by_user_id": {
             "anyOf": [
               {
@@ -20640,6 +20680,8 @@
           "label",
           "description",
           "color",
+          "source",
+          "url",
           "created_by_user_id",
           "created_at"
         ],
@@ -20654,6 +20696,16 @@
           "metric"
         ],
         "title": "ChartAnnotationScopeType"
+      },
+      "ChartAnnotationSource": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "release",
+          "api"
+        ],
+        "title": "ChartAnnotationSource",
+        "description": "Who put a chart annotation there.\n\n``manual`` is a person in the UI, ``api`` is a CI/CLI client posting a\ndeploy marker, and ``release`` is the metrics worker marking the bucket an\napp version activated in. ``release`` is reserved to the worker: the create\nAPI refuses it, so every release marker is one the activation gate drew."
       },
       "ClickHouseSettings": {
         "properties": {},

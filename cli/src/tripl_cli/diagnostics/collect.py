@@ -116,6 +116,15 @@ class Reader:
         self.requests += 1
         return await send(self._api, request)
 
+    @property
+    def last_status_code(self) -> int | None:
+        """The HTTP status of the last ``send``, for the one caller that needs it.
+
+        ``tripl annotate`` tells "created" (201) from "de-duplicated" (200) by
+        this alone - the two bodies have the same shape.
+        """
+        return self._api.last_status_code
+
     async def try_read(self, request: ApiRequest) -> Fetched[Any]:
         try:
             value = await self.send(request)

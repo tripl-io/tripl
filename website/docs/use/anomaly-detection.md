@@ -302,6 +302,18 @@ The test is deliberately careful about young releases:
    reported: a different mix of users cannot manufacture those.
 5. **Verdict.** The ratio of observed to expected decides the outcome. If an event has nearly disappeared (observed far below expected — under ~5% of expected) it is classed as **missing**; if it merely dropped substantially (roughly half or less of expected) *and* the shortfall is also large in statistical terms — observed below `expected − sigma × √expected` — it is classed as a **volume drop**. The `sigma` here is the project's own `sigma_threshold` from **Detection settings** (default `4.0`), not a fixed 3: the release test deliberately shares the anomaly detector's sensitivity dial, so raising `sigma_threshold` to quiet volume anomalies also demands a larger shortfall before a release is flagged as a volume drop: at a high sigma, an event with a small expected count may no longer clear the volume-drop bar at all. A project that has never opened its detection settings uses `3`. Scope overrides from the false-positive feedback are *not* applied here. Anything in between is not flagged. Only deficits are tested; an event firing *more* in the new release is not a regression.
 
+### Release markers on charts
+
+The maturity gate above also draws the release onto the charts. The first time
+a version becomes active, the metrics worker adds one project-level annotation,
+**Release *version***, on the bucket where it crossed the gate — so a drop that
+starts with a rollout sits next to the marker for it. The first version the
+scan sees gets none, nor does one already live when it started looking, because
+there is nothing it visibly replaced; each release gets one marker per project at
+most, however many times the scan re-runs. Prereleases are never marked. The markers are
+muted, carry a tag icon, and hide with **Show releases** — see
+[Chart annotations](./feature-reference.md#chart-annotations).
+
 ### Where to see it
 
 Two surfaces, and they answer different questions.

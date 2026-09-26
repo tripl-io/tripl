@@ -7,6 +7,8 @@
  * red anomaly points it was meant to explain (MON-25).
  */
 
+import type { ChartAnnotation, ChartAnnotationSource } from '@/types'
+
 /** What the annotation form now sends: a theme token, so dark mode follows. */
 export const ANNOTATION_DEFAULT_COLOR = 'var(--info)'
 
@@ -17,6 +19,52 @@ const LEGACY_DEFAULT_COLOR = '#ef4444'
 export function annotationDisplayColor(color: string | null | undefined): string {
   if (!color || color.toLowerCase() === LEGACY_DEFAULT_COLOR) return ANNOTATION_DEFAULT_COLOR
   return color
+}
+
+/**
+ * The ink of a release or API marker (#256): muted, so the worker's "Release
+ * 1.4.0" lines and a deploy script's markers sit behind the markers people
+ * placed by hand instead of competing with them. Whatever colour the row
+ * stores is ignored for these.
+ */
+export const AUTOMATIC_ANNOTATION_COLOR = 'var(--fg-subtle)'
+
+/** True for a marker nobody placed by hand: a release or an API annotation. */
+export function isAutomaticAnnotation(annotation: Pick<ChartAnnotation, 'source'>): boolean {
+  return annotation.source === 'release' || annotation.source === 'api'
+}
+
+/** The colour to draw a marker in, by who made it. */
+export function annotationMarkerColor(annotation: Pick<ChartAnnotation, 'source' | 'color'>): string {
+  return isAutomaticAnnotation(annotation)
+    ? AUTOMATIC_ANNOTATION_COLOR
+    : annotationDisplayColor(annotation.color)
+}
+
+/** How a source reads in the list and in a marker's tooltip. */
+export function annotationSourceLabel(source: ChartAnnotationSource): string {
+  switch (source) {
+    case 'release':
+      return 'Release'
+    case 'api':
+      return 'API'
+    default:
+      return 'Manual'
+  }
+}
+
+/**
+ * The annotation's link when it is safe to open: http or https only. The API
+ * validates this already; a `javascript:` URL must still never reach an href.
+ */
+export function safeAnnotationUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null
+  } catch {
+    return null
+  }
 }
 
 /** The backend's `label` cap (schemas/chart_annotation.py). */

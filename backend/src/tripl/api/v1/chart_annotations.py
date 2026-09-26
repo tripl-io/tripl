@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response, status
 
 from tripl.api.deps import EditorUserDep, SessionDep
 from tripl.models.domain_enums import ChartAnnotationScopeType
@@ -52,14 +52,31 @@ async def list_chart_annotations(
     return [ChartAnnotationResponse.model_validate(row) for row in rows]
 
 
-@router.post("", response_model=ChartAnnotationResponse, status_code=201)
+@router.post(
+    "",
+    response_model=ChartAnnotationResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        status.HTTP_200_OK: {
+            "model": ChartAnnotationResponse,
+            "description": (
+                "A source=api annotation with the same label was already created in "
+                "this project within the last 24 hours; it is returned instead of a "
+                "duplicate. Manual annotations are never de-duplicated."
+            ),
+        }
+    },
+)
 async def create_chart_annotation(
     session: SessionDep,
     slug: str,
     data: ChartAnnotationCreate,
     current_user: EditorUserDep,
+    response: Response,
 ) -> ChartAnnotationResponse:
-    annotation = await chart_annotation_service.create_annotation(
+    # EditorUserDep admits a write-scoped API key (``tk_w_``) bound to this
+    # project or to none, so CI can post deploy markers with ``source=api``.
+    annotation, created = await chart_annotation_service.create_annotation(
         session,
         slug,
         bucket=data.bucket,
@@ -69,7 +86,14 @@ async def create_chart_annotation(
         scope_type=data.scope_type,
         scope_ref=data.scope_ref,
         user_id=current_user.id,
+        source=data.source,
+        url=data.url,
     )
+    if not created:
+        # A retried CI step or a double click: nothing was written, so there is
+        # nothing to audit either.
+        response.status_code = status.HTTP_200_OK
+        return ChartAnnotationResponse.model_validate(annotation)
     await audit_service.record(
         session,
         user=current_user,
@@ -78,6 +102,7 @@ async def create_chart_annotation(
         target_id=annotation.id,
         target_name=annotation.label,
         project_slug=slug,
+        payload={"source": annotation.source, "url": annotation.url},
     )
     return ChartAnnotationResponse.model_validate(annotation)
 

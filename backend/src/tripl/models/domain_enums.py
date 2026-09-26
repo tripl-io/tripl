@@ -159,6 +159,20 @@ class ChartAnnotationScopeType(enum.StrEnum):
     metric = "metric"
 
 
+class ChartAnnotationSource(enum.StrEnum):
+    """Who put a chart annotation there.
+
+    ``manual`` is a person in the UI, ``api`` is a CI/CLI client posting a
+    deploy marker, and ``release`` is the metrics worker marking the bucket an
+    app version activated in. ``release`` is reserved to the worker: the create
+    API refuses it, so every release marker is one the activation gate drew.
+    """
+
+    manual = "manual"
+    release = "release"
+    api = "api"
+
+
 class AnomalyDirection(enum.StrEnum):
     spike = "spike"
     drop = "drop"

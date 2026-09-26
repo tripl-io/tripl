@@ -1442,6 +1442,50 @@ The **annotations** layer on the monitoring Volume tab lets you mark a deploy or
 release at a bucket time with a label, optional description, and color; scoped to
 the chart and deletable.
 
+Every annotation carries a **source**, and two of the three are written by
+something other than a person at the chart:
+
+| Source | Who creates it | How it draws |
+|--------|----------------|--------------|
+| `manual` | Someone using the annotation form on a chart (or **Annotate** on a signal). | As before: the colour it was given. |
+| `release` | The metrics worker, automatically, when a new app version goes live. | Muted, with a tag icon. |
+| `api` | A deploy pipeline, through `POST /projects/{slug}/annotations` or [`tripl annotate`](../run/cli.md#tripl-annotate). | Muted, with a rocket icon. |
+
+**Automatic release markers.** When a scan has an **app-version column**, the
+metrics worker draws one project-level marker, labelled **Release *version***,
+the first time a version becomes **active** — the same maturity gate
+[release regression](./anomaly-detection.md#release-regression) uses: at least
+5% of total traffic by default (the scan's own minimum share, if set) for two
+consecutive buckets, with a minimum release volume behind it. The marker sits on
+the bucket where the version became active, not on the first stray event from a
+tester's device. Three consequences:
+
+- A scan with no app-version column never creates one.
+- The **first** version the scan sees gets no marker, and neither does one that
+  was already live when the scan started looking: there is no earlier release
+  for it to be a change from, and its activation bucket is not when it shipped.
+  Markers start with the next release to activate after it.
+- There is **one marker per release label per project**, ever. Re-running a scan
+  or replaying a period does not draw it again, and prerelease builds excluded
+  from the gate never get one.
+
+**Pipeline markers** (`api`) carry an optional **link** — the release notes or
+the pull request — and the tooltip opens it in a new tab. The same label posted
+again within 24 hours returns the existing marker instead of drawing a second
+one, so a retried deploy job is harmless. Only `api` and `release` markers are
+de-duplicated (`release` permanently, one per label per project); `manual`
+annotations never are — every one you add from the form is created, even with a
+label you used a minute ago. See the
+[Agent API guide](../integrate/agent-api-guide.md#chart-annotations) for the
+request and a GitHub Actions example.
+
+**Show releases.** A **Show releases** toggle appears under a chart only while
+that chart currently shows at least one `release` or `api` marker. Turning it
+off hides the `release` and `api` markers on every monitoring (Volume tab) chart
+in the project and leaves
+your `manual` annotations exactly where they were. It is remembered per user,
+in this browser, and starts on.
+
 ### Alerting
 
 **Where:** Observe › Alerting (Inbox, Rules, Destinations, Delivery log). Destination channels:

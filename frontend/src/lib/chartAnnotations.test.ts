@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   ANNOTATION_DEFAULT_COLOR,
+  AUTOMATIC_ANNOTATION_COLOR,
+  annotationMarkerColor,
+  annotationSourceLabel,
+  isAutomaticAnnotation,
+  safeAnnotationUrl,
   formatUtcOffset,
   toDatetimeLocalValue,
   annotationDisplayColor,
@@ -40,5 +45,37 @@ describe('annotation form helpers (MON-27)', () => {
     expect(formatUtcOffset(at(-180))).toBe('UTC+3')
     expect(formatUtcOffset(at(300))).toBe('UTC−5')
     expect(formatUtcOffset(at(-330))).toBe('UTC+5:30')
+  })
+})
+
+describe('release and API annotations (#256)', () => {
+  it('treats release and API rows as automatic, manual ones not', () => {
+    expect(isAutomaticAnnotation({ source: 'release' })).toBe(true)
+    expect(isAutomaticAnnotation({ source: 'api' })).toBe(true)
+    expect(isAutomaticAnnotation({ source: 'manual' })).toBe(false)
+  })
+
+  it('draws automatic markers muted whatever colour they store', () => {
+    expect(annotationMarkerColor({ source: 'release', color: '#22c55e' })).toBe(AUTOMATIC_ANNOTATION_COLOR)
+    expect(annotationMarkerColor({ source: 'api', color: '#22c55e' })).toBe(AUTOMATIC_ANNOTATION_COLOR)
+    expect(annotationMarkerColor({ source: 'manual', color: '#22c55e' })).toBe('#22c55e')
+    expect(annotationMarkerColor({ source: 'manual', color: '#ef4444' })).toBe(ANNOTATION_DEFAULT_COLOR)
+  })
+
+  it('names each source', () => {
+    expect(annotationSourceLabel('release')).toBe('Release')
+    expect(annotationSourceLabel('api')).toBe('API')
+    expect(annotationSourceLabel('manual')).toBe('Manual')
+  })
+
+  it('only ever links http and https URLs', () => {
+    expect(safeAnnotationUrl('https://github.com/acme/app/releases/v1.4.0'))
+      .toBe('https://github.com/acme/app/releases/v1.4.0')
+    expect(safeAnnotationUrl('http://ci.local/run/1')).toBe('http://ci.local/run/1')
+    expect(safeAnnotationUrl('javascript:alert(1)')).toBeNull()
+    expect(safeAnnotationUrl('data:text/html,hi')).toBeNull()
+    expect(safeAnnotationUrl('not a url')).toBeNull()
+    expect(safeAnnotationUrl('')).toBeNull()
+    expect(safeAnnotationUrl(null)).toBeNull()
   })
 })

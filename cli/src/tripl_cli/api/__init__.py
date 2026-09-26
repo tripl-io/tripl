@@ -46,6 +46,7 @@ from __future__ import annotations
 from tripl_cli.api import (
     auth,
     branches,
+    chart_annotations,
     data_sources,
     event_types,
     events,
@@ -65,6 +66,7 @@ __all__ = [
     "ApiRequest",
     "auth",
     "branches",
+    "chart_annotations",
     "data_sources",
     "event_types",
     "events",

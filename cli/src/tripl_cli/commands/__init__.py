@@ -58,6 +58,7 @@ def register_all(
     # `Handler` and the validators from this one, so a top-level import would
     # close the cycle.
     from tripl_cli.commands import (
+        annotate,
         doctor,
         drifts,
         events,
@@ -89,6 +90,9 @@ def register_all(
     # that does not exist yet, or one being moved to a new tag (tripl-ey6j.3).
     install.register(subparsers, parent)
     upgrade.register(subparsers, parent)
+    # One word as well: it records one fact about the project ("we deployed") from
+    # a CI step, rather than acting on a class of objects an operator browses.
+    annotate.register(subparsers, parent)
 
 
 def group_help(parser: argparse.ArgumentParser) -> Handler:

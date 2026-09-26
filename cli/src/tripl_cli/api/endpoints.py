@@ -17,6 +17,7 @@ from __future__ import annotations
 from tripl_cli.api import (
     auth,
     branches,
+    chart_annotations,
     data_sources,
     event_types,
     events,
@@ -30,6 +31,7 @@ from tripl_cli.api import (
 SHARED_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "auth": auth.ENDPOINTS,
     "branches": branches.ENDPOINTS,
+    "chart_annotations": chart_annotations.ENDPOINTS,
     "data_sources": data_sources.ENDPOINTS,
     "event_types": event_types.ENDPOINTS,
     "events": events.ENDPOINTS,
