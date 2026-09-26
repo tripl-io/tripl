@@ -250,11 +250,11 @@ export function AnnotationsCard({
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
+                          aria-label={`Details for ${annotation.label} (opens in a new tab)`}
                           className="inline-flex items-center gap-1 text-caption text-fg-tertiary hover:text-fg underline-offset-2 hover:underline"
                         >
                           Details
                           <ExternalLink aria-hidden="true" className="size-3" />
-                          <span className="sr-only"> for {annotation.label} (opens in a new tab)</span>
                         </a>
                       )}
                     </div>
