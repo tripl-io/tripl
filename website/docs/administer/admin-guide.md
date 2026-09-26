@@ -35,9 +35,12 @@ tripl has exactly three roles, defined server-side as the `UserRole` enum
 
 | Role | Can read | Can edit plan content | Manage members & roles | Instance settings |
 | --- | --- | --- | --- | --- |
-| **Viewer** | Yes | No | No | No |
-| **Editor** | Yes | Yes | No | No |
-| **Owner** | Yes | Yes | Yes | Yes |
+| **Viewer** | Projects they are a member of | No | No | No |
+| **Editor** | Projects they are a member of | In projects where they are an `editor` member | No | No |
+| **Owner** | Every project | Every project | Yes | Yes |
+
+The instance role is only half of the answer: which **projects** a user can see
+is decided by [project access](#project-access).
 
 How roles are assigned:
 
@@ -77,11 +80,72 @@ The backend gates endpoints with role/scope dependencies, not just UI hiding:
   role required`.
 - **Owner** is required for member role changes and all Instance settings.
   Non-owners receive `403 Owner role required`.
+- **Project membership** is checked before anything else on every project
+  route: a non-member receives `404 Project not found`, and a viewer member who
+  tries to change something receives `403`.
 - Owner-only endpoints additionally require an **interactive owner session** —
   an API key does not reach them, even a write-scoped key owned by an owner
   (`403 Owner session required`). One route is deliberately exempt: the
   [metrics replay](../integrate/agent-api-guide.md#replaying-metrics), which a
   write-scoped key backed by an owner may call.
+
+## Project access
+
+Each project has its own member list. A user who is not a member of a project
+does not see it at all: it is missing from the project list, the activity feed
+and data-source listings, and every page and API route under it answers
+`404 Project not found`. Instance owners see every project and need no
+membership.
+
+| Project role | What it allows |
+| --- | --- |
+| **Editor** | Read the project and edit its tracking plan, catalog and alerting. |
+| **Viewer** | Read the project. |
+
+The instance role caps the project role: an instance **viewer** is a viewer in
+every project, even with an `editor` membership.
+
+**Settings → Project → Access** lists the project's members. The instance owner
+and the person who created the project can, as long as the creator still holds
+an editing role:
+
+- **add a member**: pick someone from the workspace and a role;
+- **change a member's role** between Editor and Viewer;
+- **remove a member**, who then no longer sees the project. Removal also drops
+  their event-type ownerships and pending branch-reviewer assignments in that
+  project, and closes any live-updates stream they have open within one
+  heartbeat.
+
+The creator's rights last only while they can edit: a creator whose instance
+role is `viewer`, or who was switched to a `viewer` member, gets `403` on member
+changes, rename and reset, and a creator who was removed from the project gets
+`404` like any other non-member. Deleting a project is for instance owners only.
+
+Everyone else sees the list read-only. Each change is recorded in the audit log
+(`project.member_add`, `project.member_update`, `project.member_remove`).
+Changing access needs a signed-in browser session: an API key cannot add or
+remove members.
+
+A few things follow from this:
+
+- **Whoever creates a project is an editor member of it**, and can manage its
+  access. The same goes for a demo workspace, which starts with its creator as
+  the only member; resetting a demo keeps its members.
+- **New accounts see no projects.** Someone who registers or accepts an
+  invitation has to be added to each project they need.
+- **Event-type owners and branch reviewers must be members** of the project
+  (`422 User is not a member of this project` otherwise).
+- **API keys act as their user.** A key reaches the projects its user is a member
+  of, and a key bound to one project can only be created by a member of it. A
+  project-bound key used on another project gets `404 Project not found`, the
+  same as an unknown slug.
+- **Taken slugs still answer `409`.** Creating a project with, or renaming one
+  to, a slug that already exists is refused with `409` even if the caller cannot
+  see that project. Slugs are unique instance-wide, so this signal cannot be
+  hidden.
+- **Upgrading from a version without project access** kept everyone's access:
+  every existing editor and viewer became a member of every existing non-demo
+  project with the same role, and each existing demo kept only its creator.
 
 ## Members
 

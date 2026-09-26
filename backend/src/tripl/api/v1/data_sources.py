@@ -28,6 +28,7 @@ from tripl.services import (
     datasource_service,
     metrics_service,
 )
+from tripl.services.project_access import member_project_ids
 
 router = APIRouter(
     prefix="/data-sources",
@@ -41,7 +42,8 @@ _owner_required = [Depends(get_owner_user)]
 # the response is a map of the customer's warehouse (tripl-jfm3.83). That made it
 # a wider disclosure than the host/port this router already redacts, and it is
 # reachable by anyone who can register once the instance is in "open" mode.
-# Project-owned sources also require permission to edit their owning project;
+# Project-owned sources also require membership with edit rights in their owning
+# project (a non-member gets 404, as on every other surface of that project);
 # workspace-global sources remain available to all editors.
 _editor_required = [Depends(get_editor_user)]
 
@@ -60,6 +62,8 @@ _editor_required = [Depends(get_editor_user)]
 # of the warehouse a scan or metric points at:
 #   id            — the join key from ScanConfig.data_source_id / MetricDefinition
 #   project_id    — lets project surfaces hide sources owned by other projects
+#                   (sources bound to a project the caller is not a member of
+#                   never reach the response at all)
 #   name          — the label in the scan/metric pickers and cards
 #   db_type       — selects the SQL dialect for the measure/filter editors
 #   is_synthetic  — badges a demo's in-memory warehouse
@@ -97,7 +101,9 @@ def _visible_to(ds: DataSourceResponse, user: User) -> DataSourceResponse:
 async def list_data_sources(
     session: SessionDep, current_user: CurrentUserDep
 ) -> list[DataSourceResponse]:
-    sources = await datasource_service.list_data_sources(session)
+    sources = await datasource_service.list_data_sources(
+        session, visible_project_ids=await member_project_ids(session, current_user)
+    )
     return [_visible_to(ds, current_user) for ds in sources]
 
 
@@ -141,7 +147,9 @@ async def test_unsaved_data_source_connection(
 async def get_data_source(
     session: SessionDep, ds_id: uuid.UUID, current_user: CurrentUserDep
 ) -> DataSourceResponse:
-    ds = await datasource_service.get_data_source(session, ds_id)
+    ds = await datasource_service.get_data_source(
+        session, ds_id, visible_project_ids=await member_project_ids(session, current_user)
+    )
     return _visible_to(ds, current_user)
 
 
@@ -192,7 +200,8 @@ async def delete_data_source(
     ds_id: uuid.UUID,
     current_user: OwnerUserDep,
 ) -> None:
-    existing = await datasource_service.get_data_source(session, ds_id)
+    # Owner-only route: the owner sees every source.
+    existing = await datasource_service.get_data_source(session, ds_id, visible_project_ids=None)
     name = existing.name
     await datasource_service.delete_data_source(session, ds_id)
     await audit_service.record(

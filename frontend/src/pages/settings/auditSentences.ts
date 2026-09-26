@@ -24,7 +24,7 @@ const ACTION_TONE_RULES: { pattern: RegExp; tone: ChipTone }[] = [
     tone: 'danger',
   },
   {
-    pattern: /(create|add_owner|add_reviewer|invite|merge|approve|accept|override_set)$/,
+    pattern: /(create|add_owner|add_reviewer|member_add|invite|merge|approve|accept|override_set)$/,
     tone: 'success',
   },
   {
@@ -81,6 +81,11 @@ const VERB_PAST: Record<string, string> = {
   add_owner: 'Added an owner to',
   remove_owner: 'Removed an owner from',
   role_update: 'Changed the role of',
+  // Project membership (tripl-vefw): the subject is the project, the member
+  // is the row's target.
+  member_add: 'Added a member to',
+  member_update: 'Changed a member’s role on',
+  member_remove: 'Removed a member from',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

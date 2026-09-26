@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   User,
+  UserCog,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -67,6 +68,16 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
         icon: SlidersHorizontal,
         path: 'project/general',
         keywords: ['project name', 'timezone', 'slug', 'rename', 'description', 'app version', 'delete project'],
+      },
+      // "Access", not "Members": the Workspace group has its own Members (the
+      // instance roster), and two items with one label read as the same page
+      // in the rail and in both palettes.
+      {
+        id: 'project-members',
+        label: 'Access',
+        icon: UserCog,
+        path: 'project/members',
+        keywords: ['members', 'people', 'team', 'roles', 'add member', 'permissions', 'who can see'],
       },
       {
         id: 'plan-rules',

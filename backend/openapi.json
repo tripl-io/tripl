@@ -15849,6 +15849,79 @@
         "title": "ProjectLatestSignal",
         "type": "object"
       },
+      "ProjectMemberCreate": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/ProjectMemberRole",
+            "default": "viewer"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "ProjectMemberCreate",
+        "type": "object"
+      },
+      "ProjectMemberResponse": {
+        "properties": {
+          "added_at": {
+            "format": "date-time",
+            "title": "Added At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/ProjectMemberRole"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "email",
+          "role",
+          "added_at"
+        ],
+        "title": "ProjectMemberResponse",
+        "type": "object"
+      },
+      "ProjectMemberRole": {
+        "description": "A user's role inside one project (``project_members.role``).\n\nThere is no per-project ``owner``: the instance owner (``UserRole.owner``)\nsees and manages every project without a membership row. The effective role\nis also capped by the instance role, so a ``viewer`` user holding an\n``editor`` membership still acts as a viewer (``services.project_access``).",
+        "enum": [
+          "editor",
+          "viewer"
+        ],
+        "title": "ProjectMemberRole",
+        "type": "string"
+      },
+      "ProjectMemberUpdate": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/ProjectMemberRole"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "ProjectMemberUpdate",
+        "type": "object"
+      },
       "ProjectResponse": {
         "properties": {
           "app_version_keep_releases": {
@@ -15954,6 +16027,16 @@
             "default": false,
             "title": "Is Demo",
             "type": "boolean"
+          },
+          "my_role": {
+            "default": "viewer",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ],
+            "title": "My Role",
+            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -22513,6 +22596,7 @@
   "paths": {
     "/api/v1/activity": {
       "get": {
+        "description": "The workspace rail: activity from the projects the caller is a member of.",
         "operationId": "list_workspace_activity_api_v1_activity_get",
         "parameters": [
           {
@@ -22562,6 +22646,7 @@
     },
     "/api/v1/activity/projects/{slug}": {
       "get": {
+        "description": "One project's rail; a non-member gets \"Project not found\".",
         "operationId": "list_project_activity_api_v1_activity_projects__slug__get",
         "parameters": [
           {
@@ -31966,6 +32051,207 @@
         "summary": "Update Fact Table",
         "tags": [
           "fact-tables"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/members": {
+      "get": {
+        "operationId": "list_members_api_v1_projects__slug__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectMemberResponse"
+                  },
+                  "title": "Response List Members Api V1 Projects  Slug  Members Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "project-members"
+        ]
+      },
+      "post": {
+        "operationId": "add_member_api_v1_projects__slug__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMemberCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Member",
+        "tags": [
+          "project-members"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/members/{user_id}": {
+      "delete": {
+        "operationId": "remove_member_api_v1_projects__slug__members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Member",
+        "tags": [
+          "project-members"
+        ]
+      },
+      "patch": {
+        "operationId": "update_member_api_v1_projects__slug__members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMemberUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMemberResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Member",
+        "tags": [
+          "project-members"
         ]
       }
     },

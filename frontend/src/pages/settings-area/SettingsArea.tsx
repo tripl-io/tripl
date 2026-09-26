@@ -17,6 +17,7 @@ import { isOwner as isOwnerRole } from '@/lib/permissions'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
+const ProjectMembersSection = lazyWithReload(() => import('./ProjectMembersSection'))
 const MembersSection = lazyWithReload(() => import('./MembersSection'))
 const DataSourcesSection = lazyWithReload(() => import('./DataSourcesSection'))
 const ApiKeysSection = lazyWithReload(() => import('./ApiKeysSection'))
@@ -255,11 +256,12 @@ function renderSection({
     )
   }
   if (section === 'project/plan-rules') return <PlanRulesSection slug={slug} />
+  if (section === 'project/members') return <ProjectMembersSection slug={slug} />
   return <ProjectGeneralSection slug={slug} onSlugChanged={onSlugChanged} />
 }
 
 /**
- * The two project-scoped routes are the only ones that can render with nothing
+ * The project-scoped routes are the only ones that can render with nothing
  * bound. They used to print "pick a project first" and offer no way to do it,
  * so the user had to leave, choose a project elsewhere and navigate back
  * (tripl-kr4u). The instruction now comes with the control it asks for.

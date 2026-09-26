@@ -21,7 +21,7 @@ from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
 from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.data_source import DataSource
-from tripl.models.domain_enums import MetricScopeType, ProjectGenerationStatus, UserRole
+from tripl.models.domain_enums import MetricScopeType, ProjectGenerationStatus
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
@@ -53,9 +53,6 @@ from tripl.services.monitoring_utils import (
     latest_bucket_by_scan,
     scan_interval_to_timedelta,
     summarize_monitor_states,
-)
-from tripl.services.project_lookup import (
-    PROJECT_NOT_FOUND,
 )
 from tripl.services.project_lookup import (
     get_project_by_slug as _lookup_project_by_slug,
@@ -754,7 +751,30 @@ def _serialize_projects(
     ]
 
 
-async def list_projects(session: AsyncSession) -> list[ProjectResponse]:
+async def list_projects(session: AsyncSession, user: User) -> list[ProjectResponse]:
+    """Every listable project ``user`` is a member of (all of them for an owner).
+
+    The cached list is instance-wide and shared by every caller; membership is
+    applied after the cache read, so one cache entry serves every user and a
+    membership change needs no cache invalidation.
+    """
+    # Imported here, not at module top: project_access reads project rows and
+    # must stay importable without pulling this module in first.
+    from tripl.services.project_access import member_project_ids
+
+    visible = await member_project_ids(session, user)
+    return _only_visible(await _list_all_projects(session), visible)
+
+
+def _only_visible(
+    responses: list[ProjectResponse], visible: set[uuid.UUID] | None
+) -> list[ProjectResponse]:
+    if visible is None:
+        return responses
+    return [response for response in responses if response.id in visible]
+
+
+async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
     cached = await cache.get_json(cache.key_projects_list())
     if cached is not None:
         return [ProjectResponse.model_validate(item) for item in cached]
@@ -808,104 +828,63 @@ async def get_project_by_slug(session: AsyncSession, slug: str) -> Project:
 
 @dataclass(frozen=True)
 class ProjectMutationScope:
-    """Who may MUTATE one project — the closest thing to per-project membership.
+    """The caller's standing in one project, as the mutation gate reads it.
 
-    Roles are instance-wide (``owner`` / ``editor`` / ``viewer``), so on an
-    instance with more than one editor the editor role alone said "may edit
-    every project on the box", including another user's demo (tripl-jfm3.19).
-    There is no membership table, so membership is derived from provenance:
-
-    * an instance owner may mutate anything;
-    * the user who created a project may mutate it;
-    * a project that is NOT a demo and was created by an instance owner — or
-      predates creator tracking (``created_by_user_id IS NULL``) — is a *shared
-      workspace project*. That is the collaborative tracking plan the editor
-      role exists for, so any editor may mutate its contents;
-    * anything else — a demo, or a real project another **editor** created — is
-      that user's own space and is closed to other editors.
-
-    Demos always record a creator (``create_demo_project`` / ``reset_demo_project``
-    both pass one), so a demo never falls through to the shared-project rule.
+    ``role`` is the caller's project role from
+    :func:`tripl.services.project_access.member_role`: ``"owner"`` for the
+    instance owner, the membership role (capped by the instance role) for a
+    member, ``None`` for a non-member. Mutating a project's contents takes an
+    editing role, the same rule ``api.deps.require_project_mutation_access``
+    enforces on the routes; project-identity edits (rename, reset, delete) are
+    narrower and stay with the instance owner and the project's creator
+    (``api.v1.projects._is_project_manager``).
     """
 
+    project_id: uuid.UUID
     is_demo: bool
-    created_by_user_id: uuid.UUID | None
-    creator_is_owner: bool
+    role: str | None
 
-    def allows(self, user: User) -> bool:
-        if user.role == UserRole.owner.value:
-            return True
-        if self.created_by_user_id is not None and self.created_by_user_id == user.id:
-            return True
-        if self.is_demo:
-            return False
-        return self.created_by_user_id is None or self.creator_is_owner
+    def allows(self) -> bool:
+        from tripl.services.project_access import can_edit
 
-
-async def get_project_mutation_scope(session: AsyncSession, slug: str) -> ProjectMutationScope:
-    """Resolve a slug to its mutation scope in one round trip.
-
-    Deliberately column-scoped rather than ``get_project_by_slug``: this runs on
-    every project mutation and only needs authorization fields. Project's plan
-    collections have been lazily loaded since tripl-jfm3.54; this projection
-    still avoids constructing an ORM object for a simple permission check.
-    """
-    row = (
-        await session.execute(
-            select(Project.is_demo, Project.created_by_user_id, User.role)
-            .outerjoin(User, User.id == Project.created_by_user_id)
-            .where(Project.slug == slug)
-        )
-    ).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
-    is_demo, created_by_user_id, creator_role = row
-    return ProjectMutationScope(
-        is_demo=bool(is_demo),
-        created_by_user_id=created_by_user_id,
-        creator_is_owner=creator_role == UserRole.owner.value,
-    )
+        return can_edit(self.role)
 
 
 async def with_can_mutate(
     session: AsyncSession,
     projects: Sequence[ProjectResponse],
+    user: User,
     may_mutate: Callable[[ProjectMutationScope], bool],
 ) -> list[ProjectResponse]:
-    """Copies of ``projects`` with ``can_mutate`` answered by ``may_mutate``.
+    """Copies of ``projects`` with ``can_mutate`` and ``my_role`` for ``user``.
 
     ``may_mutate`` is the caller's own gate over a :class:`ProjectMutationScope`
     (``api.deps.can_mutate_project``), so the flag is the same predicate the
-    mutation routes enforce, not a restatement of it. The scopes are built from
-    the responses plus ONE query for the creators' roles, so a project list costs
-    a single extra round trip. Applied after ``list_projects``' cache read, never
-    before its write: the flag belongs to the caller, the cache to everyone.
+    mutation routes enforce, not a restatement of it. ``my_role`` is the
+    caller's project role; it is left at its default for a project the caller
+    is not a member of, which the membership-filtered callers never pass. The
+    roles come from ONE membership query (none for an instance owner), so a
+    project list costs a single extra round trip. Applied after
+    ``list_projects``' cache read, never before its write: both fields belong to
+    the caller, the cache to everyone.
     """
-    creator_ids = {
-        project.created_by_user_id for project in projects if project.created_by_user_id is not None
-    }
-    creator_roles: dict[uuid.UUID, str] = {}
-    if creator_ids:
-        rows = await session.execute(select(User.id, User.role).where(User.id.in_(creator_ids)))
-        creator_roles = {user_id: str(role) for user_id, role in rows.all()}
-    return [
-        project.model_copy(
-            update={
-                "can_mutate": may_mutate(
-                    ProjectMutationScope(
-                        is_demo=project.is_demo,
-                        created_by_user_id=project.created_by_user_id,
-                        creator_is_owner=(
-                            project.created_by_user_id is not None
-                            and creator_roles.get(project.created_by_user_id)
-                            == UserRole.owner.value
-                        ),
-                    )
-                )
-            }
-        )
-        for project in projects
-    ]
+    # Imported here, not at module top: project_access is imported by the
+    # request gates, and keeping this edge lazy keeps the import graph acyclic.
+    from tripl.services.project_access import member_roles
+
+    roles = await member_roles(session, user, [project.id for project in projects])
+    annotated: list[ProjectResponse] = []
+    for project in projects:
+        role = roles.get(project.id)
+        update: dict[str, object] = {
+            "can_mutate": may_mutate(
+                ProjectMutationScope(project_id=project.id, is_demo=project.is_demo, role=role)
+            )
+        }
+        if role is not None:
+            update["my_role"] = role
+        annotated.append(project.model_copy(update=update))
+    return annotated
 
 
 # A demo's ``demo_last_accessed_at`` is only rewritten when it is this stale, so a
@@ -965,12 +944,23 @@ async def create_project(
     existing = await session.execute(select(Project).where(Project.slug == data.slug))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Project with this slug already exists")
+    from tripl.services.project_member_service import grant_membership
+
     project = Project(**data.model_dump(), created_by_user_id=created_by)
     session.add(project)
     await session.flush()
     # Every project owns one main branch (the live plan); create it up front so
     # branch_id resolution on plan entities is a plain read thereafter.
     await plan_branch_service.ensure_main_branch_id(session, project.id)
+    # The creator is an editor member from the first commit: without the row a
+    # non-owner creator could not even see the project they just made.
+    if created_by is not None:
+        await grant_membership(
+            session,
+            project_id=project.id,
+            user_id=created_by,
+            added_by_user_id=created_by,
+        )
     await session.commit()
     await session.refresh(project)
     await cache.delete_prefix(cache.prefix_projects())

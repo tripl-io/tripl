@@ -8,9 +8,10 @@ import { Button } from '@/components/ui/button'
 import { NativeSelect } from '@/components/settings/kit'
 import { displayUser } from '@/hooks/useUsersById'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import { projectCandidates } from '@/lib/projectCandidates'
 import { getErrorMessage } from '@/lib/utils'
 import type { PlanBranchApproval, PlanBranchDetail, PlanBranchSummary } from '@/types'
-import { planBranchDetailKey, usersKey } from '@/lib/queryKeys'
+import { planBranchDetailKey, projectMembersQueryOptions, usersKey } from '@/lib/queryKeys'
 
 /**
  * Why the reviewer picker is open: `add` is the "+ Reviewer" button; `submit`
@@ -71,14 +72,20 @@ export function BranchReviewSummary({
   )
   const description = branch.description.trim()
 
-  // The same `['users']` cache useUsersById fills, so this costs no request.
+  // Only the project's members, and the instance owners who see every project
+  // without a member row, can review: anyone else cannot see the project, and
+  // the server refuses them (tripl-vefw).
+  const { data: members } = useQuery({
+    ...projectMembersQueryOptions(slug),
+    enabled: canWrite && open,
+  })
   const { data: users } = useQuery({
     queryKey: usersKey(),
     queryFn: () => usersApi.list(),
     enabled: canWrite && open,
   })
   const assigned = new Set(reviewers.map((r) => r.user_id))
-  const candidates = (users ?? []).filter((u) => !assigned.has(u.id))
+  const candidates = projectCandidates(members, users).filter((m) => !assigned.has(m.user_id))
 
   const refresh = () => qc.invalidateQueries({ queryKey: planBranchDetailKey(slug, branch.id) })
   const addMut = useMutation({
@@ -211,7 +218,10 @@ export function BranchReviewSummary({
                 onChange={setPicked}
                 options={[
                   { value: '', label: 'Choose a person…' },
-                  ...candidates.map((user) => ({ value: user.id, label: user.name ?? user.email })),
+                  ...candidates.map((member) => ({
+                    value: member.user_id,
+                    label: member.name || member.email,
+                  })),
                 ]}
               />
               <Button

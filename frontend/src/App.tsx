@@ -456,6 +456,7 @@ export default function App() {
             <Route path="/settings/data-sources/:dsId" element={<Takeover section="data-sources" />} />
             <Route path="/settings/project/general" element={<Takeover section="project/general" />} />
             <Route path="/settings/project/plan-rules" element={<Takeover section="project/plan-rules" />} />
+            <Route path="/settings/project/members" element={<Takeover section="project/members" />} />
             <Route path="/settings/instance/:instSection" element={<TakeoverInstance />} />
             {/* Legacy → takeover redirects. */}
             <Route path="/settings/users" element={<Navigate to="/settings/members" replace />} />

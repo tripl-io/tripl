@@ -21,7 +21,9 @@ from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.schemas.event_type_owner import EventTypeOwnerResponse
+from tripl.services.project_access import member_role
 from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
 
 
 async def _resolve_main_event_type(
@@ -103,10 +105,14 @@ async def add_owner(
     user_id: uuid.UUID,
     granted_by: uuid.UUID | None,
 ) -> EventTypeOwnerResponse:
-    await _resolve_main_event_type(session, slug, event_type_id)
+    event_type = await _resolve_main_event_type(session, slug, event_type_id)
     user = await session.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    # An owner gates merges with their approval, so they must be able to see the
+    # project; the instance owner counts, as they see every project.
+    if await member_role(session, user, event_type.project_id) is None:
+        raise HTTPException(status_code=422, detail=NOT_A_MEMBER_DETAIL)
     existing = await session.scalar(
         select(EventTypeOwner).where(
             EventTypeOwner.event_type_id == event_type_id,

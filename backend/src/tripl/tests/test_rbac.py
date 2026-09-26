@@ -6,6 +6,7 @@ from httpx import ASGITransport, AsyncClient
 
 from tripl.api.deps import WRITE_GATES
 from tripl.main import app
+from tripl.tests._members import add_member_by_slug
 
 
 @pytest.fixture
@@ -154,6 +155,13 @@ async def test_viewer_cannot_mutate_but_can_read(fresh_anon_client: AsyncClient)
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "viewer@example.com")
 
+    # A non-member does not see the project at all, so make the viewer a member.
+    # The row says ``editor`` on purpose: the instance ``viewer`` role caps the
+    # project role at ``viewer`` (asserted on ``my_role`` below). The 403s on the
+    # mutations are answered earlier, by ``require_editor``'s instance-role
+    # check, so they alone would not show the cap.
+    await add_member_by_slug("rbac-proj", "viewer@example.com", "editor")
+
     # Owner promotes viewer to viewer role.
     await fresh_anon_client.post("/api/v1/auth/logout")
     await fresh_anon_client.post(
@@ -172,6 +180,15 @@ async def test_viewer_cannot_mutate_but_can_read(fresh_anon_client: AsyncClient)
     # Reads work.
     listing = await fresh_anon_client.get("/api/v1/projects")
     assert listing.status_code == 200
+
+    # The instance role caps the editor membership row at viewer.
+    detail = await fresh_anon_client.get("/api/v1/projects/rbac-proj")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["my_role"] == "viewer"
+    assert detail.json()["can_mutate"] is False
+    listed = {item["slug"]: item for item in listing.json()}
+    assert listed["rbac-proj"]["my_role"] == "viewer"
+    assert listed["rbac-proj"]["can_mutate"] is False
 
     # Mutations are rejected with 403.
     create = await fresh_anon_client.post(
@@ -198,6 +215,12 @@ async def test_project_delete_is_owner_only(fresh_anon_client: AsyncClient) -> N
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "project-editor@example.com")
 
+    # A non-member cannot even see the project.
+    hidden = await fresh_anon_client.delete("/api/v1/projects/protected-project")
+    assert hidden.status_code == 404
+
+    # An editor member is still refused: deleting a project is owner-only.
+    await add_member_by_slug("protected-project", "project-editor@example.com", "editor")
     denied = await fresh_anon_client.delete("/api/v1/projects/protected-project")
     assert denied.status_code == 403
     assert "owner" in denied.json()["detail"].lower()
@@ -366,6 +389,7 @@ async def test_editor_cannot_run_sql_against_a_warehouse(fresh_anon_client: Asyn
 
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "sql-editor@example.com")
+    await add_member_by_slug("sql-proj", "sql-editor@example.com", "editor")
 
     # Editors keep the read-only views of the scan surface.
     assert (await fresh_anon_client.get("/api/v1/projects/sql-proj/scans")).status_code == 200
@@ -444,6 +468,14 @@ async def test_editor_cannot_edit_another_users_project(fresh_anon_client: Async
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "proj-editor@example.com")
 
+    # A non-member does not see the owner's project at all.
+    unseen = await fresh_anon_client.patch(
+        "/api/v1/projects/owner-proj", json={"name": "Vandalised"}
+    )
+    assert unseen.status_code == 404
+
+    # An editor MEMBER may edit the plan but not the project's identity.
+    await add_member_by_slug("owner-proj", "proj-editor@example.com", "editor")
     hijack = await fresh_anon_client.patch(
         "/api/v1/projects/owner-proj", json={"name": "Vandalised"}
     )

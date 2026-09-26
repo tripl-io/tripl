@@ -40,6 +40,7 @@ from tripl.schemas.field_definition import (
     FieldReorder,
 )
 from tripl.services import field_service
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_plan_branches import _approve_and_merge, _create_branch, _transition
 from tripl.tests.test_rbac import _register, _set_role, iter_api_routes
@@ -487,9 +488,13 @@ def _resolves_the_branch_first(method: str, path: str) -> bool:
 
 @asynccontextmanager
 async def _signed_in_as(
-    principal: str, owner: AsyncClient
+    principal: str, owner: AsyncClient, slug: str
 ) -> AsyncIterator[tuple[AsyncClient, dict[str, str]]]:
-    """A second client acting as ``principal``, with the headers it must send."""
+    """A second client acting as ``principal``, with the headers it must send.
+
+    The viewer is made a member of ``slug`` so the answer under test is the
+    write gate's 403, not the membership gate's 404 (tripl-vefw).
+    """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
         if principal == "read-key":
             resp = await owner.post("/api/v1/me/api-keys", json={"name": "agent", "scope": "read"})
@@ -497,6 +502,7 @@ async def _signed_in_as(
             yield other, {"Authorization": f"Bearer {resp.json()['token']}"}
             return
         await _register(other, "viewer@example.com")
+        await add_member_by_slug(slug, "viewer@example.com", "viewer")
         # A role change ends the user's sessions, so sign in again after it.
         await _set_role(owner, "viewer@example.com", "viewer")
         resp = await other.post(
@@ -531,7 +537,7 @@ async def test_the_write_gate_answers_before_the_read_only_409(
         )
 
     wrong: dict[str, str] = {}
-    async with _signed_in_as(principal, client) as (caller, headers):
+    async with _signed_in_as(principal, client, slug) as (caller, headers):
         for method, path in routes:
             resp = await caller.request(
                 method, f"{_fill(path, slug)}?branch={branch_id}", json={}, headers=headers

@@ -39,6 +39,7 @@ from tripl.services.plan_revision_service import (
     build_plan_snapshot,
     plan_snapshot_hash,
 )
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal, engine
 from tripl.worker.tasks import implementation_tickets as impl_tasks
 
@@ -347,6 +348,8 @@ async def test_reviewers_add_list_remove(client: AsyncClient) -> None:
             )
         )
         await session.commit()
+    # A reviewer must be a member of the project (tripl-vefw).
+    await add_member_by_slug("branch-rev", "reviewer@example.com", "editor")
 
     added = await client.post(
         f"/api/v1/projects/branch-rev/branches/{branch_id}/reviewers",
@@ -410,6 +413,7 @@ async def test_submit_auto_assigns_touched_owners_as_reviewers(client: AsyncClie
         # Own the LIVE (main) "track" event type — owners attach to main only.
         session.add(EventTypeOwner(event_type_id=uuid.UUID(et_id), user_id=owner_id))
         await session.commit()
+    await add_member_by_slug("branch-autorev", "owner-rev@example.com", "editor")
     await _touch_branch_event_type(branch_id)
 
     detail = await _transition(client, "branch-autorev", branch_id, "submit")
@@ -3175,13 +3179,15 @@ def test_rekey_in_place_moves_a_whole_cycle_without_fusing_two_rows() -> None:
 # --- merge policy: min approvals + self-approval guard (tripl-s8t0) ---------
 
 
-async def _seed_second_user(email: str) -> uuid.UUID:
+async def _seed_second_user(email: str, slug: str) -> uuid.UUID:
     """Insert an extra user directly — the auth endpoints would switch the
-    client's session to the new user, which these tests don't want."""
+    client's session to the new user, which these tests don't want. The user is
+    made an editor member of ``slug``: approvers are project members."""
     user_id = uuid.uuid4()
     async with TestSessionLocal() as session:
         session.add(User(id=user_id, email=email, password_hash="!seed", role="editor"))
         await session.commit()
+    await add_member_by_slug(slug, email, "editor")
     return user_id
 
 
@@ -3298,7 +3304,7 @@ async def test_merge_blocked_until_min_approvals_met(client: AsyncClient) -> Non
         "stale": 0,
     }
 
-    second_user = await _seed_second_user("approver2@example.com")
+    second_user = await _seed_second_user("approver2@example.com", "branch-minappr")
     await _add_approval(branch_id, second_user)
 
     merged = await client.post(f"/api/v1/projects/branch-minappr/branches/{branch_id}/merge")
@@ -3512,7 +3518,7 @@ async def test_merge_discards_author_approval_when_self_approval_blocked(
         "stale": 0,
     }
 
-    reviewer = await _seed_second_user("approver3@example.com")
+    reviewer = await _seed_second_user("approver3@example.com", "branch-selfappr-merge")
     await _add_approval(branch_id, reviewer)
 
     merged = await client.post(f"/api/v1/projects/branch-selfappr-merge/branches/{branch_id}/merge")

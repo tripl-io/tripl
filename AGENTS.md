@@ -53,7 +53,6 @@ Already implemented in code:
 
 Not a safe assumption unless you verify:
 - import/export;
-- per-project membership separate from workspace-wide roles;
 - automatic rollback of a merged branch;
 - any local analytics warehouse container.
 
@@ -231,6 +230,11 @@ CLI layers (`cli/src/tripl_cli`):
 
 Core planning entities:
 - `Project`: tracking-plan namespace.
+- `ProjectMember`: a user's membership of one project (`editor` | `viewer`).
+  Non-members get 404 on every `/projects/{slug}/...` route and never see the
+  project in a list or feed; instance owners need no row. Rules live in
+  `services/project_access.py`; the gate is `require_project_membership` in
+  `api/deps.py`, mounted in `api/v1/router.py`'s `protected_dependencies`.
 - `EventType`: schema bucket like page view or click.
 - `FieldDefinition`: typed field under an event type.
 - `EventTypeRelation`: relation between event types via fields.
@@ -282,6 +286,8 @@ Routers currently registered:
 - `/auth`, `/users`, `/me/api-keys`, `/settings`
 - `/activity`, `/audit`
 - `/projects`
+- `/projects/{slug}/members` (list: any member; add/re-role/remove: instance
+  owner or the project's creator, browser session only)
 - `/projects/{slug}/event-types`
 - `/projects/{slug}/event-types/{event_type_id}/fields`
 - `/projects/{slug}/relations`
@@ -335,7 +341,7 @@ Defined in [frontend/src/App.tsx](frontend/src/App.tsx):
 - `/`: single-project redirect or workspace project list
 - `/workspace`
 - `/settings/{members|api-keys|profile|security|data-sources}`
-- `/settings/project/{general|plan-rules}`
+- `/settings/project/{general|members|plan-rules}`
 - `/settings/instance/:instSection`
 - `/p/:slug/overview`
 - `/p/:slug/events`
@@ -429,6 +435,19 @@ Current message formats exposed in frontend/backend types:
 - `telegram_markdownv2`
 
 ## Where To Look First
+
+If the task is about who can see or edit a project (membership, 404 for
+non-members, `my_role` / `can_mutate`):
+- `backend/src/tripl/services/project_access.py`
+- `backend/src/tripl/services/project_member_service.py`
+- `backend/src/tripl/api/v1/project_members.py`
+- `backend/src/tripl/api/deps.py` (`require_project_membership`,
+  `require_project_mutation_access`)
+- `frontend/src/pages/settings-area/ProjectMembersSection.tsx`
+- backend tests: `test_project_membership.py` (route audit plus behaviour),
+  `test_project_mutation_authorization.py`; the shared helper
+  `tests/_members.py` (`add_member`, `add_member_by_slug`,
+  `persisted_member_user`) makes a non-owner test user a member
 
 If the task is about event catalog CRUD:
 - `backend/src/tripl/api/v1/events.py`

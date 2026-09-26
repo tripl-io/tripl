@@ -81,10 +81,32 @@ export interface Project {
   demo_last_tick_at?: string | null
   created_by_user_id?: string | null
   // Whether the signed-in caller may write inside this project: the backend's
-  // editor gate (role + ProjectMutationScope) answered per request. Optional so
-  // fixtures that predate it keep type-checking; lib/permissions falls back to
-  // the role/demo rule when it is absent.
+  // mutation gate answered per request (instance owner, or a member with an
+  // editing role whose instance role is not viewer). Optional so fixtures that
+  // predate it keep type-checking; lib/permissions falls back to `my_role`, then
+  // the role/demo rule, when it is absent.
   can_mutate?: boolean
+  // The caller's access to this project: 'owner' for an instance owner (who
+  // sees every project), otherwise their project membership role, capped by
+  // their instance role. Optional so fixtures that predate project membership
+  // keep type-checking; the server always sends it.
+  my_role?: ProjectAccessRole
+}
+
+/** A project membership role. The instance owner is never a member row. */
+export type ProjectMemberRole = 'editor' | 'viewer'
+
+/** What `ProjectResponse.my_role` can say about the caller. */
+export type ProjectAccessRole = 'owner' | ProjectMemberRole
+
+/** One row of `GET /projects/{slug}/members`. Hand-written until the API
+ *  types are regenerated. */
+export interface ProjectMember {
+  user_id: string
+  name: string | null
+  email: string
+  role: ProjectMemberRole
+  added_at: string
 }
 
 export type ActivityItemType = 'anomaly' | 'scan' | 'alert' | 'event'

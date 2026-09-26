@@ -249,7 +249,9 @@ The demo offers two guides, and they do different jobs.
   (fresh chapter progress, welcome panel back). Reset and Delete stay off in the
   **Manage demo** menu while it checks.
 - **Delete** — chosen from the banner's **Manage demo** menu; removes the demo and its owned synthetic warehouse and leaves every
-  real workspace source untouched. The creator or an owner can delete it. The
+  real workspace source untouched. The creator or an owner can delete it. A demo
+  is visible only to its creator (and instance owners) unless they add members in
+  **Settings → Project → Access**; a reset keeps those members. The
   tour position, chapter progress and welcome/hint choices your browser kept
   for it are cleared too — and the workspace page clears them for any demo that
   was deleted elsewhere, the next time it lists your projects.

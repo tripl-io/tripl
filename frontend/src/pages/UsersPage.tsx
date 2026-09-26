@@ -203,7 +203,7 @@ function InviteMemberCard() {
       {dialog}
       <SCard
         title="Invite a member"
-        description="Creates a single-use link for one address, at the role you pick."
+        description="Creates a single-use link for one address, at the role you pick. They see no project until they are added to one under Project settings › Access."
         footer={
           <div className="flex w-full flex-wrap items-center justify-end gap-2">
             {createMut.isError && (

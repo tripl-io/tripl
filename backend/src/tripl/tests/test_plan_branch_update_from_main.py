@@ -37,6 +37,7 @@ from tripl.models.variable_event_value_override import VariableEventValueOverrid
 from tripl.services import plan_branch_update_service
 from tripl.services.plan_revision_service import build_plan_snapshot
 from tripl.services.variable_service import rewrite_variable_token_references
+from tripl.tests._members import persisted_member_user
 from tripl.tests.conftest import TestSessionLocal
 
 EVENT = "purchase:success"
@@ -798,20 +799,17 @@ async def test_stale_preview_is_refused(client: AsyncClient) -> None:
 async def test_gates(client: AsyncClient) -> None:
     slug = "ufm-gates"
     branch_id = await _seed(client, slug)
-    _project_id, main_id = await _ids(slug)
+    project_id, main_id = await _ids(slug)
     await _edit(EventType, main_id, {"name": "track"}, color="#999999")
 
     assert (await client.post(_url(slug, main_id), json={})).status_code == 400
     assert (await client.post(_url(slug, uuid.uuid4()), json={})).status_code == 404
 
+    # A persisted viewer MEMBER: a non-member would get 404, not 403.
+    viewer = await persisted_member_user(project_id, role=UserRole.viewer.value)
+
     async def _viewer() -> User:
-        return User(
-            id=uuid.uuid4(),
-            email="viewer@example.com",
-            name="Viewer",
-            password_hash="x",
-            role=UserRole.viewer.value,
-        )
+        return viewer
 
     app.dependency_overrides[get_current_user] = _viewer
     try:

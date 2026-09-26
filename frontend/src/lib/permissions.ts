@@ -44,16 +44,16 @@ export function useCanWrite(): boolean {
  *
  * {@link canWrite} answers "may this role edit something". Every slug-scoped
  * write route also passes `require_project_mutation_access`
- * (backend/src/tripl/api/deps.py), whose `ProjectMutationScope.allows`
- * (services/project_service.py) closes a DEMO to everyone but an owner and the
- * user who created it. This mirrors that half.
+ * (backend/src/tripl/api/deps.py), which since project membership (tripl-vefw)
+ * asks one question: is the caller the instance owner, or a member of this
+ * project with an editing role? A viewer member only reads, whatever their
+ * instance role.
  *
- * The same rule also closes a real (non-demo) project created by another
- * EDITOR, which the client cannot tell from the creator's id alone (a shared
- * project made by an owner looks the same). So the server answers it:
- * `ProjectResponse.can_mutate` is that gate evaluated for the caller, and when
- * the project carries it, it decides. The role/demo rule below is the fallback
- * for a project without the field (fixtures, a response from an older API).
+ * The server answers that per request: `ProjectResponse.can_mutate` is the gate
+ * evaluated for the caller, and when the project carries it, it decides.
+ * `my_role` (the caller's membership role, capped by their instance role) is
+ * the next best signal. The demo/creator rule below is only the fallback for a
+ * project without either field (fixtures, a response from an older API).
  *
  * Missing information degrades to {@link canWrite}'s answer for the same reason
  * given there: no session or no project loaded yet is not evidence of a
@@ -61,10 +61,13 @@ export function useCanWrite(): boolean {
  */
 export function canWriteProject(
   user: Pick<AuthUser, 'id' | 'role'> | null | undefined,
-  project: Pick<Project, 'is_demo' | 'created_by_user_id' | 'can_mutate'> | null | undefined,
+  project: Pick<Project, 'is_demo' | 'created_by_user_id' | 'can_mutate' | 'my_role'> | null | undefined,
 ): boolean {
   if (!canWrite(user?.role)) return false
   if (typeof project?.can_mutate === 'boolean') return project.can_mutate
+  // Project membership (tripl-vefw): a viewer member only reads, however the
+  // instance role reads. `can_mutate` already folds this in when present.
+  if (project?.my_role === 'viewer') return false
   if (!user || !project?.is_demo) return true
   if (isOwner(user.role)) return true
   return project.created_by_user_id != null && project.created_by_user_id === user.id
@@ -158,3 +161,25 @@ export const VIEWER_READ_ONLY_NOTICE =
  */
 export const VIEWER_READ_ONLY_HINT =
   'Read-only: your account has the viewer role. Changes here are made by an editor or owner.'
+
+/**
+ * May this user change who belongs to this project (add, re-role, remove)?
+ *
+ * Mirrors the gates on the member mutation routes of `/projects/{slug}/members`:
+ * the manager check (the instance owner, or the user who created the project)
+ * AND `EditorUserDep`. So a creator also needs an editing role: not a viewer
+ * instance-wide, and not a viewer member of this project (`my_role`) or
+ * otherwise read-only in it (`can_mutate === false`). The instance owner passes
+ * outright. The server enforces the rule either way; this only decides which
+ * controls are drawn.
+ */
+export function canManageProjectMembers(
+  user: Pick<AuthUser, 'id' | 'role'> | null | undefined,
+  project: Pick<Project, 'created_by_user_id' | 'can_mutate' | 'my_role'> | null | undefined,
+): boolean {
+  if (!user) return false
+  if (isOwner(user.role)) return true
+  if (!canWrite(user.role)) return false
+  if (project?.my_role === 'viewer' || project?.can_mutate === false) return false
+  return project?.created_by_user_id != null && project.created_by_user_id === user.id
+}

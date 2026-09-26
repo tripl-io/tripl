@@ -31,6 +31,7 @@ from tripl.models.signal_triage import SignalTriage
 from tripl.models.user import User
 from tripl.services import alerting_service, signal_triage_service
 from tripl.services.metrics_insights_service import get_active_signals
+from tripl.tests._members import persisted_member_user
 from tripl.tests.conftest import TestSessionLocal
 
 pytestmark = pytest.mark.asyncio
@@ -153,15 +154,12 @@ async def _collapsed_scopes(slug: str) -> set[str]:
         return {str(signal.scope_type) for signal in await get_active_signals(session, slug)}
 
 
-def _as_viewer() -> None:
+async def _as_viewer(slug: str) -> None:
+    # A persisted viewer MEMBER: a non-member would get 404, not 403.
+    viewer = await persisted_member_user(await _project_id(slug), role=UserRole.viewer.value)
+
     async def _viewer() -> User:
-        return User(
-            id=uuid.uuid4(),
-            email="viewer@example.com",
-            name="Viewer",
-            password_hash="x",
-            role=UserRole.viewer.value,
-        )
+        return viewer
 
     app.dependency_overrides[get_current_user] = _viewer
 
@@ -171,7 +169,7 @@ def _as_viewer() -> None:
 
 async def test_viewer_cannot_triage(client: AsyncClient) -> None:
     seeded = await _seed(client)
-    _as_viewer()
+    await _as_viewer(seeded.slug)
     try:
         responses = [
             await client.post(f"{seeded.base}/acknowledge", json=seeded.event_type_scope()),

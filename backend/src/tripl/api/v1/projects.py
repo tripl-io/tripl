@@ -38,7 +38,16 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _is_project_manager(user: User, project: Project) -> bool:
-    """An instance owner, or the editor who created this project."""
+    """An instance owner, or the user who created this project.
+
+    Narrower than editing the project's contents (an ``editor`` member may do
+    that): renaming and re-slugging a project, resetting or deleting a demo, and
+    managing its members stay with its creator and the instance owner. Deleting
+    a real (non-demo) project is narrower still: it is instance-owner only
+    (``OwnerUserDep`` on ``DELETE /projects/{slug}``), so a creator cannot
+    delete one. A non-member never reaches this check; the membership gate has
+    already answered 404.
+    """
     return user.role == UserRole.owner.value or project.created_by_user_id == user.id
 
 
@@ -60,12 +69,10 @@ def _require_demo_manager(user: User, project: Project) -> None:
 def _require_project_manager(user: User, project: Project) -> None:
     """Guard project-identity edits (name, slug, retention policy).
 
-    The editor role is instance-wide, so without this any registered editor
-    could rename or re-slug every project on the instance, including ones they
-    have never touched (tripl-jfm3.19). There is no per-project membership model
-    yet, so the honest owner set is: the instance owner, plus whoever created
-    the project. Projects created before creators were recorded have no creator
-    and are therefore owner-managed.
+    Being an ``editor`` member lets a user edit the tracking plan, not the
+    project's identity (tripl-jfm3.19), so the manager set is: the instance
+    owner, plus whoever created the project. Projects created before creators
+    were recorded have no creator and are therefore owner-managed.
     """
     if _is_project_manager(user, project):
         return
@@ -124,9 +131,9 @@ async def _record_lifecycle(
 async def _for_caller(
     session: AsyncSession, request: Request, user: User, projects: list[ProjectResponse]
 ) -> list[ProjectResponse]:
-    """``projects`` with ``can_mutate`` answered for this caller (see ProjectResponse)."""
+    """``projects`` with ``can_mutate`` and ``my_role`` for this caller (see ProjectResponse)."""
     return await project_service.with_can_mutate(
-        session, projects, lambda scope: can_mutate_project(request, user, scope)
+        session, projects, user, lambda scope: can_mutate_project(request, user, scope)
     )
 
 
@@ -153,7 +160,8 @@ def _require_demo_enabled() -> None:
 async def list_projects(
     session: SessionDep, request: Request, current_user: CurrentUserDep
 ) -> list[ProjectResponse]:
-    projects = await project_service.list_projects(session)
+    # Only the projects the caller is a member of (every project for an owner).
+    projects = await project_service.list_projects(session, current_user)
     return await _for_caller(session, request, current_user, projects)
 
 

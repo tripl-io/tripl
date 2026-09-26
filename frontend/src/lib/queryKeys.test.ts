@@ -110,6 +110,7 @@ describe('query key values (SHELL-50)', () => {
   it.each([
     [keys.authStatusKey(), ['auth', 'status']],
     [keys.usersKey(), ['users']],
+    [keys.projectMembersKey('demo'), ['projectMembers', 'demo']],
     [keys.invitationsKey(), ['invitations']],
     [keys.invitationPreviewKey('tok'), ['invitationPreview', 'tok']],
     [keys.apiKeysKey(), ['api-keys']],

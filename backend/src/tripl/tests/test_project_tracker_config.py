@@ -3,6 +3,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from tripl.models.project_tracker_config import ProjectTrackerConfig
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -106,6 +107,8 @@ async def test_update_tracker_config_is_owner_only(anon_client: AsyncClient) -> 
         json={"email": "tracker-editor@example.com", "password": "Password123!", "name": "Editor"},
     )
     assert editor_reg.status_code == 201, editor_reg.text
+    # A member, so the owner gate answers (403) rather than the membership gate (404).
+    await add_member_by_slug("tracker-rbac", "tracker-editor@example.com", "editor")
 
     denied = await anon_client.patch(
         "/api/v1/projects/tracker-rbac/tracker-config",

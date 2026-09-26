@@ -48,6 +48,7 @@ from tripl.models.plan_revision import PlanRevision
 from tripl.models.project import Project
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.project_branch_settings import ProjectBranchSettings
+from tripl.models.project_member import ProjectMember
 from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.models.release_regression import ReleaseComparability, ReleaseRegression
 from tripl.models.scan_config import ScanConfig
@@ -114,6 +115,7 @@ __all__ = [
     "PlanRevision",
     "ProjectAnomalySettings",
     "ProjectBranchSettings",
+    "ProjectMember",
     "ProjectTrackerConfig",
     "ReleaseComparability",
     "ReleaseRegression",

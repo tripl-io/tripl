@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from tripl.api.deps import get_current_user
+from tripl.api.deps import get_current_user, require_project_membership
 from tripl.api.v1.activity import router as activity_router
 from tripl.api.v1.ai import router as ai_router
 from tripl.api.v1.alerting import router as alerting_router
@@ -30,6 +30,7 @@ from tripl.api.v1.plan_branches import router as plan_branches_router
 from tripl.api.v1.plan_revisions import router as plan_revisions_router
 from tripl.api.v1.project_anomaly_settings import router as project_anomaly_settings_router
 from tripl.api.v1.project_branch_settings import router as project_branch_settings_router
+from tripl.api.v1.project_members import router as project_members_router
 from tripl.api.v1.project_tracker_config import router as project_tracker_config_router
 from tripl.api.v1.projects import router as projects_router
 from tripl.api.v1.reconciliation import router as reconciliation_router
@@ -41,7 +42,11 @@ from tripl.api.v1.users import router as users_router
 from tripl.api.v1.variables import router as variables_router
 
 router = APIRouter(prefix="/api/v1")
-protected_dependencies = [Depends(get_current_user)]
+# Authentication, then project membership: every ``/projects/{slug}/...`` route
+# (and ``/activity/projects/{slug}``) answers 404 to a non-member before the
+# route's own dependencies or handler run. Router-level dependencies are solved
+# ahead of the route's, in this order.
+protected_dependencies = [Depends(get_current_user), Depends(require_project_membership)]
 
 router.include_router(auth_router)
 router.include_router(activity_router, dependencies=protected_dependencies)
@@ -50,6 +55,7 @@ router.include_router(app_settings_router, dependencies=protected_dependencies)
 router.include_router(projects_router, dependencies=protected_dependencies)
 router.include_router(project_anomaly_settings_router, dependencies=protected_dependencies)
 router.include_router(project_branch_settings_router, dependencies=protected_dependencies)
+router.include_router(project_members_router, dependencies=protected_dependencies)
 router.include_router(project_tracker_config_router, dependencies=protected_dependencies)
 router.include_router(alerting_router, dependencies=protected_dependencies)
 router.include_router(event_types_router, dependencies=protected_dependencies)

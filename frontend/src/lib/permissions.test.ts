@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   VIEWER_READ_ONLY_NOTICE,
   canManageProject,
+  canManageProjectMembers,
   canWrite,
   canWriteProject,
   isOwner,
@@ -140,5 +141,47 @@ describe('canWriteProject', () => {
     expect(canWriteProject(editor, undefined)).toBe(true)
     expect(canWriteProject(undefined, { is_demo: true, created_by_user_id: 'x' })).toBe(true)
     expect(canWriteProject(viewer, undefined)).toBe(false)
+  })
+})
+
+describe('canManageProjectMembers', () => {
+  const owner = { id: 'u-owner', role: 'owner' as const }
+  const editor = { id: 'u-editor', role: 'editor' as const }
+  const viewer = { id: 'u-viewer', role: 'viewer' as const }
+
+  it('lets the instance owner manage any project, whatever it says', () => {
+    expect(canManageProjectMembers(owner, { created_by_user_id: 'someone-else' })).toBe(true)
+    expect(
+      canManageProjectMembers(owner, { created_by_user_id: null, can_mutate: false, my_role: 'viewer' }),
+    ).toBe(true)
+    expect(canManageProjectMembers(owner, undefined)).toBe(true)
+  })
+
+  it('lets the creator manage members while they hold an editing role', () => {
+    expect(canManageProjectMembers(editor, { created_by_user_id: 'u-editor' })).toBe(true)
+    expect(
+      canManageProjectMembers(editor, { created_by_user_id: 'u-editor', can_mutate: true, my_role: 'editor' }),
+    ).toBe(true)
+  })
+
+  it('stops a creator demoted to viewer instance-wide', () => {
+    expect(canManageProjectMembers(viewer, { created_by_user_id: 'u-viewer' })).toBe(false)
+  })
+
+  it('stops a creator who is only a viewer member of the project', () => {
+    expect(
+      canManageProjectMembers(editor, { created_by_user_id: 'u-editor', my_role: 'viewer' }),
+    ).toBe(false)
+    expect(
+      canManageProjectMembers(editor, { created_by_user_id: 'u-editor', can_mutate: false }),
+    ).toBe(false)
+  })
+
+  it('stops an editor who did not create the project, and a missing session', () => {
+    expect(
+      canManageProjectMembers(editor, { created_by_user_id: 'other', can_mutate: true, my_role: 'editor' }),
+    ).toBe(false)
+    expect(canManageProjectMembers(editor, undefined)).toBe(false)
+    expect(canManageProjectMembers(undefined, { created_by_user_id: 'u-editor' })).toBe(false)
   })
 })

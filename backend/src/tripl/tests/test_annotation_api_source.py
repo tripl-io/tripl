@@ -185,7 +185,8 @@ async def test_a_write_key_for_another_project_cannot_post_here(
         headers=_bearer(token),
     )
 
-    assert resp.status_code == 403
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Project not found"
 
 
 # ── de-dup ────────────────────────────────────────────────────────────────────

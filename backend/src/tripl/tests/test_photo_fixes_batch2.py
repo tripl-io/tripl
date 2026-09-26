@@ -38,6 +38,7 @@ from tripl.models.event_photo import EventPhoto
 from tripl.services import event_photo_service
 from tripl.storage import photo_storage
 from tripl.storage.photo_storage import GCSPhotoStorage, reset_photo_storage
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_plan_branches import (
     _approve_and_merge,
@@ -644,6 +645,8 @@ async def test_the_editor_gate_answers_before_the_read_only_409(
     wrong: dict[str, str] = {}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as viewer:
         await _register(viewer, "viewer@example.com")
+        # A member, so the answer is the role gate's 403, not the membership 404.
+        await add_member_by_slug(slug, "viewer@example.com", "viewer")
         # A role change ends the user's sessions, so sign in again after it.
         await _set_role(client, "viewer@example.com", "viewer")
         login = await viewer.post(

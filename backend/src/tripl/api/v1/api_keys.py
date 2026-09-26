@@ -19,6 +19,8 @@ from tripl.schemas.api_key import (
     ApiKeyResponse,
 )
 from tripl.services import api_key_service, audit_service, project_service
+from tripl.services.project_access import member_role
+from tripl.services.project_lookup import PROJECT_NOT_FOUND
 
 router = APIRouter(prefix="/me/api-keys", tags=["api-keys"])
 
@@ -41,12 +43,16 @@ async def create_api_key(
         require_editor(current_user)
 
     # A project-bound key validates the slug up front so operators can't mint
-    # a key pointing at a project that doesn't exist.
+    # a key pointing at a project that doesn't exist — or at one they are not a
+    # member of, which answers the same 404 so the slug is no oracle. (An
+    # unbound key acts with its user's membership on every request.)
     project_id = (
         await project_service.get_project_id_by_slug(session, data.project_slug)
         if data.project_slug is not None
         else None
     )
+    if project_id is not None and await member_role(session, current_user, project_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PROJECT_NOT_FOUND)
     row, raw_token = await api_key_service.create_key(
         session,
         current_user.id,

@@ -292,5 +292,10 @@ class ProjectResponse(BaseModel):
     # per request by ``project_service.with_can_mutate``; False until then, and
     # never stored in the shared project-list cache.
     can_mutate: bool = False
+    # THIS caller's role in the project: ``owner`` for the instance owner, else
+    # the membership role capped by the instance role (``services.project_access``).
+    # Per request like ``can_mutate`` — never stored in the shared project-list
+    # cache, and defaulted so an entry cached by an older schema still validates.
+    my_role: Literal["owner", "editor", "viewer"] = "viewer"
 
     model_config = {"from_attributes": True}

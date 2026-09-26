@@ -11,7 +11,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Workspace Activity */
+        /**
+         * List Workspace Activity
+         * @description The workspace rail: activity from the projects the caller is a member of.
+         */
         get: operations["list_workspace_activity_api_v1_activity_get"];
         put?: never;
         post?: never;
@@ -28,7 +31,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Project Activity */
+        /**
+         * List Project Activity
+         * @description One project's rail; a non-member gets "Project not found".
+         */
         get: operations["list_project_activity_api_v1_activity_projects__slug__get"];
         put?: never;
         post?: never;
@@ -2232,6 +2238,42 @@ export interface paths {
         head?: never;
         /** Update Fact Table */
         patch: operations["update_fact_table_api_v1_projects__slug__fact_tables__fact_table_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Members */
+        get: operations["list_members_api_v1_projects__slug__members_get"];
+        put?: never;
+        /** Add Member */
+        post: operations["add_member_api_v1_projects__slug__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Member */
+        delete: operations["remove_member_api_v1_projects__slug__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Member */
+        patch: operations["update_member_api_v1_projects__slug__members__user_id__patch"];
         trace?: never;
     };
     "/api/v1/projects/{slug}/meta-fields": {
@@ -9701,6 +9743,49 @@ export interface components {
             /** Z Score */
             z_score: number;
         };
+        /** ProjectMemberCreate */
+        ProjectMemberCreate: {
+            /** @default viewer */
+            role: components["schemas"]["ProjectMemberRole"];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** ProjectMemberResponse */
+        ProjectMemberResponse: {
+            /**
+             * Added At
+             * Format: date-time
+             */
+            added_at: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            role: components["schemas"]["ProjectMemberRole"];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * ProjectMemberRole
+         * @description A user's role inside one project (``project_members.role``).
+         *
+         *     There is no per-project ``owner``: the instance owner (``UserRole.owner``)
+         *     sees and manages every project without a membership row. The effective role
+         *     is also capped by the instance role, so a ``viewer`` user holding an
+         *     ``editor`` membership still acts as a viewer (``services.project_access``).
+         * @enum {string}
+         */
+        ProjectMemberRole: "editor" | "viewer";
+        /** ProjectMemberUpdate */
+        ProjectMemberUpdate: {
+            role: components["schemas"]["ProjectMemberRole"];
+        };
         /** ProjectResponse */
         ProjectResponse: {
             /**
@@ -9744,6 +9829,12 @@ export interface components {
              * @default false
              */
             is_demo: boolean;
+            /**
+             * My Role
+             * @default viewer
+             * @enum {string}
+             */
+            my_role: "owner" | "editor" | "viewer";
             /** Name */
             name: string;
             /** Slug */
@@ -17407,6 +17498,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FactTableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_members_api_v1_projects__slug__members_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMemberResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_member_api_v1_projects__slug__members_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectMemberCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_v1_projects__slug__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_api_v1_projects__slug__members__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectMemberUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectMemberResponse"];
                 };
             };
             /** @description Validation Error */
