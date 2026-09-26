@@ -16,6 +16,7 @@ from tripl.alerting_matching import (
     SCOPE_DISTRIBUTION_DRIFT,
     SCOPE_METRIC,
     SCOPE_RELEASE_REGRESSION,
+    SCOPE_SOURCE_FRESHNESS,
     SCOPE_VARIABLE_VALUE_DRIFT,
     AlertMatchCandidate,
 )
@@ -129,6 +130,15 @@ def _build_alert_scope_names(
             underlying = None
         if underlying is not None:
             scope_names[(anomaly.scope_type, anomaly.scope_ref)] = underlying
+
+    # A source-freshness scope is a whole scan config (scope_ref is its id);
+    # the candidate already carries the scan's name on ``drift_field``.
+    for anomaly in anomalies:
+        if anomaly.scope_type != SCOPE_SOURCE_FRESHNESS:
+            continue
+        scan_name = getattr(anomaly, "drift_field", None)
+        if scan_name:
+            scope_names[(anomaly.scope_type, anomaly.scope_ref)] = scan_name
 
     for anomaly in anomalies:
         key = (anomaly.scope_type, anomaly.scope_ref)

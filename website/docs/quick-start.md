@@ -250,6 +250,15 @@ picked up by the scheduler, and says so — its badge reads **Needs a time
 column**, and its page adds that runs you start by hand still add events to your
 plan.
 
+A monitoring scan that falls behind shows a **freshness** chip: **Data late ·
+&lt;lag&gt;** (the newest data is older than the scan's interval allows) or
+**Scan overdue** (the scan has not completed a collection on schedule). A fresh
+scan, a manual scan, or one with nothing collected yet shows no chip. While a
+scan is late or overdue, its volume drops are
+held instead of raised, so a delayed warehouse load does not show up as a drop
+on every event. See
+[Source freshness](./use/feature-reference.md#source-freshness).
+
 The chain also runs backwards, which is how you get from an alert to its cause.
 An alert names the scan it came from, so **Govern → Scans** is where you start:
 open that scan, expand the run in **Recent runs**, and its **Run details** puts

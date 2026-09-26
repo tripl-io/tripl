@@ -9349,6 +9349,53 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/source-freshness": {
+      "get": {
+        "tags": [
+          "scans"
+        ],
+        "summary": "List Source Freshness",
+        "description": "Each scan config's freshness: fresh, late, overdue or unknown.\n\nComputed on read from what the latest collection recorded, so a scan whose\nworker has stopped turns ``overdue`` without any job having to say so.",
+        "operationId": "list_source_freshness_api_v1_projects__slug__source_freshness_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceFreshnessItem"
+                  },
+                  "title": "Response List Source Freshness Api V1 Projects  Slug  Source Freshness Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/search": {
       "get": {
         "tags": [
@@ -17731,7 +17778,9 @@
           "distribution_shift",
           "missing",
           "volume_drop",
-          "value_drift"
+          "value_drift",
+          "source_late",
+          "source_overdue"
         ],
         "title": "AlertDriftType"
       },
@@ -18306,6 +18355,11 @@
             "title": "Include Metrics",
             "default": false
           },
+          "include_source_freshness": {
+            "type": "boolean",
+            "title": "Include Source Freshness",
+            "default": false
+          },
           "notify_on_spike": {
             "type": "boolean",
             "title": "Notify On Spike",
@@ -18521,6 +18575,10 @@
             "type": "boolean",
             "title": "Include Metrics"
           },
+          "include_source_freshness": {
+            "type": "boolean",
+            "title": "Include Source Freshness"
+          },
           "notify_on_spike": {
             "type": "boolean",
             "title": "Notify On Spike"
@@ -18653,6 +18711,7 @@
           "include_variable_value_drifts",
           "include_release_regressions",
           "include_metrics",
+          "include_source_freshness",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -18923,6 +18982,17 @@
               }
             ],
             "title": "Include Metrics"
+          },
+          "include_source_freshness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Source Freshness"
           },
           "notify_on_spike": {
             "anyOf": [
@@ -28714,7 +28784,8 @@
           "distribution",
           "release_regression",
           "metric",
-          "variable_value_drift"
+          "variable_value_drift",
+          "source_freshness"
         ],
         "title": "MetricScopeType"
       },
@@ -29361,6 +29432,10 @@
             "type": "boolean",
             "title": "Include Metrics"
           },
+          "include_source_freshness": {
+            "type": "boolean",
+            "title": "Include Source Freshness"
+          },
           "total_deliveries": {
             "type": "integer",
             "title": "Total Deliveries"
@@ -29430,6 +29505,7 @@
           "include_variable_value_drifts",
           "include_release_regressions",
           "include_metrics",
+          "include_source_freshness",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -33033,6 +33109,33 @@
             ],
             "title": "Platform Column"
           },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "last_collection_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection At"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/SourceFreshness"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -33101,6 +33204,7 @@
           "app_version_prerelease_pattern",
           "app_version_active_share_min",
           "platform_column",
+          "freshness",
           "created_at",
           "updated_at",
           "monitoring_enabled"
@@ -33395,6 +33499,33 @@
             ],
             "title": "Platform Column"
           },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "last_collection_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection At"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/SourceFreshness"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -33439,6 +33570,7 @@
           "app_version_prerelease_pattern",
           "app_version_active_share_min",
           "platform_column",
+          "freshness",
           "created_at",
           "updated_at",
           "monitoring_enabled"
@@ -36261,6 +36393,103 @@
         ],
         "title": "SimulatedRuleFiring",
         "description": "One virtual delivery the rule would have triggered during the window."
+      },
+      "SourceFreshness": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "late",
+              "overdue",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "lag_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag Seconds"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "last_collection_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection At"
+          },
+          "expected_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SourceFreshness",
+        "description": "How current a scan's source data is (#269). Computed, never stored.\n\n``fresh`` \u2014 events are arriving and the scan is running on schedule.\n``late`` \u2014 the newest event is older than the scan's lateness allowance\n(``max(3 x interval, settling window + interval)``).\n``overdue`` \u2014 the scan itself has not completed a collection within\n``2 x interval``; wins over ``late``.\n``unknown`` \u2014 the scan has no schedule (manual only) or nothing recorded yet.\n\n``lag_seconds`` is ``now - last_event_at``; ``expected_by`` the moment the\nsource counts (or counted) as late: ``last_event_at`` plus the allowance."
+      },
+      "SourceFreshnessItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "data_source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Data Source Id"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/SourceFreshness"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "data_source_id",
+          "freshness"
+        ],
+        "title": "SourceFreshnessItem",
+        "description": "One scan config's freshness, for Overview and data-source cards."
       },
       "SqlConfig": {
         "properties": {

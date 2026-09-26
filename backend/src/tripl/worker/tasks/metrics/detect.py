@@ -5,14 +5,14 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnExpressionArgument, delete, select
+from sqlalchemy import ColumnElement, ColumnExpressionArgument, delete, select
 from sqlalchemy import and_ as sa_and
 from sqlalchemy import func as sa_func
 from sqlalchemy import not_ as sa_not
 from sqlalchemy import or_ as sa_or
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
@@ -287,6 +287,40 @@ def _load_scope_points(
     return [SeriesPoint(bucket=to_utc(bucket), count=count) for bucket, count in rows]
 
 
+# Direction of the anomalies a late source withholds (#269).
+_HELD_DIRECTION = "drop"
+
+
+def _apply_drop_hold(
+    anomalies: list[DetectedAnomaly],
+    direction_column: InstrumentedAttribute[str],
+    *,
+    hold_drops: bool,
+    held: list[int] | None,
+) -> tuple[list[DetectedAnomaly], ColumnElement[bool] | None]:
+    """Withhold drop-direction anomalies while the scan's source is late (#269).
+
+    A late warehouse load reads as a volume drop on every scope. While the
+    source is late or overdue the detector still scores the whole series, but
+    no NEW drop is written: the drops found are counted into ``held`` and
+    dropped from the insert, and the window's replace spares drop rows already
+    stored (they were written while the data was on time, so they stand).
+    Spikes are unaffected. Nothing is lost — the next run after the data lands
+    re-collects every bucket since the previous newest event
+    (``tasks._widen_for_held_buckets``), so the buckets that were empty during
+    the delay are scored against the late rows, not as drops.
+
+    Returns the anomalies to write and an extra delete filter (``None`` when
+    nothing is held).
+    """
+    if not hold_drops:
+        return anomalies, None
+    kept = [anomaly for anomaly in anomalies if anomaly.direction != _HELD_DIRECTION]
+    if held is not None:
+        held.append(len(anomalies) - len(kept))
+    return kept, direction_column != _HELD_DIRECTION
+
+
 def _replace_scope_anomalies(
     session: Session,
     *,
@@ -300,6 +334,8 @@ def _replace_scope_anomalies(
     anomalies: list[DetectedAnomaly],
     suppressed_ranges: Sequence[SuppressedRange] = (),
     baselines: Sequence[BaselinePoint] | None = None,
+    hold_drops: bool = False,
+    held: list[int] | None = None,
 ) -> int:
     # The chart band of every scored bucket (tripl-i9mt.25). ``None`` leaves the
     # stored baselines alone; a sequence, even an empty one, replaces the window.
@@ -343,6 +379,11 @@ def _replace_scope_anomalies(
         delete_filters.append(MetricAnomaly.scan_config_id.is_(None))
     else:
         delete_filters.append(MetricAnomaly.scan_config_id == scan_config_id)
+    anomalies, hold_filter = _apply_drop_hold(
+        anomalies, MetricAnomaly.direction, hold_drops=hold_drops, held=held
+    )
+    if hold_filter is not None:
+        delete_filters.append(hold_filter)
     session.execute(delete(MetricAnomaly).where(*delete_filters))
 
     rows: list[dict[str, object]] = []
@@ -594,6 +635,8 @@ def _replace_scope_breakdown_anomalies(
     anomalies: list[DetectedAnomaly],
     kind: MetricBreakdownAnomalyKind = MetricBreakdownAnomalyKind.volume,
     suppressed_ranges: Sequence[SuppressedRange] = (),
+    hold_drops: bool = False,
+    held: list[int] | None = None,
 ) -> int:
     delete_filters = [
         MetricBreakdownAnomaly.scan_config_id == scan_config_id,
@@ -621,6 +664,11 @@ def _replace_scope_breakdown_anomalies(
                 )
             )
         )
+    anomalies, hold_filter = _apply_drop_hold(
+        anomalies, MetricBreakdownAnomaly.direction, hold_drops=hold_drops, held=held
+    )
+    if hold_filter is not None:
+        delete_filters.append(hold_filter)
     session.execute(delete(MetricBreakdownAnomaly).where(*delete_filters))
 
     rows: list[dict[str, object]] = []
@@ -1526,6 +1574,8 @@ def _recalculate_metric_anomalies(
     evaluation_end: datetime,
     covered_buckets: set[datetime] | None = None,
     settling_delay: timedelta = NO_INGESTION_SETTLING,
+    hold_drops: bool = False,
+    held: list[int] | None = None,
 ) -> int:
     # Entry boundary: a replay, a conformance harness or a test may hand in a
     # naive window and a hand-built naive coverage set. Stamp both once here.
@@ -1592,6 +1642,8 @@ def _recalculate_metric_anomalies(
             event_id=None,
             event_type_id=None,
             anomalies=total_result.anomalies,
+            hold_drops=hold_drops,
+            held=held,
             suppressed_ranges=total_result.suppressed_ranges,
             baselines=total_result.baselines,
         )
@@ -1647,6 +1699,8 @@ def _recalculate_metric_anomalies(
                     event_id=None,
                     event_type_id=event_type_id,
                     anomalies=[],
+                    hold_drops=hold_drops,
+                    held=held,
                     baselines=(),
                 )
                 continue
@@ -1677,6 +1731,8 @@ def _recalculate_metric_anomalies(
                 event_id=None,
                 event_type_id=event_type_id,
                 anomalies=type_result.anomalies,
+                hold_drops=hold_drops,
+                held=held,
                 suppressed_ranges=type_result.suppressed_ranges,
                 baselines=type_result.baselines,
             )
@@ -1730,6 +1786,8 @@ def _recalculate_metric_anomalies(
                     event_id=event_id,
                     event_type_id=None,
                     anomalies=[],
+                    hold_drops=hold_drops,
+                    held=held,
                     baselines=(),
                 )
                 continue
@@ -1760,6 +1818,8 @@ def _recalculate_metric_anomalies(
                 event_id=event_id,
                 event_type_id=None,
                 anomalies=event_result.anomalies,
+                hold_drops=hold_drops,
+                held=held,
                 suppressed_ranges=event_result.suppressed_ranges,
                 baselines=event_result.baselines,
             )
@@ -1972,6 +2032,8 @@ def _recalculate_metric_breakdown_anomalies(
     evaluation_end: datetime,
     covered_buckets: set[datetime] | None = None,
     settling_delay: timedelta = NO_INGESTION_SETTLING,
+    hold_drops: bool = False,
+    held: list[int] | None = None,
 ) -> int:
     # Entry boundary; see ``_recalculate_metric_anomalies``.
     evaluation_start, evaluation_end = _canonical_window(evaluation_start, evaluation_end)
@@ -2060,6 +2122,8 @@ def _recalculate_metric_breakdown_anomalies(
                 event_id=None,
                 event_type_id=None,
                 anomalies=total_result.anomalies,
+                hold_drops=hold_drops,
+                held=held,
                 suppressed_ranges=total_result.suppressed_ranges,
             )
     else:
@@ -2113,6 +2177,8 @@ def _recalculate_metric_breakdown_anomalies(
                     event_id=None,
                     event_type_id=event_type_id,
                     anomalies=[],
+                    hold_drops=hold_drops,
+                    held=held,
                 )
                 continue
             points = _load_breakdown_scope_points(
@@ -2148,6 +2214,8 @@ def _recalculate_metric_breakdown_anomalies(
                 event_id=None,
                 event_type_id=event_type_id,
                 anomalies=type_result.anomalies,
+                hold_drops=hold_drops,
+                held=held,
                 suppressed_ranges=type_result.suppressed_ranges,
             )
     else:
@@ -2198,6 +2266,8 @@ def _recalculate_metric_breakdown_anomalies(
                     event_id=event_id,
                     event_type_id=None,
                     anomalies=[],
+                    hold_drops=hold_drops,
+                    held=held,
                 )
                 continue
             points = _load_breakdown_scope_points(
@@ -2233,6 +2303,8 @@ def _recalculate_metric_breakdown_anomalies(
                 event_id=event_id,
                 event_type_id=None,
                 anomalies=event_result.anomalies,
+                hold_drops=hold_drops,
+                held=held,
                 suppressed_ranges=event_result.suppressed_ranges,
             )
     else:

@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from tripl.alerting_matching import (
     SCOPE_DISTRIBUTION_DRIFT,
     SCOPE_RELEASE_REGRESSION,
+    SCOPE_SOURCE_FRESHNESS,
     SCOPE_VARIABLE_VALUE_DRIFT,
     DistributionDriftAlertCandidate,
     DriftAlertCandidate,
@@ -45,10 +46,11 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_PROJECT_TOTAL,
     settling_buckets_for,
 )
+from tripl.core.bucketing import to_utc
 from tripl.metric_grid import metric_grid_stmt, metric_grids
 from tripl.metric_monitoring import monitored_metric_criteria
 from tripl.models.distribution_drift import DistributionDrift
-from tripl.models.domain_enums import DistributionDriftBand
+from tripl.models.domain_enums import AlertDriftType, DistributionDriftBand
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
@@ -68,6 +70,17 @@ from tripl.services.monitoring_utils import (
     classify_signal_state,
     recent_signal_window_from_hours,
     scan_interval_to_timedelta,
+)
+from tripl.services.source_freshness import (
+    HOLDING_STATUSES,
+    STATUS_LATE,
+    STATUS_OVERDUE,
+    compute_freshness,
+    format_duration,
+    interval_delta,
+    late_threshold,
+    load_settling_delay,
+    overdue_threshold,
 )
 
 from ._helpers import SCOPE_SCHEMA_DRIFT
@@ -694,3 +707,112 @@ def _get_active_distribution_drift_candidates(
         )
         candidates[(candidate.scope_type, candidate.scope_ref)] = candidate
     return candidates
+
+
+def _hours(delta: timedelta) -> float:
+    return round(delta.total_seconds() / 3600, 1)
+
+
+# Freshness status -> the ``alert_drift_type`` value an alert item stores. The
+# enum carries prefixed members rather than the bare statuses so the shared
+# ``drift_type`` column stays unambiguous next to the drift families; writing
+# the raw ``"late"`` / ``"overdue"`` failed the Postgres enum on INSERT and took
+# the whole collection transaction with it (the tripl-jfm3.97 trap).
+FRESHNESS_DRIFT_TYPES: dict[str, str] = {
+    STATUS_LATE: AlertDriftType.source_late.value,
+    STATUS_OVERDUE: AlertDriftType.source_overdue.value,
+}
+
+
+def _get_source_freshness_candidates(
+    session: Session,
+    config: ScanConfig,
+    now: datetime | None = None,
+    *,
+    statuses: frozenset[str] = HOLDING_STATUSES,
+) -> dict[tuple[str, str], DriftAlertCandidate]:
+    """One ``source_freshness`` candidate when this scan config is late or overdue.
+
+    Freshness is computed, never stored (``services.source_freshness``), so this
+    reads the scan's ``last_event_at`` / ``last_collection_at`` and asks the one
+    pure helper for the verdict. At most ONE candidate per scan config, keyed
+    ``(source_freshness, <config id>)``: that is what makes one delay produce
+    one alert. The dispatch loop's AlertRuleState for this key stays active for
+    as long as the delay lasts, and ``bucket`` is the stale timestamp itself —
+    it does not advance while nothing new arrives, so the "newer bucket AND
+    cooldown elapsed" gate never re-sends the same delay. A trickle of late
+    data that moves ``last_event_at`` forward while the scan is still late may
+    re-send once the rule's cooldown has elapsed, which is the cooldown doing
+    its job. When the data catches up the candidate disappears, the state
+    closes, and the next delay is a new incident.
+
+    The shared drift columns carry the context: scan name -> ``drift_field``,
+    status -> ``drift_type`` (``source_late`` / ``source_overdue``, see
+    ``FRESHNESS_DRIFT_TYPES``), the rendered "newest event 7h ago (expected
+    within 3h)" clause -> ``sample_value``. ``actual_count`` / ``expected_count``
+    are the lag and the allowed lag in HOURS, so the generic item line reads
+    "actual=7, expected=3" and the digest counts the delay as a drop.
+
+    ``statuses`` narrows which verdicts produce a candidate. The per-run
+    dispatch keeps the default (both): right after a successful collection the
+    scan cannot be overdue, so in practice it emits ``late`` only. The periodic
+    sweep (``freshness_sweep.sweep_overdue_sources``) asks for ``overdue`` only,
+    since a scan that stopped running has no per-run dispatch to report it.
+    Both land on the same ``(source_freshness, <config id>)`` state key, so the
+    two paths never double one delay.
+
+    No in-UI replay twin: freshness has no history to replay (nothing records
+    what the lag WAS at a past instant), so ``simulate_rule`` never sees this
+    scope. See ``services.alerting_service.simulate_rule``.
+    """
+    reference = to_utc(now) if now is not None else datetime.now(UTC)
+    settling = load_settling_delay(session, config.project_id)
+    freshness = compute_freshness(config, reference, settling=settling)
+    # Same set the detector holds volume drops under, so "drops held" and
+    # "data is late" can never disagree about a scan.
+    if freshness.status not in HOLDING_STATUSES or freshness.status not in statuses:
+        return {}
+    interval = interval_delta(config.interval)
+    if interval is None:
+        # ``compute_freshness`` answers "unknown" without an interval; this is
+        # the belt to that brace, since every threshold below needs it.
+        return {}
+
+    # ``compute_freshness`` already stamped both aware UTC.
+    last_event_at = freshness.last_event_at
+    last_collection_at = freshness.last_collection_at
+
+    if freshness.status == STATUS_OVERDUE and last_collection_at is not None:
+        allowed = overdue_threshold(interval)
+        lag = reference - last_collection_at
+        bucket = last_collection_at
+        detail = (
+            f"last collection {format_duration(lag)} ago "
+            f"(expected every {format_duration(interval)})"
+        )
+    elif last_event_at is not None:
+        allowed = late_threshold(interval, settling)
+        lag = reference - last_event_at
+        bucket = last_event_at
+        detail = (
+            f"newest event {format_duration(lag)} ago (expected within {format_duration(allowed)})"
+        )
+    else:
+        return {}
+
+    candidate = DriftAlertCandidate(
+        id=config.id,
+        scan_config_id=config.id,
+        scope_type=SCOPE_SOURCE_FRESHNESS,
+        scope_ref=str(config.id),
+        event_id=None,
+        event_type_id=None,
+        bucket=bucket,
+        direction="drop",
+        actual_count=_hours(lag),
+        expected_count=_hours(allowed),
+        drift_field=_trim_alert_text(config.name, max_length=255),
+        drift_type=FRESHNESS_DRIFT_TYPES[freshness.status],
+        sample_value=_trim_alert_text(detail),
+    )
+    return {(candidate.scope_type, candidate.scope_ref): candidate}

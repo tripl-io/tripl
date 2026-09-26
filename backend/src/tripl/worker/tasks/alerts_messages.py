@@ -40,10 +40,12 @@ from tripl.alert_templates import (
     plain_alert_number,
     release_regression_basis,
     render_alert_template,
+    source_freshness_line,
 )
 from tripl.alerting_matching import (
     SCOPE_METRIC,
     SCOPE_RELEASE_REGRESSION,
+    SCOPE_SOURCE_FRESHNESS,
 )
 from tripl.anomaly_context import build_alert_item_context
 from tripl.core.alert_schedule import resolve_timezone
@@ -992,6 +994,12 @@ def _build_ai_explanation(
                 f"{plain_alert_number(item.actual_count)} vs adoption-adjusted "
                 f"expected {plain_alert_number(item.expected_count)}"
             )
+            continue
+        if item.scope_type == SCOPE_SOURCE_FRESHNESS:
+            # A delay, not a volume move: quoting "actual 7 vs expected 3" as
+            # counts would have the model explain a traffic drop that is really
+            # a late warehouse load.
+            lines.append(f"- [source freshness] {source_freshness_line(_drift_facts(item))}")
             continue
         if item.scope_type in {"schema", "distribution"}:
             drift_bits = " ".join(

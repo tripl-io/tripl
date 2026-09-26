@@ -2143,7 +2143,9 @@
           "distribution_shift",
           "missing",
           "volume_drop",
-          "value_drift"
+          "value_drift",
+          "source_late",
+          "source_overdue"
         ],
         "title": "AlertDriftType",
         "type": "string"
@@ -2715,6 +2717,11 @@
             "title": "Include Schema Drifts",
             "type": "boolean"
           },
+          "include_source_freshness": {
+            "default": false,
+            "title": "Include Source Freshness",
+            "type": "boolean"
+          },
           "include_variable_value_drifts": {
             "default": false,
             "title": "Include Variable Value Drifts",
@@ -2938,6 +2945,10 @@
             "title": "Include Schema Drifts",
             "type": "boolean"
           },
+          "include_source_freshness": {
+            "title": "Include Source Freshness",
+            "type": "boolean"
+          },
           "include_variable_value_drifts": {
             "title": "Include Variable Value Drifts",
             "type": "boolean"
@@ -3065,6 +3076,7 @@
           "include_variable_value_drifts",
           "include_release_regressions",
           "include_metrics",
+          "include_source_freshness",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -3338,6 +3350,17 @@
               }
             ],
             "title": "Include Schema Drifts"
+          },
+          "include_source_freshness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Source Freshness"
           },
           "include_variable_value_drifts": {
             "anyOf": [
@@ -13126,7 +13149,8 @@
           "distribution",
           "release_regression",
           "metric",
-          "variable_value_drift"
+          "variable_value_drift",
+          "source_freshness"
         ],
         "title": "MetricScopeType",
         "type": "string"
@@ -13677,6 +13701,10 @@
             "title": "Include Schema Drifts",
             "type": "boolean"
           },
+          "include_source_freshness": {
+            "title": "Include Source Freshness",
+            "type": "boolean"
+          },
           "include_variable_value_drifts": {
             "title": "Include Variable Value Drifts",
             "type": "boolean"
@@ -13843,6 +13871,7 @@
           "include_variable_value_drifts",
           "include_release_regressions",
           "include_metrics",
+          "include_source_freshness",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -17338,6 +17367,9 @@
             ],
             "title": "Event Type Id"
           },
+          "freshness": {
+            "$ref": "#/components/schemas/SourceFreshness"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -17359,6 +17391,30 @@
             },
             "title": "Json Value Paths",
             "type": "array"
+          },
+          "last_collection_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection At"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
           },
           "last_metrics_run_at": {
             "anyOf": [
@@ -17514,6 +17570,7 @@
           "app_version_prerelease_pattern",
           "app_version_active_share_min",
           "platform_column",
+          "freshness",
           "created_at",
           "updated_at",
           "monitoring_enabled"
@@ -17699,6 +17756,9 @@
             ],
             "title": "Event Type Id"
           },
+          "freshness": {
+            "$ref": "#/components/schemas/SourceFreshness"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -17720,6 +17780,30 @@
             },
             "title": "Json Value Paths",
             "type": "array"
+          },
+          "last_collection_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection At"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
           },
           "metric_breakdown_columns": {
             "items": {
@@ -17851,6 +17935,7 @@
           "app_version_prerelease_pattern",
           "app_version_active_share_min",
           "platform_column",
+          "freshness",
           "created_at",
           "updated_at",
           "monitoring_enabled"
@@ -20673,6 +20758,103 @@
           "percent_delta"
         ],
         "title": "SimulatedRuleFiring",
+        "type": "object"
+      },
+      "SourceFreshness": {
+        "description": "How current a scan's source data is (#269). Computed, never stored.\n\n``fresh`` \u2014 events are arriving and the scan is running on schedule.\n``late`` \u2014 the newest event is older than the scan's lateness allowance\n(``max(3 x interval, settling window + interval)``).\n``overdue`` \u2014 the scan itself has not completed a collection within\n``2 x interval``; wins over ``late``.\n``unknown`` \u2014 the scan has no schedule (manual only) or nothing recorded yet.\n\n``lag_seconds`` is ``now - last_event_at``; ``expected_by`` the moment the\nsource counts (or counted) as late: ``last_event_at`` plus the allowance.",
+        "properties": {
+          "expected_by": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected By"
+          },
+          "lag_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lag Seconds"
+          },
+          "last_collection_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Collection At"
+          },
+          "last_event_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Event At"
+          },
+          "status": {
+            "enum": [
+              "fresh",
+              "late",
+              "overdue",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "SourceFreshness",
+        "type": "object"
+      },
+      "SourceFreshnessItem": {
+        "description": "One scan config's freshness, for Overview and data-source cards.",
+        "properties": {
+          "data_source_id": {
+            "format": "uuid",
+            "title": "Data Source Id",
+            "type": "string"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/SourceFreshness"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "data_source_id",
+          "freshness"
+        ],
+        "title": "SourceFreshnessItem",
         "type": "object"
       },
       "SqlConfig": {
@@ -36363,6 +36545,53 @@
         "summary": "Reindex Project Search",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/source-freshness": {
+      "get": {
+        "description": "Each scan config's freshness: fresh, late, overdue or unknown.\n\nComputed on read from what the latest collection recorded, so a scan whose\nworker has stopped turns ``overdue`` without any job having to say so.",
+        "operationId": "list_source_freshness_api_v1_projects__slug__source_freshness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceFreshnessItem"
+                  },
+                  "title": "Response List Source Freshness Api V1 Projects  Slug  Source Freshness Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Source Freshness",
+        "tags": [
+          "scans"
         ]
       }
     },

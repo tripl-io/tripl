@@ -3309,6 +3309,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/source-freshness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Source Freshness
+         * @description Each scan config's freshness: fresh, late, overdue or unknown.
+         *
+         *     Computed on read from what the latest collection recorded, so a scan whose
+         *     worker has stopped turns ``overdue`` without any job having to say so.
+         */
+        get: operations["list_source_freshness_api_v1_projects__slug__source_freshness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/tracker-config": {
         parameters: {
             query?: never;
@@ -4411,7 +4434,7 @@ export interface components {
          * AlertDriftType
          * @enum {string}
          */
-        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift";
+        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue";
         /** AlertInboxActionRequest */
         AlertInboxActionRequest: {
             /**
@@ -4704,6 +4727,11 @@ export interface components {
              */
             include_schema_drifts: boolean;
             /**
+             * Include Source Freshness
+             * @default false
+             */
+            include_source_freshness: boolean;
+            /**
              * Include Variable Value Drifts
              * @default false
              */
@@ -4814,6 +4842,8 @@ export interface components {
             include_release_regressions: boolean;
             /** Include Schema Drifts */
             include_schema_drifts: boolean;
+            /** Include Source Freshness */
+            include_source_freshness: boolean;
             /** Include Variable Value Drifts */
             include_variable_value_drifts: boolean;
             /** Items Template */
@@ -4922,6 +4952,8 @@ export interface components {
             include_release_regressions?: boolean | null;
             /** Include Schema Drifts */
             include_schema_drifts?: boolean | null;
+            /** Include Source Freshness */
+            include_source_freshness?: boolean | null;
             /** Include Variable Value Drifts */
             include_variable_value_drifts?: boolean | null;
             /** Items Template */
@@ -8636,7 +8668,7 @@ export interface components {
          * MetricScopeType
          * @enum {string}
          */
-        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift";
+        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness";
         /**
          * MetricSeriesPoint
          * @description One densified point of a catalog-metric series.
@@ -8846,6 +8878,8 @@ export interface components {
             include_release_regressions: boolean;
             /** Include Schema Drifts */
             include_schema_drifts: boolean;
+            /** Include Source Freshness */
+            include_source_freshness: boolean;
             /** Include Variable Value Drifts */
             include_variable_value_drifts: boolean;
             /** Last Anomaly At */
@@ -10298,6 +10332,7 @@ export interface components {
             event_type_column: string | null;
             /** Event Type Id */
             event_type_id: string | null;
+            freshness: components["schemas"]["SourceFreshness"];
             /**
              * Id
              * Format: uuid
@@ -10306,6 +10341,10 @@ export interface components {
             interval: components["schemas"]["ScanInterval"] | null;
             /** Json Value Paths */
             json_value_paths: string[];
+            /** Last Collection At */
+            last_collection_at?: string | null;
+            /** Last Event At */
+            last_event_at?: string | null;
             /** Last Metrics Run At */
             last_metrics_run_at?: string | null;
             /** Metric Breakdown Columns */
@@ -10411,6 +10450,7 @@ export interface components {
             event_type_column: string | null;
             /** Event Type Id */
             event_type_id: string | null;
+            freshness: components["schemas"]["SourceFreshness"];
             /**
              * Id
              * Format: uuid
@@ -10419,6 +10459,10 @@ export interface components {
             interval: components["schemas"]["ScanInterval"] | null;
             /** Json Value Paths */
             json_value_paths: string[];
+            /** Last Collection At */
+            last_collection_at?: string | null;
+            /** Last Event At */
+            last_event_at?: string | null;
             /** Metric Breakdown Columns */
             metric_breakdown_columns: string[];
             /** Metric Breakdown Values Limit */
@@ -11514,6 +11558,54 @@ export interface components {
             scope_type: components["schemas"]["MetricScopeType"];
             /** Window From */
             window_from?: string | null;
+        };
+        /**
+         * SourceFreshness
+         * @description How current a scan's source data is (#269). Computed, never stored.
+         *
+         *     ``fresh`` — events are arriving and the scan is running on schedule.
+         *     ``late`` — the newest event is older than the scan's lateness allowance
+         *     (``max(3 x interval, settling window + interval)``).
+         *     ``overdue`` — the scan itself has not completed a collection within
+         *     ``2 x interval``; wins over ``late``.
+         *     ``unknown`` — the scan has no schedule (manual only) or nothing recorded yet.
+         *
+         *     ``lag_seconds`` is ``now - last_event_at``; ``expected_by`` the moment the
+         *     source counts (or counted) as late: ``last_event_at`` plus the allowance.
+         */
+        SourceFreshness: {
+            /** Expected By */
+            expected_by?: string | null;
+            /** Lag Seconds */
+            lag_seconds?: number | null;
+            /** Last Collection At */
+            last_collection_at?: string | null;
+            /** Last Event At */
+            last_event_at?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "fresh" | "late" | "overdue" | "unknown";
+        };
+        /**
+         * SourceFreshnessItem
+         * @description One scan config's freshness, for Overview and data-source cards.
+         */
+        SourceFreshnessItem: {
+            /**
+             * Data Source Id
+             * Format: uuid
+             */
+            data_source_id: string;
+            freshness: components["schemas"]["SourceFreshness"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * SqlConfig
@@ -19664,6 +19756,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchReindexResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_source_freshness_api_v1_projects__slug__source_freshness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceFreshnessItem"][];
                 };
             };
             /** @description Validation Error */

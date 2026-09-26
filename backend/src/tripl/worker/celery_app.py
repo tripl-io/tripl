@@ -166,6 +166,16 @@ celery_app.conf.beat_schedule = {
         # table every 300s.
         "schedule": crontab(minute="*"),
     },
+    "sweep-overdue-sources": {
+        "task": "tripl.worker.tasks.metrics.sweep_overdue_sources",
+        # Every 15 minutes (#269). A scan that STOPPED collecting has no
+        # per-run dispatch to raise its "scan overdue" alert, so this sweep
+        # does: overdue means no completed collection for 2 x interval, and the
+        # shortest interval is 15m, so a quarter-hour tick bounds detection
+        # latency at one interval past the threshold. Idempotent per outage —
+        # the AlertRuleState gate sends each stopped scan once.
+        "schedule": crontab(minute="*/15"),
+    },
     "advance-demos": {
         "task": "tripl.worker.tasks.demo_runtime.advance_demos",
         # Every 5 minutes — demos advance on hourly bucket boundaries, so 5-minute
@@ -219,6 +229,7 @@ import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402
 import tripl.worker.tasks.maintenance  # noqa: F401, E402
 import tripl.worker.tasks.metrics  # noqa: F401, E402
+import tripl.worker.tasks.metrics.freshness_sweep  # noqa: F401, E402
 import tripl.worker.tasks.scan  # noqa: F401, E402
 import tripl.worker.tasks.scan_dry_run  # noqa: F401, E402
 import tripl.worker.tasks.search  # noqa: F401, E402

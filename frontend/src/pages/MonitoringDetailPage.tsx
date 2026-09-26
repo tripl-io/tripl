@@ -10,6 +10,8 @@ import { metaFieldsApi } from '@/api/metaFields'
 import { eventMetricsApi } from '@/api/eventMetrics'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { scansApi } from '@/api/scans'
+import { SignalsHeldNotice } from '@/components/source-freshness/signals-held-notice'
+import { isHoldingSignals } from '@/lib/sourceFreshness'
 import { PageContainer } from '@/components/primitives/page-container'
 import { EmptyState } from '@/components/empty-state'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
@@ -254,6 +256,19 @@ export default function MonitoringDetailPage() {
     queryFn: () => scansApi.get(slug!, scanConfigId!),
     enabled: scope !== 'metric' && !!slug && !!scanConfigId,
   })
+  // The scan feeding this series is late or overdue (F16, #269): its drop
+  // signals are held, so a fall on the chart may not carry a marker yet. Read
+  // off the same scan config response, no extra request.
+  const scanConfig = scanConfigQuery.data
+  const heldScans =
+    scope !== 'metric' && scanConfig?.freshness && isHoldingSignals(scanConfig.freshness)
+      ? [{
+          id: scanConfig.id,
+          name: scanConfig.name,
+          data_source_id: scanConfig.data_source_id,
+          freshness: scanConfig.freshness,
+        }]
+      : []
   // Catalog metrics expose their version column on the definition; the other
   // scopes read it off the resolved scan config.
   const hasVersionColumn = scope === 'metric'
@@ -573,6 +588,8 @@ export default function MonitoringDetailPage() {
           canWrite={canWrite}
         />
       )}
+
+      {slug && <SignalsHeldNotice slug={slug} items={heldScans} />}
 
       {/* What this catalog metric computes, visible without opening Edit. */}
       {scope === 'metric' && slug && metricDefinition && (

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -16,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from tripl.models.base import Base, TimestampMixin, UUIDMixin
+from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
 from tripl.models.domain_enums import ScanInterval
 from tripl.models.enum_types import db_enum
 from tripl.models.project_anomaly_settings import (
@@ -116,6 +117,14 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     min_history_buckets: Mapped[int] = mapped_column(Integer, default=7)
     sigma_threshold: Mapped[float] = mapped_column(Float, default=DEFAULT_SIGMA_THRESHOLD)
     min_expected_count: Mapped[int] = mapped_column(Integer, default=DEFAULT_MIN_EXPECTED_COUNT)
+    # Source freshness (#269). ``last_event_at`` is the start of the newest
+    # non-empty bucket stored for this config after the latest successful
+    # scheduled collection — the newest event time observed, at bucket
+    # resolution — and never moves backwards. ``last_collection_at`` is when
+    # that collection finished reading the warehouse. Freshness itself is
+    # computed from these two (``services.source_freshness``), never stored.
+    last_event_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    last_collection_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
 
     data_source: Mapped[DataSource] = relationship(back_populates="scan_configs")
     event_type: Mapped[EventType | None] = relationship()

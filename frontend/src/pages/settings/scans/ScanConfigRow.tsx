@@ -2,6 +2,7 @@ import type { DataSource, ScanConfig } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
 import { Chip } from '@/components/primitives/chip'
+import { FreshnessChip } from '@/components/source-freshness/freshness-chip'
 import { Ban, CheckCircle2, Clock, Loader2, MinusCircle, Play, XCircle, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -112,6 +113,8 @@ export function ScanBadges({
   return (
     <div className="flex flex-wrap gap-1.5">
       <ScanModeBadge sc={sc} />
+      {/* Late / overdue source (F16, #269); nothing when fresh or unknown. */}
+      <FreshnessChip freshness={sc.freshness} />
       {items.map((label, i) => (
         <Chip key={i} size="xs" variant="outline">{label}</Chip>
       ))}
@@ -236,6 +239,9 @@ export function ScanListRow({
                   itself: its runs go green and its row otherwise reads exactly
                   like a healthy monitoring scan. */}
               <ScanModeBadge sc={sc} />
+              {/* The list is where a stalled source should be spotted without
+                  opening every scan (F16, #269). */}
+              <FreshnessChip freshness={sc.freshness} />
             </div>
             <div className="truncate text-caption text-fg-tertiary">
               {dataSource?.name ?? 'Unknown source'} · {cadenceLabel}

@@ -30,6 +30,7 @@ function makeRule(overrides: Partial<AlertRule> = {}): AlertRule {
     include_release_regressions: false,
     include_variable_value_drifts: false,
     include_metrics: false,
+    include_source_freshness: false,
     notify_on_spike: false,
     notify_on_drop: true,
     ai_explanation_enabled: false,

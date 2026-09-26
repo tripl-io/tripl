@@ -9,6 +9,7 @@ const SCOPE_KIND_LABELS: Record<string, string> = {
   distribution_drift: 'Distribution drift',
   variable_value_drift: 'Value drift',
   release_regression: 'Release regression',
+  source_freshness: 'Data late',
 }
 
 function scopeKind(signal: MonitoringSignal): string {

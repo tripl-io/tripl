@@ -93,6 +93,11 @@ from tripl.services.demo.builders.warehouse import (
     SPIKE_EVENT_NAME,
 )
 from tripl.services.demo.scenario import DEMO_SEED
+from tripl.services.source_freshness import (
+    advance_last_event_at,
+    compute_config_freshness,
+    is_holding,
+)
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.tasks._demo_pause import is_demo_paused
@@ -128,6 +133,8 @@ _HOUR = timedelta(hours=1)
 _COVERAGE_MATCH_RATE = 0.94
 # Catalog metric advanced by the tick (event_composition, hourly, scan-scoped).
 _CONVERSION_METRIC_NAME = "purchase_conversion"
+# Direction withheld while the demo source is late (#269), as in ``metrics.detect``.
+_HELD_DIRECTION = "drop"
 
 
 def _aware(dt: datetime) -> datetime:
@@ -236,15 +243,16 @@ def _advance_demo(session: Session, project_id: uuid.UUID, slug: str, now: datet
         session.rollback()
         return
 
-    scan_config_id = session.execute(
-        select(ScanConfig.id).where(ScanConfig.project_id == project_id).limit(1)
+    scan_config = session.execute(
+        select(ScanConfig).where(ScanConfig.project_id == project_id).limit(1)
     ).scalar_one_or_none()
-    if scan_config_id is None:
+    if scan_config is None:
         # No warehouse surface to advance; still stamp so we don't reselect hot.
         project.demo_last_tick_at = now
         session.commit()
         return
 
+    scan_config_id = scan_config.id
     seeded_at = _aware(project.demo_seeded_at)
     grid_start = _floor_hour(seeded_at) - timedelta(days=noise.DEMO_HISTORY_DAYS)
     roster = _load_series_roster(session, scan_config_id, now)
@@ -254,9 +262,28 @@ def _advance_demo(session: Session, project_id: uuid.UUID, slug: str, now: datet
     if roster and new_buckets:
         written = _append_buckets(session, scan_config_id, roster, new_buckets, grid_start, now)
 
+    # Source freshness facts (#269), stamped the way a live collection stamps
+    # them: the tick IS the demo's collection. The newest appended bucket moves
+    # ``last_event_at`` forward (never back), and every tick that reaches the
+    # scan counts as a completed collection even when nothing was due — without
+    # it the seeded values age out and a live demo reads late/overdue.
+    if written and new_buckets:
+        scan_config.last_event_at = advance_last_event_at(
+            scan_config.last_event_at, new_buckets[-1]
+        )
+    scan_config.last_collection_at = now
+
     if written:
         _record_scan_job(session, scan_config_id, now, written, roster)
-        _recompute_anomalies(session, project_id, scan_config_id, now)
+        # The same hold ``collect_metrics`` applies: judged on the facts just
+        # stamped, so a tick that caught the demo up is fresh and holds nothing.
+        # It only bites if the demo's series stops short of the clock (a
+        # simulated delay), and then the tick must not write the drops a live
+        # scan would have held.
+        freshness = compute_config_freshness(session, scan_config, project_id, now)
+        _recompute_anomalies(
+            session, project_id, scan_config_id, now, hold_drops=is_holding(freshness)
+        )
 
     _prune_retention(session, project_id, scan_config_id, now)
 
@@ -525,14 +552,21 @@ def _record_scan_job(
 
 
 def _recompute_anomalies(
-    session: Session, project_id: uuid.UUID, scan_config_id: uuid.UUID, now: datetime
+    session: Session,
+    project_id: uuid.UUID,
+    scan_config_id: uuid.UUID,
+    now: datetime,
+    *,
+    hold_drops: bool = False,
 ) -> None:
     """Re-run the REAL detector over the fresh window and upsert MetricAnomaly.
 
     Best-effort: a detection failure must not fail the tick (the appended series
     stays coherent for a later real collection). Idempotent per scope: existing
     rows in the evaluation window are cleared and re-inserted, so a re-run at the
-    same clock yields the same rows.
+    same clock yields the same rows. ``hold_drops`` (the demo source is late,
+    #269) withholds NEW drop-direction anomalies and spares stored drop rows,
+    as ``metrics.detect`` does for a live scan.
     """
     try:
         anomaly_settings = session.execute(
@@ -579,6 +613,7 @@ def _recompute_anomalies(
                 event_type_id=None,
                 eval_start=eval_start,
                 eval_end=eval_end,
+                hold_drops=hold_drops,
             )
         for event_type_id, series in type_series.items():
             _upsert_scope_anomalies(
@@ -591,6 +626,7 @@ def _recompute_anomalies(
                 event_type_id=event_type_id,
                 eval_start=eval_start,
                 eval_end=eval_end,
+                hold_drops=hold_drops,
             )
         _upsert_scope_anomalies(
             session,
@@ -602,6 +638,7 @@ def _recompute_anomalies(
             event_type_id=None,
             eval_start=eval_start,
             eval_end=eval_end,
+            hold_drops=hold_drops,
         )
     except OperationalError, DBAPIError:
         # A DBAPI-level failure (deadlock, lost connection) inside ``session.execute``
@@ -630,8 +667,14 @@ def _upsert_scope_anomalies(
     event_type_id: uuid.UUID | None,
     eval_start: datetime,
     eval_end: datetime,
+    hold_drops: bool = False,
 ) -> None:
-    """Delete-window-then-insert the detector's anomalies for one scope."""
+    """Delete-window-then-insert the detector's anomalies for one scope.
+
+    Under ``hold_drops`` drop-direction anomalies are neither written nor
+    cleared: a stored drop predates the delay and stands (see
+    ``metrics.detect._apply_drop_hold``).
+    """
     points = [SeriesPoint(bucket=bucket, count=count) for bucket, count in sorted(series.items())]
     detected = detect_anomalies(
         points,
@@ -640,14 +683,16 @@ def _upsert_scope_anomalies(
         evaluation_end=eval_end,
         settings=noise.DEMO_ANOMALY_SETTINGS,
     ).anomalies
-    session.execute(
-        delete(MetricAnomaly).where(
-            MetricAnomaly.scan_config_id == scan_config_id,
-            MetricAnomaly.scope_type == scope_type,
-            MetricAnomaly.scope_ref == scope_ref,
-            MetricAnomaly.bucket >= eval_start,
-        )
-    )
+    delete_filters = [
+        MetricAnomaly.scan_config_id == scan_config_id,
+        MetricAnomaly.scope_type == scope_type,
+        MetricAnomaly.scope_ref == scope_ref,
+        MetricAnomaly.bucket >= eval_start,
+    ]
+    if hold_drops:
+        detected = [anomaly for anomaly in detected if anomaly.direction != _HELD_DIRECTION]
+        delete_filters.append(MetricAnomaly.direction != _HELD_DIRECTION)
+    session.execute(delete(MetricAnomaly).where(*delete_filters))
     for anomaly in detected:
         session.add(
             MetricAnomaly(

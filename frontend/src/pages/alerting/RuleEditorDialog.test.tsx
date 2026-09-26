@@ -355,3 +355,32 @@ describe('RuleEditorDialog — server errors sit beside their fields (ALR-8)', (
     expect(screen.queryByText(/Value error/)).toBeNull()
   })
 })
+
+describe('RuleEditorDialog — Source freshness toggle (F16, #269)', () => {
+  it('offers the toggle beside the other scopes, off by default, and submits it', () => {
+    const onSubmit = vi.fn()
+    renderDialog({ onSubmit })
+
+    const toggle = screen.getByLabelText('Source freshness')
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    expect(toggle).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ include_source_freshness: true }))
+  })
+  it('warns, without blocking, when freshness is on but Drops is off', () => {
+    const onSubmit = vi.fn()
+    renderDialog({
+      onSubmit,
+      initial: { ...defaultRuleForm(), name: 'x', include_source_freshness: true, notify_on_spike: true, notify_on_drop: false },
+    })
+
+    expect(screen.getByText(/Source freshness only alerts on rules that notify on drops/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Drops (down)' }))
+    expect(screen.queryByText(/Source freshness only alerts on rules that notify on drops/)).toBeNull()
+  })
+})

@@ -52,6 +52,10 @@ import { selectSignificantSignals } from '@/lib/signalMagnitude'
 import { formatSignalValues } from '@/lib/signalMetricFormat'
 import { friendlyScanError } from '@/lib/scanError'
 import { useExpandedSignals } from '@/hooks/useExpandedSignals'
+import { useSourceFreshness } from '@/hooks/useSourceFreshness'
+import { FreshnessChip } from '@/components/source-freshness/freshness-chip'
+import { dataSourceFreshness } from '@/components/data-sources/data-source-freshness-model'
+import { holdingItems } from '@/lib/sourceFreshness'
 import { useLiveTimeRange } from '@/hooks/useLiveTimeRange'
 import { useActiveBranchId } from '@/hooks/useBranch'
 import {
@@ -67,6 +71,7 @@ import type {
   DataSource,
   EventMetricPoint,
   MonitoringSignal,
+  SourceFreshnessItem,
 } from '@/types'
 import {
   activityPreviewKey,
@@ -160,6 +165,10 @@ export default function OverviewPage() {
     queryKey: dataSourcesKey(),
     queryFn: dataSourcesApi.list,
   })
+  // Per-scan source freshness (F16, #269): a late source or an overdue scan
+  // is a Source health fact, and it explains a quiet drop column.
+  const freshnessItems = useSourceFreshness(slug)
+  const lateScans = holdingItems(freshnessItems)
 
   const summary = projectQuery.data?.summary
   const projectId = projectQuery.data?.id
@@ -741,9 +750,31 @@ export default function OverviewPage() {
         {sources.length > 0 && (
           <div className="divide-y border-border-subtle">
             {sources.map((source) => (
-              <SourceRow key={source.id} source={source} />
+              <SourceRow
+                key={source.id}
+                source={source}
+                freshness={dataSourceFreshness(source.id, freshnessItems)}
+              />
             ))}
           </div>
+        )}
+        {/* The scans behind a late source, each opening its scan page: the
+            source row says THAT something is late, this says which scan and
+            by how much (F16, #269). */}
+        {slug && lateScans.length > 0 && (
+          <ul aria-label="Late or overdue scans" className="mt-2 space-y-1 border-t pt-2 border-border-subtle">
+            {lateScans.map((item) => (
+              <li key={item.id} className="flex items-center gap-2 text-body-sm">
+                <Link
+                  to={`/p/${slug}/scans/${item.id}`}
+                  className="min-w-0 flex-1 truncate no-underline hover:underline text-inherit"
+                >
+                  {item.name}
+                </Link>
+                <FreshnessChip freshness={item.freshness} name={item.name} className="shrink-0" />
+              </li>
+            ))}
+          </ul>
         )}
         </div>
       </Panel>
@@ -1095,7 +1126,14 @@ function sourceHealth(source: DataSource, now: number = Date.now()): StatusLexem
   return dataSourceHealthLexeme(source.last_test_status, isStale)
 }
 
-function SourceRow({ source }: { source: DataSource }) {
+function SourceRow({
+  source,
+  freshness,
+}: {
+  source: DataSource
+  /** The worst-freshness scan reading this source, if any (F16, #269). */
+  freshness?: SourceFreshnessItem | null
+}) {
   const { tone, label } = sourceHealth(source)
   const checkedLabel = source.last_test_at
     ? `checked ${formatRelativeTime(source.last_test_at)}`
@@ -1134,6 +1172,9 @@ function SourceRow({ source }: { source: DataSource }) {
       <Chip tone={tone} className="shrink-0">
         {label}
       </Chip>
+      {freshness && (
+        <FreshnessChip freshness={freshness.freshness} name={freshness.name} size="sm" className="shrink-0" />
+      )}
       <span
         className="ml-auto shrink-0 truncate text-right text-caption sm:ml-0 sm:w-[104px] text-fg-tertiary"
         title={checkedTitle}

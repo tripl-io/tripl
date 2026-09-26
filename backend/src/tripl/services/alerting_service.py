@@ -829,6 +829,13 @@ async def simulate_rule(
     # rows here is all it takes to make the gate reachable; nothing about WHICH
     # of them fires is decided in this module — that is the point of
     # ``tripl.alerting_matching``.
+    #
+    # The one dispatch source deliberately NOT replayed is ``source_freshness``
+    # (``signals._get_source_freshness_candidates``, issue #269). Freshness is
+    # computed from the scan's CURRENT ``last_event_at`` / ``last_collection_at``
+    # and nothing records what the lag was at a past instant, so there is no
+    # history to replay; inventing one from today's columns would report the
+    # current delay at every bucket of the window.
     anomalies: list[AlertMatchCandidate] = [
         *metric_anomalies,
         *schema_candidates,

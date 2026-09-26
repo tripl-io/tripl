@@ -215,3 +215,18 @@ describe('buildRunReport — nothing to report', () => {
     expect(buildRunReport(null, 'monitoring')).toEqual([])
   })
 })
+
+describe('buildRunReport — drop signals held for a late source (F16, #269)', () => {
+  it('says how many drops were held and why', () => {
+    const late = buildRunReport(job({ signals_held: 3, freshness_status: 'late' }), 'monitoring')
+    expect(lineById(late, 'signals-held')!.text).toBe('Held 3 drop signals: the source data is late.')
+
+    const overdue = buildRunReport(job({ signals_held: 1, freshness_status: 'overdue' }), 'monitoring')
+    expect(lineById(overdue, 'signals-held')!.text).toBe('Held 1 drop signal: the scan is overdue.')
+  })
+
+  it('says nothing when nothing was held', () => {
+    const lines = buildRunReport(job({ signals_held: 0, freshness_status: 'fresh' }), 'monitoring')
+    expect(lineById(lines, 'signals-held')).toBeUndefined()
+  })
+})

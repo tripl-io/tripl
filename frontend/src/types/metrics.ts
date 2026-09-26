@@ -1,7 +1,7 @@
 import type { AlertInboxStatus } from './alerting'
 
 // Exhaustive scope-type union mirroring the backend MetricScopeType enum
-// (backend/src/tripl/models/domain_enums.py). Keep all eight members in sync;
+// (backend/src/tripl/models/domain_enums.py). Keep all nine members in sync;
 // narrowing this to a subset silently mis-routes the omitted scopes.
 export type MetricScopeType =
   | 'project_total'
@@ -12,6 +12,8 @@ export type MetricScopeType =
   | 'release_regression'
   | 'metric'
   | 'variable_value_drift'
+  // A late or overdue scan source (F16, #269); scope_ref is the scan config id.
+  | 'source_freshness'
 
 export interface EventMetricPoint {
   bucket: string

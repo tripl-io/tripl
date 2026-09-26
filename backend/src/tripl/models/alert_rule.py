@@ -113,6 +113,13 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
         default=False,
         server_default="false",
     )
+    # Opt-in to "data is late" alerts: one ``source_freshness`` candidate per
+    # late or overdue scan (#269). Off by default like the other families.
+    include_source_freshness: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     # Append an LLM-generated explanation paragraph to delivered alert
     # messages. Off by default; a no-op unless AI features are enabled in
     # instance settings.

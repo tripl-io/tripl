@@ -226,3 +226,39 @@ describe('ScanBadges — next metrics run (i9mt.16 DA-5)', () => {
     expect(screen.queryByText(/Next run/)).toBeNull()
   })
 })
+
+describe('source freshness chip (F16, #269)', () => {
+  const late = {
+    status: 'late',
+    lag_seconds: 7 * 3600,
+    last_event_at: '2026-09-26T03:00:00Z',
+    last_collection_at: '2026-09-26T09:55:00Z',
+    expected_by: '2026-09-26T06:00:00Z',
+  } as const
+
+  it('flags a late source on the list row', () => {
+    renderRow({ sc: { ...sc, freshness: late } as ScanConfig })
+    expect(screen.getByText('Data late · 7h')).toHaveAttribute('data-freshness', 'late')
+  })
+
+  it('says nothing on the row for a fresh source', () => {
+    renderRow({ sc: { ...sc, freshness: { ...late, status: 'fresh', lag_seconds: 600 } } as ScanConfig })
+    expect(screen.queryByText(/Data late/)).toBeNull()
+    expect(screen.queryByText('Scan overdue')).toBeNull()
+  })
+
+  it('flags an overdue scan on the detail badges', () => {
+    const detail = {
+      ...sc,
+      interval: '1h',
+      time_column: 'ts',
+      json_value_paths: [],
+      metric_breakdown_columns: [],
+      distribution_drift_fields: [],
+      event_group_rules: [],
+      freshness: { ...late, status: 'overdue' },
+    } as unknown as ScanConfig
+    render(<ScanBadges sc={detail} intervalLabel={{ '1h': 'Hourly' }} />)
+    expect(screen.getByText('Scan overdue')).toHaveAttribute('data-freshness', 'overdue')
+  })
+})

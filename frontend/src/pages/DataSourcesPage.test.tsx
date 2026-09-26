@@ -1472,3 +1472,46 @@ describe('DataSourcesPage design review (#248)', () => {
     expect(screen.queryByText(/^synthetic:/)).not.toBeInTheDocument()
   })
 })
+
+describe('DataSourcesPage — source freshness on the card (F16, #269)', () => {
+  it("shows the worst freshness of the scans reading the source, from each scan's project", async () => {
+    const usedSource: DataSource = {
+      ...DATA_SOURCE,
+      scan_count: 2,
+      scan_run_count: 4,
+      scans: [
+        { id: 'scan-a', name: 'App events', project_slug: 'app', project_name: 'App' },
+        { id: 'scan-b', name: 'Web events', project_slug: 'web', project_name: 'Web' },
+      ],
+    }
+    const freshnessRow = (id: string, name: string, status: string, lag: number) => ({
+      id,
+      name,
+      data_source_id: DATA_SOURCE.id,
+      freshness: {
+        status,
+        lag_seconds: lag,
+        last_event_at: '2026-09-26T03:00:00Z',
+        last_collection_at: '2026-09-26T09:55:00Z',
+        expected_by: '2026-09-26T06:00:00Z',
+      },
+    })
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.endsWith('/api/v1/data-sources')) return Promise.resolve(jsonResponse([usedSource]))
+      if (url.endsWith('/projects/app/source-freshness')) {
+        return Promise.resolve(jsonResponse([freshnessRow('scan-a', 'App events', 'fresh', 600)]))
+      }
+      if (url.endsWith('/projects/web/source-freshness')) {
+        return Promise.resolve(jsonResponse([freshnessRow('scan-b', 'Web events', 'late', 7 * 3600)]))
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+
+    renderDataSourcesPage('/settings/data-sources', 'owner')
+
+    const chip = await screen.findByText('Data late · 7h')
+    expect(chip).toHaveAttribute('data-tone', 'warning')
+    expect(chip.getAttribute('title')).toMatch(/^Web events: /)
+  })
+})

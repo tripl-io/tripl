@@ -50,6 +50,7 @@ from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue
 from tripl.services import app_settings_service
+from tripl.services.source_freshness import compute_config_freshness, is_holding
 from tripl.worker.celery_app import celery_app
 from tripl.worker.plan_scope import main_branch_id
 from tripl.worker.search_reindex import reindex_main_branch_from_worker
@@ -75,6 +76,7 @@ from tripl.worker.tasks.metrics.detect import (
     coverage_history_start,
 )
 from tripl.worker.tasks.metrics.dispatch import _prepare_alert_deliveries
+from tripl.worker.tasks.metrics.freshness import record_collection_freshness
 from tripl.worker.tasks.metrics.generation import (
     _accumulate_replay_json_samples_from_events,
     _augment_json_value_paths_for_replay_tokens,
@@ -491,6 +493,51 @@ def _resolve_collection_window(
     return time_from, time_to, False
 
 
+def _widen_for_held_buckets(
+    session: Session,
+    config: ScanConfig,
+    *,
+    delta: timedelta,
+    time_from: datetime,
+    time_to: datetime,
+) -> datetime:
+    """Reach a scheduled run back over the buckets a late source left empty (#269).
+
+    Read BEFORE ``record_collection_freshness`` stamps this run: it is the
+    config's previous ``last_event_at`` and the freshness those previous facts
+    give at the start of this run that decide it.
+
+    While a source is late every run collects its usual resume window
+    (``SCHEDULED_RESUME_OVERLAP_BUCKETS`` behind the progress end), finds the
+    newest buckets empty, and the detector HOLDS the drops they read as. The
+    collection watermark still advances, so once the delayed rows land the next
+    run would resume two buckets back and never re-read the older buckets of
+    the delay: they stay empty (or zero-filled from job coverage) in Postgres,
+    and the first run that no longer holds — the recovery run — would score
+    every one of them inside the trailing re-evaluation window as a drop. The
+    hold would only have postponed the false alarms it exists to prevent.
+
+    So while the previous status is holding (late or overdue) the window starts
+    at the first bucket after the previous newest event, ``floor(last_event_at)
+    + interval``: every bucket that may have been empty during the delay is
+    re-collected before detection scores it (``anomaly_evaluation_start`` is
+    ``min``-ed with this start, so it is scored in the same run). The widening is
+    never earlier than ``SCHEDULED_BACKFILL_BUCKETS`` before the end — the same
+    cap a first run reaches back to — so a source dark for weeks costs one
+    bounded read, and never narrows the window the resolver chose. Only a
+    scheduled run widens; a replay states its own window.
+    """
+    previous_event_at = config.last_event_at
+    if previous_event_at is None:
+        return time_from
+    previous = compute_config_freshness(session, config, config.project_id, datetime.now(UTC))
+    if not is_holding(previous):
+        return time_from
+    first_missing = to_utc(_floor_to_grid(to_utc(previous_event_at), delta)) + delta
+    cap = time_to - delta * SCHEDULED_BACKFILL_BUCKETS
+    return min(time_from, max(first_missing, cap))
+
+
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="tripl.worker.tasks.metrics.collect_metrics",
     bind=True,
@@ -611,6 +658,10 @@ def collect_metrics(
             manual_time_from=time_from,
             manual_time_to=time_to,
         )
+        if not is_replay:
+            time_from_dt = _widen_for_held_buckets(
+                session, config, delta=delta, time_from=time_from_dt, time_to=time_to_dt
+            )
 
         chunks = _iter_window_chunks(
             time_from_dt,
@@ -1049,6 +1100,23 @@ def collect_metrics(
         anomaly_evaluation_start = min(
             time_from_dt, time_to_dt - delta * ANOMALY_TRAILING_REEVAL_BUCKETS
         )
+        # Source freshness (#269): record what this run saw, then judge it. While
+        # the source is late (or the schedule overdue) new drop-direction volume
+        # anomalies are HELD — a delayed load reads as a drop on every scope, and
+        # the alerting layer raises one "data is late" alert instead. Held, not
+        # lost: the series is stored complete and a later run re-scores those
+        # buckets once the data lands. A replay never holds: it re-scores a
+        # window the operator chose, and the live lateness says nothing about it.
+        freshness = record_collection_freshness(
+            session,
+            config,
+            window_from=time_from_dt,
+            window_to=time_to_dt,
+            collected_at=datetime.now(UTC),
+            is_replay=is_replay,
+        )
+        hold_drops = not is_replay and is_holding(freshness)
+        held_counts: list[int] = []
         # Coverage is read only as deep as a pass in this run can consult it.
         # Unbounded, both reads walked the config's whole lifetime every run
         # (tripl-0zpq.25) — and a REPLAY's recorded window is multi-year, so even
@@ -1095,6 +1163,8 @@ def collect_metrics(
             evaluation_end=time_to_dt,
             covered_buckets=covered_buckets,
             settling_delay=settling_delay,
+            hold_drops=hold_drops,
+            held=held_counts,
         )
         breakdown_anomalies_detected = _recalculate_metric_breakdown_anomalies(
             session,
@@ -1103,6 +1173,8 @@ def collect_metrics(
             evaluation_end=time_to_dt,
             covered_buckets=covered_buckets,
             settling_delay=settling_delay,
+            hold_drops=hold_drops,
+            held=held_counts,
         )
         # Deliberately window-free, unlike the two anomaly passes above: a
         # release verdict describes the CURRENT rollout, so it anchors on the
@@ -1181,6 +1253,10 @@ def collect_metrics(
             # difference between the feature working and it swallowing
             # every alert for a whole window (tripl-ftrn).
             "alerts_buffered": sum(buffered_counts),
+            # Source freshness at collection time and the drop anomalies it
+            # withheld (#269); ``signals_held`` is 0 whenever nothing was held.
+            "freshness_status": freshness.status,
+            "signals_held": sum(held_counts),
             "metrics_row_limit": metrics_row_limit,
             "query_rows_scanned": query_rows_scanned,
             "archived_event_volume": archived_volume,
