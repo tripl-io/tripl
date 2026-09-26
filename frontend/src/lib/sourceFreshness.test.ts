@@ -128,3 +128,45 @@ describe('holdingItems / freshnessCounts', () => {
     expect(freshnessCounts(items)).toEqual({ fresh: 1, late: 1, overdue: 1, unknown: 0 })
   })
 })
+
+describe('sourceFreshness edge cases', () => {
+  it('reads unparseable or inverted stamps as no allowance', () => {
+    expect(expectedWithinSeconds(reading({ expected_by: 'not a date', last_event_at: '2026-09-26T03:00:00Z' }))).toBeNull()
+    expect(expectedWithinSeconds(reading({ expected_by: null }))).toBeNull()
+    expect(
+      expectedWithinSeconds(reading({ expected_by: '2026-09-26T02:00:00Z', last_event_at: '2026-09-26T03:00:00Z' })),
+    ).toBeNull()
+  })
+
+  it('words a late source with no lag or allowance plainly', () => {
+    const chip = freshnessChipContent(
+      reading({ status: 'late', lag_seconds: null, expected_by: null, last_event_at: null }),
+      NOW,
+    )
+    expect(chip?.label).toBe('Data late')
+    expect(chip?.description).toBe('No new events. Drop signals are held until data arrives.')
+  })
+
+  it('says no collection has finished for an overdue scan that never collected', () => {
+    const chip = freshnessChipContent(reading({ status: 'overdue', last_collection_at: null }), NOW)
+    expect(chip?.label).toBe('Scan overdue')
+    expect(chip?.description).toMatch(/^No collection has finished;/)
+    expect(freshnessChipContent(null, NOW)).toBeNull()
+    expect(freshnessChipContent(reading({ status: 'unknown' }), NOW)).toBeNull()
+  })
+
+  it('keeps the longer delay among equal statuses, treating a missing lag as none', () => {
+    const shortLate = reading({ status: 'late', lag_seconds: 4 * HOUR })
+    const noLag = reading({ status: 'late', lag_seconds: null })
+    const longLate = reading({ status: 'late', lag_seconds: 9 * HOUR })
+    expect(worstFreshness([noLag, shortLate, null, longLate, noLag])).toBe(longLate)
+    expect(worstFreshness([shortLate, noLag])).toBe(shortLate)
+    expect(worstFreshness([])).toBeNull()
+  })
+
+  it('returns no holding items without data, and all of them without a scan filter', () => {
+    const late = item('sc-1', reading({ status: 'late' }))
+    expect(holdingItems(undefined)).toEqual([])
+    expect(holdingItems([late], null)).toEqual([late])
+  })
+})

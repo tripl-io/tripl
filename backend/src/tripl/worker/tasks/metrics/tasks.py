@@ -534,8 +534,12 @@ def _widen_for_held_buckets(
     if not is_holding(previous):
         return time_from
     first_missing = to_utc(_floor_to_grid(to_utc(previous_event_at), delta)) + delta
-    cap = time_to - delta * SCHEDULED_BACKFILL_BUCKETS
-    return min(time_from, max(first_missing, cap))
+    cap = to_utc(time_to) - delta * SCHEDULED_BACKFILL_BUCKETS
+    widened = max(first_missing, cap)
+    if widened >= to_utc(time_from):
+        return time_from
+    # Hand the window back in the awareness it arrived in (naive on SQLite).
+    return widened if time_from.tzinfo is not None else widened.replace(tzinfo=None)
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]

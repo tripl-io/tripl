@@ -169,6 +169,7 @@ def _mark_sent(factory: sessionmaker[Session], delivery_ids: list[uuid.UUID]) ->
         for delivery_id in delivery_ids:
             delivery = session.get(AlertDelivery, delivery_id)
             assert delivery is not None
+            delivery.sent_at = datetime.now(UTC)
             alerts_task._stamp_rule_state(session, delivery)
         session.commit()
 
