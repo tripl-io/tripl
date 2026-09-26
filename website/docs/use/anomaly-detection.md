@@ -312,6 +312,16 @@ that set — and only then, so a value you already accepted never nags again.
 Without this the single row per variable/event would quietly absorb every future
 novel value while still reading as resolved.
 
+**The first sample is a backlog, and it is reported.** The first time a
+variable is sampled for an event, the values it brings back are everything the
+column already holds, not a change. If the variable documents `allowed_values`,
+every one of those outside the list becomes drift on that tick, as one batch.
+This is deliberate: the values really are in the data and outside the contract.
+Review them once — accept the ones that belong (globally or for that event) or
+mark the rest false positive — and later scans report only values that are new.
+Expect this batch after documenting values on a variable that is already being
+observed, or when a new event first reaches a documented variable.
+
 See [Variables & templates](./variables-and-templates.md) for the authoring and
 review workflow.
 

@@ -64,8 +64,11 @@ needs no warehouse, so you can learn the product before wiring up any data.
 :::
 
 A **project** is one tracking plan and everything around it — its own events,
-scans, metrics, and alert rules. Membership roles and data-source
-connections are workspace-wide, although API keys can be bound to one project.
+scans, metrics, and alert rules. Each project also has its own **members**:
+only they (and instance owners) can see it, and whoever creates a project is an
+editor member of it. Add people in **Settings → Project → Access**. Instance
+roles and data-source connections are workspace-wide, although API keys can be
+bound to one project.
 A company with an
 iOS app, an Android app, and a website that share analytics is usually *one*
 project; two unrelated products are two projects.

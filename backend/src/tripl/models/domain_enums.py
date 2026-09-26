@@ -296,3 +296,16 @@ class UserRole(enum.StrEnum):
 class ApiKeyScope(enum.StrEnum):
     read = "read"
     write = "write"
+
+
+class ProjectMemberRole(enum.StrEnum):
+    """A user's role inside one project (``project_members.role``).
+
+    There is no per-project ``owner``: the instance owner (``UserRole.owner``)
+    sees and manages every project without a membership row. The effective role
+    is also capped by the instance role, so a ``viewer`` user holding an
+    ``editor`` membership still acts as a viewer (``services.project_access``).
+    """
+
+    editor = "editor"
+    viewer = "viewer"

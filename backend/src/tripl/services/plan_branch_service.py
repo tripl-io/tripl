@@ -60,7 +60,9 @@ from tripl.services.plan_revision_service import (
     compute_plan_diff_entries,
     plan_snapshot_hash,
 )
+from tripl.services.project_access import member_role
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
+from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
 
 if TYPE_CHECKING:
     from sqlalchemy.engine.interfaces import IsolationLevel
@@ -1192,7 +1194,11 @@ async def add_reviewer(
     project_id = await _resolve_project_id(session, slug)
     branch = await _get_branch(session, project_id, branch_id)
     _reject_main(branch)
-    await _resolve_user(session, data.user_id)
+    reviewer_user = await _resolve_user(session, data.user_id)
+    # A reviewer who cannot see the project could never open the branch to
+    # review it; the instance owner counts, as they see every project.
+    if await member_role(session, reviewer_user, project_id) is None:
+        raise HTTPException(status_code=422, detail=NOT_A_MEMBER_DETAIL)
     existing = await session.scalar(
         select(PlanBranchReviewer).where(
             PlanBranchReviewer.branch_id == branch.id,

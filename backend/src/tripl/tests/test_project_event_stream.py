@@ -137,7 +137,8 @@ async def test_scoped_key_cannot_subscribe_to_foreign_project(client: AsyncClien
     await _create_project(client, "scoped-b")
     token = await _issue_project_key(client, project_slug="scoped-a")
     resp = await client.get("/api/v1/projects/scoped-b/events/stream", headers=_bearer(token))
-    assert resp.status_code == 403
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Project not found"
 
 
 # ── Pub/sub bus degrades to a no-op with Redis off ───────────────────────

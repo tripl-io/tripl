@@ -13,6 +13,7 @@ from sqlalchemy import select
 from tripl.models.api_key import ApiKey
 from tripl.services import api_key_service
 from tripl.services.api_key_service import API_KEY_TOUCH_INTERVAL_SECONDS, _hash_token
+from tripl.tests._members import add_member_by_slug
 
 
 async def _issue_key(
@@ -283,7 +284,8 @@ async def test_project_scoped_key_reaches_only_its_project(
     anon_client: AsyncClient, client: AsyncClient
 ) -> None:
     """A key bound to one project authenticates that project's routes and is
-    rejected (403) on any other project."""
+    answers 404 "Project not found" on any other project, like an unknown slug,
+    so the key is no oracle for which slugs exist."""
     await client.post("/api/v1/projects", json={"name": "A", "slug": "scoped-a"})
     await client.post("/api/v1/projects", json={"name": "B", "slug": "scoped-b"})
     _key_id, token = await _issue_key(client, scope="read", project_slug="scoped-a")
@@ -292,8 +294,14 @@ async def test_project_scoped_key_reaches_only_its_project(
     assert ok.status_code == 200
 
     denied = await anon_client.get("/api/v1/projects/scoped-b/event-types", headers=_bearer(token))
-    assert denied.status_code == 403
-    assert "not authorized for this project" in denied.json()["detail"].lower()
+    assert denied.status_code == 404
+    assert denied.json()["detail"] == "Project not found"
+
+    unknown = await anon_client.get(
+        "/api/v1/projects/scoped-nowhere/event-types", headers=_bearer(token)
+    )
+    assert unknown.status_code == 404
+    assert unknown.json() == denied.json()
 
 
 @pytest.mark.asyncio
@@ -414,3 +422,60 @@ async def test_user_cannot_revoke_another_users_key(
 
     revoke = await anon_client.delete(f"/api/v1/me/api-keys/{key_id}")
     assert revoke.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_minting_a_project_key_requires_membership(
+    anon_client: AsyncClient, client: AsyncClient
+) -> None:
+    """A key bound to a project the caller cannot see is refused as if the project
+    did not exist (tripl-vefw): minting must not confirm a hidden slug."""
+    await client.post("/api/v1/projects", json={"name": "Hidden", "slug": "key-hidden"})
+
+    await anon_client.post("/api/v1/auth/logout")
+    register = await anon_client.post(
+        "/api/v1/auth/register",
+        json={"email": "key-editor@example.com", "password": "Password123!", "name": "Ed"},
+    )
+    assert register.status_code == 201
+
+    refused = await anon_client.post(
+        "/api/v1/me/api-keys",
+        json={"name": "k", "scope": "read", "project_slug": "key-hidden"},
+    )
+    assert refused.status_code == 404, refused.text
+
+    await add_member_by_slug("key-hidden", "key-editor@example.com", "viewer")
+    minted = await anon_client.post(
+        "/api/v1/me/api-keys",
+        json={"name": "k", "scope": "read", "project_slug": "key-hidden"},
+    )
+    assert minted.status_code == 201, minted.text
+
+
+@pytest.mark.asyncio
+async def test_unscoped_key_of_a_non_owner_reaches_only_member_projects(
+    anon_client: AsyncClient, client: AsyncClient
+) -> None:
+    """An unscoped key acts with its user's membership: no project beyond it."""
+    await client.post("/api/v1/projects", json={"name": "A", "slug": "member-a"})
+    await client.post("/api/v1/projects", json={"name": "B", "slug": "member-b"})
+
+    await anon_client.post("/api/v1/auth/logout")
+    register = await anon_client.post(
+        "/api/v1/auth/register",
+        json={"email": "wide-editor@example.com", "password": "Password123!", "name": "Ed"},
+    )
+    assert register.status_code == 201
+    await add_member_by_slug("member-a", "wide-editor@example.com", "editor")
+    _key_id, token = await _issue_key(anon_client, scope="read")
+    await anon_client.post("/api/v1/auth/logout")
+
+    ok = await anon_client.get("/api/v1/projects/member-a/event-types", headers=_bearer(token))
+    assert ok.status_code == 200, ok.text
+    hidden = await anon_client.get("/api/v1/projects/member-b/event-types", headers=_bearer(token))
+    assert hidden.status_code == 404, hidden.text
+
+    listing = await anon_client.get("/api/v1/projects", headers=_bearer(token))
+    assert listing.status_code == 200, listing.text
+    assert {item["slug"] for item in listing.json()} == {"member-a"}

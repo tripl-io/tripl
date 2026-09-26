@@ -38,6 +38,7 @@ from tripl.models.user import User
 from tripl.schemas.alerting import AlertDestinationCreate
 from tripl.services import datasource_service
 from tripl.services.event_photo_service import ensure_comment_deletable
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 NOW = datetime(2026, 6, 10, 12, 0, tzinfo=UTC)
@@ -61,7 +62,10 @@ async def editor_client(client: AsyncClient) -> AsyncGenerator[AsyncClient]:
 
 
 async def _project_with_event(client: AsyncClient, slug: str) -> tuple[str, str]:
-    """A project (created by the owner, so shared with editors), one type, one event."""
+    """A project created by the owner, one type, one event.
+
+    Editors only reach it once they are members; the comment tests grant that.
+    """
     project = await client.post(
         "/api/v1/projects", json={"name": slug, "slug": slug, "description": ""}
     )
@@ -94,6 +98,7 @@ async def test_an_editor_cannot_delete_another_users_event_comment(
 ) -> None:
     slug = "r2-comment-delete"
     _type_id, event_id = await _project_with_event(client, slug)
+    await add_member_by_slug(slug, "editor@example.com", "editor")
     base = f"/api/v1/projects/{slug}/events/{event_id}/comments"
 
     owners = await client.post(base, json={"body": "owner's question"})
@@ -127,6 +132,7 @@ async def test_an_editor_cannot_delete_another_users_branch_comment(
     offers Delete to the author and owners only; the server now agrees."""
     slug = "r2-branch-comment-delete"
     await _project_with_event(client, slug)
+    await add_member_by_slug(slug, "editor@example.com", "editor")
     branch = await client.post(f"/api/v1/projects/{slug}/branches", json={"name": "wip"})
     assert branch.status_code == 201, branch.text
     base = f"/api/v1/projects/{slug}/branches/{branch.json()['id']}/comments"

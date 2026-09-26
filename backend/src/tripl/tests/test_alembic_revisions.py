@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 import sqlalchemy as sa
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -95,6 +96,144 @@ def test_project_app_version_retention_migration_backfills_and_mirrors(
     assert "app_version_column IS NOT NULL" in backfill
     assert "SET app_version_keep_releases = project.app_version_keep_releases" in mirror
     assert "scan.app_version_column IS NOT NULL" in mirror
+
+
+def _load_project_members_migration(module_name: str):
+    backend_root = Path(__file__).resolve().parents[3]
+    migration_path = backend_root / "alembic" / "versions" / "e3b9d5a1c7f4_project_members.py"
+    spec = importlib.util.spec_from_file_location(module_name, migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    return migration
+
+
+def _capture_project_members_backfill(monkeypatch, *, dialect: str) -> list[str]:
+    """Run ``e3b9d5a1c7f4.upgrade()`` against stubbed ``op``; return its raw SQL.
+
+    DDL (the enum, the table, the index) is stubbed out; only ``op.execute``
+    statements, i.e. the grandfathering backfill, are captured.
+    """
+    migration = _load_project_members_migration(f"project_members_migration_{dialect}")
+    statements: list[str] = []
+    monkeypatch.setattr(
+        migration.op,
+        "get_bind",
+        lambda: SimpleNamespace(dialect=SimpleNamespace(name=dialect)),
+    )
+    monkeypatch.setattr(migration.postgresql.ENUM, "create", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(migration.op, "create_table", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(migration.op, "create_index", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(migration.op, "f", lambda name: name)
+    monkeypatch.setattr(
+        migration.op, "execute", lambda statement: statements.append(str(statement))
+    )
+    migration.upgrade()
+    return statements
+
+
+def test_project_members_migration_backfills_members_and_demo_creators(monkeypatch) -> None:
+    """Non-demo projects get every editor/viewer with their role; demos only their creator."""
+    statements = _capture_project_members_backfill(monkeypatch, dialect="postgresql")
+
+    assert len(statements) == 2
+    real, demo = (" ".join(statement.split()) for statement in statements)
+
+    # Every non-owner user on every non-demo project, keeping their instance role.
+    assert "FROM projects p CROSS JOIN users u" in real
+    assert "p.is_demo IS NOT TRUE" in real
+    assert "u.role::text IN ('editor', 'viewer')" in real
+    assert "(u.role::text)::project_member_role" in real
+    assert "ON CONFLICT ON CONSTRAINT uq_project_member DO NOTHING" in real
+
+    # A demo gets its creator only, as editor unless the creator is a viewer.
+    assert "JOIN users u ON u.id = p.created_by_user_id" in demo
+    assert "p.is_demo IS TRUE" in demo
+    assert "CROSS JOIN" not in demo
+    assert "CASE WHEN u.role::text = 'viewer' THEN 'viewer' ELSE 'editor' END" in demo
+    assert "ON CONFLICT ON CONSTRAINT uq_project_member DO NOTHING" in demo
+
+
+def test_project_members_migration_skips_the_backfill_off_postgresql(monkeypatch) -> None:
+    """The SQLite test schema is built from the models and starts empty."""
+    assert _capture_project_members_backfill(monkeypatch, dialect="sqlite") == []
+
+
+@pytest.mark.postgres
+def test_project_members_backfill_runs_on_postgres(monkeypatch) -> None:
+    """The captured backfill SQL, executed on a real PostgreSQL schema.
+
+    The table and enum come from the models (identical to the migration's DDL);
+    the rows come from the migration's own statements.
+    """
+    from sqlalchemy.orm import Session
+
+    from tripl.models import Base
+    from tripl.models.project import Project
+    from tripl.models.project_member import ProjectMember
+    from tripl.models.user import User
+    from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
+
+    statements = _capture_project_members_backfill(monkeypatch, dialect="postgresql")
+    engine = _engine_or_skip()
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine, expire_on_commit=False) as session:
+            owner = User(email="owner@example.com", name="O", password_hash="x", role="owner")
+            editor = User(email="editor@example.com", name="E", password_hash="x", role="editor")
+            viewer = User(email="viewer@example.com", name="V", password_hash="x", role="viewer")
+            session.add_all([owner, editor, viewer])
+            session.flush()
+            real_a = Project(name="A", slug="real-a", created_by_user_id=editor.id)
+            real_b = Project(name="B", slug="real-b")
+            editor_demo = Project(
+                name="ED", slug="demo-editor", is_demo=True, created_by_user_id=editor.id
+            )
+            viewer_demo = Project(
+                name="VD", slug="demo-viewer", is_demo=True, created_by_user_id=viewer.id
+            )
+            owner_demo = Project(
+                name="OD", slug="demo-owner", is_demo=True, created_by_user_id=owner.id
+            )
+            session.add_all([real_a, real_b, editor_demo, viewer_demo, owner_demo])
+            session.commit()
+            ids = {
+                "owner": owner.id,
+                "editor": editor.id,
+                "viewer": viewer.id,
+                "real-a": real_a.id,
+                "real-b": real_b.id,
+                "demo-editor": editor_demo.id,
+                "demo-viewer": viewer_demo.id,
+                "demo-owner": owner_demo.id,
+            }
+
+        with engine.begin() as connection:
+            for statement in statements:
+                connection.execute(sa.text(statement))
+            # Idempotent: a re-run adds nothing (ON CONFLICT DO NOTHING).
+            for statement in statements:
+                connection.execute(sa.text(statement))
+
+        by_id = {value: key for key, value in ids.items()}
+        with Session(engine) as session:
+            rows = session.execute(
+                sa.select(ProjectMember.project_id, ProjectMember.user_id, ProjectMember.role)
+            ).all()
+        got = {(by_id[project_id], by_id[user_id], str(role)) for project_id, user_id, role in rows}
+        assert got == {
+            ("real-a", "editor", "editor"),
+            ("real-a", "viewer", "viewer"),
+            ("real-b", "editor", "editor"),
+            ("real-b", "viewer", "viewer"),
+            ("demo-editor", "editor", "editor"),
+            ("demo-viewer", "viewer", "viewer"),
+            ("demo-owner", "owner", "editor"),
+        }
+    finally:
+        Base.metadata.drop_all(engine)
+        engine.dispose()
 
 
 def test_missing_timestamp_server_defaults_migration_sets_and_drops_defaults(

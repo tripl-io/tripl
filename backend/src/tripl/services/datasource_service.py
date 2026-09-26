@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -37,11 +37,27 @@ from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.search_service import reindex_project_branch
 
 
-async def list_data_sources(session: AsyncSession) -> list[DataSourceResponse]:
+async def list_data_sources(
+    session: AsyncSession, *, visible_project_ids: set[uuid.UUID] | None
+) -> list[DataSourceResponse]:
+    """Every data source the caller may see, with usage counted over the same set.
+
+    ``visible_project_ids`` is ``project_access.member_project_ids`` for the
+    caller (``None`` = every project, an instance owner). A workspace-global
+    source (``project_id`` NULL) is listed for everyone; a source bound to a
+    project the caller is not a member of is left out entirely, since a
+    non-member must not learn the project exists. The cached list is
+    instance-wide and filtered after the read, so one entry serves every user.
+    """
     cached = await cache.get_json(cache.key_data_sources_list())
     if cached is not None:
         return await _with_usage(
-            session, [DataSourceResponse.model_validate(item) for item in cached]
+            session,
+            _only_visible(
+                [DataSourceResponse.model_validate(item) for item in cached],
+                visible_project_ids,
+            ),
+            visible_project_ids=visible_project_ids,
         )
 
     result = await session.execute(
@@ -54,16 +70,41 @@ async def list_data_sources(session: AsyncSession) -> list[DataSourceResponse]:
         [r.model_dump(mode="json") for r in responses],
         ttl_seconds=300,
     )
-    return await _with_usage(session, responses)
+    return await _with_usage(
+        session,
+        _only_visible(responses, visible_project_ids),
+        visible_project_ids=visible_project_ids,
+    )
 
 
-async def get_data_source(session: AsyncSession, ds_id: uuid.UUID) -> DataSourceResponse:
+async def get_data_source(
+    session: AsyncSession, ds_id: uuid.UUID, *, visible_project_ids: set[uuid.UUID] | None
+) -> DataSourceResponse:
+    """One data source; one bound to a non-member project is "not found"."""
     ds = await _fetch_data_source(session, ds_id)
-    return (await _with_usage(session, [_to_response(ds)]))[0]
+    if not _is_visible(ds.project_id, visible_project_ids):
+        raise HTTPException(status_code=404, detail="Data source not found")
+    return (
+        await _with_usage(session, [_to_response(ds)], visible_project_ids=visible_project_ids)
+    )[0]
+
+
+def _is_visible(project_id: uuid.UUID | None, visible: set[uuid.UUID] | None) -> bool:
+    """A global source, or one bound to a project in the caller's member set."""
+    return visible is None or project_id is None or project_id in visible
+
+
+def _only_visible(
+    sources: list[DataSourceResponse], visible: set[uuid.UUID] | None
+) -> list[DataSourceResponse]:
+    return [source for source in sources if _is_visible(source.project_id, visible)]
 
 
 async def _with_usage(
-    session: AsyncSession, sources: list[DataSourceResponse]
+    session: AsyncSession,
+    sources: list[DataSourceResponse],
+    *,
+    visible_project_ids: set[uuid.UUID] | None,
 ) -> list[DataSourceResponse]:
     """Merge each source's scan and scan-run counts, and its scans, in (DA-40).
 
@@ -76,15 +117,23 @@ async def _with_usage(
     Two grouped queries over the listed ids, run on every read rather than
     cached with the list: scans are created and deleted in projects, and no
     project path invalidates the data-source cache.
+
+    Counts and refs cover only scans in ``visible_project_ids`` (``None`` = all,
+    for an instance owner and the owner-only write paths). A shared source read
+    by a project the caller is not a member of must not reveal that project's
+    name, slug or even its scan volume.
     """
     if not sources:
         return sources
     ids = [source.id for source in sources]
+    in_scope: ColumnElement[bool] = ScanConfig.data_source_id.in_(ids)
+    if visible_project_ids is not None:
+        in_scope = and_(in_scope, ScanConfig.project_id.in_(visible_project_ids))
     scan_counts = dict(
         (
             await session.execute(
                 select(ScanConfig.data_source_id, func.count(ScanConfig.id))
-                .where(ScanConfig.data_source_id.in_(ids))
+                .where(in_scope)
                 .group_by(ScanConfig.data_source_id)
             )
         )
@@ -96,7 +145,7 @@ async def _with_usage(
             await session.execute(
                 select(ScanConfig.data_source_id, func.count(ScanJob.id))
                 .join(ScanJob, ScanJob.scan_config_id == ScanConfig.id)
-                .where(ScanConfig.data_source_id.in_(ids))
+                .where(in_scope)
                 .group_by(ScanConfig.data_source_id)
             )
         )
@@ -121,7 +170,7 @@ async def _with_usage(
             .label("position"),
         )
         .join(Project, Project.id == ScanConfig.project_id)
-        .where(ScanConfig.data_source_id.in_(ids))
+        .where(in_scope)
         .subquery()
     )
     scan_refs: dict[uuid.UUID, list[DataSourceScanRef]] = {}
@@ -255,7 +304,8 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
     await session.commit()
     await session.refresh(ds)
     await cache.delete_prefix(cache.prefix_data_sources())
-    return (await _with_usage(session, [_to_response(ds)]))[0]
+    # Owner-only write path: the owner sees every project's usage.
+    return (await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0]
 
 
 async def update_data_source(
@@ -307,7 +357,8 @@ async def update_data_source(
         raise
     await session.refresh(ds)
     await cache.delete_prefix(cache.prefix_data_sources())
-    return (await _with_usage(session, [_to_response(ds)]))[0]
+    # Owner-only write path: the owner sees every project's usage.
+    return (await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0]
 
 
 async def _name_taken_by_other(session: AsyncSession, name: str, ds_id: uuid.UUID) -> bool:
@@ -550,7 +601,8 @@ async def test_data_source_connection(
         success=success,
         message=message,
         tested_at=tested_at,
-        data_source=(await _with_usage(session, [_to_response(ds)]))[0],
+        # Owner-only: the owner sees every project's usage.
+        data_source=(await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0],
     )
 
 

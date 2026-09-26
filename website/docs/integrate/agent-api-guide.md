@@ -75,7 +75,71 @@ Project scope:
 - Project-scoped keys cannot call instance-level routes such as `/api/v1/projects` or `/api/v1/users`.
 - Omit `project_slug` only for trusted automation that must read or write multiple projects.
 
-If a Bearer token is invalid, expired, or revoked, the API returns `401`. If a valid key lacks project, scope, or role permission, the API returns `403`.
+If a Bearer token is invalid, expired, or revoked, the API returns `401`. If a valid key lacks scope or role permission, the API returns `403`. A project-bound key used on another project's slug gets `404 Project not found`, the same answer as a slug that does not exist, even when the key's user is a member of that project; instance-wide routes still answer `403` to a project-bound key.
+
+Project membership:
+
+- A key acts as the user who created it, so it reaches only the projects that
+  user is a **member** of (an instance owner's key reaches every project). On any
+  other project every `/projects/{slug}/...` route answers `404`
+  `Project not found`, the same answer as for a slug that does not exist, and the
+  project is missing from `GET /api/v1/projects` and `GET /api/v1/activity`.
+- Creating a key with `project_slug` for a project the user is not a member of
+  answers `404`.
+- Writing needs an **editor** membership. A viewer member's key gets `403` on
+  mutation routes, whatever its scope.
+- A new user is a member of no project. Ask the project's creator or an owner to
+  add the account behind your key.
+
+### Project members
+
+Read who can see a project (any member may call it):
+
+```http
+GET /api/v1/projects/{slug}/members
+```
+
+```json
+[
+  {
+    "user_id": "7c9e…",
+    "name": "Ada",
+    "email": "ada@example.com",
+    "role": "editor",
+    "added_at": "2026-09-27T09:00:00Z"
+  }
+]
+```
+
+`role` is the membership role, `editor` or `viewer`. The project response
+(`GET /api/v1/projects/{slug}`) also carries `my_role` (`owner`, `editor` or
+`viewer`), the caller's effective role, and `can_mutate`.
+
+Changing membership is limited to the instance owner and the project's creator,
+and needs a browser session: every API key, whatever its scope, gets `403` on
+these routes. The creator also needs an editing role: a creator whose instance
+role is `viewer`, or who is a `viewer` member, gets `403`, and a creator who was
+removed from the project gets `404`. The same applies to renaming and resetting
+the project; deleting it is owner-only.
+
+```http
+POST   /api/v1/projects/{slug}/members            {"user_id": "…", "role": "viewer"}
+PATCH  /api/v1/projects/{slug}/members/{user_id}  {"role": "editor"}
+DELETE /api/v1/projects/{slug}/members/{user_id}
+```
+
+Adding someone who is already a member answers `409`; an unknown user or
+membership answers `404`. When you add an event-type owner
+(`POST /api/v1/projects/{slug}/event-types/{event_type_id}/owners`) or a branch
+reviewer (`POST /api/v1/projects/{slug}/branches/{branch_id}/reviewers`), the
+user must be a member of the project, or the call answers `422`
+`User is not a member of this project`. Removing a member also removes their
+event-type ownerships and pending branch-reviewer assignments in that project,
+and closes a live-updates stream they have open within one heartbeat.
+
+One existence signal is unavoidable: slugs are unique across the instance, so
+`POST /api/v1/projects` or a rename to a slug that is already taken answers
+`409` even when the caller cannot see the project holding it.
 
 ## Project And Branch Context
 

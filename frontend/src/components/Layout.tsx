@@ -37,6 +37,7 @@ import { useShellShortcuts } from '@/components/shell/shell-shortcuts'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { projectQueryOptions, projectsQueryOptions } from '@/lib/queryKeys'
 import { lazyWithReload } from '@/lib/lazyWithReload'
+import { forgetLastProjectSlug } from '@/lib/lastProjectSlug'
 
 // Demo-only chrome, rendered for a demo project alone. Loaded on demand so the
 // product tour, chapter picker and reset dialog stay out of every other
@@ -468,6 +469,13 @@ export default function Layout() {
   const projectLookupFailed =
     !!slug && !projectKnown && listSettled && confirmProject.isError && !confirmSaysMissing
   const projectResolving = !!slug && !projectKnown && !projectMissing && !projectLookupFailed
+
+  // A project the server does not show this user (deleted, or they are not a
+  // member) must stop being the remembered "last project", or Settings and
+  // every later visit keep steering back to a 404 (tripl-vefw).
+  useEffect(() => {
+    if (projectMissing && slug) forgetLastProjectSlug(slug)
+  }, [projectMissing, slug])
 
   const { crumbs, title, entityAction } = useMemo(
     () => resolveCrumbs(location.pathname, slug, project?.name ?? slug),

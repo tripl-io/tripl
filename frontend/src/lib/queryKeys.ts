@@ -29,6 +29,7 @@
 
 import { queryOptions } from '@tanstack/react-query'
 import { projectsApi } from '@/api/projects'
+import { projectMembersApi } from '@/api/projectMembers'
 import { sourceFreshnessApi } from '@/api/sourceFreshness'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 
@@ -355,6 +356,15 @@ export const topbarDeliveriesKey = (slug: string | null | undefined) =>
 export const authStatusKey = () => ['auth', 'status'] as const
 
 export const usersKey = () => ['users'] as const
+/** Who belongs to one project — `GET /projects/{slug}/members`. The reviewer
+ * and event-type owner pickers read it too, since only members can be picked. */
+export const projectMembersKey = (slug: string | undefined) => ['projectMembers', slug] as const
+/** The one definition of the project members query; spread it to add `enabled`. */
+export const projectMembersQueryOptions = (slug: string | undefined) =>
+  queryOptions({
+    queryKey: projectMembersKey(slug),
+    queryFn: ({ signal }) => projectMembersApi.list(slug as string, signal),
+  })
 export const invitationsKey = () => ['invitations'] as const
 export const invitationPreviewKey = (token: string | undefined) =>
   ['invitationPreview', token] as const

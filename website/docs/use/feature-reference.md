@@ -16,11 +16,16 @@ For the underlying mental model (events vs. event types, scopes, signals) read
 [User Guide](./user-guide.md); for fixes see [Troubleshooting](./troubleshooting.md).
 
 :::note Permissions
-Mutations (create/update/delete) require at least the **editor** role; viewers
-are rejected. Inside a project an editor may also need to own it: a demo, or a
-project another editor created, is changed only by its creator or an owner.
+A project is visible only to its **members** and to instance owners; anyone
+else gets **Project not found**. Mutations (create/update/delete) inside a
+project need an **editor** membership and at least the **editor** instance role;
+viewers are rejected. Renaming, resetting a project and managing who has access
+(**Settings → Project → Access**) are for owners and for its creator while the
+creator holds an editing role (a creator who is an instance viewer or a viewer
+member gets `403`; a removed creator gets **Project not found**). Deleting a
+project is owner-only.
 Data sources and the workspace/instance settings require the
-**owner** role. Read surfaces are available to any signed-in member. Owner-only
+**owner** role. Owner-only
 command-palette entries (such as **Runtime**) are hidden for non-owners.
 :::
 
@@ -2311,7 +2316,12 @@ when no project is bound — and goes to that project's Overview. The rail's
 Project label is a project switcher. Under **API keys**, revoked keys fold
 behind **Show revoked (N)**, and the dialog that reveals a new key names it and
 shows the `Authorization` header to send it in. **Members** is three cards:
-invite, pending invitations, and the roster. Where a Get-started step sent you
+invite, pending invitations, and the roster. **Access**, under the Project
+group, lists who can see the current project; owners, and its creator while
+they hold an editing role, add members, switch them between Editor and Viewer,
+and remove them there. Removing someone also drops their event-type ownerships
+and pending branch-reviewer assignments in the project, and closes their open
+live-updates stream within a heartbeat. Where a Get-started step sent you
 here (Connect a data source), a **Back to checklist** bar sits above the
 section.
 

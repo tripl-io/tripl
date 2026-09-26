@@ -7,6 +7,7 @@ import { branchSettingsApi } from '@/api/branchSettings'
 import { ApiError } from '@/api/client'
 import { metaFieldsApi } from '@/api/metaFields'
 import { planBranchesApi } from '@/api/planBranches'
+import { projectMembersApi } from '@/api/projectMembers'
 import { trackerConfigApi } from '@/api/trackerConfig'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
@@ -66,6 +67,15 @@ vi.mock('@/api/users', () => ({
   usersApi: {
     list: vi.fn(),
     updateRole: vi.fn(),
+  },
+}))
+
+vi.mock('@/api/projectMembers', () => ({
+  projectMembersApi: {
+    list: vi.fn(),
+    add: vi.fn(),
+    updateRole: vi.fn(),
+    remove: vi.fn(),
   },
 }))
 
@@ -251,6 +261,17 @@ function renderTab(branchId?: string, role: Role = 'owner') {
 
 beforeEach(() => {
   vi.mocked(usersApi.list).mockResolvedValue(USERS)
+  // The reviewer picker offers the project's members, not the whole roster
+  // (tripl-vefw); here everyone on the roster is a member.
+  vi.mocked(projectMembersApi.list).mockResolvedValue(
+    USERS.map((u) => ({
+      user_id: u.id,
+      name: u.name,
+      email: u.email,
+      role: 'editor' as const,
+      added_at: '2026-01-01T00:00:00Z',
+    })),
+  )
   vi.mocked(metaFieldsApi.list).mockResolvedValue([])
   // Every query the tab can issue answers with a valid, empty payload unless a
   // test says otherwise. A bare vi.fn() resolves to undefined, which react-query
@@ -2474,6 +2495,56 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
     await waitFor(() =>
       expect(planBranchesApi.addReviewer).toHaveBeenCalledWith('demo', 'feat-1', 'u-maya'),
     )
+  })
+
+  it('offers only project members as reviewers (tripl-vefw)', async () => {
+    vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
+    vi.mocked(planBranchesApi.get).mockResolvedValue({ ...FEATURE, reviewers: [], approvals: [] })
+    // Priya is on the instance roster but not a member of this project.
+    vi.mocked(projectMembersApi.list).mockResolvedValue([
+      {
+        user_id: 'u-maya',
+        name: 'Maya R.',
+        email: 'maya@example.com',
+        role: 'editor',
+        added_at: '2026-01-01T00:00:00Z',
+      },
+    ])
+
+    renderTab('feat-1')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add reviewer' }))
+    const picker = screen.getByLabelText('Reviewer to add')
+    expect(within(picker).getByRole('option', { name: 'Maya R.' })).toBeInTheDocument()
+    expect(within(picker).queryByRole('option', { name: 'Priya S.' })).toBeNull()
+    expect(projectMembersApi.list).toHaveBeenCalledWith('demo', expect.anything())
+  })
+
+  it('also offers instance owners, who hold no member row, once each (tripl-vefw)', async () => {
+    vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
+    vi.mocked(planBranchesApi.get).mockResolvedValue({ ...FEATURE, reviewers: [], approvals: [] })
+    vi.mocked(usersApi.list).mockResolvedValue([
+      ...USERS,
+      makeUser({ id: 'u-boss', name: 'Boss K.', email: 'boss@example.com', role: 'owner' }),
+      makeUser({ id: 'u-maya', name: 'Maya R.', email: 'maya@example.com', role: 'owner' }),
+    ])
+    vi.mocked(projectMembersApi.list).mockResolvedValue([
+      {
+        user_id: 'u-maya',
+        name: 'Maya R.',
+        email: 'maya@example.com',
+        role: 'editor',
+        added_at: '2026-01-01T00:00:00Z',
+      },
+    ])
+
+    renderTab('feat-1')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add reviewer' }))
+    const picker = screen.getByLabelText('Reviewer to add')
+    expect(await within(picker).findByRole('option', { name: 'Boss K.' })).toBeInTheDocument()
+    expect(within(picker).getAllByRole('option', { name: 'Maya R.' })).toHaveLength(1)
+    expect(within(picker).queryByRole('option', { name: 'Priya S.' })).toBeNull()
   })
 
   it('shows a failed policy load with a retry, not "Loading policy…" forever (PLAN-21)', async () => {

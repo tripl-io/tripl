@@ -36,12 +36,17 @@ describe('auditSentences', () => {
     expect(actionTone('plan_branch.merge')).toBe('success')
     expect(actionTone('alert_rule.snooze')).toBe('warning')
     expect(actionTone('scan_job.snapshot')).toBe('neutral')
+    expect(actionTone('project.member_add')).toBe('success')
+    expect(actionTone('project.member_update')).toBe('warning')
+    expect(actionTone('project.member_remove')).toBe('danger')
   })
 
   it('reads an action code as a past-tense sentence', () => {
     expect(actionSentence('plan_branch.approve')).toBe('Approved branch')
     expect(actionSentence('metric_definition.create')).toBe('Created metric')
     expect(actionSentence('widget.frobnicate')).toBe('Frobnicate widget')
+    expect(actionSentence('project.member_add')).toBe('Added a member to project')
+    expect(actionSentence('project.member_remove')).toBe('Removed a member from project')
   })
 
   it('names the code only where two option labels would read alike', () => {

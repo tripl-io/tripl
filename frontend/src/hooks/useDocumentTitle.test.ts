@@ -226,6 +226,7 @@ describe('resolveTitleFromPath', () => {
       label: 'Security & access',
     })
     expect(resolveTitleFromPath('/settings/project/plan-rules')).toEqual({ label: 'Plan rules' })
+    expect(resolveTitleFromPath('/settings/project/members')).toEqual({ label: 'Access' })
 
     // The seven instance sections are distinguishable from each other, which is
     // the property that was actually broken.

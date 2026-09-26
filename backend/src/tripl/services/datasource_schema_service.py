@@ -3,33 +3,36 @@ import logging
 import uuid
 
 from fastapi import HTTPException
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.data_source import DataSource
-from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.schemas.data_source_schema import (
     ColumnSchema,
     DataSourceSchemaResponse,
     TableSchema,
 )
-from tripl.services import project_service
+from tripl.services import project_access
 from tripl.services.datasource_service import _fetch_data_source
 
 logger = logging.getLogger(__name__)
 
 
 async def authorize_schema_access(session: AsyncSession, ds_id: uuid.UUID, user: User) -> None:
-    """Project-owned catalogs require the same editor scope as project mutations."""
+    """A project-bound catalog takes an editing role in that project.
+
+    A source bound to a project the caller is not a member of does not exist for
+    them: the same 404 an unknown id gets. A viewer member is refused with 403,
+    the answer the project's own mutation gate gives. Instance-wide sources
+    (no ``project_id``) are left to the route's role gate.
+    """
     source = await _fetch_data_source(session, ds_id)
     if source.project_id is None:
         return
-    slug = await session.scalar(select(Project.slug).where(Project.id == source.project_id))
-    if slug is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    scope = await project_service.get_project_mutation_scope(session, slug)
-    if not scope.allows(user):
+    role = await project_access.member_role(session, user, source.project_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Data source not found")
+    if not project_access.can_edit(role):
         raise HTTPException(status_code=403, detail="No access to this project's data source")
 
 

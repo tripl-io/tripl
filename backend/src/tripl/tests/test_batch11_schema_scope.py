@@ -1,4 +1,8 @@
-"""A project-owned warehouse catalog must respect the project's editor scope."""
+"""A project-owned warehouse catalog must respect the project's membership.
+
+A non-member does not see the source at all (404, like an unknown id); a viewer
+member is refused (403); an editor member, the creator and the owner read it.
+"""
 
 import uuid
 
@@ -9,6 +13,7 @@ from tripl.api.v1 import data_sources as data_sources_router
 from tripl.main import app
 from tripl.models.data_source import DataSource
 from tripl.schemas.data_source_schema import DataSourceSchemaResponse
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -62,6 +67,11 @@ async def test_project_owned_schema_denies_other_editor_before_introspection(mon
         )
         path = f"/api/v1/data-sources/{source_id}/schema"
 
+        hidden = await stranger.get(path)
+        assert hidden.status_code == 404, hidden.text
+        assert calls == []
+
+        await add_member_by_slug("schema-private", "schema-other@example.com", "viewer")
         denied = await stranger.get(path)
         assert denied.status_code == 403, denied.text
         assert calls == []

@@ -489,6 +489,14 @@ describe('Layout unknown project (tripl-jfm3.2)', () => {
     expect(screen.getByText(/no project with the address/i)).toBeInTheDocument()
   })
 
+  it('forgets the remembered last project when it is not found (tripl-vefw)', async () => {
+    localStorage.setItem('tripl-last-project-slug', 'no-such-project-xyz')
+    renderLayout('/p/no-such-project-xyz/overview', '/p/:slug/overview', 'Live activity body')
+
+    expect(await screen.findByText('Project not found')).toBeInTheDocument()
+    await waitFor(() => expect(localStorage.getItem('tripl-last-project-slug')).toBeNull())
+  })
+
   it('offers a retry, not a 404, when the server cannot confirm the slug (SHELL-46)', async () => {
     renderLayout('/p/seeding-demo/overview', '/p/:slug/overview', 'Live activity body', {
       // A 503 says nothing about whether the project exists.

@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest'
+
+import type { ProjectMember, UserListItem } from '@/types'
+
+import { projectCandidates } from './projectCandidates'
+
+const member = (user_id: string, name: string): ProjectMember => ({
+  user_id,
+  name,
+  email: `${user_id}@x.io`,
+  role: 'editor',
+  added_at: '2026-01-01T00:00:00Z',
+})
+
+const user = (id: string, role: UserListItem['role']): UserListItem => ({
+  id,
+  name: id,
+  email: `${id}@x.io`,
+  role,
+  created_at: '2026-01-01T00:00:00Z',
+})
+
+describe('projectCandidates', () => {
+  it('offers the members, then the instance owners who hold no member row', () => {
+    const got = projectCandidates(
+      [member('u-ada', 'Ada')],
+      [user('u-ada', 'editor'), user('u-boss', 'owner'), user('u-linus', 'editor'), user('u-eve', 'viewer')],
+    )
+    expect(got.map((c) => c.user_id)).toEqual(['u-ada', 'u-boss'])
+  })
+
+  it('does not list an owner twice when they are also a member', () => {
+    const got = projectCandidates([member('u-boss', 'Boss')], [user('u-boss', 'owner')])
+    expect(got).toEqual([{ user_id: 'u-boss', name: 'Boss', email: 'u-boss@x.io' }])
+  })
+
+  it('copes with either list still loading', () => {
+    expect(projectCandidates(undefined, undefined)).toEqual([])
+    expect(projectCandidates(undefined, [user('u-boss', 'owner')]).map((c) => c.user_id)).toEqual(['u-boss'])
+    expect(projectCandidates([member('u-ada', 'Ada')], null).map((c) => c.user_id)).toEqual(['u-ada'])
+  })
+})

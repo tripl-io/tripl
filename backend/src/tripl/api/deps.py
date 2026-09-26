@@ -13,12 +13,13 @@ from tripl.middleware.branch_context import bound_branch
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services import api_key_service, project_service
+from tripl.services import api_key_service, project_access, project_service
 from tripl.services._plan_branch_locks import (
     hold_branch_for_plan_write,
     hold_main_plan_for_write,
 )
 from tripl.services.auth_service import get_user_by_session_token
+from tripl.services.project_lookup import PROJECT_NOT_FOUND
 from tripl.services.project_service import get_project_id_by_slug
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -58,6 +59,11 @@ async def _enforce_project_scope(
     Routes without a ``slug`` path param (``/me/...``, ``/users``, ...) are
     off-limits to a project-scoped key — it exists to fence an agent into one
     project, so anything instance-wide is rejected rather than silently allowed.
+
+    Another project's slug answers the same 404 "Project not found" an unknown
+    slug gets, never a 403: a fenced key must not be an oracle for which slugs
+    exist on the instance (the membership gate holds session users to the same
+    rule).
     """
     slug = request.path_params.get("slug")
     if not slug:
@@ -65,11 +71,9 @@ async def _enforce_project_scope(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API key is scoped to a single project",
         )
+    # An unknown slug 404s inside the lookup with the same detail.
     if await get_project_id_by_slug(session, slug) != project_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="API key is not authorized for this project",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PROJECT_NOT_FOUND)
 
 
 async def get_current_user(request: Request, session: SessionDep) -> User:
@@ -138,37 +142,69 @@ async def get_write_user(request: Request, user: CurrentUserDep) -> User:
     return user
 
 
+async def require_project_membership(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> None:
+    """Hide a project from everyone who is not its member (404, not 403).
+
+    Mounted next to :func:`get_current_user` in ``api.v1.router``'s
+    ``protected_dependencies``, so it runs on every authenticated route before
+    the route's own dependencies and handler. On a route whose path carries a
+    ``slug`` it resolves the caller's project role
+    (:func:`tripl.services.project_access.require_project_access`): a
+    non-member gets the same "Project not found" an unknown slug gets, and a
+    member's role is stashed on ``request.state.project_role`` for the write
+    gate. Routes without a ``slug`` pass untouched; the lists and feeds filter
+    by membership themselves.
+
+    API keys act as the user who minted them, so a key reaches exactly the
+    projects its user is a member of.
+    """
+    await project_access.require_project_access(request, session, user)
+
+
+async def _project_role(
+    request: Request, session: AsyncSession, user: User
+) -> project_access.ProjectRole | None:
+    """The caller's role in the path's project, from the membership gate's stash.
+
+    Falls back to resolving it (with the same 404 for a non-member) when the
+    request did not pass :func:`require_project_membership`, e.g. a route
+    mounted outside ``protected_dependencies``.
+    """
+    role: project_access.ProjectRole | None = getattr(request.state, "project_role", None)
+    if role is not None:
+        return role
+    return await project_access.require_project_access(request, session, user)
+
+
 async def require_project_mutation_access(
     request: Request, session: AsyncSession, user: User
 ) -> None:
-    """Project-scope the instance-wide editor role.
+    """Project-scope the instance-wide editor role through membership.
 
     ``require_editor`` only answers "may this user edit *something*". Every route
-    whose path carries a project ``slug`` also has to answer "…may they edit
-    *this* project", otherwise an editor can rewrite the tracking plan of every
-    project on the instance and inject content into other users' demos
-    (tripl-jfm3.19).
+    whose path carries a project ``slug`` also has to answer "...may they edit
+    *this* project", otherwise an editor could rewrite the tracking plan of every
+    project on the instance (tripl-jfm3.19). The answer is the caller's project
+    role (:mod:`tripl.services.project_access`): the instance owner, or a member
+    whose membership role is ``editor`` (capped by their instance role). A
+    viewer member gets 403; a non-member never gets this far, the membership
+    gate has already answered 404.
 
     Hooked into :func:`get_editor_user` rather than sprinkled over ~20 routers on
     purpose: the mutation surface is exactly the set of slug-scoped routes that
     already carry the editor gate (no ``GET`` uses it), so doing it here closes
     the whole surface at once and keeps future routes closed by default. Routes
-    without a ``slug`` (``/projects``, ``/me/...``) are unaffected, and reads stay
-    open to any authenticated user.
+    without a ``slug`` (``/projects``, ``/me/...``) are unaffected.
     """
-    slug = request.path_params.get("slug")
-    if not slug:
+    if not request.path_params.get("slug"):
         return
-    scope = await project_service.get_project_mutation_scope(session, slug)
-    if scope.allows(user):
+    if project_access.can_edit(await _project_role(request, session, user)):
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail=(
-            "Only the demo creator or an owner can modify this demo"
-            if scope.is_demo
-            else "Only the project creator or an owner can modify this project"
-        ),
+        detail="Editor access to this project is required",
     )
 
 
@@ -179,17 +215,18 @@ def can_mutate_project(
 
     The non-raising form of the same three checks, reused rather than restated,
     so ``ProjectResponse.can_mutate`` cannot drift from the gate it predicts: a
-    ``read``-scope API key, a viewer, and a caller the project's
-    :class:`~tripl.services.project_service.ProjectMutationScope` refuses are all
-    ``False``. The project-bound key fence (``_enforce_project_scope``) is not
-    repeated: a key that fails it never reaches a project's response at all.
+    ``read``-scope API key, a viewer, and a caller whose project role
+    (:class:`~tripl.services.project_service.ProjectMutationScope`) is not an
+    editing one are all ``False``. The project-bound key fence
+    (``_enforce_project_scope``) is not repeated: a key that fails it never
+    reaches a project's response at all.
     """
     try:
         require_write_scope(request)
         require_editor(user)
     except HTTPException:
         return False
-    return scope.allows(user)
+    return scope.allows()
 
 
 async def get_editor_user(request: Request, session: SessionDep, user: CurrentUserDep) -> User:
@@ -277,8 +314,12 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
 # the replay table's keys, so a gate cannot be a write gate without a replay.
 WRITE_GATES = frozenset(_WRITE_GATE_REPLAYS)
 # Gates that resolve the path's project as well as the caller's role:
-# ``get_editor_user`` runs :func:`require_project_mutation_access`, and the two
-# owner gates demand the instance-owner role, which passes it by definition.
+# ``get_editor_user`` runs :func:`require_project_mutation_access` (an editing
+# project role: instance owner or ``editor`` member), and the two owner gates
+# demand the instance-owner role, which is ``owner`` in every project by
+# definition. :func:`require_project_membership` is deliberately NOT in this set:
+# it is mounted on every route by the router and admits viewer members, so
+# counting it would make every slug-scoped mutation pass the audit trivially.
 PROJECT_SCOPED_GATES = frozenset({get_editor_user, get_owner_user, get_key_reachable_owner_user})
 
 # A merged branch is the record of what landed on main and a closed one is
@@ -399,8 +440,9 @@ async def _refuse_writes_to_a_read_only_branch(
     instead of the gate's 403: told to reopen a branch it has no right to
     reopen, about a write it could never make. So the route's own gates run
     here, in FastAPI's order, before the 409, and the caller gets exactly the
-    403 the gate would have given. A gate that already ran passes again; the
-    editor gate's project-scope query is the only work repeated. That keeps the
+    403 the gate would have given. A gate that already ran passes again, and
+    the editor gate reads the project role the membership gate stashed, so no
+    query is repeated. That keeps the
     precedence out of each route's parameter order, including the next route's.
     """
     if plan_branch.status not in _READ_ONLY_BRANCH_STATUSES or not _is_a_write(request):

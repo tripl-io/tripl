@@ -19,6 +19,7 @@ from tripl.models.release_regression import ReleaseRegression
 from tripl.models.scan_job import ScanJob
 from tripl.models.schema_drift import SchemaDrift
 from tripl.models.variable_value import VariableValue, VariableValueKind
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 # Anchor the seeded event-type anomaly to a recent, hour-aligned bucket so its
@@ -1476,6 +1477,8 @@ async def test_reset_endpoints_are_owner_only(anon_client: AsyncClient) -> None:
         json={"email": "reset-editor@example.com", "password": "Password123!", "name": "Editor"},
     )
     assert editor_reg.status_code == 201, editor_reg.text
+    # A non-member would get 404; the owner-only gate is what is under test.
+    await add_member_by_slug("reset-rbac", "reset-editor@example.com", "editor")
 
     for path in ("reset-anomalies", "reset-drifts"):
         editor_denied = await anon_client.post(

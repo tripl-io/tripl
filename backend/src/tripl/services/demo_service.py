@@ -28,7 +28,7 @@ from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import ProjectGenerationStatus
 from tripl.models.project import Project
 from tripl.schemas.project import DemoCancelResponse, ProjectResponse
-from tripl.services import plan_branch_service, project_service
+from tripl.services import plan_branch_service, project_member_service, project_service
 from tripl.services.demo import (
     DEMO_RECIPE_VERSION,
     DEMO_SEED,
@@ -165,6 +165,12 @@ async def create_demo_project(
     await session.flush()
     project_id = project.id
     branch_id = await plan_branch_service.ensure_main_branch_id(session, project_id)
+    # The creator is the demo's one member (a non-member cannot see a project).
+    # Committed with the shell, so a cancel or a failure marker is visible to them.
+    if created_by is not None:
+        await project_member_service.grant_membership(
+            session, project_id=project_id, user_id=created_by, added_by_user_id=created_by
+        )
     await session.commit()
     await cache.delete_prefix(cache.prefix_projects())
 
@@ -409,6 +415,9 @@ async def reset_demo_project(
     # keeps the name it was listed under (demos are numbered per creator now).
     name = project.name
     now = _demo_clock()
+    # The purge cascades the memberships away with the old row; whoever could see
+    # the demo before a reset can see it after.
+    grants = await project_member_service.snapshot_grants(session, project.id)
 
     try:
         await _purge_audit_trail(session, project)
@@ -417,6 +426,11 @@ async def reset_demo_project(
         session.add(replacement)
         await session.flush()
         branch_id = await plan_branch_service.ensure_main_branch_id(session, replacement.id)
+        await project_member_service.restore_grants(session, replacement.id, grants)
+        if creator is not None:
+            await project_member_service.grant_membership(
+                session, project_id=replacement.id, user_id=creator, added_by_user_id=creator
+            )
         await _seed_demo_content(
             session,
             project_id=replacement.id,

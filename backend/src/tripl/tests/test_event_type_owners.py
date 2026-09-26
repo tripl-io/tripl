@@ -10,10 +10,13 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from tripl.models.event_type import EventType
+from tripl.models.event_type_owner import EventTypeOwner
+from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.user import User
+from tripl.tests._members import add_member_by_slug, remove_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -27,8 +30,14 @@ async def _seed_project_with_type(client: AsyncClient, slug: str) -> tuple[str, 
     return et_resp.json()["id"], slug
 
 
-async def _seed_second_user(email: str = "other@example.com") -> uuid.UUID:
-    """Insert a second user directly via the test session (no auth handshake)."""
+async def _seed_second_user(
+    slug: str, email: str = "other@example.com", *, member: bool = True
+) -> uuid.UUID:
+    """Insert a second user directly via the test session (no auth handshake).
+
+    Owners must be project members (tripl-vefw), so the user is made an editor
+    member of ``slug`` unless ``member=False``.
+    """
     async with TestSessionLocal() as session:
         user = User(
             email=email,
@@ -38,13 +47,16 @@ async def _seed_second_user(email: str = "other@example.com") -> uuid.UUID:
         session.add(user)
         await session.commit()
         await session.refresh(user)
-        return user.id
+        user_id = user.id
+    if member:
+        await add_member_by_slug(slug, email, "editor")
+    return user_id
 
 
 @pytest.mark.asyncio
 async def test_add_list_remove_owner(client: AsyncClient) -> None:
     et_id, slug = await _seed_project_with_type(client, "own-crud")
-    second_user_id = await _seed_second_user()
+    second_user_id = await _seed_second_user(slug)
 
     add = await client.post(
         f"/api/v1/projects/{slug}/event-types/{et_id}/owners",
@@ -70,9 +82,26 @@ async def test_add_list_remove_owner(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_non_member_cannot_be_made_an_owner(client: AsyncClient) -> None:
+    """An owner is a project stakeholder, so they must be a member (tripl-vefw)."""
+    et_id, slug = await _seed_project_with_type(client, "own-non-member")
+    outsider_id = await _seed_second_user(slug, "outsider@example.com", member=False)
+
+    refused = await client.post(
+        f"/api/v1/projects/{slug}/event-types/{et_id}/owners",
+        json={"user_id": str(outsider_id)},
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == "User is not a member of this project"
+
+    listed = await client.get(f"/api/v1/projects/{slug}/event-types/{et_id}/owners")
+    assert listed.json() == []
+
+
+@pytest.mark.asyncio
 async def test_duplicate_owner_returns_409(client: AsyncClient) -> None:
     et_id, slug = await _seed_project_with_type(client, "own-dup")
-    second_user_id = await _seed_second_user()
+    second_user_id = await _seed_second_user(slug)
 
     first = await client.post(
         f"/api/v1/projects/{slug}/event-types/{et_id}/owners",
@@ -91,7 +120,7 @@ async def test_duplicate_owner_returns_409(client: AsyncClient) -> None:
 async def test_owners_rejected_on_branch_event_type(client: AsyncClient) -> None:
     """Owners can be managed only on the live (main) event type."""
     _et_id, slug = await _seed_project_with_type(client, "own-branch")
-    second_user_id = await _seed_second_user()
+    second_user_id = await _seed_second_user(slug)
 
     branch_resp = await client.post(f"/api/v1/projects/{slug}/branches", json={"name": "feature-x"})
     assert branch_resp.status_code == 201
@@ -119,7 +148,7 @@ async def test_merge_blocked_when_owner_did_not_approve(client: AsyncClient) -> 
     approval. Test user (who approves the branch) is NOT the owner, so the
     sole owner's missing approval blocks merge."""
     et_id, slug = await _seed_project_with_type(client, "own-merge-block")
-    owner_user_id = await _seed_second_user("owner@example.com")
+    owner_user_id = await _seed_second_user(slug, "owner@example.com")
     add = await client.post(
         f"/api/v1/projects/{slug}/event-types/{et_id}/owners",
         json={"user_id": str(owner_user_id)},
@@ -326,3 +355,109 @@ async def test_merge_passes_when_event_type_unowned(client: AsyncClient) -> None
     )
     merge = await client.post(f"/api/v1/projects/{slug}/branches/{branch_id}/merge")
     assert merge.status_code == 200, merge.text
+
+
+# ── removed members stop gating merges (tripl-vefw) ─────────────────────────
+
+
+async def _touch_branch_type(client: AsyncClient, slug: str, branch_name: str, color: str) -> str:
+    """Open a branch, edit its copy of ``track`` and submit it for review."""
+    branch_resp = await client.post(f"/api/v1/projects/{slug}/branches", json={"name": branch_name})
+    assert branch_resp.status_code == 201, branch_resp.text
+    branch_id = branch_resp.json()["id"]
+    await _set_branch_et_color(branch_id, color)
+    submit = await client.post(
+        f"/api/v1/projects/{slug}/branches/{branch_id}/transition",
+        json={"action": "submit"},
+    )
+    assert submit.status_code == 200, submit.text
+    return branch_id
+
+
+async def _approve_and_merge(client: AsyncClient, slug: str, branch_id: str) -> None:
+    approve = await client.post(
+        f"/api/v1/projects/{slug}/branches/{branch_id}/transition",
+        json={"action": "approve"},
+    )
+    assert approve.status_code == 200, approve.text
+    merge = await client.post(f"/api/v1/projects/{slug}/branches/{branch_id}/merge")
+    assert merge.status_code == 200, merge.text
+    assert merge.json()["status"] == "merged"
+
+
+async def _grant_rows(user_id: uuid.UUID) -> tuple[int, int]:
+    """How many ownership and reviewer rows ``user_id`` holds."""
+    async with TestSessionLocal() as session:
+        owned = await session.scalar(
+            select(func.count())
+            .select_from(EventTypeOwner)
+            .where(EventTypeOwner.user_id == user_id)
+        )
+        reviewing = await session.scalar(
+            select(func.count())
+            .select_from(PlanBranchReviewer)
+            .where(PlanBranchReviewer.user_id == user_id)
+        )
+    return int(owned or 0), int(reviewing or 0)
+
+
+@pytest.mark.asyncio
+async def test_removing_a_member_drops_their_ownership_and_unblocks_the_merge(
+    client: AsyncClient,
+) -> None:
+    """A removed owner can no longer approve, so they must stop gating merges.
+
+    Removal deletes their ownership of the project's event types and their
+    reviewer seats in the same transaction; a branch touching the type they
+    owned then merges on the test user's approval alone.
+    """
+    et_id, slug = await _seed_project_with_type(client, "own-removed")
+    owner_user_id = await _seed_second_user(slug, "removed-owner@example.com")
+    add = await client.post(
+        f"/api/v1/projects/{slug}/event-types/{et_id}/owners",
+        json={"user_id": str(owner_user_id)},
+    )
+    assert add.status_code == 201, add.text
+
+    # Submitting assigns the owner as a reviewer of the branch.
+    branch_id = await _touch_branch_type(client, slug, "after-removal", "#123456")
+    assert await _grant_rows(owner_user_id) == (1, 1)
+
+    removed = await client.delete(f"/api/v1/projects/{slug}/members/{owner_user_id}")
+    assert removed.status_code == 204, removed.text
+    assert await _grant_rows(owner_user_id) == (0, 0)
+
+    owners = await client.get(f"/api/v1/projects/{slug}/event-types/{et_id}/owners")
+    assert owners.status_code == 200, owners.text
+    assert owners.json() == []
+
+    await _approve_and_merge(client, slug, branch_id)
+
+
+@pytest.mark.asyncio
+async def test_an_ownership_row_outliving_its_membership_does_not_gate(
+    client: AsyncClient,
+) -> None:
+    """Defence for rows that predate the cleanup: the membership row goes, the
+    ownership row stays, and neither the reviewer assignment nor the merge gate
+    counts the non-member."""
+    et_id, slug = await _seed_project_with_type(client, "own-orphaned")
+    owner_user_id = await _seed_second_user(slug, "orphan-owner@example.com")
+    add = await client.post(
+        f"/api/v1/projects/{slug}/event-types/{et_id}/owners",
+        json={"user_id": str(owner_user_id)},
+    )
+    assert add.status_code == 201, add.text
+
+    # Drop only the membership row (no service cleanup).
+    await remove_member_by_slug(slug, "orphan-owner@example.com")
+    assert await _grant_rows(owner_user_id) == (1, 0)
+
+    branch_id = await _touch_branch_type(client, slug, "orphaned-owner", "#654321")
+    # Not assigned as a reviewer of a project they cannot see.
+    assert await _grant_rows(owner_user_id) == (1, 0)
+    detail = await client.get(f"/api/v1/projects/{slug}/branches/{branch_id}")
+    assert detail.status_code == 200, detail.text
+    assert all(r["user_id"] != str(owner_user_id) for r in detail.json()["reviewers"])
+
+    await _approve_and_merge(client, slug, branch_id)

@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { projectMembersApi } from '@/api/projectMembers'
 import { projectsApi } from '@/api/projects'
+import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
 import SettingsArea from './SettingsArea'
@@ -125,6 +127,27 @@ describe('SettingsArea project binding', () => {
     })
     // Persisted the same way the sidebar persists it, so a reload keeps it.
     expect(window.localStorage.getItem(LAST_SLUG_STORAGE_KEY)).toBe('windy-ios')
+  })
+
+  it('opens Access for the bound project (tripl-vefw)', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    vi.spyOn(projectsApi, 'get').mockResolvedValue(project('windy-ios', 'Windy iOS'))
+    const list = vi.spyOn(projectMembersApi, 'list').mockResolvedValue([
+      {
+        user_id: 'u-ada',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: 'editor',
+        added_at: '2026-01-01T00:00:00Z',
+      },
+    ])
+    vi.spyOn(usersApi, 'list').mockResolvedValue([])
+
+    renderArea('project/members', '?project=windy-ios')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Access' })).toBeInTheDocument()
+    expect(await screen.findByText('ada@example.com')).toBeInTheDocument()
+    expect(list).toHaveBeenCalledWith('windy-ios', expect.anything())
   })
 
   it('binds to the last project the user actually visited', async () => {

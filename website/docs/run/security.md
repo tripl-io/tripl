@@ -184,47 +184,46 @@ account, and it is governed by a single instance setting, `REGISTRATION_MODE`
 
 :::danger Read this before you expose an instance publicly
 **The default is `open`, and `open` means anyone who can reach the URL can
-create an account.** A new account joins as **editor** — not as a read-only
-viewer — so a stranger who registers can immediately **read**:
+create an account.** A new account joins as **editor**, not as a read-only
+viewer. It is a member of **no project**: existing projects stay invisible to it
+(`404`) until the creator or an owner adds it (see
+[Roles and access control](#roles-and-access-control-rbac)). A stranger who
+registers can still immediately **read**:
 
-- the workspace's **entire tracking plan** — every project, event, variable,
-  metric and annotation;
 - the **member roster** (`GET /api/v1/users`: names, emails, roles);
-- each data source's **name, database type and health status** — enough to tell
-  which warehouse a scan or metric points at. Connection details (host, port,
-  username, whether a password is set, TLS settings) are owner-only and redacted
-  from everyone else, and the password itself is never returned to anybody.
-  Reading the warehouse's **table and column names**
-  (`GET /api/v1/data-sources/{id}/schema`) stops at **editor**, because the scan,
-  metric and fact-table forms drive their column pickers off it; a **viewer**
-  gets `403`. `/stats` is owner-only.
+- each workspace-global data source's **name, database type and health
+  status**. Connection details (host, port, username, whether a password is set,
+  TLS settings) are owner-only and redacted from everyone else, and the password
+  itself is never returned to anybody. Reading the warehouse's **table and column
+  names** (`GET /api/v1/data-sources/{id}/schema`) stops at **editor**, because
+  the scan, metric and fact-table forms drive their column pickers off it; a
+  **viewer** gets `403`. `/stats` is owner-only.
 
 …and **write**:
 
-- create, rename and edit **any shared project** — the tracking plan an owner
-  created, and any project predating creator tracking — including its events,
-  event types, variables, fact tables and catalog metrics. Authoring a **scan
-  config** is the exception: that one is owner-only.
+- create **projects of their own** (and demo workspaces), and edit everything in
+  them except scan configs, which stay owner-only.
 
 …and, the part that is easiest to miss:
 
-- **run read-only SQL of their own writing against the warehouses those projects
-  use.** A fact table and a `sql`-kind metric are both free-text `SELECT`
-  statements, saved by an editor and then executed by the worker under an
-  owner-configured warehouse credential. An editor never sees the credential,
-  and cannot point one at a warehouse that is identifiably another project's.
-  Read "identifiably" literally: a workspace-global data source that **no**
-  project scans is nobody's in particular, so it is in scope from every project,
-  including one that has never scanned it. Within that scope, **whatever that
-  credential can read, they can read**.
+- **run read-only SQL of their own writing against a workspace-global warehouse
+  that no project scans.** A fact table and a `sql`-kind metric are both
+  free-text `SELECT` statements, saved by an editor and then executed by the
+  worker under an owner-configured warehouse credential. An editor never sees the
+  credential, and cannot point one at a warehouse that is identifiably another
+  project's. Read "identifiably" literally: a workspace-global data source that
+  **no** project scans is nobody's in particular, so it is in scope from every
+  project, including the one the stranger just created. Within that scope,
+  **whatever that credential can read, they can read**.
+
+Once someone is added to a project, an `editor` member edits that project's plan
+and can run the same kind of SQL against the warehouses it uses.
 
 So on an internet-reachable instance with `open` registration, a stranger who
-registers becomes a read-only SQL user on the warehouses your projects query.
+registers can become a read-only SQL user on any warehouse no project claims.
 That is the decision `REGISTRATION_MODE` is really making.
 
-Another member's **demo workspace** and a project created by a **different
-editor** stay closed, and deleting a project or creating/editing a data source
-remains owner-only. See [Roles and access control](#roles-and-access-control-rbac).
+Deleting a project and creating or editing a data source remain owner-only.
 
 If your instance is reachable from the internet, decide the policy **before**
 the first deploy, not after. Setting `REGISTRATION_MODE=disabled` (or flipping
@@ -334,38 +333,82 @@ Enforcement lives in `backend/src/tripl/api/deps.py`. The route-facing FastAPI d
 | `require_owner` | Only `owner` passes |
 | `get_owner_user` | Owner-only **and** rejects API keys entirely (any scope) — owner actions require an interactive session |
 
-### Roles are instance-wide, but mutations are scoped per project
+### Roles are instance-wide, access is per project
 
-The three roles above are properties of the **user**, not of a project — an
-`editor` is an editor everywhere. That alone would let anyone who can register
-edit every project on the instance, so `get_editor_user` additionally resolves a
-per-project scope (`project_service.ProjectMutationScope`) for every slug-scoped
-route that carries it. Reads are unaffected; so are routes with no project slug.
+The three roles above are properties of the **user**, not of a project. What a
+user can reach is decided per project by **membership** (`project_members`,
+checked in `services/project_access.py`):
 
-| Who is mutating | Verdict |
-|---|---|
-| An instance `owner` | Allowed |
-| The project's creator | Allowed |
-| Anyone else, on someone's **demo workspace** | **Denied, always** — a demo belongs to one person |
-| Any `editor`, on a project created by an **owner**, or predating creator tracking (`created_by_user_id IS NULL`) | Allowed — this is the shared team tracking plan |
-| Any other `editor`, on a project a **different editor** created | **Denied** |
+| Who | Sees the project | Edits its plan | Manages its members, renames / resets it |
+|---|---|---|---|
+| An instance `owner` | Always, with no membership row | Yes | Yes |
+| The project's creator | Yes (added as an `editor` member when the project is created), until removed | Yes, unless their instance role is `viewer` | Yes, while they hold an editing role (not an instance `viewer`, not a `viewer` member) |
+| An `editor` member | Yes | Yes, unless their instance role is `viewer` | No |
+| A `viewer` member | Yes | No | No |
+| Anyone else | **No: `404 Project not found`** | No | No |
 
-The fourth row is the deliberate part. Strict "creator or owner" everywhere
-would have locked editors out of every project they did not personally create —
-including every project that predates creator tracking, which has no creator at
-all — and that is the entire point of the `editor` role on a normal deployment
-where the owner creates projects and editors maintain the plan.
+Deleting a project is for instance owners only. The creator's management
+rights need an editing role: an instance `viewer` who created the project, or a
+creator demoted to a `viewer` member, gets `403` on member changes, rename and
+reset; a creator who was removed from the project gets `404` like any other
+non-member.
 
-The consequence is worth stating plainly: on a shared project, **any editor can
-edit the tracking plan**. If the instance also has registration `open`, anyone
-who can reach the URL can become that editor. Close registration, or keep the
-instance private.
+- **A non-member does not see the project at all.** Every `/projects/{slug}/...`
+  route, `/activity/projects/{slug}` and `/projects/demo/{slug}/...` answers
+  `404` with `"Project not found"`, the same answer an unknown slug gets, so the
+  response does not reveal whether the slug exists. The project is also absent
+  from `GET /projects`, the workspace activity feed and data-source listings. A
+  data source bound to a project (`project_id` set) is hidden from non-members of
+  that project, including `GET /data-sources/{id}` and its `/schema`. A
+  workspace-global source stays listed, but its scan counts and "used by" links
+  cover only the caller's projects.
+- **The instance role caps the membership role.** A user whose instance role is
+  `viewer` is a viewer in every project, whatever their membership row says.
+- **The gate runs before anything else.** `require_project_membership` is
+  mounted with `get_current_user` on every authenticated router
+  (`api/v1/router.py`), so it answers ahead of the route's own gates, parameter
+  validation and handler. The resolved role is stashed on
+  `request.state.project_role`, and `get_editor_user` reads it to refuse a
+  viewer member (`403`). `tests/test_project_membership.py` fails the build if a
+  slug route is mounted without the gate.
+- **API keys act as their user.** An unbound key reaches exactly the projects its
+  user is a member of. Minting a key bound to a project needs membership: for a
+  non-member the slug answers `404`, as if it did not exist. A project-bound key
+  used on any other project's slug also gets `404 Project not found`, the same
+  answer as an unknown slug, even when its user is a member of that project.
+- **One existence signal remains.** Slugs are unique across the instance, so
+  creating a project with, or renaming one to, a slug that is already taken
+  answers `409`, whether or not the caller can see the project that holds it.
+  This is unavoidable without giving up unique slugs.
+- **Removal takes effect at once.** Removing a member also removes their
+  event-type ownerships and their pending branch-reviewer assignments in that
+  project, and a live-updates stream (`/projects/{slug}/events/stream`) they
+  have open is closed within one heartbeat.
+- **Collaborators must be members.** Adding an event-type owner or a branch
+  reviewer who is not a member of the project answers `422` with
+  `"User is not a member of this project"`.
+- **New users see nothing until added.** A user who registers or accepts an
+  invitation is a member of no project. The creator or an owner adds them in
+  **Settings → Project → Access**, or through
+  `POST /api/v1/projects/{slug}/members`.
+- **Demos belong to their creator.** A demo workspace starts with its creator as
+  its only member. A reset rebuilds the project row, and the members it had
+  before the reset are granted on the new row.
+
+Managing members (`POST`, `PATCH /{user_id}` and `DELETE /{user_id}` under
+`/projects/{slug}/members`) is limited to the instance owner and the project's
+creator, from a browser session only: an API key cannot grant access, whatever its
+scope. Every change is audited as `project.member_add`, `project.member_update`
+or `project.member_remove`.
+
+**Upgrading.** The migration that introduced membership kept existing access: every existing non-owner user became a member of every existing **non-demo** project, with their instance role (`editor` or `viewer`), and each existing demo got only its creator. Users created after the upgrade see no project until someone adds them.
 
 Every project response (`GET /projects`, `GET /projects/{slug}`, and the create,
-update and demo reset responses) carries `can_mutate`: this table, plus the
-caller's role and API-key scope, evaluated for whoever asked. It is the same
-predicate the routes enforce, so a client can hide write controls that would
-only answer `403`. It is a hint for display; the routes still decide.
+update and demo reset responses) carries `my_role` (`owner`, `editor` or
+`viewer`) and `can_mutate`. `can_mutate` combines the caller's project role,
+instance role and API-key scope, and is the same predicate the routes enforce,
+so a client can hide write controls that would only answer `403`. It is a hint
+for display; the routes still decide.
 
 Some surfaces carry a stricter gate than the role table alone implies:
 
@@ -376,8 +419,8 @@ Some surfaces carry a stricter gate than the role table alone implies:
 | `POST /scans/{id}/metrics/replay` | `get_key_reachable_owner_user` | An owner session or an owner's write key can replay a stored config over a chosen window. The request and resulting job are recorded in the audit log. |
 | `POST /scans/{id}/event-groups/apply` | `get_owner_user` (owner, interactive session) | Applying saved grouping rules to existing events is owner-only. Editors do not see the Apply groups action. |
 | `POST /scans/{id}/run`, cancelling a job | `get_editor_user` | Running a **stored** config executes no new SQL, so it stays with the role that maintains the plan — and with the API keys that automate it. |
-| `PATCH /api/v1/projects/{slug}` (name, slug, retention) | Project **creator** or owner | Identity, not content: otherwise any editor could rename or re-slug every project on the instance. Stricter than the content rule above, which permits shared-project edits. |
-| `GET /data-sources/{id}/schema` | `get_editor_user`, plus the owning project's editor scope for project-owned sources | Warehouse table and column names. Editors need it for scan, metric and fact-table forms; a `viewer` cannot access it, and editors cannot inspect another editor's project-owned source. |
+| `PATCH /api/v1/projects/{slug}` (name, slug, retention) | Project **creator** or owner | Identity, not content: an `editor` member edits the plan but does not rename or re-slug the project. |
+| `GET /data-sources/{id}/schema` | `get_editor_user`, plus an editing role in the owning project for project-owned sources | Warehouse table and column names. Editors need it for scan, metric and fact-table forms; a `viewer` cannot access it. A project-owned source answers `404` to a non-member of its project and `403` to a viewer member. |
 | `GET /data-sources/{id}/stats`, and connection details (host, port, username, `password_set`, TLS) on every data-source read | Owner | Non-owners see a data source's name, type and health, which is all the scan picker and metric card need. |
 | `GET /api/v1/audit`, `GET /api/v1/audit/{entry_id}`, `GET /api/v1/audit/actions` | Owner | The list carries no payload; a payload is read one entry at a time from the detail route, behind the same owner gate. A payload re-exposes both of the rows above: `data_source.*` payloads carry the connection details blanked on a direct read, and `scan_config.create` payloads carry `base_query`. It is also instance-wide — `project_slug` is a filter, not a scope, and **Settings → Instance → Audit log** is the owner-only screen that reads it that way: the actions belonging to no project (`data_source.*`, `user.*`, workspace `api_key.*`) answer nowhere else. That filter resolves the slug to a project and matches on its id, so a renamed project keeps one trail and a re-used slug inherits nobody's; while no live project answers to a slug, the denormalized label is matched instead, which is what keeps a deleted project's entries readable. Passwords were always redacted (`audit_service._redact`). |
 
@@ -440,7 +483,7 @@ and when" without an editor being able to read those answers.
 
 Additional guards:
 
-- **Project-scoped API keys are fenced** to their own project: a project-bound key may only touch `/api/v1/projects/{slug}/...` routes for its project; any instance-wide route without a project `slug` (`/me/...`, `/users`, ...) is rejected with 403.
+- **Project-scoped API keys are fenced** to their own project: a project-bound key may only touch `/api/v1/projects/{slug}/...` routes for its project. Another project's slug answers `404 Project not found`, the same as a slug that does not exist; any instance-wide route without a project `slug` (`/me/...`, `/users`, ...) is rejected with 403.
 - **Role changes take effect immediately.** Updating a user's role (`PATCH /api/v1/users/{user_id}`, owner-only) deletes all of that user's active sessions, so the next request re-authenticates with the new role. An in-flight request that already passed the auth check completes with the old role; only the next request is affected.
 - **The last owner cannot be demoted** — the API rejects demoting the only remaining `owner` with `400`, preventing an instance from being locked out of role management.
 - Role changes are written to the audit log (`audit_service.record`, action `user.role_update`).
@@ -488,7 +531,7 @@ Operations:
 - [ ] Rate limiting left enabled (`RATE_LIMIT_ENABLED=true`); add a proxy-tier limit if you run multiple workers/replicas.
 - [ ] `/metrics` (if enabled) and any admin surfaces restricted to an internal network.
 - [ ] First-run owner account created promptly so self-registration cannot grab `owner`.
-- [ ] **`REGISTRATION_MODE` decided deliberately. The default is `open`** — anyone who can reach the instance can create an account, read the whole tracking plan and the member roster, and edit any shared project. Set `REGISTRATION_MODE=disabled` (or Registration → **Disabled** in **Settings → Instance → Security & access**) once your team has accounts. Closing it is not a dead end: an owner adds people from **Settings → Members → Invite**, so you never need to reopen self-registration to onboard someone.
+- [ ] **`REGISTRATION_MODE` decided deliberately. The default is `open`** — anyone who can reach the instance can create an account, read the member roster, and create projects of their own (existing projects stay hidden until someone adds them). Set `REGISTRATION_MODE=disabled` (or Registration → **Disabled** in **Settings → Instance → Security & access**) once your team has accounts. Closing it is not a dead end: an owner adds people from **Settings → Members → Invite**, so you never need to reopen self-registration to onboard someone.
 - [ ] Database and broker on a private network; `ENCRYPTION_KEY` and `SECRET_KEY` not committed to the repo or image.
 
 For symptom-level help (login loops, blocked CORS, 429s), see [Troubleshooting & FAQ](../use/troubleshooting.md).

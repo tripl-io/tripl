@@ -134,6 +134,9 @@ export default function ProjectSettingsPage({
     if (urlTab === 'plan-rules') {
       return <Navigate to={`/settings/project/plan-rules?project=${encodeURIComponent(slug)}`} replace />
     }
+    if (urlTab === 'members') {
+      return <Navigate to={`/settings/project/members?project=${encodeURIComponent(slug)}`} replace />
+    }
     const moved = legacySettingsRedirectPath(slug, urlTab, itemId, location.search, location.hash)
     if (moved) return <Navigate to={moved} replace />
     if (urlTab !== 'monitoring') return <Navigate to={`/p/${slug}/events`} replace />

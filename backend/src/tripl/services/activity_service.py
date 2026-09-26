@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import ColumnElement, and_, desc, func, or_, select
+from fastapi import HTTPException
+from sqlalchemy import ColumnElement, Select, and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.analyzers.anomaly_detector import (
@@ -79,6 +82,25 @@ def _scan_recency_clause(now: datetime) -> ColumnElement[bool]:
     )
 
 
+@dataclass(frozen=True)
+class _ProjectScope:
+    """Which projects one feed read covers: one slug, a member set, or both.
+
+    ``project_ids`` of ``None`` is every project; the ``slug`` narrows further.
+    """
+
+    slug: str | None
+    project_ids: set[uuid.UUID] | None
+
+    def apply[S: Select[Any]](self, stmt: S) -> S:
+        """Narrow a statement that already joins ``Project``."""
+        if self.slug is not None:
+            stmt = stmt.where(Project.slug == self.slug)
+        if self.project_ids is not None:
+            stmt = stmt.where(Project.id.in_(self.project_ids))
+        return stmt
+
+
 def _utc_sort_key(value: datetime) -> datetime:
     """SQLite hands naive timestamps back; compare every item as a UTC instant."""
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
@@ -87,17 +109,32 @@ def _utc_sort_key(value: datetime) -> datetime:
 async def list_activity(
     session: AsyncSession,
     *,
+    visible_project_ids: set[uuid.UUID] | None,
     slug: str | None = None,
     limit: int = 20,
 ) -> list[ActivityItemResponse]:
-    if slug is not None:
-        await get_project_id_by_slug(session, slug)
+    """The activity rail, limited to the projects the caller may see.
 
+    ``visible_project_ids`` is ``project_access.member_project_ids`` for the
+    caller: ``None`` means every project (an instance owner), a set limits every
+    source query to those projects. It is required, with no default, so a new
+    caller cannot silently fall back to the whole instance. A non-member never
+    sees a project exist, so a slug outside the set is "Project not found",
+    exactly as for a slug that does not exist.
+    """
+    if slug is not None:
+        project_id = await get_project_id_by_slug(session, slug)
+        if visible_project_ids is not None and project_id not in visible_project_ids:
+            raise HTTPException(status_code=404, detail="Project not found")
+    if visible_project_ids is not None and not visible_project_ids:
+        return []
+
+    scope = _ProjectScope(slug=slug, project_ids=visible_project_ids)
     items: list[ActivityItemResponse] = []
-    items.extend(await _anomaly_items(session, slug=slug, limit=limit))
-    items.extend(await _scan_job_items(session, slug=slug, limit=limit))
-    items.extend(await _alert_delivery_items(session, slug=slug, limit=limit))
-    items.extend(await _event_items(session, slug=slug, limit=limit))
+    items.extend(await _anomaly_items(session, scope=scope, limit=limit))
+    items.extend(await _scan_job_items(session, scope=scope, limit=limit))
+    items.extend(await _alert_delivery_items(session, scope=scope, limit=limit))
+    items.extend(await _event_items(session, scope=scope, limit=limit))
 
     return sorted(items, key=lambda item: _utc_sort_key(item.occurred_at), reverse=True)[:limit]
 
@@ -105,7 +142,7 @@ async def list_activity(
 async def _anomaly_items(
     session: AsyncSession,
     *,
-    slug: str | None,
+    scope: _ProjectScope,
     limit: int,
 ) -> list[ActivityItemResponse]:
     now = datetime.now(UTC)
@@ -136,8 +173,7 @@ async def _anomaly_items(
         .order_by(desc(MetricAnomaly.bucket), desc(MetricAnomaly.id))
         .limit(limit)
     )
-    if slug is not None:
-        stmt = stmt.where(Project.slug == slug)
+    stmt = scope.apply(stmt)
 
     rows = (await session.execute(stmt)).all()
 
@@ -190,14 +226,14 @@ async def _anomaly_items(
                 ),
             )
         )
-    items.extend(await _metric_anomaly_items(session, slug=slug, limit=limit, now=now))
+    items.extend(await _metric_anomaly_items(session, scope=scope, limit=limit, now=now))
     return items
 
 
 async def _metric_anomaly_items(
     session: AsyncSession,
     *,
-    slug: str | None,
+    scope: _ProjectScope,
     limit: int,
     now: datetime,
 ) -> list[ActivityItemResponse]:
@@ -224,8 +260,7 @@ async def _metric_anomaly_items(
         Project.slug,
         Project.name.label("project_name"),
     ).join(Project, Project.id == MetricDefinition.project_id)
-    if slug is not None:
-        metric_stmt = metric_stmt.where(Project.slug == slug)
+    metric_stmt = scope.apply(metric_stmt)
     metrics = {str(row.id): row for row in (await session.execute(metric_stmt)).all()}
     if not metrics:
         return []
@@ -309,7 +344,7 @@ def _format_metric_value(value: float) -> str:
 async def _scan_job_items(
     session: AsyncSession,
     *,
-    slug: str | None,
+    scope: _ProjectScope,
     limit: int,
 ) -> list[ActivityItemResponse]:
     occurred_at = func.coalesce(ScanJob.completed_at, ScanJob.started_at, ScanJob.updated_at)
@@ -330,8 +365,7 @@ async def _scan_job_items(
         .order_by(desc(occurred_at), desc(ScanJob.id))
         .limit(limit)
     )
-    if slug is not None:
-        stmt = stmt.where(Project.slug == slug)
+    stmt = scope.apply(stmt)
 
     rows = (await session.execute(stmt)).all()
     items: list[ActivityItemResponse] = []
@@ -357,7 +391,7 @@ async def _scan_job_items(
 async def _alert_delivery_items(
     session: AsyncSession,
     *,
-    slug: str | None,
+    scope: _ProjectScope,
     limit: int,
 ) -> list[ActivityItemResponse]:
     occurred_at = func.coalesce(AlertDelivery.sent_at, AlertDelivery.updated_at)
@@ -381,8 +415,7 @@ async def _alert_delivery_items(
         .order_by(desc(occurred_at), desc(AlertDelivery.id))
         .limit(limit)
     )
-    if slug is not None:
-        stmt = stmt.where(Project.slug == slug)
+    stmt = scope.apply(stmt)
 
     rows = (await session.execute(stmt)).all()
     items: list[ActivityItemResponse] = []
@@ -414,7 +447,7 @@ async def _alert_delivery_items(
 async def _event_items(
     session: AsyncSession,
     *,
-    slug: str | None,
+    scope: _ProjectScope,
     limit: int,
 ) -> list[ActivityItemResponse]:
     """Recent catalog events, restricted to each project's MAIN branch.
@@ -432,7 +465,7 @@ async def _event_items(
     Same defect class as ``metrics_service.get_overview_kpi_series``
     (tripl-jfm3.77), scoped the same way. The predicate is a join on
     ``branch_id`` rather than a per-project subquery because this feed also runs
-    unscoped (``slug is None``) across every project at once.
+    unscoped (no ``slug``) across every visible project at once.
 
     ``PlanBranch.project_id == Event.project_id`` is part of the join, not
     decoration: ``events.branch_id`` is only an FK to ``plan_branches.id``, with
@@ -465,8 +498,7 @@ async def _event_items(
         .order_by(desc(Event.updated_at), desc(Event.id))
         .limit(limit)
     )
-    if slug is not None:
-        stmt = stmt.where(Project.slug == slug)
+    stmt = scope.apply(stmt)
 
     rows = (await session.execute(stmt)).all()
     items: list[ActivityItemResponse] = []

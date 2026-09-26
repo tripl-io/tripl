@@ -35,6 +35,7 @@ from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.schemas.plan_branch import PlanBranchDetailResponse
+from tripl.services import project_access
 from tripl.services._branch_counterparts import main_counterparts
 from tripl.services._branch_event_threads import move_event_threads
 from tripl.services._celery_dispatch import dispatch
@@ -1783,6 +1784,29 @@ def _touched_event_type_names(
     return touched
 
 
+async def _owners_still_members(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    owners_by_et: dict[uuid.UUID, set[uuid.UUID]],
+) -> dict[uuid.UUID, set[uuid.UUID]]:
+    """Drop owners who no longer have a role in the project (tripl-vefw).
+
+    Removing a member deletes their ownership rows, but a row that predates
+    that cleanup (or slipped past it) must neither block a merge on an approval
+    its holder can no longer give nor put them on the reviewer list of a
+    project they cannot see. An event type left with no member owner counts as
+    unowned.
+    """
+    all_owner_ids: set[uuid.UUID] = set()
+    for ids in owners_by_et.values():
+        all_owner_ids |= ids
+    if not all_owner_ids:
+        return {}
+    members = await project_access.members_among(session, project_id, all_owner_ids)
+    kept = {et_id: ids & members for et_id, ids in owners_by_et.items()}
+    return {et_id: ids for et_id, ids in kept.items() if ids}
+
+
 async def _check_owner_approvals(
     session: AsyncSession,
     *,
@@ -1820,6 +1844,7 @@ async def _check_owner_approvals(
     owners_by_et: dict[uuid.UUID, set[uuid.UUID]] = {}
     for et_id, user_id in owners.all():
         owners_by_et.setdefault(et_id, set()).add(user_id)
+    owners_by_et = await _owners_still_members(session, project_id, owners_by_et)
     if not owners_by_et:
         return
 
@@ -1890,7 +1915,9 @@ async def assign_owner_reviewers_for_branch(
     if not main_et_ids:
         return []
 
-    owners_by_et = await load_owner_user_ids(session, main_et_ids)
+    owners_by_et = await _owners_still_members(
+        session, project_id, await load_owner_user_ids(session, main_et_ids)
+    )
     owner_ids: set[uuid.UUID] = set()
     for ids in owners_by_et.values():
         owner_ids |= ids

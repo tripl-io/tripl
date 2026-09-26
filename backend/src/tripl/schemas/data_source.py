@@ -439,6 +439,8 @@ class DataSourceResponse(BaseModel):
     # Ownership scope: None = workspace-global source (shared across projects); a
     # non-None owner scopes it to one project (e.g. a demo's synthetic warehouse).
     # Exposed so project surfaces can filter out sources owned by other projects.
+    # A source bound to a project the caller is not a member of is never
+    # returned: it is left out of the list and 404s on direct read.
     project_id: uuid.UUID | None = None
     name: str
     db_type: DBType
@@ -459,16 +461,18 @@ class DataSourceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # What depends on this source, workspace-wide (DA-40): the scans reading it
-    # and the runs they logged — both deleted with the source. Merged in per
+    # What depends on this source (DA-40): the scans reading it and the runs
+    # they logged — both deleted with the source. Counted over the projects the
+    # caller is a member of (every project for an instance owner), so a shared
+    # source never reveals a project the caller cannot see. Merged in per
     # request, never served from the list cache, so a scan created a moment ago
     # is counted.
     scan_count: int = 0
     scan_run_count: int = 0
     # The scans behind ``scan_count``, for the card's "Used by" links: ids and
     # names only, capped at ``DATA_SOURCE_SCAN_REFS_LIMIT`` (``scan_count``
-    # keeps the total). Only scans in projects the caller can read — which on
-    # this route is every project: a project-bound API key never reaches it.
+    # keeps the total). Only scans in projects the caller is a member of; a
+    # project-bound API key never reaches this route.
     scans: list[DataSourceScanRef] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}

@@ -29,6 +29,7 @@ from tripl.models.scan_job import ScanJob
 from tripl.models.user import User
 from tripl.schemas.metric_definition import MetricDefinitionConfigUpdate
 from tripl.services.metric_definition_service import _definition_values_changed
+from tripl.tests._members import add_member_by_slug, persisted_member_user
 from tripl.tests.conftest import TestSessionLocal
 
 PASSWORD = "Password123!"
@@ -259,15 +260,13 @@ async def test_viewer_reads_generated_sql(client: AsyncClient) -> None:
     )
     assert metric.status_code == 201, metric.text
     url = f"{_metrics_url(project['slug'])}/{metric.json()['id']}"
+    # A persisted viewer MEMBER: non-members get 404 on every slug route.
+    viewer = await persisted_member_user(
+        uuid.UUID(project["id"]), role=UserRole.viewer.value, email="viewer@example.com"
+    )
 
     async def _viewer() -> User:
-        return User(
-            id=uuid.uuid4(),
-            email="viewer@example.com",
-            name="Viewer",
-            password_hash="x",
-            role=UserRole.viewer.value,
-        )
+        return viewer
 
     app.dependency_overrides[get_current_user] = _viewer
     try:
@@ -325,26 +324,38 @@ async def test_can_mutate_follows_the_editor_gate_per_caller() -> None:
         created = await _create_project(other_editor, "theirs")
         # The creating editor's own response already says so.
         assert created["can_mutate"] is True
+        assert created["my_role"] == "editor"
 
-        # A project another EDITOR created: the role alone says yes, the gate no.
+        # Membership decides: editor is an editor member of "shared" and a
+        # viewer member of "theirs"; the instance viewer is an editor member of
+        # "shared" but capped by their instance role.
+        await add_member_by_slug("shared", "editor@example.com", "editor")
+        await add_member_by_slug("theirs", "editor@example.com", "viewer")
+        await add_member_by_slug("shared", "viewer@example.com", "editor")
+
         assert await _can_mutate(editor, "theirs") is False
         assert await _can_mutate(other_editor, "theirs") is True
         assert await _can_mutate(owner, "theirs") is True
-        # The shared workspace project an owner created is open to every editor.
         assert await _can_mutate(editor, "shared") is True
         assert await _can_mutate(viewer, "shared") is False
 
-        # The list answers per project, for the caller asking.
+        # The list answers per project, for the caller asking — and only lists
+        # the projects the caller is a member of.
         listed = await editor.get("/api/v1/projects")
         assert listed.status_code == 200, listed.text
         by_slug = {item["slug"]: item["can_mutate"] for item in listed.json()}
         assert by_slug == {"shared": True, "theirs": False}
+        other_listed = await other_editor.get("/api/v1/projects")
+        assert {item["slug"] for item in other_listed.json()} == {"theirs"}
 
         # The mutation itself agrees with the flag.
         refused = await editor.post(
             "/api/v1/projects/theirs/event-types", json={"name": "pv", "display_name": "PV"}
         )
         assert refused.status_code == 403, refused.text
+        # And a non-member does not see the project at all.
+        hidden = await other_editor.get("/api/v1/projects/shared")
+        assert hidden.status_code == 404, hidden.text
     finally:
         for c in (owner, editor, other_editor, viewer):
             await c.aclose()

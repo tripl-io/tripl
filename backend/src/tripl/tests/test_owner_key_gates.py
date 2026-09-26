@@ -17,6 +17,7 @@ from httpx import ASGITransport, AsyncClient
 
 from tripl.api.deps import get_key_reachable_owner_user, get_owner_user
 from tripl.main import app
+from tripl.tests._members import add_member_by_slug
 from tripl.tests.test_rbac import MIN_API_ROUTES, iter_api_routes
 from tripl.worker.tasks import metrics
 
@@ -215,6 +216,9 @@ async def test_editor_write_key_cannot_replay(
             json={"email": "editor@example.com", "password": PASSWORD, "name": "Editor"},
         )
         assert registered.status_code == 201, registered.text
+        # A member, so the answer is the owner gate's 403 and not the
+        # membership gate's 404.
+        await add_member_by_slug("replay-proj", "editor@example.com", "editor")
         token = await _mint_key(editor_session, "editor-agent", "write")
 
     async with _bearer_client() as bearer:
@@ -259,5 +263,5 @@ async def test_project_bound_owner_key_cannot_replay_another_project(
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    assert denied.status_code == 403, denied.text
-    assert denied.json()["detail"] == "API key is not authorized for this project"
+    assert denied.status_code == 404, denied.text
+    assert denied.json()["detail"] == "Project not found"

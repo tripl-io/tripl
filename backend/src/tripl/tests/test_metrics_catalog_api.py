@@ -19,6 +19,7 @@ from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.scan_config import ScanConfig
 from tripl.models.user import User
 from tripl.services import metric_definition_service
+from tripl.tests._members import persisted_member_user
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -1712,14 +1713,11 @@ class TestCollectNow:
         project: dict,
         dispatch_recorder: dict[str, _DispatchRecorder],
     ):
+        # A persisted viewer MEMBER: a non-member would get 404, not 403.
+        viewer = await persisted_member_user(uuid.UUID(project["id"]), role=UserRole.viewer.value)
+
         async def _viewer() -> User:
-            return User(
-                id=uuid.uuid4(),
-                email="viewer@example.com",
-                name="Viewer",
-                password_hash="x",
-                role=UserRole.viewer.value,
-            )
+            return viewer
 
         app.dependency_overrides[get_current_user] = _viewer
         try:
@@ -2680,14 +2678,11 @@ class TestPreview:
         adapter = _PreviewStubAdapter(["t", "value"], [])
         _patch_preview_adapter(monkeypatch, adapter)
 
+        # A persisted viewer MEMBER: a non-member would get 404, not 403.
+        viewer = await persisted_member_user(uuid.UUID(project["id"]), role=UserRole.viewer.value)
+
         async def _viewer() -> User:
-            return User(
-                id=uuid.uuid4(),
-                email="viewer@example.com",
-                name="Viewer",
-                password_hash="x",
-                role=UserRole.viewer.value,
-            )
+            return viewer
 
         app.dependency_overrides[get_current_user] = _viewer
         try:
@@ -3019,14 +3014,11 @@ class TestFactPreview:
         adapter = _PreviewStubAdapter(["created_at"], [])
         _patch_preview_adapter(monkeypatch, adapter)
 
+        # A persisted viewer MEMBER: a non-member would get 404, not 403.
+        viewer = await persisted_member_user(uuid.UUID(project["id"]), role=UserRole.viewer.value)
+
         async def _viewer() -> User:
-            return User(
-                id=uuid.uuid4(),
-                email="viewer@example.com",
-                name="Viewer",
-                password_hash="x",
-                role=UserRole.viewer.value,
-            )
+            return viewer
 
         app.dependency_overrides[get_current_user] = _viewer
         try:
