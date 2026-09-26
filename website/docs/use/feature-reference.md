@@ -1007,7 +1007,11 @@ plan per day on the main branch — not a history of the active-events stat),
 shows its share of the project's volume in the same window; the shares need not
 add up to 100%, since unmatched traffic counts in the total),
 **Recent activity**, and **Source health**, whose rows carry a status chip and
-link to the data source. A project that has never been scanned shows one
+link to the data source. Source health also shows the
+[freshness](#source-freshness) chip of a late or overdue source, and a **Late or
+overdue scans** list naming each such scan and opening its scan page, so a
+delayed warehouse load reads as **Data late** or **Scan overdue** there rather
+than only as a drop on the volume card. A project that has never been scanned shows one
 **Overview fills in after your first scan** state instead of empty panels, and
 each panel loads with its own skeleton. While the activity rail is open beside the page (wide screens), the
 page's own Recent activity panel is hidden rather than listing the same items
@@ -1758,6 +1762,30 @@ run's stored summary carries counts only, no signal or delivery ids — so the
 tooltips read "from this scan". A counter of `0` renders as plain text: linking
 to a page guaranteed to be empty is worse than not linking at all.
 
+#### Source freshness {#source-freshness}
+
+A scan records when its data last moved. Each successful metrics
+collection stores **`last_event_at`**, the start of the newest bucket that had
+events (bucket resolution, so up to one interval behind the newest event), and
+**`last_collection_at`**, when that collection completed. From these two values
+and the scan interval, tripl computes a freshness status each time it is read.
+The status is never stored.
+
+| Status | Chip | Meaning |
+|---|---|---|
+| Fresh | none | Data is arriving and the scan runs on schedule. |
+| Late | **Data late · &lt;lag&gt;** (warning) | The lag since `last_event_at` has reached `min(3 × interval, settling allowance rounded up to whole intervals + 2 × interval)`. |
+| Overdue | **Scan overdue** (danger) | The last completed collection is older than `2 × interval`, so the scan is not running on schedule. This takes precedence over Late. |
+| Unknown | none | A manual scan with no interval, or a scan that has not collected yet. |
+
+The chip appears on the scan's page, on the data source cards in
+[Data sources](#data-sources--connection-test), and in the Overview's
+[Source health](#overview) panel. While a scan is Late or Overdue, its
+drop-direction volume signals are held rather than emitted. See
+[Drop signals are held while a source is late](./anomaly-detection.md#held-while-late).
+Alert rules can opt in to one **Source freshness** alert per delay. See
+[Source freshness](./alerting.md#source-freshness).
+
 #### What the scan form asks
 
 The first question is **What this scan does**, and it decides the shape of the
@@ -2402,7 +2430,9 @@ before you create it, and nothing is stored by that test; a new source is tested
 again as soon as it is created, and an edited one when its host, credentials or
 TLS settings change); browse the schema (tables/columns) for the scan
 query builder; and view ingestion stats. Health is shown as healthy / stale /
-failing / untested. Each connection card has a **Used by** line naming the scans
+failing / untested. A card also carries the
+[freshness](#source-freshness) chip of the scans that read the source, so a
+connection can pass its test while its data is still reported late. Each connection card has a **Used by** line naming the scans
 that read it, each linking to its scan page (with its project when it sits in
 another one, and *and N more* past the first few), or **Not used by any scan**.
 Deleting a source that scans read asks you to type its name first, and the

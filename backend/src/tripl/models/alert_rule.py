@@ -113,6 +113,13 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
         default=False,
         server_default="false",
     )
+    # Opt-in to "data is late" alerts: one ``source_freshness`` candidate per
+    # late or overdue scan (#269). Off by default like the other families.
+    include_source_freshness: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     # Append an LLM-generated explanation paragraph to delivered alert
     # messages. Off by default; a no-op unless AI features are enabled in
     # instance settings.
@@ -163,7 +170,9 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
     # mute set during a hold window drops the items already buffered along with
     # the claim instead of releasing them once the mute lapses.
     # ``alerts._assert_rule_still_active`` re-checks queued deliveries just
-    # before outbound send, after rendering may have taken time. The rule's
+    # before outbound send, after rendering may have taken time.
+    # ``metrics.freshness_sweep`` (overdue source-freshness alerts, #269) skips a
+    # muted rule the same way before it mints anything. The rule's
     # open/close state is updated before the dispatch check, deliberately, so a
     # mute does not leave the monitor stuck "firing" on a stale scope. The
     # API-side predicate is ``_alerting_monitors.is_rule_muted``.

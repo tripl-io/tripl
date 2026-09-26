@@ -35,6 +35,7 @@ from tripl.worker.tasks.metrics.signals import (
     _get_active_schema_drift_candidates,
     _get_active_variable_value_drift_candidates,
     _get_latest_active_anomalies,
+    _get_source_freshness_candidates,
 )
 from tripl.worker.tasks.metrics.urls import (
     _build_item_paths,
@@ -713,6 +714,9 @@ def _prepare_alert_deliveries(
     active_candidates.update(_get_active_distribution_drift_candidates(session, config))
     active_candidates.update(_get_active_release_regression_candidates(session, config))
     active_candidates.update(_get_active_variable_value_drift_candidates(session, config))
+    # "Data is late" (issue #269): at most one candidate per scan config, gated
+    # by ``include_source_freshness`` in ``rule_matches_anomaly``.
+    active_candidates.update(_get_source_freshness_candidates(session, config))
     destinations = _load_enabled_alert_destinations(session, config.project_id)
     if not destinations:
         return []

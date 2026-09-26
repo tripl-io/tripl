@@ -64,6 +64,7 @@ export type RuleFormState = {
   include_release_regressions: boolean
   include_variable_value_drifts: boolean
   include_metrics: boolean
+  include_source_freshness: boolean
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
@@ -372,6 +373,9 @@ export function defaultRuleForm(): RuleFormState {
     include_release_regressions: false,
     include_variable_value_drifts: false,
     include_metrics: false,
+    // Off by default like the drift kinds: an opt-in "data is late" alert
+    // (F16, #269), not a change to what an existing kind of rule sends.
+    include_source_freshness: false,
     notify_on_spike: true,
     notify_on_drop: true,
     ai_explanation_enabled: false,
@@ -405,6 +409,8 @@ export function ruleToForm(rule: AlertRule): RuleFormState {
     include_release_regressions: rule.include_release_regressions,
     include_variable_value_drifts: rule.include_variable_value_drifts,
     include_metrics: rule.include_metrics,
+    // `?? false`: a rule from a server that predates the flag reads as off.
+    include_source_freshness: rule.include_source_freshness ?? false,
     notify_on_spike: rule.notify_on_spike,
     notify_on_drop: rule.notify_on_drop,
     ai_explanation_enabled: rule.ai_explanation_enabled,
@@ -497,6 +503,7 @@ const SCOPE_KEYS = [
   'include_release_regressions',
   'include_variable_value_drifts',
   'include_metrics',
+  'include_source_freshness',
 ] as const satisfies readonly (keyof RuleFormState)[]
 
 function numberProblem(text: string, { integer, min }: { integer: boolean; min: number }): string | null {
@@ -710,6 +717,7 @@ type RuleScopeFlags = Pick<
   | 'include_distribution_drifts'
   | 'include_variable_value_drifts'
   | 'include_release_regressions'
+  | 'include_source_freshness'
 >
 
 /**
@@ -744,6 +752,7 @@ export const RULE_SIGNAL_GROUPS: readonly {
       { key: 'include_distribution_drifts', label: 'Distribution drift', short: 'distribution drift', hint: 'The mix of values in a watched column shifts.' },
       { key: 'include_variable_value_drifts', label: 'Value drift', short: 'value drift', hint: 'A variable takes a value outside its documented list.' },
       { key: 'include_release_regressions', label: 'Release regressions', short: 'release regressions', hint: 'A new app version tracks less than the one before.' },
+      { key: 'include_source_freshness', label: 'Source freshness', short: 'source freshness', hint: "A scan's newest data is later than its interval allows, or the scan stopped running. One alert per delay; drop signals are held meanwhile. Needs Drops under Notify on." },
     ],
   },
 ]
@@ -830,6 +839,7 @@ export function scopeSummary(rule: AlertRule) {
     rule.include_release_regressions ? 'regressions' : null,
     rule.include_variable_value_drifts ? 'value drift' : null,
     rule.include_metrics ? 'metrics' : null,
+    rule.include_source_freshness ? 'freshness' : null,
   ].filter(Boolean).join(', ')
 }
 

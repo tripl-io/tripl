@@ -131,6 +131,11 @@ async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
     ctx.data_source_id = data_source.id
 
 
+def _newest_seeded_bucket(now: datetime) -> datetime:
+    """The newest hourly bucket ``noise.hour_buckets`` seeds (one before ``now``'s hour)."""
+    return now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+
+
 async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
     scan_config = ScanConfig(
         data_source_id=ctx.data_source_id,
@@ -184,6 +189,16 @@ async def _build_scan_config(session: AsyncSession, ctx: DemoContext) -> None:
         # they go inert only if these columns are cleared.
         platform_column="platform",
         app_version_column="app_version",
+        # Fresh by default (#269): ``last_event_at`` is the newest bucket
+        # ``_build_event_metrics`` seeds (the hour before ``now``'s hour) and the
+        # "collection" is the seed itself, just now. Unset, the demo would read
+        # ``unknown`` until its first collection. Afterwards the demo runtime
+        # tick (``worker.tasks.demo_runtime._advance_demo``) stamps both every
+        # tick it runs, as does any scheduled collection of the demo scan. A demo
+        # the idle pause has stopped advancing is stamped by neither, so it does
+        # go late/overdue while paused — which is what its data really is.
+        last_event_at=_newest_seeded_bucket(ctx.now),
+        last_collection_at=ctx.now,
     )
     session.add(scan_config)
     await session.flush()

@@ -221,6 +221,20 @@ export function buildRunReport(
     })
   }
 
+  // Drops held back while the source was late or the scan overdue (F16, #269):
+  // not lost, scored once data arrives — said, so a quiet run is not read as
+  // an all-clear.
+  const signalsHeld = summary.signals_held ?? 0
+  if (signalsHeld > 0) {
+    lines.push({
+      id: 'signals-held',
+      text: `Held ${countOf(signalsHeld, 'drop signal', 'drop signals')}: ${
+        summary.freshness_status === 'overdue' ? 'the scan is overdue' : 'the source data is late'
+      }.`,
+      hint: 'They are scored normally once the data arrives.',
+    })
+  }
+
   const alertsQueued = summary.alerts_queued ?? 0
   if (alertsQueued > 0) {
     lines.push({

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from tripl.models.alert_destination import AlertDestinationType
-from tripl.models.domain_enums import AlertMessageFormat, MetricScopeType
+from tripl.models.domain_enums import AlertDriftType, AlertMessageFormat, MetricScopeType
 
 ALERT_MESSAGE_FORMAT_PLAIN = AlertMessageFormat.plain.value
 ALERT_MESSAGE_FORMAT_SLACK_MRKDWN = AlertMessageFormat.slack_mrkdwn.value
@@ -559,6 +559,7 @@ def percent_delta_or_none(percent_delta: float, expected_count: float) -> float 
 
 _SCOPE_RELEASE_REGRESSION = MetricScopeType.release_regression.value
 _SCOPE_VARIABLE_VALUE_DRIFT = MetricScopeType.variable_value_drift.value
+_SCOPE_SOURCE_FRESHNESS = MetricScopeType.source_freshness.value
 
 ALERT_SCOPE_LABELS: dict[str, str] = {
     MetricScopeType.project_total.value: "Project total",
@@ -569,6 +570,7 @@ ALERT_SCOPE_LABELS: dict[str, str] = {
     MetricScopeType.distribution.value: "Distribution drift",
     _SCOPE_VARIABLE_VALUE_DRIFT: "Variable value drift",
     _SCOPE_RELEASE_REGRESSION: "Release regression",
+    _SCOPE_SOURCE_FRESHNESS: "Source freshness",
 }
 
 
@@ -615,6 +617,14 @@ class DriftLineFacts:
 
 
 _RELEASE_KIND_LABELS = {"missing": "disappeared", "volume_drop": "dropped"}
+
+# Headline per freshness ``drift_type``. ``source_late``: the scan runs but the
+# newest event it sees is old — the warehouse load is delayed.
+# ``source_overdue``: the scan itself has not completed a collection in time.
+_FRESHNESS_STATUS_LABELS = {
+    AlertDriftType.source_late.value: "Data late",
+    AlertDriftType.source_overdue.value: "Scan overdue",
+}
 
 
 def plain_alert_number(value: float) -> str:
@@ -701,6 +711,21 @@ def release_regression_basis(facts: DriftLineFacts) -> str:
     )
 
 
+def source_freshness_line(facts: DriftLineFacts) -> str:
+    """``"Data late: <scan> — newest event 7h ago (expected within 3h)"``.
+
+    Built from the shared drift columns the worker fills
+    (``signals._get_source_freshness_candidates``): status -> ``drift_type``
+    (``source_late`` / ``source_overdue``),
+    scan name -> ``drift_field``, the lag clause -> ``sample_value``.
+    """
+    headline = _FRESHNESS_STATUS_LABELS.get(facts.drift_type or "", "Data late")
+    scan = facts.drift_field or "scan"
+    if facts.sample_value:
+        return f"{headline}: {scan} \u2014 {facts.sample_value}"
+    return f"{headline}: {scan}"
+
+
 def build_drift_line(facts: DriftLineFacts) -> str:
     """``${drift_line}`` for one item — leading ``"\\n  "`` included, or ``""``.
 
@@ -722,6 +747,8 @@ def build_drift_line(facts: DriftLineFacts) -> str:
     """
     if facts.scope_type == _SCOPE_RELEASE_REGRESSION:
         return f"\n  release: {release_regression_basis(facts)}"
+    if facts.scope_type == _SCOPE_SOURCE_FRESHNESS:
+        return f"\n  {source_freshness_line(facts)}"
     if facts.scope_type == _SCOPE_VARIABLE_VALUE_DRIFT:
         observed_clause = f" observed {facts.sample_value}" if facts.sample_value else ""
         return f"\n  value drift: ${{{facts.drift_field}}}{observed_clause}"

@@ -336,6 +336,10 @@ export function RuleEditorDialog({
   const dropNeedsZero =
     ruleForm.notify_on_drop && ruleForm.min_percent_delta.trim() !== '' && percent >= 100
 
+  // Freshness alerts only reach rules that notify on drops, so a spikes-only
+  // rule with Source freshness ticked never hears about a late source.
+  const freshnessNeedsDrops = ruleForm.include_source_freshness && !ruleForm.notify_on_drop
+
   const summary = ruleDraftSummary(ruleForm, destination?.name ?? null)
 
   // Two 8-row templates, filters and thresholds: Escape, a stray overlay click
@@ -506,6 +510,12 @@ export function RuleEditorDialog({
                   <p id="rule-direction-error" className="mt-2 text-body-sm text-destructive">{problems.direction}</p>
                 )}
               </fieldset>
+              {freshnessNeedsDrops && (
+                <p role="status" className="m-0 inline-flex items-start gap-1.5 text-body-sm text-(--warning)">
+                  <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                  Source freshness only alerts on rules that notify on drops. Tick Drops to hear about late or overdue scans.
+                </p>
+              )}
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {NUMERIC_INPUTS.map(({ field, id, label, unit, hint, min, step }) => (

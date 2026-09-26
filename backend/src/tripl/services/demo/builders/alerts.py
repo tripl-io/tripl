@@ -140,6 +140,9 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
         include_variable_value_drifts=True,
         include_release_regressions=True,
         include_metrics=True,
+        # "Data is late" alerts (#269): the demo source is fresh by default, so
+        # this only fires when the demo's feed is delayed.
+        include_source_freshness=True,
         notify_on_spike=True,
         notify_on_drop=True,
         message_format=AlertMessageFormat.plain.value,

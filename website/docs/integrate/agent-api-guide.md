@@ -517,6 +517,53 @@ through the browser-only scan routes — it cannot introduce a new query. Creati
 or editing a scan config, like connecting a data source, stays an interactive
 owner session.
 
+## Source freshness
+
+Before reading a drop as real, check whether the source behind it is simply
+late. Freshness for every scan config in a project is one call:
+
+```http
+GET /api/v1/projects/{slug}/source-freshness
+```
+
+It returns one item per scan config, with `id`, `name`, `data_source_id` and
+`freshness`. The same `freshness` object is on every `ScanConfig` response
+(`GET /api/v1/projects/{slug}/scans` and a single scan), so an agent that
+already holds a scan config does not need the second call.
+
+| `freshness` field | Meaning |
+|-------|---------|
+| `status` | `fresh`, `late`, `overdue` or `unknown`. |
+| `lag_seconds` | Seconds between now and `last_event_at`. `null` when no event has been observed. |
+| `last_event_at` | The start of the newest bucket that had events in the latest successful metrics collection. It has bucket resolution, so it can sit up to one interval behind the newest event. `null` before the first collection. |
+| `last_collection_at` | When that collection completed. `null` before the first collection. |
+| `expected_by` | The moment after which the source counts as `late`. `null` when the status is `unknown`. |
+
+The status is computed each time the response is built, and is never stored:
+
+- `overdue`: `now − last_collection_at > 2 × interval`. The scan is not
+  running on schedule. This takes precedence over `late`.
+- `late`: `now − last_event_at` reaches
+  `min(3 × interval, settling allowance rounded up to whole intervals + 2 × interval)`,
+  where the settling allowance is the project's
+  `anomaly_ingestion_settling_minutes`.
+- `unknown`: the scan has no interval (a manual scan), or nothing has been
+  collected yet.
+- `fresh`: otherwise.
+
+While a scan is `late` or `overdue`, the metrics worker holds that scan's
+drop-direction volume signals instead of emitting them. A missing drop on a
+late source therefore means "not yet judged", not "no drop". The scan job's
+`result_summary` reports this as `freshness_status` and `signals_held`. Once
+data lands, the next run re-collects the buckets that were empty during the
+delay before scoring them. A replay only refreshes `last_event_at` when it
+reaches past it. See
+[Drop signals are held while a source is late](../use/anomaly-detection.md#held-while-late)
+and the [Source freshness](../use/alerting.md#source-freshness) alert scope,
+which rules enable with `include_source_freshness`. A `late` alert comes from
+the scan's own collection run; an `overdue` alert comes from a sweep that runs
+every 15 minutes. One delay or outage is one alert.
+
 ## Chart annotations
 
 Annotations are the markers charts draw at a point in time. A deploy pipeline

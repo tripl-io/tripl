@@ -37,6 +37,11 @@ SCOPE_DISTRIBUTION_DRIFT = MetricScopeType.distribution.value
 SCOPE_RELEASE_REGRESSION = MetricScopeType.release_regression.value
 SCOPE_METRIC = MetricScopeType.metric.value
 SCOPE_VARIABLE_VALUE_DRIFT = MetricScopeType.variable_value_drift.value
+# One candidate per late/overdue scan config (issue #269): ``scope_ref`` is the
+# scan config id, so the scope is already partitioned by scan like
+# ``project_total`` and the ordinary per-config AlertRuleState gives it one
+# cooldown clock per scan.
+SCOPE_SOURCE_FRESHNESS = MetricScopeType.source_freshness.value
 
 
 def _utc_bucket(bucket: datetime) -> datetime:
@@ -207,6 +212,10 @@ def rule_matches_anomaly(
         return False
     if anomaly.scope_type == SCOPE_VARIABLE_VALUE_DRIFT and not rule.include_variable_value_drifts:
         return False
+    # "Data is late" alerts are opt-in like the drift families: a rule that
+    # never asked for them keeps delivering exactly what it did before.
+    if anomaly.scope_type == SCOPE_SOURCE_FRESHNESS and not rule.include_source_freshness:
+        return False
     # Catalog metric anomalies are opt-in (SAFE OFF): a rule must explicitly
     # subscribe via include_metrics. They flow through the numeric-threshold
     # branch below (actual/expected counts), like the volume scopes.
@@ -224,6 +233,10 @@ def rule_matches_anomaly(
         SCOPE_DISTRIBUTION_DRIFT,
         SCOPE_RELEASE_REGRESSION,
         SCOPE_VARIABLE_VALUE_DRIFT,
+        # Lag hours against the allowed hours, not a count against a baseline:
+        # the volume thresholds (min_expected_count, min_percent_delta) are
+        # about counts and would silently gate a delay on its hour figures.
+        SCOPE_SOURCE_FRESHNESS,
     }:
         return all(
             filter_matches_anomaly(

@@ -42,7 +42,9 @@ bucket against a seasonal baseline and scores the gap as
 `min_expected_count` (default 50). It also emits **distribution-drift** signals
 (a value mix shifted) and **release-regression** signals (a new app version
 under-fires an event), plus **variable-value drift** when an event observes
-values outside its effective documented variable list.
+values outside its effective documented variable list. A scan whose source is
+late or overdue produces one **source freshness** signal instead of a drop on
+every scope. See [Source freshness](#source-freshness).
 
 The full math — seasonal vs rolling baselines, the robust spread and its floor,
 the PSI drift score, and the release-regression test — is in
@@ -517,6 +519,7 @@ the drift/regression signals are opt-in:
 | Variable value drift | off |
 | Release regression | off |
 | Metric anomaly | off |
+| Source freshness | off |
 
 The two drift scopes act on signals something else in the project has to produce
 first, so one of them can be switched on and still be unable to fire — see
@@ -529,8 +532,9 @@ a real spike/drop direction and **do** honor the count thresholds below.
 
 **Direction.** *Notify on spike* and *notify on drop* (at least one must be on).
 Schema, distribution, and variable-value drift are reported as a **spike**;
-release regressions are reported as a **drop** — so a drift-only rule still
-needs *notify on spike* enabled.
+release regressions and source freshness are reported as a **drop** — so a
+drift-only rule still needs *notify on spike* enabled, and a rule that should
+hear about late data needs *notify on drop*.
 
 **Thresholds** — gate the noise on **volume anomalies only**:
 
@@ -575,6 +579,45 @@ Thresholds apply to the volume scopes (project total / event type / event) and t
 and release regressions **bypass** thresholds — if you enable those scopes, they
 fire regardless of the count thresholds.
 :::
+
+### Source freshness {#source-freshness}
+
+When a warehouse load is delayed, every scope on a scan looks low at once. The
+**Source freshness** scope reports that delay once, as a problem with the
+source, rather than as a drop on every scope. It is opt-in through the rule's
+**`include_source_freshness`** field, which is off by default. The
+[demo workspace](./demo-workspace.md) seeds a rule with it switched on.
+
+Each scan's freshness is `fresh`, `late`, `overdue` or `unknown`. Roughly,
+`late` means the newest event is too old, and `overdue` means the scan itself
+has not completed a collection on schedule. The exact bounds are in
+[Drop signals are held while a source is late](./anomaly-detection.md#held-while-late).
+
+- **One candidate per scan.** Every scan that is `late` or `overdue` produces
+  one candidate with scope type `source_freshness` and direction `drop`. A scan
+  that is `fresh` or `unknown` produces none. A rule
+  [bound to one scan](#narrowing-a-rule-to-one-scan) only sees that scan's
+  candidate.
+- **Where the candidates come from.** A `late` candidate comes from the scan's
+  own collection run. An `overdue` candidate comes from a sweep that runs every
+  15 minutes, since an overdue scan is not running to raise it.
+- **One delay, one alert.** The candidate goes through the same correlation and
+  cooldown as every other alert. A delay or outage that lasts several scans is
+  therefore delivered once, not once per scan run.
+- **The rule needs drops.** The candidate's direction is `drop`, so the rule
+  must have *notify on drop* on.
+- **The volume drops stay quiet.** While the scan is late or overdue, the
+  detector holds its drop-direction volume anomalies (project total, event
+  types, events and breakdowns). Those drops do not reach this rule or any other
+  rule. After the data lands, the next run re-collects the buckets that were
+  empty during the delay and scores them normally.
+
+The message names the scan, the age of its newest event, and the window it was
+expected within:
+
+```
+Data late: Production events — newest event 7h ago (expected within 3h)
+```
 
 ### When a scope is on but nothing feeds it
 

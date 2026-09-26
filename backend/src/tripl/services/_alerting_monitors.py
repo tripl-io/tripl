@@ -269,6 +269,7 @@ async def _build_monitor_detail(
         include_release_regressions=rule.include_release_regressions,
         include_variable_value_drifts=rule.include_variable_value_drifts,
         include_metrics=rule.include_metrics,
+        include_source_freshness=rule.include_source_freshness,
         total_deliveries=total_deliveries,
         last_delivery_at=last_delivery[0] if last_delivery else None,
         # Coerced at the boundary rather than left to Pydantic, matching

@@ -210,6 +210,60 @@ Alerting judges a signal's freshness against that **settled** end of the series 
 If a spike you can see on the chart has no marker on it yet, check the bucket's age against this setting before assuming detection is broken. A bucket younger than the allowance is deliberately unscored, and the next scan will score it.
 :::
 
+### Drop signals are held while a source is late {#held-while-late}
+
+The settling allowance covers rows that arrive a little late. It does not cover
+a warehouse load that is hours behind. When that happens every scope on the
+scan looks low at once, and each one would otherwise raise its own drop. That
+is several false signals for a single upstream delay.
+
+To prevent this, each scan tracks how fresh its source is. Every successful
+metrics collection records two timestamps on the scan:
+
+- **`last_event_at`**: the start of the newest bucket that had events in the
+  collection. It has bucket resolution, so it can sit up to one interval behind
+  the newest event.
+- **`last_collection_at`**: when that collection completed.
+
+The scan's **freshness** is derived from those two values and the scan
+interval (`1h`, `1d` and so on). It is computed each time it is read and never
+stored:
+
+| Status | When |
+|---|---|
+| `overdue` | `now − last_collection_at > 2 × interval`. The scan itself is not running on schedule. |
+| `late` | `now − last_event_at` reaches `min(3 × interval, settling allowance rounded up to whole intervals + 2 × interval)`. The scan runs, but the newest event it finds is too old. |
+| `fresh` | Neither of the above. |
+| `unknown` | The scan has no interval (manual scans), or nothing has been collected yet. |
+
+`overdue` wins over `late` when both apply. The settling allowance in the
+`late` bound is the project's `anomaly_ingestion_settling_minutes` from
+[Detection latency](#detection-latency). With the defaults, an hourly scan is
+late once its lag reaches 3 hours, and a daily scan once it reaches 3 days. An hourly scan is overdue once its last completed
+collection is more than 2 hours old.
+
+**While a scan is `late` or `overdue`, the metrics worker does not emit new
+drop-direction volume anomalies for that scan's scopes.** This covers the
+project total, event types, events, and their breakdowns. Spikes are not held.
+The held drops are delayed, not discarded:
+
+- **The series stays complete.** Collection and charting are unaffected, just
+  as with the settling allowance.
+- **Held buckets are scored later.** After the data lands, the next run
+  re-collects the buckets that were empty during the delay, then scores them
+  normally. A drop that is still real then becomes a signal.
+- **Replays do not move it backwards.** A replay only refreshes
+  `last_event_at` when it reaches past it.
+- **The run reports it.** The scan job's `result_summary` carries
+  `freshness_status` (the status at that run) and `signals_held` (how many drop
+  signals were held back).
+
+The delay does not go unreported. It becomes one **source freshness** alert for
+the scan, and a rule has to opt in to receive it. A `late` alert comes from the
+scan's own collection run; an `overdue` alert comes from a sweep that runs every
+15 minutes. See
+[Source freshness](./alerting.md#source-freshness).
+
 ## Distribution drift
 
 Volume detection answers "did the count spike or drop?" Distribution drift answers a different question: **"did the *mix* change even though the total stayed flat?"** — for example, 80% of an event's traffic suddenly arriving from a single platform when it used to be evenly split.
@@ -583,5 +637,5 @@ intent, not by which button is nearest —
 by side.
 
 :::tip Troubleshooting
-If a series you expect to be watched is never flagged, the usual causes are: detection is disabled, the series sits below `min_expected_count`, the series is too young for a phase baseline (and too sparse for the rolling fallback), or a false-positive **scope override** has raised the thresholds for that series (check **Settings → Monitoring → Scope overrides**). If instead it is flagged but *late*, that is the [ingestion-settling allowance](#detection-latency) — the newest buckets are deliberately held unscored until they have settled. See [Troubleshooting](./troubleshooting.md).
+If a series you expect to be watched is never flagged, the usual causes are: detection is disabled, the series sits below `min_expected_count`, the series is too young for a phase baseline (and too sparse for the rolling fallback), or a false-positive **scope override** has raised the thresholds for that series (check **Settings → Monitoring → Scope overrides**). If instead it is flagged but *late*, that is the [ingestion-settling allowance](#detection-latency) — the newest buckets are deliberately held unscored until they have settled. If a **drop** you expect is missing, check the scan's freshness. Drop signals are [held while the source is late or overdue](#held-while-late). See [Troubleshooting](./troubleshooting.md).
 :::

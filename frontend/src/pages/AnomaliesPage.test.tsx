@@ -19,10 +19,14 @@ vi.mock('@/api/events', () => ({
 vi.mock('@/api/scans', () => ({
   scansApi: { list: vi.fn() },
 }))
+vi.mock('@/api/sourceFreshness', () => ({
+  sourceFreshnessApi: { list: vi.fn() },
+}))
 
 import { eventMetricsApi } from '@/api/eventMetrics'
 import { eventsApi } from '@/api/events'
 import { scansApi } from '@/api/scans'
+import { sourceFreshnessApi } from '@/api/sourceFreshness'
 
 /**
  * Matches a row's scope label by its full text. The "Spike on" / "Drop on"
@@ -127,6 +131,8 @@ beforeEach(() => {
   vi.mocked(scansApi.list).mockResolvedValue(makeScans([]))
   vi.mocked(eventMetricsApi.getSignalSeries).mockReset()
   vi.mocked(eventMetricsApi.getSignalSeries).mockResolvedValue([])
+  vi.mocked(sourceFreshnessApi.list).mockReset()
+  vi.mocked(sourceFreshnessApi.list).mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -1033,5 +1039,37 @@ describe('AnomaliesPage — row sparklines (MO-19)', () => {
       .closest('[role="row"]') as HTMLElement
     expect(metricRow.querySelector(marker)).toBeNull()
     expect(within(metricRow).queryByTestId('sparkline-skeleton')).toBeNull()
+  })
+})
+
+describe('AnomaliesPage — drop signals held while a source is late (F16, #269)', () => {
+  it('says so, naming the late scan', async () => {
+    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
+    vi.mocked(sourceFreshnessApi.list).mockResolvedValue([
+      {
+        id: 'scan-late',
+        name: 'App events',
+        data_source_id: 'ds-1',
+        freshness: {
+          status: 'late',
+          lag_seconds: 7 * 3600,
+          last_event_at: '2026-09-26T03:00:00Z',
+          last_collection_at: '2026-09-26T09:55:00Z',
+          expected_by: '2026-09-26T06:00:00Z',
+        },
+      },
+    ])
+    renderAnomalies()
+
+    expect(await screen.findByText(/drop signals held/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'App events' })).toHaveAttribute('href', '/p/demo/scans/scan-late')
+  })
+
+  it('says nothing while every source is fresh', async () => {
+    vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
+    renderAnomalies()
+
+    await waitFor(() => expect(sourceFreshnessApi.list).toHaveBeenCalled())
+    expect(screen.queryByText(/drop signals held/)).toBeNull()
   })
 })

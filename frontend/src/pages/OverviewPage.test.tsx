@@ -49,6 +49,8 @@ interface MockOpts {
   activity?: unknown[]
   signals?: unknown[]
   sources?: unknown[]
+  /** `GET /source-freshness` rows (F16, #269). */
+  freshness?: unknown[]
   scanConfigName?: string | null
   /** `null` models a project with no scan config at all — the bare empty series. */
   scanConfigId?: string | null
@@ -97,6 +99,7 @@ function mockFetch(opts?: MockOpts) {
     if (url.includes('/anomalies/signals')) return jsonResponse(opts?.signals ?? [])
     if (url.includes('/activity/projects/')) return jsonResponse(opts?.activity ?? [])
     if (url.includes('/data-sources')) return jsonResponse(opts?.sources ?? [])
+    if (url.includes('/source-freshness')) return jsonResponse(opts?.freshness ?? [])
     if (url.endsWith('/projects/demo')) {
       return jsonResponse({ ...PROJECT, summary: { ...PROJECT.summary, ...opts?.summary } })
     }
@@ -925,5 +928,33 @@ describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR
     expect(
       within(real).getByText('Stale').closest('[data-slot="chip"]'),
     ).toHaveAttribute('data-tone', 'warning')
+  })
+})
+
+describe('OverviewPage — source freshness in Source health (F16, #269)', () => {
+  it('flags the late source and names the late scan', async () => {
+    mockFetch({
+      sources: [makeSource({ id: 's-1', name: 'Events warehouse', project_id: null })],
+      freshness: [
+        {
+          id: 'scan-1',
+          name: 'App events',
+          data_source_id: 's-1',
+          freshness: {
+            status: 'late',
+            lag_seconds: 7 * 3600,
+            last_event_at: hoursAgo(7),
+            last_collection_at: hoursAgo(0),
+            expected_by: hoursAgo(4),
+          },
+        },
+      ],
+    })
+    renderOverview()
+
+    const row = (await screen.findByText('Events warehouse')).closest('a') as HTMLElement
+    expect(await within(row).findByText('Data late · 7h')).toHaveAttribute('data-tone', 'warning')
+    const late = screen.getByRole('list', { name: 'Late or overdue scans' })
+    expect(within(late).getByRole('link', { name: 'App events' })).toHaveAttribute('href', '/p/demo/scans/scan-1')
   })
 })

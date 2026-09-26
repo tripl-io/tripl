@@ -35,6 +35,8 @@ export interface AlertRule {
   include_release_regressions: boolean
   include_variable_value_drifts: boolean
   include_metrics: boolean
+  // "Data is late" alerts: one per late/overdue scan (F16, #269).
+  include_source_freshness: boolean
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
@@ -615,6 +617,8 @@ export interface MonitorDetail extends MonitorSummaryItem {
   include_release_regressions: boolean
   include_variable_value_drifts: boolean
   include_metrics: boolean
+  // "Data is late" alerts: one per late/overdue scan (F16, #269).
+  include_source_freshness: boolean
   // Quick fired-history stats (full history via GET /alert-deliveries?rule_id=).
   total_deliveries: number
   last_delivery_at: string | null

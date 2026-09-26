@@ -315,6 +315,39 @@ class ScanConfigUpdate(BaseModel):
         return _normalize_scalar_columns(value, field_name="distribution_drift_fields")
 
 
+SourceFreshnessStatus = Literal["fresh", "late", "overdue", "unknown"]
+
+
+class SourceFreshness(BaseModel):
+    """How current a scan's source data is (#269). Computed, never stored.
+
+    ``fresh`` — events are arriving and the scan is running on schedule.
+    ``late`` — the newest event is older than the scan's lateness allowance
+    (``max(3 x interval, settling window + interval)``).
+    ``overdue`` — the scan itself has not completed a collection within
+    ``2 x interval``; wins over ``late``.
+    ``unknown`` — the scan has no schedule (manual only) or nothing recorded yet.
+
+    ``lag_seconds`` is ``now - last_event_at``; ``expected_by`` the moment the
+    source counts (or counted) as late: ``last_event_at`` plus the allowance.
+    """
+
+    status: SourceFreshnessStatus
+    lag_seconds: int | None = None
+    last_event_at: datetime | None = None
+    last_collection_at: datetime | None = None
+    expected_by: datetime | None = None
+
+
+class SourceFreshnessItem(BaseModel):
+    """One scan config's freshness, for Overview and data-source cards."""
+
+    id: uuid.UUID
+    name: str
+    data_source_id: uuid.UUID
+    freshness: SourceFreshness
+
+
 class ScanConfigResponse(BaseModel):
     id: uuid.UUID
     data_source_id: uuid.UUID
@@ -344,6 +377,12 @@ class ScanConfigResponse(BaseModel):
     app_version_prerelease_pattern: str | None
     app_version_active_share_min: float | None
     platform_column: str | None
+    last_event_at: datetime | None = None
+    last_collection_at: datetime | None = None
+    # Filled by ``scan_config_service`` (it needs the project's settling window),
+    # so build responses through ``scan_config_service.scan_config_response(s)``
+    # rather than ``model_validate(config)`` on its own.
+    freshness: SourceFreshness
     created_at: datetime
     updated_at: datetime
 

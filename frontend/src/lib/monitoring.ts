@@ -195,6 +195,7 @@ export function getMonitoringPath(
     case 'distribution':
     case 'release_regression':
     case 'variable_value_drift':
+    case 'source_freshness':
       // These scopes have no entity-level monitoring detail route; routing
       // them to the event URL (the previous silent default) mis-renders an
       // unrelated event. Fail loudly so callers don't link to a wrong page.

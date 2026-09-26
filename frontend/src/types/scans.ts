@@ -53,7 +53,48 @@ export interface ScanJobResultSummary {
   replay_current_chunk_to?: string | null
   replay_progress_percent?: number
   replay_progress_phase?: 'preparing' | 'collecting' | 'finalizing' | 'completed'
+  /**
+   * Source freshness at the end of a metrics collection (F16, #269), and how
+   * many drop-direction volume signals it held back because the source was
+   * late or its scan overdue. Absent on older jobs and on replays.
+   */
+  freshness_status?: SourceFreshnessStatus
+  signals_held?: number
   details?: string[]
+}
+
+/**
+ * How current a scan's source is (F16, #269), computed server-side on read and
+ * never stored:
+ *   - `fresh`   the newest event is within the expected lag;
+ *   - `late`    the scan runs, but the newest event it sees is older than
+ *               max(3 intervals, settling window + 1 interval);
+ *   - `overdue` the scan itself has not collected for over 2 intervals
+ *               (wins over `late`);
+ *   - `unknown` a manual scan (no interval) or no collection yet.
+ */
+export type SourceFreshnessStatus = 'fresh' | 'late' | 'overdue' | 'unknown'
+
+export interface SourceFreshness {
+  status: SourceFreshnessStatus
+  /** Seconds between now and `last_event_at`; null without an observed event. */
+  lag_seconds: number | null
+  /** Start of the newest bucket that had events, as the latest successful
+   *  metrics collection saw it: bucket resolution, so it can trail the newest
+   *  event by up to one scan interval. */
+  last_event_at: string | null
+  /** When that collection completed. */
+  last_collection_at: string | null
+  /** The moment past which the source counts as late; null when unknown. */
+  expected_by: string | null
+}
+
+/** One scan's row in `GET /projects/{slug}/source-freshness`. */
+export interface SourceFreshnessItem {
+  id: string
+  name: string
+  data_source_id: string
+  freshness: SourceFreshness
 }
 
 export interface ProjectLatestScanJob {
@@ -138,6 +179,11 @@ export interface ScanConfig {
    */
   readonly last_metrics_run_at?: string | null
   readonly next_metrics_run_at?: string | null
+  /**
+   * Source freshness (F16, #269), computed on read. Optional so hand-built
+   * configs (tests, the form's draft) need not invent it.
+   */
+  readonly freshness?: SourceFreshness
 }
 
 export interface PlatformPresenceRow {

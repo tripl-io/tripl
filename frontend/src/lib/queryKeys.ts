@@ -29,6 +29,7 @@
 
 import { queryOptions } from '@tanstack/react-query'
 import { projectsApi } from '@/api/projects'
+import { sourceFreshnessApi } from '@/api/sourceFreshness'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 
 /** Workspace data sources — `GET /data-sources`, one list for the whole app. */
@@ -660,6 +661,28 @@ export const scanJobsLimitedKey = (slug: string | undefined, scanConfigId: strin
  */
 export const scanActivityKey = (slug: string | undefined) =>
   [...projectScanJobsKey(slug), 'activity'] as const
+
+/**
+ * `GET /projects/{slug}/source-freshness` (F16, #269). Under the
+ * `['scanJobs', slug]` prefix on purpose: freshness moves when a metrics
+ * collection finishes, and the stream's scan-job invalidation already reaches
+ * that prefix.
+ */
+export const sourceFreshnessKey = (slug: string | undefined) =>
+  [...projectScanJobsKey(slug), 'sourceFreshness'] as const
+
+/**
+ * The one shape every freshness reader uses. Silent: freshness is a hint laid
+ * over pages that have their own content, so a failed read renders nothing
+ * rather than a toast about a chip.
+ */
+export const sourceFreshnessQueryOptions = (slug: string) =>
+  queryOptions({
+    queryKey: sourceFreshnessKey(slug),
+    queryFn: ({ signal }) => sourceFreshnessApi.list(slug, signal),
+    meta: SILENT_ERROR_META,
+    staleTime: 60_000,
+  })
 
 export const platformPresenceKey = (slug: string | undefined, scanConfigId: string) =>
   ['platformPresence', slug, scanConfigId] as const

@@ -13,7 +13,6 @@ from tripl.api.deps import (
     get_key_reachable_owner_user,
     get_owner_user,
 )
-from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_dry_run_job import ScanDryRunJob
 from tripl.models.scan_job import ScanJob
 from tripl.models.scan_preview_job import ScanPreviewJob
@@ -27,6 +26,7 @@ from tripl.schemas.scan_config import (
     ScanDryRunJobResponse,
     ScanDryRunRequest,
     ScanMetricsReplayRequest,
+    SourceFreshnessItem,
 )
 from tripl.schemas.scan_job import (
     ScanActivityResponse,
@@ -67,10 +67,28 @@ _editor_required = [Depends(get_editor_user)]
 # authoring or editing ``base_query``, which stays browser-only.
 _owner_or_owner_key_required = [Depends(get_key_reachable_owner_user)]
 
+# Project-level freshness read (#269). Its own router because it sits beside
+# ``/scans`` rather than under it: ``/projects/{slug}/source-freshness``.
+source_freshness_router = APIRouter(
+    prefix="/projects/{slug}",
+    tags=["scans"],
+)
+
+
+@source_freshness_router.get("/source-freshness", response_model=list[SourceFreshnessItem])
+async def list_source_freshness(session: SessionDep, slug: str) -> list[SourceFreshnessItem]:
+    """Each scan config's freshness: fresh, late, overdue or unknown.
+
+    Computed on read from what the latest collection recorded, so a scan whose
+    worker has stopped turns ``overdue`` without any job having to say so.
+    """
+    return await scan_config_service.list_source_freshness(session, slug)
+
 
 @router.get("", response_model=list[ScanConfigResponse])
-async def list_scan_configs(session: SessionDep, slug: str) -> list[ScanConfig]:
-    return await scan_service.list_scan_configs(session, slug)
+async def list_scan_configs(session: SessionDep, slug: str) -> list[ScanConfigResponse]:
+    configs = await scan_service.list_scan_configs(session, slug)
+    return await scan_config_service.scan_config_responses(session, configs)
 
 
 # Declared before ``/{scan_id}``: that template would otherwise claim the literal
@@ -91,7 +109,7 @@ async def create_scan_config(
     slug: str,
     data: ScanConfigCreate,
     current_user: OwnerUserDep,
-) -> ScanConfig:
+) -> ScanConfigResponse:
     cfg = await scan_service.create_scan_config(session, slug, data)
     await audit_service.record(
         session,
@@ -103,7 +121,7 @@ async def create_scan_config(
         project_slug=slug,
         payload=data.model_dump(),
     )
-    return cfg
+    return await scan_config_service.scan_config_response(session, cfg)
 
 
 @router.post(
@@ -191,7 +209,7 @@ async def update_scan_config(
     scan_id: uuid.UUID,
     data: ScanConfigUpdate,
     current_user: OwnerUserDep,
-) -> ScanConfig:
+) -> ScanConfigResponse:
     cfg = await scan_service.update_scan_config(session, slug, scan_id, data)
     await audit_service.record(
         session,
@@ -203,7 +221,7 @@ async def update_scan_config(
         project_slug=slug,
         payload=data.model_dump(exclude_unset=True),
     )
-    return cfg
+    return await scan_config_service.scan_config_response(session, cfg)
 
 
 @router.delete("/{scan_id}", status_code=204)

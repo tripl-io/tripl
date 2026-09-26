@@ -1,5 +1,8 @@
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { SignalsHeldNotice } from '@/components/source-freshness/signals-held-notice'
+import { useSourceFreshness } from '@/hooks/useSourceFreshness'
+import { holdingItems } from '@/lib/sourceFreshness'
 import { Activity, ArrowDown, ArrowUp, Play, Settings2 } from 'lucide-react'
 import { scansApi } from '@/api/scans'
 import { EmptyState } from '@/components/empty-state'
@@ -185,6 +188,9 @@ export default function AnomaliesPage() {
   const scanNames: ScanNames = new Map(
     (scansQuery.data ?? []).map((s) => [s.id, s.name]),
   )
+  // Scans whose source is late or overdue hold their drop signals (F16, #269);
+  // the notice below says so, or this list reads quieter than the data is.
+  const freshnessItems = useSourceFreshness(slug)
 
   // Muted and expected signals (MO-4 / JR-5) are left out of the list and every
   // count here, as they are from the bell, Overview and the sidebar badge;
@@ -254,6 +260,12 @@ export default function AnomaliesPage() {
   const scanIsInProject =
     scanId === CATALOG_METRICS || scanNames.has(scanId) || !scansQuery.data
   const activeScanId = scanTotals.has(scanId) || scanIsInProject ? scanId : ALL_SCANS
+  // Narrowed to the scan facet when one is picked; catalog metrics have no
+  // scan source, so they hold nothing.
+  const heldScans =
+    activeScanId === CATALOG_METRICS
+      ? []
+      : holdingItems(freshnessItems, activeScanId === ALL_SCANS ? null : [activeScanId])
   const scanOptions = [...scanTotals.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([id]) => ({
@@ -354,6 +366,8 @@ export default function AnomaliesPage() {
           ) : undefined
         }
       />
+
+      {slug && <SignalsHeldNotice slug={slug} items={heldScans} />}
 
       {/* Rollup */}
       {isFirstLoad ? (

@@ -19,6 +19,7 @@ import {
   messageFormatForDestination,
   ruleFormProblems,
   ruleFormToPayload,
+  ruleSignalLabels,
   ruleToForm,
   unknownTemplateVariables,
   withMessageFormat,
@@ -40,6 +41,7 @@ function makeRule(overrides: Partial<AlertRule> = {}): AlertRule {
     include_release_regressions: false,
     include_variable_value_drifts: false,
     include_metrics: false,
+    include_source_freshness: false,
     notify_on_spike: false,
     notify_on_drop: true,
     ai_explanation_enabled: false,
@@ -295,5 +297,30 @@ describe('ruleDraftSummary (AL-1)', () => {
 
   it('says nothing before a destination is picked', () => {
     expect(ruleDraftSummary(defaultRuleForm(), null)).toBeNull()
+  })
+})
+
+describe('source freshness scope (F16, #269)', () => {
+  it('is off on a new rule and carried both ways', () => {
+    expect(defaultRuleForm().include_source_freshness).toBe(false)
+    expect(ruleFormToPayload(ruleToForm(makeRule({ include_source_freshness: true }))))
+      .toMatchObject({ include_source_freshness: true })
+  })
+
+  it('reads a rule from a server that predates the flag as off', () => {
+    const legacy = makeRule()
+    delete (legacy as Partial<AlertRule>).include_source_freshness
+    expect(ruleToForm(legacy).include_source_freshness).toBe(false)
+  })
+
+  it('counts as a signal kind on its own', () => {
+    const only = form({
+      include_project_total: false,
+      include_event_types: false,
+      include_events: false,
+      include_source_freshness: true,
+    })
+    expect(ruleFormProblems(only).scopes).toBeNull()
+    expect(ruleSignalLabels(only).drift).toEqual(['Source freshness'])
   })
 })

@@ -525,12 +525,13 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
     distribution_drift: distributionIsInert,
     variable_value_drift: valueDriftIsInert,
   }
-  // Grouped as the rule editor groups them — volume changes, then the drift
-  // detectors — and named in the editor's words, so one scope is not
+  // Grouped as the rule editor groups them — volume changes, then "Also alert
+  // on" (drift detectors, release regressions, source freshness)
+  // — and named in the editor's words, so one scope is not
   // "Distribution" there and "Distribution drifts" here (MO-37, AL-38).
   const groups = RULE_SIGNAL_GROUPS.map((group) => ({
     id: group.id,
-    label: group.id === 'volume' ? 'Volume' : 'Drift',
+    label: group.id === 'volume' ? 'Volume' : group.label,
     scopes: group.scopes
       // `?? false`: a response that predates a flag reads as "not watched".
       .filter((scope) => monitor[scope.key] ?? false)
@@ -592,7 +593,7 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
           {groups.length > 0 ? (
             groups.map((group) => (
               <div key={group.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <span className="w-14 shrink-0 text-caption text-fg-tertiary">
+                <span className="w-24 shrink-0 text-caption text-fg-tertiary">
                   {group.label}
                 </span>
                 {group.scopes.map((scope) => (

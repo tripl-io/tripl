@@ -109,6 +109,9 @@ class MetricScopeType(enum.StrEnum):
     # Observed variable values outside the documented list (epic tripl-j94c,
     # S13). Added via ALTER TYPE migration d1c2b3a4f5e6.
     variable_value_drift = "variable_value_drift"
+    # A late or overdue scan source (#269). Added via ALTER TYPE migration
+    # c4e8a2f6b1d3.
+    source_freshness = "source_freshness"
 
 
 class MetricKind(enum.StrEnum):
@@ -211,6 +214,13 @@ class AlertDriftType(enum.StrEnum):
     # Postgres enum and took the whole collection transaction with it
     # (tripl-jfm3.97). Added to the type by e2f3a4b5c6d7.
     value_drift = "value_drift"
+    # Written by the source-freshness candidate builder (#269): the scan's data
+    # is late (``source_late``) or the scan itself stopped collecting
+    # (``source_overdue``). Prefixed rather than the bare ``late``/``overdue``
+    # freshness statuses so the shared column reads unambiguously. Added to the
+    # type by c4e8a2f6b1d3.
+    source_late = "source_late"
+    source_overdue = "source_overdue"
 
 
 class ReleaseRegressionKind(enum.StrEnum):

@@ -32,6 +32,7 @@ import { NativeSelect } from '@/components/settings/kit'
 import { ConnectionSettingsFields } from '@/components/data-sources/connection-settings-fields'
 import { ConnectionCoreFields } from '@/components/data-sources/connection-core-fields'
 import { UsedByScans } from '@/components/data-sources/used-by-scans'
+import { DataSourceFreshnessChip } from '@/components/data-sources/data-source-freshness'
 import {
   EMPTY_CONNECTION_CORE_FORM,
   buildCoreCreatePayload,
@@ -929,6 +930,8 @@ function DataSourceCard({
           </Chip>
         )}
         {ds.is_synthetic ? <SyntheticSourceBadge /> : <Chip size="xs">{ds.db_type}</Chip>}
+        {/* A late source or an overdue scan reading it (F16, #269). */}
+        <DataSourceFreshnessChip ds={ds} />
         {ds.username && <Chip size="xs">{ds.username}</Chip>}
         {ds.timeout_seconds != null && <Chip size="xs">timeout {ds.timeout_seconds}s</Chip>}
         {/* What reads this source, each scan a link to its page, so the

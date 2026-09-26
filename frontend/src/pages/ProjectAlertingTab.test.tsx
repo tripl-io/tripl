@@ -81,6 +81,7 @@ function makeRule(overrides: Record<string, unknown> = {}) {
     include_release_regressions: false,
     include_variable_value_drifts: false,
     include_metrics: false,
+    include_source_freshness: false,
     notify_on_spike: true,
     notify_on_drop: false,
     ai_explanation_enabled: false,

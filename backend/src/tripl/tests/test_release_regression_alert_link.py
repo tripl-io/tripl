@@ -635,6 +635,9 @@ _AUDIT_LINK_DECISION: dict[MetricScopeType, bool] = {
     MetricScopeType.distribution: False,
     MetricScopeType.variable_value_drift: False,
     MetricScopeType.release_regression: True,
+    # A whole scan config; no page shows more than the message, and every
+    # delivered item reaches its incident through the correlation link anyway.
+    MetricScopeType.source_freshness: False,
 }
 
 

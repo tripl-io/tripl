@@ -81,6 +81,7 @@ export interface AlertRuleUpdatePayload {
   // Accepted by the API and carried on AlertRule, but was missing from both
   // payloads — a form could show the metric toggle and never save it.
   include_metrics?: boolean
+  include_source_freshness?: boolean
   notify_on_spike?: boolean
   notify_on_drop?: boolean
   ai_explanation_enabled?: boolean
@@ -200,6 +201,7 @@ export const alertingApi = {
       // Accepted by the API and carried on AlertRule, but was missing from both
       // payloads — a form could show the metric toggle and never save it.
       include_metrics?: boolean
+      include_source_freshness?: boolean
       notify_on_spike?: boolean
       notify_on_drop?: boolean
       ai_explanation_enabled?: boolean
