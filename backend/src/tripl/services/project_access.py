@@ -32,7 +32,7 @@ from typing import Literal
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tripl.models.domain_enums import UserRole
 from tripl.models.project import Project
@@ -202,3 +202,22 @@ async def require_project_access(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PROJECT_NOT_FOUND)
     request.state.project_role = role
     return role
+
+
+async def still_member(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+) -> bool:
+    """Whether ``user_id`` still has a role in ``project_id``, read afresh.
+
+    Opens (and closes) its own short-lived session, so the stream holds no
+    pooled connection between checks. The user row is re-read too: a deleted
+    user, or an instance owner demoted to a non-member, loses the stream.
+    """
+    async with session_factory() as session:
+        user = await session.get(User, user_id)
+        if user is None:
+            return False
+        return await member_role(session, user, project_id) is not None

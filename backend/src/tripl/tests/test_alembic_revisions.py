@@ -116,19 +116,21 @@ def _capture_project_members_backfill(monkeypatch, *, dialect: str) -> list[str]
     """
     migration = _load_project_members_migration(f"project_members_migration_{dialect}")
     statements: list[str] = []
-    monkeypatch.setattr(
-        migration.op,
-        "get_bind",
-        lambda: SimpleNamespace(dialect=SimpleNamespace(name=dialect)),
-    )
-    monkeypatch.setattr(migration.postgresql.ENUM, "create", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(migration.op, "create_table", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(migration.op, "create_index", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(migration.op, "f", lambda name: name)
-    monkeypatch.setattr(
-        migration.op, "execute", lambda statement: statements.append(str(statement))
-    )
-    migration.upgrade()
+    # A context, not the test's own monkeypatch: ``postgresql.ENUM.create`` is
+    # the SQLAlchemy class, so leaving it stubbed would also stop
+    # ``create_all`` from creating any enum type later in the same test.
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            migration.op,
+            "get_bind",
+            lambda: SimpleNamespace(dialect=SimpleNamespace(name=dialect)),
+        )
+        patch.setattr(migration.postgresql.ENUM, "create", lambda *_args, **_kwargs: None)
+        patch.setattr(migration.op, "create_table", lambda *_args, **_kwargs: None)
+        patch.setattr(migration.op, "create_index", lambda *_args, **_kwargs: None)
+        patch.setattr(migration.op, "f", lambda name: name)
+        patch.setattr(migration.op, "execute", lambda statement: statements.append(str(statement)))
+        migration.upgrade()
     return statements
 
 

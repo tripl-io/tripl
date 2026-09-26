@@ -38,7 +38,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tripl import database, realtime
 from tripl.api.deps import CurrentUserDep, SessionDep
-from tripl.models.user import User
 from tripl.services import project_access
 from tripl.services.project_service import get_project_id_by_slug
 
@@ -58,25 +57,6 @@ _SSE_HEADERS = {
 # heartbeat interval: the generator consults the guard on every heartbeat and
 # every event, and this bounds the queries to one per interval per stream.
 MEMBERSHIP_RECHECK_SECONDS = realtime.HEARTBEAT_SECONDS
-
-
-async def still_member(
-    session_factory: async_sessionmaker[AsyncSession],
-    *,
-    user_id: uuid.UUID,
-    project_id: uuid.UUID,
-) -> bool:
-    """Whether ``user_id`` still has a role in ``project_id``, read afresh.
-
-    Opens (and closes) its own short-lived session, so the stream holds no
-    pooled connection between checks. The user row is re-read too: a deleted
-    user, or an instance owner demoted to a non-member, loses the stream.
-    """
-    async with session_factory() as session:
-        user = await session.get(User, user_id)
-        if user is None:
-            return False
-        return await project_access.member_role(session, user, project_id) is not None
 
 
 def membership_guard(
@@ -109,7 +89,9 @@ def membership_guard(
             return False
         last_checked = now
         try:
-            revoked = not await still_member(factory, user_id=user_id, project_id=project_id)
+            revoked = not await project_access.still_member(
+                factory, user_id=user_id, project_id=project_id
+            )
         except Exception:
             logger.warning(
                 "SSE membership re-check failed; ending the stream",
