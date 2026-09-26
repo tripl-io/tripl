@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from tripl.models.domain_enums import (
     AlertInboxStatus,
@@ -12,8 +12,41 @@ from tripl.models.domain_enums import (
     ReleaseComparabilityReason,
     ReleaseRegressionKind,
     ScanInterval,
+    SignalExpectedReason,
+    SignalVerdict,
 )
 from tripl.models.project_anomaly_settings import DEFAULT_SIGMA_THRESHOLD
+
+SignalVerdictSource = Literal["signal", "incident"]
+
+
+class SignalVerdictInfo(BaseModel):
+    """What a signal turned out to be (F01, #254).
+
+    ``source`` is ``signal`` when the signal's own verdict row supplies it and
+    ``incident`` when it is read off the status of the incident the signal was
+    routed into (the incident is the source of truth): acknowledged reads as
+    ``real_issue``, resolved as ``expected``, false_positive as
+    ``false_positive``. A signal verdict row consistent with the incident's
+    status refines that reading (``tracking_bug`` on an acknowledged incident,
+    a reason on an expected one) and wins; one the incident has since moved
+    away from is ignored.
+    """
+
+    verdict: SignalVerdict
+    expected_reason: SignalExpectedReason | None = None
+    note: str | None = None
+    author_name: str | None = None
+    # When the verdict was last set.
+    created_at: datetime | None = None
+    source: SignalVerdictSource
+
+
+class SignalIncidentBrief(BaseModel):
+    """The inbox incident a signal was routed into, for a status chip + link."""
+
+    id: uuid.UUID
+    status: AlertInboxStatus
 
 
 class EventMetricPoint(BaseModel):
@@ -33,6 +66,10 @@ class EventMetricPoint(BaseModel):
     is_anomaly: bool = False
     anomaly_direction: AnomalyDirection | None = None
     z_score: float | None = None
+    # The verdict on the signal this flagged bucket raised, for the chart
+    # marker's tooltip (F01, #254). Only on the drilldown routes, only on
+    # flagged buckets, and omitted from the JSON when NULL.
+    verdict: SignalVerdictInfo | None = Field(default=None, exclude_if=lambda value: value is None)
     # The per-bucket baseline the detector scored this bucket against, flagged
     # or not (tripl-i9mt.25): the expected value and the floored effective
     # stddev, so ``baseline_expected ± sigma_threshold * baseline_stddev`` is the
@@ -133,6 +170,13 @@ class MetricSignalResponse(BaseModel):
     expected: bool = False
     expected_note: str | None = None
     hidden: bool = False
+    # The signal's verdict and, when a rule routed it, its incident (F01, #254).
+    # Filled on both lists and after the cache, like the triage fields. The
+    # sidebar badge and the Overview headline count only signals whose
+    # ``verdict`` is NULL (and that are not ``hidden``); ``acknowledged_at`` is
+    # not a verdict.
+    verdict: SignalVerdictInfo | None = None
+    incident: SignalIncidentBrief | None = None
 
 
 class SeasonalityCell(BaseModel):
@@ -448,6 +492,46 @@ class SignalTriageState(BaseModel):
     expected: bool = False
     expected_note: str | None = None
     hidden: bool = False
+
+
+class SignalVerdictRequest(SignalTriageScope):
+    """``POST /projects/{slug}/signals/verdict`` (F01, #254).
+
+    ``expected_reason`` belongs to ``expected`` only. ``note`` is free text on
+    every verdict; on ``expected`` it is also the chart annotation's text.
+    """
+
+    verdict: SignalVerdict
+    expected_reason: SignalExpectedReason | None = None
+    note: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def _reason_only_on_expected(self) -> SignalVerdictRequest:
+        if self.expected_reason is not None and self.verdict != SignalVerdict.expected:
+            raise ValueError("expected_reason is only valid with the 'expected' verdict")
+        return self
+
+
+class SignalVerdictResponse(SignalTriageState):
+    """The signal's triage fields, verdict and incident after a verdict write."""
+
+    verdict: SignalVerdictInfo | None = None
+    incident: SignalIncidentBrief | None = None
+
+
+class SignalVerdictCountsResponse(BaseModel):
+    """Verdicts over the project's open signals (the expanded Anomalies list).
+
+    ``needs_verdict`` counts signals with no verdict that no mute or
+    ``expected`` hides; the other four count signals by verdict, whether the
+    signal's own row or its incident's status supplied it (F15 health score).
+    """
+
+    needs_verdict: int = 0
+    expected: int = 0
+    tracking_bug: int = 0
+    false_positive: int = 0
+    real_issue: int = 0
 
 
 # Longest batch ``POST /anomalies/signals/series`` accepts. The Anomalies page

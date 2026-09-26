@@ -59,6 +59,8 @@ import { EventSideColumn } from './monitoring/event/EventSideColumn'
 import { LIVE_STATUSES } from './monitoring/event/surface'
 import { MonitoringDetailHeader } from './monitoring/MonitoringDetailHeader'
 import { useAnnotateHandoff } from './monitoring/useAnnotateHandoff'
+import { useCommentDraftHandoff } from './monitoring/useCommentDraftHandoff'
+import { SignalVerdictCard } from './monitoring/SignalVerdictCard'
 import { useChartAnnotations } from './monitoring/useChartAnnotations'
 import { useMetricCollect } from './monitoring/useMetricCollect'
 import { useMonitoringDetailSearch, type MonitoringDetailTab } from './monitoring/useMonitoringDetailSearch'
@@ -446,6 +448,11 @@ export default function MonitoringDetailPage() {
     ready: detailReady,
     showVolumeTab: () => searchActions.setTab('volume'),
   })
+  // A tracking-bug verdict's "Open a comment on the event" (#254), from the
+  // Signal card below or handed over by the Anomalies row menu.
+  const { commentDraft, startDraft } = useCommentDraftHandoff({ ready: detailReady && isEventScope })
+  // The flagged bucket the Signal card is about: the scope's latest signal.
+  const latestSignal = metrics?.latest_signal ?? null
   // A missing entity is not a failure to retry (SH-33): a deleted event or
   // metric, or a stale link, says so and offers the way back to its list.
   const notFound = scope === 'metric'
@@ -567,9 +574,13 @@ export default function MonitoringDetailPage() {
           onMarkVerified={canWrite && !event.reviewed && !markVerifiedMutation.isPending
             ? () => markVerifiedMutation.mutate()
             : undefined}
-          // The signal's incident carries Ack / Mute / Resolve; the signal
-          // payload names no incident id, so this is the inbox (MO-4 / JR-5).
-          alertsPath={slug ? getAlertingPath(slug) : undefined}
+          // The signal's incident carries Ack / Mute / Resolve (MO-4 / JR-5):
+          // its inbox item when the payload names it (#254), else the inbox.
+          alertsPath={slug
+            ? getAlertingPath(slug, {
+                incidentId: latestSignal?.incident?.id ?? latestSignal?.incident_id ?? null,
+              })
+            : undefined}
         />
       ) : (
         <MonitoringDetailHeader
@@ -586,6 +597,23 @@ export default function MonitoringDetailPage() {
           metricEditPath={metricEditPath}
           metricCollect={metricCollect}
           canWrite={canWrite}
+        />
+      )}
+
+      {/* The verdict on the flagged bucket, where it is investigated (#254). */}
+      {slug && latestSignal && (
+        <SignalVerdictCard
+          // Re-seeded when the bucket or its verdict changes underneath it.
+          key={[
+            latestSignal.bucket,
+            latestSignal.verdict?.verdict ?? '',
+            latestSignal.verdict?.created_at ?? '',
+            latestSignal.incident?.status ?? latestSignal.incident_status ?? '',
+          ].join('|')}
+          slug={slug}
+          signal={latestSignal}
+          canWrite={canWrite}
+          onOpenComment={isEventScope ? startDraft : undefined}
         />
       )}
 
@@ -801,7 +829,13 @@ export default function MonitoringDetailPage() {
       {scope === 'event' && scopeId && (
         // The hero's "Discussion" chip and the banner's "Discuss" scroll here.
         <div id="event-discussion" className="scroll-mt-4">
-          <EventDiscussion slug={slug!} eventId={scopeId} />
+          <EventDiscussion
+            // Remounted per hand-over: the composer reads its draft once.
+            key={commentDraft?.seq ?? 0}
+            slug={slug!}
+            eventId={scopeId}
+            initialBody={commentDraft?.text}
+          />
         </div>
       )}
     </PageContainer>

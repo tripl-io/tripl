@@ -16,6 +16,8 @@ import type {
   SignalSeriesScope,
   SignalTriageScope,
   SignalTriageState,
+  SignalVerdictCounts,
+  SignalVerdictRequest,
   TopEvent,
   TopMoverItem,
 } from '../types'
@@ -157,16 +159,20 @@ export const eventMetricsApi = {
   unmuteSignalScope: (slug: string, scope: SignalTriageScope) =>
     api.del<void>(`/projects/${slug}/anomalies/signals/mute?${triageQuery(scope, false)}`),
 
-  markSignalExpected: (slug: string, scope: SignalTriageScope, note: string | null) =>
-    api.post<SignalTriageState>(`/projects/${slug}/anomalies/signals/expected`, {
-      ...scope,
-      note,
-    }),
+  // --- Signal verdicts (#254) ------------------------------------------------
+  // Any signal, routed or not. On a routed one the server writes the verdict to
+  // its incident (false positive, acknowledged or resolved), which stays the
+  // source of truth. The DELETE clears the signal's own verdict and is
+  // idempotent.
 
-  unmarkSignalExpected: (slug: string, scope: SignalTriageScope) =>
-    api.del<void>(
-      `/projects/${slug}/anomalies/signals/expected?${triageQuery(scope, true)}`,
-    ),
+  setSignalVerdict: (slug: string, body: SignalVerdictRequest) =>
+    api.post<unknown>(`/projects/${slug}/signals/verdict`, body),
+
+  clearSignalVerdict: (slug: string, scope: SignalTriageScope) =>
+    api.del<void>(`/projects/${slug}/signals/verdict?${triageQuery(scope, true)}`),
+
+  getSignalVerdictCounts: (slug: string) =>
+    api.get<SignalVerdictCounts>(`/projects/${slug}/signals/verdict-counts`),
 
   getTopMovers: (
     slug: string,

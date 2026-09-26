@@ -2,11 +2,14 @@ import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
+from tripl.api.v1.alerting import incident_audit_name
 from tripl.models.domain_enums import MetricScopeType
 from tripl.models.event import EventStatus
+from tripl.models.user import User
 from tripl.schemas.event_metric import (
     ActiveSignalsQuery,
     AppVersionAdoptionResponse,
@@ -27,15 +30,20 @@ from tripl.schemas.event_metric import (
     SignalSeriesResponse,
     SignalTriageScope,
     SignalTriageState,
+    SignalVerdictCountsResponse,
+    SignalVerdictRequest,
+    SignalVerdictResponse,
     TopEventResponse,
     TopMoverItem,
 )
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
+    alerting_service,
     audit_service,
     metrics_insights_service,
     metrics_service,
     signal_triage_service,
+    signal_verdict_service,
 )
 
 router = APIRouter(tags=["metrics"])
@@ -216,6 +224,7 @@ async def get_active_signals(
     slug: str,
     event_ids: EventIds = None,
     expanded: bool = False,
+    needs_verdict: bool = False,
 ) -> list[MetricSignalResponse]:
     """Cacheable no-args variant. For filtering by a large event-id list
     (>>a few), prefer ``POST /anomalies/signals/query`` — GET's query-string
@@ -223,10 +232,14 @@ async def get_active_signals(
 
     ``expanded=true`` (the AnomaliesPage view) also surfaces per-event scopes
     and keeps each incident's child rows, tagged ``incident_child`` rather than
-    collapsed into the parent project_total signal."""
-    return await metrics_insights_service.get_active_signals(
+    collapsed into the parent project_total signal.
+
+    ``needs_verdict=true`` keeps only signals with no verdict that nothing
+    hides — the Anomalies page's default filter (F01, #254)."""
+    signals = await metrics_insights_service.get_active_signals(
         session, slug, event_ids=event_ids, expanded=expanded
     )
+    return metrics_insights_service.needing_verdict(signals) if needs_verdict else signals
 
 
 @router.post(
@@ -448,6 +461,158 @@ async def unmark_signal_expected(
         project=project,
         payload={"bucket": bucket.isoformat()},
     )
+
+
+# --- Signal verdicts (F01, #254) ----------------------------------------------
+# What a signal turned out to be, on every signal: one routed to an incident
+# writes through to the incident (the source of truth), see
+# ``signal_verdict_service``. POST answers with the signal's state as the lists
+# will show it; DELETE clears the verdict and is idempotent.
+
+
+async def _record_incident_move(
+    session: AsyncSession,
+    *,
+    user: User,
+    slug: str,
+    correlation_group_id: uuid.UUID,
+    action: str,
+    note: str | None,
+) -> None:
+    """The ``alert_inbox.<action>`` audit row for an incident a verdict moved.
+
+    A verdict on a routed signal writes through to its incident, so the move is
+    audited exactly as the same click in the inbox is (``api/v1/alerting.py``):
+    same action name, ``alert_correlation_group`` target, same target name,
+    plus ``source`` saying the signal verdict made it. Commits, together with
+    the ``signal.*`` row the caller filed before it.
+    """
+    try:
+        group = await alerting_service.get_alert_inbox_group(session, slug, correlation_group_id)
+    except HTTPException:
+        # The incident's deliveries are gone; name it by id, as the inbox does.
+        group = None
+    await audit_service.record(
+        session,
+        user=user,
+        action=f"alert_inbox.{action}",
+        target_type="alert_correlation_group",
+        target_id=correlation_group_id,
+        target_name=incident_audit_name(group, correlation_group_id),
+        project_slug=slug,
+        payload={
+            "action": action,
+            "note": note,
+            "muted_until": None,
+            "source": "signal_verdict",
+        },
+        commit=False,
+    )
+    await session.commit()
+
+
+@router.post("/projects/{slug}/signals/verdict", response_model=SignalVerdictResponse)
+async def set_signal_verdict(
+    session: SessionDep,
+    slug: str,
+    data: SignalVerdictRequest,
+    current_user: EditorUserDep,
+) -> SignalVerdictResponse:
+    user_id = current_user.id
+    result = await signal_verdict_service.set_verdict(session, slug, data, user_id=user_id)
+    # A repeat of the verdict on record changes nothing, so it is not audited.
+    if result.changed:
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="signal.verdict",
+            target_type="signal",
+            target_id=result.row_id,
+            target_name=_signal_audit_name(data.scope_type, data.scope_ref),
+            project=result.project,
+            payload={
+                "bucket": result.key[3].isoformat(),
+                "verdict": str(data.verdict),
+                "expected_reason": (
+                    str(data.expected_reason) if data.expected_reason is not None else None
+                ),
+                "note": data.note,
+                "previous": result.previous,
+                "incident_id": str(result.incident_id) if result.incident_id else None,
+            },
+            commit=result.incident_action is None,
+        )
+        if result.incident_id is not None and result.incident_action is not None:
+            await _record_incident_move(
+                session,
+                user=current_user,
+                slug=slug,
+                correlation_group_id=result.incident_id,
+                action=result.incident_action,
+                note=data.note,
+            )
+    return await signal_verdict_service.verdict_state(session, result.project_id, result.key)
+
+
+@router.delete("/projects/{slug}/signals/verdict", status_code=204)
+async def clear_signal_verdict(
+    session: SessionDep,
+    slug: str,
+    current_user: EditorUserDep,
+    scope_type: MetricScopeType,
+    scope_ref: ScopeRefParam,
+    bucket: datetime,
+    scan_config_id: ScanConfigParam = None,
+) -> None:
+    result = await signal_verdict_service.clear_verdict(
+        session,
+        slug,
+        scan_config_id=scan_config_id,
+        scope_type=scope_type,
+        scope_ref=scope_ref,
+        bucket=bucket,
+        user_id=current_user.id,
+    )
+    if not result.changed:
+        return
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="signal.clear_verdict",
+        target_type="signal",
+        target_id=result.row_id,
+        target_name=_signal_audit_name(scope_type, scope_ref),
+        project=result.project,
+        payload={
+            "bucket": bucket.isoformat(),
+            "previous": result.previous,
+            "reopened_incident_id": (
+                str(result.reopened_incident_id) if result.reopened_incident_id else None
+            ),
+        },
+        commit=result.reopened_incident_id is None,
+    )
+    if result.reopened_incident_id is not None:
+        await _record_incident_move(
+            session,
+            user=current_user,
+            slug=slug,
+            correlation_group_id=result.reopened_incident_id,
+            action="reopen",
+            note=None,
+        )
+
+
+@router.get(
+    "/projects/{slug}/signals/verdict-counts",
+    response_model=SignalVerdictCountsResponse,
+)
+async def get_signal_verdict_counts(
+    session: SessionDep,
+    slug: str,
+) -> SignalVerdictCountsResponse:
+    """Verdict tallies over the open signals (for the project health score)."""
+    return await metrics_insights_service.get_signal_verdict_counts(session, slug)
 
 
 @router.get(

@@ -522,7 +522,7 @@ async def list_alert_inbox(
 _AUDIT_TARGET_NAME_MAX = 255
 
 
-def _incident_audit_name(
+def incident_audit_name(
     group: AlertInboxGroupResponse | None, correlation_group_id: uuid.UUID
 ) -> str:
     """What the audit log calls the incident an ``alert_inbox.*`` row is about.
@@ -606,7 +606,7 @@ async def apply_alert_inbox_bulk_action(
             action=f"alert_inbox.{data.action}",
             target_type="alert_correlation_group",
             target_id=group_id,
-            target_name=_incident_audit_name(rebuilt_groups.get(group_id), group_id),
+            target_name=incident_audit_name(rebuilt_groups.get(group_id), group_id),
             project_slug=slug,
             payload={
                 **action_payload,
@@ -660,7 +660,7 @@ async def apply_alert_inbox_action(
         action=f"alert_inbox.{data.action}",
         target_type="alert_correlation_group",
         target_id=correlation_group_id,
-        target_name=_incident_audit_name(result.group, correlation_group_id),
+        target_name=incident_audit_name(result.group, correlation_group_id),
         project_slug=slug,
         payload=data.model_dump(),
     )

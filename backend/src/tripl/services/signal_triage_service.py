@@ -17,6 +17,12 @@ on — the collapsed signal list, the sidebar / Overview badge
 (``project_service._populate_monitoring_signals``) and, through the ``hidden``
 flag on the expanded list, the Overview headline, the bell and the Anomalies
 page default view.
+
+Verdicts (F01, #254) — ``expected``, ``tracking_bug``, ``false_positive``,
+``real_issue`` — reach every signal, routed or not; ``signal_verdict_service``
+writes them and ``_signal_verdict_read`` says how they read. This module
+attaches them to the lists (``verdict`` / ``incident`` on every signal) and
+keeps a verdicted signal out of the sidebar badge (``uncounted_signal_keys``).
 """
 
 from __future__ import annotations
@@ -48,6 +54,16 @@ from tripl.schemas.event_metric import (
     SignalTriageState,
 )
 from tripl.services import alerting_service
+from tripl.services._signal_verdict_read import (
+    VerdictRecord,
+    has_verdict,
+    incident_brief,
+    is_verdict_action,
+    load_user_names,
+    record_from_row,
+    record_prevails,
+    resolve_verdict,
+)
 from tripl.services.project_lookup import get_project_by_slug
 
 # The scopes the signal lists surface. Drift, schema and release-regression
@@ -82,6 +98,9 @@ def _as_utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
+as_utc = _as_utc
+
+
 def scope_key(scan_config_id: uuid.UUID | None, scope_type: str, scope_ref: str) -> ScopeKey:
     scope = str(scope_type)
     # A catalog metric is project-global whatever config a caller names.
@@ -107,9 +126,11 @@ class TriageIndex:
     expected: dict[SignalKey, _Expected] = field(default_factory=dict)
     # Only mutes still in force; value is ``muted_until`` (None = until unmuted).
     muted: dict[ScopeKey, datetime | None] = field(default_factory=dict)
+    # Every verdict row (``expected`` included), newest per signal.
+    verdicts: dict[SignalKey, VerdictRecord] = field(default_factory=dict)
 
     def __bool__(self) -> bool:
-        return bool(self.acknowledged or self.expected or self.muted)
+        return bool(self.acknowledged or self.expected or self.muted or self.verdicts)
 
     def state_for(self, key: SignalKey) -> SignalTriageState:
         scope = key[:3]
@@ -174,8 +195,27 @@ async def load_triage_indexes(
         key = signal_key(row.scan_config_id, row.scope_type, row.scope_ref, row.bucket)
         if action == SignalTriageAction.acknowledged.value:
             index.acknowledged[key] = _as_utc(row.created_at)
-        elif action == SignalTriageAction.expected.value:
+            continue
+        if action == SignalTriageAction.expected.value:
             index.expected[key] = _Expected(note=row.note)
+        if is_verdict_action(action):
+            set_at = row.updated_at or row.created_at
+            record = record_from_row(
+                action,
+                row.expected_reason,
+                row.note,
+                row.created_by_user_id,
+                _as_utc(set_at) if set_at is not None else None,
+            )
+            current = index.verdicts.get(key)
+            # One verdict per signal is the rule; should a race leave two, the
+            # newest decision is the one shown.
+            if (
+                current is None
+                or current.set_at is None
+                or (record.set_at is not None and record.set_at >= current.set_at)
+            ):
+                index.verdicts[key] = record
     return dict(indexes)
 
 
@@ -216,15 +256,19 @@ async def apply_triage(
     signals: list[MetricSignalResponse],
     *,
     drop_hidden: bool,
-    incidents_resolved: bool,
+    refs: Mapping[SignalKey, alerting_service.SignalIncidentRef] | None = None,
 ) -> list[MetricSignalResponse]:
-    """Copies of ``signals`` carrying their triage state.
+    """Copies of ``signals`` carrying their triage state, verdict and incident.
 
     ``drop_hidden`` removes muted / expected signals outright (the collapsed
     list); otherwise they stay, flagged ``hidden``, so the Anomalies page can
-    offer "Show hidden (n)". ``incidents_resolved`` says ``incident_id`` is
-    already filled (the expanded list); when it is not, the incident lookup is
-    run here, for the triaged signals only.
+    offer "Show hidden (n)". ``refs`` are the signals' incident refs when the
+    caller already looked them up (the expanded list); otherwise they are
+    looked up here, in one query for the whole list.
+
+    A signal routed to an incident takes no acknowledge / mute / expected
+    state (the inbox triages it) but does take a verdict — read off the
+    incident, refined by an agreeing verdict row (``_signal_verdict_read``).
 
     Runs after the signals cache on purpose, like the incident refs: a verdict
     must show on the next fetch, not 30 s later.
@@ -232,70 +276,89 @@ async def apply_triage(
     if not signals:
         return signals
     oldest = min(_as_utc(signal.bucket) for signal in signals)
-    index = (await load_triage_indexes(session, [project_id], min_bucket=oldest)).get(project_id)
-    if not index:
-        return signals
-
-    touched = [signal for signal in signals if index.touches(_signal_key_of(signal))]
-    if not touched:
-        return signals
-    routed: set[SignalKey] = set()
-    if incidents_resolved:
-        routed = {_signal_key_of(signal) for signal in touched if signal.incident_id is not None}
-    else:
+    index = (await load_triage_indexes(session, [project_id], min_bucket=oldest)).get(
+        project_id
+    ) or TriageIndex()
+    if refs is None:
         refs = await alerting_service.incident_refs_for_signals(
             session,
             project_id,
             (
                 (signal.scan_config_id, signal.scope_type, signal.scope_ref, signal.bucket)
-                for signal in touched
+                for signal in signals
             ),
         )
-        routed = {signal_key(*ref_key) for ref_key in refs}
+    if not index and not refs:
+        return signals
+    names = await load_user_names(
+        session,
+        [record.author_id for record in index.verdicts.values()]
+        + [ref.acted_by for ref in refs.values()],
+    )
 
     out: list[MetricSignalResponse] = []
     for signal in signals:
         key = _signal_key_of(signal)
-        if key in routed or not index.touches(key):
-            out.append(signal)
-            continue
-        state = index.state_for(key)
-        if drop_hidden and state.hidden:
-            continue
-        out.append(signal.model_copy(update=state.model_dump()))
+        ref = refs.get(key)
+        record = index.verdicts.get(key)
+        update: dict[str, object] = {}
+        # A verdict set before the signal was routed still reads as the
+        # signal's own while its incident is untouched (``record_prevails``),
+        # hiding included; the badge applies the same rule.
+        if (ref is None or record_prevails(record, ref)) and index.touches(key):
+            state = index.state_for(key)
+            if drop_hidden and state.hidden:
+                continue
+            update.update(state.model_dump())
+        verdict = resolve_verdict(record, ref, names)
+        if verdict is not None:
+            update["verdict"] = verdict
+        if ref is not None:
+            update["incident"] = incident_brief(ref)
+        out.append(signal.model_copy(update=update) if update else signal)
     return out
 
 
-async def hidden_signal_keys(
+async def uncounted_signal_keys(
     session: AsyncSession,
     candidates: Mapping[uuid.UUID, Iterable[SignalKey]],
 ) -> dict[uuid.UUID, set[SignalKey]]:
-    """Per project, which of ``candidates`` a verdict hides from every count.
+    """Per project, which of ``candidates`` the sidebar badge leaves out.
 
-    For the batched sidebar badge: one query for all projects' verdicts, then an
-    incident lookup only for projects that hide something, only for the signals
-    they hide — a signal routed to an incident is triaged in the inbox and
-    stays counted.
+    A signal is left out when a verdict hides it (muted, expected) or when it
+    has any verdict at all — its own row, or, for a signal routed to an
+    incident, the incident's status (F01, #254). A routed signal whose own row
+    was set before routing, on an incident nobody has acted on yet, reads as
+    unrouted (``_signal_verdict_read.record_prevails``), as it does in the
+    lists. ``acknowledged`` is not a
+    verdict and still counts. One query for every project's verdicts, then an
+    incident lookup per project with candidates.
     """
     by_project = {project_id: list(keys) for project_id, keys in candidates.items()}
     buckets = [key[3] for keys in by_project.values() for key in keys]
     if not buckets:
         return {}
     indexes = await load_triage_indexes(session, list(by_project), min_bucket=min(buckets))
-    hidden: dict[uuid.UUID, set[SignalKey]] = {}
+    uncounted: dict[uuid.UUID, set[SignalKey]] = {}
     for project_id, keys in by_project.items():
-        index = indexes.get(project_id)
-        if not index:
+        if not keys:
             continue
-        wanted = {key for key in keys if index.hides(key)}
-        if not wanted:
-            continue
-        refs = await alerting_service.incident_refs_for_signals(session, project_id, wanted)
-        routed = {signal_key(*ref_key) for ref_key in refs}
-        remaining = wanted - routed
-        if remaining:
-            hidden[project_id] = remaining
-    return hidden
+        index = indexes.get(project_id) or TriageIndex()
+        refs = await alerting_service.incident_refs_for_signals(session, project_id, keys)
+        left_out: set[SignalKey] = set()
+        for key in keys:
+            ref = refs.get(key)
+            record = index.verdicts.get(key)
+            # The lists' resolution exactly (``apply_triage``): a routed
+            # signal's own row counts only while it prevails over the incident.
+            if ref is None or record_prevails(record, ref):
+                if index.hides(key) or has_verdict(record, ref):
+                    left_out.add(key)
+            elif has_verdict(None, ref):
+                left_out.add(key)
+        if left_out:
+            uncounted[project_id] = left_out
+    return uncounted
 
 
 # --- writes -----------------------------------------------------------------
@@ -329,12 +392,25 @@ def _validate_scope_shape(scope_type: str, scan_config_id: uuid.UUID | None) -> 
 async def resolve_target(
     session: AsyncSession, slug: str, scope: SignalTriageScope
 ) -> TriageTarget:
-    """The signal a verdict is about — which must exist and not be an incident.
+    """The signal a triage action is about — which must exist and not be an incident.
 
     404 when the project has no anomaly for that scope and bucket (a verdict on
     a signal nobody can see would be invisible and un-undoable from the UI);
     409 when a rule routed it to an incident, whose triage is the inbox's.
     """
+    target, ref = await resolve_signal(session, slug, scope)
+    if ref is not None:
+        raise HTTPException(
+            409,
+            "This signal was routed to an incident; triage it in the alert inbox",
+        )
+    return target
+
+
+async def resolve_signal(
+    session: AsyncSession, slug: str, scope: SignalTriageScope
+) -> tuple[TriageTarget, alerting_service.SignalIncidentRef | None]:
+    """The signal ``scope`` names (404 if none) and the incident it was routed into."""
     project = await get_project_by_slug(session, slug)
     scope_type = str(scope.scope_type)
     _validate_scope_shape(scope_type, scope.scan_config_id)
@@ -363,12 +439,7 @@ async def resolve_target(
 
     key = signal_key(scope.scan_config_id, scope_type, scope.scope_ref, scope.bucket)
     refs = await alerting_service.incident_refs_for_signals(session, project.id, [key])
-    if refs:
-        raise HTTPException(
-            409,
-            "This signal was routed to an incident; triage it in the alert inbox",
-        )
-    return TriageTarget(
+    target = TriageTarget(
         project=project,
         project_id=project.id,
         project_slug=project.slug,
@@ -378,6 +449,7 @@ async def resolve_target(
         scan_config_id=key[0],
         bucket=key[3],
     )
+    return target, refs.get(key)
 
 
 def _scope_filter(

@@ -57,8 +57,9 @@ sidebar keeps the project and branch switchers, Project settings, Concepts and a
 account menu, with each icon named in a tooltip. Below 1024px the sidebar is a
 drawer opened from the top bar, and below 1600px the activity rail is too. Badge counts come from
 the cheap project summary: Events (active events), Event types, Variables,
-Anomalies (the open monitoring signals — the same number the Anomalies page
-shows — when any are open), and Alerting (open incidents, in solid red, when any
+Anomalies (the open monitoring signals that have no
+[verdict](./anomaly-detection.md#signal-verdicts) yet — the same number the
+Anomalies page's default **Needs verdict** view shows — when any are open), and Alerting (open incidents, in solid red, when any
 are open). The Plan counts describe main, so they are hidden while a branch is
 active. Meta fields, Relations, Metrics, Plan branches, Coverage, Scans, and
 Audit log carry no count.
@@ -1129,7 +1130,9 @@ bands), and **Breakdowns**. The page also surfaces top movers and release
 regressions, plus chart annotations on the Volume tab.
 On every volume and breakdown chart an anomaly is a triangle pointing the way
 it moved — up and red for a spike, down and amber for a drop (an outlined bar in
-bar style) — and its tooltip says so with the z-score. The time axis spans the
+bar style) — and its tooltip says so with the z-score, and with the signal's
+signal's [verdict](./anomaly-detection.md#signal-verdicts) when it has one —
+read from its incident when the signal was routed to one. The time axis spans the
 whole range you picked, so a series that began partway through starts partway
 along rather than at the left edge, and a count's confidence band stops at zero.
 The Volume chart draws the expected value and confidence band on every bucket
@@ -1440,10 +1443,53 @@ not have — a deleted scan, a stale bookmark, a hand-edited URL — degrades to
 **All scans** and shows the full list. Neither case ever swaps a different
 scan's anomalies in for the one you asked for. The
 sidebar and top-bar badge, the Overview **Open signals** stat, and this page all
-report the **same** number — open signals across every scope that clear the
-Significant threshold — so the badge agrees with the list rather than reading
-lower. Sensitivity is tuned in **Detection settings** (see
+report the **same** number — open signals without a verdict across every scope
+that clear the Significant threshold — so the badge agrees with the list rather
+than reading lower. Sensitivity is tuned in **Detection settings** (see
 [How anomaly detection works](./anomaly-detection.md)).
+
+**Verdicts.** Each row's **⋯** menu, and the signal card at the top of a
+drilldown, set a verdict on the signal: **Expected** (with a reason —
+**campaign**, **release**, **seasonality** or **other**), **Tracking bug**,
+**False positive** or **Real issue**, each with an optional note. The row shows
+its verdict label, with the note on hover; the drilldown's signal card adds who
+set it and when. Viewers see verdicts; editors set and clear them.
+
+- **Expected** documents the cause. It writes an *Expected* annotation on the
+  chart at that bucket and hides that one signal; it does not suppress later
+  buckets of the same scope.
+- **Tracking bug** — once an **event** signal carries it, the menu offers
+  **Open a comment on the event**, which opens the event's discussion with a
+  prefilled comment.
+- **False positive** tunes detection on that scope exactly like marking an
+  incident a false positive (see
+  [False positives self-tune the thresholds](./anomaly-detection.md#false-positives-self-tune-the-thresholds)).
+- **Real issue** records that the move is real.
+
+A routed signal's Anomalies row carries an **Incident** link; on the drilldown's
+signal card it shows the incident's status, and a signal that was not routed
+reads **Not routed** there. For a routed signal the
+**incident is the source of truth**: a verdict set on the signal changes the
+incident (false positive → `false_positive`; real issue or tracking bug →
+`acknowledged`; expected → `resolved`), and an incident status changed in the
+Inbox is what the signal shows. Clearing the verdict on a routed signal reopens
+its incident, so the UI asks for confirmation first. An Inbox action that moves
+the incident to a status a stored verdict no longer agrees with drops that
+verdict. A verdict set before the signal was routed carries over, and the new
+incident's status is left as it is. See
+[When the signal belongs to an incident](./anomaly-detection.md#verdict-and-incident).
+
+The page opens on the **Needs verdict** filter, which lists only signals
+without a verdict. The filter runs in the browser over the same signal list the
+page already loaded and lives in the URL: the default adds nothing,
+`?verdict=all` shows every signal, and `?verdict=<kind>` (for example
+`?verdict=tracking_bug`) shows one verdict. The API offers the same cut
+separately, as `GET /projects/{slug}/anomalies/signals?needs_verdict=true`.
+Counts apply the same **Significant** gate as the badge, so the filter and the
+badge agree. Acknowledging a signal is not a verdict, so an acknowledged signal
+stays in this view and in the badge. A verdict is recorded in the audit log as
+`signal.verdict`, and one on an event signal also appears in that event's
+history on its drilldown (not in the top-bar Activity feed).
 
 ### Chart annotations
 

@@ -8,8 +8,20 @@ import { eventCommentsKey } from '@/lib/queryKeys'
  * edit URL (EV-34), and the editor was the only place the thread was drawn, so
  * a viewer lost the one way to read it. Same thread and cache key as the edit
  * page; CommentThread hides the composer from anyone who cannot write.
+ *
+ * `initialBody` starts the composer with a draft — a tracking-bug verdict's
+ * "Open a comment on the event" (#254). The composer reads it once, at mount,
+ * so the caller remounts this (a new `key`) to hand over a new draft.
  */
-export function EventDiscussion({ slug, eventId }: { slug: string; eventId: string }) {
+export function EventDiscussion({
+  slug,
+  eventId,
+  initialBody,
+}: {
+  slug: string
+  eventId: string
+  initialBody?: string
+}) {
   const usersById = useUsersById()
   return (
     <CommentThread
@@ -24,6 +36,7 @@ export function EventDiscussion({ slug, eventId }: { slug: string; eventId: stri
       heading="Discussion"
       emptyText="Nothing raised yet. Questions and notes here stay out of the spec."
       composerId="event-detail-discussion-body"
+      initialBody={initialBody}
       className="flex flex-col rounded-card border bg-(--surface) p-4"
     />
   )

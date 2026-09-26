@@ -33,6 +33,69 @@ export interface EventMetricPoint {
    */
   baseline_expected?: number | null
   baseline_stddev?: number | null
+  /**
+   * The verdict on this bucket's signal, and the incident it was routed into
+   * (#254). Only a flagged bucket carries them; optional because a payload
+   * that predates verdicts, and every locally-built point, has neither.
+   */
+  verdict?: SignalVerdict | null
+  incident?: SignalIncidentRef | null
+}
+
+/**
+ * What a person decided a signal was (#254). `expected` keeps its older
+ * behaviour — a chart annotation on the bucket and the signal hidden — and
+ * its reason only documents it; `false_positive` tunes detection the way an
+ * incident's does; `tracking_bug` and `real_issue` record the finding.
+ */
+export type SignalVerdictKind = 'expected' | 'tracking_bug' | 'false_positive' | 'real_issue'
+
+/** Why an `expected` signal was expected; documents only, suppresses nothing. */
+export type SignalExpectedReason = 'campaign' | 'release' | 'seasonality' | 'other'
+
+/**
+ * A signal's verdict as the read payloads carry it. `source: 'incident'`
+ * means the signal belongs to an incident and the verdict shown is the
+ * incident's state: the incident is the source of truth, so the signal's own
+ * verdict cannot be cleared from here.
+ */
+export interface SignalVerdict {
+  verdict: SignalVerdictKind
+  expected_reason: SignalExpectedReason | null
+  note: string | null
+  // Null once the author's account is gone, and on an incident whose status
+  // was changed by the system.
+  author_name: string | null
+  // Null when the time the verdict was set is not known (an incident whose
+  // status change carries no timestamp).
+  created_at: string | null
+  source: 'signal' | 'incident'
+}
+
+/** The incident a signal was routed into, as the verdict payloads name it. */
+export interface SignalIncidentRef {
+  id: string
+  status: AlertInboxStatus
+}
+
+/** `POST /projects/{slug}/signals/verdict`: a verdict on one signal. */
+export interface SignalVerdictRequest {
+  scan_config_id: string | null
+  scope_type: MetricScopeType
+  scope_ref: string
+  bucket: string
+  verdict: SignalVerdictKind
+  expected_reason?: SignalExpectedReason | null
+  note?: string | null
+}
+
+/** `GET /projects/{slug}/signals/verdict-counts`, read by the health score (F15). */
+export interface SignalVerdictCounts {
+  needs_verdict: number
+  expected: number
+  tracking_bug: number
+  false_positive: number
+  real_issue: number
 }
 
 export interface TopEvent {
@@ -115,6 +178,12 @@ export interface MonitoringSignal {
   expected?: boolean
   expected_note?: string | null
   hidden?: boolean
+  // The verdict (#254) and the incident it belongs to. Unlike the triage
+  // fields above, a routed signal carries a verdict too: its incident's state,
+  // with `source: 'incident'`. A signal with a verdict leaves the open-signal
+  // counts; one without is what the "Needs verdict" filter lists.
+  verdict?: SignalVerdict | null
+  incident?: SignalIncidentRef | null
 }
 
 /** The scope a triage verdict is about, keyed like the signal (MO-4 / JR-5). */

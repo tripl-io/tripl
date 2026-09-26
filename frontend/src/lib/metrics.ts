@@ -243,6 +243,8 @@ export function aggregateMetricPoints(
           is_anomaly: strongestAnomaly !== undefined,
           anomaly_direction: strongestAnomaly?.anomaly_direction ?? null,
           z_score: strongestAnomaly?.z_score ?? null,
+          // The flagged source bucket's verdict (#254), for the marker tooltip.
+          verdict: strongestAnomaly?.verdict ?? undefined,
         }
       }
       const count = total
@@ -297,6 +299,9 @@ export function aggregateMetricPoints(
         is_anomaly: isAnomaly,
         anomaly_direction: anomalyDirection,
         z_score: zScore,
+        // A verdict answers the native bucket's signal; a rolled-up marker
+        // shows the strongest flagged source's, and only while it is flagged.
+        verdict: isAnomaly ? (strongestAnomaly?.verdict ?? undefined) : undefined,
       }
     })
 }

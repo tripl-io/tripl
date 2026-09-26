@@ -67,6 +67,7 @@ from tripl.semver import (
     APP_VERSION_OTHER_LABEL,
     order_versions,
 )
+from tripl.services import signal_verdict_service
 from tripl.services._branch_counterparts import main_counterparts, metrics_row_for
 from tripl.services.monitoring_utils import (
     classify_signal_state,
@@ -1126,7 +1127,7 @@ async def get_event_metrics(
     collection_timing = await _get_collection_timing(
         session, scan_config_id, interval=interval, scan_latest_bucket=scan_latest_bucket
     )
-    return await _build_metrics_response(
+    response = await _build_metrics_response(
         scope=SCOPE_EVENT,
         scan_config_id=scan_config_id,
         scope_ref=str(event.id),
@@ -1139,6 +1140,9 @@ async def get_event_metrics(
         recent_window=recent_window,
         scan_latest_bucket=scan_latest_bucket,
         collection_timing=collection_timing,
+    )
+    return await signal_verdict_service.with_chart_verdicts(
+        session, project.id, response, scope_type=SCOPE_EVENT, scope_ref=str(event.id)
     )
 
 
@@ -2567,7 +2571,7 @@ async def get_event_type_metrics(
     collection_timing = await _get_collection_timing(
         session, scan_config_id, interval=interval, scan_latest_bucket=scan_latest_bucket
     )
-    return await _build_metrics_response(
+    response = await _build_metrics_response(
         scope=SCOPE_EVENT_TYPE,
         scan_config_id=scan_config_id,
         scope_ref=str(event_type.id),
@@ -2580,6 +2584,9 @@ async def get_event_type_metrics(
         recent_window=recent_window,
         scan_latest_bucket=scan_latest_bucket,
         collection_timing=collection_timing,
+    )
+    return await signal_verdict_service.with_chart_verdicts(
+        session, project.id, response, scope_type=SCOPE_EVENT_TYPE, scope_ref=str(event_type.id)
     )
 
 
@@ -2641,7 +2648,7 @@ async def get_project_total_metrics(
         interval=config.interval,
         scan_latest_bucket=scan_latest_bucket,
     )
-    return await _build_metrics_response(
+    response = await _build_metrics_response(
         scope=SCOPE_PROJECT_TOTAL,
         scan_config_id=resolved_scan_config_id,
         scan_config_name=config.name,
@@ -2661,4 +2668,11 @@ async def get_project_total_metrics(
         recent_window=recent_window,
         scan_latest_bucket=scan_latest_bucket,
         collection_timing=collection_timing,
+    )
+    return await signal_verdict_service.with_chart_verdicts(
+        session,
+        project.id,
+        response,
+        scope_type=SCOPE_PROJECT_TOTAL,
+        scope_ref=str(resolved_scan_config_id),
     )

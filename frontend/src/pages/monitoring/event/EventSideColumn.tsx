@@ -10,7 +10,7 @@ import { ImplementationTicketRow } from '@/components/implementation-ticket-row'
 import { useActiveBranchId, useBranchLinkProps } from '@/hooks/useBranch'
 import { formatRelativeTime, formatTimestamp } from '@/lib/datetime'
 import { EVENT_STATUS_LABELS, type EventStatus } from '@/lib/eventStatus'
-import { historyFieldLabel } from '@/lib/eventHistory'
+import { historyFieldLabel, historyValueLabel } from '@/lib/eventHistory'
 import { resolveMetaFieldHref } from '@/lib/metaFields'
 import { getMonitoringPath } from '@/lib/monitoring'
 import type { Event as TEvent, EventType, MetaFieldDefinition } from '@/types'
@@ -249,7 +249,9 @@ export function EventSideColumn({
                   <span className={change.field.startsWith('field:') || change.field.startsWith('meta:') ? 'mono' : ''}>
                     {historyFieldLabel(change.field)}
                   </span>
-                  {change.new_value != null && <span className="text-fg-secondary"> → {change.new_value}</span>}
+                  {historyValueLabel(change.field, change.new_value) != null && (
+                    <span className="text-fg-secondary"> → {historyValueLabel(change.field, change.new_value)}</span>
+                  )}
                 </div>
                 <div className="mt-[2px] text-micro text-fg-tertiary">
                   {formatRelativeTime(change.created_at)}

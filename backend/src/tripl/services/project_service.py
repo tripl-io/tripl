@@ -490,10 +490,11 @@ async def _populate_monitoring_signals(
     #
     # Both halves drop signals a triage verdict hides (muted scope or marked
     # expected, MO-4 / JR-5), the same predicate the expanded list flags
-    # ``hidden`` and the Anomalies page's default view leaves out, so the badge
-    # keeps counting what the page shows.
+    # ``hidden``, and every signal that has a verdict — its own, or its
+    # incident's status (F01, #254) — the Anomalies page's default
+    # "Needs verdict" view, so the badge keeps counting what the page shows.
     metric_signals = await _active_metric_signals_by_project(session, project_ids)
-    metric_hidden = await signal_triage_service.hidden_signal_keys(
+    metric_hidden = await signal_triage_service.uncounted_signal_keys(
         session,
         {
             project_id: [
@@ -687,8 +688,8 @@ async def _populate_monitoring_signals(
         open_rows.append((project_id, scan_name, state, anomaly))
 
     # Triage runs over the open, significant rows only: one verdict query for
-    # every project, and an incident lookup only where something is hidden.
-    hidden_keys = await signal_triage_service.hidden_signal_keys(
+    # every project, and one incident lookup per project with open rows.
+    hidden_keys = await signal_triage_service.uncounted_signal_keys(
         session,
         {
             project_id: [

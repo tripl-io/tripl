@@ -7,20 +7,21 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text, UniqueC
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
-from tripl.models.domain_enums import MetricScopeType, SignalTriageAction
+from tripl.models.domain_enums import MetricScopeType, SignalExpectedReason, SignalTriageAction
 from tripl.models.enum_types import db_enum
 
 
 class SignalTriage(UUIDMixin, TimestampMixin, Base):
-    """A user's verdict on an open signal that was NOT routed to an incident.
+    """A user's triage of an open signal (MO-4 / JR-5, F01 #254).
 
-    Signals a rule delivered are triaged in the alert inbox; this table covers
-    the rest, the ones that would otherwise be a dead end on the Anomalies page
-    (MO-4 / JR-5).
+    ``acknowledged`` / ``muted`` apply only to signals NOT routed to an
+    incident. The verdicts (``expected``, ``tracking_bug``, ``false_positive``,
+    ``real_issue``) apply to every signal; on a routed one the incident stays
+    the source of truth and the row only refines what its status means.
 
     Keyed the way a signal keys itself — ``(scan_config_id, scope_type,
     scope_ref)`` like ``MetricAnomaly``, with a NULL ``scan_config_id`` for
-    project-global ``metric`` scopes. ``acknowledged`` and ``expected`` rows also
+    project-global ``metric`` scopes. ``acknowledged`` and the verdict rows also
     carry the ``bucket`` of the one signal they answer; a ``muted`` row carries
     no bucket because it hides every signal on the scope until ``muted_until``
     (NULL = until someone unmutes it). The check constraint pins that pairing.
@@ -95,8 +96,14 @@ class SignalTriage(UUIDMixin, TimestampMixin, Base):
     bucket: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
     # ``muted`` only: when the mute lapses. NULL means until unmuted.
     muted_until: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
-    # ``expected`` only: the optional note, also written to the chart annotation.
+    # Verdict rows only: the optional free-text note. On ``expected`` it is also
+    # written to the chart annotation.
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ``expected`` only: why (campaign / release / seasonality / other). NULL on
+    # every other action and on an ``expected`` given without a reason.
+    expected_reason: Mapped[str | None] = mapped_column(
+        db_enum(SignalExpectedReason, "signal_expected_reason"), nullable=True
+    )
     # ``expected`` only: the chart annotation the verdict wrote, so undoing the
     # verdict can take its marker off the chart too.
     annotation_id: Mapped[uuid.UUID | None] = mapped_column(

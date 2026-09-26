@@ -164,6 +164,7 @@ describe('query key values (SHELL-50)', () => {
     [keys.eventWindowMetricsKey('demo', ['e-1', 'e-2']), ['eventWindowMetrics', 'demo', 'e-1,e-2']],
     [keys.expandedSignalsKey('demo'), ['activeSignals', 'demo', 'expanded']],
     [keys.eventsTabSignalsKey('demo'), ['activeSignals', 'demo', 'tabs']],
+    [keys.signalVerdictCountsKey('demo'), ['activeSignals', 'demo', 'verdictCounts']],
     [keys.eventRowSignalsKey('demo', ['e-1', 'e-2']), ['activeSignals', 'demo', 'rows', 'e-1,e-2']],
     [keys.eventTypeDriftsKey('demo', 'et-1'), ['eventTypeDrifts', 'demo', 'et-1']],
     [keys.eventTypeOwnersKey('demo', 'et-1'), ['eventTypeOwners', 'demo', 'et-1']],

@@ -934,6 +934,9 @@ export interface paths {
          *     ``expanded=true`` (the AnomaliesPage view) also surfaces per-event scopes
          *     and keeps each incident's child rows, tagged ``incident_child`` rather than
          *     collapsed into the parent project_total signal.
+         *
+         *     ``needs_verdict=true`` keeps only signals with no verdict that nothing
+         *     hides — the Anomalies page's default filter (F01, #254).
          */
         get: operations["get_active_signals_api_v1_projects__slug__anomalies_signals_get"];
         put?: never;
@@ -3345,6 +3348,44 @@ export interface paths {
         put?: never;
         /** Reindex Project Search */
         post: operations["reindex_project_search_api_v1_projects__slug__search_reindex_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/signals/verdict": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set Signal Verdict */
+        post: operations["set_signal_verdict_api_v1_projects__slug__signals_verdict_post"];
+        /** Clear Signal Verdict */
+        delete: operations["clear_signal_verdict_api_v1_projects__slug__signals_verdict_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/signals/verdict-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Signal Verdict Counts
+         * @description Verdict tallies over the open signals (for the project health score).
+         */
+        get: operations["get_signal_verdict_counts_api_v1_projects__slug__signals_verdict_counts_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6825,6 +6866,7 @@ export interface components {
             is_anomaly: boolean;
             /** Stddev */
             stddev?: number | null;
+            verdict?: components["schemas"]["SignalVerdictInfo"] | null;
             /** Z Score */
             z_score?: number | null;
         };
@@ -8737,6 +8779,7 @@ export interface components {
             stddev?: number | null;
             /** Value */
             value: number;
+            verdict?: components["schemas"]["SignalVerdictInfo"] | null;
             /** Z Score */
             z_score?: number | null;
         };
@@ -8798,6 +8841,7 @@ export interface components {
              * @default false
              */
             hidden: boolean;
+            incident?: components["schemas"]["SignalIncidentBrief"] | null;
             /**
              * Incident Child
              * @default false
@@ -8828,6 +8872,7 @@ export interface components {
             stddev: number;
             /** Unit */
             unit?: string | null;
+            verdict?: components["schemas"]["SignalVerdictInfo"] | null;
             /** Z Score */
             z_score: number;
         };
@@ -11473,6 +11518,13 @@ export interface components {
          * @enum {string}
          */
         ShadowEventStatus: "new" | "accepted" | "dismissed";
+        /**
+         * SignalExpectedReason
+         * @description Why an ``expected`` signal was expected. Documents only; it does not
+         *     suppress later buckets.
+         * @enum {string}
+         */
+        SignalExpectedReason: "campaign" | "release" | "seasonality" | "other";
         /** SignalExpectedRequest */
         SignalExpectedRequest: {
             /**
@@ -11487,6 +11539,18 @@ export interface components {
             /** Scope Ref */
             scope_ref: string;
             scope_type: components["schemas"]["MetricScopeType"];
+        };
+        /**
+         * SignalIncidentBrief
+         * @description The inbox incident a signal was routed into, for a status chip + link.
+         */
+        SignalIncidentBrief: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["AlertInboxStatus"];
         };
         /** SignalMuteRequest */
         SignalMuteRequest: {
@@ -11604,6 +11668,127 @@ export interface components {
             muted: boolean;
             /** Muted Until */
             muted_until?: string | null;
+        };
+        /**
+         * SignalVerdict
+         * @description The verdict half of ``SignalTriageAction``: what a signal turned out to be.
+         * @enum {string}
+         */
+        SignalVerdict: "expected" | "tracking_bug" | "false_positive" | "real_issue";
+        /**
+         * SignalVerdictCountsResponse
+         * @description Verdicts over the project's open signals (the expanded Anomalies list).
+         *
+         *     ``needs_verdict`` counts signals with no verdict that no mute or
+         *     ``expected`` hides; the other four count signals by verdict, whether the
+         *     signal's own row or its incident's status supplied it (F15 health score).
+         */
+        SignalVerdictCountsResponse: {
+            /**
+             * Expected
+             * @default 0
+             */
+            expected: number;
+            /**
+             * False Positive
+             * @default 0
+             */
+            false_positive: number;
+            /**
+             * Needs Verdict
+             * @default 0
+             */
+            needs_verdict: number;
+            /**
+             * Real Issue
+             * @default 0
+             */
+            real_issue: number;
+            /**
+             * Tracking Bug
+             * @default 0
+             */
+            tracking_bug: number;
+        };
+        /**
+         * SignalVerdictInfo
+         * @description What a signal turned out to be (F01, #254).
+         *
+         *     ``source`` is ``signal`` when the signal's own verdict row supplies it and
+         *     ``incident`` when it is read off the status of the incident the signal was
+         *     routed into (the incident is the source of truth): acknowledged reads as
+         *     ``real_issue``, resolved as ``expected``, false_positive as
+         *     ``false_positive``. A signal verdict row consistent with the incident's
+         *     status refines that reading (``tracking_bug`` on an acknowledged incident,
+         *     a reason on an expected one) and wins; one the incident has since moved
+         *     away from is ignored.
+         */
+        SignalVerdictInfo: {
+            /** Author Name */
+            author_name?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            expected_reason?: components["schemas"]["SignalExpectedReason"] | null;
+            /** Note */
+            note?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "signal" | "incident";
+            verdict: components["schemas"]["SignalVerdict"];
+        };
+        /**
+         * SignalVerdictRequest
+         * @description ``POST /projects/{slug}/signals/verdict`` (F01, #254).
+         *
+         *     ``expected_reason`` belongs to ``expected`` only. ``note`` is free text on
+         *     every verdict; on ``expected`` it is also the chart annotation's text.
+         */
+        SignalVerdictRequest: {
+            /**
+             * Bucket
+             * Format: date-time
+             */
+            bucket: string;
+            expected_reason?: components["schemas"]["SignalExpectedReason"] | null;
+            /** Note */
+            note?: string | null;
+            /** Scan Config Id */
+            scan_config_id?: string | null;
+            /** Scope Ref */
+            scope_ref: string;
+            scope_type: components["schemas"]["MetricScopeType"];
+            verdict: components["schemas"]["SignalVerdict"];
+        };
+        /**
+         * SignalVerdictResponse
+         * @description The signal's triage fields, verdict and incident after a verdict write.
+         */
+        SignalVerdictResponse: {
+            /** Acknowledged At */
+            acknowledged_at?: string | null;
+            /**
+             * Expected
+             * @default false
+             */
+            expected: boolean;
+            /** Expected Note */
+            expected_note?: string | null;
+            /**
+             * Hidden
+             * @default false
+             */
+            hidden: boolean;
+            incident?: components["schemas"]["SignalIncidentBrief"] | null;
+            /**
+             * Muted
+             * @default false
+             */
+            muted: boolean;
+            /** Muted Until */
+            muted_until?: string | null;
+            verdict?: components["schemas"]["SignalVerdictInfo"] | null;
         };
         /**
          * SimulatedRuleFiring
@@ -14290,6 +14475,7 @@ export interface operations {
             query?: {
                 event_id?: string[] | null;
                 expanded?: boolean;
+                needs_verdict?: boolean;
             };
             header?: never;
             path: {
@@ -19979,6 +20165,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchReindexResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_signal_verdict_api_v1_projects__slug__signals_verdict_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignalVerdictRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalVerdictResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_signal_verdict_api_v1_projects__slug__signals_verdict_delete: {
+        parameters: {
+            query: {
+                scope_type: components["schemas"]["MetricScopeType"];
+                scope_ref: string;
+                bucket: string;
+                scan_config_id?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signal_verdict_counts_api_v1_projects__slug__signals_verdict_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignalVerdictCountsResponse"];
                 };
             };
             /** @description Validation Error */

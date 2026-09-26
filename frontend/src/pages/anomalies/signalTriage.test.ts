@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { MonitoringSignal } from '@/types'
+import type { MonitoringSignal, SignalVerdict } from '@/types'
 import {
   MUTE_OPTIONS,
+  canClearVerdict,
+  canSetVerdict,
   canTriageSignal,
   countHiddenSignals,
   triageScopeOf,
@@ -59,6 +61,45 @@ describe('signal triage helpers (MO-4 / JR-5)', () => {
     expect(
       triageStatusLabel(signal({ expected: true, muted: true, acknowledged_at: 'x' })),
     ).toBe('Expected')
+  })
+
+  it('offers a verdict on routed and unrouted signals alike (#254)', () => {
+    expect(canSetVerdict(signal())).toBe(true)
+    expect(canSetVerdict(signal({ incident: { id: 'group-1', status: 'open' } }))).toBe(true)
+    expect(canTriageSignal(signal({ incident: { id: 'group-1', status: 'open' } }))).toBe(false)
+    expect(canSetVerdict(signal({ scope_type: 'schema' }))).toBe(false)
+  })
+
+  it('clears only a verdict the signal itself carries, not its incident\'s', () => {
+    const verdict: SignalVerdict = {
+      verdict: 'real_issue',
+      expected_reason: null,
+      note: null,
+      author_name: 'Ann',
+      created_at: '2026-09-25T19:00:00Z',
+      source: 'signal',
+    }
+    expect(canClearVerdict(signal())).toBe(false)
+    expect(canClearVerdict(signal({ verdict }))).toBe(true)
+    expect(canClearVerdict(signal({ verdict: { ...verdict, source: 'incident' } }))).toBe(false)
+  })
+
+  it('names a recorded verdict ahead of the older triage states', () => {
+    expect(
+      triageStatusLabel(
+        signal({
+          expected: true,
+          verdict: {
+            verdict: 'expected',
+            expected_reason: 'release',
+            note: null,
+            author_name: null,
+            created_at: '2026-09-25T19:00:00Z',
+            source: 'signal',
+          },
+        }),
+      ),
+    ).toBe('Expected · release')
   })
 
   it('counts only hidden signals', () => {

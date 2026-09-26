@@ -548,6 +548,10 @@ export const expandedSignalsKey = (slug: string | undefined) =>
   [...activeSignalsKey(slug), 'expanded'] as const
 export const eventsTabSignalsKey = (slug: string | undefined) =>
   [...activeSignalsKey(slug), 'tabs'] as const
+/** Verdict counts per project (#254, read by the health score); under the
+ * signals family, so a verdict or a signals.updated refreshes it with the lists. */
+export const signalVerdictCountsKey = (slug: string | undefined) =>
+  [...activeSignalsKey(slug), 'verdictCounts'] as const
 export const eventRowSignalsKey = (slug: string | undefined, bucketIds: readonly string[]) =>
   [...activeSignalsKey(slug), 'rows', bucketIds.join(',')] as const
 /** Anomalies row sparklines (MO-19): a signals invalidation refreshes them too. */

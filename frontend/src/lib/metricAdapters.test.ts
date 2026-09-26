@@ -149,6 +149,24 @@ describe('metricSignalToMonitoringSignal', () => {
     expect(signal).toMatchObject({ unit: '%', detected_at: '2026-06-10T01:05:00Z' })
   })
 
+  it('carries the verdict and incident a payload names (#254)', () => {
+    const verdict = {
+      verdict: 'false_positive',
+      expected_reason: null,
+      note: null,
+      author_name: 'Ann',
+      created_at: '2026-06-10T02:00:00Z',
+      source: 'incident',
+    }
+    const signal = metricSignalToMonitoringSignal({
+      ...base,
+      verdict,
+      incident: { id: 'group-1', status: 'false_positive' },
+    } as MetricSignalResponse)
+    expect(signal.verdict).toEqual(verdict)
+    expect(signal.incident).toEqual({ id: 'group-1', status: 'false_positive' })
+  })
+
   it('says null for a field the payload left out, never undefined', () => {
     const signal = metricSignalToMonitoringSignal(base)
     expect(signal.unit).toBeNull()

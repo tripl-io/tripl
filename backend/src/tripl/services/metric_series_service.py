@@ -70,6 +70,7 @@ from tripl.semver import (
     APP_VERSION_OTHER_LABEL,
     order_versions,
 )
+from tripl.services import signal_verdict_service
 from tripl.services.metrics_service import (
     _FORECAST_MAX_POINTS,
     _apply_scope_sigma_override,
@@ -542,7 +543,7 @@ async def get_metric_series(
         anomalies=anomalies,
         count_shaped=is_count_shaped(metric),
     )
-    return MetricSeriesResponse(
+    response = MetricSeriesResponse(
         metric_id=metric.id,
         scan_config_id=scan_config_id,
         interval=interval,
@@ -571,6 +572,8 @@ async def get_metric_series(
         data=data,
         forecast=await _forecast_off_event_loop(data=data, interval=interval),
     )
+    # Verdicts ride along for the chart markers and the signal card (F01, #254).
+    return await signal_verdict_service.with_metric_series_verdicts(session, project.id, response)
 
 
 async def _load_breakdown_value_rows(

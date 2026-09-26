@@ -137,6 +137,10 @@ async def _seed(client: AsyncClient, slug: str = "triage") -> _Seeded:
     return _Seeded(slug, scan_config_id, event_type_id)
 
 
+def _open_incident() -> alerting_service.SignalIncidentRef:
+    return alerting_service.SignalIncidentRef(correlation_group_id=uuid.uuid4(), status="open")
+
+
 async def _badge(client: AsyncClient, slug: str) -> int:
     resp = await client.get(f"/api/v1/projects/{slug}")
     assert resp.status_code == 200, resp.text
@@ -210,7 +214,8 @@ async def test_signal_routed_to_an_incident_is_refused(
     seeded = await _seed(client)
 
     async def _routed(_session: object, _project_id: object, keys: Any) -> dict[Any, Any]:
-        return {key: object() for key in keys}
+        # An open incident: it carries no verdict (F01), so the signal stays counted.
+        return {key: _open_incident() for key in keys}
 
     monkeypatch.setattr(alerting_service, "incident_refs_for_signals", _routed)
     resp = await client.post(f"{seeded.base}/expected", json=seeded.event_type_scope())
@@ -395,7 +400,8 @@ async def test_verdict_on_a_signal_later_routed_stays_counted(
     assert await _badge(client, seeded.slug) == 1
 
     async def _routed(_session: object, _project_id: object, keys: Any) -> dict[Any, Any]:
-        return {key: object() for key in keys}
+        # An open incident: it carries no verdict (F01), so the signal stays counted.
+        return {key: _open_incident() for key in keys}
 
     monkeypatch.setattr(alerting_service, "incident_refs_for_signals", _routed)
     from tripl import cache
@@ -526,11 +532,11 @@ async def test_a_mute_carries_no_bucket(client: AsyncClient) -> None:
         )
 
 
-async def test_hidden_signal_keys_skips_projects_without_verdicts(client: AsyncClient) -> None:
+async def test_uncounted_signal_keys_is_empty_without_verdicts(client: AsyncClient) -> None:
     seeded = await _seed(client)
     project_id = await _project_id(seeded.slug)
     key = signal_triage_service.signal_key(
         uuid.UUID(seeded.scan_config_id), "event_type", seeded.event_type_id, _BUCKET
     )
     async with TestSessionLocal() as session:
-        assert await signal_triage_service.hidden_signal_keys(session, {project_id: [key]}) == {}
+        assert await signal_triage_service.uncounted_signal_keys(session, {project_id: [key]}) == {}
