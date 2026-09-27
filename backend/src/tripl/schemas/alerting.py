@@ -108,6 +108,7 @@ class AlertRuleBase(BaseModel):
     include_release_regressions: bool | None = None
     include_metrics: bool | None = None
     include_source_freshness: bool | None = None
+    include_lifecycle: bool | None = None
     notify_on_spike: bool | None = None
     notify_on_drop: bool | None = None
     ai_explanation_enabled: bool | None = None
@@ -169,6 +170,9 @@ class AlertRuleCreate(AlertRuleBase):
     include_metrics: bool = False
     # Opt-in to "data is late" alerts: one per late/overdue scan config.
     include_source_freshness: bool = False
+    # Opt-in to event lifecycle findings (GH #258): sunset overdue and
+    # silent successor, one alert per open finding.
+    include_lifecycle: bool = False
     notify_on_spike: bool = True
     notify_on_drop: bool = True
     ai_explanation_enabled: bool = False
@@ -246,6 +250,7 @@ _RULE_NOT_NULLABLE_ON_UPDATE = frozenset(
         "include_release_regressions",
         "include_metrics",
         "include_source_freshness",
+        "include_lifecycle",
         "notify_on_spike",
         "notify_on_drop",
         "ai_explanation_enabled",
@@ -284,6 +289,7 @@ class AlertRuleResponse(BaseModel):
     include_release_regressions: bool
     include_metrics: bool
     include_source_freshness: bool
+    include_lifecycle: bool
     notify_on_spike: bool
     notify_on_drop: bool
     ai_explanation_enabled: bool
@@ -1846,6 +1852,7 @@ class MonitorDetailResponse(MonitorSummaryItem):
     include_release_regressions: bool
     include_metrics: bool
     include_source_freshness: bool
+    include_lifecycle: bool
     # Quick fired-history stats for the detail header (full history comes from
     # GET /alert-deliveries?rule_id=...). The same three numbers
     # ``AlertRuleResponse`` carries for this rule, under the same names and — see

@@ -24,6 +24,7 @@ from tripl.api.v1.implementation_tickets import (
     event_router as event_implementation_tickets_router,
 )
 from tripl.api.v1.implementation_tickets import router as implementation_tickets_router
+from tripl.api.v1.lifecycle import router as lifecycle_router
 from tripl.api.v1.meta_fields import router as meta_fields_router
 from tripl.api.v1.metrics import router as metrics_router
 from tripl.api.v1.metrics_catalog import router as metrics_catalog_router
@@ -69,6 +70,7 @@ router.include_router(meta_fields_router, dependencies=protected_dependencies)
 # by the SSE route and not captured by `/projects/{slug}/events/{event_id}`.
 router.include_router(events_stream_router, dependencies=protected_dependencies)
 router.include_router(events_router, dependencies=protected_dependencies)
+router.include_router(lifecycle_router, dependencies=protected_dependencies)
 router.include_router(event_photos_router, dependencies=protected_dependencies)
 router.include_router(event_comments_router, dependencies=protected_dependencies)
 router.include_router(variables_router, dependencies=protected_dependencies)

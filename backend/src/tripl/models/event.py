@@ -104,9 +104,11 @@ class Event(UUIDMixin, TimestampMixin, Base):
         nullable=False,
     )
     sunset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # The event that replaced this one — documentation, and only that. No
-    # matcher reads it, no collector, no coverage counting; retiring an event
-    # answers "what should I send instead?" and nothing else changes.
+    # The event that replaced this one. No matcher reads it, no collector, no
+    # coverage counting; retiring an event answers "what should I send
+    # instead?". The one reader is the lifecycle watch (#258): the daily
+    # ``successor_silent`` finding and the migration progress
+    # (``GET .../events/{id}/migration``) compare the two events' volume.
     #
     # SET NULL for the reason ``owner_id`` chose it: deleting the successor
     # must not delete its predecessor, and a cleared pointer beats a dangling
@@ -134,6 +136,13 @@ class Event(UUIDMixin, TimestampMixin, Base):
     # copy with its base row, and the merge sees main's deletion as main's.
     origin_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The earliest metric bucket that counted this event (#258). Stamped by the
+    # metrics worker (``metrics.collect._bump_event_last_seen``) and only ever
+    # moved EARLIER, so a replay of an older window corrects it and a fresh
+    # collection never rewrites it; backfilled by migration d5f7b9c1e3a8. Scans
+    # only see main, so a branch copy keeps NULL and reads its main twin's
+    # value (``event_service._attach_first_seen``).
+    first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     metric_breakdown_columns: Mapped[list[str]] = mapped_column(
         JSON,
         default=list,

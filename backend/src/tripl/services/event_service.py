@@ -10,6 +10,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, noload
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.sql.elements import ColumnElement
 
 from tripl import cache
@@ -22,7 +23,12 @@ from tripl.core.name_template import (
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
 from tripl.models.event import Event, EventStatus
-from tripl.models.event_change import EventChange, create_event_change
+from tripl.models.event_change import (
+    EVENT_CHANGE_SOURCE_SCAN,
+    SCAN_AUTHOR_LABEL,
+    EventChange,
+    create_event_change,
+)
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
 from tripl.models.event_metric import EventMetric
@@ -53,6 +59,7 @@ from tripl.services.event_comment_service import (
     events_with_open_questions,
     open_question_counts,
 )
+from tripl.services.lifecycle_service import attach_event_findings, attach_list_warnings
 from tripl.services.plan_branch_service import ensure_main_branch_id, resolve_branch_id
 from tripl.services.project_service import get_project_id_by_slug
 from tripl.services.scan_config_lookup import (
@@ -932,6 +939,7 @@ async def list_events(
 
     await attach_event_field_variable_values(session, events)
     await attach_main_last_seen(session, project_id=project_id, events=events)
+    await attach_list_warnings(session, project_id=project_id, events=events)
     return events, total
 
 
@@ -1034,6 +1042,7 @@ async def get_event(
     await attach_event_field_variable_values(session, [event])
     await attach_main_last_seen(session, project_id=project_id, events=[event])
     await _attach_first_seen(session, project_id=project_id, event=event)
+    await attach_event_findings(session, project_id=project_id, event=event)
     return event
 
 
@@ -1041,16 +1050,24 @@ async def _attach_first_seen(session: AsyncSession, *, project_id: uuid.UUID, ev
     """``first_seen_at``: the oldest bucket that counted this event (tripl-kjhi.10).
 
     Metrics are keyed on the main row, so a branch copy reads its twin's — the
-    same twin ``last_seen_at`` comes from. Only the single-event read pays for
-    this: one aggregate over the event's own metric rows.
+    same twin ``last_seen_at`` comes from. The worker stamps the column since
+    #258 (and the migration backfilled it); the aggregate over the event's own
+    metric rows remains the fallback for a row it has not stamped yet.
+
+    Set as a COMMITTED value, like ``attach_main_last_seen``: ``first_seen_at``
+    is a real column now, and a plain assignment would ride the next flush of a
+    write path that loads its row through here into the database.
     """
     row = await metrics_row_for(session, project_id=project_id, event=event)
-    first_seen = await session.scalar(
-        select(func.min(EventMetric.bucket)).where(
-            EventMetric.event_id == row.id, EventMetric.count > 0
+    first_seen = row.first_seen_at
+    if first_seen is None:
+        first_seen = await session.scalar(
+            select(func.min(EventMetric.bucket)).where(
+                EventMetric.event_id == row.id, EventMetric.count > 0
+            )
         )
-    )
-    event.first_seen_at = first_seen  # type: ignore[attr-defined]
+    if first_seen != event.first_seen_at:
+        set_committed_value(event, "first_seen_at", first_seen)
     # The same twin, named: a branch page's "View main plan" opens this event on
     # main instead of main's event list (EVT-42). None on main and for an event
     # created on the branch that main has no counterpart of.
@@ -2396,6 +2413,12 @@ async def get_event_history(
                 "event_id": change.event_id,
                 "user_id": change.user_id,
                 "user_email": user_email,
+                # Written by the scan (#258): read off ``source``, never off
+                # ``user_id IS NULL`` — a status edit whose author was later
+                # deleted (``user_id`` SET NULL) is still a person's.
+                "author_label": (
+                    SCAN_AUTHOR_LABEL if change.source == EVENT_CHANGE_SOURCE_SCAN else None
+                ),
                 "field": change.field,
                 "old_value": change.old_value,
                 "new_value": change.new_value,

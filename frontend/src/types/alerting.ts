@@ -37,6 +37,9 @@ export interface AlertRule {
   include_metrics: boolean
   // "Data is late" alerts: one per late/overdue scan (F16, #269).
   include_source_freshness: boolean
+  // Lifecycle alerts: one per open sunset-watch finding (#258). Optional: a
+  // server that predates the flag omits it, which reads as off.
+  include_lifecycle?: boolean
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
@@ -619,6 +622,9 @@ export interface MonitorDetail extends MonitorSummaryItem {
   include_metrics: boolean
   // "Data is late" alerts: one per late/overdue scan (F16, #269).
   include_source_freshness: boolean
+  // Lifecycle alerts: one per open sunset-watch finding (#258). Optional: a
+  // server that predates the flag omits it, which reads as off.
+  include_lifecycle?: boolean
   // Quick fired-history stats (full history via GET /alert-deliveries?rule_id=).
   total_deliveries: number
   last_delivery_at: string | null

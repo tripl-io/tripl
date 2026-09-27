@@ -198,6 +198,40 @@ value twice. A column stored back when the picker still offered it is left
 alone — it stays in the list so you can remove it, and collection skips it
 either way.
 
+#### Going live on its own {#going-live}
+
+The last lifecycle step is not a click. The first scan that sees an event with
+volume moves it from `ready_for_dev` or `implemented` to `live`; a `draft` or
+`in_review` event stays where it is, so stray traffic never promotes an event
+nobody has signed off on. Three things happen with that step:
+
+- **`first_seen_at` is recorded, once.** The event carries the moment a scan
+  first observed it with volume. It is set on the first sighting and never moved
+  afterwards, whatever the event's status does later. Events that already had
+  volume when the field was introduced were backfilled from their earliest
+  bucket with a non-zero count; an event that has never had volume reads `null`.
+- **Required fields must be filled.** An event is promoted only when every field
+  its event type marks **required** has a non-empty value on the event. An event
+  with a required field left blank keeps its status even while traffic arrives —
+  the data proves the event is sent, not that its spec is complete. Fill the
+  field and the next scan that sees volume promotes it. This is a change in
+  behaviour: earlier releases promoted on volume alone, so an event that used to
+  go live with a blank required field now waits until the field is filled.
+- **The step is written down.** The event's history gets a `status` row, and the
+  project's activity rail an entry, both attributed to **tripl (scan)** rather
+  than to a person. The attribution comes from the change being recorded as made
+  by a scan, not from it lacking a user. When the event is covered by an
+  [implementation ticket](#implementation-tracker), tripl comments on that
+  ticket — *Seen in production data at &lt;time&gt;; marked live.* — in Jira or
+  Linear, whichever tracker opened it. The comment is best-effort: a tracker that
+  refuses it never holds back the status change.
+
+**An automatic transition is a data fact, not a plan edit.** It applies to
+`main` only, and it bypasses the branch rules — merge policy, required
+approvals, event-type owner gates — that govern a person's edit, because what it
+records is that the data arrived, and no review can make that untrue. A branch
+copy of an event is never promoted by a scan.
+
 #### Retiring an event
 
 Setting the status to `deprecated` reveals two fields that together answer what a
@@ -211,7 +245,10 @@ truncating. An event cannot replace itself.
 **Replaced by is documentation and nothing else.** No scan matches through it, no
 collection follows it, and no coverage or metric counts the successor's traffic
 towards the retired event. It exists so the catalog answers the question a
-sunset date raises and does not answer.
+sunset date raises and does not answer. The daily
+[sunset watch](#sunset-watch) and the [adoption figures](#successor-adoption)
+read the successor's own volume to report on the migration; they never add it
+to the retired event's numbers.
 
 It is offered only when editing an existing event — a brand-new event has no
 predecessor to name — and it is cleared, along with the sunset date, if the event
@@ -228,6 +265,61 @@ on the same branch works, and `main` ends up pointing at its own copy. If the
 branch's successor cannot be placed on `main` (it was deleted, or the branch
 change was rejected), the pointer is cleared rather than left dangling. Deleting
 the successor never deletes its predecessor; it only clears the pointer.
+
+#### Sunset watch {#sunset-watch}
+
+A sunset date and a successor are promises about the data, and tripl checks them
+once a day. The check produces **lifecycle findings** of two kinds:
+
+- **`sunset_overdue`** — a `deprecated` event whose sunset date has passed is
+  still receiving volume: it had events in the last 24 hours. The finding
+  carries that 24-hour count (`volume_24h`).
+- **`successor_silent`** — the event named as **Replaced by** on a deprecated
+  event received no volume in the last 7 days: the retirement points at a
+  replacement that is not being sent. The finding carries the successor's
+  7-day count (`successor_volume_7d`), which is `0` while the finding is open.
+
+A finding is one row per event and kind. The daily check updates the row it
+already has rather than adding another — `first_seen_at` is when the condition
+was first found, `last_seen_at` the latest check that still found it — and
+closes it with `resolved_at` once the condition clears: the old event goes
+quiet, the successor starts receiving traffic, or the event stops being
+deprecated. Only open findings — `resolved_at` empty — are warnings.
+
+Open findings are shown where they matter:
+
+- the **event page** lists them (the event payload's `lifecycle_findings`);
+- the **Events catalog** marks the row with a lifecycle chip
+  (`lifecycle_warning` on the list item) so an overdue retirement is visible
+  without opening each event. The chip sits on the **deprecated** event for both
+  kinds — a `successor_silent` finding is about the retirement, so it flags the
+  retired event and names the quiet successor, rather than flagging the
+  successor;
+- `GET /api/v1/projects/{slug}/lifecycle-findings` lists them for the project;
+- a rule with **Lifecycle** switched on alerts on them — see
+  [Lifecycle alerts](./alerting.md#lifecycle).
+
+#### Successor adoption {#successor-adoption}
+
+The page of a deprecated event that names a replacement shows how far the
+migration has come, as the average daily volume of each over the last 7 days:
+
+```
+Old 1,240/day → New 3,800/day
+```
+
+Each average is the event's collected volume over the last 7 days, per day;
+a collected bucket that straddles either edge of the window counts only for the
+part of it inside the window. The same numbers, and the ratio of new to old —
+how many times the old event's volume the successor now receives, `3.06` in the
+example above — are at
+`GET /api/v1/projects/{slug}/events/{event_id}/migration`. The ratio is `null`
+when the old event's average is `0`: once the old event is silent there is
+nothing to divide by. It answers only for a
+deprecated event that has a successor. The figures are read from collected
+event metrics, so they cover what the project's scans collect, and they measure
+traffic, not users: a successor that also fires in places the old event never
+did can overtake it before every sender has moved.
 
 #### Names a scan writes for you
 
@@ -864,20 +956,39 @@ When the merge removes an uploaded screenshot from main, its stored file is
 deleted after the merge commits, unless another attachment, on any branch,
 still uses it; a storage failure there is logged and never fails the merge.
 
-An owner may configure a separate **Implementation tracker** for the project.
-The implementation tracker currently supports Jira only. The API rejects other
-`tracker_type` values instead of accepting a setting that the ticket worker cannot use.
-When enabled, a successful merge best-effort creates one Jira implementation
-ticket for the added/changed events; a scheduled sync promotes covered events to
-`implemented` when Jira reports the ticket done. If Jira returns a temporary
-transport or server error while creating the ticket, the worker retries up to
-five times with backoff; each retry first searches for the branch marker to
-adopt an issue already created by an earlier attempt. Collection completes the
-lifecycle on its own: the first data an event receives promotes it from
-`ready_for_dev` or `implemented` to `live`, while a `draft` or `in_review` event
-stays where it is. This is branch workflow
-automation, distinct from the Jira **alert destination** that creates incident
-tickets from monitoring signals.
+#### Implementation tracker {#implementation-tracker}
+
+An owner may configure a separate **Implementation tracker** for the project,
+in **Jira** or **Linear** — the settings page has a Jira/Linear switch, and
+`tracker_type` is `jira` or `linear`; the API rejects any other value instead of
+accepting a setting the ticket worker cannot use.
+
+| Tracker | Settings |
+|---------|----------|
+| **Jira** | Base URL, project key, auth email, API token, issue type (default `Task`) |
+| **Linear** | Team id, API key |
+
+The credential is handled the same way for both: only an owner can read or
+change the tracker settings, the token or key is encrypted at rest and never
+returned — the settings answer only whether one is stored — and it is never
+written to the audit log. Switching the tracker between Jira and Linear replaces
+the stored credential: the old tracker's token or key (and Jira's project key) is
+cleared, because it must never be sent to the other vendor, so enter the new
+tracker's credential when you switch.
+
+When enabled, a successful merge best-effort creates one implementation ticket —
+a Jira issue or a Linear issue — for the added/changed events, and a scheduled
+sync promotes covered events to `implemented` when the tracker reports the
+ticket done: a Jira issue in the Done category, or a Linear issue whose workflow
+state is of type `completed`. The sync never moves an event backwards from a
+later status. If the tracker returns a temporary transport or server error while
+creating the ticket, the worker retries up to five times with backoff; each
+retry first searches for the branch marker to adopt an issue already created by
+an earlier attempt. Collection completes the lifecycle on its own — see
+[Going live on its own](#going-live) — and leaves a comment on the ticket when
+it does. This is branch workflow automation, distinct from the Jira and Linear
+**alert destinations** that create incident tickets from monitoring signals; the
+two are configured separately and share no credentials.
 
 The merged branch's detail then carries an **Implementation ticket** panel: the
 ticket key links straight to the issue in the tracker, next to the ticket

@@ -384,3 +384,19 @@ describe('RuleEditorDialog — Source freshness toggle (F16, #269)', () => {
     expect(screen.queryByText(/Source freshness only alerts on rules that notify on drops/)).toBeNull()
   })
 })
+
+describe('RuleEditorDialog — Lifecycle toggle (#258)', () => {
+  it('offers the toggle with its hint, off by default, and submits it', () => {
+    const onSubmit = vi.fn()
+    renderDialog({ onSubmit })
+
+    const toggle = screen.getByLabelText('Lifecycle')
+    expect(toggle).not.toBeChecked()
+    expect(toggle.closest('label')).toHaveAttribute('title', expect.stringMatching(/sunset date/))
+    fireEvent.click(toggle)
+    expect(toggle).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ include_lifecycle: true }))
+  })
+})

@@ -57,6 +57,7 @@ import { EventDetailHero, EventDetailSkeleton } from './monitoring/event/EventDe
 import { EventDiscussion } from './monitoring/event/EventDiscussion'
 import { EventFieldsTable } from './monitoring/event/EventFieldsTable'
 import { EventSideColumn } from './monitoring/event/EventSideColumn'
+import { EventLifecyclePanel } from './monitoring/event/EventLifecyclePanel'
 import { LIVE_STATUSES } from './monitoring/event/surface'
 import { MonitoringDetailHeader } from './monitoring/MonitoringDetailHeader'
 import { useAnnotateHandoff } from './monitoring/useAnnotateHandoff'
@@ -642,6 +643,9 @@ export default function MonitoringDetailPage() {
       )}
 
       {slug && <SignalsHeldNotice slug={slug} items={heldScans} />}
+
+      {/* Sunset watch findings and successor adoption (#258). */}
+      {isEventScope && event && slug && <EventLifecyclePanel slug={slug} event={event} />}
 
       {/* What this catalog metric computes, visible without opening Edit. */}
       {scope === 'metric' && slug && metricDefinition && (

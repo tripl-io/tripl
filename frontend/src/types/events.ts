@@ -1,5 +1,6 @@
 import type { components } from './api.gen'
 import type { EventTypeBrief } from './eventTypes'
+import type { LifecycleFinding } from './lifecycle'
 
 /** The backend's 7-value EventStatus, not a free-form string. */
 export type EventStatus = components['schemas']['EventStatus']
@@ -92,6 +93,10 @@ export interface Event {
    * the project, so a reader can tell when the row is not on the branch it is
    * looking at. Absent on list items and on responses from an older instance. */
   branch_id?: string | null
+  /** Open lifecycle findings on this event (#258): past sunset and still
+   *  sending, or a silent successor. Single-event read only; optional so an
+   *  older instance that never sends it reads as "none". */
+  lifecycle_findings?: LifecycleFinding[]
 }
 
 export interface EventMutationResponse extends Event {
@@ -103,6 +108,12 @@ export interface EventChange {
   event_id: string
   user_id: string | null
   user_email: string | null
+  /**
+   * Who to credit when no person made the change: `"tripl (scan)"` on a
+   * transition the metrics worker made from data (auto-live, #258). Null on a
+   * person's edit, which `user_email` names.
+   */
+  author_label?: string | null
   field: string
   old_value: string | null
   new_value: string | null
@@ -148,6 +159,9 @@ export interface SchemaDriftList {
 export type EventListItem = Omit<Event, 'event_type'> & {
   monitored: boolean
   open_question_count?: number
+  /** True while the event has an open lifecycle finding (#258); drives the
+   *  catalog's "Lifecycle" chip. Absent on an older instance. */
+  lifecycle_warning?: boolean
 }
 
 export interface EventListResponse {

@@ -57,7 +57,10 @@ lifecycle status: `draft`, `in_review`, `ready_for_dev`, `implemented`, `live`,
 event's *scan identity* — the key collection matches on; an optional **title**
 is a free-text label shown beside it and never part of the identity. Review
 state, owner, and an optional deprecation sunset date add workflow context
-without changing the event's identity.
+without changing the event's identity. The step to `live` is taken by the data:
+the first scan that sees an approved event with volume promotes it and records
+when it was first seen, and a daily check flags retired events that keep firing
+past their sunset date or whose replacement stays silent.
 
 ### Event type
 

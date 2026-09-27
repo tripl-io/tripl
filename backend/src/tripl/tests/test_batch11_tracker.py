@@ -12,7 +12,7 @@ async def test_tracker_type_rejects_unimplemented_backend(client: AsyncClient) -
 
     unsupported = await client.patch(
         "/api/v1/projects/tracker-contract/tracker-config",
-        json={"tracker_type": "linear"},
+        json={"tracker_type": "github"},
     )
     assert unsupported.status_code == 422, unsupported.text
 

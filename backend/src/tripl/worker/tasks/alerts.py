@@ -14,7 +14,7 @@ from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2,
     DEMO_SINK_LOCAL_NOTICE,
 )
-from tripl.alerting_matching import SCOPE_METRIC
+from tripl.alerting_matching import is_project_global_scope
 from tripl.alerting_validation import (
     validate_email_recipients,
     validate_jira_api_token,
@@ -580,10 +580,11 @@ def _stamp_rule_state(session: Session, delivery: AlertDelivery) -> None:
             AlertRuleState.scope_type == item.scope_type,
             AlertRuleState.scope_ref == item.scope_ref,
         ]
-        # Every scope but ``metric`` keys its state on the scan config that
-        # produced the delivery. A metric scope is project-global and stores
-        # NULL there (tripl-0zpq.28), so it matches on the NULL — filter for
-        # what the row actually holds, rather than dropping the column.
+        # Every scope but the project-global ones keys its state on the scan
+        # config that produced the delivery. A ``metric`` scope (tripl-0zpq.28)
+        # and a ``lifecycle`` one (GH #258) store NULL there, so they match on
+        # the NULL — filter for what the row actually holds, rather than
+        # dropping the column.
         #
         # Dropping it is what this used to do, and it stamped EVERY metric state
         # of this rule and scope in the project. While metric states were
@@ -591,7 +592,7 @@ def _stamp_rule_state(session: Session, delivery: AlertDelivery) -> None:
         # config moved that anchor and stranded the old row: dropping the filter
         # then kept stamping the stranded row's ``last_notified_at``, so it read
         # as freshly notified forever while nothing could ever load it again.
-        if item.scope_type != SCOPE_METRIC:
+        if not is_project_global_scope(item.scope_type):
             filters.append(AlertRuleState.scan_config_id == delivery.scan_config_id)
         else:
             filters.append(AlertRuleState.scan_config_id.is_(None))

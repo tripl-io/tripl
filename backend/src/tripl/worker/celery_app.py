@@ -127,6 +127,14 @@ celery_app.conf.beat_schedule = {
         # rather than a follow-up.
         "schedule": crontab(hour=6, minute=0),
     },
+    "check-lifecycle-findings": {
+        "task": "tripl.worker.tasks.lifecycle.check_lifecycle_findings",
+        # Daily (#258), ahead of the 06:00 sunset alert and the Monday 08:00
+        # digest so both read today's findings. Both sides of each condition
+        # move slowly — a sunset date an owner typed, volume windows of 24h and
+        # 7d — so a tighter tick could only rewrite unchanged rows.
+        "schedule": crontab(hour=5, minute=45),
+    },
     "sync-implementation-tickets": {
         "task": "tripl.worker.tasks.implementation_tickets.sync_implementation_tickets",
         # Poll every 5 minutes — implementation tickets close on human timescales
@@ -227,6 +235,7 @@ import tripl.worker.tasks.alert_flush  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402
+import tripl.worker.tasks.lifecycle  # noqa: F401, E402
 import tripl.worker.tasks.maintenance  # noqa: F401, E402
 import tripl.worker.tasks.metrics  # noqa: F401, E402
 import tripl.worker.tasks.metrics.freshness_sweep  # noqa: F401, E402

@@ -44,7 +44,9 @@ bucket against a seasonal baseline and scores the gap as
 under-fires an event), plus **variable-value drift** when an event observes
 values outside its effective documented variable list. A scan whose source is
 late or overdue produces one **source freshness** signal instead of a drop on
-every scope. See [Source freshness](#source-freshness).
+every scope. See [Source freshness](#source-freshness). A daily lifecycle check
+adds **lifecycle** signals for retirements that are not going to plan — see
+[Lifecycle](#lifecycle).
 
 The full math — seasonal vs rolling baselines, the robust spread and its floor,
 the PSI drift score, and the release-regression test — is in
@@ -520,6 +522,7 @@ the drift/regression signals are opt-in:
 | Release regression | off |
 | Metric anomaly | off |
 | Source freshness | off |
+| Lifecycle | off |
 
 The two drift scopes act on signals something else in the project has to produce
 first, so one of them can be switched on and still be unable to fire — see
@@ -534,7 +537,11 @@ a real spike/drop direction and **do** honor the count thresholds below.
 Schema, distribution, and variable-value drift are reported as a **spike**;
 release regressions and source freshness are reported as a **drop** — so a
 drift-only rule still needs *notify on spike* enabled, and a rule that should
-hear about late data needs *notify on drop*.
+hear about late data needs *notify on drop*. **Lifecycle** alerts are the
+exception to both switches: a rule with **Lifecycle** on receives every
+lifecycle finding whichever directions it notifies on, because an overdue sunset
+or a silent successor is not a move against a baseline — see
+[Lifecycle](#lifecycle).
 
 **Thresholds** — gate the noise on **volume anomalies only**:
 
@@ -576,8 +583,8 @@ simulator to see what the new value would have sent.
 :::warning
 Thresholds apply to the volume scopes (project total / event type / event) and to
 **metric anomalies**. Schema drift, distribution drift, variable-value drift,
-and release regressions **bypass** thresholds — if you enable those scopes, they
-fire regardless of the count thresholds.
+release regressions and lifecycle findings **bypass** thresholds — if you enable
+those scopes, they fire regardless of the count thresholds.
 :::
 
 ### Source freshness {#source-freshness}
@@ -618,6 +625,45 @@ expected within:
 ```
 Data late: Production events — newest event 7h ago (expected within 3h)
 ```
+
+### Lifecycle {#lifecycle}
+
+A retirement that is not happening is easy to miss: nothing spikes or drops, an
+old event just keeps firing past its sunset date, or its replacement never
+starts. The **Lifecycle** scope turns the daily
+[sunset watch](./feature-reference.md#sunset-watch) into alerts. It is opt-in
+through the rule's **`include_lifecycle`** field — the **Lifecycle** box in the
+rule editor — which is off by default.
+
+- **One candidate per open finding.** Every open lifecycle finding in the
+  project produces one candidate with scope type `lifecycle`, naming the
+  deprecated event and the finding's kind:
+  - `sunset_overdue` — a deprecated event past its sunset date that still
+    received events in the last 24 hours, with that 24-hour count;
+  - `successor_silent` — the event named as a deprecated event's replacement
+    received nothing in the last 7 days. The alert is still about the
+    deprecated event; the message names the quiet successor alongside it.
+- **Project-wide, not per scan.** A finding is about an event, not a scan, so
+  every scan run in the project offers the open findings, and they are
+  deduplicated project-wide: a project with several scans still gets one alert
+  per finding, and a rule [bound to one scan](#narrowing-a-rule-to-one-scan)
+  that has **Lifecycle** on receives them whichever scan it is bound to.
+- **One alert per finding episode.** An alert is keyed on the moment the finding
+  opened. While the finding stays open, each scan run offers it again and it is
+  recognised as the same alert, not a new one. A finding that resolves and later
+  opens again is a new episode and alerts again. A resolved finding produces no
+  candidate.
+- **No direction or threshold gates.** Lifecycle alerts ignore *notify on
+  spike* / *notify on drop* and the count thresholds: an old event still firing
+  and a replacement never firing are not spikes or drops against a baseline, so
+  a rule that switched **Lifecycle** on receives all of them. Its filters still
+  apply.
+- **Digests carry them like any other item.** On a destination with a
+  [delivery schedule](#delivery-schedule), lifecycle candidates are collected
+  into the digest with everything else the rules matched.
+
+Lifecycle findings are computed on `main` only, so a retirement documented on a
+working branch is not watched until the branch merges.
 
 ### When a scope is on but nothing feeds it
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from tripl.models.event import EventStatus
 from tripl.models.variable_value import VariableValueKind
 from tripl.schemas.event_type import EventTypeBrief
+from tripl.schemas.lifecycle import LifecycleFindingResponse
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 
@@ -300,6 +301,10 @@ class EventChangeResponse(BaseModel):
     event_id: uuid.UUID
     user_id: uuid.UUID | None = None
     user_email: str | None = None
+    # Who to show when there is no user: ``"tripl (scan)"`` on a transition the
+    # metrics worker made from data (auto-live, #258). Null on a user's edit —
+    # ``user_email`` names those.
+    author_label: str | None = None
     field: str
     old_value: str | None = None
     new_value: str | None = None
@@ -346,6 +351,10 @@ class EventResponse(BaseModel):
     # main row, on a branch event main has no counterpart of, and — like
     # ``first_seen_at`` — on every response but the single-event read.
     main_event_id: uuid.UUID | None = None
+    # Open lifecycle findings of the daily sunset watch (#258) on this event —
+    # or naming it as a silent successor — read through to the main twin for a
+    # branch copy. Populated on the single-event read only.
+    lifecycle_findings: list[LifecycleFindingResponse] = []
     owner_id: uuid.UUID | None = None
     reviewed: bool = False
     metric_breakdown_columns: list[str] = []
@@ -412,6 +421,10 @@ class EventListItemResponse(BaseModel):
     # Alert-rule coverage: True when at least one enabled rule watches this event.
     # Populated by list_events; distinct from a live firing signal.
     monitored: bool = False
+    # An open lifecycle finding hangs on this event (#258): a deprecated event
+    # past its sunset still receiving data, or one whose successor is silent.
+    # The catalog's warning chip. Populated by list_events.
+    lifecycle_warning: bool = False
     tags: list[EventTagResponse] = []
     field_values: list[EventFieldValueResponse] = []
     meta_values: list[EventMetaValueResponse] = []

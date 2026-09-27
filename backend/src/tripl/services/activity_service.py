@@ -21,6 +21,7 @@ from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
 from tripl.models.domain_enums import ScanInterval
 from tripl.models.event import Event
+from tripl.models.event_change import EVENT_CHANGE_SOURCE_SCAN, SCAN_AUTHOR_LABEL, EventChange
 from tripl.models.event_type import EventType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
@@ -135,6 +136,7 @@ async def list_activity(
     items.extend(await _scan_job_items(session, scope=scope, limit=limit))
     items.extend(await _alert_delivery_items(session, scope=scope, limit=limit))
     items.extend(await _event_items(session, scope=scope, limit=limit))
+    items.extend(await _auto_transition_items(session, scope=scope, limit=limit))
 
     return sorted(items, key=lambda item: _utc_sort_key(item.occurred_at), reverse=True)[:limit]
 
@@ -525,6 +527,71 @@ async def _event_items(
             )
         )
     return items
+
+
+async def _auto_transition_items(
+    session: AsyncSession,
+    *,
+    scope: _ProjectScope,
+    limit: int,
+) -> list[ActivityItemResponse]:
+    """Status transitions the metrics worker made from data (#258), attributed to the scan.
+
+    Auto-live writes an ``EventChange`` with ``source='scan'`` and leaves the event's
+    ``updated_at`` alone, so the transition reaches the rail through this row
+    — "Seen in data: <event> is live", by ``tripl (scan)`` — instead of an
+    anonymous "Event implemented" re-announcement from ``_event_items``. Main
+    branch only, joined the way ``_event_items`` joins it.
+
+    Selected on ``source``, never on ``user_id IS NULL``: ``user_id`` is
+    ``ON DELETE SET NULL``, so a person's status edit reads NULL there once the
+    person is deleted, and would otherwise surface as "Seen in data".
+    """
+    stmt = (
+        select(
+            EventChange.id.label("change_id"),
+            EventChange.new_value,
+            EventChange.created_at.label("occurred_at"),
+            Event.id.label("event_id"),
+            Event.name,
+            Project.id.label("project_id"),
+            Project.slug,
+            Project.name.label("project_name"),
+            EventType.display_name.label("event_type_name"),
+        )
+        .join(Event, Event.id == EventChange.event_id)
+        .join(Project, Project.id == Event.project_id)
+        .join(EventType, EventType.id == Event.event_type_id)
+        .join(
+            PlanBranch,
+            (PlanBranch.id == Event.branch_id) & (PlanBranch.project_id == Event.project_id),
+        )
+        .where(
+            PlanBranch.kind == BranchKind.main.value,
+            EventChange.source == EVENT_CHANGE_SOURCE_SCAN,
+            EventChange.field == "status",
+            EventChange.new_value.in_(("live", "implemented")),
+        )
+        .order_by(desc(EventChange.created_at), desc(EventChange.id))
+        .limit(limit)
+    )
+    stmt = scope.apply(stmt)
+    rows = (await session.execute(stmt)).all()
+    return [
+        ActivityItemResponse(
+            id=f"event-status:{row.change_id}",
+            project_id=row.project_id,
+            project_slug=row.slug,
+            project_name=row.project_name,
+            type="event",
+            severity="low",
+            title=f"Seen in data: {row.name} is {row.new_value}",
+            detail=f"{SCAN_AUTHOR_LABEL} · {row.event_type_name}",
+            occurred_at=row.occurred_at,
+            target_path=f"/p/{row.slug}/monitoring/event/{row.event_id}",
+        )
+        for row in rows
+    ]
 
 
 def _scope_name(

@@ -8,15 +8,24 @@ from pydantic import BaseModel
 class ProjectTrackerConfigUpdate(BaseModel):
     """Partial update — every field optional. ``api_token`` is the RAW token on
     input; it is encrypted at rest and never echoed back. Passing ``""`` clears
-    the stored token; omitting / null leaves it unchanged."""
+    the stored token; omitting / null leaves it unchanged.
+
+    ``tracker_type`` picks the backend. For ``jira`` the credential is the Jira
+    API token and ``base_url`` / ``auth_email`` / ``project_key`` /
+    ``issue_type`` apply. For ``linear`` ``api_token`` carries the Linear API
+    key (same encryption, same never-echoed rule) and ``team_id`` the Linear
+    team; the Jira-only fields are ignored. Switching ``tracker_type`` clears
+    the stored credential unless the same request supplies a new one, so one
+    vendor's secret is never sent to the other."""
 
     enabled: bool | None = None
-    tracker_type: Literal["jira"] | None = None
+    tracker_type: Literal["jira", "linear"] | None = None
     base_url: str | None = None
     project_key: str | None = None
     auth_email: str | None = None
     api_token: str | None = None
     issue_type: str | None = None
+    team_id: str | None = None
 
 
 class ProjectTrackerConfigResponse(BaseModel):
@@ -32,6 +41,8 @@ class ProjectTrackerConfigResponse(BaseModel):
     project_key: str
     auth_email: str
     issue_type: str
+    # Linear team id; "" unless ``tracker_type`` is ``linear``.
+    team_id: str = ""
     api_token_set: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None

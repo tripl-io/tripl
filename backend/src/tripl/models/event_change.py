@@ -30,6 +30,23 @@ class EventChange(UUIDMixin, TimestampMixin, Base):
     field: Mapped[str] = mapped_column(String(255))
     old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: Who made the change when it was not a person (#258): ``"scan"``
+    #: (``EVENT_CHANGE_SOURCE_SCAN``) for a transition the metrics worker made
+    #: from data, NULL for a person. Readers decide "made by the scan" on THIS,
+    #: never on ``user_id IS NULL`` — ``user_id`` is ``ON DELETE SET NULL``, so
+    #: a deleted user's edits are NULL there too and are still a person's.
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+#: ``EventChange.source`` of a data-driven transition written by the metrics
+#: worker (auto-live and the other lifecycle transitions that are a DATA FACT
+#: rather than a plan edit).
+EVENT_CHANGE_SOURCE_SCAN = "scan"
+
+# How the history and the activity rail name the author of a change whose
+# ``source`` is ``EVENT_CHANGE_SOURCE_SCAN``: what a reader sees instead of an
+# email.
+SCAN_AUTHOR_LABEL = "tripl (scan)"
 
 
 def create_event_change(
@@ -39,6 +56,7 @@ def create_event_change(
     field: str,
     old_value: str | None,
     new_value: str | None,
+    source: str | None = None,
 ) -> EventChange:
     now = datetime.now(UTC)
     return EventChange(
@@ -47,6 +65,7 @@ def create_event_change(
         field=field,
         old_value=old_value,
         new_value=new_value,
+        source=source,
         created_at=now,
         updated_at=now,
     )

@@ -8,6 +8,7 @@ import type {
 } from '../types'
 import type { components, operations } from '../types/api.gen'
 import type { ImplementationTicket } from '../types/tracker'
+import type { EventMigration } from '../types/lifecycle'
 
 type Schemas = components['schemas']
 type ListQuery = NonNullable<
@@ -105,6 +106,12 @@ export const eventsApi = {
   implementationTickets: (slug: string, id: string, branchId?: string | null) =>
     api.get<ImplementationTicket[]>(
       withBranch(`/projects/${slug}/events/${id}/implementation-tickets`, branchId),
+    ),
+  /** A deprecated event's 7-day daily average next to its successor's (#258). */
+  migration: (slug: string, id: string, branchId?: string | null, signal?: AbortSignal) =>
+    api.get<EventMigration>(
+      withBranch(`/projects/${slug}/events/${id}/migration`, branchId),
+      signal,
     ),
   create: (slug: string, data: EventCreateBody, branchId?: string | null) =>
     api.post<EventMutationResponse>(withBranch(`/projects/${slug}/events`, branchId), data),

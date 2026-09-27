@@ -42,6 +42,22 @@ SCOPE_VARIABLE_VALUE_DRIFT = MetricScopeType.variable_value_drift.value
 # ``project_total`` and the ordinary per-config AlertRuleState gives it one
 # cooldown clock per scan.
 SCOPE_SOURCE_FRESHNESS = MetricScopeType.source_freshness.value
+# Event lifecycle findings (GH #258): a deprecated event still receiving volume
+# past its ``sunset_at``, or its successor receiving none. One candidate per
+# open ``lifecycle_findings`` row, ``scope_ref`` = ``"<kind>:<event id hex>"``.
+SCOPE_LIFECYCLE = MetricScopeType.lifecycle.value
+# Scopes that belong to the PROJECT rather than to the scan that observed them.
+# Their alert state, digest buffer row and incident handle carry a NULL scan
+# config, so every config's collection converges on one state row, one
+# cooldown clock and one incident (``metrics.dispatch._scope_partition_id``).
+# A catalog metric's anomaly row is itself project-global; a lifecycle finding
+# hangs on an event, and every config's run emits the same candidates.
+PROJECT_GLOBAL_SCOPE_TYPES: frozenset[str] = frozenset({SCOPE_METRIC, SCOPE_LIFECYCLE})
+
+
+def is_project_global_scope(scope_type: str) -> bool:
+    """True for a scope whose alert state lives in the NULL-config partition."""
+    return str(scope_type) in PROJECT_GLOBAL_SCOPE_TYPES
 
 
 def _utc_bucket(bucket: datetime) -> datetime:
@@ -194,7 +210,16 @@ def rule_matches_anomaly(
     # never equals a bound scan: ``include_metrics`` goes inert on a scan-bound
     # rule, deliberately. A rule that says "this one scan" has nothing to say
     # about a project-wide catalog series.
-    if rule.scan_config_id is not None and anomaly.scan_config_id != rule.scan_config_id:
+    #
+    # A ``lifecycle`` finding is about an EVENT, not about any scan: its
+    # candidate borrows one anchor scan config only because a delivery row needs
+    # one (``lifecycle_alerts``), so a scan-bound rule that opted into
+    # ``include_lifecycle`` receives it whichever scan it is bound to.
+    if (
+        rule.scan_config_id is not None
+        and anomaly.scan_config_id != rule.scan_config_id
+        and anomaly.scope_type != SCOPE_LIFECYCLE
+    ):
         return False
 
     # Scope gates.
@@ -216,6 +241,20 @@ def rule_matches_anomaly(
     # never asked for them keeps delivering exactly what it did before.
     if anomaly.scope_type == SCOPE_SOURCE_FRESHNESS and not rule.include_source_freshness:
         return False
+    # Lifecycle findings are opt-in too, and they bypass the direction and
+    # numeric gates below: a sunset overdue is "volume that should be zero" and
+    # a silent successor is "zero that should be volume" — neither is a spike
+    # or a drop against a baseline a threshold could be measured on, and a
+    # rule that asked for lifecycle findings asked for all of them.
+    if anomaly.scope_type == SCOPE_LIFECYCLE:
+        if not rule.include_lifecycle:
+            return False
+        return all(
+            filter_matches_anomaly(
+                filter_row, anomaly, event_type_by_event_id=event_type_by_event_id
+            )
+            for filter_row in rule.filters
+        )
     # Catalog metric anomalies are opt-in (SAFE OFF): a rule must explicitly
     # subscribe via include_metrics. They flow through the numeric-threshold
     # branch below (actual/expected counts), like the volume scopes.
@@ -427,7 +466,7 @@ def simulate_rule_firings(
 
     fired: list[AlertMatchCandidate] = []
     # Third element is the scan partition described above: the candidate's own
-    # scan, or None for the project-global ``metric`` scope.
+    # scan, or None for a project-global scope (``metric``, ``lifecycle``).
     last_fired_at: dict[tuple[str, str, uuid.UUID | None], datetime] = {}
 
     for anomaly in sorted(anomalies, key=lambda a: _utc_bucket(a.bucket)):
@@ -439,7 +478,9 @@ def simulate_rule_firings(
             event_type_by_event_id=event_type_by_event_id,
         ):
             continue
-        scan_partition = None if anomaly.scope_type == SCOPE_METRIC else anomaly.scan_config_id
+        scan_partition = (
+            None if is_project_global_scope(anomaly.scope_type) else anomaly.scan_config_id
+        )
         key = (anomaly.scope_type, anomaly.scope_ref, scan_partition)
         last = last_fired_at.get(key)
         if last is not None and _utc_bucket(anomaly.bucket) - _utc_bucket(last) < cooldown:

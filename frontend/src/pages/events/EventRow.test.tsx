@@ -607,6 +607,28 @@ describe('EventRow open questions', () => {
   })
 })
 
+describe('EventRow lifecycle chip (#258)', () => {
+  it('marks a row with an open lifecycle finding', () => {
+    renderRow({ ...makeEvent(), lifecycle_warning: true } as EventListItem, [])
+
+    const chip = screen.getByTestId('event-lifecycle-chip')
+    expect(chip).toHaveAttribute('title', expect.stringMatching(/sunset date/))
+    // Self-describing without the pointer-only title: the visible word is
+    // hidden from assistive tech and a full sentence is read instead.
+    expect(screen.getByText('Lifecycle')).toHaveAttribute('aria-hidden', 'true')
+    expect(chip).toHaveTextContent(/Lifecycle warning: sunset overdue or successor silent/)
+  })
+
+  it('shows no chip when the flag is false or absent', () => {
+    const { unmount } = renderRow({ ...makeEvent(), lifecycle_warning: false } as EventListItem, [])
+    expect(screen.queryByTestId('event-lifecycle-chip')).toBeNull()
+    unmount()
+
+    renderRow(makeEvent(), [])
+    expect(screen.queryByTestId('event-lifecycle-chip')).toBeNull()
+  })
+})
+
 describe('EventRow reorder handle (EVT-3)', () => {
   it('offers the drag handle while the rows are in catalog order', () => {
     renderRow(makeEvent(), [])
