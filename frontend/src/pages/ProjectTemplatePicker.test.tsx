@@ -38,7 +38,7 @@ function Harness({ initial = null }: { initial?: string | null }) {
   return (
     <>
       <ProjectTemplatePicker value={value} onChange={setValue} />
-      <output data-testid="value">{value ?? 'blank'}</output>
+      <span data-testid="value">{value ?? 'blank'}</span>
     </>
   )
 }

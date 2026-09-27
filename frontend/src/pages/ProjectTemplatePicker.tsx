@@ -196,8 +196,8 @@ function TemplateSuggestions({ template }: { template: ProjectTemplateSummary })
           aria-hidden="true"
           className={`size-3 transition-transform${open ? ' rotate-90' : ''}`}
         />
-        Starter metrics and alerts
-        <span className="sr-only">{` for ${template.name}`}</span>
+        <span aria-hidden="true">Starter metrics and alerts</span>
+        <span className="sr-only">{`Starter metrics and alerts for ${template.name}`}</span>
       </CollapsibleTrigger>
       <p id={noteId} className="m-0 mt-1 text-caption leading-[1.4] text-fg-tertiary">
         {SUGGESTIONS_NOTE}

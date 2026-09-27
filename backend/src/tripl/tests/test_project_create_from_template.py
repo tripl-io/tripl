@@ -195,6 +195,8 @@ async def test_create_from_template_seeds_a_draft_branch_and_leaves_main_empty(
         "added": counts.event_types + counts.fields + counts.events + counts.variables,
         "removed": 0,
         "changed": 0,
+        # A fresh template branch carries no machine-made rows to set aside.
+        "housekeeping": 0,
     }
 
 
