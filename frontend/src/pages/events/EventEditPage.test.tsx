@@ -15,6 +15,8 @@ import type { EventType } from '@/types'
 
 import EventEditPage from './EventForm'
 import { readCreatedEvents } from './createdEventsHandoff'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
@@ -386,34 +388,22 @@ describe('EventEditPage on the wrong branch (AU-1 / PL-2)', () => {
 })
 
 describe('EventEditPage for a viewer (#237 AU-33 / JR-18)', () => {
-  const VIEWER: AuthContextValue = {
-    user: {
-      id: 'viewer-1',
-      email: 'viewer@example.com',
-      name: 'Viewer',
-      role: 'viewer',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    },
-    status: 'authenticated',
-    error: null,
-    isLoggingOut: false,
-    logout: async () => {},
-    refresh: () => {},
-  }
+  const VIEWER: AuthContextValue = personaAuth('viewer')
 
   function renderAsViewer(entry: string) {
     render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={VIEWER}>
-          <MemoryRouter initialEntries={[entry]}>
-            <Routes>
-              <Route path="/p/:slug/events/:tab/new" element={<EventEditPage />} />
-              <Route path="/p/:slug/events/:tab/:eventId/edit" element={<EventEditPage />} />
-              <Route path="/p/:slug/events" element={<div>events list</div>} />
-              <Route path="/p/:slug/monitoring/event/:eventId" element={<div>event detail</div>} />
-            </Routes>
-          </MemoryRouter>
+          <SessionProject session={VIEWER}>
+            <MemoryRouter initialEntries={[entry]}>
+              <Routes>
+                <Route path="/p/:slug/events/:tab/new" element={<EventEditPage />} />
+                <Route path="/p/:slug/events/:tab/:eventId/edit" element={<EventEditPage />} />
+                <Route path="/p/:slug/events" element={<div>events list</div>} />
+                <Route path="/p/:slug/monitoring/event/:eventId" element={<div>event detail</div>} />
+              </Routes>
+            </MemoryRouter>
+          </SessionProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )

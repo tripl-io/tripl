@@ -11,7 +11,8 @@ from tripl.schemas.audit import AuditActionCatalog, AuditEntryDetailResponse, Au
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_actions, audit_service
 
-# Owner-only: this feed was the back door around two other owner-only gates.
+# Org owner/admin-only (``get_owner_user``, a browser session): this feed was the
+# back door around two other owner-only gates.
 #
 # Every entry carries the request payload that produced it — since tripl-5ydt on
 # ``GET /audit/{entry_id}`` alone, not on every list row — and the router had
@@ -19,13 +20,15 @@ from tripl.services import audit_actions, audit_service
 #
 #   * ``data_source.create`` / ``.update`` payloads — the warehouse host, port,
 #     database and username that data_sources.py:69 deliberately BLANKS for
-#     non-owners on every direct read of the same source;
+#     non-admins on every direct read of the same source;
 #   * ``scan_config.create`` payloads — ``base_query``, the free-text SQL that
-#     authoring a scan is owner-only to protect (api/v1/scans.py:36), since it
+#     authoring a scan is org owner/admin-only to protect (api/v1/scans.py:36), since it
 #     reads whatever the warehouse credential can.
 #
-# The log is also INSTANCE-wide — ``project_slug`` is a filter, not a scope — so
-# the reach was every project, not just the caller's. Passwords were never
+# ``project_slug`` is a filter, not a scope, so the reach is every project of
+# the organization. The feed IS scoped to the request's organization (F20 PR4):
+# list and detail read only rows whose ``organization_id`` is the bound org, so
+# one organization's admin never reads another's payloads. Passwords were never
 # exposed; audit_service._redact strips them (tripl-jfm3.110).
 router = APIRouter(prefix="/audit", tags=["audit"], dependencies=[Depends(get_owner_user)])
 

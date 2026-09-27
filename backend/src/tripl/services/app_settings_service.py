@@ -13,6 +13,7 @@ fall back to environment values on DB errors and count each degradation in
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from typing import Any, Literal
 
@@ -136,6 +137,42 @@ EDITABLE_FIELDS = frozenset(
 )
 SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key", "smtp_password"})
 AI_SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key"})
+
+# The fields only a PLATFORM admin may change (F20 PR4, design section 5
+# "Operator-only fields"). They configure the process and the host rather than an
+# organization: the public URL, every security and observability knob (including
+# who may register at all), the server filesystem paths (critique 12) and the
+# photo size cap, which is the process request-body limit (critique 15).
+#
+# Until PR9 gives each organization its own values, every field here is ONE
+# value shared by every organization, so the fields that route another
+# organization's data somewhere are operator-only too: where photos are stored
+# and whether they are public (every storage field but the MIME allow-list),
+# the SMTP relay that carries every user's password-reset and invitation mail,
+# and the AI / embedding endpoint and keys that receive every organization's
+# plan text. What is left (row limits, the MIME allow-list, AI model, limits
+# and prompts) is open to the settings admins (a platform admin, or an
+# owner/admin of the default organization). ``api.v1.app_settings`` refuses a
+# write touching any of these unless the caller is a platform admin.
+OPERATOR_FIELDS: frozenset[str] = frozenset(
+    {
+        "app_base_url",
+        *SECURITY_FIELDS,
+        *OBSERVABILITY_FIELDS,
+        *(field for field in STORAGE_FIELDS if field != "photo_allowed_mime"),
+        *EMAIL_FIELDS,
+        "ai_base_url",
+        "ai_api_key",
+        "search_embedding_provider",
+        "search_embedding_model",
+        "search_embedding_api_key",
+    }
+)
+
+
+def touches_operator_fields(changes: Mapping[str, Any]) -> bool:
+    """Whether a flattened settings write sets any :data:`OPERATOR_FIELDS` field."""
+    return not OPERATOR_FIELDS.isdisjoint(changes)
 
 
 @dataclass(frozen=True)

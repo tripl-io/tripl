@@ -199,7 +199,8 @@ async def test_organizations_revision_round_trips_on_postgres(
                 {"u": ids["viewer"]},
             ).all()
         )
-        # Left as the previous release wrote them: users.role still caps them.
+        # Left as the previous release wrote them: this revision does not cap
+        # them; c9e1a3b5d7f9 does (test_org_roles_migration_pg).
         assert project_roles == {ids["alpha"]: "editor", ids["beta"]: "viewer"}
         editor_role = connection.execute(
             sa.text("SELECT role::text FROM project_members WHERE user_id = :u"),

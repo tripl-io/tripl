@@ -54,13 +54,15 @@ router = APIRouter(
 # ``base_query`` is interpolated verbatim into ``SELECT * FROM (...) AS _src``.
 # Anyone who can author or execute one can read whatever that credential can
 # read, so these routes carry the same role as the credentials themselves:
-# data sources are owner-only (api/v1/data_sources.py), and so is the SQL run
-# against them. Editors keep every read-only view of scans and their jobs, plus
-# the right to run a config an owner already authored (see ``run_scan``).
+# data sources are org owner/admin-only (api/v1/data_sources.py), and so is the
+# SQL run against them. "Owner" in this module means an owner or admin of the
+# project's organization (``get_owner_user``). Editors keep every read-only view
+# of scans and their jobs, plus the right to run a config an org admin already
+# authored (see ``run_scan``).
 _owner_required = [Depends(get_owner_user)]
 _editor_required = [Depends(get_editor_user)]
 # Replaying an existing config over an explicit window is the one owner-only scan
-# action an owner's ``tk_w_`` key may take (tripl-cj5z). It re-runs SQL an owner
+# action an org owner's or admin's ``tk_w_`` key may take (tripl-cj5z). It re-runs SQL an owner
 # already authored through the session-only routes above, over a window the caller
 # names, and writes nothing but metric values for that config — so the credential
 # reach a leaked key gains is bounded by what an owner already approved, unlike

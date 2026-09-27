@@ -20,7 +20,8 @@ mention emails on):
 Guarantees, all checked at SEND time rather than when the row was written:
 
 * members only — a user who has left the project since gets nothing about it
-  (the instance owner counts, as they see every project); demo projects send
+  (owner/admin of the project's own organization counts, as they see every
+  project of it; nobody else does, platform admins included); demo projects send
   no email at all;
 * at most once — a row is CLAIMED by stamping ``emailed_at`` with a
   conditional UPDATE (``emailed_at IS NULL``) committed before the send, so two
@@ -43,10 +44,8 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
-from tripl.models.domain_enums import UserRole
 from tripl.models.notification import Notification, NotificationKind
 from tripl.models.project import Project
-from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.models.user_notification_prefs import (
     DEFAULT_EMAIL_MODE,
@@ -55,6 +54,7 @@ from tripl.models.user_notification_prefs import (
     UserNotificationPrefs,
 )
 from tripl.services import alert_owner_routing, app_settings_service
+from tripl.services.project_access import project_member_clause
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 
@@ -220,18 +220,10 @@ def _candidates(
     now: datetime,
 ) -> list[_Row]:
     """Unemailed rows this path should send, members-only, oldest first."""
-    membership = (
-        select(ProjectMember.id)
-        .where(
-            ProjectMember.project_id == Notification.project_id,
-            ProjectMember.user_id == Notification.user_id,
-        )
-        .exists()
-    )
     conditions = [
         Notification.emailed_at.is_(None),
         Project.is_demo.is_(False),
-        or_(User.role == UserRole.owner.value, membership),
+        project_member_clause(Notification.user_id, Notification.project_id),
     ]
     if digest is None:
         conditions.append(

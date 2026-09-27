@@ -8,6 +8,7 @@ import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import ProjectGeneralSection from './ProjectGeneralSection'
 import { UnsavedChangesProvider, type UnsavedWork } from '@/components/settings/unsaved-changes'
 import { at } from '@/test/at'
+import type { Role } from '@/types'
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -41,13 +42,15 @@ const PROJECT = {
   },
 }
 
-function authValue(role: 'owner' | 'editor' | 'viewer'): AuthContextValue {
+function authValue(role: Role): AuthContextValue {
   return {
     user: {
       id: `${role}-1`,
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -272,7 +275,7 @@ describe('ProjectGeneralSection', () => {
       throw new Error(`Unhandled fetch: ${url}`)
     })
 
-    renderSection(authValue('editor'))
+    renderSection(authValue('member'))
 
     // Wait for the project to load, then confirm the whole owner-only danger
     // zone is absent rather than a card of buttons the editor can never press.
@@ -285,21 +288,21 @@ describe('ProjectGeneralSection', () => {
     expect(screen.queryByText('Danger zone')).not.toBeInTheDocument()
   })
 
-  it('lets the editor who created the project edit it', async () => {
+  it('lets the member who created the project edit it', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo')) {
-        return jsonResponse({ ...PROJECT, created_by_user_id: 'editor-1' })
+        return jsonResponse({ ...PROJECT, created_by_user_id: 'member-1' })
       }
       throw new Error(`Unhandled fetch: ${url}`)
     })
-    renderSection(authValue('editor'))
+    renderSection(authValue('member'))
 
     expect(await screen.findByLabelText('Name')).toBeEnabled()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
-  it("renders another editor's project read-only and says who can edit it", async () => {
+  it("renders another member's project read-only and says who can edit it", async () => {
     // `_require_project_manager`: only the creator or an owner may PATCH, so
     // live fields here were a form whose Save could only answer 403.
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -309,7 +312,7 @@ describe('ProjectGeneralSection', () => {
       }
       throw new Error(`Unhandled fetch: ${url}`)
     })
-    renderSection(authValue('editor'))
+    renderSection(authValue('member'))
 
     // Values as text, not dashed dead inputs (ST-18).
     expect(await screen.findByText('Demo')).toBeInTheDocument()
@@ -329,7 +332,7 @@ describe('ProjectGeneralSection', () => {
       }
       throw new Error(`Unhandled fetch: ${url}`)
     })
-    renderSection(authValue('editor'))
+    renderSection(authValue('member'))
 
     await screen.findByText('Demo')
     expect(screen.queryByRole('button', { name: 'Rebuild index' })).toBeNull()
@@ -337,12 +340,15 @@ describe('ProjectGeneralSection', () => {
   })
 
   it('tells a viewer once why the form is read-only', async () => {
+    // A viewer is an organization member whose row in this project is `viewer`.
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
-      if (url.endsWith('/api/v1/projects/demo')) return jsonResponse(PROJECT)
+      if (url.endsWith('/api/v1/projects/demo')) {
+        return jsonResponse({ ...PROJECT, my_role: 'viewer', can_mutate: false })
+      }
       throw new Error(`Unhandled fetch: ${url}`)
     })
-    renderSection(authValue('viewer'))
+    renderSection(authValue('member'))
 
     expect(await screen.findByText('Demo')).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/viewer role/)

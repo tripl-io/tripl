@@ -320,6 +320,13 @@ class ProjectGenerationStatus(enum.StrEnum):
 
 
 class UserRole(enum.StrEnum):
+    """The legacy instance role (``users.role``, ``invitations.role``).
+
+    Not read by any permission check since F20 PR4: organization roles
+    (:class:`OrganizationRole`) and project roles replaced it. The columns stay
+    until a cleanup PR drops them.
+    """
+
     owner = "owner"
     editor = "editor"
     viewer = "viewer"
@@ -328,8 +335,10 @@ class UserRole(enum.StrEnum):
 class OrganizationRole(enum.StrEnum):
     """A user's role in one organization (``organization_members.role``).
 
-    Schema only so far (F20 PR1): nothing reads it yet, and ``users.role`` stays
-    the source of truth for every permission check until the gates move over.
+    The source of truth for organization-level rights (F20 PR4). ``owner`` and
+    ``admin`` administer the organization and are the implicit ``owner`` of
+    every project in it; only an ``owner`` can make or unmake another owner.
+    ``member`` holds exactly the roles of their ``project_members`` rows.
     """
 
     owner = "owner"
@@ -345,10 +354,10 @@ class ApiKeyScope(enum.StrEnum):
 class ProjectMemberRole(enum.StrEnum):
     """A user's role inside one project (``project_members.role``).
 
-    There is no per-project ``owner``: the instance owner (``UserRole.owner``)
-    sees and manages every project without a membership row. The effective role
-    is also capped by the instance role, so a ``viewer`` user holding an
-    ``editor`` membership still acts as a viewer (``services.project_access``).
+    There is no per-project ``owner``: an owner or admin of the project's
+    organization (:class:`OrganizationRole`) sees and manages every project of
+    that organization without a membership row, as project role ``owner``. For
+    everyone else the row is authoritative (``services.project_access``).
     """
 
     editor = "editor"

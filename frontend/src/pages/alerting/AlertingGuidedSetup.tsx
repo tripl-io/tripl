@@ -109,8 +109,8 @@ export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }:
         </p>
         {!canWrite && (
           <ReadOnlyNotice>
-            Your account has the viewer role, so the first destination is created by an editor or
-            owner. Once one exists, incidents and their deliveries show up here for everyone.
+            You have the viewer role in this project, so the first destination is created by an
+            editor or owner. Once one exists, incidents and their deliveries show up here for everyone.
           </ReadOnlyNotice>
         )}
 

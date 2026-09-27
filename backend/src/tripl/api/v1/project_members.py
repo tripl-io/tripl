@@ -2,17 +2,17 @@
 
 ``GET`` is open to every member (a non-member never gets here: the project
 access dependency answers 404 for the whole ``/projects/{slug}/...`` surface).
-Adding, re-roling and removing members is for the instance owner and the
-project's creator, and only from a browser session: membership is access
-control, so a leaked API key must not be able to grant itself (or anyone else)
-a project.
+Adding, re-roling and removing members is for the owners and admins of the
+project's organization (project role ``owner``) and the project's creator,
+and only from a browser session: membership is access control, so a leaked API
+key must not be able to grant itself (or anyone else) a project.
 """
 
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from tripl.api.deps import CurrentUserDep, EditorUserDep, SessionDep
+from tripl.api.deps import CurrentUserDep, EditorUserDep, ProjectRoleDep, SessionDep
 from tripl.schemas.project_member import (
     ProjectMemberCreate,
     ProjectMemberResponse,
@@ -45,12 +45,13 @@ async def add_member(
     request: Request,
     session: SessionDep,
     current_user: EditorUserDep,
+    project_role: ProjectRoleDep,
     slug: str,
     data: ProjectMemberCreate,
 ) -> ProjectMemberResponse:
     _require_session_auth(request)
     project = await resolve_project(session, slug)
-    project_member_service.require_member_manager(current_user, project)
+    project_member_service.require_member_manager(project_role, current_user, project)
     member = await project_member_service.add_member(
         session, project, user_id=data.user_id, role=data.role, added_by=current_user.id
     )
@@ -72,13 +73,14 @@ async def update_member(
     request: Request,
     session: SessionDep,
     current_user: EditorUserDep,
+    project_role: ProjectRoleDep,
     slug: str,
     user_id: uuid.UUID,
     data: ProjectMemberUpdate,
 ) -> ProjectMemberResponse:
     _require_session_auth(request)
     project = await resolve_project(session, slug)
-    project_member_service.require_member_manager(current_user, project)
+    project_member_service.require_member_manager(project_role, current_user, project)
     member, previous = await project_member_service.update_member(
         session, project, user_id=user_id, role=data.role
     )
@@ -104,12 +106,13 @@ async def remove_member(
     request: Request,
     session: SessionDep,
     current_user: EditorUserDep,
+    project_role: ProjectRoleDep,
     slug: str,
     user_id: uuid.UUID,
 ) -> None:
     _require_session_auth(request)
     project = await resolve_project(session, slug)
-    project_member_service.require_member_manager(current_user, project)
+    project_member_service.require_member_manager(project_role, current_user, project)
     removed = await project_member_service.remove_member(session, project, user_id=user_id)
     await audit_service.record(
         session,

@@ -13,13 +13,15 @@ function mockJsonResponse(body: unknown) {
   })
 }
 
-function makeAuth(role: 'owner' | 'editor' | 'viewer' = 'owner'): AuthContextValue {
+function makeAuth(role: 'owner' | 'admin' | 'member' = 'owner'): AuthContextValue {
   return {
     user: {
       id: 'user-1',
       email: `${role}@example.com`,
       name: 'Owner',
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-04-18T10:00:00Z',
       updated_at: '2026-04-18T10:00:00Z',
     },
@@ -124,7 +126,7 @@ function mockProjectsFetch() {
   })
 }
 
-function renderSidebar(initialEntry = '/p/demo/events', role: 'owner' | 'editor' | 'viewer' = 'owner') {
+function renderSidebar(initialEntry = '/p/demo/events', role: 'owner' | 'admin' | 'member' = 'owner') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -241,10 +243,10 @@ describe('AppSidebar', () => {
     )
   })
 
-  it('hides the owner-only Audit log from an editor (tripl-jfm3.110)', async () => {
+  it('hides the owner-only Audit log from a member (tripl-jfm3.110)', async () => {
     mockProjectsFetch()
 
-    renderSidebar('/p/demo/events', 'editor')
+    renderSidebar('/p/demo/events', 'member')
     await screen.findByText('Events')
 
     // The endpoint behind it is owner-only, so the link would only walk an

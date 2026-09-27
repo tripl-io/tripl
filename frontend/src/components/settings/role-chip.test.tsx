@@ -1,12 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { Role } from '@/types'
-import { RoleChip } from './role-chip'
+import { RoleChip, type ChipRole } from './role-chip'
 
 describe('RoleChip', () => {
   // One tone per role, app-wide (DS-7): Members and Profile must not drift.
-  it.each<[Role, string, string]>([
+  // Both vocabularies: the organization's (owner | admin | member) and a
+  // project membership's (editor | viewer).
+  it.each<[ChipRole, string, string]>([
     ['owner', 'Owner', 'accent'],
+    ['admin', 'Admin', 'info'],
+    ['member', 'Member', 'neutral'],
     ['editor', 'Editor', 'info'],
     ['viewer', 'Viewer', 'neutral'],
   ])('draws %s as "%s" in the %s tone', (role, label, tone) => {
@@ -18,7 +21,7 @@ describe('RoleChip', () => {
   })
 
   it('falls back to the raw role, in the neutral tone, for one it does not know', () => {
-    render(<RoleChip role={'auditor' as unknown as Role} />)
+    render(<RoleChip role={'auditor' as unknown as ChipRole} />)
 
     expect(screen.getByText('auditor')).toHaveAttribute('data-tone', 'neutral')
   })

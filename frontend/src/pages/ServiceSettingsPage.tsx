@@ -49,7 +49,7 @@ import {
   resetPayload,
   updateHasInvalidNumber,
 } from './settings-service/serviceSettingsHelpers'
-import { isOwner } from '@/lib/permissions'
+import { isOwner, isPlatformAdmin } from '@/lib/permissions'
 import { aiStatusRootKey, authStatusKey, serviceSettingsKey } from '@/lib/queryKeys'
 
 const UNSAVED_MESSAGE =
@@ -79,10 +79,62 @@ function writesAi(write: SettingsWrite): boolean {
   return writeSection(write) === 'ai'
 }
 
-function payloadFor(write: SettingsWrite): ServiceSettingsUpdate {
-  if (write.kind === 'save') return write.update
-  if (write.kind === 'reset') return resetPayload(write.section)
-  return { [write.group]: { [write.field]: null } } as ServiceSettingsUpdate
+/**
+ * The sections only a platform admin may open: every field in them is in the
+ * backend's `OPERATOR_FIELDS` (Email too: one SMTP relay carries every
+ * organization's password-reset and invitation mail), and the `system` block
+ * is null for anyone else.
+ */
+const PLATFORM_SECTIONS: ReadonlySet<ServiceSettingsSectionKey> = new Set([
+  'security',
+  'email',
+  'observability',
+  'system',
+])
+
+/**
+ * The operator-only fields inside the sections an organization admin may open,
+ * mirroring `OPERATOR_FIELDS` in backend/src/tripl/services/app_settings_service.py.
+ * A write carrying any of them is 403 for anyone but a platform admin, and the
+ * 403 throws away the organization fields saved beside it, so an org admin's
+ * Save and Reset leave them out (the sections render them disabled).
+ */
+const OPERATOR_FIELDS_BY_SECTION: Readonly<Partial<Record<SectionKey, readonly string[]>>> = {
+  runtime: ['app_base_url'],
+  storage: [
+    'photo_storage_backend',
+    'photo_local_dir',
+    'photo_max_size_mb',
+    'gcs_photo_bucket',
+    'gcs_photo_credentials_path',
+    'gcs_photo_public',
+    'gcs_photo_signed_url_ttl_seconds',
+  ],
+  ai: [
+    'ai_base_url',
+    'ai_api_key',
+    'search_embedding_provider',
+    'search_embedding_model',
+    'search_embedding_api_key',
+  ],
+}
+
+function withoutOperatorFields(section: SectionKey, payload: ServiceSettingsUpdate): ServiceSettingsUpdate {
+  const operator = OPERATOR_FIELDS_BY_SECTION[section]
+  const fields = (payload as Record<string, Record<string, unknown> | undefined>)[section]
+  if (!operator || !fields) return payload
+  return {
+    ...payload,
+    [section]: Object.fromEntries(Object.entries(fields).filter(([field]) => !operator.includes(field))),
+  } as ServiceSettingsUpdate
+}
+
+function payloadFor(write: SettingsWrite, platformAdmin: boolean): ServiceSettingsUpdate {
+  if (write.kind === 'clear-secret') {
+    return { [write.group]: { [write.field]: null } } as ServiceSettingsUpdate
+  }
+  const payload = write.kind === 'save' ? write.update : resetPayload(write.section)
+  return platformAdmin ? payload : withoutOperatorFields(write.section, payload)
 }
 
 export default function ServiceSettingsSection({
@@ -91,6 +143,10 @@ export default function ServiceSettingsSection({
   section: ServiceSettingsSectionKey
 }) {
   const { user } = useAuth()
+  // `/settings` admits an org owner/admin and a platform admin; the operator
+  // sections are the platform admin's alone (F20 PR4).
+  const platformAdmin = isPlatformAdmin(user)
+  const settingsAdmin = isOwner(user?.role) || platformAdmin
   const qc = useQueryClient()
   const { confirm, dialog } = useConfirm()
   const { registerUnsaved } = useUnsavedChanges()
@@ -101,7 +157,7 @@ export default function ServiceSettingsSection({
   const settingsQuery = useQuery({
     queryKey: serviceSettingsKey(),
     queryFn: serviceSettingsApi.get,
-    enabled: isOwner(user?.role),
+    enabled: settingsAdmin,
     // Rendered below as an ErrorState with a retry.
     meta: SILENT_ERROR_META,
   })
@@ -113,7 +169,8 @@ export default function ServiceSettingsSection({
   }
 
   const saveMut = useMutation({
-    mutationFn: (write: SettingsWrite) => serviceSettingsApi.update(payloadFor(write)),
+    mutationFn: (write: SettingsWrite) =>
+      serviceSettingsApi.update(payloadFor(write, platformAdmin)),
     // Shown in the sticky save row.
     meta: SILENT_ERROR_META,
     onSuccess: (data, write) => {
@@ -229,7 +286,7 @@ export default function ServiceSettingsSection({
     setSecretDrafts(existing => clearSectionSecrets(existing, activeSection))
   }
 
-  if (!isOwner(user?.role)) {
+  if (!settingsAdmin) {
     return (
       <div className="max-w-3xl">
         <Card>
@@ -237,6 +294,22 @@ export default function ServiceSettingsSection({
             <PageHeader title="Instance settings" />
             <p className="mt-2 text-body text-fg-tertiary">
               Owner role is required to view or change instance-level settings.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (PLATFORM_SECTIONS.has(section) && !platformAdmin) {
+    return (
+      <div className="max-w-3xl">
+        <Card>
+          <CardContent>
+            <PageHeader title="Instance settings" />
+            <p className="mt-2 text-body text-fg-tertiary">
+              Platform admin is required to view or change this section: it configures the server
+              itself, not the organization.
             </p>
           </CardContent>
         </Card>
@@ -302,7 +375,12 @@ export default function ServiceSettingsSection({
       )}
 
       {section === 'runtime' && (
-        <RuntimeSection form={form} settings={settings} setField={setField} />
+        <RuntimeSection
+          form={form}
+          settings={settings}
+          setField={setField}
+          platformAdmin={platformAdmin}
+        />
       )}
 
       {section === 'email' && (
@@ -326,6 +404,7 @@ export default function ServiceSettingsSection({
           setSecretDrafts={setSecretDrafts}
           saving={saveMut.isPending}
           onClearSecret={(group, field) => void clearSecret(group, field)}
+          platformAdmin={platformAdmin}
         />
       )}
 
@@ -334,14 +413,19 @@ export default function ServiceSettingsSection({
       )}
 
       {section === 'storage' && (
-        <StorageSection form={form} settings={settings} setField={setField} />
+        <StorageSection
+          form={form}
+          settings={settings}
+          setField={setField}
+          platformAdmin={platformAdmin}
+        />
       )}
 
       {section === 'observability' && (
         <ObservabilitySection form={form} settings={settings} setField={setField} />
       )}
 
-      {section === 'system' && <SystemCard system={settings.system} />}
+      {section === 'system' && settings.system && <SystemCard system={settings.system} />}
 
       {section !== 'system' && (
         <ResetSectionCard

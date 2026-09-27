@@ -26,6 +26,8 @@ import { useActiveBranchId } from '@/hooks/useBranch'
 import { BranchesTab } from './BranchesTab'
 import { expectNoAxeViolations } from '@/test/axe'
 import { at } from '@/test/at'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/planBranches', () => ({
   planBranchesApi: {
@@ -90,7 +92,7 @@ function makeUser(overrides: Partial<UserListItem>): UserListItem {
     id: 'u-1',
     email: 'user@example.com',
     name: null,
-    role: 'editor',
+    role: 'member',
     created_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
@@ -229,6 +231,8 @@ function authAs(role: Role): AuthContextValue {
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -242,18 +246,20 @@ function authAs(role: Role): AuthContextValue {
 
 /** Rendered as an owner unless a test says otherwise: the merge policy form is
  * owner-only, and most tests here exercise the full set of actions. */
-function renderTab(branchId?: string, role: Role = 'owner') {
+function renderTab(branchId?: string, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const path = `/p/demo/branches${branchId ? `/${branchId}` : ''}`
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/p/:slug/branches" element={<BranchesTabRoute />} />
-            <Route path="/p/:slug/branches/:branchId" element={<BranchesTabRoute />} />
-          </Routes>
-        </MemoryRouter>
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/p/:slug/branches" element={<BranchesTabRoute />} />
+              <Route path="/p/:slug/branches/:branchId" element={<BranchesTabRoute />} />
+            </Routes>
+          </MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -1299,7 +1305,7 @@ describe('BranchesTab', () => {
 
   it('shows an editor the merge policy read-only, as the owner-only PATCH requires', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN], total: 1 })
-    renderTab(undefined, 'editor')
+    renderTab(undefined, 'member')
 
     fireEvent.click(await screen.findByRole('button', { name: /Merge policy/i }))
     const dialog = await screen.findByRole('dialog')

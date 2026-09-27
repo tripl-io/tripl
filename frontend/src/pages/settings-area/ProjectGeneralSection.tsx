@@ -41,7 +41,7 @@ import {
   TextArea,
   TextInput,
 } from '@/components/settings/kit'
-import { canManageProject, canWrite, canWriteProject, isOwner } from '@/lib/permissions'
+import { canManageProject, canWriteProject, isOwner } from '@/lib/permissions'
 import { SLUG_ERROR, SLUG_HINT, isValidSlug } from '@/lib/slug'
 import { forgetDemoLocalState } from '@/demo/demoLocalState'
 import { deleteProjectConfirmation } from '@/lib/projectDeletion'
@@ -467,7 +467,8 @@ function ProjectGeneralBody({
         <>
           {!canEdit && (
             <ReadOnlyNotice className="mb-4">
-              {canWrite(user?.role)
+              {/* A viewer of the project gets the notice's own viewer wording. */}
+              {projectQuery.data.my_role !== 'viewer'
                 ? 'Read-only: only the project’s creator or an owner can change its details and version policy.'
                 : undefined}
             </ReadOnlyNotice>

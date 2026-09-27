@@ -12,7 +12,8 @@ import uuid
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from tripl.api.deps import CurrentUserDep, SessionDep, WriteUserDep, require_editor
+from tripl.api.deps import CurrentUserDep, SessionDep, WriteUserDep, require_org_member
+from tripl.middleware.org_context import require_org_id
 from tripl.schemas.api_key import (
     ApiKeyCreate,
     ApiKeyCreateResponse,
@@ -27,7 +28,8 @@ router = APIRouter(prefix="/me/api-keys", tags=["api-keys"])
 
 @router.get("", response_model=list[ApiKeyResponse])
 async def list_api_keys(session: SessionDep, current_user: CurrentUserDep) -> list[ApiKeyResponse]:
-    rows = await api_key_service.list_keys(session, current_user.id)
+    # Only the keys of the request's organization: a key acts in exactly one.
+    rows = await api_key_service.list_keys(session, current_user.id, require_org_id())
     return [ApiKeyResponse.model_validate(row) for row in rows]
 
 
@@ -40,7 +42,10 @@ async def create_api_key(
 ) -> ApiKeyCreateResponse:
     _require_session_auth(request)
     if data.scope == "write":
-        require_editor(current_user)
+        # A write key needs membership of the organization it will act in; what
+        # it may write inside a project is still decided per request by the
+        # project role of the user who minted it.
+        await require_org_member(session, current_user)
 
     # A project-bound key validates the slug up front so operators can't mint
     # a key pointing at a project that doesn't exist — or at one they are not a

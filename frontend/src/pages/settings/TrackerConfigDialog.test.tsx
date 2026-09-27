@@ -9,6 +9,8 @@ import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { ProjectTrackerConfig, Role } from '@/types'
 import { TrackerConfigDialog } from './TrackerConfigDialog'
 import { at } from '@/test/at'
+import { type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/trackerConfig', () => ({
   trackerConfigApi: {
@@ -41,6 +43,8 @@ function authValue(role: Role): AuthContextValue {
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -52,12 +56,14 @@ function authValue(role: Role): AuthContextValue {
   }
 }
 
-function renderDialog(role: Role = 'owner', onOpenChange: (open: boolean) => void = () => {}) {
+function renderDialog(role: Persona = 'owner', onOpenChange: (open: boolean) => void = () => {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authValue(role)}>
-        <TrackerConfigDialog slug="demo" open onOpenChange={onOpenChange} />
+      <AuthContext.Provider value={authValue(role === 'viewer' ? 'member' : role)}>
+        <PersonaProject persona={role}>
+          <TrackerConfigDialog slug="demo" open onOpenChange={onOpenChange} />
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -139,7 +145,7 @@ describe('TrackerConfigDialog', () => {
   it('hides the Save control and disables inputs for non-owners', async () => {
     vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig())
 
-    renderDialog('editor')
+    renderDialog('member')
 
     // Editors can GET but not PATCH, so no Save affordance is offered.
     expect(await screen.findByLabelText('Project key')).toBeDisabled()
@@ -363,7 +369,7 @@ describe('TrackerConfigDialog', () => {
         makeConfig({ tracker_type: 'linear', team_id: 'team-1' }),
       )
 
-      renderDialog('editor')
+      renderDialog('member')
 
       expect(await screen.findByLabelText('Team ID')).toBeDisabled()
       expect(screen.queryByRole('button', { name: 'Linear' })).toBeNull()

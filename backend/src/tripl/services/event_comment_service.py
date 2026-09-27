@@ -276,7 +276,7 @@ async def delete_comment(
     comment = await session.get(EventPhotoComment, comment_id)
     if comment is None or comment.event_id not in thread.anchors:
         raise HTTPException(status_code=404, detail="Comment not found")
-    ensure_comment_deletable(comment, user)
+    await ensure_comment_deletable(session, comment, user, thread.home.project_id)
     await session.delete(comment)
     await session.commit()
 

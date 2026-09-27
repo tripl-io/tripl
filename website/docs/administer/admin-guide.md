@@ -14,7 +14,8 @@ Almost everything an administrator does lives under **Settings**, which has two
 contexts:
 
 - **Workspace** — Members, Data sources, API keys, your own Profile and
-  Security, and the owner-only **Instance** sections.
+  Security, and the **Instance** sections (org owners and admins, and the
+  platform admin for the operator ones).
 - **Project** — per-project configuration (General, Plan rules), covered in the
   user guide rather than here.
 
@@ -30,28 +31,59 @@ below) see [Configuration](../run/configuration.md).
 
 ## Roles & permissions
 
-tripl has exactly three roles, defined server-side as the `UserRole` enum
-(`owner`, `editor`, `viewer`):
+Access is decided by two roles and one flag:
 
-| Role | Can read | Can edit plan content | Manage members & roles | Instance settings |
-| --- | --- | --- | --- | --- |
-| **Viewer** | Projects they are a member of | No | No | No |
-| **Editor** | Projects they are a member of | In projects where they are an `editor` member | No | No |
-| **Owner** | Every project | Every project | Yes | Yes |
+- the **organization role** (`organization_members.role`): `owner`, `admin` or
+  `member`. A self-hosted instance has one organization, the default one, and
+  every account belongs to it;
+- the **project role** of a member (`project_members.role`): `editor` or
+  `viewer`, per project;
+- the **platform admin** flag (`users.is_platform_admin`): the operator of the
+  instance, separate from both.
 
-The instance role is only half of the answer: which **projects** a user can see
-is decided by [project access](#project-access).
+| Who | Projects they see | Edit plan content | Manage project members | Data sources, scan SQL, audit log, delete projects | Members, roles & invitations | Organization settings (row limits, MIME types, AI model and prompts) | Operator settings (security, observability, email, storage, AI endpoint, system) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **Org owner** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, including other owners | Yes (default org) | No, unless also platform admin |
+| **Org admin** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, except making or unmaking an owner | Yes (default org) | No, unless also platform admin |
+| **Member, project `editor`** | That project | That project | Projects they created | No | No | No | No |
+| **Member, project `viewer`** | That project | No | No | No | No | No | No |
+| **Member, no project row** | — (`404`) | No | No | No | No | No | No |
+| **Platform admin** (flag only) | None from the flag | No | No | No | No | Yes | Yes |
+
+An owner and an admin differ only on owners: an admin can do everything an owner
+can except promote someone to owner, demote an owner, or invite at the `owner`
+role (`403 Only an owner can manage owners`). Owner-only matters that come later
+(SSO, deleting the organization) will be the owner's.
+
+The platform admin is an **operator** role, not an organization one. The flag
+grants the operator settings and nothing inside any organization: a platform
+admin who is not a member sees no project (`404`), no audit log and no data
+source connection. On a self-hosted instance the first account is both the
+default organization's owner and the platform admin, so a one-person instance
+never notices the split.
 
 How roles are assigned:
 
-- **The first user to register becomes `owner`.** This guarantees every instance
-  has at least one operator who can manage roles. Every subsequent registration
-  defaults to **`editor`**.
-- A **`viewer`** is never created automatically — an owner has to downgrade a
-  member to viewer in **Settings → Members**.
-- Only an **owner** can change anyone's role. The API refuses to **demote the
-  last remaining owner** (`400 Cannot demote the last remaining owner`), so you
-  cannot lock yourself out of the instance.
+- **The first user to register becomes the owner of the default organization
+  and the platform admin.** This guarantees every instance has someone who can
+  manage roles and operate it. Every later registration joins the default
+  organization as a **`member`** with no project, until someone adds them to
+  one.
+- An invitation carries an organization role; the invitee joins at it.
+- A `viewer` is a **project** role now: add someone to a project as a viewer in
+  **Settings → Project → Access**. Upgrading moved every former instance viewer
+  to `member` and capped each of their project memberships at `viewer`, so
+  nobody gained write access in the upgrade.
+- Only an **owner or admin** changes organization roles. The API refuses to
+  **demote the last remaining owner** of an organization (`400 Cannot demote
+  the last remaining owner`), so you cannot lock yourself out.
+
+`PATCH /api/v1/users/{id}` takes the organization vocabulary, `{"role":
+"owner" | "admin" | "member"}`, and writes the organization role in the request's
+organization. The instance-era values are refused with `422`; the old `owner`
+maps to `owner`, and `editor` and `viewer` both map to `member` — what a member
+may do in a project is their project role. `users.role`, the old instance role,
+is no longer read by anything and will be dropped.
 
 :::note Claiming a brand-new instance
 [`tripl install`](../run/cli.md#tripl-install) provisions and starts a stack, but
@@ -65,61 +97,71 @@ provisioning side is
 [Self-hosting & Deployment](../run/deployment.md#install-with-the-cli).
 :::
 
-:::warning Role changes sign the user out
-When an owner changes a member's role, every active session for that user is
-deleted in the same transaction, so the new permissions take effect on their
-next request. An in-flight request that already passed authentication still
-finishes with the old role; only the next request is affected.
+:::note A role change does not sign the user out
+Roles are read from the database on every request, so a change applies to the
+member's next request without ending their sessions. (Before organizations, a
+role change deleted every session of the user.) An in-flight request that
+already passed authentication still finishes with the old role. To end
+someone's sessions, have them log out or remove them from the organization.
 :::
 
 ### How permissions are enforced
 
 The backend gates endpoints with role/scope dependencies, not just UI hiding:
 
-- **Editor-or-above** is required for any mutation. Viewers receive `403 Editor
-  role required`.
-- **Owner** is required for member role changes and all Instance settings.
-  Non-owners receive `403 Owner role required`.
 - **Project membership** is checked before anything else on every project
   route: a non-member receives `404 Project not found`, and a viewer member who
-  tries to change something receives `403`.
-- Owner-only endpoints additionally require an **interactive owner session** —
-  an API key does not reach them, even a write-scoped key owned by an owner
-  (`403 Owner session required`). One route is deliberately exempt: the
+  tries to change something receives `403 Editor access to this project is
+  required`.
+- **Organization membership** is required to create a project or a write-scoped
+  API key, and to read the member roster (`403 Organization membership
+  required`).
+- **Org owner or admin** is required for data sources, scan authoring, the audit
+  log, deleting a project, danger-zone resets, tracker and branch settings,
+  members, roles and invitations (`403 Organization owner or admin role
+  required`). On a project route the project must belong to the organization the
+  request acts in.
+- **Settings admin** — a platform admin, or an owner or admin of the default
+  organization — is required for `/settings`. A write that touches an operator
+  field additionally needs the platform admin (`403 Platform admin required`).
+- Owner- and admin-only endpoints additionally require an **interactive
+  session** — an API key does not reach them, even a write-scoped key of an
+  owner (`403 Owner session required`). One route is deliberately exempt: the
   [metrics replay](../integrate/agent-api-guide.md#replaying-metrics), which a
-  write-scoped key backed by an owner may call.
+  write-scoped key of an org owner or admin may call. The operator settings
+  never take a key (`403 Platform admin session required`).
 
 ## Project access
 
 Each project has its own member list. A user who is not a member of a project
 does not see it at all: it is missing from the project list, the activity feed
 and data-source listings, and every page and API route under it answers
-`404 Project not found`. Instance owners see every project and need no
-membership.
+`404 Project not found`. Owners and admins of the organization see every
+project of it and need no membership.
 
 | Project role | What it allows |
 | --- | --- |
 | **Editor** | Read the project and edit its tracking plan, catalog and alerting. |
 | **Viewer** | Read the project. |
 
-The instance role caps the project role: an instance **viewer** is a viewer in
-every project, even with an `editor` membership.
+The membership row is authoritative: nothing caps it from outside.
 
-**Settings → Project → Access** lists the project's members. The instance owner
-and the person who created the project can, as long as the creator still holds
-an editing role:
+**Settings → Project → Access** lists the project's members. The organization's
+owners and admins, and the person who created the project, can, as long as the
+creator still holds an editing role:
 
-- **add a member**: pick someone from the workspace and a role;
+- **add a member**: pick someone from the organization and a role (a user who
+  is not a member of the project's organization is refused with `422`);
 - **change a member's role** between Editor and Viewer;
 - **remove a member**, who then no longer sees the project. Removal also drops
   their event-type ownerships and pending branch-reviewer assignments in that
   project, and closes any live-updates stream they have open within one
   heartbeat.
 
-The creator's rights last only while they can edit: a creator whose instance
-role is `viewer`, or who was switched to a `viewer` member, gets `403` on member
-changes, rename and reset, and a creator who was removed from the project gets
-`404` like any other non-member. Deleting a project is for instance owners only.
+The creator's rights last only while they can edit: a creator who was switched
+to a `viewer` member gets `403` on member changes, rename and reset, and a
+creator who was removed from the project gets `404` like any other non-member.
+Deleting a project is for the organization's owners and admins only.
 
 Everyone else sees the list read-only. Each change is recorded in the audit log
 (`project.member_add`, `project.member_update`, `project.member_remove`).
@@ -143,36 +185,42 @@ A few things follow from this:
   to, a slug that already exists is refused with `409` even if the caller cannot
   see that project. Slugs are unique instance-wide, so this signal cannot be
   hidden.
+- **Upgrading to organizations** capped every former instance viewer's project
+  memberships at `viewer`, and made every former instance owner an owner of the
+  default organization.
 - **Upgrading from a version without project access** kept everyone's access:
   every existing editor and viewer became a member of every existing non-demo
   project with the same role, and each existing demo kept only its creator.
 
 ## Members
 
-**Settings → Members** lists everyone with access to the workspace. The roster
-itself is visible to any authenticated user; **only owners** see the per-row
-role dropdown and can change roles. Non-owners see read-only role chips.
+**Settings → Members** lists the members of the organization, with their
+organization role. The roster is visible to every member of the organization
+(an account outside it gets `403`); **only owners and admins** see the per-row
+role dropdown and can change roles. Everyone else sees read-only role chips.
 
 Each row shows the member's name (or email), email, join date, and role
-(**Owner** / **Editor** / **Viewer**). Owners cannot change their *own* role from
+(**Owner** / **Admin** / **Member**). Nobody can change their *own* role from
 this screen — use another owner account if you need to step down, and remember
-the last-owner guard above.
+the last-owner guard above. An admin does not get the dropdown on an owner's
+row, and is not offered **Owner**.
 
-Granting **Owner** and every demotion (Owner → Editor, anything → Viewer) ask
+Granting **Owner** and every demotion (Owner → Admin, anything → Member) ask
 for confirmation first and say what changes; a promotion short of Owner
-(Viewer → Editor) applies at once. If a change is refused, the error appears on
-that member's row.
+(Member → Admin) applies at once. If a change is refused, the error appears on
+that member's row. The member stays signed in.
 
 :::warning Registration ships open — close it once your team has accounts
 Self-service registration used to be the only way to add a person, which is why
 it ships **open by default**. You can now **invite people directly** instead
 (see below), so closing registration no longer blocks onboarding. On an open
 instance
-anyone who can reach the URL can sign up, join as **editor**, and immediately
-read the whole tracking plan and this member roster — and **edit any shared
-project**. Data source connection details (host, port, username) are owner-only.
-Warehouse table and column names are available to editors authoring scans and
-metrics. For a source owned by a project, the editor must also be allowed to
+anyone who can reach the URL can sign up, join the organization as a
+**member**, and immediately read this member roster and the workspace-global
+data sources' names. They see no project until someone adds them to one. Data
+source connection details (host, port, username) are for org owners and admins
+only. Warehouse table and column names are available to members authoring scans
+and metrics. For a source owned by a project, the editor must also be allowed to
 edit that project; workspace-global sources remain shared. A failed connection
 test distinguishes an authentication failure from a network failure, and
 renaming a source to an existing name returns a conflict error.
@@ -185,22 +233,24 @@ Decide the policy before you expose the instance; see
 The recommended way to add someone, and the only one that works without opening
 the instance to the world:
 
-1. **Settings → Members → Invite a member**. Enter their email and pick a role.
-   Picking **Owner** shows what the role grants, and creating an owner invite
-   asks for confirmation — whoever opens that link administers the instance.
+1. **Settings → Members → Invite a member**. Enter their email and pick an
+   organization role (**Member** by default). Picking **Owner** shows what the
+   role grants, and creating an owner invite asks for confirmation — whoever
+   opens that link administers the organization. Only an owner can invite an
+   owner.
 2. **Copy the link it returns.** It is shown once and cannot be retrieved
    afterwards — send it however you like (the instance may have no SMTP). The
    panel names the role and stays until you **Dismiss** it; creating another
    invite before the link was copied asks first, since the uncopied link would
    be lost.
-3. They open the link, set a password, and land in the workspace at the role you
-   chose. Only a link the server rejects (used, expired or revoked) shows
+3. They open the link, set a password, and land in the organization at the role
+   you chose. Only a link the server rejects (used, expired or revoked) shows
    **This invite link no longer works**; if the page could not reach the server
    or it failed, it shows **Could not check this invitation** with **Try again**,
    so a network blip does not read as a dead link.
 
-Owner only, and only from a signed-in browser session — an API key cannot mint
-an account whatever its scope. The link works a single time, expires after 72
+Owners and admins only, and only from a signed-in browser session — an API key
+cannot mint an account whatever its scope. The link works a single time, expires after 72
 hours, and is bound to the address you typed, so it cannot be redeemed into a
 different identity. Pending invitations are listed under **Settings → Members**
 and revoking one kills its link immediately. Inviting the same address again
@@ -209,8 +259,8 @@ invalidates the previous link.
 This works while registration is **Disabled** — that is the point of it.
 
 Adding a member while registration is **Open**: they can also just register
-themselves at the sign-in page, and you adjust their role from
-**Settings → Members**.
+themselves at the sign-in page (they join as a member), and you adjust their
+role from **Settings → Members**.
 
 While registration is disabled the sign-in page shows no sign-up form at all,
 and `POST /auth/register` is refused with a `403` that tells the visitor to ask
@@ -228,7 +278,8 @@ signed-in user.
 ### Profile
 
 **Settings → Profile** shows your details pulled from the authenticated account:
-**Name**, **Email**, **Role** ("Set by a workspace owner") and the **Timezone**
+**Name**, **Email**, **Role** (your organization role, "Set by a workspace
+owner") and the **Timezone**
 your timestamps follow, which is read from the browser. All of them are
 read-only here.
 
@@ -243,14 +294,14 @@ under Alerting, not to a person.
 runs the same password-reset flow as the sign-in screen's **Forgot your
 password?** link (`/auth/password-reset/request`) for your signed-in address.
 When the instance cannot send email, the button is disabled from the start,
-for everyone: an owner gets a **Set up email** link beside it, and everyone else
-reads "Ask an owner to set it up."
+for everyone: a platform admin gets a **Set up email** link beside it, and
+everyone else reads "Ask a platform admin to set it up."
 Your current password keeps working until you choose a new one from the link.
 
 Changing the password in place, two-factor authentication and a list of
 signed-in devices are not built; the page lists them under **Coming later**.
-To invalidate a user's sessions today, change their role (which deletes their
-sessions) or have them log out. Sessions also expire automatically after the
+To invalidate a user's sessions today, have them log out (a role change no
+longer signs anyone out). Sessions also expire automatically after the
 configured TTL (`session_ttl_hours`, default **168 hours / 7 days**).
 
 ## API keys & governance
@@ -259,7 +310,9 @@ API keys are long-lived bearer tokens for non-browser clients — LLM agents and
 CLI scripts. They are managed **per user** at **Settings → API keys** (backed by
 `/api/v1/me/api-keys`). Creation and revocation require an interactive session;
 a Bearer API key cannot manage keys. A user only ever sees and revokes **their own** keys;
-there is no cross-user key administration, even for owners.
+there is no cross-user key administration, even for owners. A key belongs to
+the organization it was created in and acts only there; the list shows the keys
+of the organization the request acts in.
 
 ### Creating a key
 
@@ -278,9 +331,9 @@ The create form (and the `POST /api/v1/me/api-keys` endpoint) takes:
   has read-only scope`; a few complex read-only queries use `POST` with a JSON
   body and remain available.
 - **`write`** — full editor-level access, *still subject to the owning user's
-  role*. A write key is useless beyond reading if its owner is a viewer.
-  Creating a write-scoped key itself requires the creator to be **editor or
-  above** (a viewer cannot mint a write key, and the UI hides the option).
+  roles*. A write key writes only where its user holds an editing project role
+  (or is an org owner or admin). Creating a write-scoped key requires
+  membership of the organization (`403 Organization membership required`).
 
 **Project binding** is orthogonal to scope. A project-bound key authenticates
 **only** `/projects/{slug}/...` routes for that one project; any other project
@@ -318,27 +371,54 @@ header) and the endpoints they unlock, see the
 [Agent API guide](../integrate/agent-api-guide.md).
 
 :::note What a key cannot reach, whatever its scope
-Owner-only endpoints require an **interactive owner session**, so an API key is
-`403` on them even when its owner is an owner. The single exception is the
-[metrics replay](../integrate/agent-api-guide.md#replaying-metrics): it only
-re-runs SQL an owner already authored, so an owner's `tk_w_` key may trigger one.
+Owner- and admin-only endpoints require an **interactive session**, so an API
+key is `403` on them even when its user is an org owner. The single exception is
+the [metrics replay](../integrate/agent-api-guide.md#replaying-metrics): it only
+re-runs SQL an org owner or admin already authored, so their `tk_w_` key may
+trigger one.
 In practice that means
 **connecting a data source and inviting a member are browser-only steps** — no
 CLI, script or agent can do them for you, which is why
 [`tripl install`](../run/cli.md#tripl-install) hands you a URL at the end instead
 of finishing the job. The [Operator CLI](../run/cli.md) documents which of its
 commands need a key at all: `install` and `upgrade` need none, the diagnostics
-need `tk_r_`, and three verbs need `tk_w_` behind an editor or owner.
+need `tk_r_`, and three verbs need `tk_w_` behind an editor, admin or owner.
 :::
 
-## Instance settings (owner only)
+## Instance settings (owners, admins and the platform admin)
 
-**Settings → Instance** is visible only to owners. A non-owner who opens an
-instance page from a link sees the section's title, a lock notice ("Owner role
-is required to view or change instance-level settings. Ask an owner, or go to
-Profile.") and a **Go to Profile** link, and the API rejects them (`GET`/`PATCH`/`PUT /api/v1/settings` all require an owner
-session). It exposes a curated subset of the server configuration as overrides
-stored in the database.
+**Settings → Instance** is visible to the **settings admins**: the platform
+admin, and the owners and admins of the default organization. Until each
+organization has its own settings, the instance values are what the default
+organization uses, so no other organization's admin may change them. Anyone
+else who opens an instance page from a link sees the section's title, a lock
+notice ("Owner role is required to view or change instance-level settings. Ask
+an owner, or go to Profile.") and a **Go to Profile** link, and the API rejects
+them (`GET`/`PATCH`/`PUT /api/v1/settings` all require a settings admin's
+browser session). It exposes a curated subset of the server configuration as
+overrides stored in the database.
+
+The fields split in two:
+
+| Class | Fields | Who may change them |
+| --- | --- | --- |
+| **Organization** | Runtime row-limit defaults, Storage allowed MIME types, and AI enabled, model, timeout, output limit, the three system prompts and the search-embeddings switch | Settings admins |
+| **Operator** | Runtime public URL (`app_base_url`), every **Security & access** field (registration mode included), every **Observability** field, every **Email** (SMTP) field, every **Storage** field but the MIME allow-list, the AI base URL and API key, the embedding provider, model and API key, and the **System** section | Platform admin only |
+
+Until each organization has its own values, one value of each field serves
+every organization, so a field that routes another organization's data is
+operator-only: the SMTP relay carries every user's password-reset and
+invitation mail, the photo storage settings decide where every
+organization's photos go and whether they are public, and the AI and
+embedding endpoints receive every organization's plan text.
+
+An org owner or admin who is not the platform admin does not see the Security,
+Email, Observability and System sections; the operator fields of Runtime,
+Storage and AI are shown to them disabled. A write that touches any operator
+field is refused whole (`403 Platform admin required`). The `system` block of
+`GET /api/v1/settings` is `null` for them. The photo and row limits
+(`/settings/photo-limits`, `/settings/row-limits`) stay readable by every
+signed-in user.
 
 ### How overrides work
 
@@ -510,15 +590,17 @@ If no key is set on either AI secret field, the server falls back to the
 
 ### Security & access
 
-Authentication and network policy for everyone on the instance.
+Authentication and network policy for everyone on the instance. Platform admin
+only: an org owner or admin does not see this section.
 
 - **Registration** (`registration_mode`, default **Open**) — whether strangers
   can create their own account. **Open** allows self-service signup: anyone who
-  can reach this instance creates an account, joins as **editor**, and can
-  immediately read the whole tracking plan and the member roster, and **edit any
-  shared project**. Each data source's name, type and health are visible to
-  everyone; its connection details (host, port, username, whether a password is
-  set) are owner-only, and the password itself is never returned to anybody.
+  can reach this instance creates an account, joins the default organization as
+  a **member**, and can immediately read the member roster; they see no project
+  until someone adds them to one. Each workspace-global data source's name, type
+  and health are visible to them; its connection details (host, port, username,
+  whether a password is set) are for org owners and admins only, and the
+  password itself is never returned to anybody.
   **Disabled** refuses `POST /auth/register` with a `403` and hides
   the sign-up form on the sign-in page. It defaults to Open only because there
   is no invite or owner-creates-user flow yet, so a closed instance cannot

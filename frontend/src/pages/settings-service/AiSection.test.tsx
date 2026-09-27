@@ -111,6 +111,7 @@ function renderSection(
         setSecretDrafts={vi.fn()}
         saving={false}
         onClearSecret={vi.fn()}
+        platformAdmin
       />
     </QueryClientProvider>,
   )

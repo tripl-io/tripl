@@ -250,7 +250,7 @@ The demo offers two guides, and they do different jobs.
   **Manage demo** menu while it checks.
 - **Delete** — chosen from the banner's **Manage demo** menu; removes the demo and its owned synthetic warehouse and leaves every
   real workspace source untouched. The creator or an owner can delete it. A demo
-  is visible only to its creator (and instance owners) unless they add members in
+  is visible only to its creator (and the organization's owners and admins) unless they add members in
   **Settings → Project → Access**; a reset keeps those members. The
   tour position, chapter progress and welcome/hint choices your browser kept
   for it are cleared too — and the workspace page clears them for any demo that

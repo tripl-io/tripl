@@ -253,7 +253,8 @@ Core planning entities:
 - `Project`: tracking-plan namespace.
 - `ProjectMember`: a user's membership of one project (`editor` | `viewer`).
   Non-members get 404 on every `/projects/{slug}/...` route and never see the
-  project in a list or feed; instance owners need no row. Rules live in
+  project in a list or feed; owners and admins of the project's organization
+  need no row (they are project role `owner`). Rules live in
   `services/project_access.py`; the gate is `require_project_membership` in
   `api/deps.py`, mounted in `api/v1/router.py`'s `protected_dependencies`.
 - `EventType`: schema bucket like page view or click.

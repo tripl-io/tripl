@@ -16,17 +16,25 @@ For the underlying mental model (events vs. event types, scopes, signals) read
 [User Guide](./user-guide.md); for fixes see [Troubleshooting](./troubleshooting.md).
 
 :::note Permissions
-A project is visible only to its **members** and to instance owners; anyone
-else gets **Project not found**. Mutations (create/update/delete) inside a
-project need an **editor** membership and at least the **editor** instance role;
-viewers are rejected. Renaming, resetting a project and managing who has access
-(**Settings → Project → Access**) are for owners and for its creator while the
-creator holds an editing role (a creator who is an instance viewer or a viewer
-member gets `403`; a removed creator gets **Project not found**). Deleting a
-project is owner-only.
-Data sources and the workspace/instance settings require the
-**owner** role. Owner-only
-command-palette entries (such as **Runtime**) are hidden for non-owners.
+Roles come in two layers. The **organization role** is `owner`, `admin` or
+`member`; in this reference **owner** and **owner-only** mean an owner *or an
+admin* of the organization (an admin differs only in not managing owners). The
+**project role** of a member is `editor` or `viewer`.
+
+A project is visible only to its **members** and to the organization's owners
+and admins; anyone else gets **Project not found**. Mutations
+(create/update/delete) inside a project need an **editor** membership (or an
+owner/admin); viewer members are rejected. Renaming, resetting a project and
+managing who has access (**Settings → Project → Access**) are for owners and
+admins and for its creator while the creator holds an editing role (a creator
+who is a viewer member gets `403`; a removed creator gets **Project not
+found**). Deleting a project is owner-only.
+Data sources, members and the audit log require an owner or admin. The
+**Instance** settings are for the owners and admins of the organization and the
+**platform admin**; the operator sections among them (Security & access,
+Observability, System, and the server paths and size cap under Storage) are the
+platform admin's alone. Owner-only command-palette entries (such as
+**Runtime**) are hidden for everyone else.
 :::
 
 ## Navigation model
@@ -2732,7 +2740,7 @@ reset link that expires in one hour** — opening it returns you to the sign-in
 screen in "choose a new password" mode, where the new password must meet the
 same policy as registration (at least 12 characters with a number and a symbol).
 When email is **not** configured, the confirmation instead tells you to contact
-your instance owner. Completing a reset also signs out the account's other
+an owner. Completing a reset also signs out the account's other
 sessions. Password fields on the sign-in and invitation pages have a
 show-password toggle. See **[Security](../run/security.md)** for the token and delivery
 details.

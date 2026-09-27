@@ -39,8 +39,8 @@ function memberName(member: Pick<ProjectMember, 'name' | 'email'>): string {
 
 /**
  * Project · Access. A project is invisible to anyone who is not a member of it
- * (instance owners see every project), so this is where people are given a
- * project: added from the instance roster at a role, re-roled, or removed.
+ * (organization owners and admins see every project), so this is where people are given a
+ * project: added from the organization roster at a role, re-roled, or removed.
  * Everyone who can open the project can read the list; only managers see the
  * controls.
  */
@@ -95,13 +95,11 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
 
   const members = membersQuery.data ?? []
   const memberIds = new Set(members.map((member) => member.user_id))
-  // Instance owners already see and manage every project, so adding one would
-  // change nothing; they are left out of the picker rather than offered.
+  // Org owners/admins already see and manage every project of the organization,
+  // so adding one would change nothing; they are left out of the picker.
   const candidates = (usersQuery.data ?? []).filter(
     (candidate) => !memberIds.has(candidate.id) && !isOwnerRole(candidate.role),
   )
-  const pickedUser = candidates.find((candidate) => candidate.id === pickedUserId)
-  const pickedIsViewer = pickedUser?.role === 'viewer'
 
   const resetErrors = () => {
     addMut.reset()
@@ -139,7 +137,7 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
     const ok = await confirm({
       title: 'Remove member',
       message: self
-        ? 'Remove yourself from this project? It disappears from your project list as soon as you confirm, unless you are an instance owner.'
+        ? 'Remove yourself from this project? It disappears from your project list as soon as you confirm, unless you are an owner or admin of the organization.'
         : `Remove ${who} from this project? It disappears from their project list, and they lose access to everything in it.`,
       confirmLabel: 'Remove',
       variant: 'danger',
@@ -158,13 +156,13 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
       {dialog}
       <SHeader
         title="Access"
-        description="Who can see this project. People who are not members do not see it at all; instance owners see every project."
+        description="Who can see this project. People who are not members do not see it at all; organization owners and admins see every project."
       />
 
       {/* Wait for the project before claiming read-only: its creator is a manager. */}
       {projectQuery.isSuccess && !manager && (
         <ReadOnlyNotice className="mb-5">
-          Only an instance owner or the person who created this project can change who has access.
+          Only an organization owner or admin, or the person who created this project, can change who has access.
         </ReadOnlyNotice>
       )}
 
@@ -240,14 +238,6 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
                 label="Role"
                 htmlFor="project-member-role"
                 last
-                hint={
-                  pickedIsViewer && pickedRole === 'editor' ? (
-                    <span className="text-warning">
-                      This person is a Viewer on the workspace, so they can only read this project
-                      whatever role it gives them.
-                    </span>
-                  ) : undefined
-                }
               >
                 <NativeSelect
                   id="project-member-role"
@@ -302,7 +292,7 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
             size="sm"
             headingLevel={3}
             title="No members yet"
-            description="Only instance owners can see this project until someone is added."
+            description="Only organization owners and admins can see this project until someone is added."
           />
         ) : (
           members.map((member) => {

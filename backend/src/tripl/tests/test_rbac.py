@@ -3,9 +3,12 @@ from collections.abc import AsyncGenerator
 import pytest
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select, update
 
 from tripl.api.deps import WRITE_GATES
 from tripl.main import app
+from tripl.models.project_member import ProjectMember
+from tripl.models.user import User
 from tripl.tests._members import add_member_by_slug
 
 
@@ -25,12 +28,35 @@ async def _register(ac: AsyncClient, email: str) -> AsyncClient:
     return ac
 
 
+# The instance-era roles, as the tests that predate organization roles name
+# them: ``editor`` / ``viewer`` were an instance-wide ceiling. They are now an
+# organization ``member`` whose project rows carry that role.
+_LEGACY_PROJECT_ROLES = {"editor", "viewer"}
+
+
 async def _set_role(owner_client: AsyncClient, target_email: str, role: str) -> None:
+    """Set ``target_email``'s organization role through ``PATCH /users/{id}``.
+
+    ``role`` is an organization role (owner | admin | member). The legacy
+    ``editor`` / ``viewer`` spell "member, and every project row of theirs at
+    that role": the API has no instance-wide viewer any more, so the rows are
+    rewritten directly, exactly what migration ``c9e1a3b5d7f9`` does once.
+    """
     users = await owner_client.get("/api/v1/users")
-    assert users.status_code == 200
+    assert users.status_code == 200, users.text
     target = next(u for u in users.json() if u["email"] == target_email)
-    resp = await owner_client.patch(f"/api/v1/users/{target['id']}", json={"role": role})
+    org_role = "member" if role in _LEGACY_PROJECT_ROLES else role
+    resp = await owner_client.patch(f"/api/v1/users/{target['id']}", json={"role": org_role})
     assert resp.status_code == 200, resp.text
+    if role in _LEGACY_PROJECT_ROLES:
+        from tripl.tests.conftest import TestSessionLocal
+
+        async with TestSessionLocal() as session:
+            user_id = await session.scalar(select(User.id).where(User.email == target_email))
+            await session.execute(
+                update(ProjectMember).where(ProjectMember.user_id == user_id).values(role=role)
+            )
+            await session.commit()
 
 
 def iter_api_routes() -> list[tuple[str, APIRoute]]:
@@ -143,18 +169,23 @@ def test_mutating_routes_require_write_gate() -> None:
 
 
 @pytest.mark.asyncio
-async def test_first_user_becomes_owner_subsequent_users_are_editors(
+async def test_first_user_becomes_owner_subsequent_users_are_members(
     fresh_anon_client: AsyncClient,
 ) -> None:
+    """Self-hosted bootstrap: the first account owns the default org AND operates the instance."""
     await _register(fresh_anon_client, "first@example.com")
-    me = await fresh_anon_client.get("/api/v1/auth/me")
-    assert me.json()["role"] == "owner"
+    me = (await fresh_anon_client.get("/api/v1/auth/me")).json()
+    assert me["role"] == "owner"
+    assert me["is_platform_admin"] is True
+    assert me["orgs"] == [{"slug": "default", "name": "Default organization", "role": "owner"}]
 
-    # Clear the owner session and register a second user → defaults to editor.
+    # Clear the owner session and register a second user → an org member.
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "second@example.com")
-    me2 = await fresh_anon_client.get("/api/v1/auth/me")
-    assert me2.json()["role"] == "editor"
+    me2 = (await fresh_anon_client.get("/api/v1/auth/me")).json()
+    assert me2["role"] == "member"
+    assert me2["is_platform_admin"] is False
+    assert me2["orgs"] == [{"slug": "default", "name": "Default organization", "role": "member"}]
 
 
 @pytest.mark.asyncio
@@ -166,33 +197,15 @@ async def test_viewer_cannot_mutate_but_can_read(fresh_anon_client: AsyncClient)
     await fresh_anon_client.post("/api/v1/auth/logout")
     await _register(fresh_anon_client, "viewer@example.com")
 
-    # A non-member does not see the project at all, so make the viewer a member.
-    # The row says ``editor`` on purpose: the instance ``viewer`` role caps the
-    # project role at ``viewer`` (asserted on ``my_role`` below). The 403s on the
-    # mutations are answered earlier, by ``require_editor``'s instance-role
-    # check, so they alone would not show the cap.
-    await add_member_by_slug("rbac-proj", "viewer@example.com", "editor")
-
-    # Owner promotes viewer to viewer role.
-    await fresh_anon_client.post("/api/v1/auth/logout")
-    await fresh_anon_client.post(
-        "/api/v1/auth/login",
-        json={"email": "owner@example.com", "password": "Password123!"},
-    )
-    await _set_role(fresh_anon_client, "viewer@example.com", "viewer")
-
-    # Now sign in as viewer.
-    await fresh_anon_client.post("/api/v1/auth/logout")
-    await fresh_anon_client.post(
-        "/api/v1/auth/login",
-        json={"email": "viewer@example.com", "password": "Password123!"},
-    )
+    # A non-member does not see the project at all, so make the member a
+    # project viewer. The project row is the whole story now: there is no
+    # instance-wide viewer role left to cap it.
+    await add_member_by_slug("rbac-proj", "viewer@example.com", "viewer")
 
     # Reads work.
     listing = await fresh_anon_client.get("/api/v1/projects")
     assert listing.status_code == 200
 
-    # The instance role caps the editor membership row at viewer.
     detail = await fresh_anon_client.get("/api/v1/projects/rbac-proj")
     assert detail.status_code == 200, detail.text
     assert detail.json()["my_role"] == "viewer"
@@ -201,12 +214,7 @@ async def test_viewer_cannot_mutate_but_can_read(fresh_anon_client: AsyncClient)
     assert listed["rbac-proj"]["my_role"] == "viewer"
     assert listed["rbac-proj"]["can_mutate"] is False
 
-    # Mutations are rejected with 403.
-    create = await fresh_anon_client.post(
-        "/api/v1/projects", json={"name": "Blocked", "slug": "blocked"}
-    )
-    assert create.status_code == 403
-
+    # Mutations inside the project are rejected with 403.
     create_et = await fresh_anon_client.post(
         "/api/v1/projects/rbac-proj/event-types",
         json={"name": "x", "display_name": "X"},
@@ -325,54 +333,77 @@ async def test_only_owner_can_change_roles(fresh_anon_client: AsyncClient) -> No
     # Editor tries to change owner's role.
     users = await fresh_anon_client.get("/api/v1/users")
     owner = next(u for u in users.json() if u["email"] == "owner2@example.com")
-    resp = await fresh_anon_client.patch(f"/api/v1/users/{owner['id']}", json={"role": "viewer"})
+    resp = await fresh_anon_client.patch(f"/api/v1/users/{owner['id']}", json={"role": "member"})
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_role_change_invalidates_existing_sessions(
+async def test_role_change_keeps_sessions_and_applies_on_the_next_request(
     fresh_anon_client: AsyncClient,
 ) -> None:
-    # Owner registers, then an editor registers and stays signed in.
+    """A role change no longer signs the user out everywhere (critique #7).
+
+    Organization roles are read from the database on every request, so the
+    change bites on the target's very next request, on the session they
+    already hold — and an org admin of one organization can no longer sign a
+    user out of every other organization they belong to.
+    """
     await _register(fresh_anon_client, "owner3@example.com")
     await fresh_anon_client.post("/api/v1/auth/logout")
-    await _register(fresh_anon_client, "demoted@example.com")
+    await _register(fresh_anon_client, "promoted@example.com")
+    member_cookies = dict(fresh_anon_client.cookies)
+    assert (await fresh_anon_client.get("/api/v1/audit")).status_code == 403
 
-    # The editor's active session can mutate before the downgrade.
-    create = await fresh_anon_client.post(
-        "/api/v1/projects", json={"name": "Before", "slug": "before-demote"}
-    )
-    assert create.status_code == 201, create.text
-
-    # Capture the editor's still-active session cookie before the owner acts.
-    editor_cookies = dict(fresh_anon_client.cookies)
-
-    # Owner demotes the editor to viewer in a separate client.
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as owner_client:
         await owner_client.post(
             "/api/v1/auth/login",
             json={"email": "owner3@example.com", "password": "Password123!"},
         )
-        await _set_role(owner_client, "demoted@example.com", "viewer")
+        await _set_role(owner_client, "promoted@example.com", "admin")
 
-    # The previously captured editor session must no longer authenticate,
-    # proving the session rows were deleted on role change.
-    transport2 = ASGITransport(app=app)
-    async with AsyncClient(
-        transport=transport2, base_url="http://test", cookies=editor_cookies
-    ) as stale_client:
-        me = await stale_client.get("/api/v1/auth/me")
-        assert me.status_code == 401, me.text
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test", cookies=member_cookies
+        ) as same_session:
+            me = await same_session.get("/api/v1/auth/me")
+            assert me.status_code == 200, me.text
+            assert me.json()["role"] == "admin"
+            assert (await same_session.get("/api/v1/audit")).status_code == 200
+
+            await _set_role(owner_client, "promoted@example.com", "member")
+            assert (await same_session.get("/api/v1/auth/me")).status_code == 200
+            assert (await same_session.get("/api/v1/audit")).status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_cannot_demote_last_owner(fresh_anon_client: AsyncClient) -> None:
     await _register(fresh_anon_client, "lone-owner@example.com")
     me = (await fresh_anon_client.get("/api/v1/auth/me")).json()
-    resp = await fresh_anon_client.patch(f"/api/v1/users/{me['id']}", json={"role": "editor"})
+    resp = await fresh_anon_client.patch(f"/api/v1/users/{me['id']}", json={"role": "member"})
     assert resp.status_code == 400
-    assert "last remaining owner" in resp.json()["detail"]
+    assert "last" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_users_api_speaks_organization_roles(fresh_anon_client: AsyncClient) -> None:
+    """``GET /users`` lists org members with their org role; instance roles are gone (422)."""
+    await _register(fresh_anon_client, "vocab-owner@example.com")
+    await fresh_anon_client.post("/api/v1/auth/logout")
+    await _register(fresh_anon_client, "vocab-member@example.com")
+    await fresh_anon_client.post("/api/v1/auth/logout")
+    await fresh_anon_client.post(
+        "/api/v1/auth/login",
+        json={"email": "vocab-owner@example.com", "password": "Password123!"},
+    )
+    users = await fresh_anon_client.get("/api/v1/users")
+    assert users.status_code == 200, users.text
+    roles = {u["email"]: u["role"] for u in users.json()}
+    assert roles == {"vocab-owner@example.com": "owner", "vocab-member@example.com": "member"}
+
+    member_id = next(u["id"] for u in users.json() if u["email"] == "vocab-member@example.com")
+    for legacy in ("editor", "viewer"):
+        refused = await fresh_anon_client.patch(f"/api/v1/users/{member_id}", json={"role": legacy})
+        assert refused.status_code == 422, refused.text
 
 
 @pytest.mark.asyncio
@@ -504,7 +535,7 @@ async def test_editor_cannot_edit_another_users_project(fresh_anon_client: Async
     assert renamed.status_code == 200, renamed.text
     assert renamed.json()["name"] == "Mine, renamed"
 
-    # And the owner can still edit anything on the instance.
+    # And the org owner can still edit any project of the organization.
     await fresh_anon_client.post("/api/v1/auth/logout")
     await fresh_anon_client.post(
         "/api/v1/auth/login",

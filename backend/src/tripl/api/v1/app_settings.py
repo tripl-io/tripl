@@ -4,9 +4,10 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
-from tripl.api.deps import OwnerUserDep, SessionDep
+from tripl.api.deps import PLATFORM_ADMIN_REQUIRED, SessionDep, SettingsAdminUserDep
+from tripl.models.user import User
 from tripl.schemas.app_settings import (
     AiPromptDefaultsResponse,
     AiSettingsResponse,
@@ -28,7 +29,31 @@ from tripl.services import (
 
 logger = logging.getLogger(__name__)
 
+# Who may do what here (F20 PR4). ``/settings`` binds no organization and there
+# is no per-organization storage until PR9, so:
+#
+# * every route but the two public limits takes :data:`SettingsAdminUserDep`: a
+#   platform admin, or an owner/admin of the default organization (whose values
+#   the instance scope is), from a browser session;
+# * a write touching any ``app_settings_service.OPERATOR_FIELDS`` field (the
+#   public URL, security, observability, server paths, the photo size cap)
+#   additionally needs ``users.is_platform_admin``, else 403;
+# * the ``system`` block of the read is ``None`` for anyone but a platform admin.
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+def _require_operator_write(user: User, changes: dict[str, Any]) -> None:
+    """403 when ``changes`` sets an operator-only field and ``user`` is not a platform admin."""
+    if app_settings_service.touches_operator_fields(changes) and not user.is_platform_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PLATFORM_ADMIN_REQUIRED)
+
+
+def _for_caller(payload: dict[str, Any], user: User) -> ServiceSettingsResponse:
+    """The settings response, with ``system`` hidden from a non-platform admin."""
+    response = ServiceSettingsResponse.model_validate(payload)
+    if user.is_platform_admin:
+        return response
+    return response.model_copy(update={"system": None})
 
 
 def _flatten_update(payload: ServiceSettingsUpdate) -> dict[str, Any]:
@@ -52,20 +77,19 @@ def _ai_response(payload: dict[str, Any]) -> AiSettingsResponse:
 @router.get("", response_model=ServiceSettingsResponse)
 async def get_service_settings(
     session: SessionDep,
-    _current_user: OwnerUserDep,
+    current_user: SettingsAdminUserDep,
 ) -> ServiceSettingsResponse:
-    return ServiceSettingsResponse.model_validate(
-        await app_settings_service.get_service_settings(session)
-    )
+    return _for_caller(await app_settings_service.get_service_settings(session), current_user)
 
 
 @router.patch("", response_model=ServiceSettingsResponse)
 async def patch_service_settings(
     session: SessionDep,
-    current_user: OwnerUserDep,
+    current_user: SettingsAdminUserDep,
     payload: ServiceSettingsUpdate,
 ) -> ServiceSettingsResponse:
     changes = _flatten_update(payload)
+    _require_operator_write(current_user, changes)
     settings_payload = await app_settings_service.service_settings_payload(
         session,
         await app_settings_service.update_service_overrides(session, changes),
@@ -78,27 +102,27 @@ async def patch_service_settings(
         target_id=None,
         payload={"changed_fields": sorted(changes)},
     )
-    return ServiceSettingsResponse.model_validate(settings_payload)
+    return _for_caller(settings_payload, current_user)
 
 
 @router.put("", response_model=ServiceSettingsResponse)
 async def put_service_settings(
     session: SessionDep,
-    _current_user: OwnerUserDep,
+    current_user: SettingsAdminUserDep,
     payload: ServiceSettingsUpdate,
 ) -> ServiceSettingsResponse:
     """Upsert service overrides. Intentionally identical to PATCH: unset fields
     are left untouched (partial update), not reset. Kept as a stable alias for
     clients that issue PUT; settings are a sparse override map with no full
     "replace all" semantics."""
-    return await patch_service_settings(session, _current_user, payload)
+    return await patch_service_settings(session, current_user, payload)
 
 
 @router.get("/photo-limits", response_model=PhotoLimitsResponse)
 async def get_photo_limits() -> PhotoLimitsResponse:
     """The photo upload limit, readable by every signed-in user.
 
-    The rest of this router is owner-only; this one value is not, because it is
+    The rest of this router is for settings admins; this one value is not, because it is
     an editor's upload it refuses and the browser should say so before the
     upload rather than after (EVT-28). The router's own dependency still
     requires a session.
@@ -110,7 +134,7 @@ async def get_photo_limits() -> PhotoLimitsResponse:
 async def get_row_limit_defaults(session: SessionDep) -> RowLimitDefaultsResponse:
     """The instance row caps a scan falls back to, readable by every signed-in user.
 
-    Owner-only like the rest of this router would hide the real numbers from the
+    Admin-only like the rest of this router would hide the real numbers from the
     editors who fill in a scan's Limits, so the form hard-coded the shipped
     defaults instead (B15). Two integers, nothing about the connection.
     """
@@ -122,7 +146,7 @@ async def get_row_limit_defaults(session: SessionDep) -> RowLimitDefaultsRespons
 
 
 @router.get("/ai/defaults", response_model=AiPromptDefaultsResponse)
-async def get_ai_prompt_defaults(_current_user: OwnerUserDep) -> AiPromptDefaultsResponse:
+async def get_ai_prompt_defaults(_current_user: SettingsAdminUserDep) -> AiPromptDefaultsResponse:
     """The built-in AI system prompts, for each prompt's "Restore default" (ST-30)."""
     return AiPromptDefaultsResponse(**app_settings_service.ai_prompt_defaults())
 
@@ -130,7 +154,7 @@ async def get_ai_prompt_defaults(_current_user: OwnerUserDep) -> AiPromptDefault
 @router.get("/ai", response_model=AiSettingsResponse)
 async def get_ai_settings(
     session: SessionDep,
-    _current_user: OwnerUserDep,
+    _current_user: SettingsAdminUserDep,
 ) -> AiSettingsResponse:
     return _ai_response(await app_settings_service.get_service_settings(session))
 
@@ -138,7 +162,7 @@ async def get_ai_settings(
 @router.post("/ai/test", response_model=SettingsTestResponse)
 async def test_ai_settings(
     session: SessionDep,
-    _current_user: OwnerUserDep,
+    _current_user: SettingsAdminUserDep,
     payload: AiSettingsTestRequest,
 ) -> SettingsTestResponse:
     config = await app_settings_service.get_ai_config(session)
@@ -166,7 +190,7 @@ async def test_ai_settings(
 @router.post("/email/test", response_model=SettingsTestResponse)
 async def test_email_settings(
     session: SessionDep,
-    current_user: OwnerUserDep,
+    current_user: SettingsAdminUserDep,
     payload: EmailSettingsTestRequest,
 ) -> SettingsTestResponse:
     """Send one probe message with the saved SMTP settings and report what happened.

@@ -46,7 +46,12 @@ NOW = datetime(2026, 6, 10, 12, 0, tzinfo=UTC)
 
 @pytest.fixture
 async def editor_client(client: AsyncClient) -> AsyncGenerator[AsyncClient]:
-    """A second signed-in user, promoted to editor by the owner ``client``."""
+    """A second signed-in user: a member of the owner ``client``'s organization.
+
+    Since F20 PR4 there is no instance ``editor`` role to promote to; what the
+    member may do inside a project is its project row, which the tests that need
+    one grant with ``add_member_by_slug``.
+    """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as editor:
         registered = await editor.post(
@@ -56,8 +61,7 @@ async def editor_client(client: AsyncClient) -> AsyncGenerator[AsyncClient]:
         assert registered.status_code == 201, registered.text
         users = await client.get("/api/v1/users")
         target = next(u for u in users.json() if u["email"] == "editor@example.com")
-        promoted = await client.patch(f"/api/v1/users/{target['id']}", json={"role": "editor"})
-        assert promoted.status_code == 200, promoted.text
+        assert target["role"] == "member", target
         yield editor
 
 
@@ -150,18 +154,27 @@ async def test_an_editor_cannot_delete_another_users_branch_comment(
     assert by_owner.status_code == 204
 
 
-def test_comment_delete_rule_covers_orphaned_comments() -> None:
+async def test_comment_delete_rule_covers_orphaned_comments(
+    client: AsyncClient, editor_client: AsyncClient
+) -> None:
     """The photo threads share this check; a comment whose author was deleted is
-    left to owners."""
-    owner = User(id=uuid.uuid4(), email="o@example.com", role="owner")
-    editor = User(id=uuid.uuid4(), email="e@example.com", role="editor")
-    orphan = EventPhotoComment(id=uuid.uuid4(), user_id=None, body="x")
-    mine = EventPhotoComment(id=uuid.uuid4(), user_id=editor.id, body="y")
+    left to the project's owners (org owners/admins, F20 PR4)."""
+    await _project_with_event(client, "orphan-comments")
+    await add_member_by_slug("orphan-comments", "editor@example.com")
+    async with TestSessionLocal() as session:
+        project_id = await session.scalar(
+            select(Project.id).where(Project.slug == "orphan-comments")
+        )
+        owner = await session.scalar(select(User).where(User.email == "test@example.com"))
+        editor = await session.scalar(select(User).where(User.email == "editor@example.com"))
+        assert project_id is not None and owner is not None and editor is not None
+        orphan = EventPhotoComment(id=uuid.uuid4(), user_id=None, body="x")
+        mine = EventPhotoComment(id=uuid.uuid4(), user_id=editor.id, body="y")
 
-    ensure_comment_deletable(orphan, owner)
-    ensure_comment_deletable(mine, editor)
-    with pytest.raises(Exception) as refused:
-        ensure_comment_deletable(orphan, editor)
+        await ensure_comment_deletable(session, orphan, owner, project_id)
+        await ensure_comment_deletable(session, mine, editor, project_id)
+        with pytest.raises(Exception) as refused:
+            await ensure_comment_deletable(session, orphan, editor, project_id)
     assert getattr(refused.value, "status_code", None) == 403
 
 

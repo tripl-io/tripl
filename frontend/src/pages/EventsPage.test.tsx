@@ -22,6 +22,8 @@ vi.mock('sonner', () => ({
 
 import { toast } from 'sonner'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 /**
  * Assert an accessible control is absent — searching the whole DOM, not just the
@@ -79,21 +81,7 @@ function LocationProbe() {
 }
 
 function viewerAuth(): AuthContextValue {
-  return {
-    user: {
-      id: 'viewer-1',
-      email: 'viewer@example.com',
-      name: 'Viewer',
-      role: 'viewer',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    },
-    status: 'authenticated',
-    error: null,
-    isLoggingOut: false,
-    logout: async () => {},
-    refresh: () => {},
-  }
+  return personaAuth('viewer')
 }
 
 function renderEventsPage(
@@ -106,19 +94,21 @@ function renderEventsPage(
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <TooltipProvider delayDuration={300}>
-        <MemoryRouter initialEntries={initialEntries}>
-          <LocationProbe />
-          <Routes>
-            <Route path="/p/:slug/events" element={<EventsPage />} />
-            <Route path="/p/:slug/events/:tab/new" element={<EventEditPage />} />
-            <Route path="/p/:slug/events/:tab/:eventId/edit" element={<EventEditPage />} />
-            <Route path="/p/:slug/events/:tab" element={<EventsPage />} />
-            <Route path="/p/:slug/events/:tab/:eventId" element={<EventsPage />} />
-            <Route path="/p/:slug/monitoring/event/:eventId" element={<span>Event detail</span>} />
-          </Routes>
-        </MemoryRouter>
-        </TooltipProvider>
+        <SessionProject session={auth}>
+          <TooltipProvider delayDuration={300}>
+          <MemoryRouter initialEntries={initialEntries}>
+            <LocationProbe />
+            <Routes>
+              <Route path="/p/:slug/events" element={<EventsPage />} />
+              <Route path="/p/:slug/events/:tab/new" element={<EventEditPage />} />
+              <Route path="/p/:slug/events/:tab/:eventId/edit" element={<EventEditPage />} />
+              <Route path="/p/:slug/events/:tab" element={<EventsPage />} />
+              <Route path="/p/:slug/events/:tab/:eventId" element={<EventsPage />} />
+              <Route path="/p/:slug/monitoring/event/:eventId" element={<span>Event detail</span>} />
+            </Routes>
+          </MemoryRouter>
+          </TooltipProvider>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )

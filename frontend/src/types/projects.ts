@@ -81,19 +81,19 @@ export interface Project {
   demo_last_tick_at?: string | null
   created_by_user_id?: string | null
   // Whether the signed-in caller may write inside this project: the backend's
-  // mutation gate answered per request (instance owner, or a member with an
-  // editing role whose instance role is not viewer). Optional so fixtures that
+  // mutation gate answered per request (an owner or admin of the project's
+  // organization, or a member with an editing role in it). Optional so fixtures that
   // predate it keep type-checking; lib/permissions falls back to `my_role`, then
   // the role/demo rule, when it is absent.
   can_mutate?: boolean
-  // The caller's access to this project: 'owner' for an instance owner (who
-  // sees every project), otherwise their project membership role, capped by
-  // their instance role. Optional so fixtures that predate project membership
+  // The caller's access to this project: 'owner' for an owner or admin of its
+  // organization (who sees every project of it), otherwise their project
+  // membership role. Optional so fixtures that predate project membership
   // keep type-checking; the server always sends it.
   my_role?: ProjectAccessRole
 }
 
-/** A project membership role. The instance owner is never a member row. */
+/** A project membership role. An org owner or admin is never a member row. */
 export type ProjectMemberRole = 'editor' | 'viewer'
 
 /** What `ProjectResponse.my_role` can say about the caller. */

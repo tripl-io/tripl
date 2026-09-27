@@ -1,14 +1,15 @@
 """Project-scoped authorization for the per-project mutation surface.
 
-Roles are instance-wide, so before tripl-jfm3.19 the ``editor`` role meant "may
-rewrite the tracking plan of every project on the instance". That was first
-fenced by provenance (creator / owner-created shared projects) and is now
-explicit project membership (tripl-vefw):
+Before tripl-jfm3.19 the instance-wide ``editor`` role meant "may rewrite the
+tracking plan of every project on the instance". That was first fenced by
+provenance (creator / owner-created shared projects), then by explicit project
+membership (tripl-vefw), and since F20 PR4 by organization roles:
 
 * a non-member does not see the project at all — 404 on every slug route;
-* a member may mutate when their project role is ``editor`` and their instance
-  role is not ``viewer`` (the instance role caps the membership role);
-* the instance owner sees and manages everything without a row.
+* an organization member may mutate when their project row says ``editor``;
+  the row is authoritative (there is no instance role left to cap it);
+* an owner or admin of the project's organization sees and manages every
+  project of it without a row.
 
 These tests pin the DENIED cases route by route, plus the allowed cases.
 """
@@ -85,39 +86,34 @@ async def _clear_creator(slug: str) -> None:
 
 
 class Actors:
-    """owner + two unrelated editors + a viewer, each with its own session."""
+    """org owner + org admin + three plain org members, each with its own session."""
 
     def __init__(self) -> None:
         self.owner = _new_client()
+        self.admin = _new_client()
         self.editor = _new_client()
         self.stranger = _new_client()
         self.viewer = _new_client()
 
     async def aclose(self) -> None:
-        for client in (self.owner, self.editor, self.stranger, self.viewer):
+        for client in (self.owner, self.admin, self.editor, self.stranger, self.viewer):
             await client.aclose()
 
 
 @pytest_asyncio.fixture
 async def actors() -> AsyncGenerator[Actors]:
     people = Actors()
-    # First registered user is the instance owner; everyone after defaults to editor.
+    # First registered user owns the default organization; everyone after is a
+    # member. ``viewer`` is a member too: what they may do in a project is the
+    # role of the project row a test gives them.
     await _register(people.owner, "owner@example.com", "Owner")
+    admin = await _register(people.admin, "admin@example.com", "Admin")
     await _register(people.editor, "editor@example.com", "Editor")
     await _register(people.stranger, "stranger@example.com", "Stranger")
-    viewer = await _register(people.viewer, "viewer@example.com", "Viewer")
+    await _register(people.viewer, "viewer@example.com", "Viewer")
 
-    demote = await people.owner.patch(
-        f"/api/v1/users/{viewer['id']}",
-        json={"role": "viewer"},
-    )
-    assert demote.status_code == 200, demote.text
-    # A role change invalidates the user's sessions, so log the viewer back in.
-    relogin = await people.viewer.post(
-        "/api/v1/auth/login",
-        json={"email": "viewer@example.com", "password": PASSWORD},
-    )
-    assert relogin.status_code == 200, relogin.text
+    promote = await people.owner.patch(f"/api/v1/users/{admin['id']}", json={"role": "admin"})
+    assert promote.status_code == 200, promote.text
 
     yield people
     await people.aclose()
@@ -150,9 +146,10 @@ def test_every_project_scoped_mutation_carries_a_project_gate() -> None:
 
     ``PROJECT_SCOPED_GATES`` holds every dependency that resolves the path's
     project: ``get_editor_user`` runs :func:`require_project_mutation_access`,
-    and the two owner gates are instance-owner-only and therefore pass it by
-    definition. A slug-scoped mutation wired to bare ``get_write_user`` (or to no
-    gate at all) would reopen tripl-jfm3.19, so fail the build instead of waiting
+    and the two owner gates demand project role ``owner`` in the path project,
+    which only an owner/admin of that project's own organization holds. A
+    slug-scoped mutation wired to bare ``get_write_user`` (or to no gate at
+    all) would reopen tripl-jfm3.19, so fail the build instead of waiting
     for the next audit.
 
     Read from ``deps`` rather than spelled here: this audit went stale the moment
@@ -186,7 +183,7 @@ async def test_non_member_editor_gets_404_on_every_mutation(actors: Actors) -> N
         assert hidden.status_code == 404, f"{method} {suffix} -> {hidden.status_code}"
         assert hidden.json()["detail"] == "Project not found"
 
-    # The creator (an editor member by construction) and the instance owner are allowed.
+    # The creator (an editor member by construction) and the org owner are allowed.
     allowed = await _call(
         actors.editor, "POST", "editors-own", "event-types", MUTATION_ROUTES[0][2]
     )
@@ -213,7 +210,7 @@ async def test_editor_member_may_mutate_another_editors_project(actors: Actors) 
 
 @pytest.mark.asyncio
 async def test_viewer_member_cannot_mutate(actors: Actors) -> None:
-    """A ``viewer`` project role reads but never writes, whatever the instance role."""
+    """A ``viewer`` project role reads but never writes, whatever the org role below owner/admin."""
     await _create_project(actors.editor, "viewer-member")
     await add_member_by_slug("viewer-member", "stranger@example.com", "viewer")
 
@@ -313,12 +310,12 @@ async def test_projects_predating_creator_tracking_follow_membership(actors: Act
 
 
 @pytest.mark.asyncio
-async def test_viewer_is_denied_on_every_project_shape(actors: Actors) -> None:
-    """An instance viewer is capped at viewer even with an editor membership row.
+async def test_project_row_is_authoritative_for_a_member(actors: Actors) -> None:
+    """A member's project row alone decides: ``viewer`` reads, ``editor`` writes.
 
-    The 403 on the write is answered by ``require_editor``'s instance-role check
-    before the project role is consulted, so it does not show the cap by itself;
-    the cap is asserted on ``my_role`` / ``can_mutate`` of the project response.
+    There is no instance viewer left to cap an ``editor`` row (the migration
+    capped the former instance viewers' rows once), so promoting the row is
+    enough.
     """
     await _create_project(actors.owner, "team-plan-v")
     await _create_project(actors.editor, "editors-own-v")
@@ -330,17 +327,43 @@ async def test_viewer_is_denied_on_every_project_shape(actors: Actors) -> None:
         )
         assert hidden.status_code == 404, hidden.text
 
-        await add_member_by_slug(slug, "viewer@example.com", "editor")
+        await add_member_by_slug(slug, "viewer@example.com", "viewer")
         detail = await actors.viewer.get(f"/api/v1/projects/{slug}")
         assert detail.status_code == 200, detail.text
         assert detail.json()["my_role"] == "viewer"
         assert detail.json()["can_mutate"] is False
-
         denied = await actors.viewer.post(
             f"/api/v1/projects/{slug}/event-types",
             json={"name": "pv", "display_name": "Page View"},
         )
         assert denied.status_code == 403, denied.text
+
+        await add_member_by_slug(slug, "viewer@example.com", "editor")
+        detail = await actors.viewer.get(f"/api/v1/projects/{slug}")
+        assert detail.json()["my_role"] == "editor"
+        assert detail.json()["can_mutate"] is True
+        allowed = await actors.viewer.post(
+            f"/api/v1/projects/{slug}/event-types",
+            json={"name": "pv", "display_name": "Page View"},
+        )
+        assert allowed.status_code == 201, allowed.text
+
+
+@pytest.mark.asyncio
+async def test_org_admin_manages_every_project_without_a_row(actors: Actors) -> None:
+    """An org ``admin`` is project ``owner`` everywhere in the org, like the org owner."""
+    await _create_project(actors.editor, "admins-reach")
+
+    detail = await actors.admin.get("/api/v1/projects/admins-reach")
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["my_role"] == "owner"
+    created = await actors.admin.post(
+        "/api/v1/projects/admins-reach/event-types",
+        json={"name": "pv", "display_name": "Page View"},
+    )
+    assert created.status_code == 201, created.text
+    deleted = await actors.admin.delete("/api/v1/projects/admins-reach")
+    assert deleted.status_code == 204, deleted.text
 
 
 @pytest.mark.asyncio

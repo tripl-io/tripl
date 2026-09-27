@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BranchContext } from '@/components/branch-context-internal'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { eventsApi } from '@/api/events'
 import { variablesApi } from '@/api/variables'
 import { variableDriftsApi } from '@/api/variableDrifts'
@@ -12,6 +11,8 @@ import { formatDateTime } from '@/lib/datetime'
 import type { Variable, VariableValueContext } from '@/types'
 import { VariablesTab } from './VariablesTab'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/variables', () => ({
   variablesApi: {
@@ -1573,8 +1574,10 @@ describe('VariablesTab — a viewer reads without write controls', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
-        <AuthContext.Provider value={authAs('viewer')}>
-          <VariablesTab slug="demo" />
+        <AuthContext.Provider value={personaAuth('viewer')}>
+          <PersonaProject persona="viewer">
+            <VariablesTab slug="demo" />
+          </PersonaProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )

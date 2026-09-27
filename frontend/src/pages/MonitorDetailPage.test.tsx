@@ -9,6 +9,8 @@ import { INDEFINITE_MUTE, MUTE_PRESETS, muteChoiceName } from '@/lib/mutePresets
 import { formatCooldown } from './alerting/constants'
 import { at } from '@/test/at'
 import { alertDeliveriesAnyKey } from '@/lib/queryKeys'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -138,31 +140,19 @@ function renderDetail(
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={['/p/demo/monitors/rule-1']}>
-          <Routes>
-            <Route path="/p/:slug/monitors/:monitorId" element={<MonitorDetailPage />} />
-          </Routes>
-        </MemoryRouter>
+        <SessionProject session={auth}>
+          <MemoryRouter initialEntries={['/p/demo/monitors/rule-1']}>
+            <Routes>
+              <Route path="/p/:slug/monitors/:monitorId" element={<MonitorDetailPage />} />
+            </Routes>
+          </MemoryRouter>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
 }
 
-const VIEWER: AuthContextValue = {
-  user: {
-    id: 'viewer-1',
-    email: 'viewer@example.com',
-    name: 'Viewer',
-    role: 'viewer',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-  },
-  status: 'authenticated',
-  error: null,
-  isLoggingOut: false,
-  logout: async () => {},
-  refresh: () => {},
-}
+const VIEWER: AuthContextValue = personaAuth('viewer')
 
 afterEach(() => {
   vi.restoreAllMocks()

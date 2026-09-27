@@ -327,7 +327,7 @@ async def test_a_main_plan_write_locks_the_orgs_project_by_id(
 
 
 @pytest.mark.asyncio
-async def test_data_source_cap_applies_per_organization(
+async def test_data_source_list_is_fenced_to_the_bound_organization(
     client: AsyncClient, fake_cache: _FakeCache, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await _add_acme_membership()
@@ -351,8 +351,8 @@ async def test_data_source_cap_applies_per_organization(
     with bound_org(ACME):
         async with TestSessionLocal() as session:
             listed = await datasource_service.list_data_sources(session, visible_project_ids=None)
-    # The newest of each organization: one organization's sources never crowd
-    # another's out of the cap.
-    assert sorted(ds.name for ds in listed) == ["rekey-ds-0", "rekey-ds-2"]
+    # Only the bound organization's sources, newest first under the cap: the
+    # default organization's warehouses do not exist for ACME (F20 PR4).
+    assert [ds.name for ds in listed] == ["rekey-ds-2"]
     assert cache.key_data_sources_list(ACME.id) in fake_cache.store
     assert cache.key_data_sources_list(DEFAULT.id) not in fake_cache.store

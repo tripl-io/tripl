@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.main import app
@@ -22,6 +22,7 @@ from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.fact_table import FactTable
 from tripl.models.metric_definition import MetricDefinition
+from tripl.models.organization import OrganizationMember
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
@@ -79,19 +80,26 @@ async def _plan_counts(
     return types, events, variables
 
 
-async def _second_user(email: str, *, owner: AsyncClient, role: str | None) -> AsyncClient:
+async def _second_user(email: str, *, org_member: bool = True) -> AsyncClient:
+    """A second signed-in account; a member of the default organization unless not.
+
+    ``org_member=False`` drops the membership registration granted, leaving an
+    account that is signed in but belongs to no organization (F20 PR4: creating
+    a project takes membership of the organization, any role).
+    """
     other = AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
     resp = await other.post(
         "/api/v1/auth/register", json={"email": email, "password": PASSWORD, "name": email}
     )
     assert resp.status_code == 201, resp.text
-    if role is not None:
-        patched = await owner.patch(f"/api/v1/users/{resp.json()['id']}", json={"role": role})
-        assert patched.status_code == 200, patched.text
-        relogin = await other.post(
-            "/api/v1/auth/login", json={"email": email, "password": PASSWORD}
-        )
-        assert relogin.status_code == 200, relogin.text
+    if not org_member:
+        async with TestSessionLocal() as session:
+            await session.execute(
+                delete(OrganizationMember).where(
+                    OrganizationMember.user_id == uuid.UUID(resp.json()["id"])
+                )
+            )
+            await session.commit()
     return other
 
 
@@ -220,7 +228,7 @@ async def test_every_template_seeds(client: AsyncClient, template: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_creator_is_member_author_and_subscribed(client: AsyncClient) -> None:
-    editor = await _second_user("tpl-editor@example.com", owner=client, role=None)
+    editor = await _second_user("tpl-editor@example.com")
     try:
         resp = await _create(editor, "editor-shop")
         assert resp.status_code == 201, resp.text
@@ -322,15 +330,16 @@ async def test_without_template_behaviour_is_unchanged(client: AsyncClient) -> N
 
 
 @pytest.mark.asyncio
-async def test_viewer_cannot_create_from_template(client: AsyncClient) -> None:
-    viewer = await _second_user("tpl-viewer@example.com", owner=client, role="viewer")
+async def test_non_member_cannot_create_from_template(client: AsyncClient) -> None:
+    del client  # registers the default organization's owner first
+    outsider = await _second_user("tpl-outsider@example.com", org_member=False)
     try:
-        resp = await _create(viewer, "viewer-shop")
+        resp = await _create(outsider, "outsider-shop")
         assert resp.status_code == 403, resp.text
     finally:
-        await viewer.aclose()
+        await outsider.aclose()
     async with TestSessionLocal() as session:
-        assert await _project_id(session, "viewer-shop") is None
+        assert await _project_id(session, "outsider-shop") is None
 
 
 @pytest.mark.asyncio

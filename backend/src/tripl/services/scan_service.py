@@ -56,7 +56,15 @@ async def _refresh_main_search_index(
 async def _verify_data_source(
     session: AsyncSession, ds_id: uuid.UUID, project_id: uuid.UUID | None = None
 ) -> DataSource:
-    result = await session.execute(select(DataSource).where(DataSource.id == ds_id))
+    query = select(DataSource).where(DataSource.id == ds_id)
+    if project_id is not None:
+        # Another organization's warehouse does not exist for this project: the
+        # same 404 an unknown id gets, so an id cannot be probed across orgs.
+        query = query.where(
+            DataSource.organization_id
+            == select(Project.organization_id).where(Project.id == project_id).scalar_subquery()
+        )
+    result = await session.execute(query)
     ds = result.scalar_one_or_none()
     if ds is None:
         raise HTTPException(status_code=404, detail="Data source not found")

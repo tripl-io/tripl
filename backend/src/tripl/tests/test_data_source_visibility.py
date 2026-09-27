@@ -2,7 +2,8 @@
 
 ``GET /api/v1/data-sources`` used to hand every authenticated user — viewers
 included — the host, port, database, username, stored-secret flag, TLS material
-and last driver error of every warehouse. Data sources are owner-managed, so the
+and last driver error of every warehouse. Data sources are managed by the
+organization's owners and admins (F20 PR4), so the
 read side is narrowed to the identity fields the scan and metric surfaces
 actually render.
 """
@@ -14,6 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from tripl.api.v1 import data_sources as data_sources_router
 from tripl.main import app
 from tripl.schemas.data_source_schema import DataSourceSchemaResponse
+from tripl.tests._members import add_member_by_slug
 
 PASSWORD = "Password123!"
 
@@ -43,13 +45,23 @@ REDACTED = {
 }
 
 
+VIEWER_PROJECT = "ds-viewer-project"
+
+
 def _new_client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 @pytest_asyncio.fixture
 async def stand():
-    """An owner with a real-looking data source, plus an editor and a viewer."""
+    """An owner with a real-looking data source, plus an editor and a viewer.
+
+    Since F20 PR4 there is no instance ``viewer`` role: the viewer is a member of
+    the organization whose only project membership is ``viewer`` in
+    :data:`VIEWER_PROJECT`; the editor edits the same project. Both non-owners
+    are organization members, never owners or admins, which is what the
+    connection redaction keys on.
+    """
     owner = _new_client()
     editor = _new_client()
     viewer = _new_client()
@@ -67,12 +79,13 @@ async def stand():
         if client is viewer:
             viewer_id = resp.json()["id"]
 
-    demote = await owner.patch(f"/api/v1/users/{viewer_id}", json={"role": "viewer"})
-    assert demote.status_code == 200, demote.text
-    relogin = await viewer.post(
-        "/api/v1/auth/login", json={"email": "ds-viewer@example.com", "password": PASSWORD}
+    del viewer_id
+    project = await owner.post(
+        "/api/v1/projects", json={"name": VIEWER_PROJECT, "slug": VIEWER_PROJECT}
     )
-    assert relogin.status_code == 200, relogin.text
+    assert project.status_code == 201, project.text
+    await add_member_by_slug(VIEWER_PROJECT, "ds-viewer@example.com", "viewer")
+    await add_member_by_slug(VIEWER_PROJECT, "ds-editor@example.com", "editor")
 
     created = await owner.post(
         "/api/v1/data-sources",
@@ -175,7 +188,9 @@ async def test_viewer_cannot_enumerate_the_warehouse_schema(stand) -> None:
     registers reaches this with no further access.
     """
     _owner, _editor, viewer, ds_id = stand
-
+    # The viewer role is a PROJECT role now. The source is organization-wide, and
+    # plain org membership does not open its catalog: that takes org owner/admin
+    # or an editing role in a project the source is in scope for (F20 PR4).
     schema = await viewer.get(f"/api/v1/data-sources/{ds_id}/schema")
     assert schema.status_code == 403
 

@@ -7,7 +7,8 @@ session — through ``pg_try_advisory_xact_lock`` and ``pg_locks`` — to prove 
 lock is really taken and really released:
 
 * ``auth_service.acquire_owner_set_xact_lock``, which serialises the first-owner
-  registration (and the last-owner demotion) — with the race it exists for;
+  registration (and the last-owner demotion) of one organization — with the
+  race it exists for;
 * ``metric_definition_service._try_acquire_metric_dispatch_transaction_lock``,
   the manual-collect side of the catalog scheduler's advisory lock — with the
   409 a manual collect answers while the scheduler holds it.
@@ -29,6 +30,8 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tripl.models import Base
+from tripl.models.domain_enums import OrganizationRole
+from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.user import User
 from tripl.schemas.auth import RegisterRequest
 from tripl.services import auth_service, metric_definition_service
@@ -110,12 +113,16 @@ def _registration(email: str) -> RegisterRequest:
 async def test_the_owner_set_lock_is_held_until_the_transaction_ends(
     pg_sessions: async_sessionmaker[AsyncSession],
 ) -> None:
-    key = auth_service.OWNER_SET_LOCK_KEY
+    key = auth_service.owner_set_lock_key(DEFAULT_ORG_ID)
+    other_org_key = auth_service.owner_set_lock_key(uuid.uuid4())
+    assert key != other_org_key
     assert await _free_to_take(pg_sessions, key)
     async with pg_sessions() as holder:
-        await auth_service.acquire_owner_set_xact_lock(holder)
+        await auth_service.acquire_owner_set_xact_lock(holder, DEFAULT_ORG_ID)
         assert await _held_by(holder, key)
         assert not await _free_to_take(pg_sessions, key)
+        # Per organization (F20 PR4): another org's owner set is not blocked.
+        assert await _free_to_take(pg_sessions, other_org_key)
         await holder.commit()
     # Transaction-scoped: the commit released it without an unlock call.
     assert await _free_to_take(pg_sessions, key)
@@ -131,11 +138,11 @@ async def test_a_second_first_registration_waits_and_then_is_not_owner(
     The first holds the owner-set lock with no user written yet — the moment
     the race lives in. The second registration must wait on the lock rather than
     read the empty users table, and once the first commits its owner it must
-    see that owner and come out an editor. Without the lock both read "no users"
-    and both become owner.
+    see that owner and come out a plain member. Without the lock both read "no
+    users" and both become owner.
     """
     async with pg_sessions() as first:
-        await auth_service.acquire_owner_set_xact_lock(first)
+        await auth_service.acquire_owner_set_xact_lock(first, DEFAULT_ORG_ID)
         assert not await auth_service.has_any_users(first)
 
         async def register_second() -> User:
@@ -149,20 +156,31 @@ async def test_a_second_first_registration_waits_and_then_is_not_owner(
         await asyncio.sleep(_SETTLE_SECONDS)
         assert not racing.done(), "the second registration did not wait for the owner-set lock"
 
+        first_user = User(email="first@example.com", name="First", password_hash="x")
+        first.add(first_user)
+        await first.flush()
         first.add(
-            User(
-                email="first@example.com",
-                name="First",
-                password_hash="x",
-                role="owner",
+            OrganizationMember(
+                organization_id=DEFAULT_ORG_ID,
+                user_id=first_user.id,
+                role=OrganizationRole.owner.value,
             )
         )
         await first.commit()
 
     second_user = await asyncio.wait_for(racing, _DEADLINE_SECONDS)
-    assert second_user.role == "editor"
+    assert second_user.is_platform_admin is False
     async with pg_sessions() as session:
-        owners = (await session.execute(select(User.email).where(User.role == "owner"))).all()
+        owners = (
+            await session.execute(
+                select(User.email)
+                .join(OrganizationMember, OrganizationMember.user_id == User.id)
+                .where(
+                    OrganizationMember.organization_id == DEFAULT_ORG_ID,
+                    OrganizationMember.role == OrganizationRole.owner.value,
+                )
+            )
+        ).all()
     assert [row.email for row in owners] == ["first@example.com"]
 
 

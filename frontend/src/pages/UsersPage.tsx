@@ -39,9 +39,19 @@ const MEMBER_SEARCH_THRESHOLD = 10
 
 /** What the Owner role hands over, said the same way wherever it is granted. */
 const OWNER_POWERS =
-  'Owners administer the whole instance: its settings and secrets, the audit log, every member’s role, and deleting any project.'
+  'Owners administer the whole organization: every project in it, its data sources and secrets, the audit log, every member’s role including other owners, and deleting any project.'
 
-const ROLE_RANK: Readonly<Record<Role, number>> = { viewer: 0, editor: 1, owner: 2 }
+/**
+ * Organization roles, lowest first (F20 PR4). An admin holds everything an
+ * owner does except managing owners; a member holds only the projects they are
+ * added to, at their project role.
+ */
+const ROLE_RANK: Readonly<Record<Role, number>> = { member: 0, admin: 1, owner: 2 }
+
+/** The roles an actor may hand out: only an owner makes (or unmakes) an owner. */
+function grantableRoles(actorIsOrgOwner: boolean): { value: Role; label: string }[] {
+  return actorIsOrgOwner ? ROLE_OPTIONS : ROLE_OPTIONS.filter((option) => option.value !== 'owner')
+}
 
 function roleLabel(role: Role): string {
   return ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role
@@ -62,11 +72,11 @@ const COPIED_RESET_MS = 2000
  * another invite over a link nobody copied asks first: it used to be replaced
  * without a word, and the first link was gone for good (WS-21).
  */
-function InviteMemberCard() {
+function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean }) {
   const qc = useQueryClient()
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
-  const [role, setRole] = useState<Role>('editor')
+  const [role, setRole] = useState<Role>('member')
   const [minted, setMinted] = useState<InvitationCreated | null>(null)
   const [everCopied, setEverCopied] = useState(false)
   const linkRef = useRef<HTMLInputElement>(null)
@@ -270,7 +280,7 @@ function InviteMemberCard() {
               id="invite-role"
               value={role}
               onChange={(next) => setRole(next as Role)}
-              options={ROLE_OPTIONS}
+              options={grantableRoles(actorIsOrgOwner)}
               width="fill"
               aria-describedby={role === 'owner' ? 'invite-owner-warning' : undefined}
             />
@@ -396,7 +406,9 @@ function InviteMemberCard() {
 export default function UsersPage() {
   const qc = useQueryClient()
   const { user: currentUser } = useAuth()
+  // An org owner or admin manages members; only an owner manages owners.
   const isOwner = isOwnerRole(currentUser?.role)
+  const actorIsOrgOwner = currentUser?.role === 'owner'
 
   const { confirm, dialog } = useConfirm()
   // A role change applies at once, with no Save step; it now says so on the
@@ -445,9 +457,9 @@ export default function UsersPage() {
       const ok = await confirm({
         title: `Change ${who} to ${roleLabel(next)}?`,
         message:
-          next === 'viewer'
-            ? `${who} goes from ${roleLabel(member.role)} to Viewer and can no longer change anything in any project.`
-            : `${who} goes from ${roleLabel(member.role)} to ${roleLabel(next)} and loses instance administration.`,
+          next === 'member'
+            ? `${who} goes from ${roleLabel(member.role)} to Member: they keep only the projects they have been added to, at their project role, and lose organization administration.`
+            : `${who} goes from ${roleLabel(member.role)} to ${roleLabel(next)} and can no longer manage owners.`,
         confirmLabel: `Change to ${roleLabel(next)}`,
         variant: 'danger',
       })
@@ -468,10 +480,10 @@ export default function UsersPage() {
       {/* The one read-only notice, not a loose paragraph larger than the
           section description (#237 ST-17). */}
       {!isOwner && (
-        <ReadOnlyNotice className="mb-5">Only owners can change roles or invite people.</ReadOnlyNotice>
+        <ReadOnlyNotice className="mb-5">Only owners and admins can change roles or invite people.</ReadOnlyNotice>
       )}
 
-      {isOwner && <InviteMemberCard />}
+      {isOwner && <InviteMemberCard actorIsOrgOwner={actorIsOrgOwner} />}
 
       {/* A titled card with a count, like every other settings list (ST-40). */}
       <SCard
@@ -559,7 +571,9 @@ export default function UsersPage() {
                 {/* The same box for the chip as for the select, so the column
                     does not alternate widths and heights row to row (ST-16). */}
                 <div className="flex h-8 w-32 shrink-0 items-center justify-end">
-                  {isOwner && u.id !== currentUser?.id ? (
+                  {isOwner &&
+                  u.id !== currentUser?.id &&
+                  (actorIsOrgOwner || u.role !== 'owner') ? (
                     <NativeSelect
                       value={u.role}
                       aria-label={`Role for ${u.name ?? u.email}`}
@@ -567,7 +581,7 @@ export default function UsersPage() {
                         void handleRoleChange(u, next as Role)
                       }}
                       disabled={updateMut.isPending}
-                      options={ROLE_OPTIONS}
+                      options={grantableRoles(actorIsOrgOwner)}
                     />
                   ) : (
                     <RoleChip role={u.role} />

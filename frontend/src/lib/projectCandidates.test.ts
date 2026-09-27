@@ -21,12 +21,12 @@ const user = (id: string, role: UserListItem['role']): UserListItem => ({
 })
 
 describe('projectCandidates', () => {
-  it('offers the members, then the instance owners who hold no member row', () => {
+  it('offers the members, then the org owners and admins who hold no member row', () => {
     const got = projectCandidates(
       [member('u-ada', 'Ada')],
-      [user('u-ada', 'editor'), user('u-boss', 'owner'), user('u-linus', 'editor'), user('u-eve', 'viewer')],
+      [user('u-ada', 'member'), user('u-boss', 'owner'), user('u-linus', 'member'), user('u-root', 'admin')],
     )
-    expect(got.map((c) => c.user_id)).toEqual(['u-ada', 'u-boss'])
+    expect(got.map((c) => c.user_id)).toEqual(['u-ada', 'u-boss', 'u-root'])
   })
 
   it('does not list an owner twice when they are also a member', () => {

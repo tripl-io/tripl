@@ -121,8 +121,8 @@ export function CommentThread({
   const [replyTo, setReplyTo] = useState<string | null>(null)
 
   const commentsQuery = useQuery({ queryKey: queryKey, queryFn: list })
-  // The @ list: the project's members plus the instance owners, who see every
-  // project without a member row (tripl-vefw) — the server notifies exactly
+  // The @ list: the project's members plus the organization's owners and
+  // admins, who see every project without a member row (tripl-vefw) — the server notifies exactly
   // those. Members are fetched only for someone who can post.
   const membersQuery = useQuery({
     ...projectMembersQueryOptions(mentionSlug),

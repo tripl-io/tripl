@@ -6,9 +6,10 @@ else created therefore has to make that user a member first — these helpers do
 it without going through the member-management API, so a test about something
 else does not depend on that surface.
 
-Instance owners (``User.role == "owner"``) see everything and need no row; the
-creator of a project made through ``project_service.create_project`` is already
-an editor member.
+Owners and admins of a project's organization (``organization_members``) see
+every project of it and need no row; the creator of a project made through
+``project_service.create_project`` is already an editor member. ``users.role``
+is not read by anything any more (F20 PR4).
 """
 
 import uuid
@@ -16,7 +17,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.models.domain_enums import ProjectMemberRole, UserRole
+from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole, UserRole
+from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
@@ -57,6 +59,46 @@ async def add_member(
     return member
 
 
+async def add_org_member(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    org_role: str = OrganizationRole.member.value,
+    *,
+    org_id: uuid.UUID = DEFAULT_ORG_ID,
+    commit: bool = True,
+) -> OrganizationMember:
+    """Make ``user_id`` a member of ``org_id`` with ``org_role`` (upsert)."""
+    role = OrganizationRole(org_role).value
+    existing = await session.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == org_id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    if existing is not None:
+        existing.role = role
+        member = existing
+    else:
+        member = OrganizationMember(organization_id=org_id, user_id=user_id, role=role)
+        session.add(member)
+    if commit:
+        await session.commit()
+    else:
+        await session.flush()
+    return member
+
+
+def org_role_for_legacy(role: str) -> OrganizationRole:
+    """The organization role a test's instance-era role name stands for.
+
+    ``owner`` -> owner; ``admin`` -> admin; ``editor`` / ``viewer`` / ``member``
+    -> member (their write rights live on the project row).
+    """
+    if role in (OrganizationRole.owner.value, OrganizationRole.admin.value):
+        return OrganizationRole(role)
+    return OrganizationRole.member
+
+
 async def add_member_by_slug(slug: str, email: str, role: str = "editor") -> None:
     """Grant membership by project slug and user email, in its own session.
 
@@ -95,18 +137,24 @@ async def persisted_member_user(
     member_role: str | None = None,
     email: str | None = None,
 ) -> User:
-    """A real ``users`` row with instance ``role`` who is a member of the project.
+    """A real ``users`` row in the default organization who is a member of the project.
 
     For tests that override ``get_current_user`` with a synthetic user: the
-    membership gate looks the caller up in ``project_members``, so an unsaved
-    ``User(id=uuid4())`` is a non-member and every slug route 404s for it.
-    ``member_role`` defaults to the instance role (``editor`` for an owner, which
-    needs no row anyway but gets one harmlessly).
+    membership gate looks the caller up in ``project_members`` and
+    ``organization_members``, so an unsaved ``User(id=uuid4())`` is a non-member
+    and every slug route 404s for it.
+
+    ``role`` keeps the instance-era vocabulary the suites were written in and
+    is mapped by :func:`org_role_for_legacy`: ``owner`` (or ``admin``) is an
+    organization owner (admin), ``editor`` / ``viewer`` an organization member.
+    ``member_role`` (the project row) defaults to ``role`` for editor/viewer and
+    to ``editor`` for an owner, who needs no row anyway but gets one harmlessly.
     """
     from tripl.tests.conftest import TestSessionLocal
 
+    org_role = org_role_for_legacy(role)
     resolved_member_role = member_role or (
-        UserRole.editor.value if role == UserRole.owner.value else role
+        role if role in (UserRole.editor.value, UserRole.viewer.value) else UserRole.editor.value
     )
     async with TestSessionLocal() as session:
         user = User(
@@ -114,10 +162,10 @@ async def persisted_member_user(
             email=email or f"member-{uuid.uuid4().hex[:10]}@example.com",
             name="Member",
             password_hash=PASSWORD_HASH_PLACEHOLDER,
-            role=role,
         )
         session.add(user)
         await session.flush()
+        await add_org_member(session, user.id, org_role.value, commit=False)
         await add_member(session, project_id, user.id, resolved_member_role, commit=False)
         await session.commit()
         return user

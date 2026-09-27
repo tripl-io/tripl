@@ -6,6 +6,8 @@ import type { AuthUser, ProjectLatestScanJob, ProjectSummary, Role } from '@/typ
 import { AuthContext, type AuthContextValue } from './auth-context'
 import { OnboardingChecklist } from './onboarding-checklist'
 import { countRealSources } from './onboarding-utils'
+import { type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('sonner', () => ({ toast: vi.fn() }))
 
@@ -19,6 +21,8 @@ function authValue(role: Role | null): AuthContextValue {
         email: 'user@example.com',
         name: null,
         role,
+        is_platform_admin: false,
+        orgs: [],
         created_at: '2026-07-01T00:00:00Z',
         updated_at: '2026-07-01T00:00:00Z',
       }
@@ -84,20 +88,23 @@ function renderChecklist(props: {
   isDemo?: boolean
   // Defaults to 'owner' so the pre-role-awareness cases (all five steps count)
   // read exactly as before.
-  role?: Role | null
+  role?: Persona | null
 }) {
+  const persona = props.role === undefined ? 'owner' : props.role
   return render(
-    <AuthContext.Provider value={authValue(props.role === undefined ? 'owner' : props.role)}>
-      <MemoryRouter>
-        <OnboardingChecklist
-          slug={props.slug ?? 'demo'}
-          projectId={props.projectId}
-          summary={props.summary}
-          sourceCount={props.sourceCount ?? 0}
-          metricCount={props.metricCount === null ? undefined : props.metricCount ?? 0}
-          isDemo={props.isDemo}
-        />
-      </MemoryRouter>
+    <AuthContext.Provider value={authValue(persona === 'viewer' ? 'member' : persona)}>
+      <PersonaProject persona={persona ?? 'member'}>
+        <MemoryRouter>
+          <OnboardingChecklist
+            slug={props.slug ?? 'demo'}
+            projectId={props.projectId}
+            summary={props.summary}
+            sourceCount={props.sourceCount ?? 0}
+            metricCount={props.metricCount === null ? undefined : props.metricCount ?? 0}
+            isDemo={props.isDemo}
+          />
+        </MemoryRouter>
+      </PersonaProject>
     </AuthContext.Provider>,
   )
 }
@@ -325,8 +332,8 @@ describe('OnboardingChecklist', () => {
     expect(screen.queryByText('Owner only')).not.toBeInTheDocument()
   })
 
-  it('shows the owner-only data-source step but excludes it from an editor’s progress', () => {
-    renderChecklist({ role: 'editor', summary: makeSummary(REVIEWED) })
+  it('shows the owner-only data-source step but excludes it from a member’s progress', () => {
+    renderChecklist({ role: 'member', summary: makeSummary(REVIEWED) })
 
     // review is done → 1 of 4: the source step is not one of the counted four.
     expect(screen.getByText('1 of 4')).toBeInTheDocument()
@@ -342,7 +349,7 @@ describe('OnboardingChecklist', () => {
     expect(screen.getByRole('link', { name: /Run a catalog/ })).toHaveAttribute('aria-current', 'step')
   })
 
-  it('is not shown to a viewer, who can take none of its steps', () => {
+  it('is not shown to a viewer of the project, who can take none of its steps', () => {
     // Scans, review and alerting are editor-gated and sources owner-only; the
     // card could never reach done for this role and just sat there.
     renderChecklist({ role: 'viewer', summary: makeSummary(REVIEWED) })
@@ -358,11 +365,11 @@ describe('OnboardingChecklist', () => {
     expect(screen.getByText('Owner only')).toBeInTheDocument()
   })
 
-  it('lets an editor complete the checklist without connecting a data source', () => {
+  it('lets a member complete the checklist without connecting a data source', () => {
     // All four editor-actionable steps are done; no real source (an owner's job).
     // The checklist reaches done and hides instead of being stuck forever.
     const { container } = renderChecklist({
-      role: 'editor',
+      role: 'member',
       summary: makeSummary({
         ...REVIEWED,
         latest_scan_job: executedJob(),
@@ -378,9 +385,9 @@ describe('OnboardingChecklist', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('names the real remaining step (not the owner-only source) in an editor’s compact bar', () => {
+  it('names the real remaining step (not the owner-only source) in a member’s compact bar', () => {
     renderChecklist({
-      role: 'editor',
+      role: 'member',
       summary: makeSummary({ ...REVIEWED, latest_scan_job: executedJob() }),
       sourceCount: 0,
       metricCount: 1,
@@ -392,10 +399,10 @@ describe('OnboardingChecklist', () => {
     expect(screen.getByText(/1 step left: Set up alerting/)).toBeInTheDocument()
   })
 
-  it('shows an already-connected source as done for an editor, still out of 4', () => {
+  it('shows an already-connected source as done for a member, still out of 4', () => {
     // An owner has connected a source (sourceCount > 0): the step is genuinely
     // done. It renders as Done but stays outside the editor's 4-step tally.
-    renderChecklist({ role: 'editor', summary: makeSummary(REVIEWED), sourceCount: 1 })
+    renderChecklist({ role: 'member', summary: makeSummary(REVIEWED), sourceCount: 1 })
 
     expect(screen.getByText('1 of 4')).toBeInTheDocument()
     expect(screen.queryByText('Owner only')).not.toBeInTheDocument()

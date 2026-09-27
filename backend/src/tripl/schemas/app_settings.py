@@ -275,7 +275,9 @@ class ServiceSettingsResponse(BaseModel):
     observability: ObservabilitySettings
     email: EmailSettings
     ai: AiSettings
-    system: SystemSettings
+    # ``None`` for everyone but a platform admin (F20 PR4): the process
+    # environment and migration state are operator information.
+    system: SystemSettings | None
     overridden_fields: list[str]
     sources: dict[str, SettingSource]
 

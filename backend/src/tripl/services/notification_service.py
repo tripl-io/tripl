@@ -10,8 +10,10 @@ subscribers of ``watchers_of``, then filtered, in this order:
 
 1. ``exclude_user_ids`` and the actor are dropped — nobody hears about their
    own action;
-2. only CURRENT project members survive (instance owners always do), read at
-   send time, so a grant that outlived a membership never leaks a project;
+2. only CURRENT project members survive (a membership row, or owner/admin of
+   the project's own organization), read at send time, so a grant that
+   outlived a membership never leaks a project and nobody from another
+   organization hears about it;
 3. with ``honour_mute`` (the default) anyone who muted the primary entity is
    dropped — an @mention passes ``honour_mute=False``;
 4. with ``throttle`` anyone who already got a notification of this ``kind``
@@ -41,10 +43,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from tripl.models.domain_enums import UserRole
 from tripl.models.notification import Notification, NotificationKind
 from tripl.models.project import Project
-from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.models.user_notification_prefs import (
     DEFAULT_EMAIL_MODE,
@@ -61,7 +61,7 @@ from tripl.schemas.notification import (
     NotificationResponse,
 )
 from tripl.services import app_settings_service
-from tripl.services.project_access import member_project_ids
+from tripl.services.project_access import member_project_ids, members_among_stmt
 from tripl.services.subscription_service import (
     EntityRef,
     muted_user_ids_sync,
@@ -111,18 +111,10 @@ class NotifyArgs(TypedDict):
 def _members_among_sync(
     session: Session, project_id: uuid.UUID, user_ids: set[uuid.UUID]
 ) -> set[uuid.UUID]:
-    """``project_access.members_among`` on a sync session: owners plus member rows."""
+    """``project_access.members_among`` on a sync session (the same statement)."""
     if not user_ids:
         return set()
-    owners = session.scalars(
-        select(User.id).where(User.id.in_(user_ids), User.role == UserRole.owner.value)
-    )
-    members = session.scalars(
-        select(ProjectMember.user_id)
-        .join(User, User.id == ProjectMember.user_id)
-        .where(ProjectMember.project_id == project_id, ProjectMember.user_id.in_(user_ids))
-    )
-    return set(owners.all()) | set(members.all())
+    return set(session.scalars(members_among_stmt(project_id, user_ids)).all())
 
 
 def _recently_notified_sync(

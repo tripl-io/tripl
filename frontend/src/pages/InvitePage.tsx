@@ -19,11 +19,14 @@ import { invitationPreviewKey } from '@/lib/queryKeys'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { PasswordInput } from '@/components/ui/password-input'
 
-/** What each role can do, in the words of the Concepts page's Roles section. */
+/**
+ * What each ORGANIZATION role can do, in the words of the Concepts page's Roles
+ * section (F20 PR4).
+ */
 const ROLE_BLURB: Readonly<Record<Role, string>> = {
-  owner: 'has full control, including data sources, scans and members.',
-  editor: 'can change the tracking plan and alerts, and run scans.',
-  viewer: 'can read everything, but not change it.',
+  owner: 'has full control of the organization, including every project, data sources, members and other owners.',
+  admin: 'administers the organization — every project, data sources, scans and members — except managing owners.',
+  member: 'sees the projects they are added to, as an editor or a viewer of each.',
 }
 
 /**

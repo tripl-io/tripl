@@ -11,6 +11,8 @@ const OWNER: AuthContextValue = {
     email: 'owner@example.com',
     name: 'Owner',
     role: 'owner',
+    is_platform_admin: false,
+    orgs: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
@@ -64,10 +66,10 @@ describe('UsersPage', () => {
   it('tells a non-owner once, in the shared read-only notice, why roles are locked (#237 ST-17)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(jsonResponse([])))
 
-    renderUsersPage({ ...OWNER, user: OWNER.user && { ...OWNER.user, role: 'editor' } })
+    renderUsersPage({ ...OWNER, user: OWNER.user && { ...OWNER.user, role: 'member' } })
 
     expect(await screen.findByRole('note')).toHaveTextContent(
-      'Only owners can change roles or invite people.',
+      'Only owners and admins can change roles or invite people.',
     )
   })
 

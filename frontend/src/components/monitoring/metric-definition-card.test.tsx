@@ -8,10 +8,11 @@ import { eventTypesApi } from '@/api/eventTypes'
 import { factTablesApi } from '@/api/factTables'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
-import type { FactTableListResponse, MetricDefinitionDetailResponse, Role } from '@/types'
+import type { FactTableListResponse, MetricDefinitionDetailResponse } from '@/types'
 
 import { MetricDefinitionCard } from './metric-definition-card'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/factTables', () => ({
   factTablesApi: { list: vi.fn(), get: vi.fn() },
@@ -89,7 +90,7 @@ function factDefinition(
   }
 }
 
-function renderCard(definition: MetricDefinitionDetailResponse, role: Role = 'editor') {
+function renderCard(definition: MetricDefinitionDetailResponse, role: Persona = 'member') {
   const factTables: FactTableListResponse = {
     items: [
       {
@@ -148,12 +149,14 @@ function renderCard(definition: MetricDefinitionDetailResponse, role: Role = 'ed
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <AuthContext.Provider value={authAs(role)}>
-      <QueryClientProvider client={client}>
-        <MemoryRouter>
-          <MetricDefinitionCard slug="demo" definition={definition} />
-        </MemoryRouter>
-      </QueryClientProvider>
+    <AuthContext.Provider value={personaAuth(role)}>
+      <PersonaProject persona={role}>
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <MetricDefinitionCard slug="demo" definition={definition} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </PersonaProject>
     </AuthContext.Provider>,
   )
 }

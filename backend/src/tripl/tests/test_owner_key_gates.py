@@ -1,7 +1,9 @@
 """Which owner-only routes an API key may pass, and which stay browser-only.
 
-Owner-only means security and instance administration, so ``get_owner_user``
-refuses a Bearer token at any scope. That also blocked the bounded metrics
+"Owner" means owner or admin of the request's organization (F20 PR4); the
+classification of every owner-gated route is pinned below. Owner-only means
+security and organization administration, so ``get_owner_user`` refuses a
+Bearer token at any scope. That also blocked the bounded metrics
 replay, which is why tripl-mcp ships no replay tool and the CLI dropped
 ``tripl scans replay`` (tripl-cj5z). The replay — and only the replay — now takes
 ``get_key_reachable_owner_user``, so this module pins all four corners of that
@@ -15,7 +17,13 @@ import pytest
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
 
-from tripl.api.deps import get_key_reachable_owner_user, get_owner_user
+from tripl.api.deps import (
+    ORG_ADMIN_REQUIRED,
+    get_key_reachable_owner_user,
+    get_owner_user,
+    get_settings_admin_user,
+    require_platform_admin,
+)
 from tripl.main import app
 from tripl.tests._members import add_member_by_slug
 from tripl.tests.test_rbac import MIN_API_ROUTES, iter_api_routes
@@ -41,6 +49,57 @@ SESSION_ONLY_OWNER_ROUTES = {
     "DELETE /api/v1/data-sources/{ds_id}",
     "POST /api/v1/data-sources/{ds_id}/test",
     "POST /api/v1/data-sources/test",
+}
+
+
+# F20 PR4: every route gated on organization owner/admin, session only
+# (``get_owner_user``). Org-owned business resources: projects, their danger
+# zone and settings, scan SQL authored against org-owned credentials, the
+# org-owned data sources, the audit feed, and org membership administration.
+# A route moving in or out of this set is a security decision, so it is listed
+# rather than derived.
+ORG_ADMIN_SESSION_ONLY_ROUTES = {
+    "DELETE /api/v1/projects/{slug}",
+    "POST /api/v1/projects/{slug}/danger/reset-anomalies",
+    "POST /api/v1/projects/{slug}/danger/reset-drifts",
+    "POST /api/v1/projects/{slug}/danger/retire-unused-variables",
+    "PATCH /api/v1/projects/{slug}/tracker-config",
+    "PATCH /api/v1/projects/{slug}/branch-settings",
+    "POST /api/v1/projects/{slug}/scans",
+    "POST /api/v1/projects/{slug}/scans/preview",
+    "GET /api/v1/projects/{slug}/scans/preview-jobs/{job_id}",
+    "POST /api/v1/projects/{slug}/scans/dry-run",
+    "GET /api/v1/projects/{slug}/scans/dry-run-jobs/{job_id}",
+    "PATCH /api/v1/projects/{slug}/scans/{scan_id}",
+    "DELETE /api/v1/projects/{slug}/scans/{scan_id}",
+    "POST /api/v1/projects/{slug}/scans/{scan_id}/event-groups/apply",
+    "POST /api/v1/data-sources",
+    "POST /api/v1/data-sources/test",
+    "GET /api/v1/data-sources/{ds_id}/stats",
+    "PATCH /api/v1/data-sources/{ds_id}",
+    "DELETE /api/v1/data-sources/{ds_id}",
+    "POST /api/v1/data-sources/{ds_id}/test",
+    "GET /api/v1/audit",
+    "GET /api/v1/audit/actions",
+    "GET /api/v1/audit/{entry_id}",
+    "POST /api/v1/users/invitations",
+    "GET /api/v1/users/invitations",
+    "DELETE /api/v1/users/invitations/{invitation_id}",
+    "PATCH /api/v1/users/{user_id}",
+}
+
+# The org-free ``/settings`` surface (``get_settings_admin_user``): a platform
+# admin, or an owner/admin of the default organization, whose values the
+# instance scope still is until per-org settings land (PR9). Operator fields in
+# a write, and the ``system`` block, additionally need a platform admin.
+SETTINGS_ADMIN_ROUTES = {
+    "GET /api/v1/settings",
+    "PATCH /api/v1/settings",
+    "PUT /api/v1/settings",
+    "GET /api/v1/settings/ai",
+    "GET /api/v1/settings/ai/defaults",
+    "POST /api/v1/settings/ai/test",
+    "POST /api/v1/settings/email/test",
 }
 
 
@@ -84,6 +143,20 @@ def test_session_only_owner_routes_did_not_move() -> None:
     """Widening the replay must not have widened anything else."""
     assert _routes_carrying(get_owner_user) >= SESSION_ONLY_OWNER_ROUTES
     assert SESSION_ONLY_OWNER_ROUTES.isdisjoint(_routes_carrying(get_key_reachable_owner_user))
+
+
+def test_org_admin_routes_are_exactly_the_classified_set() -> None:
+    """Every ``get_owner_user`` route is one the PR4 classification names, and vice versa."""
+    assert _routes_carrying(get_owner_user) == ORG_ADMIN_SESSION_ONLY_ROUTES
+    assert SESSION_ONLY_OWNER_ROUTES <= ORG_ADMIN_SESSION_ONLY_ROUTES
+
+
+def test_settings_routes_take_the_settings_admin_gate() -> None:
+    """``/settings`` is no longer behind the org gate, which binds no org there."""
+    assert _routes_carrying(get_settings_admin_user) == SETTINGS_ADMIN_ROUTES
+    assert SETTINGS_ADMIN_ROUTES.isdisjoint(_routes_carrying(get_owner_user))
+    # The platform gate, wherever a route declares it, guards operator settings only.
+    assert _routes_carrying(require_platform_admin) <= SETTINGS_ADMIN_ROUTES
 
 
 def _bearer_client() -> AsyncClient:
@@ -209,7 +282,10 @@ async def test_owner_write_key_still_cannot_delete_a_project(
 async def test_editor_write_key_cannot_replay(
     client: AsyncClient, replayable_scan: dict[str, str]
 ) -> None:
-    """Write scope is not the gate — the user behind the key must be an owner."""
+    """Write scope is not the gate — the user behind the key must be an org owner/admin.
+
+    A project ``editor`` who is a plain org member is refused.
+    """
     async with _bearer_client() as editor_session:
         registered = await editor_session.post(
             "/api/v1/auth/register",
@@ -229,7 +305,34 @@ async def test_editor_write_key_cannot_replay(
         )
 
     assert denied.status_code == 403, denied.text
-    assert denied.json()["detail"] == "Owner role required"
+    assert denied.json()["detail"] == ORG_ADMIN_REQUIRED
+
+
+async def test_org_admin_write_key_can_replay(
+    client: AsyncClient,
+    replayable_scan: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``admin`` passes the owner gates exactly like ``owner`` does."""
+    from tripl.tests.test_rbac import _set_role
+
+    monkeypatch.setattr(metrics.collect_metrics, "delay", lambda *args: None)
+    async with _bearer_client() as admin_session:
+        registered = await admin_session.post(
+            "/api/v1/auth/register",
+            json={"email": "admin@example.com", "password": PASSWORD, "name": "Admin"},
+        )
+        assert registered.status_code == 201, registered.text
+        await _set_role(client, "admin@example.com", "admin")
+        token = await _mint_key(admin_session, "admin-agent", "write")
+
+    async with _bearer_client() as bearer:
+        resp = await bearer.post(
+            replayable_scan["url"],
+            json=REPLAY_WINDOW,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert resp.status_code == 201, resp.text
 
 
 async def test_read_scope_key_cannot_replay(

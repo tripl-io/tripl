@@ -22,7 +22,7 @@ def _new_client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
-async def _invite(client: AsyncClient, email: str, role: str = "editor"):
+async def _invite(client: AsyncClient, email: str, role: str = "member"):
     return await client.post("/api/v1/users/invitations", json={"email": email, "role": role})
 
 
@@ -37,7 +37,8 @@ async def test_owner_invites_and_the_link_is_returned_once(client: AsyncClient) 
     assert resp.status_code == 201
     body = resp.json()
     assert body["invitation"]["email"] == "invitee@example.com"
-    assert body["invitation"]["role"] == "editor"
+    # The organization role; ``member`` is the default, as for self sign-up.
+    assert body["invitation"]["role"] == "member"
     assert body["invitation"]["is_expired"] is False
     assert body["accept_path"].startswith("/invite/")
     assert len(_token_from(body["accept_path"])) > 20
@@ -59,7 +60,7 @@ async def test_invitation_works_on_a_closed_instance(
     """The whole reason this flow exists: onboarding without opening the door."""
     monkeypatch.setattr(settings, "registration_mode", REGISTRATION_DISABLED)
 
-    minted = await _invite(client, "closed-invitee@example.com", role="viewer")
+    minted = await _invite(client, "closed-invitee@example.com", role="admin")
     assert minted.status_code == 201
     token = _token_from(minted.json()["accept_path"])
 
@@ -80,7 +81,7 @@ async def test_invitation_works_on_a_closed_instance(
         assert accepted.json()["email"] == "closed-invitee@example.com"
         # The role is the one the OWNER chose, not a default and not the
         # invitee's choice.
-        assert accepted.json()["role"] == "viewer"
+        assert accepted.json()["role"] == "admin"
 
         # And they are signed in already.
         me = await invitee.get("/api/v1/auth/me")
@@ -180,7 +181,7 @@ async def test_cannot_invite_an_address_that_already_has_an_account(client: Asyn
 @pytest.mark.asyncio
 async def test_preview_shows_who_the_invitation_is_for(client: AsyncClient) -> None:
     token = _token_from(
-        (await _invite(client, "preview@example.com", role="editor")).json()["accept_path"]
+        (await _invite(client, "preview@example.com", role="admin")).json()["accept_path"]
     )
 
     async with _new_client() as anon:
@@ -188,14 +189,14 @@ async def test_preview_shows_who_the_invitation_is_for(client: AsyncClient) -> N
 
     assert preview.status_code == 200
     assert preview.json()["email"] == "preview@example.com"
-    assert preview.json()["role"] == "editor"
+    assert preview.json()["role"] == "admin"
     # Discloses nothing beyond the invitation itself.
     assert set(preview.json()) == {"email", "role", "expires_at"}
 
 
 @pytest.mark.asyncio
 async def test_only_an_owner_may_invite(client: AsyncClient) -> None:
-    """An editor must not be able to mint accounts — that is an owner power."""
+    """A plain member must not be able to mint accounts — that is an owner/admin power."""
     token = _token_from((await _invite(client, "an-editor@example.com")).json()["accept_path"])
 
     async with _new_client() as editor:
@@ -214,3 +215,29 @@ async def test_invitation_requires_authentication_at_all(client: AsyncClient) ->
     del client
     async with _new_client() as anon:
         assert (await _invite(anon, "nobody@example.com")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_instance_roles_are_not_an_invitation_vocabulary(client: AsyncClient) -> None:
+    """``editor`` / ``viewer`` were instance roles; an invitation carries an org role (422)."""
+    for legacy in ("editor", "viewer"):
+        assert (await _invite(client, f"{legacy}@example.com", role=legacy)).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_only_an_owner_may_invite_an_owner(client: AsyncClient) -> None:
+    """An org admin invites members and admins, but not owners."""
+    token = _token_from(
+        (await _invite(client, "an-admin@example.com", role="admin")).json()["accept_path"]
+    )
+    async with _new_client() as admin:
+        accepted = await admin.post(
+            f"/api/v1/auth/invitations/{token}/accept", json={"password": PASSWORD}
+        )
+        assert accepted.status_code == 201, accepted.text
+        assert (await _invite(admin, "fine@example.com", role="admin")).status_code == 201
+        refused = await _invite(admin, "boss@example.com", role="owner")
+        assert refused.status_code == 403, refused.text
+        assert "owner" in refused.json()["detail"].lower()
+
+    assert (await _invite(client, "boss@example.com", role="owner")).status_code == 201

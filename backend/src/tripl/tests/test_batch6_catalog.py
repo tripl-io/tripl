@@ -1294,8 +1294,10 @@ class TestDataSourceScopeIsOneSharedRule:
     other ``metric_collect`` tests.
     """
 
-    @staticmethod
-    def _source(project_id: uuid.UUID | None) -> DataSource:
+    _ORG = uuid.uuid4()
+
+    @classmethod
+    def _source(cls, project_id: uuid.UUID | None) -> DataSource:
         return DataSource(
             name="scoped",
             db_type="clickhouse",
@@ -1303,36 +1305,62 @@ class TestDataSourceScopeIsOneSharedRule:
             port=8123,
             database_name="db",
             project_id=project_id,
+            organization_id=cls._ORG,
         )
 
     def test_a_source_owned_by_another_project_is_out_of_scope(self):
         mine, theirs = uuid.uuid4(), uuid.uuid4()
         assert metric_definition_service.data_source_out_of_project_scope(
-            self._source(theirs), project_id=mine, scanning_project_ids=set()
+            self._source(theirs),
+            project_id=mine,
+            project_organization_id=self._ORG,
+            scanning_project_ids=set(),
         )
 
     def test_a_source_owned_by_this_project_is_in_scope(self):
         mine = uuid.uuid4()
         assert not metric_definition_service.data_source_out_of_project_scope(
-            self._source(mine), project_id=mine, scanning_project_ids=set()
+            self._source(mine),
+            project_id=mine,
+            project_organization_id=self._ORG,
+            scanning_project_ids=set(),
         )
 
     def test_a_workspace_global_source_nobody_scans_is_shared(self):
         """NULL ``project_id`` means shared — that is the normal case, not a gap."""
         assert not metric_definition_service.data_source_out_of_project_scope(
-            self._source(None), project_id=uuid.uuid4(), scanning_project_ids=set()
+            self._source(None),
+            project_id=uuid.uuid4(),
+            project_organization_id=self._ORG,
+            scanning_project_ids=set(),
         )
 
     def test_a_workspace_global_source_only_another_project_scans_is_theirs(self):
         mine, theirs = uuid.uuid4(), uuid.uuid4()
         assert metric_definition_service.data_source_out_of_project_scope(
-            self._source(None), project_id=mine, scanning_project_ids={theirs}
+            self._source(None),
+            project_id=mine,
+            project_organization_id=self._ORG,
+            scanning_project_ids={theirs},
+        )
+
+    def test_another_organizations_source_is_out_of_scope(self):
+        """Neither ownership nor sharing crosses an organization boundary."""
+        mine = uuid.uuid4()
+        assert metric_definition_service.data_source_out_of_project_scope(
+            self._source(None),
+            project_id=mine,
+            project_organization_id=uuid.uuid4(),
+            scanning_project_ids={mine},
         )
 
     def test_a_workspace_global_source_this_project_also_scans_is_ours(self):
         mine, theirs = uuid.uuid4(), uuid.uuid4()
         assert not metric_definition_service.data_source_out_of_project_scope(
-            self._source(None), project_id=mine, scanning_project_ids={theirs, mine}
+            self._source(None),
+            project_id=mine,
+            project_organization_id=self._ORG,
+            scanning_project_ids={theirs, mine},
         )
 
     @staticmethod

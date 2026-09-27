@@ -12,9 +12,11 @@ An alert scope is OWNED when it resolves to an event type with
   about that event type too;
 * ``project_total`` and ``source_freshness`` have no owner.
 
-Owners are then filtered to CURRENT project members (the instance owner counts,
-as they see every project) with a usable email address: an owner who has since
-lost access is not emailed about a project they can no longer open.
+Owners are then filtered to CURRENT project members (a membership row, or
+owner/admin of the project's own organization, who see every project of it —
+``project_access.project_member_clause``) with a usable email address: an owner
+who has since lost access is not emailed about a project they can no longer
+open, and a platform admin or another organization's admin never is.
 
 The resolution is written ONCE, as a generator that yields statements and
 receives their rows, and driven by a sync runner (the Celery worker) and an
@@ -31,21 +33,21 @@ from collections.abc import Generator, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from tripl.alerting_validation import validate_sender_address
 from tripl.models.alert_owner_notification import AlertOwnerNotification
-from tripl.models.domain_enums import MetricScopeType, UserRole
+from tripl.models.domain_enums import MetricScopeType
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.event_type_owner import EventTypeOwner
 from tripl.models.metric_definition import MetricDefinition
-from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.schemas.alert_owner import AlertOwnerNotificationResponse, AlertOwnerRef
 from tripl.services import app_settings_service
+from tripl.services.project_access import project_member_clause
 
 # Scopes that are about the whole project or a scan, never about something a
 # person owns.
@@ -193,14 +195,9 @@ def _resolution(project_id: uuid.UUID, scopes: Sequence[OwnedScope]) -> _Resolut
     eligible: set[uuid.UUID] = set()
     if candidates:
         rows = yield (
-            select(User.id)
-            .outerjoin(
-                ProjectMember,
-                and_(ProjectMember.user_id == User.id, ProjectMember.project_id == project_id),
-            )
-            .where(
+            select(User.id).where(
                 User.id.in_(candidates),
-                or_(User.role == UserRole.owner.value, ProjectMember.id.is_not(None)),
+                project_member_clause(User.id, project_id),
             )
         )
         eligible = {user_id for (user_id,) in rows}

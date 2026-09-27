@@ -37,7 +37,7 @@ async def _register(client: AsyncClient, email: str, name: str) -> str:
 
 
 class People:
-    """The instance owner (Ann, the event author), an editor (Bob), an outsider (Cid)."""
+    """The default-org owner (Ann, the event author), an editor (Bob), an outsider (Cid)."""
 
     def __init__(self) -> None:
         self.ann = _new_client()

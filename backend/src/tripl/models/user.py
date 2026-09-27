@@ -19,13 +19,17 @@ class User(UUIDMixin, TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     password_hash: Mapped[str] = mapped_column(Text)
+    # Legacy instance role. Not read since F20 PR4 (organization roles replaced
+    # it; the guard test ``test_user_role_readers_guard`` keeps it that way);
+    # dropped by a later cleanup PR.
     role: Mapped[str] = mapped_column(
         db_enum(UserRole, "user_role"),
         default=UserRole.editor.value,
         server_default=UserRole.editor.value,
     )
     # Operator of the whole instance, independent of any organization role (F20).
-    # Stored only for now: nothing checks it until the platform-admin gates land.
+    # Grants the operator settings (``api.deps.require_platform_admin``) and no
+    # organization or project access at all.
     is_platform_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
