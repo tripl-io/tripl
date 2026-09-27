@@ -939,6 +939,75 @@ at most 20 owners.
 Neither route depends on the rule's `notify_owners` setting. See
 [Notifying owners](../use/alerting.md#owner-notifications).
 
+## Incident summaries {#incident-summaries}
+
+An incident (an alert-inbox correlation group) can have a short, cited
+AI summary. The model and provider come from the instance AI settings. See
+[The incident summary](../use/alerting.md#incident-summary) for what is
+sent to the model. Values of sensitive fields and drift sample values are
+never sent.
+
+```http
+GET  /api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary
+POST /api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary
+POST /api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary/regenerate
+```
+
+- `GET` (any project member) returns the stored summary and whether it is
+  current. It **never calls the model**.
+- `POST .../summary` (any project member) returns the stored summary when its
+  facts are unchanged. Otherwise it generates one, stores it and returns it.
+  A `read`-scope API key gets `403` here: generating writes the stored
+  summary and spends the model budget, so a read key can only `GET`.
+- `POST .../summary/regenerate` (**editor**, not a `read` key) always generates.
+
+No route takes a request body. An unknown group, or one with no items in this
+project, is a `404`. AI being off and a failed generation are not errors: both
+return `200` with the state in the body:
+
+```json
+{
+  "correlation_group_id": "7c2d…",
+  "state": "ready",
+  "disabled_reason": null,
+  "current_facts_hash": "9f1e…",
+  "summary": {
+    "sentences": [
+      {"text": "Checkout Completed dropped 41% below expected.", "role": "what_broke", "fact_ids": [1, 3], "generated": true},
+      {"text": "Most of the drop comes from platform = ios.", "role": "cause", "fact_ids": [4], "generated": true}
+    ],
+    "facts": [
+      {"id": 1, "kind": "incident", "text": "Incident: a drop on Checkout Completed; …", "href": "/p/shop/alerting?incident=7c2d…"},
+      {"id": 4, "kind": "attribution", "text": "Breakdown of Checkout Completed at 2026-09-27 08:00 UTC: 92% of the drop comes from platform = ios (…).", "href": "/p/shop/monitoring/event/1b7a…"}
+    ],
+    "cause_known": true,
+    "facts_hash": "9f1e…",
+    "generated_at": "2026-09-27T09:14:02Z"
+  }
+}
+```
+
+| `state` | Meaning | `summary` |
+| --- | --- | --- |
+| `disabled` | AI is off (`disabled_reason: "ai_off"`) or the project is a demo (`"demo"`). No facts are gathered, and `current_facts_hash` is `null`. | `null` |
+| `missing` | Nothing has been generated yet (`GET` only). | `null` |
+| `stale` | The facts changed since the stored summary was written (`GET` only). | the previous summary |
+| `ready` | The summary matches the current facts. | the summary |
+| `failed` | The provider returned nothing, or no sentence passed validation (`POST` only). Any stored summary is left as it was. Read it again with `GET`. | `null` |
+
+To check whether a summary is current, compare `summary.facts_hash` with
+`current_facts_hash`. `facts` are the facts **this** summary was written
+from, so a stale summary's citations still resolve. `fact_ids` refer to
+`facts[].id` (numbered from 1). `role` is one of `what_broke`, `cause`,
+`release`, `history`, `discussion`, and `kind` is one of `incident`, `note`,
+`scope`, `attribution`, `release`, `similar`, `comment`. `href` is an in-app
+path, or `null`. A sentence with `generated: false` and empty `fact_ids`
+is the fixed *The cause is unknown…* line that tripl adds when no cause
+sentence was kept. In that case `cause_known` is `false`.
+
+Calling `POST .../summary` on a `ready` summary is cheap, because it makes no
+model call. `regenerate` makes a model call every time.
+
 ## Signal attribution {#signal-attribution}
 
 Attribution says where a volume signal's change came from — which breakdown

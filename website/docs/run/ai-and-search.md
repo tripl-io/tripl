@@ -78,8 +78,9 @@ same credential serves both embeddings and AI assistance.
 ## AI assistance
 
 AI assistance drives generative helpers in the app — for example, suggesting an
-event description on the event form. It targets an OpenAI-compatible chat
-endpoint.
+event description on the event form, or writing the cited
+[incident summary](../use/alerting.md#incident-summary) on an alerting incident.
+It targets an OpenAI-compatible chat endpoint.
 
 Ask keeps the question at the start of the provider prompt, so large search
 contexts cannot truncate it. Malformed provider responses and interrupted
@@ -112,6 +113,15 @@ configured provider:
   semantic ranking.
 - **AI assistance** sends the relevant event context to the chat model to
   generate suggestions.
+- **Incident summaries** send the project name and a numbered list of at most
+  20 short facts about one incident: scope, rule and event names, rounded
+  counts, attribution headlines, release versions, past verdicts and their
+  notes, the incident note and recent event comments. Values of fields marked
+  sensitive are replaced with `(redacted)`. Drift sample values, raw events,
+  and the names of whoever wrote a verdict or comment are never sent. Demo
+  projects never send any. What people typed into notes and comments is
+  sent as written. See
+  [What is sent to the model](../use/alerting.md#what-is-sent-to-the-model-and-what-never-is).
 
 This is precisely why both default to **OFF**: you opt in knowingly.
 

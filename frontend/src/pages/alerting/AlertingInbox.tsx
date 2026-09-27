@@ -55,6 +55,7 @@ import {
   type InboxFilterState,
 } from './inboxFilters'
 import { IncidentDeliveries } from './IncidentDeliveries'
+import { IncidentSummary } from './IncidentSummary'
 import { OwnersNotify } from './OwnersNotify'
 import { useNoteDraft, type NoteDraftStore } from './noteDraftStore'
 
@@ -1000,6 +1001,9 @@ const IncidentCard = memo(function IncidentCard({
         notify={() => alertingApi.notifyIncidentOwners(slug, id)}
         target={target}
       />
+      {/* A cited summary of the incident (F14, #267). Collapsed and fetched
+          only when opened; renders nothing while AI is off. */}
+      <IncidentSummary slug={slug} correlationGroupId={id} canWrite={canWrite} />
 
       {/* Omitted, not disabled, for a viewer: five buttons and a note box per
           card, greyed out and unexplained, is a worse page than one that does

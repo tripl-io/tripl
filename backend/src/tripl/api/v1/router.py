@@ -27,6 +27,7 @@ from tripl.api.v1.implementation_tickets import (
     event_router as event_implementation_tickets_router,
 )
 from tripl.api.v1.implementation_tickets import router as implementation_tickets_router
+from tripl.api.v1.incident_summaries import router as incident_summaries_router
 from tripl.api.v1.lifecycle import router as lifecycle_router
 from tripl.api.v1.meta_fields import router as meta_fields_router
 from tripl.api.v1.metrics import router as metrics_router
@@ -68,6 +69,7 @@ router.include_router(project_members_router, dependencies=protected_dependencie
 router.include_router(project_templates_router, dependencies=protected_dependencies)
 router.include_router(project_tracker_config_router, dependencies=protected_dependencies)
 router.include_router(alerting_router, dependencies=protected_dependencies)
+router.include_router(incident_summaries_router, dependencies=protected_dependencies)
 router.include_router(event_types_router, dependencies=protected_dependencies)
 router.include_router(event_type_owners_router, dependencies=protected_dependencies)
 router.include_router(project_event_type_owners_router, dependencies=protected_dependencies)

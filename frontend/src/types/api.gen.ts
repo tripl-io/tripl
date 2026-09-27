@@ -994,6 +994,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Incident Summary
+         * @description The cached summary and whether it is current. Never calls the LLM.
+         */
+        get: operations["get_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_get"];
+        put?: never;
+        /**
+         * Ensure Incident Summary
+         * @description The summary for the current facts: cached when unchanged, else generated.
+         *
+         *     Any member may call it, but not a ``read`` API key: generating writes a row
+         *     and spends the provider budget, so a read key only gets the GET.
+         */
+        post: operations["ensure_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Incident Summary
+         * @description Generate the summary again, whatever the cache holds. Editors only.
+         */
+        post: operations["regenerate_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/annotations": {
         parameters: {
             query?: never;
@@ -9145,6 +9192,71 @@ export interface components {
              */
             updated_at: string;
         };
+        /** IncidentSummaryBody */
+        IncidentSummaryBody: {
+            /** Cause Known */
+            cause_known: boolean;
+            /** Facts */
+            facts: components["schemas"]["IncidentSummaryFact"][];
+            /** Facts Hash */
+            facts_hash: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Sentences */
+            sentences: components["schemas"]["IncidentSummarySentence"][];
+        };
+        /** IncidentSummaryFact */
+        IncidentSummaryFact: {
+            /** Href */
+            href?: string | null;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "incident" | "scope" | "attribution" | "release" | "similar" | "note" | "comment";
+            /** Text */
+            text: string;
+        };
+        /** IncidentSummaryResponse */
+        IncidentSummaryResponse: {
+            /**
+             * Correlation Group Id
+             * Format: uuid
+             */
+            correlation_group_id: string;
+            /** Current Facts Hash */
+            current_facts_hash?: string | null;
+            /** Disabled Reason */
+            disabled_reason?: ("ai_off" | "demo") | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "disabled" | "missing" | "stale" | "ready" | "failed";
+            summary?: components["schemas"]["IncidentSummaryBody"] | null;
+        };
+        /** IncidentSummarySentence */
+        IncidentSummarySentence: {
+            /** Fact Ids */
+            fact_ids: number[];
+            /**
+             * Generated
+             * @default true
+             */
+            generated: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "what_broke" | "cause" | "release" | "history" | "discussion";
+            /** Text */
+            text: string;
+        };
         /**
          * InvitationAcceptRequest
          * @description Redeeming an invitation.
@@ -16326,6 +16438,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotifyOwnersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ensure_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
                 };
             };
             /** @description Validation Error */
