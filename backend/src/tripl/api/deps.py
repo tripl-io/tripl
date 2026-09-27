@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.config import settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
-from tripl.middleware.org_context import bind_org, path_org_slug
+from tripl.middleware.org_context import bind_org, current_org, path_org_slug
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -109,6 +109,19 @@ async def _bind_request_org(
         path_org_slug=path_org_slug(request),
     )
     bind_org(org)
+
+
+async def _ensure_request_org(request: Request, session: AsyncSession, user: User) -> None:
+    """Bind the organization when authentication did not, e.g. an overridden user dependency.
+
+    ``get_current_user`` binds it on every real request; this keeps the project
+    gates correct when the user comes from somewhere else (a test override, a
+    route mounted with its own user dependency) instead of failing with
+    ``OrgContextMissing``. The key's organization is only known to the key
+    path, so a missing binding is resolved as a cookie session would be.
+    """
+    if current_org() is None:
+        await _bind_request_org(request, session, user, key_org_id=None)
 
 
 async def _enforce_project_scope(
@@ -221,6 +234,7 @@ async def require_project_membership(
     API keys act as the user who minted them, so a key reaches exactly the
     projects its user is a member of.
     """
+    await _ensure_request_org(request, session, user)
     await project_access.require_project_access(request, session, user)
 
 
@@ -236,6 +250,7 @@ async def _project_role(
     role: project_access.ProjectRole | None = getattr(request.state, "project_role", None)
     if role is not None:
         return role
+    await _ensure_request_org(request, session, user)
     return await project_access.require_project_access(request, session, user)
 
 
