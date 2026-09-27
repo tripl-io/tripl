@@ -162,13 +162,16 @@ surfaces as a schema error the agent can correct, rather than as the route's
 |----------|-------|-----------------|
 | `status` | `list_events` (repeatable), `create_event` | `draft`, `in_review`, `ready_for_dev`, `implemented`, `live`, `deprecated`, `archived` |
 | `order_by` | `list_events` | `catalog` — the authored order, and what omitting the argument gets — or `volume`, busiest-first by ingested volume over the last 24 hours, or `health`, least healthy first by the [health score](../use/health-score.md) (main plan only) |
-| `types` | `search_plan` (repeatable) | `event`, `event_type`, `field`, `meta_field`, `variable`, `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule` |
+| `types` | `search_plan` (repeatable) | `event`, `event_type`, `field`, `meta_field`, `variable`, `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule`, `doc` |
+| `scope` | `list_docs`, `read_doc`, `search_docs`, `write_doc` | `project`, `organization` |
+| `audience` | `list_docs` | `human`, `agent`, `both` |
 
 These lists are the API's own, checked against `backend/openapi.json` by the
 MCP server's contract test rather than kept in step by hand, so they cannot
 drift from what the routes accept — the same guarantee the
 [operator CLI](../run/cli.md)'s `--status`, `--order-by` and `--type` choices
-carry.
+carry. `audience` is the one filter applied by the tool rather than by the
+route, and it is held to the API's `DocAudience` all the same.
 
 `update_event` is the one exception. Its `patch` is a free-form object rather
 than a set of named arguments, so a `status` inside it is validated by the API
@@ -193,6 +196,9 @@ and not by the tool schema.
 | `monitors_summary` | `slug` | Monitors summary + top anomaly signals, combined |
 | `reconciliation_status` | `slug` | Reconciliation coverage + dead/shadow event counts |
 | `list_projects` | — | `GET /api/v1/projects` |
+| `list_docs` | `slug, scope?, audience?` | `GET /projects/{slug}/docs` — both roots unless `scope` narrows it; **trimmed** rows without content. A note marked `both` matches either `audience` |
+| `read_doc` | `slug, scope, path` | `GET /projects/{slug}/docs/file` — raw Markdown with frontmatter, parsed fields, revision, and every `[[link]]` with its status on the main plan |
+| `search_docs` | `slug, q, scope?, limit?` | `GET /projects/{slug}/docs/search` — ranked, not paged; `limit` at most 50 |
 
 :::warning `list_scans` changed shape in 0.2.0
 It used to return the whole `ScanConfigResponse` for every config — 30-odd
@@ -246,6 +252,7 @@ Every write tool states in its description that it needs a `tk_w_` key; with a
 | `create_event` | `slug, branch_id, event_type_id, name, title?, description?, status?, tags?, field_values?, meta_values?` | `POST /projects/{slug}/events` — `status` is [enumerated](#enumerated-arguments) |
 | `update_event` | `slug, event_id, branch_id, patch{...}` | `PATCH /projects/{slug}/events/{event_id}` — the patch accepts `title` alongside the other `EventUpdate` fields |
 | `trigger_scan` | `slug, scan_id` | `POST /projects/{slug}/scans/{scan_id}/run` |
+| `write_doc` | `slug, scope, path, content, base_revision?, message?` | `PUT /projects/{slug}/docs/file` — creates or replaces one note; `base_revision` makes a stale edit a `409` instead of an overwrite |
 
 :::warning
 In `update_event`, `field_values` and `meta_values` are **full-list
@@ -254,6 +261,28 @@ the values you omitted. The tool description repeats this warning to the
 agent. For narrow edits, patch only `description`, `title`, `name`, tags, or
 state fields.
 :::
+
+### Team notes
+
+The docs catalog holds Markdown notes next to the plan: warehouse gotchas, event
+query recipes, conventions. A project shows its own notes (`scope: project`)
+and its organization's notes (`scope: organization`). A note can say whom it is
+for with `audience: agent` in its frontmatter, and `list_docs` with
+`audience: agent` returns those notes plus the ones marked `both`. Hits also
+appear in `search_plan` as entity type `doc`.
+
+Notes are **not branch-aware**. A `write_doc` is live the moment it returns, on
+the single version every reader sees, so there is no branch to pass and none to
+review. That is why the toolset stops at single-note create and replace:
+
+- Pass `base_revision` from the `read_doc` you edited. If someone changed the
+  note since, the server answers `409` rather than overwriting their edit.
+- A `[[event:NAME]]`, `[[event-type:NAME]]` or `[[field:TYPE/NAME]]` link that
+  does not resolve on the main plan comes back as a warning. The note is saved
+  anyway, so fix the name and write it again.
+- A `tk_r_` key, or a `tk_w_` key held by a viewer, gets a `403`.
+- A key bound to one project gets a `403` on `scope: organization` writes,
+  because every project of the organization reads those notes.
 
 ### Names an agent does not choose
 
@@ -300,6 +329,10 @@ the MCP toolset:
   not map onto them usefully.
 - **Multipart photo upload** — binary upload flows stay in the app and the raw
   REST API.
+- **Moving, deleting, restoring and bulk-importing notes** — a deleted note
+  takes its revision history with it, and an import can replace a whole folder.
+  Agents create and replace single notes with `write_doc`; the rest stays in the
+  app and in `tripl docs push`, which asks before it writes.
 
 If your integration needs any of these, call the REST API directly per the
 [Agent API guide](./agent-api-guide.md) — with the understanding that you are

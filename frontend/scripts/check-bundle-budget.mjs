@@ -45,7 +45,10 @@ const CRITICAL_PATH_BUDGET = 761_000
 // Chunks that are split out so that only the pages using them pay for them:
 // the SQL editor, its formatter (fetched on the first Format click) and
 // recharts (vite.config.ts `charts-vendor`, behind components/ui/chart-lazy).
-const LAZY_ONLY = ['sql-editor', 'sql-format', 'charts-vendor']
+// The docs catalog (F22) keeps react-markdown in `DocsPage` and CodeMirror's
+// Markdown grammar in `DocEditor` (loaded on Edit); the event page's Notes
+// card is a plain list and must not pull either onto the first load.
+const LAZY_ONLY = ['sql-editor', 'sql-format', 'charts-vendor', 'DocsPage', 'DocEditor']
 
 const html = readFileSync(path.join(DIST, 'index.html'), 'utf8')
 const entries = [...html.matchAll(/<script[^>]+type="module"[^>]+src="\/assets\/([^"]+\.js)"/g)]

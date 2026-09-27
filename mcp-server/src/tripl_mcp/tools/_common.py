@@ -26,6 +26,9 @@ from tripl_cli.api import page_items, page_total
 READ_ONLY = ToolAnnotations(readOnlyHint=True)
 WRITE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
 WRITE_UPDATE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False)
+# A whole-content replace keyed by path: it overwrites what was there, and
+# sending the same content twice changes nothing the second time (no revision).
+WRITE_REPLACE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True)
 
 EVENT_LIST_FIELDS = (
     "id",
@@ -81,6 +84,49 @@ SEARCH_RESULT_FIELDS = (
     "event_id",
     "name",
     "implemented",
+)
+
+# A docs-catalog note as a listing row: enough to pick one to read, no content.
+DOC_LIST_FIELDS = (
+    "scope",
+    "path",
+    "title",
+    "description",
+    "tags",
+    "audience",
+    "revision",
+    "updated_at",
+)
+
+# One note as read_doc returns it. `content` is the raw file with its
+# frontmatter, so `body` (the same text minus that block) is dropped rather
+# than paid for twice; ids and byte counts are for the app, not for an agent.
+DOC_READ_FIELDS = (
+    "scope",
+    "path",
+    "title",
+    "description",
+    "tags",
+    "audience",
+    "revision",
+    "updated_at",
+    "updated_by_name",
+    "extra_frontmatter",
+    "links",
+    "content",
+)
+
+# What write_doc answers: the agent just sent the content, so it is not echoed.
+DOC_WRITE_FIELDS = (
+    "scope",
+    "path",
+    "title",
+    "audience",
+    "revision",
+    "created",
+    "changed",
+    "warnings",
+    "links",
 )
 
 

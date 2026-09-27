@@ -21,7 +21,7 @@ async def search_plan(
     branch_id: str | None = None,
 ) -> dict[str, Any]:
     client = client_for(ctx)
-    # A list of Literals so the tool schema enumerates the eleven kinds and a
+    # A list of Literals so the tool schema enumerates the twelve kinds and a
     # misspelt one is refused before the request, widened for the shared
     # builder's invariant `list[str]` exactly as list_events does (tripl-i0vd).
     data = await send(

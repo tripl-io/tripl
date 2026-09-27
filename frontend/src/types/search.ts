@@ -34,6 +34,7 @@ export type SearchEntityType =
   | 'fact_table'
   | 'scan_config'
   | 'alert_rule'
+  | 'doc'
 
 export interface SearchEventVariableValue extends EventFieldVariableValue {
   field_definition_id: string

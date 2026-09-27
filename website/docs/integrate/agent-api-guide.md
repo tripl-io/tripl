@@ -289,7 +289,8 @@ Useful query parameters:
   `entity_type` carries. The accepted set is enumerated on the parameter itself
   in `/openapi.json` — read it from there rather than from a list here, since it
   grows as new kinds are indexed. It spans plan content and project
-  configuration alike, so scan configs and alert rules are filterable values.
+  configuration alike, so scan configs and alert rules are filterable values,
+  and so are docs catalog notes (`doc`, see [Docs catalog](#docs-catalog)).
 - `include_archived`: defaults to `false`.
 - `semantic`: defaults to `true`. `false` skips the embedding leg and answers
   from the keyword index alone — much sooner, with `semantic_used` always
@@ -2095,12 +2096,131 @@ fields and events, and the documented variables.
 | `variables[].allowed_values` | The variable's documented values. |
 | `variables[].tokens` | Every `${token}` spelling that names the variable, so a stored `field_values` template can be mapped back to it. |
 
+## Docs catalog {#docs-catalog}
+
+The docs catalog holds Markdown notes for people and agents: warehouse
+gotchas, event query recipes, agent skills. See
+[Docs catalog](../use/docs-catalog.md) for the rules on paths, frontmatter,
+links and limits. Every route is under the project, and `scope` picks the
+project's own notes (`project`) or its organization's (`organization`):
+
+```http
+GET    /api/v1/projects/{slug}/docs
+GET    /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
+GET    /api/v1/projects/{slug}/docs/search?q=double%20count&scope=project&limit=20
+GET    /api/v1/projects/{slug}/docs/revisions?scope=project&path=guides/warehouse.md
+GET    /api/v1/projects/{slug}/docs/revisions/{revision_id}
+GET    /api/v1/projects/{slug}/docs/backlinks?kind=field&name=amount&qualifier=checkout
+GET    /api/v1/projects/{slug}/docs/links?ref=event:purchase&ref=field:checkout/amount
+GET    /api/v1/projects/{slug}/docs/export?scope=project&format=json
+PUT    /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
+DELETE /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
+DELETE /api/v1/projects/{slug}/docs/folder?scope=project&path=guides
+POST   /api/v1/projects/{slug}/docs/move
+POST   /api/v1/projects/{slug}/docs/revisions/{revision_id}/restore
+POST   /api/v1/projects/{slug}/docs/import?scope=project&mode=merge&dry_run=true
+POST   /api/v1/projects/{slug}/docs/import/zip?scope=project&mode=merge&dry_run=true&keep_root=false
+```
+
+Reads (every `GET`) are open to any project member, including viewers and
+`read`-scope keys. A non-member gets `404`. Writes need an editor on the
+project and a `write`-scope key. Organization notes are readable from every
+project of the organization, so a key bound to one project cannot change them
+(`403`). Deleting organization notes in bulk, with `DELETE /docs/folder` or an
+import in `mirror` mode, needs the instance owner in a browser session: every
+API key gets `403`. Two writers racing on the same note get `409`, as a stale
+`base_revision` does.
+
+`GET /docs` returns the tree: `project_docs` and `organization_docs` (each
+note's `scope`, `path`, `title`, `description`, `tags`, `audience`,
+`revision`, `size_bytes`, `updated_at`, `updated_by_name`), the project and
+organization, and the `limits`. `GET /docs/file` adds `id`, the raw `content`
+(frontmatter included), the `body` without frontmatter, `extra_frontmatter`
+(the keys tripl does not interpret), and `links`. Each link has a `status` of
+`resolved`, `ambiguous` or `broken`, plus the in-app `route_path` of its
+target on the main plan. A missing note is `404` with `"Doc not found"`.
+
+To write, send the whole content:
+
+```http
+PUT /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
+Content-Type: application/json
+
+{
+  "content": "---\ntitle: Warehouse gotchas\naudience: agent\n---\nJoin on [[event:purchase]] carefully.\n",
+  "base_revision": 3,
+  "message": "Explain the double count"
+}
+```
+
+The same `PUT` creates or updates. The response is the note plus `created`,
+`changed` (`false` when the content was already identical, in which case no
+revision is written) and `warnings`, one sentence per broken or ambiguous
+link. A broken link does not block the save.
+
+- `base_revision`: send the `revision` you read. If the note changed since,
+  the answer is `409` `"Doc changed since revision N"`. Read it again and
+  merge. Omit it to overwrite.
+- `create_only: true`: `409` if a note already exists at the path.
+- A path that differs only in case from an existing note is `409`.
+- Content over 256 KiB is `413`. A bad path, invalid frontmatter, or a root
+  that already holds 5000 notes is `422`, with the reason in `detail`.
+
+`POST /docs/move` takes `{"scope", "from_path", "to_path", "folder"}`. With
+`"folder": true` both paths are folder prefixes and every note under
+`from_path` moves. The move is all or nothing: if any target path is taken,
+the answer is `409` and names them. `DELETE /docs/folder` returns
+`{"deleted": [...]}` and is `404` for a folder with no notes.
+
+`GET /docs/revisions` lists revisions newest first. `GET
+/docs/revisions/{id}` adds the revision's `content` and a unified `diff`
+against the revision before it (`""` for the first, capped at 200 KiB with
+`diff_truncated`). `POST .../restore` (body `{"message": ""}`) writes the old
+content as a new `restore` revision and returns the same shape as `PUT`.
+
+`GET /docs/search` searches notes only, through the same index as
+`/search?types=doc`, and returns `scope`, `path`, `title`, `description`,
+`tags`, `audience`, `snippet`, `score` and `confidence` per hit. In
+`/search`, a note's `route_path` is `/p/{slug}/docs/{scope}/{path}` and its
+`subtitle` is `Project notes · {path}` or `Organization notes · {path}`.
+
+Export and import use a bundle:
+
+```json
+{
+  "format": "tripl-docs/v1",
+  "scope": "project",
+  "project_slug": "shop",
+  "organization_slug": "default",
+  "exported_at": "2026-09-27T10:00:00Z",
+  "files": [{"path": "SKILL.md", "content": "---\nname: event-query-recipes\n---\n…", "sha256": "…"}]
+}
+```
+
+`POST /docs/import` takes `{"format": "tripl-docs/v1", "files": [...]}` (at
+most 2000 files and 20 MiB). `sha256` is optional and checked when present.
+`mode=merge` creates and updates; `mode=mirror` also deletes notes the bundle
+does not carry. The result lists `created`, `updated`, `unchanged`, `deleted`,
+`skipped` (non-`.md` files, with a reason) and `errors`. With
+`dry_run=true` nothing changes and errors are reported in the result. Without
+it, any error aborts the import with `422` and `{"detail": {"errors": [...]}}`.
+`POST /docs/import/zip` takes the same query parameters plus `keep_root`, and
+a multipart field `file` (a zip of at most 10 MiB). A single top-level folder
+shared by every entry is removed unless `keep_root=true`. A zip export
+(`format=zip`) holds one entry per note at its path, with no wrapper folder.
+See [the agent-skill example](../use/docs-catalog.md#example-an-agent-skill)
+for how a `SKILL.md` + `references/` folder maps onto note paths.
+
+The MCP server exposes `list_docs`, `read_doc`, `search_docs` and `write_doc`,
+and the CLI has `tripl docs ls|cat|pull|push`.
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.
 - Use a project-scoped `write` key only for agents that are explicitly allowed to edit the tracking plan.
 - Pass `branch=<branch_id>` for all write calls unless the operator intentionally wants to edit main.
 - Search first, then fetch the canonical entity by id before making decisions.
+- Check the docs catalog (`search_docs` / `GET /docs/search`) for the team's notes on the events you work with, and send `base_revision` when you write a note.
 - Before a delete, deprecate or rename, check `GET /projects/{slug}/dependencies` (or `POST /impact` for several changes) and report what it names; the write itself will not stop you.
 - Before you add tracking code for an event, or after you change it, validate the calls with `POST /projects/{slug}/plan/validate`. It needs only a `read` key.
 - Prefer partial `PATCH` payloads over sending whole objects.

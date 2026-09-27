@@ -97,6 +97,7 @@ const SEARCH_TYPE_META: Record<
   fact_table: { heading: 'Fact tables', icon: Table2 },
   scan_config: { heading: 'Scans', icon: Activity },
   alert_rule: { heading: 'Alert rules', icon: Bell },
+  doc: { heading: 'Docs', icon: FileText },
 }
 
 /**
@@ -282,6 +283,7 @@ const NAV_KEYWORDS: Record<string, string[]> = {
   branches: ['review', 'merge'],
   history: ['snapshots', 'revisions'],
   duplicates: ['merge', 'near-duplicates', 'naming', 'successor'],
+  docs: ['notes', 'wiki', 'markdown', 'catalog', 'skills', 'agents'],
 }
 
 /**

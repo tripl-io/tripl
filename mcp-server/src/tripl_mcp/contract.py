@@ -14,7 +14,7 @@ literal is shared; the declaration is not.
 
 from __future__ import annotations
 
-from tripl_cli.api import branches, event_types, events, monitoring, projects, scans, search
+from tripl_cli.api import branches, docs, event_types, events, monitoring, projects, scans, search
 from tripl_cli.api import variables as variables_api
 
 TOOL_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
@@ -55,4 +55,10 @@ TOOL_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
         ("get", monitoring.SHADOW_EVENTS),
     ),
     "list_projects": (("get", projects.LIST),),
+    # The docs catalog (F22). Four tools over three routes: the tree, one file
+    # (read and replace), and search. Move, delete and import are withheld.
+    "list_docs": (("get", docs.TREE),),
+    "read_doc": (("get", docs.FILE),),
+    "search_docs": (("get", docs.SEARCH),),
+    "write_doc": (("put", docs.FILE),),
 }

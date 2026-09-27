@@ -35,7 +35,7 @@ The project sidebar groups every surface into three job-based areas:
 
 | Area | Surfaces |
 |------|----------|
-| **Plan** | Events (with one entry per event type under it), Event types, Meta fields, Variables, Relations, Plan branches, Plan history |
+| **Plan** | Events (with one entry per event type under it), Event types, Meta fields, Variables, Relations, Docs, Plan branches, Plan history |
 | **Observe** | Overview, Metrics, Anomalies, Alerting |
 | **Govern** | Reconciliation, Duplicates, Coverage, Scans, Audit log |
 
@@ -61,7 +61,7 @@ Anomalies (the open monitoring signals that have no
 [verdict](./anomaly-detection.md#signal-verdicts) yet — the same number the
 Anomalies page's default **Needs verdict** view shows — when any are open), and Alerting (open incidents, in solid red, when any
 are open). The Plan counts describe main, so they are hidden while a branch is
-active. Meta fields, Relations, Metrics, Plan branches, Coverage, Scans, and
+active. Meta fields, Relations, Docs, Metrics, Plan branches, Coverage, Scans, and
 Audit log carry no count.
 
 **Keyboard shortcuts.** Letter keys work anywhere outside a text field. **?**
@@ -1220,6 +1220,50 @@ filtered. A merge or a branch opening links to its branch's review by id and
 shows the branch's current name; a revision whose branch has since been deleted
 shows the name it was created under, with no link. Distinct from per-event
 history and the workspace audit log.
+
+### Docs catalog {#docs-catalog}
+
+**Where:** Plan › **Docs** in the sidebar (routes `/p/<slug>/docs` and
+`/p/<slug>/docs/<scope>/<path>`). Markdown notes for people and AI agents,
+such as warehouse gotchas, event query recipes, conventions and agent skills.
+The tree has two roots. **Project notes** belong to this project.
+**Organization notes** belong to its organization and appear in every project
+of that organization. Folders come from the note paths
+(`recipes/checkout-funnel.md`). The index lists **Recently updated** notes, and
+**Ctrl/⌘+P** opens any note by title or path.
+
+- **Editor:** a Markdown source pane with a live preview. Optional YAML
+  frontmatter sets `title`, `description`, `tags` and `audience` (`human`,
+  `agent` or `both`). tripl keeps every other key, such as a skill's
+  `allowed-tools`, unchanged. A save checks the revision you started from. If
+  someone saved in the meantime, you can **Load theirs** or **Overwrite with
+  mine**.
+- **Plan links:** `[[event:NAME]]`, `[[event-type:NAME]]`, `[[field:NAME]]` and
+  `[[field:TYPE/NAME]]`, with an optional `|label`. They resolve by name
+  against the **main** plan each time the note is shown. A broken link is shown
+  in red and listed above the note, but it does not block a save. The event
+  detail and event type pages show a **Notes** card with the notes that link to
+  them (main plan only), and **New note about this** for editors.
+- **Folders:** new note, rename or move (a note or a whole folder, all or
+  nothing), and delete a note or a folder.
+- **History:** every save is a revision with its author, message and diff.
+  **Restore** writes an earlier content as a new revision.
+- **Import / export:** export a root as a zip or JSON bundle, and import a
+  `.zip` or `.json` file in **Merge** or **Mirror** mode. **Import** is enabled
+  after a dry-run preview without errors. Files that are not `.md` are skipped.
+  A single top-level folder in the zip is removed unless you keep it, so an
+  agent skill (`SKILL.md` plus `references/`) imports as it is.
+- **Search:** notes appear in the command palette and in plan search as the
+  **Docs** type.
+
+Notes are not branch-aware: each note has one version. Any project member can
+read notes. Project editors write project notes. Organization notes need an
+instance editor or owner who can edit the current project, and mirroring
+organization notes needs the instance owner. Changes appear in the **Audit**
+tab, in the **Docs** group. Agents use the same notes through MCP (`list_docs`,
+`read_doc`, `search_docs`, `write_doc`) and `tripl docs`. See
+[Docs catalog](./docs-catalog.md) for the path rules, limits and the import
+layout.
 
 ---
 

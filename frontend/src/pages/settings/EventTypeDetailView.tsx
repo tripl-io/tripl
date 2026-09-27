@@ -11,6 +11,7 @@ import { useActiveBranchId } from '@/hooks/useBranch'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
+import { DocFieldNotes, DocNotesSection } from '@/components/docs/DocNotesSection'
 import { EventTypeHealthSummary } from './EventTypeHealthSummary'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -249,6 +250,19 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
             entity={{ kind: 'event_type', id: et.id }}
             branchId={branchId}
           />
+          {/* Docs-catalog notes linking to this type or its fields (F22).
+              Links resolve by name against main: main only. */}
+          {branchId === null && (
+            <>
+              <DocNotesSection className="mt-4" slug={slug} kind="event_type" name={et.name} />
+              <DocFieldNotes
+                className="mt-3"
+                slug={slug}
+                eventTypeName={et.name}
+                fieldNames={[...et.field_definitions].sort((a, b) => a.order - b.order).map((f) => f.name)}
+              />
+            </>
+          )}
         </TabsContent>
         <TabsContent value="settings">
           <SettingsTab slug={slug} eventType={et} branchId={branchId} onDeleted={goBack} />

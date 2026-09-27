@@ -222,9 +222,10 @@ A read key is also enough for the `events` and `plan` verbs, for
 `tripl check`, which posts to a validator that changes nothing, and for
 `tripl codegen` and `tripl export`, which only read the plan.
 
-Five verbs mutate the instance and need a **`tk_w_` key backed by a user with
+Six verbs mutate the instance and need a **`tk_w_` key backed by a user with
 the editor or owner role**: `scans run`, `scans cancel`, `drifts dismiss`,
-`drifts reopen` and `annotate`.
+`drifts reopen`, `annotate` and `docs push`. The other `docs` verbs (`ls`, `cat`
+and `pull`) only read.
 Give them a key of their own rather than promoting the one in your cron job —
 see [Write safety](#write-safety).
 
@@ -922,7 +923,7 @@ mode `watch` exists to avoid.
 
 ## Write safety
 
-`doctor`, `status` and `watch` only ever read. **Five verbs do not**, and this
+`doctor`, `status` and `watch` only ever read. **Six verbs do not**, and this
 is the one table to read before you run any of them:
 
 | Command | What it changes on the instance | Key | Backing role | Asks first |
@@ -932,9 +933,11 @@ is the one table to read before you run any of them:
 | `tripl drifts dismiss` | Moves one schema drift to `false_positive` or `snoozed`, which takes it out of `doctor`'s untriaged count. | `tk_w_` | editor or owner | **Yes** |
 | `tripl drifts reopen` | Moves one schema drift back to `open`, and **discards** its resolution note and resolver. | `tk_w_` | editor or owner | **Yes** |
 | `tripl annotate` | Adds one chart annotation with source `api`. The same label posted again with source `api` within 24 hours is **de-duplicated**: nothing new is created. | `tk_w_` | editor or owner | **No** |
+| `tripl docs push` | Imports a folder of `.md` files into one scope of the docs catalog: creates and updates notes, and with `--mirror` **deletes** every note of the scope the folder does not carry. On a terminal it posts a `dry_run=true` preview first, which changes nothing. | `tk_w_` | editor or owner; `organization` needs a key not bound to one project, and `--mirror` on `organization` is refused to every key | **Yes** |
 
 Everything else on this page — `doctor`, `status`, `watch`, `scans list`,
-`scans jobs`, `drifts list` — is `GET`-only and needs nothing but `tk_r_`.
+`scans jobs`, `drifts list`, `docs ls`, `docs cat`, `docs pull` — is `GET`-only
+and needs nothing but `tk_r_`.
 
 ### The CLI does not judge your key
 
@@ -951,7 +954,7 @@ tripl: Forbidden (403): the API key lacks the required scope (tk_r_ keys cannot 
 Read `API detail:` — it is the server's own sentence and it says which of the
 three actually applied.
 
-### `--dry-run` is on all five
+### `--dry-run` is on all six
 
 It resolves everything a real invocation would resolve — including turning a
 `<scan>` name into a config id, which is where a typo becomes exit 2 — prints
@@ -984,14 +987,15 @@ a machine can consume.
 
 ### The confirmation rule
 
-`scans cancel`, `drifts dismiss` and `drifts reopen` prompt. `scans run` and
+`scans cancel`, `drifts dismiss`, `drifts reopen` and `docs push` prompt. `scans run` and
 `annotate` do not, and neither has a `--yes` at all — passing one is exit 2,
 because a flag that does nothing here is a flag a script author will assume does
 something on the next command too. The reasoning is that `run` executes SQL an
 owner already authored, on a schedule that already runs it, and `annotate` adds
 a marker that is cheap to delete from a pipeline that has nobody to ask;
 `cancel` throws away work in flight, `dismiss` hides a finding from `doctor`,
-and `reopen` destroys the note that says why the finding was hidden.
+`reopen` destroys the note that says why the finding was hidden, and `docs push`
+overwrites notes, or deletes them under `--mirror`.
 
 ```bash
 tripl scans cancel 'prod events' job-91c2 --project prod
@@ -1012,7 +1016,7 @@ no" as "the mutation happened".
 
 :::warning In a pipeline, `--yes` is mandatory, not optional
 When stdin is not a terminal and `--yes` was not given, `scans cancel`,
-`drifts dismiss` and `drifts reopen` **refuse**: they print the question, name
+`drifts dismiss`, `drifts reopen` and `docs push` **refuse**: they print the question, name
 `--yes`, exit **2** and send nothing.
 
 ```text
@@ -1960,8 +1964,10 @@ usage: tripl plan search [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
 
 The entity kinds are `event`, `event_type`, `field`, `meta_field`, `variable`,
-`relation`, `tag`, `metric`, `fact_table`, `scan_config` and `alert_rule` — the
-API's own list, pinned to `backend/openapi.json` by a contract test.
+`relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule` and `doc`
+— the API's own list, pinned to `backend/openapi.json` by a contract test. `doc`
+is a note of the [docs catalog](#tripl-docs), project or organization; read it
+with `tripl docs cat`.
 
 The last two are project configuration rather than plan content, and each is
 indexed with the text you would look for it by: a scan carries the columns it is
@@ -2380,6 +2386,210 @@ missing `--format`, `--json` without `--out`, no project from either
 [Exit codes](#exit-codes).
 
 **Cost:** one request, plus one to resolve `--branch` when you pass it.
+
+## `tripl docs`
+
+Reads and syncs the **docs catalog**: Markdown notes for people and for AI
+agents, such as warehouse gotchas, event query recipes and onboarding guides.
+Notes live at two levels. **Project notes** belong to one project.
+**Organization notes** belong to the project's organization and show up in every
+project of it. `--scope` picks one: `project` or `organization`.
+
+Each note is one Markdown file at a path such as `guides/setup.md`. Folders are
+just the paths, so there are no empty folders. A note may start with YAML
+frontmatter. The API reads `title`, `description`, `tags` and `audience`
+(`human`, `agent` or `both`) from it. Any other key is kept as written, so an
+agent skill's `SKILL.md` with `name` and `allowed-tools` round-trips unchanged.
+The catalog is **not branch-aware**: every note has one version, and a
+`[[event:NAME]]` link inside it resolves against the main plan.
+
+```bash
+tripl docs ls --project prod --audience agent
+tripl docs cat guides/warehouse-gotchas.md --project prod
+tripl docs pull ./notes --project prod
+tripl docs push ./checkout-skill --project prod --keep-root
+```
+
+`ls`, `cat` and `pull` only read and need nothing but a `tk_r_` key. `push`
+writes: it needs a `tk_w_` key backed by an editor or owner, and follows the
+[write safety](#write-safety) rules. Organization notes use the same rule today.
+The API will narrow organization writes to organization owners and admins once
+organization membership exists.
+
+The service's limits: a note is at most **256 KiB**, and one `push` carries at
+most **2000 files** and **20 MiB** in total. `push` checks all three before it
+sends anything.
+
+Moving, renaming and deleting a single note, and a note's revision history,
+stay in the app, where the diff and the **Restore** button are.
+
+### `tripl docs ls`
+
+```
+usage: tripl docs ls [-h] [--url URL] [--api-key KEY] [--config PATH]
+                     [--project SLUG] [--scope {project,organization,all}]
+                     [--audience {human,agent,both}] [--json]
+                     [--timeout SECONDS]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--project SLUG` | **Required**, exactly once. |
+| `--scope SCOPE` | `project`, `organization` or `all`, default `all`. |
+| `--audience AUDIENCE` | Keep notes written for this reader. A note marked `both` matches `human` and `agent`; `--audience both` keeps only those. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+```text
+tripl docs ls - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+prod
+  project       guides/warehouse-gotchas.md  both   r3  Warehouse gotchas
+  organization  recipes/event-queries.md     agent  r1  Event query recipes
+
+2 docs.
+```
+
+The columns are the scope, the path, the audience, the current revision and the
+title. The `--json` document is the [`events` and `plan`](#events-and-plan-documents)
+shape with `kind: "doc"`, and each item is the API's `DocSummary` as sent.
+
+**Cost:** one request.
+
+### `tripl docs cat`
+
+```
+usage: tripl docs cat [-h] [--url URL] [--api-key KEY] [--config PATH]
+                      [--project SLUG] [--scope {project,organization}]
+                      [--json] [--timeout SECONDS]
+                      <path>
+```
+
+| Flag | Meaning |
+|------|---------|
+| `<path>` | The note's path, e.g. `guides/setup.md`. |
+| `--project SLUG` | **Required**, exactly once. |
+| `--scope SCOPE` | `project` or `organization`, default `project`. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+Prints the note **exactly as stored**, frontmatter included, and nothing else on
+stdout: no header and no added newline. `tripl docs cat x.md > x.md` therefore
+round-trips. A link the API cannot resolve to exactly one target is reported on
+stderr as `warning: broken link [[event:NAME]]` (or `ambiguous link`), and the
+exit code stays 0. With `--json` the document has `kind: "doc_file"`, and its one
+item is the API's `DocFileResponse`, with the parsed frontmatter and every link's
+status.
+
+**Cost:** one request.
+
+### `tripl docs pull`
+
+```
+usage: tripl docs pull [-h] [--url URL] [--api-key KEY] [--config PATH]
+                       [--project SLUG] [--scope {project,organization}]
+                       [--force] [--json] [--timeout SECONDS]
+                       <dir>
+```
+
+| Flag | Meaning |
+|------|---------|
+| `<dir>` | The folder to write into. Created when it does not exist. |
+| `--project SLUG` | **Required**, exactly once. |
+| `--scope SCOPE` | `project` or `organization`, default `project`. |
+| `--force` | Write into a folder that is not empty. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+Exports one scope and writes each note to `<dir>/<path>` as raw UTF-8 bytes, so
+the line endings the note was stored with survive. Three rules protect the
+folder:
+
+- **A non-empty folder needs `--force`.** That is checked before the export is
+  requested, so the refusal is exit 2 and costs no request. With `--force`, the
+  files the export carries are overwritten (or left alone when identical) and
+  nothing else is touched.
+- **No local file is ever deleted.** A note deleted in the app stays on disk
+  until you remove it.
+- **Every path is checked before the first write.** An absolute path, a `..`
+  segment, a backslash, or a path that resolves outside `<dir>` through a
+  symlinked folder refuses the whole pull with exit 1, and nothing is written.
+  A symlink where a note would land is refused the same way.
+
+The `--json` document has `kind: "pulled_file"`. Each item has `path`,
+`local_path`, `size_bytes`, `sha256` and `action`: `written`, `overwritten` or
+`unchanged`.
+
+**Cost:** one request.
+
+### `tripl docs push`
+
+```
+usage: tripl docs push [-h] [--url URL] [--api-key KEY] [--config PATH]
+                       [--project SLUG] [--scope {project,organization}]
+                       [--mirror] [--keep-root] [--dry-run] [--yes] [--json]
+                       [--timeout SECONDS]
+                       <dir>
+```
+
+| Flag | Meaning |
+|------|---------|
+| `<dir>` | The folder to upload. |
+| `--project SLUG` | **Required**, exactly once. |
+| `--scope SCOPE` | `project` or `organization`, default `project`. |
+| `--mirror` | Also **delete** every note of the scope that the folder does not carry. On `organization` the API refuses it to every API key: only the instance owner, signed in to the web app, can mirror organization notes. |
+| `--keep-root` | Prefix every path with the folder's own name: `./checkout-skill` uploads `checkout-skill/SKILL.md` instead of `SKILL.md`. |
+| `--dry-run` | Walk the folder and print the request, and send nothing. |
+| `--yes` | Skip the preview and the question. Required when stdin is not a terminal. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. Raise it for a large folder. |
+
+Uploads every `*.md` under `<dir>` as **one import**. The walk does not follow
+symlinks, and it skips anything that is not a note. A skipped file is listed with
+its reason and never fails the push:
+
+- files that are not `.md`, such as an agent skill's `scripts/` and `assets/`
+- hidden files and directories, such as `.git` and `.DS_Store`
+- symlinks
+
+Notes at an existing path are updated. A note whose content is identical is left
+alone and gets no new revision. A leading byte-order mark is dropped, because the
+API reads frontmatter only when `---` is the very first byte.
+
+`push` refuses with exit 2, before anything is sent, in these cases:
+
+- a note is over 256 KiB or is not UTF-8 (every such file is named)
+- the folder is over one import's limits
+- the folder holds no `.md` file at all. Under `--mirror` that upload would
+  delete every note of the scope.
+
+**It asks first, and the question is not a guess.** On a terminal, `push` first
+posts the same bundle with `dry_run=true`. That request changes nothing, and its
+answer says how many notes would be created, updated, left unchanged and
+deleted:
+
+```text
+preview: 1 created, 2 updated, 5 unchanged, 0 deleted.
+  created  references/events.md
+  updated  SKILL.md
+  updated  references/warehouse.md
+Push 8 Markdown files from ./checkout-skill into the project notes of prod? 1 created, 2 updated, 5 unchanged, 0 deleted. [y/N]
+```
+
+Declining there exits 1 with `tripl: aborted. Nothing was changed.` With
+`--yes`, there is no preview and no question, and exactly one request goes out.
+If the API refuses a note (invalid frontmatter, a path it will not take), the
+whole import is refused, **nothing is changed**, and the command exits 1 with
+the API's list of errors.
+
+The `--json` document is the [mutation document](#mutation-documents) with
+`action` set to the mode, `merge` or `mirror`, and `result` set to the API's
+import result. Its `request.body.files` lists each file's `path` and
+`size_bytes` rather than its content, so a twenty-megabyte upload is not
+repeated in your terminal.
+
+**Cost:** one request with `--yes`, and two on a terminal (the preview, then the
+import).
 
 ## `tripl install`
 
@@ -2886,9 +3096,9 @@ produced it, but not every code is reachable from every command — `doctor` own
 
 | Code | Meaning |
 |------|---------|
-| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
-| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss` or `drifts reopen` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the plan read fails or a file cannot be written. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate` / `docs push`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
+| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss`, `drifts reopen` or `docs push` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the plan read fails or a file cannot be written. `docs pull` reaches it when the export carries a path that would land outside `<dir>`, and writes nothing; `docs push` reaches it when the API refuses the import, which then changes nothing. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` / `docs push` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `docs` adds: a `pull` into a non-empty folder without `--force`, and a `push` of a folder with no `.md` file, a note over 256 KiB or not UTF-8, or more than one import's limits. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
 
@@ -3768,8 +3978,8 @@ as one.
 
 ### Mutation documents
 
-`scans run`, `scans cancel`, `drifts dismiss`, `drifts reopen` and `annotate`
-share one shape. **Every key is present on every one of them**, `null` where it does not apply, so a consumer
+`scans run`, `scans cancel`, `drifts dismiss`, `drifts reopen`, `annotate` and
+`docs push` share one shape. **Every key is present on every one of them**, `null` where it does not apply, so a consumer
 never has to test for existence before reading — the same rule the `doctor`
 summary follows.
 

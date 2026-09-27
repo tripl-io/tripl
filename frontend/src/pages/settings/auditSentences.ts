@@ -86,6 +86,20 @@ const VERB_PAST: Record<string, string> = {
   member_add: 'Added a member to',
   member_update: 'Changed a member’s role on',
   member_remove: 'Removed a member from',
+  // Docs catalog (F22).
+  move: 'Moved',
+  restore: 'Restored',
+  import: 'Imported',
+}
+
+/**
+ * Whole-action sentences where verb + noun would read wrong: a folder delete
+ * and an import act on many notes, not one (F22).
+ */
+const ACTION_SENTENCE: Record<string, string> = {
+  'doc.folder_delete': 'Deleted a folder of notes',
+  'doc.import': 'Imported notes',
+  'doc.restore': 'Restored an earlier revision of note',
 }
 
 export const TARGET_NOUN: Record<string, string> = {
@@ -101,6 +115,7 @@ export const TARGET_NOUN: Record<string, string> = {
   scan_job: 'scan run',
   data_source: 'data source',
   api_key: 'API key',
+  doc: 'note',
 }
 
 export function humanize(code: string): string {
@@ -109,6 +124,8 @@ export function humanize(code: string): string {
 
 /** "Updated event", "Approved branch" — the verb and the kind of thing. */
 export function actionSentence(action: string): string {
+  const whole = ACTION_SENTENCE[action]
+  if (whole) return whole
   const dot = action.lastIndexOf('.')
   const type = dot >= 0 ? action.slice(0, dot) : action
   const verb = dot >= 0 ? action.slice(dot + 1) : ''

@@ -47,7 +47,8 @@ EventOrderBy = Literal["catalog", "volume", "health"]
 
 # ``SearchResult.entity_type``, verbatim — the same list the search route
 # validates its ``types`` filter against. Plan content (event, event_type,
-# field, ...) and project configuration (scan_config, alert_rule) alike.
+# field, ...), project configuration (scan_config, alert_rule) and docs-catalog
+# notes (doc) alike.
 SearchEntityType = Literal[
     "event",
     "event_type",
@@ -60,7 +61,17 @@ SearchEntityType = Literal[
     "fact_table",
     "scan_config",
     "alert_rule",
+    "doc",
 ]
+
+# ``DocScope``, verbatim: the ``scope`` query parameter every docs route takes.
+# A project's own notes, or the notes of its organization, which every project
+# of that organization shows. Mirrors ``tripl_cli.api.docs.SCOPES``.
+DocScope = Literal["project", "organization"]
+
+# ``DocAudience``, verbatim: who a note is written for, from its frontmatter.
+# Mirrors ``tripl_cli.api.docs.AUDIENCES``.
+DocAudience = Literal["human", "agent", "both"]
 
 
 def as_strings(values: Sequence[str] | None) -> list[str] | None:

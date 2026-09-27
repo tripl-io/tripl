@@ -25,6 +25,7 @@ ENTITY_TYPES: tuple[str, ...] = (
     "fact_table",
     "scan_config",
     "alert_rule",
+    "doc",
 )
 
 # The route's own bounds: `q` is Query(min_length=1, max_length=500) and `limit`
