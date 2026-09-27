@@ -5,7 +5,7 @@ import { META_FIELD_LINK_PLACEHOLDER } from './metaFields'
  * The tracker ticket a branch is named after, and the meta field that links to
  * it (tripl-kjhi.14).
  *
- * On production every branch is named after its Jira ticket (`WND-4770`) and
+ * On production every branch is named after its Jira ticket (`PROJ-4770`) and
  * every event carries a `jira` meta field whose link template turns the key
  * into a URL. Nothing joined the two: the branch page showed the key as plain
  * text and each new event asked for the key again. The join is a naming
@@ -14,7 +14,7 @@ import { META_FIELD_LINK_PLACEHOLDER } from './metaFields'
  * linking meta field, gets nothing.
  */
 
-/** A Jira-style key at the start of the name: `ABC-123`, `WND-4770-2` → `WND-4770`. */
+/** A Jira-style key at the start of the name: `ABC-123`, `PROJ-4770-2` → `PROJ-4770`. */
 const TICKET_KEY = /^[A-Z][A-Z0-9]+-\d+/
 
 export interface BranchTicket {

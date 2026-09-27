@@ -385,7 +385,7 @@ describe('TopBar notifications', () => {
 
   it('counts event-scope signals, which the collapsed endpoint would have dropped', async () => {
     // tripl-jfm3.89: the bell used the collapsed variant (project_total +
-    // event_type only). On prod windy-ios every open signal was event-scope, so
+    // event_type only). On prod acme-ios every open signal was event-scope, so
     // an incident with no parent to roll into vanished and the bell read clean
     // while the sidebar and the Anomalies page both showed 30.
     mockNotificationsFetch(

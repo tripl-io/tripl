@@ -588,7 +588,7 @@ describe('CommandPalette', () => {
               entity_id: 'event-1',
               parent_event_id: 'event-1',
               // The search document takes its title from `event.name`, so the
-              // one windy-ios row with a blank name arrives here blank: the row
+              // one acme-ios row with a blank name arrives here blank: the row
               // rendered an icon and nothing else.
               title: '',
               subtitle: 'Checkout',

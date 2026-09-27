@@ -277,7 +277,7 @@ async def test_a_branch_event_refuses_a_meta_field_belonging_to_main(
         json={
             "event_type_id": branch_type,
             "name": "checkout:new",
-            "meta_values": [{"meta_field_definition_id": main_meta, "value": "WND-4770"}],
+            "meta_values": [{"meta_field_definition_id": main_meta, "value": "PROJ-4770"}],
         },
     )
     assert refused.status_code == 422, refused.text
@@ -288,11 +288,11 @@ async def test_a_branch_event_refuses_a_meta_field_belonging_to_main(
         json={
             "event_type_id": branch_type,
             "name": "checkout:new",
-            "meta_values": [{"meta_field_definition_id": branch_meta, "value": "WND-4770"}],
+            "meta_values": [{"meta_field_definition_id": branch_meta, "value": "PROJ-4770"}],
         },
     )
     assert accepted.status_code == 201, accepted.text
-    assert [mv["value"] for mv in accepted.json()["meta_values"]] == ["WND-4770"]
+    assert [mv["value"] for mv in accepted.json()["meta_values"]] == ["PROJ-4770"]
 
 
 @pytest.mark.asyncio
@@ -326,7 +326,7 @@ async def test_a_bulk_paste_names_the_item_whose_meta_field_is_on_another_branch
         return {
             "event_type_id": branch_type,
             "name": name,
-            "meta_values": [{"meta_field_definition_id": meta_field_id, "value": "WND-4770"}],
+            "meta_values": [{"meta_field_definition_id": meta_field_id, "value": "PROJ-4770"}],
         }
 
     with _captured_sql() as statements:

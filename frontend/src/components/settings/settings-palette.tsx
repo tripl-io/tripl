@@ -50,8 +50,8 @@ function matchesQuery(query: string, row: PaletteRow): boolean {
  *
  * The app-wide palette cannot serve this area: it reads `useParams().slug` to
  * decide what it is scoped to, no /settings/* route declares one, and its
- * fallback is `projects[0]` — so on a takeover bound to windy-ios it searched
- * windy-android's knowledge and navigated into it, while offering none of that
+ * fallback is `projects[0]` — so on a takeover bound to acme-ios it searched
+ * acme-android's knowledge and navigated into it, while offering none of that
  * project's own destinations (its project groups are empty without an active
  * project). The same reasoning that keeps `useSettingsSlug` from falling back to
  * the first project (tripl-jfm3.32) applies to searching from here.
@@ -76,7 +76,7 @@ export function SettingsCommandPalette({
   activePath: string
   /** Where "Back to project" returns to; '/workspace' when nothing is bound. */
   backHref: string
-  /** The rail's words for the same link ("Back to Windy iOS"), so both name
+  /** The rail's words for the same link ("Back to Acme iOS"), so both name
    *  where it really goes (ST-4). */
   backLabel?: string
   isOwner: boolean

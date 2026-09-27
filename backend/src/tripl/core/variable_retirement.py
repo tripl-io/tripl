@@ -3,7 +3,7 @@
 A scan mints a :class:`~tripl.models.variable.Variable` for every placeholder it
 discovers, and nothing has ever retired one. On a project whose warehouse holds
 a JSON column keyed by user-typed text — a map, not a struct — that is unbounded
-growth in the width of one column: production's ``windy-ios`` carried 1517
+growth in the width of one column: production's ``acme-ios`` carried 1517
 variables of which 1296 were referenced by nothing at all, 1279 of them minted
 from the keys of a single ``property`` column (``property.Adana``,
 ``property.Albany, OR``, and two whitespace-only keys). tripl-10h4.

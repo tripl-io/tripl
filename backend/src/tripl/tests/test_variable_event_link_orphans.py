@@ -4,7 +4,7 @@ The only thing that links a ``Variable`` to an ``Event`` is a ``VariableValue``
 row keyed by ``(variable_id, event_id, field_definition_id)``. Scans are the only
 writer on the happy path, and they rebuild those rows from the CURRENT scan
 window while ``Variable`` rows live forever. These tests pin the two halves of
-that asymmetry that a production audit of tripl.windyapp.co turned up:
+that asymmetry that a production audit of tripl.example.com turned up:
 
 * a rescan that rewrites a field value but KEEPS the ``${token}`` must re-record
   the context — dropping it there is what leaves a variable showing "0 events"
@@ -203,7 +203,7 @@ def test_generating_events_never_retires_the_variables_it_minted(
     ``Variable`` row survives.
 
     That used to be permanent, and on production it accounted for 1279 of
-    windy-ios' 1518 variables (tripl-10h4). It is now swept up by
+    acme-ios' 1518 variables (tripl-10h4). It is now swept up by
     ``worker.variable_sweep`` — but deliberately at the END of a scan run, once
     every event type has been generated, and NOT inside ``generate_events``. The
     reason is scope: contexts are deleted per event type, so a variable this

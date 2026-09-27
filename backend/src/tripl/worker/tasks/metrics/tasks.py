@@ -137,7 +137,7 @@ COLLECT_METRICS_TIME_LIMIT_SECONDS = 25 * 60 * 60
 # Ingestion-settling allowance (tripl-jfm3.7). ``_resolve_collection_window``
 # ends the collection window at the last COMPLETE clock interval, but a
 # warehouse keeps delivering rows for an interval well after that interval
-# closes: on windy-ios the newest hourly bucket grew ~9% and the second-newest
+# closes: on acme-ios the newest hourly bucket grew ~9% and the second-newest
 # ~6% between two consecutive scans, and every revision was upward. Scoring
 # those buckets manufactures "drops" that evaporate on the next scan.
 #

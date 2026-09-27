@@ -281,7 +281,7 @@ def generate_events(
     if main_branch_id is not None:
         existing_events_query = existing_events_query.where(Event.branch_id == main_branch_id)
     # ``uq_event_scan_identity`` guarantees one row per identity, so the map is
-    # no longer choosing between twins — production carried two windy-web
+    # no longer choosing between twins — production carried two acme-web
     # pageview pairs written 94 ms apart before the constraint, and 340d91a8825a
     # moved the frozen twin of each to an identity no scan derives. What the
     # order still decides is which of several rows with NO identity and one

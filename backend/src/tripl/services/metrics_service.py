@@ -256,9 +256,9 @@ async def _get_default_scan_config(
     (tripl-jfm3.21). ``updated_at`` carries ``onupdate=func.now()``, so merely
     renaming an unrelated scan config silently re-pointed the Overview volume
     card and the Events dynamics chart at a different scan — a 32x swing on
-    windy-ios with no change in the underlying data. ``created_at`` never moves,
+    acme-ios with no change in the underlying data. ``created_at`` never moves,
     and the ``id`` tiebreak makes the pick deterministic even when two configs
-    were created in the same microsecond (two windy-ios configs shared a
+    were created in the same microsecond (two acme-ios configs shared a
     byte-identical timestamp, so the winner was whatever order Postgres
     happened to return).
     """
@@ -346,7 +346,7 @@ async def _resolve_events_metrics_scan_config(
 
     Picking WHICH one cannot be ``_get_default_scan_config`` alone, though. That
     answers "newest configured scan in the project" — right for the project-wide
-    sparkline, wrong for a tab. windy-ios collects its ``se`` event type with
+    sparkline, wrong for a tab. acme-ios collects its ``se`` event type with
     "Snowplow Events (iOS)" while the newest config is "Snowplow Pageviews (iOS)",
     so the tab queried a scan that had never written a row for it and charted
     nothing at all, under 366 live events (tripl-g77e).

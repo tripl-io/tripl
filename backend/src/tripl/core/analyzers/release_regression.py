@@ -51,7 +51,7 @@ _SMOOTHING = 0.5
 # Comparability gate (tripl-9y4l). Two releases are only comparable once they
 # are drawn from a similar population. In the first hours of a rollout they are
 # not: everyone on the new build is a fresh install working through onboarding,
-# while the baseline is the steady-state base. Measured on windy-ios 15.7.4,
+# while the baseline is the steady-state base. Measured on acme-ios 15.7.4,
 # seven hours in at 15.9% of traffic: 66.0% of its pageviews were
 # onboarding/* + purchase/about_trial against 3.8% for 15.7.3. Under
 # composition-share normalization that mechanically halves every steady-state
@@ -148,7 +148,7 @@ class ReleaseRegressionReport:
 
     A suppressed comparison still carries any ``missing`` rows. Composition
     normalization is what an incomparable population breaks, and that only ever
-    manufactures partial deficits — every row in the windy-ios false alarm was a
+    manufactures partial deficits — every row in the acme-ios false alarm was a
     ``volume_drop``. An event that went completely silent is not something a
     different mix of users explains, and it is the one finding expensive enough
     that a false positive beats a false negative.
@@ -402,7 +402,7 @@ def _scope_results(
         #   * ``expected`` is what the new release's traffic implies the scope
         #     should show. It scales with ``total_new / total_prev``, so a
         #     release that out-traffics its baseline inflates it for free. On
-        #     live windy-ios two adjacent active releases differed 24x
+        #     live acme-ios two adjacent active releases differed 24x
         #     (35,380,595 against 1,475,687), and there a scope seen TWICE in
         #     the entire baseline window reaches expected 48 and emits a
         #     "missing" row off those two sightings. The ratio only grows as the
@@ -516,7 +516,7 @@ def detect_release_regressions_by_scope(
     # even 30 times in the window, so the statistic has no support at all —
     # against 0.6667 at type scope. Letting the event verdict rule would hand
     # the type pass a ``comparable=True`` it never earned and persist the
-    # windy-ios false alarm one partition up: a volume_drop on the steady-state
+    # acme-ios false alarm one partition up: a volume_drop on the steady-state
     # type, observed 5600 against expected 23520, on a healthy app.
     #
     # Taking the max also makes an unmeasurable partition a non-participant for

@@ -218,7 +218,7 @@ export function FieldValuesCard({
         // A naming row is required in practice whatever its schema says:
         // Create stays blocked until it is filled. Marking only `is_required`
         // made the form's own marks disagree with what it enforces — on
-        // windy-ios's `se` type none of the three columns that build the name
+        // acme-ios's `se` type none of the three columns that build the name
         // carries the flag (tripl-u2h9.4).
         const required = f.is_required || namesEvent
         const value = fieldValues[f.id] ?? ''

@@ -19,14 +19,14 @@ const field = (over: Partial<MetaFieldDefinition>): MetaFieldDefinition => ({
 
 describe('ticketKeyFromBranchName', () => {
   it('reads a Jira-style key off the front of the name', () => {
-    expect(ticketKeyFromBranchName('WND-4770')).toBe('WND-4770')
-    expect(ticketKeyFromBranchName('WND-4500-2')).toBe('WND-4500')
+    expect(ticketKeyFromBranchName('PROJ-4770')).toBe('PROJ-4770')
+    expect(ticketKeyFromBranchName('PROJ-4500-2')).toBe('PROJ-4500')
     expect(ticketKeyFromBranchName('  AB1-7 checkout ')).toBe('AB1-7')
   })
 
   it('has nothing to say for a name that is not a key', () => {
     expect(ticketKeyFromBranchName('checkout-v2')).toBeNull()
-    expect(ticketKeyFromBranchName('wnd-4770')).toBeNull()
+    expect(ticketKeyFromBranchName('proj-4770')).toBeNull()
     expect(ticketKeyFromBranchName('4770')).toBeNull()
   })
 })
@@ -43,15 +43,15 @@ describe('ticketMetaField', () => {
 
 describe('branchTicket', () => {
   it('joins the branch name and the linking field into one href', () => {
-    expect(branchTicket('WND-4770', [field({})])).toEqual({
-      key: 'WND-4770',
-      href: 'https://tracker.example/browse/WND-4770',
+    expect(branchTicket('PROJ-4770', [field({})])).toEqual({
+      key: 'PROJ-4770',
+      href: 'https://tracker.example/browse/PROJ-4770',
       field: field({}),
     })
   })
 
   it('needs both halves', () => {
-    expect(branchTicket('WND-4770', [field({ link_template: null })])).toBeNull()
+    expect(branchTicket('PROJ-4770', [field({ link_template: null })])).toBeNull()
     expect(branchTicket('release-notes', [field({})])).toBeNull()
     expect(branchTicket(null, [field({})])).toBeNull()
   })

@@ -161,7 +161,7 @@ function renderSection(options: RenderOptions = {}) {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[options.entry ?? '/']}>
         <MonitorsSection
-          slug="windy-ios"
+          slug="acme-ios"
           destinations={options.destinations ?? [makeDestination()]}
           rules={options.rules ?? [makeRule()]}
           eventTypes={[]}
@@ -219,7 +219,7 @@ describe('MonitorsSection live state (tripl-89ps)', () => {
     expect(await within(table).findByText('Firing')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Prod drops' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/monitors/rule-1',
+      '/p/acme-ios/monitors/rule-1',
     )
   })
 
@@ -318,7 +318,7 @@ describe('MonitorsSection mute', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Mute Prod drops for 24h' }))
 
     await waitFor(() => expect(mute).toHaveBeenCalled())
-    expect(at(mute.mock.calls, 0)[0]).toBe('windy-ios')
+    expect(at(mute.mock.calls, 0)[0]).toBe('acme-ios')
     expect(at(mute.mock.calls, 0)[1]).toBe('rule-1')
   })
 
@@ -333,7 +333,7 @@ describe('MonitorsSection mute', () => {
     await openRowMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Unmute Prod drops' }))
 
-    await waitFor(() => expect(unmute).toHaveBeenCalledWith('windy-ios', 'rule-1'))
+    await waitFor(() => expect(unmute).toHaveBeenCalledWith('acme-ios', 'rule-1'))
   })
 
   it('always names the instant a muted rule comes back (tripl-b82m)', async () => {
@@ -461,7 +461,7 @@ describe('MonitorsSection rule writes', () => {
     fireEvent.click(await screen.findByRole('switch', { name: 'Toggle Prod drops' }))
 
     await waitFor(() =>
-      expect(update).toHaveBeenCalledWith('windy-ios', 'dest-1', 'rule-1', { enabled: false }),
+      expect(update).toHaveBeenCalledWith('acme-ios', 'dest-1', 'rule-1', { enabled: false }),
     )
   })
 
@@ -516,7 +516,7 @@ describe('MonitorsSection guided-setup handoff (tripl-oxkt.15)', () => {
 describe('MonitorsSection ?new=rule (AL-18, JR-16)', () => {
   it('opens a blank rule form on arrival', async () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
-    renderSection({ entry: '/p/windy-ios/alerting?section=monitors&new=rule' })
+    renderSection({ entry: '/p/acme-ios/alerting?section=monitors&new=rule' })
 
     expect(await screen.findByText('New alert rule')).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue('')
@@ -526,7 +526,7 @@ describe('MonitorsSection ?new=rule (AL-18, JR-16)', () => {
     vi.spyOn(alertingApi, 'getMonitorsSummary').mockResolvedValue(makeSummary())
     renderSection({
       canWrite: false,
-      entry: '/p/windy-ios/alerting?section=monitors&new=rule',
+      entry: '/p/acme-ios/alerting?section=monitors&new=rule',
     })
 
     await screen.findByRole('link', { name: 'Prod drops' })
@@ -541,7 +541,7 @@ describe('MonitorsSection ?new=rule (AL-18, JR-16)', () => {
       name: 'checkout_rate',
       display_name: 'Checkout rate',
     } as Awaited<ReturnType<typeof metricsCatalogApi.get>>)
-    renderSection({ entry: '/p/windy-ios/alerting?section=monitors&new=rule&metric=met-1' })
+    renderSection({ entry: '/p/acme-ios/alerting?section=monitors&new=rule&metric=met-1' })
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('New alert rule')).toBeInTheDocument()
@@ -554,7 +554,7 @@ describe('MonitorsSection ?new=rule (AL-18, JR-16)', () => {
     expect(within(dialog).getByRole('combobox', { name: 'Filter field' })).toHaveTextContent('Metric')
     expect(within(dialog).getByRole('combobox', { name: 'Filter operator' })).toHaveTextContent('is one of')
     expect(await within(dialog).findByText('Checkout rate')).toBeInTheDocument()
-    expect(metricsCatalogApi.get).toHaveBeenCalledWith('windy-ios', 'met-1')
+    expect(metricsCatalogApi.get).toHaveBeenCalledWith('acme-ios', 'met-1')
 
     // Spent: Back or a refresh must not reopen the form, and nothing else in
     // the query string is touched.
@@ -735,7 +735,7 @@ describe('MonitorsSection inert scope notice', () => {
     expect(await screen.findByText(DISTRIBUTION_SENTENCE)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Scan settings' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/scans',
+      '/p/acme-ios/scans',
     )
   })
 
@@ -755,7 +755,7 @@ describe('MonitorsSection inert scope notice', () => {
     expect(await screen.findByText(DISTRIBUTION_SENTENCE)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Scan settings' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/scans',
+      '/p/acme-ios/scans',
     )
   })
 
@@ -1079,7 +1079,7 @@ describe('MonitorsSection — detection switched off (AL-45)', () => {
     expect(await screen.findByText(/Detection is off for this project/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Detection settings' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/settings/monitoring',
+      '/p/acme-ios/settings/monitoring',
     )
   })
 

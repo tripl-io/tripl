@@ -434,7 +434,7 @@ def _grid_slots(points: Sequence[SeriesPoint], interval: timedelta) -> list[int]
     position, never on the list index — with one hourly collection missing, an
     index-keyed baseline compares 05:00 against the previous day's 04:00 and
     scores the resulting mismatch as a real event. Replayed over the real
-    windy-ios project_total series with that project's live settings, marking a
+    acme-ios project_total series with that project's live settings, marking a
     single bucket uncovered turned 0 anomalies into 2 spikes (08-04 04:00 z=+4.2,
     08-04 05:00 z=+4.8) — the same two rows for every one of five hole positions
     between 4h and 100h before the window, because what fires is the phase

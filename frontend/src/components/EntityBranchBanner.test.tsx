@@ -12,7 +12,7 @@ vi.mock('@/api/planBranches', () => ({
       total: 2,
       items: [
         { id: 'main-id', project_id: 'p', name: 'main', kind: 'main', status: 'merged' },
-        { id: 'wnd-4770', project_id: 'p', name: 'WND-4770', kind: 'working', status: 'ready_for_review' },
+        { id: 'proj-4770', project_id: 'p', name: 'PROJ-4770', kind: 'working', status: 'ready_for_review' },
       ],
     })),
   },
@@ -40,9 +40,9 @@ function renderBanner(activeBranchId: string | null, rowBranchId: string, mainPa
 
 describe('EntityBranchBanner (tripl-kjhi.7)', () => {
   it('names the branch a row lives on and offers main when the reader is on that branch', async () => {
-    const { setBranchId } = renderBanner('wnd-4770', 'wnd-4770', '/p/demo/events')
+    const { setBranchId } = renderBanner('proj-4770', 'proj-4770', '/p/demo/events')
     const banner = await screen.findByTestId('entity-branch-banner')
-    expect(banner.textContent).toContain('WND-4770')
+    expect(banner.textContent).toContain('PROJ-4770')
     // The status in the words every branch surface uses, not the raw enum (PL-3).
     expect(banner.textContent).toContain('Ready for review')
     expect(screen.queryByRole('alert')).toBeNull()
@@ -56,19 +56,19 @@ describe('EntityBranchBanner (tripl-kjhi.7)', () => {
     // Reads are lenient: main would render the same branch row under a
     // mismatch warning, and its Save would 404. Without somewhere on main to go,
     // the banner names the branch and offers no link.
-    renderBanner('wnd-4770', 'wnd-4770')
+    renderBanner('proj-4770', 'proj-4770')
     const banner = await screen.findByTestId('entity-branch-banner')
-    expect(banner.textContent).toContain('WND-4770')
+    expect(banner.textContent).toContain('PROJ-4770')
     expect(screen.queryByRole('link', { name: 'View main plan' })).toBeNull()
   })
 
   it('offers the switch when a pasted branch link is opened with main active', async () => {
-    const { setBranchId } = renderBanner(null, 'wnd-4770')
-    const link = await screen.findByRole('link', { name: 'Switch to WND-4770' })
-    expect(link).toHaveAttribute('href', '/p/demo/monitoring/event/e1?branch=wnd-4770')
+    const { setBranchId } = renderBanner(null, 'proj-4770')
+    const link = await screen.findByRole('link', { name: 'Switch to PROJ-4770' })
+    expect(link).toHaveAttribute('href', '/p/demo/monitoring/event/e1?branch=proj-4770')
     fireEvent.click(link)
     // The link carries the branch; the entry being left keeps its own address.
-    expect(setBranchId).toHaveBeenCalledWith('wnd-4770', { updateUrl: false })
+    expect(setBranchId).toHaveBeenCalledWith('proj-4770', { updateUrl: false })
     expect(screen.getByTestId('entity-branch-banner').textContent).toContain('you are viewing main')
     // A mismatch is announced: the page below it cannot save there (PL-2).
     expect(screen.getByRole('alert')).toBe(screen.getByTestId('entity-branch-banner'))
@@ -85,7 +85,7 @@ describe('EntityBranchBanner (tripl-kjhi.7)', () => {
   })
 
   it('points a main row back to main when another branch is active', async () => {
-    const { setBranchId } = renderBanner('wnd-4770', 'main-id')
+    const { setBranchId } = renderBanner('proj-4770', 'main-id')
     const link = await screen.findByRole('link', { name: 'Switch to main' })
     expect(link).toHaveAttribute('href', '/p/demo/monitoring/event/e1')
     fireEvent.click(link)

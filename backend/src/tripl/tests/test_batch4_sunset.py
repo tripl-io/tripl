@@ -568,7 +568,7 @@ _TG = ALERT_MESSAGE_FORMAT_TELEGRAM_HTML
 # Telegram counts as free, so items stay compact and the ceilings below stay
 # small enough for a reader of this file to hold in their head.
 _ITEM_URL = (
-    "https://tripl.windyapp.co/p/windy-ios/alerting/"
+    "https://tripl.example.com/p/acme-ios/alerting/"
     "c33ed139-da4d-429f-8ee9-f9c61e67d02c?item=event:12e1e41c&incident=514450c0"
 )
 
@@ -620,7 +620,7 @@ def _digest_delivery(count: int):
         matched_count=len(items),
     )
     delivery.items = items
-    project = Project(id=delivery.project_id, name="windy-ios", slug="windy-ios", description="")
+    project = Project(id=delivery.project_id, name="acme-ios", slug="acme-ios", description="")
     return delivery, destination, rule, project, items
 
 

@@ -320,7 +320,7 @@ describe('OverviewPage', () => {
   })
 
   it('gives top-event labels room to stay distinct (tripl-jfm3.31)', async () => {
-    // The three biggest events on windy-ios share a 21-character prefix, so a
+    // The three biggest events on acme-ios share a 21-character prefix, so a
     // fixed 10rem label column truncated all three to the identical string
     // "feature_flag:flag_use…" and the ranking became unreadable.
     const topEvents = [

@@ -37,7 +37,7 @@ function mockEventsFetch(): string[] {
   return calls
 }
 
-// windy-ios holds exactly one event whose stored `name` is the empty string, and
+// acme-ios holds exactly one event whose stored `name` is the empty string, and
 // both label sources have to survive it: the per-id read that labels an already
 // selected value, and the searched page that labels the rows you pick from.
 function mockBlankEventFetch() {

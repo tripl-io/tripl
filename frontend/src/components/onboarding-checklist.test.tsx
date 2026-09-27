@@ -489,7 +489,7 @@ describe('OnboardingChecklist', () => {
   })
 
   it('auto-hides for an established project when only optional steps remain (tripl-7l83.12)', () => {
-    // windy-android-shaped: high coverage, real scans and sources, but alerting
+    // acme-android-shaped: high coverage, real scans and sources, but alerting
     // was deliberately never wired up and no metric defined. The core loop is
     // set up, so a "3 of 5" that may never reach 5 should disappear, not become
     // permanent chrome.

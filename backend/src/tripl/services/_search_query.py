@@ -1226,10 +1226,10 @@ def finalize_results(items: list[SearchResult], limit: int) -> list[SearchResult
     while leaving the TYPE document itself unmultiplied buried the one document
     the query was actually naming:
 
-        q='pv'  windy-web      "Pageview"          rank 100 of 100 -> 1 without it
-        q='pv'  windy-ios      "Pageview"          rank 100 of 100 -> 1 without it
-        q='se'  windy-android  "Structured Event"  rank  36 of 100 -> 1 without it
-        q='old' windy-ios      "Old"               rank 100 of 100 -> 2 without it
+        q='pv'  acme-web      "Pageview"          rank 100 of 100 -> 1 without it
+        q='pv'  acme-ios      "Pageview"          rank 100 of 100 -> 1 without it
+        q='se'  acme-android  "Structured Event"  rank  36 of 100 -> 1 without it
+        q='old' acme-ios      "Old"               rank 100 of 100 -> 2 without it
 
     (Rank without the boost is exact, not estimated: with one type dominating the
     set its relevance is 1.0, so dividing a boosted score by 1.75 recovers the

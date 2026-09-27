@@ -2059,10 +2059,10 @@ describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
 })
 
 describe('BranchesTab ticket link (tripl-kjhi.14)', () => {
-  const WND = makeBranch({ id: 'feat-wnd', name: 'WND-4770', kind: 'working', status: 'draft' })
+  const PROJ = makeBranch({ id: 'feat-proj', name: 'PROJ-4770', kind: 'working', status: 'draft' })
 
   it('links a branch named after a ticket through the meta field that links to it', async () => {
-    mockBranchDetailQueries([MAIN, WND])
+    mockBranchDetailQueries([MAIN, PROJ])
     vi.mocked(metaFieldsApi.list).mockResolvedValue([
       {
         id: 'mf-jira',
@@ -2079,20 +2079,20 @@ describe('BranchesTab ticket link (tripl-kjhi.14)', () => {
       },
     ])
 
-    renderTab('feat-wnd')
+    renderTab('feat-proj')
 
-    const link = await screen.findByRole('link', { name: /WND-4770/ })
-    expect(link).toHaveAttribute('href', 'https://jira.example/browse/WND-4770')
+    const link = await screen.findByRole('link', { name: /PROJ-4770/ })
+    expect(link).toHaveAttribute('href', 'https://jira.example/browse/PROJ-4770')
     expect(link).toHaveAttribute('target', '_blank')
   })
 
   it('shows nothing when no meta field can link a key', async () => {
-    mockBranchDetailQueries([MAIN, WND])
-    renderTab('feat-wnd')
+    mockBranchDetailQueries([MAIN, PROJ])
+    renderTab('feat-proj')
 
-    await waitFor(() => expect(planBranchesApi.diff).toHaveBeenCalledWith('demo', 'feat-wnd'))
+    await waitFor(() => expect(planBranchesApi.diff).toHaveBeenCalledWith('demo', 'feat-proj'))
     await waitFor(() => expect(metaFieldsApi.list).toHaveBeenCalledWith('demo'))
-    expect(screen.queryByRole('link', { name: /WND-4770/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /PROJ-4770/ })).not.toBeInTheDocument()
   })
 })
 

@@ -2360,20 +2360,20 @@ async def test_multi_value_meta_field_keeps_every_value(client: AsyncClient):
             "name": "Home Page View",
             "field_values": [{"field_definition_id": field_id, "value": "home"}],
             "meta_values": [
-                {"meta_field_definition_id": multi_id, "value": "WND-1"},
-                {"meta_field_definition_id": multi_id, "value": "WND-2"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-1"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-2"},
                 # Pasted whole out of the browser: stored as the bare key, like
                 # any single value would be.
                 {
                     "meta_field_definition_id": multi_id,
-                    "value": "https://tracker.example.com/browse/WND-3",
+                    "value": "https://tracker.example.com/browse/PROJ-3",
                 },
             ],
         },
     )
     assert resp.status_code == 201
     stored = [mv["value"] for mv in resp.json()["meta_values"]]
-    assert sorted(stored) == ["WND-1", "WND-2", "WND-3"]
+    assert sorted(stored) == ["PROJ-1", "PROJ-2", "PROJ-3"]
 
 
 @pytest.mark.asyncio
@@ -2387,13 +2387,13 @@ async def test_multi_value_meta_field_drops_an_exact_repeat(client: AsyncClient)
             "name": "Home Page View",
             "field_values": [{"field_definition_id": field_id, "value": "home"}],
             "meta_values": [
-                {"meta_field_definition_id": multi_id, "value": "WND-1"},
-                {"meta_field_definition_id": multi_id, "value": "WND-1"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-1"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-1"},
             ],
         },
     )
     assert resp.status_code == 201
-    assert [mv["value"] for mv in resp.json()["meta_values"]] == ["WND-1"]
+    assert [mv["value"] for mv in resp.json()["meta_values"]] == ["PROJ-1"]
 
 
 @pytest.mark.asyncio
@@ -2426,8 +2426,8 @@ async def test_updating_an_event_replaces_the_whole_multi_value_set(client: Asyn
             "name": "Home Page View",
             "field_values": [{"field_definition_id": field_id, "value": "home"}],
             "meta_values": [
-                {"meta_field_definition_id": multi_id, "value": "WND-1"},
-                {"meta_field_definition_id": multi_id, "value": "WND-2"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-1"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-2"},
             ],
         },
     )
@@ -2436,13 +2436,13 @@ async def test_updating_an_event_replaces_the_whole_multi_value_set(client: Asyn
         f"/api/v1/projects/ev-meta-multi-upd/events/{event_id}",
         json={
             "meta_values": [
-                {"meta_field_definition_id": multi_id, "value": "WND-2"},
-                {"meta_field_definition_id": multi_id, "value": "WND-9"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-2"},
+                {"meta_field_definition_id": multi_id, "value": "PROJ-9"},
             ]
         },
     )
     assert resp.status_code == 200
-    assert sorted(mv["value"] for mv in resp.json()["meta_values"]) == ["WND-2", "WND-9"]
+    assert sorted(mv["value"] for mv in resp.json()["meta_values"]) == ["PROJ-2", "PROJ-9"]
 
 
 async def _two_events(client: AsyncClient, slug: str) -> tuple[str, str, str]:

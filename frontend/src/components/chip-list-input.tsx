@@ -20,8 +20,8 @@ export interface ChipListInputProps {
  * had, and the one the analyst named for several Jira keys on one event.
  *
  * Values are kept EXACTLY as typed. Tags lower-case theirs, which is right for
- * a free-form label and wrong for everything else here: it would turn WND-4770
- * into wnd-4770, and a documented value into a different string.
+ * a free-form label and wrong for everything else here: it would turn PROJ-4770
+ * into proj-4770, and a documented value into a different string.
  */
 export function ChipListInput({
   values,

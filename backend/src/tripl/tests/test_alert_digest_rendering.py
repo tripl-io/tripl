@@ -40,7 +40,7 @@ from tripl.models.project import Project
 from tripl.worker.tasks import alerts_messages as am
 
 _URL = (
-    "https://tripl.windyapp.co/p/windy-ios/alerting/"
+    "https://tripl.example.com/p/acme-ios/alerting/"
     "c33ed139-da4d-429f-8ee9-f9c61e67d02c?item=event:12e1e41c&incident=514450c0"
 )
 
@@ -196,7 +196,7 @@ def test_an_unusable_project_zone_degrades_rather_than_raising() -> None:
 @pytest.mark.parametrize(
     "name",
     [
-        "promo:tap:windy_to_windhub_banner",  # MarkdownV2 italic trap
+        "promo:tap:acme_to_partner_banner",  # MarkdownV2 italic trap
         "a<b>&c",  # HTML injection through a scope name
         "weird (paren) name",  # closes a MarkdownV2 link early
     ],
@@ -354,7 +354,7 @@ def _split_digest(
         matched_count=len(items),
     )
     delivery.items = items
-    project = Project(id=delivery.project_id, name="windy-ios", slug="windy-ios", description="")
+    project = Project(id=delivery.project_id, name="acme-ios", slug="acme-ios", description="")
     text, fmt = am._render_delivery_message(
         delivery,
         destination=destination,

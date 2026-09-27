@@ -2406,7 +2406,7 @@ def test_recalculate_release_regressions_records_a_withheld_verdict(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
     """A suppressed comparison and a healthy one used to be byte-identical: no
-    rows either way, the verdict logged at INFO and dropped. The windy-ios 15.7.4
+    rows either way, the verdict logged at INFO and dropped. The acme-ios 15.7.4
     mix (two thirds of the rollout's volume in onboarding screens the baseline
     barely visited) has to leave a readable trace instead."""
     days = [datetime(2026, 1, d) for d in range(1, 11)]
@@ -2486,7 +2486,7 @@ def test_recalculate_release_regressions_writes_one_verdict_for_both_scopes(
 ) -> None:
     """The two persistence passes judge the same release and must not disagree.
 
-    Event-scope sees the windy-ios mix and scores 0.54; the event-type rows here
+    Event-scope sees the acme-ios mix and scores 0.54; the event-type rows here
     are a single type carrying all the traffic, which on its own scores 0.0 and
     comes back comparable. Comparability is a property of the release, so the
     partition that saw the population change decides for both — otherwise the

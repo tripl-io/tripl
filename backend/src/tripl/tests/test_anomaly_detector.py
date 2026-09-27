@@ -852,7 +852,7 @@ def test_trend_shift_direction_matches_actual_vs_expected() -> None:
 
 # A zero floor is what makes the trend path's clamped-to-zero expectation
 # reachable at all: for any positive floor the volume gate on the REPORTED value
-# (tripl-jfm3.48) already rejects it. This is the windy-ios configuration the 14
+# (tripl-jfm3.48) already rejects it. This is the acme-ios configuration the 14
 # production rows came from (tripl-wkwv.8).
 ZERO_FLOOR_SETTINGS = AnomalyDetectionSettings(
     baseline_window_buckets=14,
@@ -1340,7 +1340,7 @@ def test_uncovered_bucket_does_not_rotate_the_seasonal_phase() -> None:
     ``expand_series`` drops a bucket the scan never covered, so every later
     bucket moves one position down the list. Selecting same-phase partners by
     list position then compares 17:00 against the previous day's 16:00, and the
-    seasonal step between the two hours is scored as a real event. On windy-ios
+    seasonal step between the two hours is scored as a real event. On acme-ios
     with the live settings, deleting one bucket turned 0 anomalies into 2 spikes
     (08-02 05:00 z=+4.7, 08-03 05:00 z=+4.3); on this series it produced a
     z=+35 spike at 09:00 plus three drops at the other shape boundaries.

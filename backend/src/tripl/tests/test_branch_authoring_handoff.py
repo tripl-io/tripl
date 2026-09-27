@@ -448,25 +448,25 @@ async def test_meta_value_pasted_as_a_full_link_is_stored_as_its_key(client: Asy
             "meta_values": [
                 {
                     "meta_field_definition_id": meta_id,
-                    "value": "https://tracker.example.com/browse/WND-4770",
+                    "value": "https://tracker.example.com/browse/PROJ-4770",
                 }
             ],
         },
     )
     assert created.status_code == 201, created.text
-    assert [mv["value"] for mv in created.json()["meta_values"]] == ["WND-4770"]
+    assert [mv["value"] for mv in created.json()["meta_values"]] == ["PROJ-4770"]
 
     edited = await client.patch(
         f"/api/v1/projects/{slug}/events/{created.json()['id']}",
         json={
             "meta_values": [
-                {"meta_field_definition_id": meta_id, "value": "https://elsewhere.example/WND-1"}
+                {"meta_field_definition_id": meta_id, "value": "https://elsewhere.example/PROJ-1"}
             ]
         },
     )
     assert edited.status_code == 200, edited.text
     assert [mv["value"] for mv in edited.json()["meta_values"]] == [
-        "https://elsewhere.example/WND-1"
+        "https://elsewhere.example/PROJ-1"
     ]
     async with TestSessionLocal() as session:
         stored = (
@@ -476,7 +476,7 @@ async def test_meta_value_pasted_as_a_full_link_is_stored_as_its_key(client: Asy
                 )
             )
         ).scalar_one()
-    assert stored == "https://elsewhere.example/WND-1"
+    assert stored == "https://elsewhere.example/PROJ-1"
 
 
 # --------------------------------------------------------------------- kjhi.7
@@ -602,7 +602,7 @@ async def test_history_records_creation_tags_fields_and_meta(client: AsyncClient
             "name": "track:tap",
             "tags": ["mobile"],
             "field_values": [{"field_definition_id": field_id, "value": "tap"}],
-            "meta_values": [{"meta_field_definition_id": meta_id, "value": "WND-1"}],
+            "meta_values": [{"meta_field_definition_id": meta_id, "value": "PROJ-1"}],
         },
     )
     event_id = created.json()["id"]
@@ -611,7 +611,7 @@ async def test_history_records_creation_tags_fields_and_meta(client: AsyncClient
         json={
             "tags": ["mobile", "onboarding"],
             "field_values": [{"field_definition_id": field_id, "value": "swipe"}],
-            "meta_values": [{"meta_field_definition_id": meta_id, "value": "WND-2"}],
+            "meta_values": [{"meta_field_definition_id": meta_id, "value": "PROJ-2"}],
         },
     )
     assert edited.status_code == 200, edited.text
@@ -630,7 +630,7 @@ async def test_history_records_creation_tags_fields_and_meta(client: AsyncClient
         ("created", None, "track:tap"),
         ("tags", "mobile", "mobile, onboarding"),
         ("field:name", "tap", "swipe"),
-        ("meta:jira", "WND-1", "WND-2"),
+        ("meta:jira", "PROJ-1", "PROJ-2"),
     }
     assert all(row["user_email"] == "test@example.com" for row in history)
 

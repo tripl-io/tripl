@@ -225,7 +225,7 @@ def _unfilled_json_path_candidates(
     a contextless variable is an unused one — nothing in the plan points at it,
     and a sampled value would have no row to land in. An earlier version kept
     such variables as permanent candidates for the just-minted case, and that
-    starved the fillable paths: on windy-ios 1545 of 1777 JSON-path variables
+    starved the fillable paths: on acme-ios 1545 of 1777 JSON-path variables
     are unused, so the ring ran ~10x its fillable size and a scheduled cycle
     measured on 2026-08-31 moved ZERO contexts from empty to filled while the
     same four already-filled paths were resampled run after run. The just-minted
@@ -317,7 +317,7 @@ def _rotating_window(
 
     The stride is the slice's own SIZE, not one. Advancing one candidate per run
     looked like rotation and was not: consecutive slices overlapped on all but
-    one of their 200 paths, so on windy-ios's ~1800-candidate ring a full lap
+    one of their 200 paths, so on acme-ios's ~1800-candidate ring a full lap
     took ~75 days and candidate #1600 waited ~67 days for its first attempt —
     the production stall of 2026-08-31, where whole cycles resampled the same
     already-filled prefix and moved nothing from empty to filled. Striding by

@@ -5,8 +5,8 @@ import { visibleGroupsAll } from './nav'
 import { SettingsCommandPalette } from './settings-palette'
 
 const PROJECTS = [
-  { name: 'Windy Android', slug: 'windy-android' },
-  { name: 'Windy iOS', slug: 'windy-ios' },
+  { name: 'Acme Android', slug: 'acme-android' },
+  { name: 'Acme iOS', slug: 'acme-ios' },
 ]
 
 function renderPalette(overrides: { isOwner?: boolean; backHref?: string } = {}) {
@@ -24,7 +24,7 @@ function renderPalette(overrides: { isOwner?: boolean; backHref?: string } = {})
       </button>
       <SettingsCommandPalette
         activePath="instance/ai"
-        backHref={overrides.backHref ?? '/p/windy-ios/events'}
+        backHref={overrides.backHref ?? '/p/acme-ios/events'}
         isOwner={overrides.isOwner ?? true}
         projects={PROJECTS}
         onLeave={onLeave}
@@ -72,12 +72,12 @@ describe('Settings command palette destinations', () => {
     const { onLeave } = renderPalette()
 
     const palette = await openPalette()
-    fireEvent.click(within(palette).getByText('Windy iOS'))
+    fireEvent.click(within(palette).getByText('Acme iOS'))
 
     // The app palette bound itself to `projects[0]` on these routes, because no
-    // /settings/* route carries a :slug — so it searched Windy Android and
-    // navigated into it from a takeover bound to Windy iOS.
-    expect(onLeave).toHaveBeenCalledWith('/p/windy-ios/overview')
+    // /settings/* route carries a :slug — so it searched Acme Android and
+    // navigated into it from a takeover bound to Acme iOS.
+    expect(onLeave).toHaveBeenCalledWith('/p/acme-ios/overview')
   })
 
   it('offers nothing scoped to a project it cannot know it is in', async () => {

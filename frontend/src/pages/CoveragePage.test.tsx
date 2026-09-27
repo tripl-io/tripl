@@ -9,7 +9,7 @@ import { DEAD_EVENT_DAYS } from '@/lib/coverage'
 import type { Project, ProjectSummary } from '@/types'
 import CoveragePage from './CoveragePage'
 
-// Mirrors prod windy-ios: 2,413 non-archived events, 1,844 implemented and 568
+// Mirrors prod acme-ios: 2,413 non-archived events, 1,844 implemented and 568
 // awaiting review — so the bar's arithmetic remainder (569) and the review tile
 // (568) are deliberately one apart (tripl-jfm3.29).
 function summary(overrides: Partial<ProjectSummary> = {}): ProjectSummary {
@@ -37,8 +37,8 @@ function summary(overrides: Partial<ProjectSummary> = {}): ProjectSummary {
 function project(overrides: Partial<ProjectSummary> = {}): Project {
   return {
     id: 'p1',
-    name: 'Windy iOS',
-    slug: 'windy-ios',
+    name: 'Acme iOS',
+    slug: 'acme-ios',
     description: '',
     app_version_keep_releases: 5,
     created_at: '2026-01-01T00:00:00Z',
@@ -66,7 +66,7 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/p/windy-ios/coverage']}>
+      <MemoryRouter initialEntries={['/p/acme-ios/coverage']}>
         <Routes>
           <Route path="/p/:slug/coverage" element={<CoveragePage />} />
         </Routes>
@@ -117,7 +117,7 @@ describe('CoveragePage', () => {
     const link = await screen.findByRole('link', { name: '569 not implemented' })
     expect(link).toHaveAttribute(
       'href',
-      '/p/windy-ios/events?status=draft&status=in_review&status=ready_for_dev&status=deprecated',
+      '/p/acme-ios/events?status=draft&status=in_review&status=ready_for_dev&status=deprecated',
     )
     expect(
       screen.getByText('Not implemented: 568 in review, 1 draft, ready for dev or deprecated.'),
@@ -155,7 +155,7 @@ describe('CoveragePage', () => {
     renderPage()
 
     await screen.findByText(/implemented events with no data/)
-    expect(deadEvents).toHaveBeenCalledWith('windy-ios', DEAD_EVENT_DAYS)
+    expect(deadEvents).toHaveBeenCalledWith('acme-ios', DEAD_EVENT_DAYS)
   })
 
   it('keeps the no-gaps message scoped to implemented events', async () => {
@@ -215,7 +215,7 @@ describe('CoveragePage', () => {
     renderPage()
 
     const link = await screen.findByRole('link', { name: 'legacy_banner_shown' })
-    expect(link).toHaveAttribute('href', '/p/windy-ios/monitoring/event/d1')
+    expect(link).toHaveAttribute('href', '/p/acme-ios/monitoring/event/d1')
     // 0-encoded empty segments render as placeholders, not a bare "0".
     expect(screen.getByText('forecast_for_4')).toBeInTheDocument()
     expect(screen.getAllByTitle('empty segment')).toHaveLength(2)

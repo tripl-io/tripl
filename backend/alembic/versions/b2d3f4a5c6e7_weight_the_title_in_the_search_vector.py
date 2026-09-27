@@ -12,7 +12,7 @@ could not distinguish a title match from a body match at all.
 WHAT THAT COST, MEASURED
 ------------------------
 1305 inverted pairs out of 8224 on the FINAL score (16%), and three of them are
-real production searches on windy-ios main::
+real production searches on acme-ios main::
 
     q            the document that won        the one that should have
     paywall      ${property.newValue}         a paywall event      (gap 0.92)

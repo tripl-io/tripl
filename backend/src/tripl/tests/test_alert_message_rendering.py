@@ -163,8 +163,8 @@ def _item(index: int, *, scope_type: str = "event") -> AlertDeliveryItem:
         percent_delta=51.9,
         # The optional lines are what make a real item ~350 characters; the
         # production URLs are this long.
-        details_path=f"https://tripl.windyapp.co/p/windy-ios/monitoring/event/{uuid.uuid4()}",
-        monitoring_path=f"https://tripl.windyapp.co/p/windy-ios/events/detail/{uuid.uuid4()}",
+        details_path=f"https://tripl.example.com/p/acme-ios/monitoring/event/{uuid.uuid4()}",
+        monitoring_path=f"https://tripl.example.com/p/acme-ios/events/detail/{uuid.uuid4()}",
     )
 
 
@@ -209,7 +209,7 @@ def _telegram_delivery(
         matched_count=len(items),
     )
     delivery.items = items
-    project = Project(id=delivery.project_id, name="windy-ios", slug="windy-ios", description="")
+    project = Project(id=delivery.project_id, name="acme-ios", slug="acme-ios", description="")
     return delivery, destination, rule, project
 
 

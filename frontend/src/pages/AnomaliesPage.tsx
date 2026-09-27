@@ -162,7 +162,7 @@ export default function AnomaliesPage() {
   // own anomalies over — the "Signals added" counter on a scan run links to
   // `?scan=<id>` (tripl-3y7z.2) — and so opening a signal to investigate it and
   // pressing Back does not snap the magnitude filter back to Significant,
-  // re-hiding 162 of 209 rows on windy-ios (tripl-ahg5). The rows themselves are
+  // re-hiding 162 of 209 rows on acme-ios (tripl-ahg5). The rows themselves are
   // links off this route, so that Back is the page's primary path, not an
   // incidental one. Same idiom as MetricsCatalog's `?kind=`; `replace` — a
   // filter flip is not a place the Back button should stop.
@@ -266,7 +266,7 @@ export default function AnomaliesPage() {
   // request, and no cache key that would fork from the other two readers.
   //
   // It exists because one scan drowns the others out by size, not by noise. On
-  // windy-ios the legacy "Old events (iOS)" scan watches 2060 of the project's
+  // acme-ios the legacy "Old events (iOS)" scan watches 2060 of the project's
   // 2497 events and supplied 136 of 207 open event-scope signals (65.7%) when
   // this was measured; earlier audit samples put it as high as 95%, so treat the
   // share as "most of the page, varying" rather than a fixed number. Its

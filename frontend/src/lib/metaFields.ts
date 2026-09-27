@@ -17,7 +17,7 @@ export const MULTI_VALUE_META_FIELD_TYPES: ReadonlySet<string> = new Set([
 ])
 
 /** The example key the form substitutes into a template to show what a value looks like. */
-export const META_FIELD_LINK_EXAMPLE_KEY = 'WND-1234'
+export const META_FIELD_LINK_EXAMPLE_KEY = 'PROJ-1234'
 
 const ABSOLUTE_URL = /^https?:\/\//i
 
@@ -40,7 +40,7 @@ function templateAround(template: string): { prefix: string; suffix: string } | 
  *
  * People paste the whole address out of the browser into a field whose template
  * already IS that address around a key: on production every branch-authored
- * event held `https://jira…/browse/WND-4770` where `WND-4770` was meant, and the
+ * event held `https://jira…/browse/PROJ-4770` where `PROJ-4770` was meant, and the
  * rendered link was the template applied to a URL (tripl-kjhi.5). The server
  * strips on write with this same rule; doing it here too means the form shows
  * what will be stored, not what will be corrected. A template with no fixed

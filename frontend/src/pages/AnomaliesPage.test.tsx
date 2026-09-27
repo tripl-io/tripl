@@ -10,7 +10,7 @@ vi.mock('@/api/eventMetrics', () => ({
   eventMetricsApi: { getActiveSignals: vi.fn(), getSignalSeries: vi.fn() },
 }))
 // Kept mocked although the page no longer imports it: the point of tripl-y4wt is
-// that this catalog download (limit 10_000 — 2641 rows / 1.7s on windy-ios) must
+// that this catalog download (limit 10_000 — 2641 rows / 1.7s on acme-ios) must
 // never come back as a way to label rows, and the only way to assert an absent
 // request is to hold a spy that stays at zero calls.
 vi.mock('@/api/events', () => ({
@@ -506,7 +506,7 @@ describe('AnomaliesPage — magnitude filter', () => {
 
 // The rows on this page are links off the route (each one opens a monitoring
 // detail page), so Back is the primary way out of an investigation. With the
-// level in component state that Back re-hid 162 of windy-ios's 209 signals every
+// level in component state that Back re-hid 162 of acme-ios's 209 signals every
 // single time (tripl-ahg5).
 describe('AnomaliesPage — ?level= facet (tripl-ahg5)', () => {
   function tinySignal(): MonitoringSignal {
@@ -572,7 +572,7 @@ describe('AnomaliesPage — ?level= facet (tripl-ahg5)', () => {
 })
 
 describe('AnomaliesPage — scan facet', () => {
-  // Mirrors the shape of the windy-ios stream: a legacy scan watching most of
+  // Mirrors the shape of the acme-ios stream: a legacy scan watching most of
   // the catalog contributes the bulk of open event-scope signals purely by
   // size, and without a scan facet the live scan's rows are unfindable.
   function legacyAndLiveSignals(): MonitoringSignal[] {

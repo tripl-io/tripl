@@ -6,7 +6,7 @@ Create Date: 2026-07-13 20:45:00.000000
 
 App-version retention is one project policy shared by event monitoring and
 catalog metrics. Existing projects inherit the strictest configured scan value
-(``MIN``), preserving windy-ios's current value of 3. The legacy scan column is
+(``MIN``), preserving acme-ios's current value of 3. The legacy scan column is
 kept temporarily and mirrored for rolling-deploy compatibility.
 
 Downgrade preserves the current project policy in every versioned scan; it

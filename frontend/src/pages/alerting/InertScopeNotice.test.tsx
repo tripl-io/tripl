@@ -28,10 +28,10 @@ function renderNotice(
  */
 describe('InertScopeNotice', () => {
   it.each([
-    ['distribution_drift', 'Scan settings', '/p/windy-ios/scans'],
-    ['variable_value_drift', 'Variables', '/p/windy-ios/variables'],
+    ['distribution_drift', 'Scan settings', '/p/acme-ios/scans'],
+    ['variable_value_drift', 'Variables', '/p/acme-ios/variables'],
   ] as const)('sends %s to the screen that supplies its data', (scope, label, href) => {
-    renderNotice(scope, 'windy-ios')
+    renderNotice(scope, 'acme-ios')
 
     expect(screen.getByText(inertScopeSentence(scope))).toBeInTheDocument()
     expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', href)
@@ -42,12 +42,12 @@ describe('InertScopeNotice', () => {
     // so the SENTENCE must not move an inch when a scan is named — only where
     // the link lands. A second wording here would be the monitor detail and the
     // rule editor describing one rule two ways (tripl-wkwv.9, tripl-oxkt.18).
-    renderNotice('distribution_drift', 'windy-ios', false, 'scan-42')
+    renderNotice('distribution_drift', 'acme-ios', false, 'scan-42')
 
     expect(screen.getByText(inertScopeSentence('distribution_drift'))).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Scan settings' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/scans/scan-42',
+      '/p/acme-ios/scans/scan-42',
     )
   })
 
@@ -55,11 +55,11 @@ describe('InertScopeNotice', () => {
     // The rule editor is that caller: its draft's scan changes under the
     // reader's hand and its readiness block is the project's, so it passes
     // nothing and must keep landing on the list exactly as before.
-    renderNotice('distribution_drift', 'windy-ios')
+    renderNotice('distribution_drift', 'acme-ios')
 
     expect(screen.getByRole('link', { name: 'Scan settings' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/scans',
+      '/p/acme-ios/scans',
     )
   })
 
@@ -68,11 +68,11 @@ describe('InertScopeNotice', () => {
     // per-scan variables screen to send anyone to, and narrowing this link would
     // invent one. The prop is accepted here only because one component serves
     // both scopes.
-    renderNotice('variable_value_drift', 'windy-ios', false, 'scan-42')
+    renderNotice('variable_value_drift', 'acme-ios', false, 'scan-42')
 
     expect(screen.getByRole('link', { name: 'Variables' })).toHaveAttribute(
       'href',
-      '/p/windy-ios/variables',
+      '/p/acme-ios/variables',
     )
   })
 
@@ -105,7 +105,7 @@ describe('InertScopeNotice', () => {
     // The sentence is about main; the link is about whatever branch is
     // selected. Saying so is the honest fix — a help link that reset the
     // app-wide branch selection as a side effect is not.
-    renderNotice('variable_value_drift', 'windy-ios')
+    renderNotice('variable_value_drift', 'acme-ios')
 
     expect(screen.getByText(/opens on the branch you have selected/)).toBeInTheDocument()
     // Only this scope has the mismatch: ScanConfig has no branch at all.
@@ -115,21 +115,21 @@ describe('InertScopeNotice', () => {
   it('stays in this tab by default, and leaves only when a caller asks', () => {
     // React Router hands `_blank` back to the browser, which is what lets the
     // rule editor's modal survive a click on its own advice.
-    const sameTab = renderNotice('distribution_drift', 'windy-ios')
+    const sameTab = renderNotice('distribution_drift', 'acme-ios')
     expect(screen.getByRole('link', { name: 'Scan settings' })).not.toHaveAttribute('target')
     sameTab.unmount()
 
-    renderNotice('distribution_drift', 'windy-ios', true)
+    renderNotice('distribution_drift', 'acme-ios', true)
     const link = screen.getByRole('link', { name: 'Scan settings' })
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noreferrer')
     // Same destination either way — the tab is the only difference.
-    expect(link).toHaveAttribute('href', '/p/windy-ios/scans')
+    expect(link).toHaveAttribute('href', '/p/acme-ios/scans')
   })
 
   it('does not announce itself — it is standing state, not an event', () => {
     // Both callers poll, so a live region here would interrupt on every refetch.
-    renderNotice('distribution_drift', 'windy-ios')
+    renderNotice('distribution_drift', 'acme-ios')
 
     expect(screen.queryByRole('alert')).toBeNull()
   })

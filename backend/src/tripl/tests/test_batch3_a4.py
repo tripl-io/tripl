@@ -155,7 +155,7 @@ def _seed_branches(session: Session, project_id: uuid.UUID) -> tuple[uuid.UUID, 
             PlanBranch(
                 id=working_id,
                 project_id=project_id,
-                name="windy",
+                name="acme",
                 kind=BranchKind.working.value,
                 status=BranchStatus.draft.value,
                 description="",

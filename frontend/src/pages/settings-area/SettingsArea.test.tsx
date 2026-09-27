@@ -60,9 +60,9 @@ function project(slug: string, name: string): Project {
   }
 }
 
-// GET /projects returns windy-android first — the project the takeover used to
+// GET /projects returns acme-android first — the project the takeover used to
 // bind to when nothing had been chosen (tripl-jfm3.32).
-const projects = [project('windy-android', 'Windy Android'), project('windy-ios', 'Windy iOS')]
+const projects = [project('acme-android', 'Acme Android'), project('acme-ios', 'Acme iOS')]
 
 function renderArea(section: string, search = '', auth: AuthContextValue = ownerAuthValue()) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -101,8 +101,8 @@ describe('SettingsArea project binding', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'General' })).toBeInTheDocument()
     // Never silently binds to whichever project happened to sort first: the
     // projects are offered as choices, not applied.
-    expect(screen.getByRole('button', { name: /Windy Android/ })).toBeInTheDocument()
-    // The way back falls back to the workspace, not to /p/windy-android, and
+    expect(screen.getByRole('button', { name: /Acme Android/ })).toBeInTheDocument()
+    // The way back falls back to the workspace, not to /p/acme-android, and
     // says so instead of promising a project (ST-4).
     expect(screen.getByRole('link', { name: 'Back to workspace' })).toHaveAttribute(
       'href',
@@ -116,22 +116,22 @@ describe('SettingsArea project binding', () => {
     // Plan rules is the project-scoped section with no data fetching of its own.
     renderArea('project/plan-rules')
 
-    fireEvent.click(await screen.findByRole('button', { name: /Windy iOS/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Acme iOS/ }))
 
     expect(await screen.findByRole('heading', { name: 'Plan rules' })).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /^Back to (?!workspace)/ })).toHaveAttribute(
         'href',
-        '/p/windy-ios/overview',
+        '/p/acme-ios/overview',
       )
     })
     // Persisted the same way the sidebar persists it, so a reload keeps it.
-    expect(window.localStorage.getItem(LAST_SLUG_STORAGE_KEY)).toBe('windy-ios')
+    expect(window.localStorage.getItem(LAST_SLUG_STORAGE_KEY)).toBe('acme-ios')
   })
 
   it('opens Access for the bound project (tripl-vefw)', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    vi.spyOn(projectsApi, 'get').mockResolvedValue(project('windy-ios', 'Windy iOS'))
+    vi.spyOn(projectsApi, 'get').mockResolvedValue(project('acme-ios', 'Acme iOS'))
     const list = vi.spyOn(projectMembersApi, 'list').mockResolvedValue([
       {
         user_id: 'u-ada',
@@ -143,47 +143,47 @@ describe('SettingsArea project binding', () => {
     ])
     vi.spyOn(usersApi, 'list').mockResolvedValue([])
 
-    renderArea('project/members', '?project=windy-ios')
+    renderArea('project/members', '?project=acme-ios')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Access' })).toBeInTheDocument()
     expect(await screen.findByText('ada@example.com')).toBeInTheDocument()
-    expect(list).toHaveBeenCalledWith('windy-ios', expect.anything())
+    expect(list).toHaveBeenCalledWith('acme-ios', expect.anything())
   })
 
   it('binds to the last project the user actually visited', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'windy-ios')
+    window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'acme-ios')
 
     renderArea('project/general')
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /^Back to (?!workspace)/ })).toHaveAttribute(
         'href',
-        '/p/windy-ios/overview',
+        '/p/acme-ios/overview',
       )
     })
     // The rail names the bound project, and it is the one the user last opened.
-    expect(screen.getByText('Windy iOS')).toBeInTheDocument()
-    expect(screen.queryByText('Windy Android')).not.toBeInTheDocument()
+    expect(screen.getByText('Acme iOS')).toBeInTheDocument()
+    expect(screen.queryByText('Acme Android')).not.toBeInTheDocument()
   })
 
   it('binds the project named in the address over another tab\'s last visit (SHELL-20)', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
-    // Another tab has since visited windy-ios; this one came from windy-android.
-    window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'windy-ios')
+    // Another tab has since visited acme-ios; this one came from acme-android.
+    window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'acme-ios')
 
-    renderArea('project/plan-rules', '?project=windy-android')
+    renderArea('project/plan-rules', '?project=acme-android')
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /^Back to (?!workspace)/ })).toHaveAttribute(
         'href',
-        '/p/windy-android/overview',
+        '/p/acme-android/overview',
       )
     })
     // Moving between project sections keeps the binding in the address.
     expect(screen.getByRole('link', { name: 'General' })).toHaveAttribute(
       'href',
-      '/settings/project/general?project=windy-android',
+      '/settings/project/general?project=acme-android',
     )
   })
 
@@ -203,7 +203,7 @@ describe('SettingsArea project binding', () => {
         resolveList = resolve
       }),
     )
-    window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'windy-ios')
+    window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'acme-ios')
 
     renderArea('project/general')
 
@@ -218,7 +218,7 @@ describe('SettingsArea project binding', () => {
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /^Back to (?!workspace)/ })).toHaveAttribute(
         'href',
-        '/p/windy-ios/overview',
+        '/p/acme-ios/overview',
       )
     })
   })
@@ -288,7 +288,7 @@ describe('SettingsArea follows a slug rename (WS-8)', () => {
     const update = vi
       .spyOn(projectsApi, 'update')
       .mockImplementation(async (slug: string, data: { slug?: string }) => {
-        const renamed = { ...project(data.slug ?? slug, 'Windy iOS'), id: 'windy-ios' }
+        const renamed = { ...project(data.slug ?? slug, 'Acme iOS'), id: 'acme-ios' }
         current = current.map((p) => (p.slug === slug ? renamed : p))
         return renamed
       })
@@ -305,40 +305,40 @@ describe('SettingsArea follows a slug rename (WS-8)', () => {
     const { update } = mockRenamableProjects()
 
     renderArea('project/general')
-    fireEvent.click(await screen.findByRole('button', { name: /Windy iOS/ }))
-    await waitFor(() => expect(screen.getByLabelText('Slug')).toHaveValue('windy-ios'))
+    fireEvent.click(await screen.findByRole('button', { name: /Acme iOS/ }))
+    await waitFor(() => expect(screen.getByLabelText('Slug')).toHaveValue('acme-ios'))
 
-    await rename('windy-ios-2')
+    await rename('acme-ios-2')
 
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1))
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /^Back to (?!workspace)/ })).toHaveAttribute(
         'href',
-        '/p/windy-ios-2/overview',
+        '/p/acme-ios-2/overview',
       )
     })
     expect(screen.queryByText(/Could not load this project|Project not found/)).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Slug')).toHaveValue('windy-ios-2')
+    expect(screen.getByLabelText('Slug')).toHaveValue('acme-ios-2')
 
     // A second save goes to the new address, not the dead one.
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Windy iOS app' } })
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Acme iOS app' } })
     fireEvent.click(at(screen.getAllByRole('button', { name: /Save/ }), 0))
     await waitFor(() => expect(update).toHaveBeenCalledTimes(2))
-    expect(update.mock.calls[1]?.[0]).toBe('windy-ios-2')
+    expect(update.mock.calls[1]?.[0]).toBe('acme-ios-2')
   })
 
   it('rewrites ?project= in the address after a rename', async () => {
     mockRenamableProjects()
 
-    renderArea('project/general', '?project=windy-ios')
-    await waitFor(() => expect(screen.getByLabelText('Slug')).toHaveValue('windy-ios'))
+    renderArea('project/general', '?project=acme-ios')
+    await waitFor(() => expect(screen.getByLabelText('Slug')).toHaveValue('acme-ios'))
 
-    await rename('windy-ios-2')
+    await rename('acme-ios-2')
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Plan rules' })).toHaveAttribute(
         'href',
-        '/settings/project/plan-rules?project=windy-ios-2',
+        '/settings/project/plan-rules?project=acme-ios-2',
       )
     })
     expect(screen.queryByText(/Could not load this project|Project not found/)).not.toBeInTheDocument()

@@ -161,10 +161,10 @@ export function entityEditPath(
  * in `?branch=` links): a letter or digit first, then letters, digits and
  * `- _ / .`, at most 64 characters so the switcher can show them. Upper case
  * stays allowed: production branches are named after their tracker ticket
- * (`WND-4770`, see lib/branchTicket). */
+ * (`PROJ-4770`, see lib/branchTicket). */
 const BRANCH_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/
 export const BRANCH_NAME_MAX = 64
-export const BRANCH_NAME_HINT = 'Letters, numbers and - _ / . only, e.g. checkout/paywall-copy or WND-4770.'
+export const BRANCH_NAME_HINT = 'Letters, numbers and - _ / . only, e.g. checkout/paywall-copy or PROJ-4770.'
 
 /** Why a new branch name cannot be used, or null when it can (PL-5). Empty is
  * the caller's "Required", shown only after a submit. */
