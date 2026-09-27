@@ -150,6 +150,13 @@ def run(args: argparse.Namespace, config: Config) -> int:
     # Connection settings first: "no URL configured" is exit 2 before any file is read.
     context = begin(config)
     check_config = _check_config(args)
+    if args.payloads is None and check_config is None:
+        # Before the project question: a missing config is the actual problem.
+        raise TriplConfigError(
+            "no check config found: create .tripl/check.yml (see `tripl check --help` "
+            "and the CLI docs), pass --check-config PATH, or validate captured events "
+            "with --payloads FILE."
+        )
     project = _project(args, check_config)
     selector: str | None = args.branch
     if selector is None and check_config is not None:
@@ -160,12 +167,7 @@ def run(args: argparse.Namespace, config: Config) -> int:
         mode = MODE_PAYLOADS
         items = tuple(payloads_mod.load(args.payloads))
     else:
-        if check_config is None:
-            raise TriplConfigError(
-                "no check config found: create .tripl/check.yml (see `tripl check --help` "
-                "and the CLI docs), pass --check-config PATH, or validate captured events "
-                "with --payloads FILE."
-            )
+        assert check_config is not None  # raised above when missing
         mode = MODE_STATIC
         outcome = scan_mod.scan(check_config)
         items, files = outcome.items, outcome.files
