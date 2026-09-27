@@ -221,16 +221,26 @@ async def test_main_by_id_drops_every_cache_main_without_the_parameter_drops(
     caches serving pre-write data for up to 300 s.
     """
     dropped = _record_dropped_prefixes(monkeypatch)
-    await _project(client, "bctx-plain")
-    await _project(client, "bctx-byid")
+    plain_project = await _project(client, "bctx-plain")
+    byid_project = await _project(client, "bctx-byid")
     main_id = (await _main_branch(client, "bctx-byid"))["id"]
 
     plain = await _main_write_sequence(client, "bctx-plain", "", dropped)
     by_id = await _main_write_sequence(client, "bctx-byid", f"?branch={main_id}", dropped)
 
+    # Cache keys carry the project id (F20 PR3), so compare with each project's
+    # own id folded to one placeholder.
+    def _same_shape(
+        steps: list[tuple[str, list[str]]], project_id: uuid.UUID
+    ) -> list[tuple[str, list[str]]]:
+        return [
+            (name, [prefix.replace(str(project_id), "<project>") for prefix in prefixes])
+            for name, prefixes in steps
+        ]
+
     # Not vacuous: every step invalidates something on the plain path.
     assert all(prefixes for _, prefixes in plain), plain
-    assert by_id == plain
+    assert _same_shape(by_id, byid_project) == _same_shape(plain, plain_project)
 
 
 @pytest.mark.asyncio
