@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
 from tripl.models.domain_enums import ApiKeyScope
 from tripl.models.enum_types import db_enum
+from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 
 
 class ApiKey(UUIDMixin, TimestampMixin, Base):
@@ -37,6 +38,16 @@ class ApiKey(UUIDMixin, TimestampMixin, Base):
     )
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    # A project-bound key belongs to its project's organization.
+    # F20 PR1: the owning organization. Always the default one for now — the
+    # ORM default and the server default both name it (see models/organization).
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        default=DEFAULT_ORG_ID,
+        server_default=default_org_server_default(),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(100))
     key_prefix: Mapped[str] = mapped_column(String(20), index=True)

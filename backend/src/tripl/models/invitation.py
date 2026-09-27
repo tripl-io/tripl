@@ -8,7 +8,9 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
-from tripl.models.domain_enums import UserRole
+from tripl.models.domain_enums import OrganizationRole, UserRole
+from tripl.models.enum_types import db_enum
+from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 
 
 class Invitation(UUIDMixin, TimestampMixin, Base):
@@ -42,6 +44,20 @@ class Invitation(UUIDMixin, TimestampMixin, Base):
     role: Mapped[UserRole] = mapped_column(
         SAEnum(UserRole, name="user_role", create_type=False),
         default=UserRole.editor,
+    )
+    # Reserved for a later PR: the organization role the invitee will join with.
+    # ``role`` above is still the one redemption applies.
+    org_role: Mapped[str | None] = mapped_column(
+        db_enum(OrganizationRole, "organization_member_role"), nullable=True, default=None
+    )
+    # F20 PR1: the owning organization. Always the default one for now — the
+    # ORM default and the server default both name it (see models/organization).
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        default=DEFAULT_ORG_ID,
+        server_default=default_org_server_default(),
+        nullable=False,
+        index=True,
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(

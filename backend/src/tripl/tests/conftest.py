@@ -62,7 +62,15 @@ from tripl.models.data_source import TestStatus  # noqa: E402
 # A model enum whose name starts with "Test"; test modules that import it made
 # pytest try to collect it and warn once per worker.
 TestStatus.__test__ = False  # type: ignore[attr-defined]
+from tripl.tests._default_org import (  # noqa: E402
+    install_default_organization_seeding,
+    seed_default_organization,
+)
 from tripl.tests._sqlite import enable_sqlite_foreign_keys  # noqa: E402
+
+# Every schema built from the models — this one and each module's own engine —
+# starts with the default organization every project belongs to (F20 PR1).
+install_default_organization_seeding()
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -115,6 +123,8 @@ def _empty_all_tables(conn: Connection) -> None:
     # fires and no constraint can trip.
     for table in reversed(Base.metadata.sorted_tables):
         conn.execute(table.delete())
+    # Part of "what a fresh schema gave it": create_all seeds this row.
+    seed_default_organization(conn)
 
 
 @pytest.fixture(autouse=True)

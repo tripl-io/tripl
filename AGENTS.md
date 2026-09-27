@@ -229,6 +229,12 @@ CLI layers (`cli/src/tripl_cli`):
 ## Domain Model Cheat Sheet
 
 Core planning entities:
+- `Organization`, `OrganizationMember` (F20, schema only so far): the tenant
+  above projects, with org roles `owner` | `admin` | `member`. Projects, data
+  sources, API keys and invitations carry a NOT NULL `organization_id`; every row
+  is in the default organization (`DEFAULT_ORG_ID` in `models/organization.py`).
+  Nothing reads org roles yet: `users.role` is still the permission source, and
+  `app_settings` reads must filter `organization_id IS NULL` (operator scope).
 - `Project`: tracking-plan namespace.
 - `ProjectMember`: a user's membership of one project (`editor` | `viewer`).
   Non-members get 404 on every `/projects/{slug}/...` route and never see the

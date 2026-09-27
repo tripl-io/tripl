@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -340,15 +340,25 @@ def build_ai_config(overrides: dict[str, Any]) -> AiConfig:
     )
 
 
+def _operator_setting(key: str) -> Select[tuple[AppSetting]]:
+    """The OPERATOR-scope row for ``key`` — the only scope anything reads today.
+
+    ``app_settings`` is unique per scope, not per key (F20): an organization may
+    hold its own row under the same key. Every lookup therefore names the scope,
+    so an organization's override can never be picked up as the instance's.
+    """
+    return select(AppSetting).where(AppSetting.key == key, AppSetting.organization_id.is_(None))
+
+
 async def _get_overrides_for_key(session: AsyncSession, key: str) -> dict[str, Any]:
-    row = await session.scalar(select(AppSetting).where(AppSetting.key == key))
+    row = await session.scalar(_operator_setting(key))
     if row is None or not isinstance(row.value, dict):
         return {}
     return dict(row.value)
 
 
 def _get_overrides_for_key_sync(session: Session, key: str) -> dict[str, Any]:
-    row = session.scalar(select(AppSetting).where(AppSetting.key == key))
+    row = session.scalar(_operator_setting(key))
     if row is None or not isinstance(row.value, dict):
         return {}
     return dict(row.value)
@@ -634,7 +644,7 @@ async def update_service_overrides(
     session: AsyncSession,
     changes: dict[str, Any],
 ) -> dict[str, Any]:
-    row = await session.scalar(select(AppSetting).where(AppSetting.key == SERVICE_SETTINGS_KEY))
+    row = await session.scalar(_operator_setting(SERVICE_SETTINGS_KEY))
     overrides: dict[str, Any] = (
         dict(row.value) if row is not None and isinstance(row.value, dict) else {}
     )
@@ -650,14 +660,14 @@ async def update_service_overrides(
     _reject_startup_breaking_overrides(overrides)
 
     if row is None:
-        row = AppSetting(key=SERVICE_SETTINGS_KEY, value=overrides)
+        row = AppSetting(key=SERVICE_SETTINGS_KEY, value=overrides, organization_id=None)
         session.add(row)
     else:
         row.value = overrides
 
     # If a partial local DB has the first-cut key="ai" row, make resets behave
     # predictably by removing touched AI fields from that legacy document.
-    legacy_row = await session.scalar(select(AppSetting).where(AppSetting.key == AI_SETTINGS_KEY))
+    legacy_row = await session.scalar(_operator_setting(AI_SETTINGS_KEY))
     if legacy_row is not None and isinstance(legacy_row.value, dict):
         legacy = dict(legacy_row.value)
         for key in changes:

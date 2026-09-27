@@ -1076,9 +1076,12 @@ def test_the_scan_pipeline_cannot_write_audit_rows() -> None:
 #                        only route back to a deleted project's rows;
 #   created              the workspace-wide feed, which filters by nothing at all
 #                        (tripl-wkwv.17);
-#   branch               the ``SET NULL`` cascade a branch delete runs.
+#   branch               the ``SET NULL`` cascade a branch delete runs;
+#   organization_created one organization's log (F20). Added with the column so
+#                        the backfill and the index ship together; today it only
+#                        serves the ``SET NULL`` an organization delete runs.
 #
-# All three read indexes trail ``created_at, id`` because every one of those
+# All four read indexes trail ``created_at, id`` because every one of those
 # queries ends in ``ORDER BY created_at DESC, id DESC`` with a LIMIT, and
 # ``created_at`` alone is not a total order (tripl-5ydt).
 _AUDIT_LOG_INDEXES = {
@@ -1086,6 +1089,7 @@ _AUDIT_LOG_INDEXES = {
     "ix_audit_log_project_slug_created": ("project_slug", "created_at", "id"),
     "ix_audit_log_created": ("created_at", "id"),
     "ix_audit_log_branch": ("branch_id",),
+    "ix_audit_log_organization_created": ("organization_id", "created_at", "id"),
 }
 
 

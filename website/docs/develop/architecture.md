@@ -351,6 +351,32 @@ photos, comments) and merge back via a
 3-way merge that preserves live IDs by natural key. Metrics are deliberately
 **not** branched — they are project-scoped and shared across every branch.
 
+### Organizations (in progress)
+
+Organizations (F20, GH #273) ship in stages. The first stage adds the schema
+and **changes no behaviour**:
+
+- `organizations` and `organization_members` tables. The org roles are `owner`,
+  `admin` and `member`. `users.is_platform_admin` marks the instance operator.
+- A default organization with a fixed id (`DEFAULT_ORG_ID` in
+  `models/organization.py`). The migration moves every existing row and user
+  into it: owners become org owners, editors and viewers become members.
+  Project memberships are left as they are. The backfill is a one-off
+  snapshot: nothing writes org memberships, `is_platform_admin` or
+  `invitations.org_role` yet, so the stage that starts reading them re-runs
+  the idempotent `backfill_organizations()` in its own migration first.
+- `organization_id` on `projects`, `data_sources`, `api_keys` and `invitations`
+  (NOT NULL) and on `audit_log` (nullable, because platform actions have no
+  organization). New rows get the default organization from both the ORM
+  default and a server default. The server default keeps a container on the
+  previous release able to insert during a deploy.
+- `app_settings.organization_id`: NULL is the operator scope. Keys are unique
+  per scope, and every settings read and write filters to the operator scope.
+
+Permission checks still read `users.role`. Org resolution, org roles in the
+gates, per-org settings and multi-org support come in later stages. The
+configuration page lists the environment settings they will use.
+
 ---
 
 ## Operational flows
