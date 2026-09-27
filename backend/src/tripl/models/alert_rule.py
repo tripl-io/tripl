@@ -120,6 +120,15 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
         default=False,
         server_default="false",
     )
+    # Opt-in to lifecycle findings (#258): one ``lifecycle`` candidate per open
+    # ``LifecycleFinding`` — a deprecated event past its sunset that still
+    # receives data, or a successor nobody sends. Off by default like the other
+    # families.
+    include_lifecycle: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     # Append an LLM-generated explanation paragraph to delivered alert
     # messages. Off by default; a no-op unless AI features are enabled in
     # instance settings.

@@ -279,7 +279,24 @@ As events get built and verified, move them through their statuses — **Draft**
 or **Archive** the ones you retire. The last step happens on its own: the
 first data collection sees for an event in **Ready for Dev** or **Implemented**
 moves it to **Live**. **Draft** and **In Review** events stay put, so stray
-traffic never promotes an event nobody has signed off on. Verification is tracked separately: mark an
+traffic never promotes an event nobody has signed off on, and so does an event
+with a **required** field left empty. The promotion records when the event was
+first seen, adds a history entry and an activity-rail entry signed **tripl
+(scan)**, and comments on the
+event's implementation ticket if it has one. It happens on main only and does not
+wait for branch review: it records that the data arrived, not a plan edit (see
+[Going live on its own](./feature-reference.md#going-live)).
+
+Retiring an event is watched too. Once a day tripl looks for a **deprecated**
+event still receiving traffic after its sunset date, and for one whose **Replaced
+by** event has received nothing for 7 days. Both findings flag the deprecated
+event —
+it carries the lifecycle chip in the catalog and lists the finding on its page,
+naming the quiet replacement where that is the problem — and a deprecated event's page shows
+the migration as *Old 1,240/day → New 3,800/day*. See
+[Sunset watch](./feature-reference.md#sunset-watch).
+
+Verification is tracked separately: mark an
 event **verified** once you've checked it, independent of its status. The two
 axes really are independent — an event can be verified and still sit in
 **In Review** — which is why the header's **In review** stat counts events whose
@@ -398,14 +415,17 @@ makes them stale and requires review again. The separate **Settings → Project 
 Plan rules** page only describes guardrails that are not built yet; it has no
 controls and enforces nothing.
 
-Optionally configure the **Implementation tracker** from Plan branches. After a
-merge, tripl creates one Jira implementation ticket for added/changed events and
-polls it in the background; when Jira reports Done, those events advance to
-`implemented` unless they are already further along the lifecycle. This tracker
-is separate from a Jira alert destination, which opens incident tickets from
-monitoring signals.
+Optionally configure the **Implementation tracker** from Plan branches, in
+**Jira** or **Linear** (a switch on the settings page picks one; Linear needs a
+team id and an API key; switching between them clears the stored token or key,
+so enter the new tracker's credential when you switch). After a merge, tripl creates one implementation ticket
+for added/changed events and polls it in the background; when the tracker reports
+it done — Jira's Done category, or a Linear state of type *completed* — those
+events advance to `implemented` unless they are already further along the
+lifecycle. This tracker is separate from a Jira or Linear alert destination,
+which opens incident tickets from monitoring signals.
 
-Each ticket tripl opens carries a label naming the branch it came from
+The notes below describe Jira. Each ticket tripl opens there carries a label naming the branch it came from
 (`tripl-branch-<id>`), and tripl looks for that label before opening one. Jira's
 create call has no idempotency key, so if a worker dies between opening the issue
 and recording it, that label is the only way the retry can tell the issue already
@@ -417,7 +437,7 @@ branch with no ticket at all.
 
 Select the merged branch to reach its ticket: the **Implementation ticket**
 panel on the branch detail shows the ticket key as a link that opens the issue
-in Jira, and a chip that flips from `Open` to `Done` once the background poll
+in the tracker, and a chip that flips from `Open` to `Done` once the background poll
 sees it closed. Branches that opened no ticket show no panel.
 
 ### Undo one change on a branch

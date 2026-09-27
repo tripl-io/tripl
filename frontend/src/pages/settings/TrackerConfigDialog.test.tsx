@@ -233,4 +233,141 @@ describe('TrackerConfigDialog', () => {
       expect(trackerConfigApi.update).toHaveBeenCalledWith('demo', { issue_type: 'Story' }),
     )
   })
+
+  describe('Linear (#258)', () => {
+    it('switches to Linear: team id and a write-only API key replace the Jira fields', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig({ api_token_set: true }))
+      vi.mocked(trackerConfigApi.update).mockResolvedValue(
+        makeConfig({ tracker_type: 'linear', team_id: 'team-1' }),
+      )
+      const toastSuccess = vi.spyOn(toast, 'success')
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Linear' }))
+      expect(screen.getByRole('button', { name: 'Linear' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.queryByLabelText('Base URL')).toBeNull()
+      expect(screen.queryByLabelText('Issue type')).toBeNull()
+
+      // The stored secret is Jira's, so the key field does not offer to keep it.
+      const key = screen.getByLabelText('API key')
+      expect(key).toHaveAttribute('type', 'password')
+      expect(key).toHaveAttribute('placeholder', 'Paste your Linear API key')
+
+      fireEvent.change(screen.getByLabelText('Team ID'), { target: { value: 'team-1' } })
+      fireEvent.change(key, { target: { value: 'lin_api_secret' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() =>
+        expect(trackerConfigApi.update).toHaveBeenCalledWith('demo', {
+          tracker_type: 'linear',
+          team_id: 'team-1',
+          api_token: 'lin_api_secret',
+        }),
+      )
+      expect(toastSuccess).toHaveBeenCalledWith('Linear tracker connected')
+      toastSuccess.mockRestore()
+    })
+
+    it('refuses to enable Linear without a team id or with the old tracker\'s secret', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig({ api_token_set: true }))
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Linear' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText('Required while the tracker is enabled.')).toBeInTheDocument()
+      expect(screen.getByLabelText('Team ID')).toHaveAttribute('aria-invalid', 'true')
+      expect(screen.getByText(/Enter the Linear API key; the one stored is for Jira\./)).toBeInTheDocument()
+      expect(trackerConfigApi.update).not.toHaveBeenCalled()
+    })
+
+    it('warns that saving a switch replaces the stored connection, and only while switched', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig({ api_token_set: true }))
+
+      renderDialog('owner')
+
+      await screen.findByRole('button', { name: 'Linear' })
+      expect(screen.queryByTestId('tracker-switch-notice')).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Linear' }))
+      const notice = screen.getByTestId('tracker-switch-notice')
+      expect(notice).toHaveTextContent(
+        'Saving replaces the stored Jira connection: its API token and project key are removed.',
+      )
+      expect(notice).toHaveTextContent('Enter the Linear API key below to save.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Jira' }))
+      expect(screen.queryByTestId('tracker-switch-notice')).toBeNull()
+    })
+
+    it('requires the new secret to save a switch even while the tracker is disabled', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(
+        makeConfig({ enabled: false, api_token_set: true }),
+      )
+      vi.mocked(trackerConfigApi.update).mockResolvedValue(
+        makeConfig({ enabled: false, tracker_type: 'linear' }),
+      )
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Linear' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText(/Enter the Linear API key; the one stored is for Jira\./))
+        .toBeInTheDocument()
+      expect(screen.getByLabelText('API key')).toHaveAttribute('aria-invalid', 'true')
+      // A disabled switch may leave the team blank: only the secret is required.
+      expect(screen.getByLabelText('Team ID')).not.toHaveAttribute('aria-invalid', 'true')
+      expect(trackerConfigApi.update).not.toHaveBeenCalled()
+
+      fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'lin_api_secret' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() =>
+        expect(trackerConfigApi.update).toHaveBeenCalledWith('demo', {
+          tracker_type: 'linear',
+          api_token: 'lin_api_secret',
+        }),
+      )
+    })
+
+    it('loads a saved Linear connection and keeps its stored key when left blank', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(
+        makeConfig({ tracker_type: 'linear', team_id: 'team-1', api_token_set: true }),
+      )
+      vi.mocked(trackerConfigApi.update).mockResolvedValue(
+        makeConfig({ tracker_type: 'linear', team_id: 'team-2' }),
+      )
+
+      renderDialog('owner')
+
+      const teamId = await screen.findByLabelText('Team ID')
+      expect(teamId).toHaveValue('team-1')
+      expect(screen.getByLabelText('API key')).toHaveAttribute(
+        'placeholder',
+        'Key stored — leave blank to keep',
+      )
+
+      fireEvent.change(teamId, { target: { value: 'team-2' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() =>
+        expect(trackerConfigApi.update).toHaveBeenCalledWith('demo', { team_id: 'team-2' }),
+      )
+    })
+
+    it('shows the tracker as text, not a switch, to non-owners', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(
+        makeConfig({ tracker_type: 'linear', team_id: 'team-1' }),
+      )
+
+      renderDialog('editor')
+
+      expect(await screen.findByLabelText('Team ID')).toBeDisabled()
+      expect(screen.queryByRole('button', { name: 'Linear' })).toBeNull()
+      expect(screen.getByText('Linear')).toBeInTheDocument()
+    })
+  })
 })

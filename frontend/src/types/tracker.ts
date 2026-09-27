@@ -1,8 +1,12 @@
+/** The trackers an implementation ticket can be opened in (#258 adds Linear). */
+export type TrackerType = 'jira' | 'linear'
+
 /**
- * Per-project implementation tracker (Jira) connection config.
+ * Per-project implementation tracker (Jira or Linear) connection config.
  *
- * The raw API token is NEVER returned by the API — `api_token_set` is the only
- * signal that one is stored. `id`/timestamps are null while the project rides
+ * The raw API token (Jira) or API key (Linear) is NEVER returned by the API —
+ * `api_token_set` is the only signal that one is stored; both trackers keep
+ * their secret in that one encrypted, owner-gated slot. `id`/timestamps are null while the project rides
  * the defaults (the row materializes on the first PATCH).
  */
 export interface ProjectTrackerConfig {
@@ -14,6 +18,9 @@ export interface ProjectTrackerConfig {
   project_key: string
   auth_email: string
   issue_type: string
+  /** Linear team the issues are created in. Absent on a server that predates
+   *  Linear trackers (#258); unused by Jira. */
+  team_id?: string | null
   api_token_set: boolean
   created_at: string | null
   updated_at: string | null
@@ -27,12 +34,14 @@ export interface ProjectTrackerConfig {
  */
 export interface ProjectTrackerConfigUpdate {
   enabled?: boolean
-  tracker_type?: string
+  tracker_type?: TrackerType
   base_url?: string
   project_key?: string
   auth_email?: string
   api_token?: string
   issue_type?: string
+  /** Linear only. */
+  team_id?: string
 }
 
 /**

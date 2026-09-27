@@ -41,7 +41,7 @@ tripl is three cooperating processes plus a database and a message broker:
   warehouses.
 - **celery-beat** — the scheduler. Triggers due metric-collection checks — for
   both event counts and the **metric catalog** (a ~300 s due-check) — and the
-  schema, distribution-drift, and scan-job retention cleanup. It also polls implementation tickets, chases
+  schema, distribution-drift, and scan-job retention cleanup. It also polls implementation tickets, runs the daily lifecycle (sunset) watch, chases
   stranded search embeddings, reaps stuck alert deliveries (retrying
   transiently-failed ones for a bounded window), and runs periodic
   alert/maintenance tasks.
@@ -341,7 +341,8 @@ see [RELEASE.md](../run/release.md)); or
 | `AlertDestination` | A delivery channel (Slack, Telegram, …). |
 | `AlertRule` | Filtering + delivery configuration for signals. |
 | `AlertDelivery` | A record of one alert that was sent. |
-| `ProjectTrackerConfig` | Owner-managed Jira settings for post-merge implementation tickets. |
+| `ProjectTrackerConfig` | Owner-managed Jira or Linear settings (encrypted credential) for post-merge implementation tickets. |
+| `LifecycleFinding` | Daily sunset-watch result per event and kind (`sunset_overdue`, `successor_silent`), upserted and resolved when the condition clears. |
 | `ImplementationTicket` | A branch-merge ticket and the events it covers. |
 
 Plan branches deep-copy the relevant objects (event types, fields, events,
@@ -583,9 +584,20 @@ or create a normal anomaly delivery.
 2. Merge policy and event-type owner gates are checked before the three-way
    merge applies changes to `main`.
 3. Search is reindexed after merge. If a project tracker is enabled, creating a
-   Jira implementation ticket is best-effort and cannot roll back the merge.
-4. A periodic worker polls open tickets; a Done issue promotes its covered
-   events to `implemented` without downgrading a later lifecycle state.
+   Jira or Linear implementation ticket is best-effort and cannot roll back the merge.
+4. A periodic worker polls open tickets; a done issue (Jira's Done category, a
+   Linear `completed` state) promotes its covered events to `implemented`
+   without downgrading a later lifecycle state.
+5. Metrics collection moves an event with volume from `ready_for_dev` or
+   `implemented` to `live` when its required fields are filled, stamps
+   `first_seen_at` once, records a history entry with `event_changes.source =
+   'scan'` (shown as `tripl (scan)`; `NULL` means a person) and comments on
+   the ticket. This is a data fact on `main` and bypasses branch rules.
+6. A daily beat task computes lifecycle findings (deprecated events still
+   firing past their sunset date, silent successors), each keyed on the
+   deprecated event; `include_lifecycle` rules alert on the open ones. Every
+   scan run offers them as project-global alert candidates (no scan config),
+   deduplicated project-wide, one alert per finding episode.
 
 ### Search flow
 

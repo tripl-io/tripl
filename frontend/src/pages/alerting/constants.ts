@@ -65,6 +65,7 @@ export type RuleFormState = {
   include_variable_value_drifts: boolean
   include_metrics: boolean
   include_source_freshness: boolean
+  include_lifecycle: boolean
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
@@ -382,6 +383,9 @@ export function defaultRuleForm(): RuleFormState {
     // Off by default like the drift kinds: an opt-in "data is late" alert
     // (F16, #269), not a change to what an existing kind of rule sends.
     include_source_freshness: false,
+    // Opt-in too: lifecycle findings (#258) are a new kind of alert, not a
+    // change to what an existing rule sends.
+    include_lifecycle: false,
     notify_on_spike: true,
     notify_on_drop: true,
     ai_explanation_enabled: false,
@@ -417,6 +421,7 @@ export function ruleToForm(rule: AlertRule): RuleFormState {
     include_metrics: rule.include_metrics,
     // `?? false`: a rule from a server that predates the flag reads as off.
     include_source_freshness: rule.include_source_freshness ?? false,
+    include_lifecycle: rule.include_lifecycle ?? false,
     notify_on_spike: rule.notify_on_spike,
     notify_on_drop: rule.notify_on_drop,
     ai_explanation_enabled: rule.ai_explanation_enabled,
@@ -510,6 +515,7 @@ const SCOPE_KEYS = [
   'include_variable_value_drifts',
   'include_metrics',
   'include_source_freshness',
+  'include_lifecycle',
 ] as const satisfies readonly (keyof RuleFormState)[]
 
 function numberProblem(text: string, { integer, min }: { integer: boolean; min: number }): string | null {
@@ -713,7 +719,9 @@ export function joinCooldown(amount: string, unit: CooldownUnit): string {
   return String(Math.round(value * factor * 1000) / 1000)
 }
 
-type RuleScopeFlags = Pick<
+// `include_lifecycle` is optional here: an `AlertRule` or monitor from a server
+// that predates the flag (#258) omits it, and every reader treats absent as off.
+type RuleScopeFlags = Partial<Pick<RuleFormState, 'include_lifecycle'>> & Pick<
   RuleFormState,
   | 'include_project_total'
   | 'include_event_types'
@@ -759,6 +767,7 @@ export const RULE_SIGNAL_GROUPS: readonly {
       { key: 'include_variable_value_drifts', label: 'Value drift', short: 'value drift', hint: 'A variable takes a value outside its documented list.' },
       { key: 'include_release_regressions', label: 'Release regressions', short: 'release regressions', hint: 'A new app version tracks less than the one before.' },
       { key: 'include_source_freshness', label: 'Source freshness', short: 'source freshness', hint: "A scan's newest data is later than its interval allows, or the scan stopped running. One alert per delay; drop signals are held meanwhile. Needs Drops under Notify on." },
+      { key: 'include_lifecycle', label: 'Lifecycle', short: 'lifecycle', hint: 'A deprecated event still receives data after its sunset date, or its successor has received nothing for 7 days. One alert per finding, checked daily.' },
     ],
   },
 ]
@@ -846,6 +855,7 @@ export function scopeSummary(rule: AlertRule) {
     rule.include_variable_value_drifts ? 'value drift' : null,
     rule.include_metrics ? 'metrics' : null,
     rule.include_source_freshness ? 'freshness' : null,
+    rule.include_lifecycle ? 'lifecycle' : null,
   ].filter(Boolean).join(', ')
 }
 

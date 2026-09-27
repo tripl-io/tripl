@@ -638,6 +638,9 @@ _AUDIT_LINK_DECISION: dict[MetricScopeType, bool] = {
     # A whole scan config; no page shows more than the message, and every
     # delivered item reaches its incident through the correlation link anyway.
     MetricScopeType.source_freshness: False,
+    # An event lifecycle finding (#258): the event page shows the finding and
+    # the migration numbers; every item reaches its incident anyway.
+    MetricScopeType.lifecycle: False,
 }
 
 

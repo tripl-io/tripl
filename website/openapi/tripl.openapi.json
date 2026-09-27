@@ -6493,6 +6493,130 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/lifecycle-findings": {
+      "get": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "List Lifecycle Findings",
+        "description": "Open findings of the daily sunset watch; ``?include_resolved=true`` adds the closed ones.",
+        "operationId": "list_lifecycle_findings_api_v1_projects__slug__lifecycle_findings_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "include_resolved",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Resolved"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifecycleFindingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/events/{event_id}/migration": {
+      "get": {
+        "tags": [
+          "lifecycle"
+        ],
+        "summary": "Get Event Migration",
+        "description": "Successor adoption: the old and the new event's 7-day daily average.\n\n404 when the event names no successor.",
+        "operationId": "get_event_migration_api_v1_projects__slug__events__event_id__migration_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventMigrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/events/{event_id}/photos": {
       "get": {
         "tags": [
@@ -18429,7 +18553,9 @@
           "volume_drop",
           "value_drift",
           "source_late",
-          "source_overdue"
+          "source_overdue",
+          "sunset_overdue",
+          "successor_silent"
         ],
         "title": "AlertDriftType"
       },
@@ -19009,6 +19135,11 @@
             "title": "Include Source Freshness",
             "default": false
           },
+          "include_lifecycle": {
+            "type": "boolean",
+            "title": "Include Lifecycle",
+            "default": false
+          },
           "notify_on_spike": {
             "type": "boolean",
             "title": "Notify On Spike",
@@ -19228,6 +19359,10 @@
             "type": "boolean",
             "title": "Include Source Freshness"
           },
+          "include_lifecycle": {
+            "type": "boolean",
+            "title": "Include Lifecycle"
+          },
           "notify_on_spike": {
             "type": "boolean",
             "title": "Notify On Spike"
@@ -19361,6 +19496,7 @@
           "include_release_regressions",
           "include_metrics",
           "include_source_freshness",
+          "include_lifecycle",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -19642,6 +19778,17 @@
               }
             ],
             "title": "Include Source Freshness"
+          },
+          "include_lifecycle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Lifecycle"
           },
           "notify_on_spike": {
             "anyOf": [
@@ -23354,6 +23501,17 @@
             ],
             "title": "User Email"
           },
+          "author_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Label"
+          },
           "field": {
             "type": "string",
             "title": "Field"
@@ -24172,6 +24330,11 @@
             "title": "Monitored",
             "default": false
           },
+          "lifecycle_warning": {
+            "type": "boolean",
+            "title": "Lifecycle Warning",
+            "default": false
+          },
           "tags": {
             "items": {
               "$ref": "#/components/schemas/EventTagResponse"
@@ -24647,6 +24810,58 @@
         ],
         "title": "EventMetricsResponse"
       },
+      "EventMigrationResponse": {
+        "properties": {
+          "old": {
+            "$ref": "#/components/schemas/EventMigrationSide"
+          },
+          "new": {
+            "$ref": "#/components/schemas/EventMigrationSide"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "EventMigrationResponse",
+        "description": "Successor adoption for a retired event: \"Old 1,240/day \u2192 New 3,800/day\".\n\n``ratio`` is ``new / old`` daily volume \u2014 how many times the old event's\nvolume the successor now receives (1,240 -> 3,800 is ``3.06``). Above 1 the\nsuccessor has overtaken the old event. Null when the old event received\nnothing in the window."
+      },
+      "EventMigrationSide": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "daily_avg_7d": {
+            "type": "number",
+            "title": "Daily Avg 7D"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "name",
+          "daily_avg_7d"
+        ],
+        "title": "EventMigrationSide"
+      },
       "EventMove": {
         "properties": {
           "direction": {
@@ -24789,6 +25004,14 @@
               }
             ],
             "title": "Main Event Id"
+          },
+          "lifecycle_findings": {
+            "items": {
+              "$ref": "#/components/schemas/LifecycleFindingResponse"
+            },
+            "type": "array",
+            "title": "Lifecycle Findings",
+            "default": []
           },
           "owner_id": {
             "anyOf": [
@@ -25327,6 +25550,14 @@
               }
             ],
             "title": "Main Event Id"
+          },
+          "lifecycle_findings": {
+            "items": {
+              "$ref": "#/components/schemas/LifecycleFindingResponse"
+            },
+            "type": "array",
+            "title": "Lifecycle Findings",
+            "default": []
           },
           "owner_id": {
             "anyOf": [
@@ -27971,6 +28202,131 @@
         "title": "InvitationResponse",
         "description": "A pending invitation as shown on the Members screen.\n\nCarries no token and no digest of one: the raw token is returned exactly\nonce, by the create call, and listing invitations must never hand out a way\nto redeem them."
       },
+      "LifecycleFindingListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LifecycleFindingResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "LifecycleFindingListResponse"
+      },
+      "LifecycleFindingResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "event_name": {
+            "type": "string",
+            "title": "Event Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sunset_overdue",
+              "successor_silent"
+            ],
+            "title": "Kind"
+          },
+          "related_event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Event Id"
+          },
+          "related_event_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Event Name"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen At"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Seen At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "volume_24h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume 24H"
+          },
+          "successor_volume_7d": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Successor Volume 7D"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "event_id",
+          "event_name",
+          "kind",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "LifecycleFindingResponse",
+        "description": "One finding of the daily sunset watch.\n\n``event_id`` is the DEPRECATED event (main branch) the finding hangs on;\n``related_event_id`` is its successor for ``successor_silent`` and null for\n``sunset_overdue``. ``volume_24h`` is set on ``sunset_overdue``,\n``successor_volume_7d`` on ``successor_silent``. ``resolved_at`` is null\nwhile the condition still holds."
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -29864,7 +30220,8 @@
           "release_regression",
           "metric",
           "variable_value_drift",
-          "source_freshness"
+          "source_freshness",
+          "lifecycle"
         ],
         "title": "MetricScopeType"
       },
@@ -30577,6 +30934,10 @@
             "type": "boolean",
             "title": "Include Source Freshness"
           },
+          "include_lifecycle": {
+            "type": "boolean",
+            "title": "Include Lifecycle"
+          },
           "total_deliveries": {
             "type": "integer",
             "title": "Total Deliveries"
@@ -30647,6 +31008,7 @@
           "include_release_regressions",
           "include_metrics",
           "include_source_freshness",
+          "include_lifecycle",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -32995,6 +33357,11 @@
             "type": "string",
             "title": "Issue Type"
           },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id",
+            "default": ""
+          },
           "api_token_set": {
             "type": "boolean",
             "title": "Api Token Set"
@@ -33055,7 +33422,10 @@
             "anyOf": [
               {
                 "type": "string",
-                "const": "jira"
+                "enum": [
+                  "jira",
+                  "linear"
+                ]
               },
               {
                 "type": "null"
@@ -33117,11 +33487,22 @@
               }
             ],
             "title": "Issue Type"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
           }
         },
         "type": "object",
         "title": "ProjectTrackerConfigUpdate",
-        "description": "Partial update \u2014 every field optional. ``api_token`` is the RAW token on\ninput; it is encrypted at rest and never echoed back. Passing ``\"\"`` clears\nthe stored token; omitting / null leaves it unchanged."
+        "description": "Partial update \u2014 every field optional. ``api_token`` is the RAW token on\ninput; it is encrypted at rest and never echoed back. Passing ``\"\"`` clears\nthe stored token; omitting / null leaves it unchanged.\n\n``tracker_type`` picks the backend. For ``jira`` the credential is the Jira\nAPI token and ``base_url`` / ``auth_email`` / ``project_key`` /\n``issue_type`` apply. For ``linear`` ``api_token`` carries the Linear API\nkey (same encryption, same never-echoed rule) and ``team_id`` the Linear\nteam; the Jira-only fields are ignored. Switching ``tracker_type`` clears\nthe stored credential unless the same request supplies a new one, so one\nvendor's secret is never sent to the other."
       },
       "ProjectUpdate": {
         "properties": {

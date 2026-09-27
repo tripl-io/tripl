@@ -2145,7 +2145,9 @@
           "volume_drop",
           "value_drift",
           "source_late",
-          "source_overdue"
+          "source_overdue",
+          "sunset_overdue",
+          "successor_silent"
         ],
         "title": "AlertDriftType",
         "type": "string"
@@ -2697,6 +2699,11 @@
             "title": "Include Events",
             "type": "boolean"
           },
+          "include_lifecycle": {
+            "default": false,
+            "title": "Include Lifecycle",
+            "type": "boolean"
+          },
           "include_metrics": {
             "default": false,
             "title": "Include Metrics",
@@ -2929,6 +2936,10 @@
             "title": "Include Events",
             "type": "boolean"
           },
+          "include_lifecycle": {
+            "title": "Include Lifecycle",
+            "type": "boolean"
+          },
           "include_metrics": {
             "title": "Include Metrics",
             "type": "boolean"
@@ -3077,6 +3088,7 @@
           "include_release_regressions",
           "include_metrics",
           "include_source_freshness",
+          "include_lifecycle",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -3306,6 +3318,17 @@
               }
             ],
             "title": "Include Events"
+          },
+          "include_lifecycle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Lifecycle"
           },
           "include_metrics": {
             "anyOf": [
@@ -7038,6 +7061,17 @@
       },
       "EventChangeResponse": {
         "properties": {
+          "author_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Label"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -7824,6 +7858,11 @@
             ],
             "title": "Last Seen At"
           },
+          "lifecycle_warning": {
+            "default": false,
+            "title": "Lifecycle Warning",
+            "type": "boolean"
+          },
           "meta_values": {
             "default": [],
             "items": {
@@ -8364,6 +8403,58 @@
         "title": "EventMetricsResponse",
         "type": "object"
       },
+      "EventMigrationResponse": {
+        "description": "Successor adoption for a retired event: \"Old 1,240/day \u2192 New 3,800/day\".\n\n``ratio`` is ``new / old`` daily volume \u2014 how many times the old event's\nvolume the successor now receives (1,240 -> 3,800 is ``3.06``). Above 1 the\nsuccessor has overtaken the old event. Null when the old event received\nnothing in the window.",
+        "properties": {
+          "new": {
+            "$ref": "#/components/schemas/EventMigrationSide"
+          },
+          "old": {
+            "$ref": "#/components/schemas/EventMigrationSide"
+          },
+          "ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratio"
+          }
+        },
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "EventMigrationResponse",
+        "type": "object"
+      },
+      "EventMigrationSide": {
+        "properties": {
+          "daily_avg_7d": {
+            "title": "Daily Avg 7D",
+            "type": "number"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "name",
+          "daily_avg_7d"
+        ],
+        "title": "EventMigrationSide",
+        "type": "object"
+      },
       "EventMove": {
         "properties": {
           "direction": {
@@ -8469,6 +8560,14 @@
               }
             ],
             "title": "Last Seen At"
+          },
+          "lifecycle_findings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LifecycleFindingResponse"
+            },
+            "title": "Lifecycle Findings",
+            "type": "array"
           },
           "main_event_id": {
             "anyOf": [
@@ -9006,6 +9105,14 @@
               }
             ],
             "title": "Last Seen At"
+          },
+          "lifecycle_findings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LifecycleFindingResponse"
+            },
+            "title": "Lifecycle Findings",
+            "type": "array"
           },
           "main_event_id": {
             "anyOf": [
@@ -11688,6 +11795,131 @@
         "title": "InvitationResponse",
         "type": "object"
       },
+      "LifecycleFindingListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LifecycleFindingResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "LifecycleFindingListResponse",
+        "type": "object"
+      },
+      "LifecycleFindingResponse": {
+        "description": "One finding of the daily sunset watch.\n\n``event_id`` is the DEPRECATED event (main branch) the finding hangs on;\n``related_event_id`` is its successor for ``successor_silent`` and null for\n``sunset_overdue``. ``volume_24h`` is set on ``sunset_overdue``,\n``successor_volume_7d`` on ``successor_silent``. ``resolved_at`` is null\nwhile the condition still holds.",
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "first_seen_at": {
+            "format": "date-time",
+            "title": "First Seen At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "sunset_overdue",
+              "successor_silent"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "format": "date-time",
+            "title": "Last Seen At",
+            "type": "string"
+          },
+          "related_event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Event Id"
+          },
+          "related_event_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Event Name"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "successor_volume_7d": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Successor Volume 7D"
+          },
+          "volume_24h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume 24H"
+          }
+        },
+        "required": [
+          "id",
+          "event_id",
+          "event_name",
+          "kind",
+          "first_seen_at",
+          "last_seen_at"
+        ],
+        "title": "LifecycleFindingResponse",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -13580,7 +13812,8 @@
           "release_regression",
           "metric",
           "variable_value_drift",
-          "source_freshness"
+          "source_freshness",
+          "lifecycle"
         ],
         "title": "MetricScopeType",
         "type": "string"
@@ -14177,6 +14410,10 @@
             "title": "Include Events",
             "type": "boolean"
           },
+          "include_lifecycle": {
+            "title": "Include Lifecycle",
+            "type": "boolean"
+          },
           "include_metrics": {
             "title": "Include Metrics",
             "type": "boolean"
@@ -14364,6 +14601,7 @@
           "include_release_regressions",
           "include_metrics",
           "include_source_freshness",
+          "include_lifecycle",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -16725,6 +16963,11 @@
             "title": "Project Key",
             "type": "string"
           },
+          "team_id": {
+            "default": "",
+            "title": "Team Id",
+            "type": "string"
+          },
           "tracker_type": {
             "title": "Tracker Type",
             "type": "string"
@@ -16756,7 +16999,7 @@
         "type": "object"
       },
       "ProjectTrackerConfigUpdate": {
-        "description": "Partial update \u2014 every field optional. ``api_token`` is the RAW token on\ninput; it is encrypted at rest and never echoed back. Passing ``\"\"`` clears\nthe stored token; omitting / null leaves it unchanged.",
+        "description": "Partial update \u2014 every field optional. ``api_token`` is the RAW token on\ninput; it is encrypted at rest and never echoed back. Passing ``\"\"`` clears\nthe stored token; omitting / null leaves it unchanged.\n\n``tracker_type`` picks the backend. For ``jira`` the credential is the Jira\nAPI token and ``base_url`` / ``auth_email`` / ``project_key`` /\n``issue_type`` apply. For ``linear`` ``api_token`` carries the Linear API\nkey (same encryption, same never-echoed rule) and ``team_id`` the Linear\nteam; the Jira-only fields are ignored. Switching ``tracker_type`` clears\nthe stored credential unless the same request supplies a new one, so one\nvendor's secret is never sent to the other.",
         "properties": {
           "api_token": {
             "anyOf": [
@@ -16824,10 +17067,24 @@
             ],
             "title": "Project Key"
           },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
           "tracker_type": {
             "anyOf": [
               {
-                "const": "jira",
+                "enum": [
+                  "jira",
+                  "linear"
+                ],
                 "type": "string"
               },
               {
@@ -32112,6 +32369,77 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/events/{event_id}/migration": {
+      "get": {
+        "description": "Successor adoption: the old and the new event's 7-day daily average.\n\n404 when the event names no successor.",
+        "operationId": "get_event_migration_api_v1_projects__slug__events__event_id__migration_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventMigrationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Event Migration",
+        "tags": [
+          "lifecycle"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/events/{event_id}/move": {
       "patch": {
         "operationId": "move_event_api_v1_projects__slug__events__event_id__move_patch",
@@ -33160,6 +33488,59 @@
         "summary": "Post Impact",
         "tags": [
           "dependencies"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/lifecycle-findings": {
+      "get": {
+        "description": "Open findings of the daily sunset watch; ``?include_resolved=true`` adds the closed ones.",
+        "operationId": "list_lifecycle_findings_api_v1_projects__slug__lifecycle_findings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_resolved",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Resolved",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LifecycleFindingListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Lifecycle Findings",
+        "tags": [
+          "lifecycle"
         ]
       }
     },

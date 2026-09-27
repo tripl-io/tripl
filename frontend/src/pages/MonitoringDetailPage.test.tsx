@@ -808,6 +808,10 @@ function installEventDetailFetch(
     /** The event `superseded_by_event_id` points at. `null` answers 404, the
      *  same as a successor the reader cannot see. */
     successor?: Record<string, unknown> | null
+    /** GET /events/event-1/migration; absent answers 404 (#258). */
+    migration?: Record<string, unknown>
+    /** GET /events/event-1/history; defaults to no entries. */
+    history?: Record<string, unknown>[]
     sigmaThreshold?: number
   } = {},
 ) {
@@ -821,7 +825,9 @@ function installEventDetailFetch(
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/variables')) return mockJsonResponse([])
-    if (url.includes('/api/v1/projects/demo/events/event-1/history')) return mockJsonResponse([])
+    if (url.includes('/api/v1/projects/demo/events/event-1/history')) {
+      return mockJsonResponse(opts.history ?? [])
+    }
     if (url.includes('/api/v1/projects/demo/events/event-1/metrics/breakdowns')) {
       return mockJsonResponse(opts.breakdowns ?? {
         event_id: 'event-1',
@@ -849,6 +855,11 @@ function installEventDetailFetch(
     if (url.includes('/api/v1/projects/demo/events/event-1/comments')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/settings/photo-limits')) return mockJsonResponse({ photo_max_size_mb: 10 })
+    if (url.includes('/api/v1/projects/demo/events/event-1/migration')) {
+      return opts.migration
+        ? mockJsonResponse(opts.migration)
+        : new Response('{}', { status: 404, headers: { 'Content-Type': 'application/json' } })
+    }
     if (url.includes('/api/v1/projects/demo/events/event-1/implementation-tickets')) {
       return mockJsonResponse(opts.tickets ?? [])
     }
@@ -1415,7 +1426,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     const row = (label: string) =>
       within(properties).getByText(label).closest('[role="row"]') as HTMLElement
     expect(within(row('Created')).getByText(/2026/)).toHaveTextContent(/Jan 1|01/)
-    expect(within(row('First seen')).getByText(/2026/)).toHaveTextContent(/Jan 3|03/)
+    expect(within(row('First seen in data')).getByText(/2026/)).toHaveTextContent(/Jan 3|03/)
     expect(within(row('Owner')).getByText('—')).toBeInTheDocument()
   })
 
@@ -1426,7 +1437,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
 
     const properties = screen.getByRole('table', { name: 'Properties' })
     const firstSeen = within(properties)
-      .getByText('First seen')
+      .getByText('First seen in data')
       .closest('[role="row"]') as HTMLElement
     expect(within(firstSeen).getByText('—')).toBeInTheDocument()
   })
@@ -1465,6 +1476,185 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     await screen.findByRole('heading', { name: 'checkout_completed' })
 
     expect(screen.queryByText('Replaced by')).not.toBeInTheDocument()
+  })
+
+  it('shows an open sunset-overdue finding with its 24h volume (#258)', async () => {
+    installEventDetailFetch({
+      event: {
+        ...eventFixture(),
+        status: 'deprecated',
+        sunset_at: '2026-01-01T00:00:00Z',
+        lifecycle_findings: [
+          {
+            id: 'lf-1',
+            event_id: 'event-1',
+            kind: 'sunset_overdue',
+            first_seen_at: '2026-01-02T00:00:00Z',
+            last_seen_at: '2026-01-02T00:00:00Z',
+            resolved_at: null,
+            volume_24h: 1240,
+            successor_volume_7d: null,
+          },
+          {
+            // Resolved: the condition cleared, so it is history, not a warning.
+            id: 'lf-2',
+            event_id: 'event-1',
+            kind: 'successor_silent',
+            first_seen_at: '2026-01-01T00:00:00Z',
+            last_seen_at: '2026-01-01T00:00:00Z',
+            resolved_at: '2026-01-02T00:00:00Z',
+            volume_24h: null,
+            successor_volume_7d: 0,
+          },
+        ],
+      },
+    })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    const panel = await screen.findByRole('region', { name: 'Lifecycle' })
+    expect(within(panel).getByText('Past its sunset date and still receiving data')).toBeInTheDocument()
+    expect(within(panel).getByText(/1,240 events in the last 24h/)).toBeInTheDocument()
+    expect(within(panel).queryByText('Its successor has gone silent')).toBeNull()
+  })
+
+  it('says a successor went silent from the deprecated side (#258)', async () => {
+    installEventDetailFetch({
+      event: {
+        ...eventFixture(),
+        status: 'deprecated',
+        lifecycle_findings: [{
+          id: 'lf-3',
+          event_id: 'event-1',
+          kind: 'successor_silent',
+          first_seen_at: '2026-01-02T00:00:00Z',
+          last_seen_at: '2026-01-02T00:00:00Z',
+          resolved_at: null,
+          successor_volume_7d: 0,
+        }],
+      },
+    })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    const panel = await screen.findByRole('region', { name: 'Lifecycle' })
+    expect(within(panel).getByText('Its successor has gone silent')).toBeInTheDocument()
+    expect(within(panel).getByText(/0 events in the last 7 days/)).toBeInTheDocument()
+  })
+
+  it('says the successor itself is silent on the successor page, whatever its status (#258)', async () => {
+    installEventDetailFetch({
+      event: {
+        ...eventFixture(),
+        // Deprecated in turn: the wording must follow the finding's ids, not status.
+        status: 'deprecated',
+        lifecycle_findings: [{
+          id: 'lf-4',
+          event_id: 'event-0',
+          kind: 'successor_silent',
+          related_event_id: 'event-1',
+          related_event_name: 'checkout_completed',
+          first_seen_at: '2026-01-02T00:00:00Z',
+          last_seen_at: '2026-01-02T00:00:00Z',
+          resolved_at: null,
+          successor_volume_7d: 0,
+        }],
+      },
+    })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    const panel = await screen.findByRole('region', { name: 'Lifecycle' })
+    expect(within(panel).getByText('Replaces a deprecated event but receives no data')).toBeInTheDocument()
+    expect(within(panel).queryByText('Its successor has gone silent')).toBeNull()
+  })
+
+  it('says the successor went silent on the deprecated page even when its status was edited (#258)', async () => {
+    installEventDetailFetch({
+      event: {
+        ...eventFixture(),
+        status: 'live',
+        lifecycle_findings: [{
+          id: 'lf-5',
+          event_id: 'event-1',
+          kind: 'successor_silent',
+          related_event_id: 'event-2',
+          related_event_name: 'checkout_finished',
+          first_seen_at: '2026-01-02T00:00:00Z',
+          last_seen_at: '2026-01-02T00:00:00Z',
+          resolved_at: null,
+          successor_volume_7d: 0,
+        }],
+      },
+    })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    const panel = await screen.findByRole('region', { name: 'Lifecycle' })
+    expect(within(panel).getByText('Its successor has gone silent')).toBeInTheDocument()
+  })
+
+  it('shows migration progress on a deprecated event with a successor (#258)', async () => {
+    installEventDetailFetch({
+      event: { ...eventFixture(), status: 'deprecated', superseded_by_event_id: 'event-2' },
+      successor: { ...eventFixture(), id: 'event-2', name: 'checkout_finished' },
+      migration: {
+        old: { event_id: 'event-1', name: 'checkout_completed', daily_avg_7d: 1240.4 },
+        new: { event_id: 'event-2', name: 'checkout_finished', daily_avg_7d: 3800 },
+        ratio: 3.06,
+      },
+    })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    const progress = await screen.findByTestId('event-migration')
+    expect(progress).toHaveTextContent('Old 1,240/day → New 3,800/day')
+    expect(progress).toHaveTextContent('3.1× the old volume')
+    expect(within(progress).getByRole('link', { name: 'checkout_finished' }))
+      .toHaveAttribute('href', '/p/demo/monitoring/event/event-2')
+  })
+
+  it('credits a scan transition to its author label and a person to their email (#258)', async () => {
+    installEventDetailFetch({
+      history: [
+        {
+          id: 'ch-1',
+          event_id: 'event-1',
+          user_id: null,
+          user_email: null,
+          author_label: 'tripl (scan)',
+          field: 'status',
+          old_value: 'planned',
+          new_value: 'live',
+          created_at: '2026-01-02T00:00:00Z',
+        },
+        {
+          id: 'ch-2',
+          event_id: 'event-1',
+          user_id: 'user-1',
+          user_email: 'ana@example.com',
+          author_label: null,
+          field: 'description',
+          old_value: null,
+          new_value: 'Checkout done',
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ],
+    })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    const authors = await screen.findAllByTestId('event-history-author')
+    expect(authors.map(node => node.textContent)).toEqual([' · tripl (scan)', ' · ana@example.com'])
+  })
+
+  it('shows no lifecycle block for a live event with no findings', async () => {
+    installEventDetailFetch({ event: { ...eventFixture(), lifecycle_findings: [] } })
+    renderEventDetail()
+    await screen.findByRole('heading', { name: 'checkout_completed' })
+
+    expect(screen.queryByRole('region', { name: 'Lifecycle' })).toBeNull()
+    expect(screen.queryByTestId('event-migration')).toBeNull()
   })
 
   it('names an owner the roster cannot resolve as unknown, not as still loading', async () => {

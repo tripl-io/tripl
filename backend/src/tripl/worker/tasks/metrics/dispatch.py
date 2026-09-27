@@ -10,7 +10,12 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from tripl.alert_templates import percent_delta_of
-from tripl.alerting_matching import AlertMatchCandidate, rule_matches_anomaly
+from tripl.alerting_matching import (
+    PROJECT_GLOBAL_SCOPE_TYPES,
+    AlertMatchCandidate,
+    is_project_global_scope,
+    rule_matches_anomaly,
+)
 from tripl.core.analyzers.anomaly_detector import SCOPE_METRIC
 from tripl.models.alert_correlation_state import AlertCorrelationState
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
@@ -29,6 +34,7 @@ from tripl.worker.tasks.metrics.alert_payload import (
     _build_event_type_by_event_id,
     _load_enabled_alert_destinations,
 )
+from tripl.worker.tasks.metrics.lifecycle_alerts import _get_lifecycle_candidates
 from tripl.worker.tasks.metrics.signals import (
     _get_active_distribution_drift_candidates,
     _get_active_metric_anomaly_candidates,
@@ -125,7 +131,7 @@ _PROJECT_GLOBAL_PARTITION = "project-global"
 
 
 def _scope_partition_id(scope_type: str, *, config_id: uuid.UUID) -> uuid.UUID | None:
-    """Which partition a scope lives in: NO config for ``metric``, the firing one otherwise.
+    """Which partition a scope lives in: NO config if project-global, else the firing one.
 
     One function for the one question this module keeps asking, because all
     three answers have to agree: the ``AlertRuleState`` a run writes, the
@@ -145,8 +151,15 @@ def _scope_partition_id(scope_type: str, *, config_id: uuid.UUID) -> uuid.UUID |
 
     ``services/_alerting_deliveries`` asks the same question of the
     false-positive ratchet and answers it the same way.
+
+    ``lifecycle`` (GH #258) is project-global for the same reason: a finding
+    hangs on an event, not on a scan, and EVERY config's run emits the open
+    findings as candidates. Stored under NULL, those runs converge on one state
+    and ``_claim_rule_state``'s converging INSERT lets exactly one of them send,
+    so a three-scan project alerts once per finding — with no "anchor" config to
+    elect, and so nothing to re-elect when a config is created or deleted.
     """
-    return None if scope_type == SCOPE_METRIC else config_id
+    return None if is_project_global_scope(scope_type) else config_id
 
 
 def _correlation_group_id(
@@ -242,7 +255,8 @@ def _reopen_closed_incidents(
     never be — it kept firing, unseen, holding its own release hostage.
 
     ONE PARTITION PER CALL. ``scan_config_id`` is the partition the ids being
-    released were minted under — ``None`` for the project-global ``metric``
+    released were minted under — ``None`` for the project-global (``metric``,
+    ``lifecycle``)
     scopes, the firing config for every other scope — so a caller whose closed
     keys span both makes two calls (``_prepare_alert_deliveries`` does). Ids
     rebuilt under the wrong partition match no stored row, and a release that
@@ -718,6 +732,10 @@ def _prepare_alert_deliveries(
     # "Data is late" (issue #269): at most one candidate per scan config, gated
     # by ``include_source_freshness`` in ``rule_matches_anomaly``.
     active_candidates.update(_get_source_freshness_candidates(session, config))
+    # Event lifecycle findings (GH #258): one candidate per open finding, gated
+    # by ``include_lifecycle``. Every config emits them; their states live in
+    # the project-global partition, so a multi-scan project alerts once.
+    active_candidates.update(_get_lifecycle_candidates(session, config))
     destinations = _load_enabled_alert_destinations(session, config.project_id)
     if not destinations:
         return []
@@ -772,9 +790,10 @@ def _prepare_alert_deliveries(
         cooldown_applies = destination.delivery_schedule_cron is None
 
         for rule in enabled_rules:
-            # Two loads because there are two partitions. Non-metric scopes are
+            # Two loads because there are two partitions. Most scopes are
             # config-partitioned, so this run sees only its own config's states;
-            # metric scopes are project-global and carry NO scan config at all,
+            # ``metric`` and ``lifecycle`` scopes are project-global
+            # (``PROJECT_GLOBAL_SCOPE_TYPES``) and carry NO scan config at all,
             # so every config's run converges on the one row below and shares
             # its cooldown clock.
             #
@@ -802,7 +821,7 @@ def _prepare_alert_deliveries(
                     select(AlertRuleState).where(
                         AlertRuleState.rule_id == rule.id,
                         AlertRuleState.scan_config_id == config.id,
-                        AlertRuleState.scope_type != SCOPE_METRIC,
+                        AlertRuleState.scope_type.not_in(PROJECT_GLOBAL_SCOPE_TYPES),
                     )
                 ).scalars()
             }
@@ -810,7 +829,7 @@ def _prepare_alert_deliveries(
                 select(AlertRuleState).where(
                     AlertRuleState.rule_id == rule.id,
                     AlertRuleState.scan_config_id.is_(None),
-                    AlertRuleState.scope_type == SCOPE_METRIC,
+                    AlertRuleState.scope_type.in_(PROJECT_GLOBAL_SCOPE_TYPES),
                 )
             ).scalars():
                 existing_states[(state.scope_type, state.scope_ref)] = state
@@ -864,14 +883,14 @@ def _prepare_alert_deliveries(
                     project_id=config.project_id,
                     scan_config_id=None,
                     rule_id=rule.id,
-                    scope_keys=[key for key in closed_keys if key[0] == SCOPE_METRIC],
+                    scope_keys=[key for key in closed_keys if is_project_global_scope(key[0])],
                 )
                 _reopen_closed_incidents(
                     session,
                     project_id=config.project_id,
                     scan_config_id=config.id,
                     rule_id=rule.id,
-                    scope_keys=[key for key in closed_keys if key[0] != SCOPE_METRIC],
+                    scope_keys=[key for key in closed_keys if not is_project_global_scope(key[0])],
                 )
 
             anomalies_to_send: list[AlertMatchCandidate] = []

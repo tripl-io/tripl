@@ -35,6 +35,7 @@ from tripl.alert_templates import (
     get_digest_items_template,
     get_digest_message_template,
     has_baseline,
+    lifecycle_line,
     normalize_message_template,
     percent_delta_or_none,
     plain_alert_number,
@@ -43,6 +44,7 @@ from tripl.alert_templates import (
     source_freshness_line,
 )
 from tripl.alerting_matching import (
+    SCOPE_LIFECYCLE,
     SCOPE_METRIC,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
@@ -1056,6 +1058,11 @@ def _build_ai_explanation(
             # counts would have the model explain a traffic drop that is really
             # a late warehouse load.
             lines.append(f"- [source freshness] {source_freshness_line(_drift_facts(item))}")
+            continue
+        if item.scope_type == SCOPE_LIFECYCLE:
+            # A catalog-lifecycle fact (GH #258), not a volume move against a
+            # baseline: "actual 1240 vs expected 0" would read as a spike.
+            lines.append(f"- [event lifecycle] {lifecycle_line(_drift_facts(item))}")
             continue
         if item.scope_type in {"schema", "distribution"}:
             drift_bits = " ".join(

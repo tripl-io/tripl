@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from tripl.alert_templates import percent_delta_of, percent_delta_or_none
 from tripl.alerting_matching import (
     SCOPE_DISTRIBUTION_DRIFT,
+    SCOPE_LIFECYCLE,
     SCOPE_METRIC,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
@@ -141,6 +142,17 @@ def _build_alert_scope_names(
             underlying = None
         if underlying is not None:
             scope_names[(anomaly.scope_type, anomaly.scope_ref)] = underlying
+
+    # A lifecycle finding (GH #258) is named after the DEPRECATED event it
+    # hangs on — resolved above through its ``event_id`` — so the message shows
+    # "signup", not "sunset_overdue:<hex>". A silent successor is named by the
+    # drift line (``drift_field`` / ``sample_value``), not by the scope.
+    for anomaly in anomalies:
+        if anomaly.scope_type != SCOPE_LIFECYCLE or anomaly.event_id is None:
+            continue
+        lifecycle_name = scope_names.get((SCOPE_EVENT, str(anomaly.event_id)))
+        if lifecycle_name is not None:
+            scope_names[(anomaly.scope_type, anomaly.scope_ref)] = lifecycle_name
 
     # A source-freshness scope is a whole scan config (scope_ref is its id);
     # the candidate already carries the scan's name on ``drift_field``.

@@ -15,6 +15,8 @@ from tripl.alerting_validation import (
     validate_jira_base_url,
     validate_jira_issue_type,
     validate_jira_project_key,
+    validate_linear_api_key,
+    validate_linear_team_id,
 )
 from tripl.crypto import encrypt_value
 from tripl.models.project_tracker_config import ProjectTrackerConfig
@@ -26,6 +28,12 @@ from tripl.services.project_lookup import get_project_id_by_slug
 
 DEFAULT_ENABLED = False
 DEFAULT_TRACKER_TYPE = "jira"
+TRACKER_JIRA = "jira"
+TRACKER_LINEAR = "linear"
+# Jira-only fields: ignored while the project is on Linear. ``project_key`` is
+# among them because the Linear team id is stored in that column (see
+# ``_to_response``), so a stray Jira key must not overwrite it.
+_JIRA_ONLY_FIELDS = frozenset({"base_url", "project_key", "auth_email", "issue_type"})
 DEFAULT_ISSUE_TYPE = "Task"
 
 # Jira scalar fields validated on update when a non-null value is supplied. The
@@ -47,15 +55,21 @@ _JIRA_FIELD_VALIDATORS: dict[str, Callable[[str | None], str]] = {
 def _to_response(config: ProjectTrackerConfig) -> ProjectTrackerConfigResponse:
     """Explicit build — ``api_token_set`` is derived, so ``model_validate`` from
     the ORM row would miss it (and we must never surface the token itself)."""
+    is_linear = config.tracker_type == TRACKER_LINEAR
     return ProjectTrackerConfigResponse(
         id=config.id,
         project_id=config.project_id,
         enabled=config.enabled,
         tracker_type=config.tracker_type,
         base_url=config.base_url,
-        project_key=config.project_key,
+        # A Linear config keeps its team id in the ``project_key`` column — one
+        # per-project "where do tickets go" slot, no second column for it — so
+        # the response splits the column by tracker rather than showing a team
+        # id as a Jira key.
+        project_key="" if is_linear else config.project_key,
         auth_email=config.auth_email,
         issue_type=config.issue_type,
+        team_id=config.project_key if is_linear else "",
         api_token_set=bool(config.api_token_encrypted),
         created_at=config.created_at,
         updated_at=config.updated_at,
@@ -127,17 +141,43 @@ async def update_project_tracker_config(
     config = await _ensure_config(session, project_id)
     payload = data.model_dump(exclude_unset=True)
 
+    # Resolve the tracker FIRST: it decides how the token and the destination
+    # fields below are validated and where they are stored.
+    previous_tracker = config.tracker_type or DEFAULT_TRACKER_TYPE
+    requested_tracker = payload.pop("tracker_type", None)
+    tracker = requested_tracker or previous_tracker
+    team_id = payload.pop("team_id", None)
+    if tracker != previous_tracker:
+        # Switching vendors drops the stored credential and destination: a Jira
+        # token must never be sent to Linear or the other way round, and a Jira
+        # project key is not a Linear team. A new token in this same request is
+        # applied just below.
+        config.api_token_encrypted = ""
+        config.project_key = ""
+        config.tracker_type = tracker
+
     # api_token is encrypted at rest and never stored raw. ""/clears the token;
     # None/omitted leaves it unchanged; a real value is validated then encrypted.
+    token_validator = (
+        validate_linear_api_key if tracker == TRACKER_LINEAR else validate_jira_api_token
+    )
     if "api_token" in payload:
         raw_token = payload.pop("api_token")
         if raw_token is not None:
             if raw_token == "":
                 config.api_token_encrypted = ""
             else:
-                config.api_token_encrypted = encrypt_value(
-                    _validate(validate_jira_api_token, raw_token)
-                )
+                config.api_token_encrypted = encrypt_value(_validate(token_validator, raw_token))
+
+    if tracker == TRACKER_LINEAR:
+        # Linear talks to its fixed public API host, so none of the Jira fields
+        # (base_url in particular, the one with an SSRF check) take effect.
+        for key in _JIRA_ONLY_FIELDS:
+            payload.pop(key, None)
+        if team_id is not None:
+            config.project_key = (
+                "" if team_id == "" else _validate(validate_linear_team_id, team_id)
+            )
 
     for key, value in payload.items():
         if value is None:

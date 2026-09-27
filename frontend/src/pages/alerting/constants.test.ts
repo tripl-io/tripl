@@ -21,6 +21,7 @@ import {
   ruleFormToPayload,
   ruleSignalLabels,
   ruleToForm,
+  scopeSummary,
   unknownTemplateVariables,
   withMessageFormat,
   type RuleFormState,
@@ -333,5 +334,31 @@ describe('source freshness scope (F16, #269)', () => {
     })
     expect(ruleFormProblems(only).scopes).toBeNull()
     expect(ruleSignalLabels(only).drift).toEqual(['Source freshness'])
+  })
+})
+
+describe('lifecycle scope (#258)', () => {
+  it('is off on a new rule and carried both ways', () => {
+    expect(defaultRuleForm().include_lifecycle).toBe(false)
+    expect(ruleFormToPayload(ruleToForm(makeRule({ include_lifecycle: true }))))
+      .toMatchObject({ include_lifecycle: true })
+  })
+
+  it('reads a rule from a server that predates the flag as off', () => {
+    const legacy = makeRule()
+    delete (legacy as Partial<AlertRule>).include_lifecycle
+    expect(ruleToForm(legacy).include_lifecycle).toBe(false)
+  })
+
+  it('counts as a signal kind on its own and is named in the summaries', () => {
+    const only = form({
+      include_project_total: false,
+      include_event_types: false,
+      include_events: false,
+      include_lifecycle: true,
+    })
+    expect(ruleFormProblems(only).scopes).toBeNull()
+    expect(ruleSignalLabels(only).drift).toEqual(['Lifecycle'])
+    expect(scopeSummary(makeRule({ include_lifecycle: true }))).toContain('lifecycle')
   })
 })

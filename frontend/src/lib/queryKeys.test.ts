@@ -157,6 +157,7 @@ describe('query key values (SHELL-50)', () => {
     [keys.eventHistoryKey('demo', 'b-1', 'e-1'), ['eventHistory', 'demo', 'b-1', 'e-1']],
     [keys.eventIdentityProbeKey('demo', 'b-1', 'et-1', 'name'), ['eventIdentityProbe', 'demo', 'b-1', 'et-1', 'name']],
     [keys.eventImplementationTicketsKey('demo', 'b-1', 'e-1'), ['eventImplementationTickets', 'demo', 'b-1', 'e-1']],
+    [keys.eventMigrationKey('demo', 'b-1', 'e-1'), ['eventMigration', 'demo', 'b-1', 'e-1']],
     [keys.bulkIdentitiesKey('demo', 'b-1', 'et-1'), ['bulkIdentities', 'demo', 'b-1', 'et-1']],
     [keys.eventCommentsKey('demo', 'e-1'), ['eventComments', 'demo', 'e-1']],
     [keys.eventPhotosKey('demo', 'e-1'), ['eventPhotos', 'demo', 'e-1']],

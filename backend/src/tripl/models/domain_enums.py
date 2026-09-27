@@ -112,6 +112,9 @@ class MetricScopeType(enum.StrEnum):
     # A late or overdue scan source (#269). Added via ALTER TYPE migration
     # c4e8a2f6b1d3.
     source_freshness = "source_freshness"
+    # An open lifecycle finding (#258): sunset overdue or successor silent.
+    # Added via ALTER TYPE migration d5f7b9c1e3a8.
+    lifecycle = "lifecycle"
 
 
 class MetricKind(enum.StrEnum):
@@ -245,6 +248,11 @@ class AlertDriftType(enum.StrEnum):
     # type by c4e8a2f6b1d3.
     source_late = "source_late"
     source_overdue = "source_overdue"
+    # Written by the lifecycle candidate builder (#258): the finding kind of a
+    # ``lifecycle`` scope (``LifecycleFindingKind``). Added to the type by
+    # d5f7b9c1e3a8.
+    sunset_overdue = "sunset_overdue"
+    successor_silent = "successor_silent"
 
 
 class ReleaseRegressionKind(enum.StrEnum):

@@ -103,6 +103,7 @@ const SCOPE_KIND_LABEL: Record<MetricScopeType, string> = {
   metric: 'metric',
   variable_value_drift: 'value drift',
   source_freshness: 'data late',
+  lifecycle: 'lifecycle',
 }
 
 /**

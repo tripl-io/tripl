@@ -571,6 +571,7 @@ def percent_delta_or_none(percent_delta: float, expected_count: float) -> float 
 _SCOPE_RELEASE_REGRESSION = MetricScopeType.release_regression.value
 _SCOPE_VARIABLE_VALUE_DRIFT = MetricScopeType.variable_value_drift.value
 _SCOPE_SOURCE_FRESHNESS = MetricScopeType.source_freshness.value
+_SCOPE_LIFECYCLE = MetricScopeType.lifecycle.value
 
 ALERT_SCOPE_LABELS: dict[str, str] = {
     MetricScopeType.project_total.value: "Project total",
@@ -582,6 +583,7 @@ ALERT_SCOPE_LABELS: dict[str, str] = {
     _SCOPE_VARIABLE_VALUE_DRIFT: "Variable value drift",
     _SCOPE_RELEASE_REGRESSION: "Release regression",
     _SCOPE_SOURCE_FRESHNESS: "Source freshness",
+    _SCOPE_LIFECYCLE: "Event lifecycle",
 }
 
 
@@ -737,6 +739,32 @@ def source_freshness_line(facts: DriftLineFacts) -> str:
     return f"{headline}: {scan}"
 
 
+# Lifecycle finding kinds (GH #258) -> headline. The kind rides ``drift_type``
+# (``AlertDriftType.sunset_overdue`` / ``successor_silent``, the same values as
+# ``LifecycleFindingKind``).
+LIFECYCLE_KIND_SUNSET_OVERDUE = AlertDriftType.sunset_overdue.value
+LIFECYCLE_KIND_SUCCESSOR_SILENT = AlertDriftType.successor_silent.value
+_LIFECYCLE_KIND_LABELS = {
+    LIFECYCLE_KIND_SUNSET_OVERDUE: "Sunset overdue",
+    LIFECYCLE_KIND_SUCCESSOR_SILENT: "Successor silent",
+}
+
+
+def lifecycle_line(facts: DriftLineFacts) -> str:
+    """``"Sunset overdue: signup still receives 1,240/day, sunset 2026-09-01"``.
+
+    Built from the shared drift columns ``lifecycle_alerts`` fills: kind ->
+    ``drift_type``, the event the message names -> ``drift_field``, the rendered
+    "<event> <what is wrong>" clause -> ``sample_value``.
+    """
+    headline = _LIFECYCLE_KIND_LABELS.get(facts.drift_type or "", "Event lifecycle")
+    if facts.sample_value:
+        return f"{headline}: {facts.sample_value}"
+    if facts.drift_field:
+        return f"{headline}: {facts.drift_field}"
+    return headline
+
+
 def build_drift_line(facts: DriftLineFacts) -> str:
     """``${drift_line}`` for one item — leading ``"\\n  "`` included, or ``""``.
 
@@ -760,6 +788,8 @@ def build_drift_line(facts: DriftLineFacts) -> str:
         return f"\n  release: {release_regression_basis(facts)}"
     if facts.scope_type == _SCOPE_SOURCE_FRESHNESS:
         return f"\n  {source_freshness_line(facts)}"
+    if facts.scope_type == _SCOPE_LIFECYCLE:
+        return f"\n  {lifecycle_line(facts)}"
     if facts.scope_type == _SCOPE_VARIABLE_VALUE_DRIFT:
         observed_clause = f" observed {facts.sample_value}" if facts.sample_value else ""
         return f"\n  value drift: ${{{facts.drift_field}}}{observed_clause}"

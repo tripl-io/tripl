@@ -2102,6 +2102,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/events/{event_id}/migration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event Migration
+         * @description Successor adoption: the old and the new event's 7-day daily average.
+         *
+         *     404 when the event names no successor.
+         */
+        get: operations["get_event_migration_api_v1_projects__slug__events__event_id__migration_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/events/{event_id}/move": {
         parameters: {
             query?: never;
@@ -2326,6 +2348,26 @@ export interface paths {
          *     ignored (use ``GET /dependencies?depth=2`` to walk further).
          */
         post: operations["post_impact_api_v1_projects__slug__impact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/lifecycle-findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Lifecycle Findings
+         * @description Open findings of the daily sunset watch; ``?include_resolved=true`` adds the closed ones.
+         */
+        get: operations["list_lifecycle_findings_api_v1_projects__slug__lifecycle_findings_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4606,7 +4648,7 @@ export interface components {
          * AlertDriftType
          * @enum {string}
          */
-        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue";
+        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent";
         /** AlertInboxActionRequest */
         AlertInboxActionRequest: {
             /**
@@ -4879,6 +4921,11 @@ export interface components {
              */
             include_events: boolean;
             /**
+             * Include Lifecycle
+             * @default false
+             */
+            include_lifecycle: boolean;
+            /**
              * Include Metrics
              * @default false
              */
@@ -5006,6 +5053,8 @@ export interface components {
             include_event_types: boolean;
             /** Include Events */
             include_events: boolean;
+            /** Include Lifecycle */
+            include_lifecycle: boolean;
             /** Include Metrics */
             include_metrics: boolean;
             /** Include Project Total */
@@ -5116,6 +5165,8 @@ export interface components {
             include_event_types?: boolean | null;
             /** Include Events */
             include_events?: boolean | null;
+            /** Include Lifecycle */
+            include_lifecycle?: boolean | null;
             /** Include Metrics */
             include_metrics?: boolean | null;
             /** Include Project Total */
@@ -6592,6 +6643,8 @@ export interface components {
         };
         /** EventChangeResponse */
         EventChangeResponse: {
+            /** Author Label */
+            author_label?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -6941,6 +6994,11 @@ export interface components {
             /** Last Seen At */
             last_seen_at?: string | null;
             /**
+             * Lifecycle Warning
+             * @default false
+             */
+            lifecycle_warning: boolean;
+            /**
              * Meta Values
              * @default []
              */
@@ -7129,6 +7187,33 @@ export interface components {
             /** Week Total */
             week_total?: number | null;
         };
+        /**
+         * EventMigrationResponse
+         * @description Successor adoption for a retired event: "Old 1,240/day → New 3,800/day".
+         *
+         *     ``ratio`` is ``new / old`` daily volume — how many times the old event's
+         *     volume the successor now receives (1,240 -> 3,800 is ``3.06``). Above 1 the
+         *     successor has overtaken the old event. Null when the old event received
+         *     nothing in the window.
+         */
+        EventMigrationResponse: {
+            new: components["schemas"]["EventMigrationSide"];
+            old: components["schemas"]["EventMigrationSide"];
+            /** Ratio */
+            ratio?: number | null;
+        };
+        /** EventMigrationSide */
+        EventMigrationSide: {
+            /** Daily Avg 7D */
+            daily_avg_7d: number;
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Name */
+            name: string;
+        };
         /** EventMove */
         EventMove: {
             /**
@@ -7178,6 +7263,11 @@ export interface components {
             id: string;
             /** Last Seen At */
             last_seen_at?: string | null;
+            /**
+             * Lifecycle Findings
+             * @default []
+             */
+            lifecycle_findings: components["schemas"]["LifecycleFindingResponse"][];
             /** Main Event Id */
             main_event_id?: string | null;
             /**
@@ -7384,6 +7474,11 @@ export interface components {
             id: string;
             /** Last Seen At */
             last_seen_at?: string | null;
+            /**
+             * Lifecycle Findings
+             * @default []
+             */
+            lifecycle_findings: components["schemas"]["LifecycleFindingResponse"][];
             /** Main Event Id */
             main_event_id?: string | null;
             /**
@@ -8383,6 +8478,62 @@ export interface components {
             readonly is_expired: boolean;
             role: components["schemas"]["UserRole"];
         };
+        /** LifecycleFindingListResponse */
+        LifecycleFindingListResponse: {
+            /** Items */
+            items: components["schemas"]["LifecycleFindingResponse"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * LifecycleFindingResponse
+         * @description One finding of the daily sunset watch.
+         *
+         *     ``event_id`` is the DEPRECATED event (main branch) the finding hangs on;
+         *     ``related_event_id`` is its successor for ``successor_silent`` and null for
+         *     ``sunset_overdue``. ``volume_24h`` is set on ``sunset_overdue``,
+         *     ``successor_volume_7d`` on ``successor_silent``. ``resolved_at`` is null
+         *     while the condition still holds.
+         */
+        LifecycleFindingResponse: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Event Name */
+            event_name: string;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sunset_overdue" | "successor_silent";
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Related Event Id */
+            related_event_id?: string | null;
+            /** Related Event Name */
+            related_event_name?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Successor Volume 7D */
+            successor_volume_7d?: number | null;
+            /** Volume 24H */
+            volume_24h?: number | null;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Email */
@@ -9021,7 +9172,7 @@ export interface components {
          * MetricScopeType
          * @enum {string}
          */
-        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness";
+        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle";
         /**
          * MetricSeriesPoint
          * @description One densified point of a catalog-metric series.
@@ -9235,6 +9386,8 @@ export interface components {
             include_event_types: boolean;
             /** Include Events */
             include_events: boolean;
+            /** Include Lifecycle */
+            include_lifecycle: boolean;
             /** Include Metrics */
             include_metrics: boolean;
             /** Include Project Total */
@@ -10287,6 +10440,11 @@ export interface components {
             project_id: string;
             /** Project Key */
             project_key: string;
+            /**
+             * Team Id
+             * @default
+             */
+            team_id: string;
             /** Tracker Type */
             tracker_type: string;
             /** Updated At */
@@ -10297,6 +10455,14 @@ export interface components {
          * @description Partial update — every field optional. ``api_token`` is the RAW token on
          *     input; it is encrypted at rest and never echoed back. Passing ``""`` clears
          *     the stored token; omitting / null leaves it unchanged.
+         *
+         *     ``tracker_type`` picks the backend. For ``jira`` the credential is the Jira
+         *     API token and ``base_url`` / ``auth_email`` / ``project_key`` /
+         *     ``issue_type`` apply. For ``linear`` ``api_token`` carries the Linear API
+         *     key (same encryption, same never-echoed rule) and ``team_id`` the Linear
+         *     team; the Jira-only fields are ignored. Switching ``tracker_type`` clears
+         *     the stored credential unless the same request supplies a new one, so one
+         *     vendor's secret is never sent to the other.
          */
         ProjectTrackerConfigUpdate: {
             /** Api Token */
@@ -10311,8 +10477,10 @@ export interface components {
             issue_type?: string | null;
             /** Project Key */
             project_key?: string | null;
+            /** Team Id */
+            team_id?: string | null;
             /** Tracker Type */
-            tracker_type?: "jira" | null;
+            tracker_type?: ("jira" | "linear") | null;
         };
         /** ProjectUpdate */
         ProjectUpdate: {
@@ -17545,6 +17713,41 @@ export interface operations {
             };
         };
     };
+    get_event_migration_api_v1_projects__slug__events__event_id__migration_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventMigrationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     move_event_api_v1_projects__slug__events__event_id__move_patch: {
         parameters: {
             query?: {
@@ -18118,6 +18321,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpactResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_lifecycle_findings_api_v1_projects__slug__lifecycle_findings_get: {
+        parameters: {
+            query?: {
+                include_resolved?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LifecycleFindingListResponse"];
                 };
             };
             /** @description Validation Error */

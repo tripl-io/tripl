@@ -278,8 +278,11 @@ strict: a `PATCH` must name the event's own branch.
 Event responses include:
 
 - event identity and state: `name`, the free-text `title`, `description`,
-  lifecycle `status`, `reviewed`, `owner_id`, optional `sunset_at`, and
-  `branch_id`;
+  lifecycle `status`, `reviewed`, `owner_id`, optional `sunset_at`,
+  `superseded_by_event_id`, `first_seen_at` (when a scan first saw the event
+  with volume; `null` if never), and `branch_id`;
+- `lifecycle_findings`: the event's sunset-watch findings (see
+  [Event lifecycle](#event-lifecycle));
 - event type id and brief event type data;
 - field values and meta values;
 - tags;
@@ -984,6 +987,93 @@ field's type, an event's breakdown columns) without being renamed, deprecated or
 archived. A rename appears once, paired the way the diff's `renames` list pairs
 it; additions are left out. This is what the branch's **Impact** panel shows;
 an agent reviewing a branch can read it before approving.
+
+## Event lifecycle {#event-lifecycle}
+
+Some lifecycle facts come from the data rather than from an edit. They are
+written on `main` only and never through a branch — see
+[Going live on its own](../use/feature-reference.md#going-live) and
+[Sunset watch](../use/feature-reference.md#sunset-watch).
+
+**Going live.** The first scan that sees an event with volume sets its
+`first_seen_at` (once; `null` until then) and, for a `ready_for_dev` or
+`implemented` event whose required fields all have a non-empty value, moves
+`status` to `live`. The move is not a plan write: it bypasses branch rules, and
+the event's `/history` records it as a `status` row whose `author_label` is
+`tripl (scan)` and whose `user_id` / `user_email` are `null`. The label comes
+from the change's recorded source (a scan), not from the missing user, so read
+`author_label` rather than inferring a scan from `user_id` being `null`; a
+person's edit carries `author_label: null` and names the person in
+`user_email`. An event with a required field left blank is not promoted, however
+much traffic arrives — this is a change from earlier releases, which promoted on
+volume alone. When the event has an implementation
+ticket, the ticket gets a comment saying when the event was seen. Do not try to
+reproduce this by `PATCH`ing `status` to `live` yourself — an agent's edit is a
+plan change and goes through the branch like any other.
+
+**Lifecycle findings.** A daily check records open problems with retirements:
+
+```http
+GET /api/v1/projects/{slug}/lifecycle-findings
+```
+
+The response is `{"items": [...], "total": N}`, open findings only;
+`?include_resolved=true` adds the closed ones. Each item:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | The finding's id. |
+| `event_id` / `event_name` | The **deprecated** event the finding hangs on — for both kinds, including `successor_silent`. |
+| `related_event_id` / `related_event_name` | For `successor_silent`: the successor that has gone quiet. `null` for `sunset_overdue`. |
+| `kind` | `sunset_overdue` — a deprecated event past `sunset_at` that still had volume in the last 24 hours; `successor_silent` — the successor of a deprecated event (the event its `superseded_by_event_id` names) had no volume in the last 7 days. |
+| `first_seen_at` / `last_seen_at` | The first and the latest daily check that found the condition. |
+| `resolved_at` | When the condition cleared; `null` while the finding is open. |
+| `volume_24h` | For `sunset_overdue`: the old event's count over the last 24 hours. |
+| `successor_volume_7d` | For `successor_silent`: the successor's count over the last 7 days. |
+
+The same findings appear on the deprecated event itself as `lifecycle_findings`
+in `GET /projects/{slug}/events/{event_id}`, and each events-list item carries a
+boolean `lifecycle_warning` that is true while the event has an open finding —
+enough to flag it in a listing without a second call. Because every finding
+hangs on the deprecated event, the flag is on the deprecated event for both
+kinds; a silent successor is not itself flagged. A finding is updated in
+place by each check and resolved when its condition clears, so a list of open
+findings is the current state, not a log. Rules alert on open findings when
+`include_lifecycle` is true — see
+[Lifecycle alerts](../use/alerting.md#lifecycle).
+
+**Successor adoption.** For a deprecated event that names a successor:
+
+```http
+GET /api/v1/projects/{slug}/events/{event_id}/migration
+```
+
+```json
+{
+  "old": { "event_id": "…", "name": "checkout_v1", "daily_avg_7d": 1240 },
+  "new": { "event_id": "…", "name": "checkout_completed", "daily_avg_7d": 3800 },
+  "ratio": 3.06
+}
+```
+
+`daily_avg_7d` is each event's average daily volume over the last 7 days; a
+collected bucket that straddles either edge of the window counts in proportion
+to the part of it inside the window. `ratio` is new over old — how many times
+the old event's volume the successor now receives (here 3,800 / 1,240 ≈ 3.06) —
+and is `null` when the old event's average is `0`, where no ratio exists. Use it to judge whether a retired event can be
+archived: a successor well ahead of the old event and an old event near zero is
+a migration that has landed. The route answers only for a deprecated event with
+a successor.
+
+**Implementation tracker.** `GET`/`PATCH /api/v1/projects/{slug}/tracker-config`
+(owner-only for writes) takes `tracker_type` `jira` or `linear`. Linear needs a
+`team_id` and the API key; as with Jira's token the key is write-only, encrypted
+at rest, and reported back only as whether one is set. Switching
+`tracker_type` between `jira` and `linear` clears the stored credential (and the
+Jira project key), since a Jira token must never be sent to Linear or the other
+way round: send the new tracker's token or key in the same `PATCH`, or the
+tracker is left without one. Tickets are read the same
+way for both trackers, from the branch and event `implementation-tickets` routes.
 
 ## Safe Agent Defaults
 

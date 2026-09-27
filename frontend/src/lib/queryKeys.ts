@@ -514,6 +514,13 @@ export const eventImplementationTicketsKey = (
   eventId: string,
 ) => ['eventImplementationTickets', slug, branchId, eventId] as const
 
+/** A deprecated event's traffic next to its successor's (#258). */
+export const eventMigrationKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  eventId: string,
+) => ['eventMigration', slug, branchId, eventId] as const
+
 /** The identities a bulk create would collide with. */
 export const bulkIdentitiesKey = (
   slug: string | undefined,

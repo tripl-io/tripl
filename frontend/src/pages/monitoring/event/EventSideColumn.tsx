@@ -17,7 +17,20 @@ import type { Event as TEvent, EventType, MetaFieldDefinition } from '@/types'
 import { SURFACE_CARD, SURFACE_STYLE } from './surface'
 import { eventImplementationTicketsKey, eventKey, usersKey } from '@/lib/queryKeys'
 
-type EventHistoryItem = { id: string; field: string; created_at: string; new_value: string | null }
+type EventHistoryItem = {
+  id: string
+  field: string
+  created_at: string
+  new_value: string | null
+  user_email?: string | null
+  /** Set when no person made the change (a scan's auto-live, #258); wins over the email. */
+  author_label?: string | null
+}
+
+/** Who made a history entry: the system label when set, else the person's email. */
+function historyAuthor(change: EventHistoryItem): string | null {
+  return change.author_label || change.user_email || null
+}
 
 function PropertyRow({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
@@ -164,9 +177,10 @@ export function EventSideColumn({
           )}
           <PropertyRow label="Owner" value={ownerLabel} />
           {/* Authored and seen are two dates: an event planned before it
-              shipped was "first seen" on a day nothing was (tripl-kjhi.10). */}
+              shipped was "first seen" on a day nothing was (tripl-kjhi.10).
+              First seen is set once, by the scan that first saw volume (#258). */}
           <PropertyRow label="Created" value={formatTimestamp(event.created_at)} />
-          <PropertyRow label="First seen" value={event.first_seen_at ? formatTimestamp(event.first_seen_at) : '—'} />
+          <PropertyRow label="First seen in data" value={event.first_seen_at ? formatTimestamp(event.first_seen_at) : '—'} />
           <PropertyRow label="Updated" value={formatRelativeTime(event.updated_at)} />
           <PropertyRow label="Last seen" value={event.last_seen_at ? formatTimestamp(event.last_seen_at) : '—'} />
           {event.sunset_at && <PropertyRow label="Sunset" value={formatTimestamp(event.sunset_at)} />}
@@ -255,6 +269,9 @@ export function EventSideColumn({
                 </div>
                 <div className="mt-[2px] text-micro text-fg-tertiary">
                   {formatRelativeTime(change.created_at)}
+                  {historyAuthor(change) && (
+                    <span data-testid="event-history-author"> · {historyAuthor(change)}</span>
+                  )}
                 </div>
               </div>
             </div>

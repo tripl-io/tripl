@@ -416,6 +416,24 @@ export const EventRow = memo(function EventRow({
               ?{ev.open_question_count}
             </Chip>
           )}
+          {/* An open lifecycle finding: a deprecated event still sending past
+              its sunset date, or a successor that has gone silent (#258). The
+              list only says that one exists; the event page names it. The
+              title is for the pointer only, so the chip carries its own
+              sentence for a screen reader instead of a bare "Lifecycle". */}
+          {ev.lifecycle_warning && (
+            <Chip
+              tone="warning"
+              size="xs"
+              data-testid="event-lifecycle-chip"
+              title="Lifecycle warning: past its sunset date and still receiving data, or a successor with no data in 7 days. Open the event for details."
+            >
+              <span aria-hidden="true">Lifecycle</span>
+              <span className="sr-only">
+                Lifecycle warning: sunset overdue or successor silent. Open the event for details.
+              </span>
+            </Chip>
+          )}
           {canWrite && (
             <ScenarioCoachMark step="edit-event/open-editor" when={coachEdit}>
               <button
