@@ -39,7 +39,7 @@ from tripl.schemas.reconciliation import (
 )
 from tripl.services import event_service
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 DEFAULT_DEAD_EVENT_DAYS = 30
 DEFAULT_COVERAGE_DAYS = 14
@@ -126,7 +126,7 @@ async def list_shadow_events(
     limit: int = 100,
     offset: int = 0,
 ) -> ShadowEventListResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     not_archived = _not_an_archived_identity(project_id)
 
     query = (
@@ -312,7 +312,7 @@ async def accept_shadow_event(
     user_id: uuid.UUID,
     branch_id: uuid.UUID | None,
 ) -> ShadowEventAcceptResult:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     candidate = await _get_candidate(session, project_id, candidate_id)
     if candidate.status != SHADOW_STATUS_NEW:
         raise HTTPException(
@@ -413,7 +413,7 @@ async def dismiss_shadow_event(
     *,
     user_id: uuid.UUID,
 ) -> ShadowEventDismissResult:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     candidate = await _get_candidate(session, project_id, candidate_id)
     if candidate.status != SHADOW_STATUS_NEW:
         raise HTTPException(
@@ -512,7 +512,7 @@ async def list_dead_events(
     *,
     days: int = DEFAULT_DEAD_EVENT_DAYS,
 ) -> DeadEventListResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     main_branch_id = await resolve_branch_id(session, project_id, None)
     cutoff = datetime.now(UTC) - timedelta(days=days)
 
@@ -593,7 +593,7 @@ async def get_coverage(
     days: int = DEFAULT_COVERAGE_DAYS,
     scan_config_id: uuid.UUID | None = None,
 ) -> CoverageResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     time_from = datetime.now(UTC) - timedelta(days=days)
 
     query = (

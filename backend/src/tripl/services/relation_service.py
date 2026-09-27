@@ -9,14 +9,14 @@ from tripl.models.event_type_relation import EventTypeRelation
 from tripl.models.field_definition import FieldDefinition
 from tripl.schemas.relation import RelationCreate, RelationUpdate
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
 
 async def list_relations(
     session: AsyncSession, slug: str, branch_id: uuid.UUID | None = None
 ) -> list[EventTypeRelation]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(EventTypeRelation).where(
@@ -82,7 +82,7 @@ async def create_relation(
     data: RelationCreate,
     branch_id: uuid.UUID | None = None,
 ) -> EventTypeRelation:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     await _check_end(
         session,
@@ -121,7 +121,7 @@ async def update_relation(
     field must still belong to its (possibly unchanged) event type, in this
     project branch.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     relation = (
         await session.execute(
@@ -161,7 +161,7 @@ async def delete_relation(
     relation_id: uuid.UUID,
     branch_id: uuid.UUID | None = None,
 ) -> None:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(EventTypeRelation).where(

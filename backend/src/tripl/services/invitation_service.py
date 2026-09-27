@@ -178,6 +178,12 @@ async def redeem_invitation(
     )
     session.add(user)
     await session.flush()
+    auth_service.add_organization_membership(
+        session,
+        user,
+        organization_id=invitation.organization_id,
+        org_role=invitation.org_role,
+    )
 
     invitation.used_at = datetime.now(UTC)
     session_token = await auth_service.create_session_for_user(session, user.id)

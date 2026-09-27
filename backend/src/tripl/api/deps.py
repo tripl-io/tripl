@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.config import settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
+from tripl.middleware.org_context import bind_org, current_org, path_org_slug
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -19,8 +20,12 @@ from tripl.services._plan_branch_locks import (
     hold_main_plan_for_write,
 )
 from tripl.services.auth_service import get_user_by_session_token
-from tripl.services.project_lookup import PROJECT_NOT_FOUND
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.org_resolution import resolve_request_org
+from tripl.services.project_lookup import (
+    PROJECT_NOT_FOUND,
+    project_slug_clause,
+    resolve_project_id,
+)
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -48,7 +53,75 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
     # the caller is a session user or an API-key client.
     request.state.api_key_scope = api_key.scope
     request.state.api_key_project_id = api_key.project_id
-    return await session.get(User, api_key.user_id)
+    request.state.api_key_org_id = api_key.organization_id
+    user = await session.get(User, api_key.user_id)
+    if user is not None:
+        # The key's organization, bound before get_current_user runs the
+        # project-bound key fence: that fence resolves a slug (critique #2).
+        await _bind_request_org(request, session, user, key_org_id=api_key.organization_id)
+    return user
+
+
+#: Routes that act in no organization, so a cookie session skips org resolution
+#: there. Identity routes: signing out or reading one's own account must work for
+#: a hosted user who belongs to several organizations (or none). Instance-wide
+#: routes (``/settings``, ``/project-templates``) have no org-qualified form
+#: (they are not in ``ORG_REWRITE_PREFIXES``), so resolving an org for them
+#: would lock that same user out with a permanent 400. None of them resolves a
+#: project slug. An API key still binds its own organization everywhere.
+_ORG_FREE_PATH_PREFIXES: tuple[str, ...] = (
+    "/api/v1/auth/",
+    "/api/v1/settings",
+    "/api/v1/project-templates",
+)
+
+
+def _is_org_free(request: Request) -> bool:
+    path: str = request.scope.get("path", "")
+    root_path: str = request.scope.get("root_path", "") or ""
+    if root_path and path.startswith(root_path):
+        path = path[len(root_path) :]
+    return any(
+        path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/")
+        for prefix in _ORG_FREE_PATH_PREFIXES
+    )
+
+
+async def _bind_request_org(
+    request: Request,
+    session: AsyncSession,
+    user: User,
+    *,
+    key_org_id: uuid.UUID | None,
+) -> None:
+    """Resolve the request's organization and bind it for the rest of the request.
+
+    No reset here: the request's fence is ``OrgPathRewriteMiddleware``, which
+    unbinds whatever this bound when the request ends
+    (:mod:`tripl.middleware.org_context`).
+    """
+    if key_org_id is None and _is_org_free(request):
+        return
+    org = await resolve_request_org(
+        session,
+        user=user,
+        key_org_id=key_org_id,
+        path_org_slug=path_org_slug(request),
+    )
+    bind_org(org)
+
+
+async def _ensure_request_org(request: Request, session: AsyncSession, user: User) -> None:
+    """Bind the organization when authentication did not, e.g. an overridden user dependency.
+
+    ``get_current_user`` binds it on every real request; this keeps the project
+    gates correct when the user comes from somewhere else (a test override, a
+    route mounted with its own user dependency) instead of failing with
+    ``OrgContextMissing``. The key's organization is only known to the key
+    path, so a missing binding is resolved as a cookie session would be.
+    """
+    if current_org() is None:
+        await _bind_request_org(request, session, user, key_org_id=None)
 
 
 async def _enforce_project_scope(
@@ -72,7 +145,7 @@ async def _enforce_project_scope(
             detail="API key is scoped to a single project",
         )
     # An unknown slug 404s inside the lookup with the same detail.
-    if await get_project_id_by_slug(session, slug) != project_id:
+    if await resolve_project_id(session, slug) != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=PROJECT_NOT_FOUND)
 
 
@@ -99,6 +172,7 @@ async def get_current_user(request: Request, session: SessionDep) -> User:
             detail="Authentication required",
         )
 
+    await _bind_request_org(request, session, user, key_org_id=None)
     return user
 
 
@@ -160,6 +234,7 @@ async def require_project_membership(
     API keys act as the user who minted them, so a key reaches exactly the
     projects its user is a member of.
     """
+    await _ensure_request_org(request, session, user)
     await project_access.require_project_access(request, session, user)
 
 
@@ -175,6 +250,7 @@ async def _project_role(
     role: project_access.ProjectRole | None = getattr(request.state, "project_role", None)
     if role is not None:
         return role
+    await _ensure_request_org(request, session, user)
     return await project_access.require_project_access(request, session, user)
 
 
@@ -534,7 +610,7 @@ async def get_branch_id_override(
     plan_branch = await session.scalar(
         select(PlanBranch)
         .join(Project, Project.id == PlanBranch.project_id)
-        .where(PlanBranch.id == branch_id, Project.slug == slug)
+        .where(PlanBranch.id == branch_id, project_slug_clause(slug))
     )
     if plan_branch is None:
         raise HTTPException(

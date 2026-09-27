@@ -18,7 +18,7 @@ from tripl.schemas.plan_export import (
     PlanExportJsonSchemaBundle,
 )
 from tripl.services import plan_export_service
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 router = APIRouter(prefix="/projects/{slug}", tags=["plan-export"])
 
@@ -47,7 +47,7 @@ async def export_plan(
     Deterministic: the same plan exports byte-identical, with the plan
     revision, the branch and a content hash. Changes nothing.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     return await plan_export_service.export_plan(
         session, project_id=project_id, branch_id=branch_id, export_format=export_format
     )

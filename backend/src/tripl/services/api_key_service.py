@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope
 from tripl.models.project import Project
+from tripl.services.project_lookup import owning_org_id
 
 ALLOWED_SCOPES = tuple(scope.value for scope in ApiKeyScope)
 _PREFIX = "tk_"
@@ -84,6 +85,8 @@ async def create_key(
     row = ApiKey(
         user_id=user_id,
         project_id=project_id,
+        # A project-bound key's project was resolved in this same bound org.
+        organization_id=owning_org_id(),
         name=normalized_name,
         key_prefix=prefix,
         key_hash=_hash_token(raw),

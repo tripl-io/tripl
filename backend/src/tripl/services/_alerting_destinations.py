@@ -50,7 +50,7 @@ from tripl.services._alerting_health import (
     load_destination_health,
 )
 from tripl.services._alerting_monitors import is_rule_muted
-from tripl.services.project_lookup import get_project_by_slug as _get_project
+from tripl.services.project_lookup import resolve_project as _get_project
 
 
 def _encrypt_secret(value: str | None) -> str | None:

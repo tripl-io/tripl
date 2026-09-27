@@ -22,7 +22,7 @@ from tripl.schemas.duplicates import (
 )
 from tripl.services import audit_service, duplicate_service
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 # Mounted BEFORE the events router: ``/events/duplicate-check`` must not be
 # read as ``/events/{event_id}``.
@@ -41,7 +41,7 @@ async def duplicate_check(
 
     Up to 500 candidates, answered in order. Changes nothing.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved = await resolve_branch_id(session, project_id, branch_id)
     return await duplicate_service.check_candidates(session, project_id, resolved, data.candidates)
 
@@ -54,7 +54,7 @@ async def list_duplicate_clusters(
     cursor: str | None = None,
 ) -> DuplicateClusterPage:
     """Clusters of existing events that look like one event spelled several ways."""
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved = await resolve_branch_id(session, project_id, branch_id)
     return await duplicate_service.list_clusters(session, project_id, resolved, cursor=cursor)
 
@@ -67,7 +67,7 @@ async def dismiss_duplicate_pair(
     current_user: EditorUserDep,
 ) -> DuplicateDismissResponse:
     """Mark two events as not duplicates; the pair is never clustered again."""
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await duplicate_service.dismiss_pair(
         session, project_id, data.event_a_id, data.event_b_id, user_id=current_user.id
     )

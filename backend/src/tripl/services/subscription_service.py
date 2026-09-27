@@ -31,7 +31,7 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.plan_branch import PlanBranch
 from tripl.models.subscription import Subscription, SubscriptionEntityType, SubscriptionReason
 from tripl.schemas.notification import SubscriptionState
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 EntityRef = tuple[str, uuid.UUID]
 
@@ -337,7 +337,7 @@ async def resolve_entity(
     session: AsyncSession, slug: str, entity_type: str, entity_id: uuid.UUID
 ) -> tuple[uuid.UUID, uuid.UUID]:
     """(project_id, canonical entity id) for a Watch target, 404 if not in the project."""
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     model = _ENTITY_MODELS.get(entity_type)
     if model is None:
         raise HTTPException(status_code=404, detail="Unknown entity type")

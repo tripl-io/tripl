@@ -68,6 +68,7 @@ from tripl.services.plan_revision_service import (
 )
 from tripl.services.project_access import member_role
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
+from tripl.services.project_lookup import resolve_project, resolve_project_id
 from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
 
 if TYPE_CHECKING:
@@ -198,10 +199,7 @@ async def _resolve_project(session: AsyncSession, slug: str) -> Project:
     """Slug -> Project entity. Kept for ``plan_branch_conflicts`` and
     ``plan_branch_merge_service``, which import it; every caller in THIS module
     uses :func:`_resolve_project_id` instead."""
-    project = await session.scalar(select(Project).where(Project.slug == slug))
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+    return await resolve_project(session, slug)
 
 
 async def _resolve_project_id(session: AsyncSession, slug: str) -> uuid.UUID:
@@ -212,10 +210,7 @@ async def _resolve_project_id(session: AsyncSession, slug: str) -> uuid.UUID:
     ``GET /branches`` cost 559 ms on the largest project against 84 ms on the
     smallest. Selecting the single indexed column keeps it flat.
     """
-    project_id = await session.scalar(select(Project.id).where(Project.slug == slug))
-    if project_id is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project_id
+    return await resolve_project_id(session, slug)
 
 
 async def _load_for_branch(

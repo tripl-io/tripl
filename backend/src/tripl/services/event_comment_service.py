@@ -45,7 +45,7 @@ from tripl.services._branch_counterparts import main_counterparts
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.event_photo_service import ensure_comment_deletable
 from tripl.services.mentions import excerpt
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 
 class EventThread(NamedTuple):
@@ -82,7 +82,7 @@ async def event_thread(session: AsyncSession, slug: str, event_id: uuid.UUID) ->
     main has not merged reaches main with the merge, like the rest of the
     branch.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     event = (
         await session.execute(
             select(Event).where(Event.id == event_id, Event.project_id == project_id)
@@ -126,7 +126,7 @@ async def _wait_out_a_merge_of_the_events_branch(
     a merged or closed branch refused: discussion stays open on both. An event
     the caller cannot see is left to ``event_thread``'s 404.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await session.scalar(
         select(Event.branch_id).where(Event.id == event_id, Event.project_id == project_id)
     )

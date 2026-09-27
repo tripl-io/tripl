@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tripl import database, realtime
 from tripl.api.deps import CurrentUserDep, SessionDep
 from tripl.services import project_access
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ async def stream_project_events(
 ) -> StreamingResponse:
     # 404 an unknown/foreign project for a session user (a project-scoped API key
     # was already fenced to its own project by the router-level dependency).
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     user_id = user.id
 
     last_event_id = _parse_last_event_id(request)

@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.schemas.scan_job import ScanActivityItem, ScanActivityResponse, ScanJobResponse
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 ACTIVITY_WINDOW = timedelta(hours=24)
 
@@ -177,7 +177,7 @@ async def get_scan_activity(
     Items follow the scan list's own order (newest config first), and a config
     that never ran is present with no job, a zero streak and zero rows.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     scan_ids = list(
         (
             await session.scalars(

@@ -58,7 +58,7 @@ from tripl.services._open_event_signals import open_unverdicted_event_signals
 from tripl.services.health_score import EventHealthFacts, grade_for, score_event
 from tripl.services.health_weights import HealthComponentKey
 from tripl.services.plan_branch_service import ensure_main_branch_id
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.scan_config_service import project_settling_delay
 from tripl.services.source_freshness import compute_freshness
 
@@ -415,7 +415,7 @@ async def score_events(
 
 
 async def get_event_health(session: AsyncSession, slug: str, event_id: uuid.UUID) -> EventHealth:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     health = (await score_events(session, project_id, [event_id])).get(event_id)
     if health is None:
         raise HTTPException(status_code=404, detail=EVENT_NOT_FOUND)
@@ -425,7 +425,7 @@ async def get_event_health(session: AsyncSession, slug: str, event_id: uuid.UUID
 async def list_events_health(
     session: AsyncSession, slug: str, ids: Sequence[uuid.UUID]
 ) -> EventHealthListResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     now = datetime.now(UTC)
     scores = await score_events(session, project_id, ids, now)
     ordered = [scores[event_id] for event_id in dict.fromkeys(ids) if event_id in scores]
@@ -497,7 +497,7 @@ def aggregate(healths: Sequence[EventHealth]) -> HealthAggregate:
 
 async def event_type_health(session: AsyncSession, slug: str) -> list[EventTypeHealth]:
     """One entry per main-branch event type of the project, scored or not."""
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     main_branch_id = await ensure_main_branch_id(session, project_id)
     type_ids = (
         (
@@ -603,7 +603,7 @@ async def project_health(
             return ProjectHealthResponse.model_validate(cached)
         except ValueError:
             await cache.delete(key)
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     now = datetime.now(UTC)
     summary = await project_summary_for_snapshot(session, project_id, now)
     trend, previous = await _trend(session, project_id, now.date(), trend_days)

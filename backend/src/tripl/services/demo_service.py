@@ -28,7 +28,12 @@ from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import ProjectGenerationStatus
 from tripl.models.project import Project
 from tripl.schemas.project import DemoCancelResponse, ProjectResponse
-from tripl.services import plan_branch_service, project_member_service, project_service
+from tripl.services import (
+    plan_branch_service,
+    project_lookup,
+    project_member_service,
+    project_service,
+)
 from tripl.services.demo import (
     DEMO_RECIPE_VERSION,
     DEMO_SEED,
@@ -118,6 +123,7 @@ def _new_demo_project(
         generation_status=ProjectGenerationStatus.seeding.value,
         generation_stage="init",
         created_by_user_id=created_by,
+        organization_id=project_lookup.owning_org_id(),
     )
 
 
@@ -407,7 +413,7 @@ async def reset_demo_project(
     carry that temporary slug. The original creator is preserved so ownership-based
     management still applies afterwards.
     """
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     if not project.is_demo:
         raise HTTPException(status_code=400, detail="Only demo projects can be reset")
     creator = project.created_by_user_id or created_by

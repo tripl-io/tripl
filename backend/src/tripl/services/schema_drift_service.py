@@ -22,7 +22,7 @@ from tripl.schemas.schema_drift import (
     SchemaDriftListResponse,
     SchemaDriftResponse,
 )
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.scan_config_lookup import (
     name_format_conflict_detail,
     scan_configs_blocking_field_removal,
@@ -160,7 +160,7 @@ async def list_drifts_for_event_type(
     slug: str,
     event_type_id: uuid.UUID,
 ) -> SchemaDriftListResponse:
-    project_id = await get_project_id_by_slug(session, slug, detail=f"Project '{slug}' not found")
+    project_id = await resolve_project_id(session, slug, detail=f"Project '{slug}' not found")
 
     event_type = await session.get(EventType, event_type_id)
     if event_type is None or event_type.project_id != project_id:
@@ -193,7 +193,7 @@ async def apply_drift_action(
     data: SchemaDriftActionRequest,
     user: User,
 ) -> SchemaDriftResponse:
-    project_id = await get_project_id_by_slug(session, slug, detail=f"Project '{slug}' not found")
+    project_id = await resolve_project_id(session, slug, detail=f"Project '{slug}' not found")
     row = (
         await session.execute(
             select(SchemaDrift, EventType)

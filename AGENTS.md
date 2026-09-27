@@ -235,6 +235,21 @@ Core planning entities:
   is in the default organization (`DEFAULT_ORG_ID` in `models/organization.py`).
   Nothing reads org roles yet: `users.role` is still the permission source, and
   `app_settings` reads must filter `organization_id IS NULL` (operator scope).
+  Org context (F20 PR2): every authenticated request acts in one organization,
+  bound in `middleware/org_context.py` by `api/deps.py` (`get_current_user` /
+  `_resolve_api_key_user` via `services/org_resolution.py`) BEFORE any slug is
+  resolved. Order: API key's org (a differing path org is 404); else the path
+  org from `/api/v1/orgs/{org}/...` (membership required, else 404); else
+  `self_hosted` -> default org, `hosted` -> the user's only org or 400
+  "Organization required". `/api/v1/auth/*` resolves none. Resolve projects by
+  slug ONLY through `services/project_lookup.py` (`resolve_project`,
+  `resolve_project_id`, `project_slug_clause` inside a join); they raise
+  `OrgContextMissing` when no org is bound, and `tests/test_project_slug_guard.py`
+  fails on any other `Project.slug` comparison. Workers resolve by id; scripts
+  wrap slug lookups in `bound_org(...)`. `OrgPathRewriteMiddleware` rewrites only
+  `ORG_REWRITE_PREFIXES` (projects, activity, audit, data-sources, users, me) and
+  fences the contextvar per request; tests get the default org bound by an
+  autouse fixture (opt out with `@pytest.mark.no_default_org`).
 - `Project`: tracking-plan namespace.
 - `ProjectMember`: a user's membership of one project (`editor` | `viewer`).
   Non-members get 404 on every `/projects/{slug}/...` route and never see the

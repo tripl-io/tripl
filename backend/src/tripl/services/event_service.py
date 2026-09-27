@@ -67,7 +67,7 @@ from tripl.services.event_comment_service import (
 )
 from tripl.services.lifecycle_service import attach_event_findings, attach_list_warnings
 from tripl.services.plan_branch_service import ensure_main_branch_id, resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.scan_config_lookup import (
     governing_name_format,
     load_governing_scan_configs,
@@ -743,7 +743,7 @@ async def list_events(
     branch_id: uuid.UUID | None = None,
     order_by: str = "catalog",
 ) -> tuple[list[Event], int]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     requested_branch_id = branch_id
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     # Three of the controls below answer about the EVENT rather than about the
@@ -1005,7 +1005,7 @@ async def list_tags(
     for one label and picking either found only half the events. What this
     returns is exactly what the filter takes.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     lowered = func.lower(EventTag.name)
     result = await session.execute(
@@ -1037,7 +1037,7 @@ async def get_event(
     ``branch_id`` so the client can say where it lives and switch
     (tripl-kjhi.7).
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(Event).where(
@@ -1281,7 +1281,7 @@ async def identity_holders(
     search per pasted name. Create refuses such a name (409) only on an event
     type governed by a scan naming rule; elsewhere it is a warning.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     wanted = list(dict.fromkeys(name for name in names if name))
     held = await _identities_already_held(
@@ -1545,7 +1545,7 @@ async def create_event(
       still refused and JSON values are still normalised.
     """
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     # First, before anything reads the type: a type from another branch has
     # field definitions of its own, so every later check would pass on it.
@@ -1986,7 +1986,7 @@ async def bulk_delete_events(
     recognise (tripl-wkwv.10).
     """
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     # Validate all ids exist + belong to this project+branch in a single query,
     # which also collects the names the caller audits — same one round trip the
@@ -2043,7 +2043,7 @@ async def bulk_update_events(
     user_id: uuid.UUID | None = None,
 ) -> None:
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     event_ids = set(data.event_ids)
 
@@ -2145,7 +2145,7 @@ async def reorder_events(
     data: EventReorder,
     branch_id: uuid.UUID | None = None,
 ) -> list[Event]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
 
     result = await session.execute(
@@ -2193,7 +2193,7 @@ async def bulk_create_events(
         return []
 
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
 
     # Batched per-event-type validation: ONE SELECT across all referenced event

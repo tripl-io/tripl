@@ -23,7 +23,7 @@ from tripl.services.fact_table_dependents import (
     metrics_needing_filter,
 )
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
 # Defensive cap on the list query; realistic projects have well under this many
@@ -254,7 +254,7 @@ async def list_fact_tables(
     offset: int = 0,
     limit: int = 200,
 ) -> tuple[list[FactTable], int]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     query = select(FactTable).where(FactTable.project_id == project_id)
     count_query = select(func.count(FactTable.id)).where(FactTable.project_id == project_id)
 
@@ -338,7 +338,7 @@ async def list_fact_table_items(
 
 
 async def get_fact_table(session: AsyncSession, slug: str, fact_table_id: uuid.UUID) -> FactTable:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(FactTable).where(
             FactTable.id == fact_table_id,
@@ -352,7 +352,7 @@ async def get_fact_table(session: AsyncSession, slug: str, fact_table_id: uuid.U
 
 
 async def create_fact_table(session: AsyncSession, slug: str, data: FactTableCreate) -> FactTable:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
 
     existing = await session.scalar(
         select(FactTable.id).where(

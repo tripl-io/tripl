@@ -71,7 +71,7 @@ from tripl.services._search_query import (
 from tripl.services.app_settings_service import AiConfig
 from tripl.services.embedding_service import embedding_provenance, sanitize_embedding
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,7 @@ async def reindex_branch(
     *,
     schedule_embeddings: bool = True,
 ) -> ReindexOutcome:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     return await reindex_project_branch(
         session,
@@ -493,7 +493,7 @@ async def search_project(
     if not normalized_query:
         return SearchResponse(items=[], total=0, truncated=False, semantic_used=False)
 
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     await _ensure_index_exists(session, project_id, resolved_branch_id)
 

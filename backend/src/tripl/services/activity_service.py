@@ -34,7 +34,7 @@ from tripl.services.monitoring_utils import (
     LATEST_SCAN_STALE_INTERVALS,
     scan_interval_to_timedelta,
 )
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import project_slug_clause, resolve_project_id
 
 # The activity rail surfaces "recent" signals, not the full anomaly history.
 # Without a window, weeks-old high-z anomalies stay ordered at the top of the
@@ -96,7 +96,7 @@ class _ProjectScope:
     def apply[S: Select[Any]](self, stmt: S) -> S:
         """Narrow a statement that already joins ``Project``."""
         if self.slug is not None:
-            stmt = stmt.where(Project.slug == self.slug)
+            stmt = stmt.where(project_slug_clause(self.slug))
         if self.project_ids is not None:
             stmt = stmt.where(Project.id.in_(self.project_ids))
         return stmt
@@ -124,7 +124,7 @@ async def list_activity(
     exactly as for a slug that does not exist.
     """
     if slug is not None:
-        project_id = await get_project_id_by_slug(session, slug)
+        project_id = await resolve_project_id(session, slug)
         if visible_project_ids is not None and project_id not in visible_project_ids:
             raise HTTPException(status_code=404, detail="Project not found")
     if visible_project_ids is not None and not visible_project_ids:

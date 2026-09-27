@@ -20,7 +20,7 @@ from tripl.models.user import User
 from tripl.services import notification_announce, subscription_service
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.mentions import excerpt, mentioned_user_ids
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.storage import PhotoStorage, get_photo_storage, storage_for
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ def _resolve_extension(content_type: str, filename: str) -> str:
 
 
 async def _get_event(session: AsyncSession, slug: str, event_id: uuid.UUID) -> Event:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     row = await session.execute(
         select(Event).where(Event.id == event_id, Event.project_id == project_id)
     )

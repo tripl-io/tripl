@@ -59,7 +59,7 @@ from tripl.services._alerting_cursors import (
 from tripl.services._celery_dispatch import dispatch
 from tripl.services._signal_verdict_read import VERDICT_ACTIONS, status_agrees
 from tripl.services._signal_verdict_rows import delete_verdict_rows
-from tripl.services.project_lookup import get_project_by_slug as _get_project
+from tripl.services.project_lookup import resolve_project as _get_project
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ from fastapi import APIRouter
 from tripl.api.deps import BranchIdDep, SessionDep
 from tripl.schemas.plan_validation import PlanValidationRequest, PlanValidationResponse
 from tripl.services import plan_validation_service
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 router = APIRouter(prefix="/projects/{slug}", tags=["plan-validation"])
 
@@ -30,7 +30,7 @@ async def validate_plan(
     Up to 5000 items per request. A ``null`` field value means "set at runtime"
     and is never an error. Changes nothing.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     return await plan_validation_service.validate_plan(
         session, project_id=project_id, branch_id=branch_id, data=data
     )

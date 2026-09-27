@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.domain_enums import ChartAnnotationSource
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 
 async def list_annotations(
@@ -28,7 +28,7 @@ async def list_annotations(
     Project-wide markers (scope_type IS NULL) are always included; scoped
     markers are filtered to the given scope_type/ref pair when provided.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
 
     conditions = [ChartAnnotation.project_id == project_id]
     if scope_type is not None and scope_ref is not None:
@@ -143,7 +143,7 @@ async def create_annotation(
     than 201 and skip the audit row for a write that did not happen. A manual
     create always writes.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     clean_label = label.strip()
 
     if is_deduplicated_source(source):
@@ -179,7 +179,7 @@ async def delete_annotation(
     slug: str,
     annotation_id: uuid.UUID,
 ) -> None:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     annotation = await session.get(ChartAnnotation, annotation_id)
     if annotation is None or annotation.project_id != project_id:
         raise HTTPException(status_code=404, detail="Annotation not found")

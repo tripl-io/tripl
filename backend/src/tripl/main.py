@@ -30,6 +30,7 @@ from tripl.middleware import (  # noqa: E402
     StaticCacheMiddleware,
 )
 from tripl.middleware.body_limit import BodyLimitMiddleware  # noqa: E402
+from tripl.middleware.org_path_rewrite import OrgPathRewriteMiddleware  # noqa: E402
 from tripl.middleware.request_id import bound_request_id, request_id_from_scope  # noqa: E402
 from tripl.middleware.security_headers import build_security_headers  # noqa: E402
 from tripl.observability.metrics import render_metrics  # noqa: E402
@@ -141,7 +142,12 @@ from tripl.observability.tracing import setup_api_tracing  # noqa: E402
 setup_api_tracing(app)
 
 # The last add_middleware call is outermost. The effective user-middleware order
-# is CORS -> BodyLimit -> Brotli -> RequestID -> StaticCache -> SecurityHeaders.
+# is CORS -> OrgRewrite -> BodyLimit -> Brotli -> RequestID -> StaticCache ->
+# SecurityHeaders.
+# - OrgRewrite serves /api/v1/orgs/{org}/<rest> by the legacy /api/v1/<rest>
+#   routes and fences the request's organization contextvar. It sits outside
+#   BodyLimit and Brotli because both match on the path (the photo-upload limit,
+#   the SSE stream exclusion) and must see the rewritten one.
 # - RequestID assigns/propagates the id for requests that reach the router.
 # - SecurityHeaders wraps router responses, including HTTPException and
 #   validation errors. CORS preflights and early body-limit 413s skip it.
@@ -166,6 +172,7 @@ app.add_middleware(
     excluded_handlers=[r"^/api/v1/projects/[^/]+/events/stream$"],
 )
 app.add_middleware(BodyLimitMiddleware)
+app.add_middleware(OrgPathRewriteMiddleware)
 
 _cors_origins = settings.cors_origins()
 # allow_credentials=True with "*" is rejected by browsers; fall back to no

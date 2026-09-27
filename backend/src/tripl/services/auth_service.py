@@ -20,6 +20,8 @@ from tripl.auth_utils import (
     verify_password,
 )
 from tripl.config import REGISTRATION_OPEN, settings
+from tripl.models.domain_enums import OrganizationRole
+from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
@@ -150,6 +152,37 @@ async def is_registration_allowed(session: AsyncSession, *, is_first_user: bool)
     return await app_settings_service.get_registration_mode(session) == REGISTRATION_OPEN
 
 
+def org_role_for_user_role(user_role: str) -> OrganizationRole:
+    """The organization role an instance role maps to — PR1's backfill mapping.
+
+    Kept identical to ``_org_role_for`` in migration b8d0f2a4c6e8 so a user who
+    signs up after the backfill holds the same membership one who existed before
+    it does: the instance owner owns the organization, everyone else is a member.
+    """
+    return OrganizationRole.owner if user_role == "owner" else OrganizationRole.member
+
+
+def add_organization_membership(
+    session: AsyncSession,
+    user: User,
+    *,
+    organization_id: uuid.UUID = DEFAULT_ORG_ID,
+    org_role: str | None = None,
+) -> OrganizationMember:
+    """Stage ``user``'s membership row; the caller flushes and commits.
+
+    Every user creation writes one, or the new user would get 404 on every
+    ``/api/v1/orgs/{org}/...`` URL (and 400 on a hosted instance).
+    """
+    member = OrganizationMember(
+        organization_id=organization_id,
+        user_id=user.id,
+        role=org_role or org_role_for_user_role(user.role).value,
+    )
+    session.add(member)
+    return member
+
+
 async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[User, str]:
     email = normalize_email(data.email)
 
@@ -187,6 +220,7 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
     )
     session.add(user)
     await session.flush()
+    add_organization_membership(session, user)
 
     session_token = await _create_user_session(session, user.id)
     await session.commit()

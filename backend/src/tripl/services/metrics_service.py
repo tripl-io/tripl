@@ -77,7 +77,7 @@ from tripl.services.monitoring_utils import (
     scan_liveness_cutoff,
 )
 from tripl.services.plan_branch_service import ensure_main_branch_id, resolve_branch_id
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 from tripl.services.version_activation import (
     DEFAULT_ACTIVE_SHARE_MIN,
     active_release_versions,
@@ -88,7 +88,7 @@ from tripl.services.version_activation import (
 
 
 async def _resolve_project(session: AsyncSession, slug: str) -> Project:
-    return await get_project_by_slug(session, slug, detail=f"Project '{slug}' not found")
+    return await resolve_project(session, slug, detail=f"Project '{slug}' not found")
 
 
 async def _resolve_event(

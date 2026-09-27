@@ -67,7 +67,7 @@ from tripl.services.metrics_service import (
 )
 from tripl.services.monitoring_utils import classify_signal_state, scan_interval_to_timedelta
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
 logger = logging.getLogger(__name__)
@@ -677,7 +677,7 @@ async def count_active_metric_definitions(
     :func:`_metric_search_clause` the list uses, so it counts the population on
     screen rather than a narrower one.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     query = select(func.count(MetricDefinition.id)).where(
         MetricDefinition.project_id == project_id,
         MetricDefinition.status == MetricStatus.active,
@@ -727,7 +727,7 @@ async def list_metric_definitions(
     offset: int = 0,
     limit: int = 200,
 ) -> tuple[list[MetricDefinition], int]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     query = select(MetricDefinition).where(MetricDefinition.project_id == project_id)
     count_query = select(func.count(MetricDefinition.id)).where(
         MetricDefinition.project_id == project_id
@@ -995,7 +995,7 @@ async def list_metric_definitions_enriched(
 async def get_metric_definition(
     session: AsyncSession, slug: str, metric_id: uuid.UUID
 ) -> MetricDefinition:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(MetricDefinition).where(
             MetricDefinition.id == metric_id,
@@ -1198,7 +1198,7 @@ async def _next_metric_order(session: AsyncSession, project_id: uuid.UUID) -> in
 async def create_metric_definition(
     session: AsyncSession, slug: str, data: MetricDefinitionCreate
 ) -> MetricDefinition:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
 
     existing = await session.scalar(
         select(MetricDefinition.id).where(
@@ -1992,7 +1992,7 @@ async def bulk_update_metric_definitions(
     slug: str,
     data: MetricDefinitionBulkUpdate,
 ) -> None:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     metric_ids = set(data.metric_ids)
 
     present = await session.scalar(
@@ -2076,7 +2076,7 @@ async def reorder_metric_definitions(
     slug: str,
     data: MetricDefinitionReorder,
 ) -> list[MetricDefinition]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(MetricDefinition).where(
             MetricDefinition.project_id == project_id,

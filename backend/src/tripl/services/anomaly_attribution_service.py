@@ -38,7 +38,7 @@ from tripl.schemas.event_metric import (
     SignalAttribution,
 )
 from tripl.services import alert_owner_routing
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 ATTRIBUTED_SCOPES: frozenset[str] = frozenset({SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT})
 
@@ -253,7 +253,7 @@ async def get_anomaly_attribution(
     session: AsyncSession, slug: str, anomaly_id: uuid.UUID
 ) -> AnomalyAttributionResponse:
     """One anomaly's stored attribution; 404 when it is not this project's."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     anomaly = await _anomaly_in_project(session, project.id, anomaly_id)
     if anomaly is None:
         raise HTTPException(status_code=404, detail="Anomaly not found")

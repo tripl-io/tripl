@@ -32,6 +32,32 @@ Two consequences worth knowing:
   carry it. The same applies to the committed `backend/openapi.json` in the
   repository, which is the same document with no retrieval URL to resolve against.
 
+### Organization-qualified paths {#org-paths}
+
+Every project lives in one organization. Each path under `/api/v1/projects`,
+`/api/v1/activity`, `/api/v1/audit`, `/api/v1/data-sources`, `/api/v1/users` and
+`/api/v1/me` is also reachable with the organization spelled out:
+
+```text
+GET /api/v1/projects/checkout/event-types
+GET /api/v1/orgs/default/projects/checkout/event-types   # same route, same response
+```
+
+The org-qualified form is served by the same route, so the OpenAPI document lists
+only the short form. The rules:
+
+- **API keys** belong to one organization. A key used under a different
+  `/orgs/{org}/` answers `404 Organization not found`, as does an organization that
+  does not exist; an unauthenticated request answers `401` either way.
+- **Session users** must be a member of the organization named in the path.
+- **Without an org in the path**, a self-hosted instance acts in its default
+  organization (slug `default`), exactly as before. On a hosted instance the short
+  form works only for a user in exactly one organization; anyone else gets
+  `400 Organization required` and must use `/api/v1/orgs/{org}/...`.
+- `/api/v1/settings`, `/api/v1/project-templates` and `/api/v1/auth` are not
+  org-qualified: `/api/v1/orgs/{org}/settings` is reserved for per-organization
+  settings and answers `404` until those routes exist.
+
 ## MCP Server
 
 For agents running in MCP-capable runtimes (Claude Code, Claude Desktop, and other MCP clients), `tripl-mcp` packages a curated read/write toolset on top of this API: stdio and streamable-http transports, `readOnlyHint` annotations on read tools, `tk_w_` key requirements on write tools, a mandatory `branch_id` on plan-mutating tools, and a `TRIPL_MCP_ALLOW_MAIN` gate that keeps agents off the main branch by default. Installation, transport configuration, and the full tool list live in [MCP Server](./mcp-server.md). Everything below documents the underlying REST contract that the MCP tools share.

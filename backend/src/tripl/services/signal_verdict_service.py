@@ -70,7 +70,7 @@ from tripl.services._signal_verdict_read import (
     status_agrees,
 )
 from tripl.services._signal_verdict_rows import delete_verdict_rows
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 from tripl.services.signal_triage_service import (
     EXPECTED_ANNOTATION_COLOR,
     EXPECTED_ANNOTATION_LABEL,
@@ -413,7 +413,7 @@ async def clear_verdict(
     undone, as with reopening in the inbox; the override is deleted from
     Detection settings.
     """
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     project_id = project.id
     scope = str(scope_type)
     signal_triage_service._validate_scope_shape(scope, scan_config_id)

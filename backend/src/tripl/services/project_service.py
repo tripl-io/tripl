@@ -55,12 +55,7 @@ from tripl.services.monitoring_utils import (
     scan_interval_to_timedelta,
     summarize_monitor_states,
 )
-from tripl.services.project_lookup import (
-    get_project_by_slug as _lookup_project_by_slug,
-)
-from tripl.services.project_lookup import (
-    get_project_id_by_slug as _lookup_project_id_by_slug,
-)
+from tripl.services.project_lookup import owning_org_id, resolve_project
 
 
 async def _get_project_summaries(
@@ -824,10 +819,6 @@ async def _projects_list_ttl(session: AsyncSession, project_ids: list[uuid.UUID]
     return max(1, min(_PROJECTS_LIST_TTL_SECONDS, remaining))
 
 
-async def get_project_by_slug(session: AsyncSession, slug: str) -> Project:
-    return await _lookup_project_by_slug(session, slug)
-
-
 @dataclass(frozen=True)
 class ProjectMutationScope:
     """The caller's standing in one project, as the mutation gate reads it.
@@ -899,7 +890,7 @@ async def get_project(
     session: AsyncSession, slug: str, *, branch_id: uuid.UUID | None = None
 ) -> ProjectResponse:
     """The project with its summary; ``branch_id`` scopes the plan counters (SH-11)."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     # Decide WHILE attributes are fresh, serialize, then commit the touch last: the
     # commit expires the ORM object, but the response is already a detached model,
     # so serialization never lazy-loads on the async session (MissingGreenlet).
@@ -962,7 +953,11 @@ async def create_project(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Project with this slug already exists")
 
-    project = Project(**data.model_dump(exclude={"template_id"}), created_by_user_id=created_by)
+    project = Project(
+        **data.model_dump(exclude={"template_id"}),
+        created_by_user_id=created_by,
+        organization_id=owning_org_id(),
+    )
     session.add(project)
     await session.flush()
     # Every project owns one main branch (the live plan); create it up front so
@@ -996,7 +991,7 @@ async def create_project(
 
 
 async def update_project(session: AsyncSession, slug: str, data: ProjectUpdate) -> ProjectResponse:
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     update_data = data.model_dump(exclude_unset=True)
     new_slug = update_data.get("slug")
     if new_slug is not None and new_slug != project.slug:
@@ -1095,7 +1090,7 @@ async def purge_project_rows(session: AsyncSession, project: Project) -> None:
 
 
 async def delete_project(session: AsyncSession, slug: str) -> None:
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     await purge_project_rows(session, project)
     await session.commit()
     await cache.delete_prefix(cache.prefix_projects())
@@ -1107,7 +1102,3 @@ async def _invalidate_slug_caches(slug: str) -> None:
     await cache.delete_prefix(cache.prefix_event_types(slug))
     await cache.delete_prefix(cache.prefix_meta_fields(slug))
     await cache.delete_prefix(cache.prefix_signals(slug))
-
-
-async def get_project_id_by_slug(session: AsyncSession, slug: str) -> uuid.UUID:
-    return await _lookup_project_id_by_slug(session, slug)
