@@ -3671,6 +3671,163 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary": {
+      "get": {
+        "tags": [
+          "alerting"
+        ],
+        "summary": "Get Incident Summary",
+        "description": "The cached summary and whether it is current. Never calls the LLM.",
+        "operationId": "get_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "correlation_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Correlation Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "alerting"
+        ],
+        "summary": "Ensure Incident Summary",
+        "description": "The summary for the current facts: cached when unchanged, else generated.\n\nAny member may call it, but not a ``read`` API key: generating writes a row\nand spends the provider budget, so a read key only gets the GET.",
+        "operationId": "ensure_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "correlation_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Correlation Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary/regenerate": {
+      "post": {
+        "tags": [
+          "alerting"
+        ],
+        "summary": "Regenerate Incident Summary",
+        "description": "Generate the summary again, whatever the cache holds. Editors only.",
+        "operationId": "regenerate_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_regenerate_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "correlation_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Correlation Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/event-types": {
       "get": {
         "tags": [
@@ -5710,7 +5867,8 @@
             "schema": {
               "enum": [
                 "catalog",
-                "volume"
+                "volume",
+                "health"
               ],
               "type": "string",
               "default": "catalog",
@@ -6724,6 +6882,215 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventMigrationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/health/events": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "List Events Health",
+        "description": "Health of up to 150 events; ids outside the scored population are omitted.",
+        "operationId": "list_events_health_api_v1_projects__slug__health_events_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "minItems": 1,
+              "maxItems": 150,
+              "title": "Ids"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventHealthListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/health/event-types": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "List Event Types Health",
+        "description": "Per event type: mean score, grade counts, component averages, worst events.",
+        "operationId": "list_event_types_health_api_v1_projects__slug__health_event_types_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventTypeHealthListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Get Project Health",
+        "description": "Plan health: mean score, distribution, worst five and the daily trend.",
+        "operationId": "get_project_health_api_v1_projects__slug__health_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "trend_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Trend Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectHealthResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/events/{event_id}/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Get Event Health",
+        "description": "One event's score with its component breakdown. 404 off the main plan.",
+        "operationId": "get_event_health_api_v1_projects__slug__events__event_id__health_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventHealth"
                 }
               }
             }
@@ -22984,6 +23351,44 @@
         ],
         "title": "ColumnSchema"
       },
+      "ComponentAverage": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "implemented_seen",
+              "contract",
+              "drifts",
+              "signals",
+              "freshness",
+              "documentation"
+            ],
+            "title": "Key"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "applies_count": {
+            "type": "integer",
+            "title": "Applies Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "applies_count"
+        ],
+        "title": "ComponentAverage",
+        "description": "Mean component value over the events it applies to (null when none)."
+      },
       "ConflictEntity": {
         "properties": {
           "entity_type": {
@@ -25730,6 +26135,153 @@
         ],
         "title": "EventGroupRule"
       },
+      "EventHealth": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "event_type_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Type Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "warning",
+              "unhealthy"
+            ],
+            "title": "Grade"
+          },
+          "renormalized": {
+            "type": "boolean",
+            "title": "Renormalized"
+          },
+          "excluded": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "implemented_seen",
+                "contract",
+                "drifts",
+                "signals",
+                "freshness",
+                "documentation"
+              ]
+            },
+            "type": "array",
+            "title": "Excluded"
+          },
+          "top_issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Issue"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/HealthComponent"
+            },
+            "type": "array",
+            "title": "Components"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_type_id",
+          "name",
+          "score",
+          "grade",
+          "renormalized",
+          "excluded",
+          "components"
+        ],
+        "title": "EventHealth"
+      },
+      "EventHealthBrief": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "warning",
+              "unhealthy"
+            ],
+            "title": "Grade"
+          },
+          "top_issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Issue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "name",
+          "score",
+          "grade"
+        ],
+        "title": "EventHealthBrief"
+      },
+      "EventHealthListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventHealth"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "computed_at"
+        ],
+        "title": "EventHealthListResponse"
+      },
       "EventIdentityHolder": {
         "properties": {
           "identity": {
@@ -27333,6 +27885,99 @@
           "display_name"
         ],
         "title": "EventTypeCreate"
+      },
+      "EventTypeHealth": {
+        "properties": {
+          "event_type_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Type Id"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "warning",
+                  "unhealthy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "scored_events": {
+            "type": "integer",
+            "title": "Scored Events"
+          },
+          "healthy_count": {
+            "type": "integer",
+            "title": "Healthy Count"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count"
+          },
+          "unhealthy_count": {
+            "type": "integer",
+            "title": "Unhealthy Count"
+          },
+          "component_averages": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentAverage"
+            },
+            "type": "array",
+            "title": "Component Averages"
+          },
+          "worst": {
+            "items": {
+              "$ref": "#/components/schemas/EventHealthBrief"
+            },
+            "type": "array",
+            "title": "Worst"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_type_id",
+          "scored_events",
+          "healthy_count",
+          "warning_count",
+          "unhealthy_count",
+          "component_averages",
+          "worst"
+        ],
+        "title": "EventTypeHealth"
+      },
+      "EventTypeHealthListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EventTypeHealth"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "EventTypeHealthListResponse"
       },
       "EventTypeOwnerCreate": {
         "properties": {
@@ -29401,6 +30046,99 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HealthComponent": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "implemented_seen",
+              "contract",
+              "drifts",
+              "signals",
+              "freshness",
+              "documentation"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "weight": {
+            "type": "integer",
+            "title": "Weight"
+          },
+          "applies": {
+            "type": "boolean",
+            "title": "Applies"
+          },
+          "excluded_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Reason"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "effective_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Weight"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "weight",
+          "applies",
+          "detail"
+        ],
+        "title": "HealthComponent",
+        "description": "One of the six parts of an event's score.\n\n``weight`` is the fixed weight; ``effective_weight`` is its share in percent\nafter renormalization over the components that apply (null when excluded).\n``points`` is ``effective_weight * value``; the points of an event sum to its\nscore up to rounding."
+      },
       "ImpactChange": {
         "properties": {
           "kind": {
@@ -29627,6 +30365,189 @@
         ],
         "title": "ImplementationTicketResponse",
         "description": "One tracker ticket opened for a merged plan branch (read-only surface).\n\nEverything here is written by the merge/poll worker; the API never accepts\na ticket from a client. ``external_url`` is ``\"\"`` when the tracker replied\nwithout an issue key, so the UI must fall back to plain text rather than\nrender a link to nowhere."
+      },
+      "IncidentSummaryBody": {
+        "properties": {
+          "sentences": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummarySentence"
+            },
+            "type": "array",
+            "title": "Sentences"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummaryFact"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "cause_known": {
+            "type": "boolean",
+            "title": "Cause Known"
+          },
+          "facts_hash": {
+            "type": "string",
+            "title": "Facts Hash"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentences",
+          "facts",
+          "cause_known",
+          "facts_hash",
+          "generated_at"
+        ],
+        "title": "IncidentSummaryBody"
+      },
+      "IncidentSummaryFact": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "incident",
+              "scope",
+              "attribution",
+              "release",
+              "similar",
+              "note",
+              "comment"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Href"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "text"
+        ],
+        "title": "IncidentSummaryFact"
+      },
+      "IncidentSummaryResponse": {
+        "properties": {
+          "correlation_group_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Correlation Group Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "missing",
+              "stale",
+              "ready",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ai_off",
+                  "demo"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled Reason"
+          },
+          "current_facts_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Facts Hash"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentSummaryBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "correlation_group_id",
+          "state"
+        ],
+        "title": "IncidentSummaryResponse"
+      },
+      "IncidentSummarySentence": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "what_broke",
+              "cause",
+              "release",
+              "history",
+              "discussion"
+            ],
+            "title": "Role"
+          },
+          "fact_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Fact Ids"
+          },
+          "generated": {
+            "type": "boolean",
+            "title": "Generated",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "role",
+          "fact_ids"
+        ],
+        "title": "IncidentSummarySentence"
       },
       "InvitationAcceptRequest": {
         "properties": {
@@ -35167,6 +36088,132 @@
         ],
         "title": "ProjectGenerationStatus",
         "description": "Provisioning lifecycle for generated (demo) projects.\n\nOrdinary projects are created ``ready`` in a single step. Demo projects move\n``seeding`` -> ``ready`` on success or ``seeding`` -> ``failed`` when\nprovisioning raises; non-``ready`` demos are hidden from normal project lists\nso a partially built or failed demo never surfaces as a real workspace."
+      },
+      "ProjectHealthResponse": {
+        "properties": {
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "healthy",
+                  "warning",
+                  "unhealthy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "scored_events": {
+            "type": "integer",
+            "title": "Scored Events"
+          },
+          "healthy_count": {
+            "type": "integer",
+            "title": "Healthy Count"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count"
+          },
+          "unhealthy_count": {
+            "type": "integer",
+            "title": "Unhealthy Count"
+          },
+          "component_averages": {
+            "items": {
+              "$ref": "#/components/schemas/ComponentAverage"
+            },
+            "type": "array",
+            "title": "Component Averages"
+          },
+          "worst": {
+            "items": {
+              "$ref": "#/components/schemas/EventHealthBrief"
+            },
+            "type": "array",
+            "title": "Worst"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectHealthTrendPoint"
+            },
+            "type": "array",
+            "title": "Trend"
+          },
+          "previous_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Score"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scored_events",
+          "healthy_count",
+          "warning_count",
+          "unhealthy_count",
+          "component_averages",
+          "worst",
+          "trend",
+          "computed_at"
+        ],
+        "title": "ProjectHealthResponse"
+      },
+      "ProjectHealthTrendPoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "scored_events": {
+            "type": "integer",
+            "title": "Scored Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "scored_events"
+        ],
+        "title": "ProjectHealthTrendPoint"
       },
       "ProjectLatestScanJob": {
         "properties": {

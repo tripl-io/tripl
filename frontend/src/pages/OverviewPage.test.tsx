@@ -100,6 +100,22 @@ function mockFetch(opts?: MockOpts) {
     if (url.includes('/activity/projects/')) return jsonResponse(opts?.activity ?? [])
     if (url.includes('/data-sources')) return jsonResponse(opts?.sources ?? [])
     if (url.includes('/source-freshness')) return jsonResponse(opts?.freshness ?? [])
+    // Plan health (F15, #268): a project with nothing scored yet.
+    if (url.includes('/projects/demo/health')) {
+      return jsonResponse({
+        score: null,
+        grade: null,
+        scored_events: 0,
+        healthy_count: 0,
+        warning_count: 0,
+        unhealthy_count: 0,
+        component_averages: [],
+        worst: [],
+        trend: [],
+        previous_score: null,
+        computed_at: '2026-01-01T00:00:00Z',
+      })
+    }
     if (url.endsWith('/projects/demo')) {
       return jsonResponse({ ...PROJECT, summary: { ...PROJECT.summary, ...opts?.summary } })
     }

@@ -52,8 +52,25 @@ const REVIEW_TAB_STATUSES: EventStatus[] = ['in_review']
 const ARCHIVED_TAB_STATUSES: EventStatus[] = ['archived']
 
 // Review-queue sort order: 'catalog' keeps the manual/creation order; 'volume'
-// asks the server for busiest-first (24h EventMetric volume).
-export type EventsSortOrder = 'catalog' | 'volume'
+// asks the server for busiest-first (24h EventMetric volume); 'health' for
+// least healthy first (F15, #268), which exists on the main plan only.
+export type EventsSortOrder = 'catalog' | 'volume' | 'health'
+
+/** The persisted `sort` URL value, read back; anything else is catalog order. */
+export function parseEventsSort(
+  raw: string | null,
+  branchId: string | null | undefined,
+  activeTab?: string,
+): EventsSortOrder {
+  if (raw === 'volume') return 'volume'
+  // Health scores exist for the main plan only: a `sort=health` link opened on
+  // a branch falls back to catalog order instead of asking for a 400. Archived
+  // events are never scored, and the Archived tab's Sort select offers no
+  // health option, so a bookmarked `/events/archived?sort=health` is catalog
+  // order too.
+  if (raw === 'health' && !branchId && activeTab !== 'archived') return 'health'
+  return 'catalog'
+}
 
 export type EventsQueryFilters = {
   search: string
@@ -221,15 +238,15 @@ export function useEventsQuery({
     [setSearchParams],
   )
 
-  // Sort order lives in the URL under `sort`; only 'volume' is persisted so the
-  // default (catalog) request stays byte-identical to today.
-  const sort: EventsSortOrder = searchParams.get('sort') === 'volume' ? 'volume' : 'catalog'
+  // Sort order lives in the URL under `sort`; only 'volume' and 'health' are
+  // persisted so the default (catalog) request stays byte-identical to today.
+  const sort: EventsSortOrder = parseEventsSort(searchParams.get('sort'), branchId, activeTab)
   const setSort = useCallback(
     (v: EventsSortOrder) => {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev)
-          if (v === 'volume') next.set('sort', v)
+          if (v === 'volume' || v === 'health') next.set('sort', v)
           else next.delete('sort')
           return next
         },
@@ -327,7 +344,7 @@ export function useEventsQuery({
       silent_since_days: filterSilentDays,
       reviewed: filterReviewed,
       has_open_questions: filterOpenQuestions,
-      order_by: sort === 'volume' ? ('volume' as const) : undefined,
+      order_by: sort === 'catalog' ? undefined : sort,
     }),
     [
       filterEtId,

@@ -160,9 +160,10 @@ async def list_events(
     # ProjectAlertingTab.tsx, which no longer fetches the roster at all.)
     limit: int = Query(200, ge=1, le=10000),
     # Review-queue ordering: "catalog" keeps the manual/creation order; "volume"
-    # sorts busiest-first by 24h EventMetric volume. Literal → FastAPI 422s any
-    # other value.
-    order_by: Literal["catalog", "volume"] = Query("catalog"),
+    # sorts busiest-first by 24h EventMetric volume; "health" sorts least healthy
+    # first (F15, #268; main plan only, 400 on a branch). Literal → FastAPI 422s
+    # any other value.
+    order_by: Literal["catalog", "volume", "health"] = Query("catalog"),
 ) -> EventListResponse:
     items, total = await event_service.list_events(
         session,

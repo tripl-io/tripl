@@ -146,7 +146,8 @@ def register(mcp: FastMCP) -> None:
             "keeps those with nothing open, and omitting it means either. "
             "'order_by' is 'catalog' (the authored order, and what omitting it "
             "gets) or 'volume' (busiest-first by ingested volume over the last "
-            "24h) - use 'volume' to triage a large catalog by traffic. "
+            "24h) or 'health' (least healthy first by the health score, main "
+            "plan only) - use 'volume' to triage a large catalog by traffic. "
             "Returns trimmed items + total; follow up with get_event for full detail. "
             "Requires a tk_r_ or tk_w_ key."
         ),

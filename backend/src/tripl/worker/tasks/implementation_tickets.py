@@ -21,13 +21,11 @@ import asyncio
 import logging
 import urllib.error
 import uuid
-from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.alerting_validation import (
     validate_jira_api_token,
@@ -38,13 +36,12 @@ from tripl.alerting_validation import (
     validate_linear_api_key,
     validate_linear_team_id,
 )
-from tripl.config import settings
 from tripl.crypto import decrypt_value
-from tripl.db_config import postgres_connect_args
 from tripl.models.event import Event, EventStatus, event_status_rank
 from tripl.models.implementation_ticket import ImplementationTicket
 from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.worker.celery_app import celery_app
+from tripl.worker.db import run_with_async_worker_session
 from tripl.worker.tasks.alerts_channels import (
     _find_jira_issue_by_label,
     _get_jira_issue_status,
@@ -507,20 +504,8 @@ async def _sync_tickets(session: AsyncSession) -> None:
             logger.exception("Failed to sync implementation ticket %s", ticket_id)
 
 
-async def _with_worker_session(run: Callable[[AsyncSession], Awaitable[None]]) -> None:
-    """Async-bridge: throwaway NullPool engine that lives and dies inside this
-    loop, disposed before it closes. See module docstring for the invariant."""
-    engine = create_async_engine(
-        settings.database_url,
-        poolclass=NullPool,
-        connect_args=postgres_connect_args(settings.database_url),
-    )
-    try:
-        session_factory = async_sessionmaker(engine, expire_on_commit=False)
-        async with session_factory() as session:
-            await run(session)
-    finally:
-        await engine.dispose()
+# Async-bridge helper, shared with the health snapshot task (see worker.db).
+_with_worker_session = run_with_async_worker_session
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]

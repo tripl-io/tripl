@@ -327,6 +327,13 @@ Useful endpoint groups:
 - Branches: lifecycle, reviewers, comments, diff/conflicts/resolutions/merge;
   revisions snapshot/list/diff.
 - Reconciliation: shadow/dead events and coverage.
+- Health score (F15, main plan only, fixed weights in
+  `services/health_weights.py`):
+  - `GET /projects/{slug}/health?trend_days=30` (project score, worst five, trend)
+  - `GET /projects/{slug}/health/events?ids=...` (batch, 1..150 ids)
+  - `GET /projects/{slug}/health/event-types`
+  - `GET /projects/{slug}/events/{event_id}/health`
+  - `GET /projects/{slug}/events?order_by=health` (least healthy first; 400 on a branch)
 - Alerting:
   - destinations CRUD
   - rules CRUD nested under a destination

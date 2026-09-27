@@ -1587,7 +1587,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--reviewed` / `--unreviewed` | Only events already marked reviewed, or only those not. Mutually exclusive; omitting both asks for either. Reviewing is a separate axis from lifecycle status, so `--reviewed` and `--status in_review` can both match the same event. |
 | `--offset N` | Skip N events, to read the next page. Default `0`. |
 | `--limit N` | How many events to ask for, `1`–`10000`, default `200`. |
-| `--order-by ORDER` | Order the page: `catalog`, the authored catalog order, or `volume`, busiest-first by ingested volume over the last 24h. Unlike `--limit` this flag has **no** client-side default — omitting it leaves the parameter off the wire so the API's own default (`catalog`) applies. |
+| `--order-by ORDER` | Order the page: `catalog`, the authored catalog order, or `volume`, busiest-first by ingested volume over the last 24h, or `health`, least healthy first by the [health score](../use/health-score.md) (main plan only). Unlike `--limit` this flag has **no** client-side default — omitting it leaves the parameter off the wire so the API's own default (`catalog`) applies. |
 | `--json` | One JSON document on stdout, every human line on stderr. |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
 

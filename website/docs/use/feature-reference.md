@@ -2080,6 +2080,70 @@ pairs are scored is in [Duplicates & naming](./duplicates-and-naming.md).
 Behind it are `GET /projects/{slug}/duplicates` and
 `POST /projects/{slug}/duplicates/dismiss`.
 
+### Health score {#health-score}
+
+**Where:** a **Health** column (toggle it in the Columns menu) and a **Least
+healthy first** sort on Plan › Events; a health card with the breakdown on an
+event's edit page and on its monitoring detail page; a **Health** column in
+Plan › Event types and a summary on each event type's page; and the **Plan
+health** panel on the Overview. All of them on the main plan only.
+
+**What:** every event of the **main** plan that is not `archived` gets a health
+score from 0 to 100, built from six components. The catalog shows it as a badge
+(with a **Least healthy first** sort), the event page and the monitoring detail
+show the breakdown, event types show the mean of their events, and the Overview
+has a **Plan health** panel with the trend. Working branches have no score: the
+facts it reads (metrics, drifts, lifecycle findings) exist only for main rows, so
+the badge and the sort are hidden there and `order_by=health` on a branch answers
+400.
+
+The weights are fixed (not configurable per project in v1):
+
+| Component | Weight | Value |
+| --- | --- | --- |
+| Implemented & seen | 25 | `implemented`/`live`: 1 if seen in the last 7 days, 0.5 within 30 days, 0 if never or older. `deprecated`: 0 with an open *sunset overdue* finding, 0.5 with *successor silent*, otherwise 1. |
+| Contract | 20 | Share of the event type's contract rules (required, enum, regex, range) without an active violation drift. |
+| Drifts | 15 | 1 − 0.25 per open drift: schema drifts (new, missing or changed field), value drifts on the event, and fields with a significant distribution drift in the last 7 days. |
+| Signals | 15 | 1 − 0.5 per open, significant event signal that has no verdict yet. |
+| Freshness | 10 | Worst freshness of the scans covering the event: fresh 1, late 0.5, overdue 0. |
+| Documentation | 15 | 0.5 for a description, 0.5 for an owner (on the event or its event type). |
+
+A component that does not apply is **excluded** and the remaining weights are
+renormalized over what is left, so an event is never marked down for something
+it cannot have:
+
+- planned events (`draft`, `in_review`, `ready_for_dev`) are scored on
+  documentation only (*Not implemented yet*);
+- an event type with no contract rules excludes Contract;
+- an event no scan covers excludes Contract, Drifts, Signals and Freshness
+  (contract violations are found only by a scan; a scan covers
+  an event when it wrote volume for it in the last 30 days or is bound to its
+  event type);
+- Signals is excluded when anomaly detection is off on every covering scan, and
+  Freshness when no covering scan runs on a schedule.
+
+The breakdown lists each component with its weight, its effective weight after
+renormalization, its value, the points it contributes and a one-line reason;
+excluded ones are greyed out with why. Grades: **healthy** at 80 and above,
+**warning** from 50, **unhealthy** below 50. An event type's and the project's
+score is the mean of their events' scores.
+
+The project score is snapshotted daily at 05:55 UTC for the trend (kept 400
+days). The Monday weekly digest adds a line such as
+`- Plan health: 72/100 (-3 vs last week)` and a **Least healthy events** list
+(the five lowest, each with its main issue), both read from that snapshot and
+left out when there is no snapshot from the last two days.
+
+The score is `round(100 × Σ(weight × value) / Σ(weight))` over the components
+that apply, rounded half up. The main issue shown next to a score is the reason
+of the component that loses the most points. How each component is counted, a
+worked example and the digest rules are in [Health score](./health-score.md).
+
+Behind it are `GET /projects/{slug}/health`, `GET /projects/{slug}/health/events?ids=…`
+(up to 150 ids), `GET /projects/{slug}/health/event-types` and
+`GET /projects/{slug}/events/{event_id}/health`; viewers can read all of them.
+See the [Agent API Guide](../integrate/agent-api-guide.md#health-score).
+
 ### Coverage
 
 **Where:** Govern › Coverage (route `/p/<slug>/coverage`). A read-only

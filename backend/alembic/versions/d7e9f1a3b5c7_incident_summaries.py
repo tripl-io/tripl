@@ -1,7 +1,7 @@
 """incident_summaries: cached AI summaries of alerting-inbox incidents (#267)
 
 Revision ID: d7e9f1a3b5c7
-Revises: a3c5e7f9b1d2
+Revises: c7e9a1b3d5f6
 Create Date: 2026-09-27 23:55:00.000000
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "d7e9f1a3b5c7"
-down_revision: str | None = "a3c5e7f9b1d2"
+down_revision: str | None = "c7e9a1b3d5f6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

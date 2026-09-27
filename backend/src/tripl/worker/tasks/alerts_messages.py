@@ -72,6 +72,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services import app_settings_service, llm_service
 from tripl.services.attribution_text import attribution_line_for_scope
+from tripl.worker.tasks.alerts_health_digest import _health_digest_lines
 
 logger = logging.getLogger(__name__)
 
@@ -1446,6 +1447,8 @@ def _build_plan_digest_message(
         f"- Dead implemented events: {dead_events}",
         f"- Deprecated events still receiving data: {sunset_overdue}",
     ]
+    # Plan health (F15): read from the daily snapshot, omitted when none is fresh.
+    lines.extend(_health_digest_lines(session, project.id, now))
     if top_lines:
         lines.extend(["", "Top anomalies:", *top_lines])
     return "\n".join(lines)

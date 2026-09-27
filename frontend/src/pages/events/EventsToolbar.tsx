@@ -61,6 +61,7 @@ export function EventsToolbar({
   onFilterOpenQuestionsChange,
   sortOrder,
   onSortOrderChange,
+  healthAvailable = false,
   hasActiveFilters,
   onClearFilters,
   savedViews,
@@ -105,6 +106,9 @@ export function EventsToolbar({
   onFilterOpenQuestionsChange: (value: boolean | undefined) => void
   sortOrder: EventsSortOrder
   onSortOrderChange: (value: EventsSortOrder) => void
+  /** Health scores exist on the main plan only (F15, #268): the "Least
+   *  healthy first" sort and the Health column toggle are offered there. */
+  healthAvailable?: boolean
   hasActiveFilters: boolean
   onClearFilters: () => void
   savedViews: EventsSavedView[]
@@ -231,6 +235,7 @@ export function EventsToolbar({
           hiddenColumns={hiddenColumns}
           offscreenColumnCount={offscreenColumnCount}
           reviewedPinned={reviewedPinned}
+          healthAvailable={healthAvailable}
           onToggle={onToggleColumn}
         />
 
@@ -354,6 +359,7 @@ export function EventsToolbar({
           <SelectContent>
             <SelectItem value="catalog">Catalog order</SelectItem>
             <SelectItem value="volume">Busiest first</SelectItem>
+            {healthAvailable && <SelectItem value="health">Least healthy first</SelectItem>}
           </SelectContent>
         </Select>
         </div>

@@ -59,6 +59,7 @@ from tripl.services._branch_counterparts import (
     metrics_row_for,
 )
 from tripl.services._branch_event_threads import rescue_branch_event_threads
+from tripl.services._event_health_sort import order_page_by_health
 from tripl.services._event_reference_cleanup import drop_dangling_event_references
 from tripl.services.event_comment_service import (
     events_with_open_questions,
@@ -77,6 +78,8 @@ from tripl.services.search_service import (
     _reindex_branch_documents,
 )
 from tripl.services.variable_value_service import attach_event_field_variable_values
+
+HEALTH_SORT_MAIN_ONLY = "Health sort is available on the main plan"
 
 _TRACKED_FIELDS = (
     "status",
@@ -758,6 +761,10 @@ async def list_events(
         if requested_branch_id is None
         else await ensure_main_branch_id(session, project_id)
     )
+    if order_by == "health" and branch_id != main_branch_id:
+        # Health is scored on the main plan only (F15, #268): scans write the
+        # facts it reads for main rows, so a branch copy has no score to sort by.
+        raise HTTPException(status_code=400, detail=HEALTH_SORT_MAIN_ONLY)
     twin_last_seen: ColumnElement[datetime | None] | None = None
     # ``Event.id`` is an InstrumentedAttribute, the subquery below a plain
     # ColumnElement; both belong in this slot, so the annotation is the wider one.
@@ -910,8 +917,12 @@ async def list_events(
             Event.created_at.desc(),
             Event.id.asc(),
         )
-    result = await session.execute(ordered_query.offset(offset).limit(limit))
-    events = list(result.scalars().all())
+    if order_by == "health":
+        # Least healthy first: scored over the whole filtered set, then paged.
+        events = await order_page_by_health(session, project_id, query, offset, limit)
+    else:
+        result = await session.execute(ordered_query.offset(offset).limit(limit))
+        events = list(result.scalars().all())
 
     # Project SchemaDrift counts (per event_type) onto each event so the API
     # ships drift signal alongside the catalog row without an extra round-trip.

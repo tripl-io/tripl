@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 try:
@@ -274,3 +275,17 @@ def prefix_event_types(slug: str | None = None) -> str:
 
 def prefix_meta_fields(slug: str | None = None) -> str:
     return f"tripl:meta_fields:{slug}:" if slug else "tripl:meta_fields:"
+
+
+def key_project_health(slug: str, trend_days: int) -> str:
+    """``GET /projects/{slug}/health`` (F15): short-TTL, never invalidated."""
+    return f"tripl:health:{slug}:project:{trend_days}"
+
+
+def key_health_sort(project_id: uuid.UUID, filter_digest: str) -> str:
+    """Catalog ``order_by=health`` id order (F15) per project and filter; short TTL."""
+    return f"tripl:health_sort:{project_id}:{filter_digest}"
+
+
+def prefix_health(slug: str | None = None) -> str:
+    return f"tripl:health:{slug}:" if slug else "tripl:health:"

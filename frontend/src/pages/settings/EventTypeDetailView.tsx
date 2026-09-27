@@ -11,6 +11,7 @@ import { useActiveBranchId } from '@/hooks/useBranch'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
+import { EventTypeHealthSummary } from './EventTypeHealthSummary'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
@@ -233,6 +234,13 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
         </TabsContent>
         <TabsContent value="summary">
           <SummaryTab et={et} />
+          {/* Health (F15, #268): main-plan only, nothing on a branch. */}
+          <EventTypeHealthSummary
+            className="mt-4"
+            slug={slug}
+            eventTypeId={et.id}
+            onMain={branchId === null}
+          />
           {/* What depends on this type: its events, the metrics and alert
               rules built on it, the relations that link its fields (#257). */}
           <UsedBySection

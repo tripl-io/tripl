@@ -977,6 +977,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Incident Summary
+         * @description The cached summary and whether it is current. Never calls the LLM.
+         */
+        get: operations["get_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_get"];
+        put?: never;
+        /**
+         * Ensure Incident Summary
+         * @description The summary for the current facts: cached when unchanged, else generated.
+         *
+         *     Any member may call it, but not a ``read`` API key: generating writes a row
+         *     and spends the provider budget, so a read key only gets the GET.
+         */
+        post: operations["ensure_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Incident Summary
+         * @description Generate the summary again, whatever the cache holds. Editors only.
+         */
+        post: operations["regenerate_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/annotations": {
         parameters: {
             query?: never;
@@ -2184,6 +2231,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/events/{event_id}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event Health
+         * @description One event's score with its component breakdown. 404 off the main plan.
+         */
+        get: operations["get_event_health_api_v1_projects__slug__events__event_id__health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/events/{event_id}/history": {
         parameters: {
             query?: never;
@@ -2485,6 +2552,66 @@ export interface paths {
         head?: never;
         /** Update Fact Table */
         patch: operations["update_fact_table_api_v1_projects__slug__fact_tables__fact_table_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Health
+         * @description Plan health: mean score, distribution, worst five and the daily trend.
+         */
+        get: operations["get_project_health_api_v1_projects__slug__health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/health/event-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Event Types Health
+         * @description Per event type: mean score, grade counts, component averages, worst events.
+         */
+        get: operations["list_event_types_health_api_v1_projects__slug__health_event_types_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/health/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Events Health
+         * @description Health of up to 150 events; ids outside the scored population are omitted.
+         */
+        get: operations["list_events_health_api_v1_projects__slug__health_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/projects/{slug}/impact": {
@@ -6374,6 +6501,21 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * ComponentAverage
+         * @description Mean component value over the events it applies to (null when none).
+         */
+        ComponentAverage: {
+            /** Applies Count */
+            applies_count: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "implemented_seen" | "contract" | "drifts" | "signals" | "freshness" | "documentation";
+            /** Value */
+            value?: number | null;
+        };
         /** ConflictEntity */
         ConflictEntity: {
             /**
@@ -7463,6 +7605,65 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** EventHealth */
+        EventHealth: {
+            /** Components */
+            components: components["schemas"]["HealthComponent"][];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /** Excluded */
+            excluded: ("implemented_seen" | "contract" | "drifts" | "signals" | "freshness" | "documentation")[];
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "healthy" | "warning" | "unhealthy";
+            /** Name */
+            name: string;
+            /** Renormalized */
+            renormalized: boolean;
+            /** Score */
+            score: number;
+            /** Top Issue */
+            top_issue?: string | null;
+        };
+        /** EventHealthBrief */
+        EventHealthBrief: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "healthy" | "warning" | "unhealthy";
+            /** Name */
+            name: string;
+            /** Score */
+            score: number;
+            /** Top Issue */
+            top_issue?: string | null;
+        };
+        /** EventHealthListResponse */
+        EventHealthListResponse: {
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Items */
+            items: components["schemas"]["EventHealth"][];
+        };
         /**
          * EventIdentityHolder
          * @description An event that already answers to a looked-up identity (EVT-37).
@@ -8117,6 +8318,35 @@ export interface components {
              * @default 0
              */
             order: number;
+        };
+        /** EventTypeHealth */
+        EventTypeHealth: {
+            /** Component Averages */
+            component_averages: components["schemas"]["ComponentAverage"][];
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /** Grade */
+            grade?: ("healthy" | "warning" | "unhealthy") | null;
+            /** Healthy Count */
+            healthy_count: number;
+            /** Score */
+            score?: number | null;
+            /** Scored Events */
+            scored_events: number;
+            /** Unhealthy Count */
+            unhealthy_count: number;
+            /** Warning Count */
+            warning_count: number;
+            /** Worst */
+            worst: components["schemas"]["EventHealthBrief"][];
+        };
+        /** EventTypeHealthListResponse */
+        EventTypeHealthListResponse: {
+            /** Items */
+            items: components["schemas"]["EventTypeHealth"][];
         };
         /** EventTypeOwnerCreate */
         EventTypeOwnerCreate: {
@@ -8812,6 +9042,42 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * HealthComponent
+         * @description One of the six parts of an event's score.
+         *
+         *     ``weight`` is the fixed weight; ``effective_weight`` is its share in percent
+         *     after renormalization over the components that apply (null when excluded).
+         *     ``points`` is ``effective_weight * value``; the points of an event sum to its
+         *     score up to rounding.
+         */
+        HealthComponent: {
+            /** Applies */
+            applies: boolean;
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            };
+            /** Detail */
+            detail: string;
+            /** Effective Weight */
+            effective_weight?: number | null;
+            /** Excluded Reason */
+            excluded_reason?: string | null;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "implemented_seen" | "contract" | "drifts" | "signals" | "freshness" | "documentation";
+            /** Label */
+            label: string;
+            /** Points */
+            points?: number | null;
+            /** Value */
+            value?: number | null;
+            /** Weight */
+            weight: number;
+        };
         /** ImpactChange */
         ImpactChange: {
             /**
@@ -8908,6 +9174,71 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** IncidentSummaryBody */
+        IncidentSummaryBody: {
+            /** Cause Known */
+            cause_known: boolean;
+            /** Facts */
+            facts: components["schemas"]["IncidentSummaryFact"][];
+            /** Facts Hash */
+            facts_hash: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Sentences */
+            sentences: components["schemas"]["IncidentSummarySentence"][];
+        };
+        /** IncidentSummaryFact */
+        IncidentSummaryFact: {
+            /** Href */
+            href?: string | null;
+            /** Id */
+            id: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "incident" | "scope" | "attribution" | "release" | "similar" | "note" | "comment";
+            /** Text */
+            text: string;
+        };
+        /** IncidentSummaryResponse */
+        IncidentSummaryResponse: {
+            /**
+             * Correlation Group Id
+             * Format: uuid
+             */
+            correlation_group_id: string;
+            /** Current Facts Hash */
+            current_facts_hash?: string | null;
+            /** Disabled Reason */
+            disabled_reason?: ("ai_off" | "demo") | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "disabled" | "missing" | "stale" | "ready" | "failed";
+            summary?: components["schemas"]["IncidentSummaryBody"] | null;
+        };
+        /** IncidentSummarySentence */
+        IncidentSummarySentence: {
+            /** Fact Ids */
+            fact_ids: number[];
+            /**
+             * Generated
+             * @default true
+             */
+            generated: boolean;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "what_broke" | "cause" | "release" | "history" | "discussion";
+            /** Text */
+            text: string;
         };
         /**
          * InvitationAcceptRequest
@@ -10979,6 +11310,46 @@ export interface components {
          * @enum {string}
          */
         ProjectGenerationStatus: "pending" | "seeding" | "ready" | "failed";
+        /** ProjectHealthResponse */
+        ProjectHealthResponse: {
+            /** Component Averages */
+            component_averages: components["schemas"]["ComponentAverage"][];
+            /**
+             * Computed At
+             * Format: date-time
+             */
+            computed_at: string;
+            /** Grade */
+            grade?: ("healthy" | "warning" | "unhealthy") | null;
+            /** Healthy Count */
+            healthy_count: number;
+            /** Previous Score */
+            previous_score?: number | null;
+            /** Score */
+            score?: number | null;
+            /** Scored Events */
+            scored_events: number;
+            /** Trend */
+            trend: components["schemas"]["ProjectHealthTrendPoint"][];
+            /** Unhealthy Count */
+            unhealthy_count: number;
+            /** Warning Count */
+            warning_count: number;
+            /** Worst */
+            worst: components["schemas"]["EventHealthBrief"][];
+        };
+        /** ProjectHealthTrendPoint */
+        ProjectHealthTrendPoint: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Score */
+            score?: number | null;
+            /** Scored Events */
+            scored_events: number;
+        };
         /** ProjectLatestScanJob */
         ProjectLatestScanJob: {
             /** Completed At */
@@ -15894,6 +16265,102 @@ export interface operations {
             };
         };
     };
+    get_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ensure_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_chart_annotations_api_v1_projects__slug__annotations_get: {
         parameters: {
             query?: {
@@ -18107,7 +18574,7 @@ export interface operations {
                 meta_value?: string | null;
                 offset?: number;
                 limit?: number;
-                order_by?: "catalog" | "volume";
+                order_by?: "catalog" | "volume" | "health";
                 /** @description Plan branch id (UUID) to read and write instead of the main branch. */
                 branch?: string | null;
             };
@@ -18738,6 +19205,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventPhotoCommentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_health_api_v1_projects__slug__events__event_id__health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventHealth"];
                 };
             };
             /** @description Validation Error */
@@ -19462,6 +19961,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FactTableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_health_api_v1_projects__slug__health_get: {
+        parameters: {
+            query?: {
+                trend_days?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectHealthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_event_types_health_api_v1_projects__slug__health_event_types_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventTypeHealthListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_events_health_api_v1_projects__slug__health_events_get: {
+        parameters: {
+            query: {
+                ids: string[];
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventHealthListResponse"];
                 };
             };
             /** @description Validation Error */
