@@ -34,6 +34,7 @@ from tripl.schemas.docs import (
     DocWriteRequest,
     DocWriteResponse,
 )
+from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import docs_bundle, docs_revisions, docs_search, docs_service
 from tripl.services.docs_access import DocCaller
 from tripl.services.docs_paths import MAX_ZIP_UPLOAD_BYTES, DocScope
@@ -164,8 +165,10 @@ async def doc_backlinks(
     session: SessionDep,
     slug: str,
     kind: DocLinkKind,
-    name: Annotated[str, Query(min_length=1, max_length=500)],
-    qualifier: Annotated[str | None, Query(max_length=500)] = None,
+    # FreeTextFilter: both bind straight into a Postgres parameter, where a NUL
+    # is a 500. The guard runs before min_length, so ?name=%00 answers 422.
+    name: Annotated[FreeTextFilter, Query(min_length=1, max_length=500)],
+    qualifier: Annotated[FreeTextFilter | None, Query(max_length=500)] = None,
 ) -> DocBacklinksResponse:
     return await docs_service.backlinks(session, slug, kind, name, qualifier or None)
 

@@ -145,26 +145,30 @@ describe('DocEditor (F22)', () => {
   })
 
   it('previews the body without frontmatter and flags broken links', async () => {
-    vi.mocked(docsApi.links).mockResolvedValue([
-      {
-        kind: 'event',
-        target: 'gone',
-        qualifier: null,
-        raw: '[[event:gone]]',
-        status: 'broken',
-        route_path: null,
-        entity_id: null,
-        candidates: 0,
-      },
-    ])
+    // Broken only for the draft's ref: the editor first resolves the loaded
+    // note's refs (none) and the draft's only after the debounce, so a blanket
+    // mock would show the warning before the draft was ever sent.
+    const broken = {
+      kind: 'event' as const,
+      target: 'gone',
+      qualifier: null,
+      raw: '[[event:gone]]',
+      status: 'broken' as const,
+      route_path: null,
+      entity_id: null,
+      candidates: 0,
+    }
+    vi.mocked(docsApi.links).mockImplementation(async (_slug, refs) =>
+      refs.includes('event:gone') ? [broken] : [],
+    )
     renderEditor()
     type('---\ntitle: Hidden\n---\n# Visible\n\nSee [[event:gone]].\n')
 
     expect(await screen.findByText('1 link does not resolve')).toBeInTheDocument()
+    expect(docsApi.links).toHaveBeenLastCalledWith('demo', ['event:gone'], expect.anything())
     const preview = screen.getByLabelText('Preview')
     expect(within(preview).getByRole('heading', { name: 'Visible' })).toBeInTheDocument()
     expect(within(preview).queryByText(/title: Hidden/)).toBeNull()
-    expect(docsApi.links).toHaveBeenLastCalledWith('demo', ['event:gone'], expect.anything())
   })
 
   it('will not save a note over the size limit', () => {

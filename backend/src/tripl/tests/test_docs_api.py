@@ -200,6 +200,30 @@ async def test_delete_file_and_folder(client: AsyncClient) -> None:
     assert empty.status_code == 404
 
 
+async def test_a_nul_in_a_path_or_backlink_name_is_422_not_500(client: AsyncClient) -> None:
+    """Pins the ``path`` entry of test_text_filters._GUARDED_ELSEWHERE and the backlinks guard."""
+    await create_project(client, "nul")
+    await put_doc(client, "nul", "ab.md", "x")
+    laced = {"scope": "project", "path": "a\x00b.md"}
+
+    assert (await client.get(_url("nul", "/file"), params=laced)).status_code == 422
+    assert (await client.get(_url("nul", "/revisions"), params=laced)).status_code == 422
+    assert (await client.delete(_url("nul", "/file"), params=laced)).status_code == 422
+    folder = await client.delete(_url("nul", "/folder"), params={**laced, "path": "a\x00b"})
+    assert folder.status_code == 422
+    await get_doc(client, "nul", "ab.md")
+
+    only_nul = await client.get(_url("nul", "/backlinks"), params={"kind": "event", "name": "\x00"})
+    assert only_nul.status_code == 422
+    stripped = await client.get(
+        _url("nul", "/backlinks"),
+        params={"kind": "event", "name": "pur\x00chase", "qualifier": "x\x00"},
+    )
+    assert stripped.status_code == 200, stripped.text
+    assert stripped.json()["name"] == "purchase"
+    assert stripped.json()["qualifier"] == "x"
+
+
 async def test_writes_are_audited_on_the_project(client: AsyncClient) -> None:
     await create_project(client, "audited")
     await put_doc(client, "audited", "a.md", "one")

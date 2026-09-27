@@ -16,6 +16,7 @@ from tripl_cli.api import (
     branches,
     chart_annotations,
     data_sources,
+    docs,
     event_types,
     monitoring,
     plan_export,
@@ -89,6 +90,12 @@ def _every_builder() -> list[ApiRequest]:
         ),
         plan_validation.validate("prod", [{"ref": "i0", "name": "signup"}]),
         plan_export.export("prod", plan_export.FORMAT_JSONSCHEMA),
+        docs.list_docs("prod"),
+        docs.read_doc("prod", "project", "guides/setup.md"),
+        docs.write_doc("prod", "project", "guides/setup.md", "# Setup"),
+        docs.search_docs("prod", "setup"),
+        docs.export_docs("prod", "project"),
+        docs.import_docs("prod", "project", [("guides/setup.md", "# Setup")]),
     ]
 
 

@@ -142,7 +142,9 @@ describe('DocsPage (F22)', () => {
     const nav = await screen.findByRole('navigation', { name: 'Docs' })
     expect(within(nav).getByRole('heading', { name: 'Project notes' })).toBeInTheDocument()
     expect(within(nav).getByRole('heading', { name: 'Organization notes · Acme' })).toBeInTheDocument()
-    expect(within(nav).getByRole('button', { name: /references/ })).toHaveAttribute('aria-expanded', 'true')
+    // Anchored: an editor also gets "New note in references/" and its siblings.
+    const projectRoot = within(nav).getByRole('region', { name: 'Project notes' })
+    expect(within(projectRoot).getByRole('button', { name: /^references/ })).toHaveAttribute('aria-expanded', 'true')
     expect(within(nav).getByRole('link', { name: 'Warehouse gotchas' })).toHaveAttribute(
       'href',
       '/p/demo/docs/organization/warehouse/gotchas.md',
