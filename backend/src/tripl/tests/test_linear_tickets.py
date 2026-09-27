@@ -15,14 +15,17 @@ All HTTP is mocked; nothing here opens a socket.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
 import pytest
+from cryptography.fernet import Fernet
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import tripl.alerting_validation as av
+from tripl import crypto
+from tripl.config import settings
 from tripl.crypto import decrypt_value, encrypt_value
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_type import EventType
@@ -45,6 +48,25 @@ TEAM_ID = "9cfb482a-81e3-4154-b5b9-2c805e70a02d"
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture
+def real_encryption_key() -> Iterator[None]:
+    """Configure a real Fernet key for one test, then restore the passthrough.
+
+    The test settings carry no ``ENCRYPTION_KEY``, and without one
+    ``encrypt_value`` returns its input unchanged — so "stored encrypted" is
+    only observable with a key. ``_fernet`` is ``lru_cache``d, hence the clear on
+    both sides: a leaked cached key would change every later test's storage.
+    """
+    original_key = settings.encryption_key
+    settings.encryption_key = Fernet.generate_key().decode()
+    crypto._fernet.cache_clear()
+    try:
+        yield
+    finally:
+        settings.encryption_key = original_key
+        crypto._fernet.cache_clear()
+
+
 async def _create_project(client: AsyncClient, slug: str) -> None:
     resp = await client.post(
         "/api/v1/projects",
@@ -56,6 +78,7 @@ async def _create_project(client: AsyncClient, slug: str) -> None:
 @pytest.mark.asyncio
 async def test_linear_config_stores_encrypted_key_and_never_echoes_it(
     client: AsyncClient,
+    real_encryption_key: None,
 ) -> None:
     await _create_project(client, "linear-cfg")
 

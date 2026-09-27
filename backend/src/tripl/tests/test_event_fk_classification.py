@@ -172,6 +172,26 @@ DELIBERATELY_CASCADES: dict[tuple[str, str], str] = {
         "all(filter_matches_anomaly(...)) — where a NULL event_id satisfies every event filter. "
         "Self-healing within one scan interval is not the same as harmless."
     ),
+    ("lifecycle_findings", "event_id"): (
+        "Derived sunset-watch state, rebuilt by the daily check-lifecycle-findings beat "
+        "(worker/tasks/lifecycle.py compute_lifecycle_findings), which reconciles the whole table "
+        "against what holds now. MERGE: the FK is ondelete CASCADE, so the source's findings die "
+        "with the source row; if the surviving event is deprecated and still overdue or has a "
+        "silent successor, the next sweep opens its own finding under the right event. Carrying "
+        "the source's row would also have to fold on uq_lifecycle_finding_event_kind. DELETE: "
+        "same CASCADE, and right for the same reason — a finding about a deleted event has no "
+        "page to show it on and no migration left to run."
+    ),
+    ("lifecycle_findings", "related_event_id"): (
+        "The successor named by a successor_silent finding, copied from the deprecated event's "
+        "superseded_by_event_id on every sweep. NOTE the FK is ondelete SET NULL, not CASCADE. "
+        "MERGE: _move_superseded_pointers re-points the deprecated event's superseded_by_event_id "
+        "onto the target, and the next check-lifecycle-findings run rewrites related_event_id "
+        "from it — with the target's own volume deciding whether the finding stays open. "
+        "DELETE: the successor's deletion SET NULLs superseded_by_event_id too, so the condition "
+        "no longer holds and the next sweep resolves the finding; until then the NULL only drops "
+        "the finding from the successor's page, which no longer exists."
+    ),
     ("search_documents", "parent_event_id"): (
         "Derived index, and the cascade does the deleting: the FK is ON DELETE CASCADE, so the "
         "SOURCE's documents go with the source row — the reindex's actual job here is minting the "

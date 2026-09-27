@@ -418,6 +418,10 @@ def test_ticket_comment_is_published_after_commit_only(
         )
         session.add(ticket)
         session.commit()
+        # Plain values: the session expires on commit and is closed before the
+        # assertion below, so an ORM attribute read there would need a refresh.
+        ticket_id = str(ticket.id)
+        covered_id = str(covered.id)
 
         # A rolled-back promotion must not comment.
         metrics_collect._bump_event_last_seen(
@@ -439,7 +443,7 @@ def test_ticket_comment_is_published_after_commit_only(
     assert sent == [
         (
             metrics_collect.SEEN_IN_DATA_COMMENT_TASK,
-            [str(ticket.id), [str(covered.id)], bucket.isoformat()],
+            [ticket_id, [covered_id], bucket.isoformat()],
         )
     ]
 

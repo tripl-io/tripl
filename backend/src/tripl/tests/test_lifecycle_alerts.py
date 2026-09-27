@@ -54,7 +54,7 @@ from tripl.models.data_source import DataSource
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.lifecycle_finding import LifecycleFinding
-from tripl.models.plan_branch import PlanBranch
+from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.worker.tasks import alerts as alerts_task
@@ -252,10 +252,17 @@ def _seed(
         description="",
         timezone="UTC",
     )
-    branch = PlanBranch(id=uuid.uuid4(), project_id=project.id, name="main")
+    branch = PlanBranch(
+        id=uuid.uuid4(),
+        project_id=project.id,
+        name="main",
+        kind=BranchKind.main.value,
+        status=BranchStatus.merged.value,
+    )
     event_type = EventType(
         id=uuid.uuid4(),
         project_id=project.id,
+        branch_id=branch.id,
         name="auth",
         display_name="Auth",
         description="",
