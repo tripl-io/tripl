@@ -64,6 +64,8 @@ import { MonitoringDetailHeader } from './monitoring/MonitoringDetailHeader'
 import { useAnnotateHandoff } from './monitoring/useAnnotateHandoff'
 import { useCommentDraftHandoff } from './monitoring/useCommentDraftHandoff'
 import { SignalVerdictCard } from './monitoring/SignalVerdictCard'
+import { IncidentSummary } from './alerting/IncidentSummary'
+import { signalIncidentId } from './anomalies/signalTriage'
 import { useChartAnnotations } from './monitoring/useChartAnnotations'
 import { useMetricCollect } from './monitoring/useMetricCollect'
 import {
@@ -462,6 +464,7 @@ export default function MonitoringDetailPage() {
   const { commentDraft, startDraft } = useCommentDraftHandoff({ ready: detailReady && isEventScope })
   // The flagged bucket the Signal card is about: the scope's latest signal.
   const latestSignal = metrics?.latest_signal ?? null
+  const latestSignalIncidentId = latestSignal ? signalIncidentId(latestSignal) : null
   // The Why panel's per-value links (#255): the Breakdowns tab narrowed to the
   // value where this page has one (the event scope; the metric scope carries
   // no attribution). Event-type and project-total pages have no breakdown
@@ -632,6 +635,17 @@ export default function MonitoringDetailPage() {
           signal={latestSignal}
           canWrite={canWrite}
           onOpenComment={isEventScope ? startDraft : undefined}
+        />
+      )}
+
+      {/* The summary of the incident this signal was routed into (F14, #267);
+          an unrouted signal has none, and nothing renders while AI is off. */}
+      {slug && latestSignalIncidentId && (
+        <IncidentSummary
+          slug={slug}
+          correlationGroupId={latestSignalIncidentId}
+          canWrite={canWrite}
+          defaultOpen
         />
       )}
 

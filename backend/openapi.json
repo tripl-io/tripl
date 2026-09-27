@@ -12663,6 +12663,189 @@
         "title": "ImplementationTicketResponse",
         "type": "object"
       },
+      "IncidentSummaryBody": {
+        "properties": {
+          "cause_known": {
+            "title": "Cause Known",
+            "type": "boolean"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummaryFact"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "facts_hash": {
+            "title": "Facts Hash",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "sentences": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummarySentence"
+            },
+            "title": "Sentences",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sentences",
+          "facts",
+          "cause_known",
+          "facts_hash",
+          "generated_at"
+        ],
+        "title": "IncidentSummaryBody",
+        "type": "object"
+      },
+      "IncidentSummaryFact": {
+        "properties": {
+          "href": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Href"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "incident",
+              "scope",
+              "attribution",
+              "release",
+              "similar",
+              "note",
+              "comment"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "text"
+        ],
+        "title": "IncidentSummaryFact",
+        "type": "object"
+      },
+      "IncidentSummaryResponse": {
+        "properties": {
+          "correlation_group_id": {
+            "format": "uuid",
+            "title": "Correlation Group Id",
+            "type": "string"
+          },
+          "current_facts_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Facts Hash"
+          },
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ai_off",
+                  "demo"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled Reason"
+          },
+          "state": {
+            "enum": [
+              "disabled",
+              "missing",
+              "stale",
+              "ready",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentSummaryBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "correlation_group_id",
+          "state"
+        ],
+        "title": "IncidentSummaryResponse",
+        "type": "object"
+      },
+      "IncidentSummarySentence": {
+        "properties": {
+          "fact_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Fact Ids",
+            "type": "array"
+          },
+          "generated": {
+            "default": true,
+            "title": "Generated",
+            "type": "boolean"
+          },
+          "role": {
+            "enum": [
+              "what_broke",
+              "cause",
+              "release",
+              "history",
+              "discussion"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "role",
+          "fact_ids"
+        ],
+        "title": "IncidentSummarySentence",
+        "type": "object"
+      },
       "InvitationAcceptRequest": {
         "description": "Redeeming an invitation.\n\nCarries no email: the address comes from the invitation itself, so a link\ncannot be turned into an account for someone else. Password strength is the\nsame policy as registration \u2014 enforced here at the schema boundary, so an\ninvalid password never reaches the service.",
         "properties": {
@@ -29126,6 +29309,163 @@
           }
         },
         "summary": "Notify Alert Inbox Owners",
+        "tags": [
+          "alerting"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary": {
+      "get": {
+        "description": "The cached summary and whether it is current. Never calls the LLM.",
+        "operationId": "get_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correlation_group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correlation Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Incident Summary",
+        "tags": [
+          "alerting"
+        ]
+      },
+      "post": {
+        "description": "The summary for the current facts: cached when unchanged, else generated.\n\nAny member may call it, but not a ``read`` API key: generating writes a row\nand spends the provider budget, so a read key only gets the GET.",
+        "operationId": "ensure_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correlation_group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correlation Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ensure Incident Summary",
+        "tags": [
+          "alerting"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary/regenerate": {
+      "post": {
+        "description": "Generate the summary again, whatever the cache holds. Editors only.",
+        "operationId": "regenerate_incident_summary_api_v1_projects__slug__alert_inbox__correlation_group_id__summary_regenerate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correlation_group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correlation Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentSummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Regenerate Incident Summary",
         "tags": [
           "alerting"
         ]

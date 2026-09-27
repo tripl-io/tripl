@@ -1509,6 +1509,134 @@ nothing. Taking any *other* action with an empty box leaves the stored note
 alone, so acknowledging an incident never quietly erases what someone wrote on
 it earlier.
 
+### The incident summary {#incident-summary}
+
+When [AI assistance](../run/ai-and-search.md#ai-assistance) is on, every
+incident card has a **Summary** link. Opening it shows a few short sentences on
+what broke, what the likely cause is, which release is involved, what past
+verdicts on the same scope said and what people wrote about it. Each sentence
+ends in numbered citations such as **[2]**, and a **Sources** list under the
+text shows the fact behind each number. A citation opens the page the fact
+comes from: the incident, the scope's monitoring page or the event. A fact that
+has no page links to its line in **Sources**.
+
+The same summary appears, already open, on a scope's monitoring page when its
+latest signal was routed into an incident. A signal that no rule routed has no
+incident, so it has no summary.
+
+**The summary is written only from facts tripl gathered first.** tripl does not
+give the model the database. It gives the model a numbered list of up to 20
+short facts, and every sentence the model writes must cite at least one of
+them. tripl then checks the answer before showing it:
+
+- a sentence that cites nothing, or cites a number that is not in the list, is
+  dropped;
+- a *cause* sentence is kept only when it cites an attribution, a release, a
+  past verdict, the incident note or a comment. A fact that only says what
+  changed is not accepted as a cause;
+- every other sentence may cite only the facts its part of the summary is
+  about: *what broke* cites the incident, scope and attribution facts, *release*
+  cites release facts, *history* cites past verdicts, and *discussion* cites
+  the note and comments. A sentence that cites anything else is dropped;
+- a sentence that claims a cause ("caused by", "because", "due to" and the
+  like) is held to the cause rule whatever part the model filed it under, so a
+  cause cannot slip in as a release or history sentence;
+- at most five sentences from the model are kept, each up to 400 characters,
+  and any `[n]` the model typed into the text is removed. Citations come only
+  from the model's list of cited facts. With the fixed unknown-cause line
+  below, a summary shows at most six sentences.
+
+When no cause sentence survives this check, tripl adds a fixed, greyed-out
+sentence that the model did not write: *The cause is unknown: no attribution,
+release or past verdict points to one.* A summary never looks as if it found a
+cause that no fact supports.
+
+#### The facts, in the order they are numbered
+
+| Kind | What it says | Limit |
+| --- | --- | --- |
+| Incident | Direction, scope names, newest value against expected and the percent change, first and latest delivery time, rule names, status. | 1 |
+| Note | The [note on the incident](#incident-notes). | up to 500 characters |
+| Scope | For each scope in the incident: its name and type, the newest flagged bucket, and actual against expected. | 5 scopes |
+| Attribution | The [attribution headline](#attribution-line) for that bucket, e.g. *92% of the drop comes from platform = ios*. | one per scope |
+| Release | The release line from attribution, plus release and deploy [chart annotations](./feature-reference.md#chart-annotations) on those scopes (or project-wide) from 48 hours before the first bucket until the latest one. A version is listed once. | 3 annotations |
+| Similar | Past verdicts on the same scopes in the 90 days before the incident, including the reason and up to 200 characters of the verdict note, and how many times this incident was marked a false positive. | 5 verdicts |
+| Comment | Top-level comments on the event (event-scope incidents only) from 7 days before the first delivery, up to 280 characters each. | 5 comments |
+
+If there are more than 20 facts, tripl keeps the first 20 in the order of this
+table, so comments are dropped first. Times are in UTC and numbers are rounded,
+so the same facts read the same way each time. Line breaks inside a fact
+(a scope or rule name, for example) are turned into spaces, so each fact is
+exactly one line of the request and no name can pass itself off as another
+numbered fact.
+
+#### What is sent to the model, and what never is
+
+What tripl sends is the project name and the text of those facts. It sends
+nothing else from the project. Each request goes to the provider and model set in
+**Settings → Instance → AI**, the same as the other AI features. The request
+has a fixed instruction and the numbered facts. Fact text is marked as data
+and not as instructions, so a note that says "ignore the rules" is only text.
+
+It never sends:
+
+- **values of sensitive fields.** In an attribution, a column that names an
+  event field or meta field whose sensitivity is anything but *none* has
+  each of its values replaced with `(redacted)`, so the headline reads
+  *platform = (redacted)*. The column name is still sent. A column matches
+  when its full name, any dotted ending of it, or its last part after a dot or
+  underscore equals a sensitive field name, ignoring case: `properties.user_email`
+  matches a field named `user_email` and a field named `email`, and
+  `properties.user.email` matches a field named `user.email`. The stored
+  attribution is not changed.
+- **drift sample values.** The sample value an alert item carries is never
+  read.
+- **raw events, query results, or rows from your warehouse.** Counts only
+  reach the model as the rounded actual and expected numbers above.
+- **who wrote a verdict or a comment.** Author names are not loaded, and
+  neither are email addresses.
+- **the links.** Each fact's in-app link is kept for the citation and is
+  not put in the prompt.
+
+tripl does not check what people typed. The incident note, verdict notes,
+annotation labels and comment text are sent as written, apart from shortening.
+A mention in a comment is sent as `@Name`. Do not paste secrets or personal
+data into those fields if they must not leave your network, or point
+the AI provider at an endpoint inside your own network (see
+[the privacy trade-off](../run/ai-and-search.md#the-privacy-trade-off)).
+
+A **demo project** never gets a summary, even with AI on. A demo sends nothing
+to an outside service, so the rule-level AI explanation is refused there for the
+same reason.
+
+#### When it is generated, and who can regenerate it
+
+Opening the summary reads the stored copy. Reading the stored copy never
+calls the model. tripl keeps one summary per incident, together with a
+fingerprint (`facts_hash`) of the facts it was written from. If the incident's
+facts change (a new delivery, a status change, a note, a verdict, a comment or a
+release), the fingerprint changes too. The stored copy is then marked *stale*,
+stays on screen, and one new summary is generated in the background (*Updating…*).
+The browser asks for that generation once per set of facts, and remembers it
+for a few minutes across reopening the card or revisiting the page, so a
+failing provider is not called again on every visit. If two generations
+overlap, the one that finishes last does not overwrite a newer summary.
+A card that stays collapsed never asks for one, so a page of 20 incidents
+does not cost 20 model calls.
+
+Any project member who opens a stale or missing summary starts that one
+generation. Editors also get **Regenerate**, which writes a new one even when the
+facts have not changed. If the provider fails or its answer has no valid cited
+sentence, the result is *failed*. A previous summary is kept and shown with
+*Could not update the summary; showing the previous one.* With no previous
+summary, the card shows *Summary unavailable.*, and editors get **Retry**.
+A `read`-scope API key can read the stored summary but not start a generation
+(see the [agent API guide](../integrate/agent-api-guide.md#incident-summaries)).
+The prompt and the model's answer are never written to the server log. The
+model name and the member who generated the summary are stored with it.
+
+While AI is off, or in a demo project, the **Summary** link is not shown at all.
+
 ### Acting on several incidents at once {#bulk-actions}
 
 A bad deploy leaves the Inbox holding twenty rows that all say the same thing,
