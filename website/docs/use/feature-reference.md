@@ -901,6 +901,56 @@ counterpart's history, since the ticket names the event rather than one copy of
 it. The list is at
 `GET /api/v1/projects/{slug}/events/{event_id}/implementation-tickets`.
 
+### Dependencies & impact {#dependencies-and-impact}
+
+**Where:** a **Used by** section on the event, event type, variable, metric and
+fact-table pages, and on each field in the event type page; warnings in the
+delete, archive, deprecate and rename flows listed below; and an **Impact**
+panel on a plan branch's detail page. What counts as a dependency, and why most of them only warn, is
+explained in [Dependencies & impact](./dependencies-and-impact.md).
+
+**Used by** lists what depends on the entity, grouped by kind (events, metrics,
+alert rules, relations, variables, fact tables, scans), each item a link to its page
+with a short reason next to it, such as *metric uses event in its composition*
+or *variable bound to field*. Items matched only by name, without a stored id
+(a column name in SQL or a JSON-key literal, a fact-table or `fact` metric
+column, a variable binding by column name, a column on a scan with no event
+type), are marked **possible**, with a note that the match is by name and should
+be checked. An entity
+nothing depends on says so rather than showing an empty list. On a plan branch
+the list is resolved on that branch: its own relations and variable bindings,
+and the metrics and alert rules that use its counterpart on `main`.
+
+**Warnings** name the concrete dependents before you act, summarised as a count
+of direct dependents (*2 metrics and 1 alert rule*) with the items listed below
+it, possible matches marked the same way. They appear in:
+
+- the events list's bulk **Delete**, **Archive** and **Deprecate** confirm
+  dialogs;
+- the delete dialogs for an event type, a field (on the event type page) and a
+  variable;
+- the delete dialogs for a metric and a fact table;
+- inline on the event form when you rename, deprecate or archive the event, and
+  on the variable form when you rename the variable.
+
+Fields have no rename action, so there is no field-rename warning. A warning
+never stops you: confirming goes through even when the list is not empty, and
+the server adds no new refusal. Fact tables are the one exception, and they are
+unchanged: deleting a fact table that metrics read is still refused with `409`,
+and so is an edit that would break a metric, as described under
+[Fact tables](#fact-tables).
+
+The **Impact** panel on a branch's detail takes the changes in the branch's diff
+that can break something (deleted, deprecated or archived, renamed, or otherwise
+edited events, event types, fields and variables) and lists, for each change,
+the downstream objects it touches with the same count summary. A rename is shown
+once, using the same pairing as the diff; an in-place edit (a field's type, an
+event's breakdown columns) is shown as a **change**. The panel informs review; it does not stop an approval or a
+merge.
+
+Viewers see **Used by** and the Impact panel; the warnings appear only for the
+editors who can make the change.
+
 ### Plan rules
 
 **Where:** Workspace settings › Project › **Plan rules** (in the full-takeover
@@ -2558,5 +2608,6 @@ dialect-correct SQL examples and troubleshooting.
 - [Concepts](./concepts.md)
 - [User Guide](./user-guide.md)
 - [Troubleshooting](./troubleshooting.md)
+- [Dependencies & impact](./dependencies-and-impact.md)
 - [Agent / API Guide](../integrate/agent-api-guide.md)
 - [Configuration](../run/configuration.md)

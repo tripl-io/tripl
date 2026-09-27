@@ -16,6 +16,7 @@ import type {
   Event as TEvent,
   EventMutationResponse,
   EventType,
+  ImpactChange,
   MetaFieldDefinition,
   Variable,
 } from '@/types'
@@ -34,6 +35,7 @@ import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { EVENT_STATUS_LABELS, EVENT_STATUSES } from '@/lib/eventStatus'
 import type { EventStatus } from '@/lib/eventStatus'
 import { ErrorState } from '@/components/error-state'
+import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
 import { validateJsonWithVars } from './jsonTemplate'
 import { applyEventNameFormat, nameFormatBaseColumns } from './utils'
 import { EvField, EvInput, EvTextarea, SelectControl, SurfCard } from './eventFormLayout'
@@ -439,6 +441,22 @@ export function EventForm({
   const effectiveBreakdownColumns = normalizeMetricBreakdownColumns(
     withPendingChip(metricBreakdownColumns, breakdownInput),
   )
+
+  // What this save would retire or rename, for the dependents notice (#257).
+  const savedName = event?.name
+  const savedStatus = event?.status
+  const nextName = generatedName ? generatedName.name : name
+  const impactChanges = useMemo((): ImpactChange[] => {
+    if (!event) return []
+    const out: ImpactChange[] = []
+    if ((status === 'deprecated' || status === 'archived') && status !== savedStatus) {
+      out.push({ kind: 'event', id: event.id, change: 'deprecate' })
+    }
+    if (nextName.trim() !== '' && nextName !== savedName) {
+      out.push({ kind: 'event', id: event.id, change: 'rename' })
+    }
+    return out
+  }, [event, nextName, savedName, savedStatus, status])
 
   // Everything a save would send, as one comparable string. Empty values are
   // dropped the way the payload drops them, so clearing a box you typed into
@@ -1009,6 +1027,14 @@ export function EventForm({
               />
             )}
           </SurfCard>
+
+          {/* Deprecating, archiving or renaming a saved event names what
+              depends on it (#257). A warning: Save stays as it was. */}
+          {event && impactChanges.length > 0 && (
+            <div className="mb-[18px]">
+              <ImpactNotice slug={slug} branchId={branchId} changes={impactChanges} />
+            </div>
+          )}
 
           <TagsBreakdownsCard
             tags={tags}

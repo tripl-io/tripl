@@ -245,6 +245,9 @@ describe('query key values (SHELL-50)', () => {
     [keys.monitorDetailKey('demo', 'mon-1'), ['monitor', 'demo', 'mon-1']],
     [keys.monitorHistoryKey('demo', 'mon-1'), ['monitor-history', 'demo', 'mon-1']],
     [keys.topbarDeliveriesKey('demo'), ['topbarNotifications', 'demo', 'deliveries']],
+    [keys.entityDependenciesKey('demo', 'b-1', 'event:e-1', 1), ['dependencies', 'demo', 'b-1', 'entity', 'event:e-1', 1]],
+    [keys.impactKey('demo', null, '[]'), ['dependencies', 'demo', null, 'impact', '[]']],
+    [keys.branchImpactKey('demo', 'b-1'), ['dependencies', 'demo', 'b-1', 'branchImpact']],
   ])('%j', (key, expected) => {
     expect(key).toEqual(expected)
   })
@@ -305,6 +308,9 @@ describe('query key values (SHELL-50)', () => {
     [keys.projectMonitorKey('demo'), keys.monitorDetailKey('demo', 'mon-1')],
     [keys.projectMonitorHistoryKey('demo'), keys.monitorHistoryKey('demo', 'mon-1')],
     [keys.topbarNotificationsKey('demo'), keys.topbarDeliveriesKey('demo')],
+    [keys.projectDependenciesKey('demo'), keys.entityDependenciesKey('demo', null, 'metric:m-1', 2)],
+    [keys.dependenciesRootKey(), keys.branchImpactKey('demo', 'b-1')],
+    [keys.branchDependenciesKey('demo', 'b-1'), keys.impactKey('demo', 'b-1', '[]')],
   ])('%j is a prefix of %j', (prefix, key) => {
     expect(key.slice(0, prefix.length)).toEqual([...prefix])
   })

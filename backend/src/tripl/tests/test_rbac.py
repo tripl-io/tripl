@@ -104,6 +104,9 @@ READ_LIKE_MUTATING_PATHS = {
     "/api/v1/projects/{slug}/alert-destinations/{destination_id}/rules/{rule_id}/simulate",
     # Read-like: NL question over the plan; POST only to carry the body.
     "/api/v1/projects/{slug}/ai/ask",
+    # Read-like: dependents of a planned change set (GH #257); POST only to
+    # carry the change list, and it refuses nothing.
+    "/api/v1/projects/{slug}/impact",
 }
 
 

@@ -849,12 +849,149 @@ anomalies), and the same `attribution_status` and `attribution` a signal
 carries. Attribution is read-only: replaying a period recomputes it, and it is
 dropped with its anomaly.
 
+## Dependencies and impact {#dependencies-and-impact}
+
+Before an agent deletes, deprecates or renames a plan entity, it can ask what
+depends on it. All three routes are read-only, need only a `read` key, and
+follow the project's membership like every other `/projects/{slug}` route. None
+of them changes what a delete, deprecate or rename does: those writes still
+succeed with dependents in place. Fact tables keep their existing `409` when a
+delete or edit would break a metric; nothing else gains one. See
+[Dependencies & impact](../use/dependencies-and-impact.md) for which edges exist.
+
+Look up one entity's dependencies:
+
+```http
+GET /api/v1/projects/{slug}/dependencies?entity=event:5a1f…&depth=1
+```
+
+`entity` is `<kind>:<id>`, with `kind` one of `event`, `event_type`, `field`,
+`variable`, `metric`, `fact_table`, `alert_rule` or `relation`. `depth` is `1`
+(the default, direct neighbours only) or `2` (one more hop, for example the
+alert rules scoped to the metrics that use an event). Plan entities are resolved
+on the branch named by the usual `branch` query parameter, or on main without
+one; pass the branch copy's own id. An id that resolves to nothing is not an
+error: the response is `200` with `entity.exists` set to `false`, `name` null,
+and whatever project-wide rows still name that id.
+
+```json
+{
+  "entity": { "kind": "event", "id": "5a1f…", "name": "checkout:completed",
+              "exists": true },
+  "upstream": [
+    { "kind": "event_type", "id": "91c0…", "name": "checkout",
+      "relation": "event belongs to event type", "certainty": "direct",
+      "url_hint": "/p/shop/event-types/91c0…", "depth": 1 }
+  ],
+  "downstream": [
+    { "kind": "metric", "id": "c3d2…", "name": "Checkout conversion",
+      "relation": "metric uses event in its composition", "certainty": "direct",
+      "url_hint": "/p/shop/monitoring/metric/c3d2…", "depth": 1 },
+    { "kind": "alert_rule", "id": "0b7e…", "name": "Checkout volume",
+      "relation": "alert rule filters on event", "certainty": "direct",
+      "url_hint": "/p/shop/alerting", "depth": 1 },
+    { "kind": "fact_table", "id": "e410…", "name": "orders",
+      "relation": "fact table SQL or columns mention the column by name",
+      "certainty": "possible",
+      "url_hint": "/p/shop/metrics/fact-tables/e410…/edit", "depth": 1 }
+  ],
+  "counts_by_kind": { "metric": 1, "alert_rule": 1 },
+  "possible_counts_by_kind": { "fact_table": 1 }
+}
+```
+
+Every edge has the same shape: the other entity's `kind`, `id` and `name`, a
+`relation` sentence saying why the edge exists, a `certainty`, a `url_hint` and
+a `depth`. An edge's `kind` can also be `scan_config` (a scan's breakdown,
+drift, platform or app-version column, or its event type binding), which has no
+dependencies route of its own.
+
+- `certainty` is `direct` for a stored reference (an id, or a column name read
+  in the entity's own scope) and `possible` for a match by name without a
+  stored id: an SQL identifier or JSON-key literal in a `sql` metric's query,
+  filter SQL or a fact table's SQL, a fact-table or `fact` metric column, a
+  variable binding by column name, a column on a scan with no event type. Treat
+  `possible` as "check it", never as proof.
+- `url_hint` is the entity's path in the app, without `?branch=`. It is filled
+  for every kind except a field whose event type cannot be found, where it is
+  `null`.
+- `depth` is `1` for a neighbour of the asked entity and `2` for a neighbour of
+  a neighbour (only with `depth=2`).
+- `counts_by_kind` counts the direct, depth-1 downstream edges;
+  `possible_counts_by_kind` counts the rest of `downstream` (possible matches
+  and depth-2 edges).
+
+See [Dependencies & impact](../use/dependencies-and-impact.md#what-counts-as-a-dependency)
+for every edge, including *superseded by* links between events, detection
+overrides, variables used in field and meta values, and scan drift, platform
+and app-version columns.
+
+Ask about a set of planned changes at once:
+
+```http
+POST /api/v1/projects/{slug}/impact
+```
+
+```json
+{
+  "changes": [
+    { "kind": "event", "id": "5a1f…", "change": "delete" },
+    { "kind": "variable", "id": "77aa…", "change": "rename" }
+  ]
+}
+```
+
+`changes` holds 1 to 200 items; more is a `422`. A caller sends `change` as
+`delete`, `deprecate` or `rename`. Every change is resolved at depth 1. The
+response has one item per change:
+
+```json
+{
+  "items": [
+    {
+      "change": { "kind": "event", "id": "5a1f…", "change": "delete" },
+      "entity": { "kind": "event", "id": "5a1f…", "name": "checkout:completed",
+                  "exists": true },
+      "name": "checkout:completed",
+      "affected": [
+        { "kind": "metric", "id": "c3d2…", "name": "Checkout conversion",
+          "relation": "metric uses event in its composition",
+          "certainty": "direct",
+          "url_hint": "/p/shop/monitoring/metric/c3d2…", "depth": 1 }
+      ],
+      "summary": "1 metric"
+    }
+  ]
+}
+```
+
+`name` repeats `entity.name` for list rows. It writes nothing. Use `summary`
+when you report to a person (possible matches are counted apart, as in
+*1 metric, plus 1 fact table that may use it*), and `affected` when you decide
+what else to update first.
+
+Get the same answer for everything a plan branch changed:
+
+```http
+GET /api/v1/projects/{slug}/branches/{branch_id}/impact
+```
+
+The response has the same `items` shape as `POST /impact`, with the change set
+taken from the branch's diff: deleted, renamed, deprecated or archived, and
+otherwise edited events, event types, fields and variables. Here `change` can
+also be `change`, a response-only value for an entity edited in place (a
+field's type, an event's breakdown columns) without being renamed, deprecated or
+archived. A rename appears once, paired the way the diff's `renames` list pairs
+it; additions are left out. This is what the branch's **Impact** panel shows;
+an agent reviewing a branch can read it before approving.
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.
 - Use a project-scoped `write` key only for agents that are explicitly allowed to edit the tracking plan.
 - Pass `branch=<branch_id>` for all write calls unless the operator intentionally wants to edit main.
 - Search first, then fetch the canonical entity by id before making decisions.
+- Before a delete, deprecate or rename, check `GET /projects/{slug}/dependencies` (or `POST /impact` for several changes) and report what it names; the write itself will not stop you.
 - Prefer partial `PATCH` payloads over sending whole objects.
 - Treat field and meta value lists as full replacements when included in an event update.
 - Monitoring outputs — signals, schema/distribution/variable-value drift, and

@@ -14696,6 +14696,215 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/dependencies": {
+      "get": {
+        "tags": [
+          "dependencies"
+        ],
+        "summary": "Get Dependencies",
+        "description": "Upstream and downstream edges of one entity, on ``?branch=`` or main.\n\nAn id that no longer resolves answers ``entity.exists = false`` with any\nproject-wide rows that still name it, rather than 404.",
+        "operationId": "get_dependencies_api_v1_projects__slug__dependencies_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "description": "The entity to explain, as '<kind>:<uuid>' with kind one of event, event_type, field, variable, metric, fact_table, alert_rule, relation.",
+              "title": "Entity"
+            },
+            "description": "The entity to explain, as '<kind>:<uuid>' with kind one of event, event_type, field, variable, metric, fact_table, alert_rule, relation."
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2,
+              "minimum": 1,
+              "default": 1,
+              "title": "Depth"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/impact": {
+      "post": {
+        "tags": [
+          "dependencies"
+        ],
+        "summary": "Post Impact",
+        "description": "What each planned delete / deprecate / rename would affect. Changes nothing.\n\nAlways one hop: ``depth`` in the body is accepted for compatibility and\nignored (use ``GET /dependencies?depth=2`` to walk further).",
+        "operationId": "post_impact_api_v1_projects__slug__impact_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/branches/{branch_id}/impact": {
+      "get": {
+        "tags": [
+          "dependencies"
+        ],
+        "summary": "Get Branch Impact",
+        "description": "The downstream objects a working branch's changes touch, from its diff.",
+        "operationId": "get_branch_impact_api_v1_projects__slug__branches__branch_id__impact_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/branches/{branch_id}/implementation-tickets": {
       "get": {
         "tags": [
@@ -22478,6 +22687,160 @@
         "title": "DemoCancelResponse",
         "description": "Outcome of asking an in-flight demo provision to abandon itself.\n\n``cancelled`` is only true when a still-seeding shell was found and flagged;\nthe provision then deletes itself instead of promoting.\n\nWhen it is false there was nothing to stop, and ``state`` says which of two\nvery different things that means (DEMO-28): ``finished`` \u2014 a demo of this\nuser's became ready moments ago, so it WILL be in their projects list and\nthe caller should say so \u2014 or ``none`` \u2014 no recent demo exists, the create\nnever got far enough (or failed on its own), and the caller must not promise\nanything will appear. ``stopped`` always pairs with ``cancelled=true``."
       },
+      "DependenciesResponse": {
+        "properties": {
+          "entity": {
+            "$ref": "#/components/schemas/DependencyEntity"
+          },
+          "upstream": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "type": "array",
+            "title": "Upstream"
+          },
+          "downstream": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "type": "array",
+            "title": "Downstream"
+          },
+          "counts_by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts By Kind"
+          },
+          "possible_counts_by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Possible Counts By Kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity",
+          "upstream",
+          "downstream",
+          "counts_by_kind"
+        ],
+        "title": "DependenciesResponse"
+      },
+      "DependencyEdge": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "variable",
+              "metric",
+              "fact_table",
+              "alert_rule",
+              "relation",
+              "scan_config",
+              "detection_override"
+            ],
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "certainty": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "possible"
+            ],
+            "title": "Certainty"
+          },
+          "url_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Hint"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "relation",
+          "certainty"
+        ],
+        "title": "DependencyEdge"
+      },
+      "DependencyEntity": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "variable",
+              "metric",
+              "fact_table",
+              "alert_rule",
+              "relation"
+            ],
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "DependencyEntity"
+      },
       "DetectionResetPeriod": {
         "properties": {
           "before": {
@@ -27229,6 +27592,129 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "ImpactChange": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "variable",
+              "metric",
+              "fact_table",
+              "alert_rule",
+              "relation"
+            ],
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "delete",
+              "deprecate",
+              "rename",
+              "change"
+            ],
+            "title": "Change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "change"
+        ],
+        "title": "ImpactChange"
+      },
+      "ImpactItem": {
+        "properties": {
+          "change": {
+            "$ref": "#/components/schemas/ImpactChange"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/DependencyEntity"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "affected": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "type": "array",
+            "title": "Affected"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "change",
+          "entity",
+          "affected",
+          "summary"
+        ],
+        "title": "ImpactItem"
+      },
+      "ImpactRequest": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactChange"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Changes"
+          },
+          "depth": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Depth",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "title": "ImpactRequest"
+      },
+      "ImpactResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "ImpactResponse"
       },
       "ImplementationTicketResponse": {
         "properties": {
@@ -39277,6 +39763,10 @@
     {
       "name": "plan-branches",
       "description": "Working branches of a tracking plan."
+    },
+    {
+      "name": "dependencies",
+      "description": "What depends on a plan entity, and what a planned change affects."
     },
     {
       "name": "plan-revisions",

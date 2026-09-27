@@ -77,6 +77,10 @@ _OPENAPI_TAGS = [
     {"name": "metrics", "description": "Computed metrics and metric definitions."},
     {"name": "reconciliation", "description": "Plan-vs-warehouse reconciliation runs."},
     {"name": "plan-branches", "description": "Working branches of a tracking plan."},
+    {
+        "name": "dependencies",
+        "description": "What depends on a plan entity, and what a planned change affects.",
+    },
     {"name": "plan-revisions", "description": "Committed plan revisions and history."},
     {"name": "chart-annotations", "description": "Annotations overlaid on metric charts."},
     {"name": "anomaly-settings", "description": "Per-project anomaly detection settings."},

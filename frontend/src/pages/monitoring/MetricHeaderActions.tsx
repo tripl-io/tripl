@@ -10,6 +10,7 @@ import {
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { useScenarioArtifacts } from '@/demo/demoScenarioContext'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { getErrorMessage } from '@/lib/utils'
 import { getAlertingPath } from '@/lib/navigation'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -47,7 +48,16 @@ export function MetricHeaderActions({
   const deleteMetric = async (): Promise<void> => {
     const ok = await confirmDelete({
       title: 'Delete metric?',
-      message: `"${metricDefinition?.display_name ?? 'This metric'}" and its collected series will be permanently removed. This can't be undone.`,
+      // The alert rules scoped to the metric, listed under the sentence
+      // (#257). Metrics are project-level, not branch copies, so main's graph.
+      message: (
+        <ConfirmImpactMessage
+          message={`"${metricDefinition?.display_name ?? 'This metric'}" and its collected series will be permanently removed. This can't be undone.`}
+          slug={slug}
+          branchId={null}
+          changes={[{ kind: 'metric', id: scopeId, change: 'delete' }]}
+        />
+      ),
       variant: 'danger',
       confirmLabel: 'Delete',
     })

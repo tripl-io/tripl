@@ -10,6 +10,8 @@ import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
 import { Panel } from '@/components/settings/kit'
+import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
+import { UsedBySection } from '@/components/dependencies/UsedBySection'
 import { usePageTitle } from '@/components/shell-chrome-context'
 import { EntityNotFound, PageSkeleton, ReadOnlyNotice } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -254,6 +256,16 @@ function VariableDetailBody({
                 />
               </div>
             </Panel>
+            {/* A rename re-points `${old}` in stored values, but not in SQL or
+                anything outside the plan: name what reads it (#257). Warning
+                only — Save stays as it was. */}
+            {canWrite && draft.name.trim() !== '' && draft.name !== variable.name && (
+              <ImpactNotice
+                slug={slug}
+                branchId={branchId}
+                changes={[{ kind: 'variable', id: variable.id, change: 'rename' }]}
+              />
+            )}
             {canWrite && (
               // Sticky to the bottom of the viewport while the form runs past
               // it, so Save stays in reach below a long value list.
@@ -269,6 +281,7 @@ function VariableDetailBody({
               </div>
             )}
           </form>
+          <UsedBySection slug={slug} entity={{ kind: 'variable', id: variable.id }} branchId={branchId} />
         </TabsContent>
 
         <TabsContent value="drift" className="max-w-[880px]">

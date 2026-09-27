@@ -5,6 +5,7 @@ import { variablesApi } from "@/api/variables"
 import { useActiveBranchId } from "@/hooks/useBranch"
 import type { Variable, VariableType } from "@/types"
 import { useConfirm } from "@/hooks/useConfirm"
+import { ConfirmImpactMessage } from "@/components/dependencies/ImpactNotice"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { FilterBar, FilterSearch } from "@/components/ui/filter-bar"
@@ -200,7 +201,16 @@ export function VariablesTab({
     bulkDeleteMut.reset()
     const ok = await confirm({
       title: 'Delete variables',
-      message: `Delete ${selectedIds.size} selected variable${selectedIds.size === 1 ? '' : 's'}? Event fields referencing them will keep the literal text.`,
+      // Where the variables are bound and used, listed under the question
+      // (#257); a warning, Delete stays armed.
+      message: (
+        <ConfirmImpactMessage
+          message={`Delete ${selectedIds.size} selected variable${selectedIds.size === 1 ? '' : 's'}? Event fields referencing them will keep the literal text.`}
+          slug={slug}
+          branchId={branchId}
+          changes={[...selectedIds].map(id => ({ kind: 'variable' as const, id, change: 'delete' as const }))}
+        />
+      ),
       confirmLabel: 'Delete',
       variant: 'danger',
     })
@@ -329,7 +339,14 @@ export function VariablesTab({
     excludeMut.reset()
     const ok = await confirm({
       title: 'Delete variable',
-      message: `Delete "${v.name}"?${recordedNote} Any event fields referencing \${${v.name}} will keep the literal text.${rescanNote}`,
+      message: (
+        <ConfirmImpactMessage
+          message={`Delete "${v.name}"?${recordedNote} Any event fields referencing \${${v.name}} will keep the literal text.${rescanNote}`}
+          slug={slug}
+          branchId={branchId}
+          changes={[{ kind: 'variable', id: v.id, change: 'delete' }]}
+        />
+      ),
       confirmLabel: 'Delete',
       variant: 'danger',
     })

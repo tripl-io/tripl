@@ -34,6 +34,7 @@ import {
   withDefaultHidden,
 } from './events/useColumnVisibility'
 import { useEventsBulkDelete } from './events/useEventsBulkDelete'
+import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { useEventsDndSensors } from './events/useEventsDndSensors'
 import {
   buildBulkUndo,
@@ -417,6 +418,8 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   )
 
   const handleBulkDelete = useEventsBulkDelete({
+    slug,
+    branchId,
     selectedEventIds,
     selectedVisibleEventIds,
     bulkDeleteMut,
@@ -447,8 +450,27 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
       selectedVisibleCount: selectedVisibleEventIds.length,
       actionLabel,
       archives: patch.status === 'archived',
+      deprecates: patch.status === 'deprecated',
     })
-    if (confirmation && !(await confirm(confirmation))) return
+    // Retiring events lists what depends on them under the question (#257):
+    // a warning, the Apply stays armed. Archive is sent as a deprecation — the
+    // events stay in the plan, out of the active set.
+    const retires = patch.status === 'archived' || patch.status === 'deprecated'
+    if (confirmation && !(await confirm(
+      retires && slug
+        ? {
+            ...confirmation,
+            message: (
+              <ConfirmImpactMessage
+                message={confirmation.message}
+                slug={slug}
+                branchId={branchId}
+                changes={eventIds.map(id => ({ kind: 'event' as const, id, change: 'deprecate' as const }))}
+              />
+            ),
+          }
+        : confirmation,
+    ))) return
     bulkUpdateMut.mutate({ eventIds, ...patch }, {
       onSuccess: () => {
         toast.success(bulkUpdateSummary(eventIds.length, patch, ownerName), {
@@ -460,6 +482,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
       },
     })
   }, [
+    branchId,
     bulkUndoMut,
     bulkUpdateMut,
     confirm,
@@ -467,6 +490,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
     rawEvents,
     selectedEventIds,
     selectedVisibleEventIds,
+    slug,
   ])
 
   const handleBulkSetStatus = useCallback((status: EventStatus) => {

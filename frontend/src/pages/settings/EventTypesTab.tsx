@@ -1,5 +1,5 @@
 import { Panel, Field, NativeSelect } from '@/components/settings/kit'
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronUp,
   Check,
+  Network,
   Pencil,
   Plus,
   Save,
@@ -23,6 +24,8 @@ import { useActiveBranchId } from '@/hooks/useBranch'
 import type { EventType, EventTypeOwner, FieldDefinition, Sensitivity } from '@/types'
 import { DEFAULT_ENTITY_COLOR, SENSITIVITY_OPTIONS } from '@/types'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
+import { UsedByBody } from '@/components/dependencies/UsedBySection'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -674,6 +677,15 @@ export function FieldsEditor({
   // After a move to the top or bottom the pressed button turns disabled and
   // focus would fall to <body>; this names the button that takes it instead.
   const [focusRequest, setFocusRequest] = useState<{ fieldId: string; button: 'up' | 'down' } | null>(null)
+  // Fields whose "Used by" row is open (#257). Any member may open one.
+  const [usedByOpen, setUsedByOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const toggleUsedBy = (fieldId: string) =>
+    setUsedByOpen((current) => {
+      const next = new Set(current)
+      if (next.has(fieldId)) next.delete(fieldId)
+      else next.add(fieldId)
+      return next
+    })
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => fieldsApi.del(slug, eventType.id, id, branchId),
@@ -686,7 +698,16 @@ export function FieldsEditor({
     deleteMut.reset()
     const ok = await confirm({
       title: 'Delete field',
-      message: `Delete "${f.display_name}" from ${eventType.display_name}?`,
+      // What reads the field — metrics, relations, variable bindings, SQL that
+      // may name it — listed under the question; a warning, never a block (#257).
+      message: (
+        <ConfirmImpactMessage
+          message={`Delete "${f.display_name}" from ${eventType.display_name}?`}
+          slug={slug}
+          branchId={branchId}
+          changes={[{ kind: 'field', id: f.id, change: 'delete' }]}
+        />
+      ),
       confirmLabel: 'Delete',
       variant: 'danger',
     })
@@ -792,13 +813,13 @@ export function FieldsEditor({
               <Th wideOnly>Sensitivity</Th>
               <Th>Required</Th>
               <Th wideOnly>Contract</Th>
-              <Th style={{ width: 66 }}><span className="sr-only">Actions</span></Th>
+              <Th style={{ width: 96 }}><span className="sr-only">Actions</span></Th>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedFields.map((f, idx) => (
+              <Fragment key={f.id}>
               <FieldRow
-                key={f.id}
                 field={f}
                 isFirst={idx === 0}
                 isLast={idx === sortedFields.length - 1}
@@ -809,7 +830,28 @@ export function FieldsEditor({
                 onMoveDown={() => moveField(idx, 1)}
                 onEdit={() => setEditing(f)}
                 onDelete={() => handleDelete(f)}
+                usedByOpen={usedByOpen.has(f.id)}
+                usedByRegion={`field-used-by-${f.id}`}
+                onToggleUsedBy={() => toggleUsedBy(f.id)}
               />
+              {usedByOpen.has(f.id) && (
+                <TableRow>
+                  <TableCell
+                    id={`field-used-by-${f.id}`}
+                    colSpan={8}
+                    className="px-4 py-3"
+                    style={{ background: 'var(--bg-sunken)' }}
+                  >
+                    <UsedByBody
+                      slug={slug}
+                      entity={{ kind: 'field', id: f.id }}
+                      branchId={branchId}
+                      headingLevel={4}
+                    />
+                  </TableCell>
+                </TableRow>
+              )}
+              </Fragment>
             ))}
           </TableBody>
         </Table>
@@ -831,6 +873,11 @@ interface FieldRowProps {
   onMoveDown: () => void
   onEdit: () => void
   onDelete: () => void
+  /** Whether the field's "Used by" row is open below it (#257). */
+  usedByOpen: boolean
+  /** The id of that row, for `aria-controls`. */
+  usedByRegion: string
+  onToggleUsedBy: () => void
 }
 
 function FieldRow({
@@ -844,6 +891,9 @@ function FieldRow({
   onMoveDown,
   onEdit,
   onDelete,
+  usedByOpen,
+  usedByRegion,
+  onToggleUsedBy,
 }: FieldRowProps) {
   const contractRules = fieldContractRules(field)
   const upRef = useRef<HTMLButtonElement>(null)
@@ -920,14 +970,26 @@ function FieldRow({
         )}
       </Td>
       <Td>
-        {canWrite && <div className="flex justify-end gap-0.5">
+        <div className="flex justify-end gap-0.5">
+          <IconButton
+            label={`What uses ${field.name}`}
+            tooltip="Used by"
+            className={ROW_ICON_CLASS}
+            aria-expanded={usedByOpen}
+            aria-controls={usedByOpen ? usedByRegion : undefined}
+            onClick={onToggleUsedBy}
+          >
+            <Network className="size-3.5" />
+          </IconButton>
+          {canWrite && <>
           <IconButton label={`Edit field ${field.name}`} tooltip="Edit field" className={ROW_ICON_CLASS} onClick={onEdit}>
             <Pencil className="size-3.5" />
           </IconButton>
           <IconButton label={`Delete field ${field.name}`} tooltip="Delete field" className={ROW_ICON_DANGER_CLASS} onClick={onDelete}>
             <Trash2 className="size-3.5" />
           </IconButton>
-        </div>}
+          </>}
+        </div>
       </Td>
     </ListRow>
   )

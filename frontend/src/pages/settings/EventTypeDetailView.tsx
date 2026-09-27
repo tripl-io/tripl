@@ -9,6 +9,8 @@ import { eventTypeOwnersApi } from '@/api/eventTypeOwners'
 import { eventTypesApi } from '@/api/eventTypes'
 import { useActiveBranchId } from '@/hooks/useBranch'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
+import { UsedBySection } from '@/components/dependencies/UsedBySection'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
@@ -223,6 +225,14 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
         </TabsContent>
         <TabsContent value="summary">
           <SummaryTab et={et} />
+          {/* What depends on this type: its events, the metrics and alert
+              rules built on it, the relations that link its fields (#257). */}
+          <UsedBySection
+            className="mt-4"
+            slug={slug}
+            entity={{ kind: 'event_type', id: et.id }}
+            branchId={branchId}
+          />
         </TabsContent>
         <TabsContent value="settings">
           <SettingsTab slug={slug} eventType={et} branchId={branchId} onDeleted={goBack} />
@@ -539,7 +549,15 @@ function DangerZoneCard({
   const handleDelete = async () => {
     const ok = await confirm({
       title: 'Delete event type',
-      message: `Delete "${eventType.display_name}"? ${impact}`,
+      message: (
+        <ConfirmImpactMessage
+          message={`Delete "${eventType.display_name}"? ${impact}`}
+          slug={slug}
+          branchId={branchId}
+          mode="cascades"
+          changes={[{ kind: 'event_type', id: eventType.id, change: 'delete' }]}
+        />
+      ),
       confirmLabel: 'Delete',
       variant: 'danger',
     })

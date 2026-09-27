@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { SectionSkeleton, StatValueSkeleton } from '@/components/states'
@@ -64,9 +65,20 @@ export function FactTablesList({ slug }: { slug?: string }) {
     if (!slug) return
     void confirm({
       title: 'Delete this fact table?',
-      message:
-        `"${table.display_name}" disappears from every fact metric's picker. A fact table ` +
-        'that metrics still read cannot be deleted; the refusal names them.',
+      // The metrics that read it, listed before the attempt (#257). These are
+      // the one dependents that DO block: the server refuses with a 409.
+      message: (
+        <ConfirmImpactMessage
+          message={
+            `"${table.display_name}" disappears from every fact metric's picker. A fact table ` +
+            'that metrics still read cannot be deleted; the refusal names them.'
+          }
+          slug={slug}
+          branchId={null}
+          mode="blocks"
+          changes={[{ kind: 'fact_table', id: table.id, change: 'delete' }]}
+        />
+      ),
       confirmLabel: 'Delete fact table',
       variant: 'danger',
       errorPrefix: 'Could not delete the fact table',

@@ -16,6 +16,8 @@ import { ErrorState } from '@/components/error-state'
 import { SqlEditor } from '@/components/sql-editor'
 import { useDataSourceSchema } from '@/hooks/useDataSourceSchema'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
+import { UsedBySection } from '@/components/dependencies/UsedBySection'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { editPageTitle, usePageTitle } from '@/components/shell-chrome-context'
 import { Chip, type ChipTone } from '@/components/primitives/chip'
@@ -485,9 +487,20 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
     if (!factTable) return
     const ok = await confirm({
       title: 'Delete this fact table?',
-      message:
-        `"${factTable.display_name}" disappears from every fact metric's picker. A fact table ` +
-        'that metrics still read cannot be deleted; the refusal names them.',
+      // The metrics that read it, listed before the attempt (#257). These are
+      // the one dependents that DO block: the server refuses with a 409.
+      message: (
+        <ConfirmImpactMessage
+          message={
+            `"${factTable.display_name}" disappears from every fact metric's picker. A fact table ` +
+            'that metrics still read cannot be deleted; the refusal names them.'
+          }
+          slug={slug}
+          branchId={null}
+          mode="blocks"
+          changes={[{ kind: 'fact_table', id: factTable.id, change: 'delete' }]}
+        />
+      ),
       confirmLabel: 'Delete fact table',
       variant: 'danger',
     })
@@ -959,6 +972,18 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
           </div>
         )}
 
+        {/* The metrics that read this table (#257) — the same set the server
+            refuses a delete or a breaking edit over. Fact tables are
+            project-level, so main's graph. */}
+        {factTable && (
+          <UsedBySection
+            className="mb-[18px]"
+            slug={slug}
+            entity={{ kind: 'fact_table', id: factTable.id }}
+            branchId={null}
+          />
+        )}
+
         {saveMut.isError && (
           <div className="mb-[18px]">
             <ErrorState compact title="Could not save fact table" error={saveMut.error} />
@@ -1088,6 +1113,7 @@ export default function FactTableEditPage() {
   if (!canWrite && factTableQuery.data) {
     return (
       <FactTableReadView
+        slug={slug}
         factTable={factTableQuery.data}
         dataSources={dataSourcesQuery.data ?? EMPTY_DATA_SOURCES}
         onClose={goBack}

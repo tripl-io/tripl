@@ -3,6 +3,7 @@ import { Link, useInRouterContext } from 'react-router-dom'
 import { ArrowUpRight } from 'lucide-react'
 import type { Variable } from '@/types'
 import { Button } from '@/components/ui/button'
+import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { BindingExample } from './bindingExample'
 import { useVariableDefinitionDraft } from './variable-detail/useVariableDefinitionDraft'
@@ -74,6 +75,14 @@ export function VariablesEditDialog({
               example={example}
               canWrite={canWrite}
             />
+            {/* What reads the variable, once its name is edited (#257). */}
+            {canWrite && draft.name.trim() !== '' && draft.name !== variable.name && (
+              <ImpactNotice
+                slug={slug}
+                branchId={branchId}
+                changes={[{ kind: 'variable', id: variable.id, change: 'rename' }]}
+              />
+            )}
           </form>
           <VariableDriftSection slug={slug} branchId={branchId} variable={variable} canWrite={canWrite} />
           <VariableOverridesSection

@@ -834,3 +834,26 @@ export const shadowEventsPageKey = (
   status: string,
   limit: number,
 ) => [...shadowEventsKey(slug, branchId, status), limit] as const
+
+/** Dependency graph (F04, #257). One family, so a plan write can refresh every
+ * "Used by" list, confirm-dialog impact and branch Impact panel at once. */
+export const dependenciesRootKey = () => ['dependencies'] as const
+export const projectDependenciesKey = (slug: string | undefined) =>
+  [...dependenciesRootKey(), slug] as const
+/** Every dependency cache for one branch (null = main). */
+export const branchDependenciesKey = (slug: string | undefined, branchId: string | null | undefined) =>
+  [...projectDependenciesKey(slug), branchId] as const
+export const entityDependenciesKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  entity: string,
+  depth: number,
+) => [...branchDependenciesKey(slug, branchId), 'entity', entity, depth] as const
+/** The impact of a planned change set; `changes` is its canonical JSON. */
+export const impactKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  changes: string,
+) => [...branchDependenciesKey(slug, branchId), 'impact', changes] as const
+export const branchImpactKey = (slug: string | undefined, branchId: string) =>
+  [...branchDependenciesKey(slug, branchId), 'branchImpact'] as const

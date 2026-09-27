@@ -90,6 +90,7 @@ import { BranchReviewSummary, type ReviewerPickerIntent } from './BranchReviewer
 import { CommentsPanel, ImplementationTicketsPanel } from './BranchSidePanels'
 import { ChangeRow, HousekeepingFold } from './ChangeRow'
 import { ConflictsPanel } from './ConflictsPanel'
+import { BranchImpactPanel } from './BranchImpactPanel'
 import { UpdateFromMainDialog } from './UpdateFromMainDialog'
 
 type Confirm = ReturnType<typeof useConfirm>['confirm']
@@ -828,6 +829,14 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       <div id="branch-conflicts" className="scroll-mt-4">
         <ConflictsPanel slug={slug} branch={branch} />
       </div>
+
+      {/* What the branch's deletes, deprecations and renames touch downstream
+          (#257), next to the conflicts. Warn only; it never gates the merge. */}
+      {!landed && (
+        <div id="branch-impact" className="scroll-mt-4">
+          <BranchImpactPanel slug={slug} branchId={branch.id} />
+        </div>
+      )}
 
       <Panel
         title="Changes"
