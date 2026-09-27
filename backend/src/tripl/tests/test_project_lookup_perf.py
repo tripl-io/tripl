@@ -26,7 +26,7 @@ from sqlalchemy import event, select
 
 from tripl.models.event_type import EventType
 from tripl.models.variable import Variable
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 from tripl.tests.conftest import TestSessionLocal, engine
 
 
@@ -85,7 +85,7 @@ async def test_project_slug_lookup_does_not_hydrate_the_plan(client: AsyncClient
 
     async with TestSessionLocal() as session:
         with captured_sql() as statements:
-            project = await get_project_by_slug(session, slug)
+            project = await resolve_project(session, slug)
 
     assert project.slug == slug
 
