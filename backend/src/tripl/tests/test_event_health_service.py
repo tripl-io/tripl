@@ -242,8 +242,9 @@ async def test_contract_violation_counts_only_active_matching_drifts(client: Asy
     assert contract["counts"] == {"violated": 1, "total": 3}
     assert contract["detail"] == "1 of 3 contract rules failing: amount (range)"
     assert contract["value"] == pytest.approx(2 / 3, abs=1e-3)
-    # No scan covers the event: the scan-backed components are excluded.
-    assert set(health["excluded"]) == {"drifts", "signals", "freshness"}
+    # The covering scan makes drifts apply; it has no detection and no schedule,
+    # so signals and freshness stay excluded.
+    assert set(health["excluded"]) == {"signals", "freshness"}
     assert health["renormalized"] is True
     assert project_id  # the event belongs to the seeded project
 

@@ -41,8 +41,9 @@ EventStatus = Literal[
 # ``GET /events?order_by``, which the route declares as a bare ``Literal``
 # rather than as a named schema — so this is read off the parameter itself.
 # "catalog" is the authored order, and what omitting the parameter gets;
-# "volume" ranks busiest-first by ingested volume over the last 24h.
-EventOrderBy = Literal["catalog", "volume"]
+# "volume" ranks busiest-first by ingested volume over the last 24h;
+# "health" ranks least healthy first (main plan only; a branch gets a 400).
+EventOrderBy = Literal["catalog", "volume", "health"]
 
 # ``SearchResult.entity_type``, verbatim — the same list the search route
 # validates its ``types`` filter against. Plan content (event, event_type,

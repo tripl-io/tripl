@@ -40,10 +40,11 @@ STATUSES: tuple[str, ...] = (
 
 # The route's `order_by` Literal, verbatim. "catalog" is the authored order the
 # plan is read in; "volume" ranks busiest-first by each event's summed
-# EventMetric count over the last 24h. Spelled here rather than in the argparse
-# `choices=` for the same reason STATUSES is, and pinned to backend/openapi.json
-# by cli/tests/test_contract.py.
-ORDER_BY: tuple[str, ...] = ("catalog", "volume")
+# EventMetric count over the last 24h; "health" ranks least healthy first by
+# the F15 health score (main plan only - a branch gets a 400). Spelled here
+# rather than in the argparse `choices=` for the same reason STATUSES is, and
+# pinned to backend/openapi.json by cli/tests/test_contract.py.
+ORDER_BY: tuple[str, ...] = ("catalog", "volume", "health")
 
 # What omitting `order_by` gets you. Held only so the help text can name it:
 # unlike `limit`, this parameter is left OFF the wire when unasked-for, so a

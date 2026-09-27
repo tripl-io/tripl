@@ -161,7 +161,7 @@ surfaces as a schema error the agent can correct, rather than as the route's
 | Argument | Tools | Accepted values |
 |----------|-------|-----------------|
 | `status` | `list_events` (repeatable), `create_event` | `draft`, `in_review`, `ready_for_dev`, `implemented`, `live`, `deprecated`, `archived` |
-| `order_by` | `list_events` | `catalog` — the authored order, and what omitting the argument gets — or `volume`, busiest-first by ingested volume over the last 24 hours |
+| `order_by` | `list_events` | `catalog` — the authored order, and what omitting the argument gets — or `volume`, busiest-first by ingested volume over the last 24 hours, or `health`, least healthy first by the [health score](../use/health-score.md) (main plan only) |
 | `types` | `search_plan` (repeatable) | `event`, `event_type`, `field`, `meta_field`, `variable`, `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule` |
 
 These lists are the API's own, checked against `backend/openapi.json` by the

@@ -59,8 +59,10 @@ export const HEALTH_GRADE_COLOR: Record<HealthGrade, string> = {
 
 /** The grade a score falls in, by the backend's thresholds. */
 export function gradeForScore(score: number): HealthGrade {
-  if (score >= GRADE_HEALTHY_MIN) return 'healthy'
-  if (score >= GRADE_WARNING_MIN) return 'warning'
+  // Grade the figure the badge shows, so "50" is never coloured as below 50.
+  const shown = Math.round(score)
+  if (shown >= GRADE_HEALTHY_MIN) return 'healthy'
+  if (shown >= GRADE_WARNING_MIN) return 'warning'
   return 'unhealthy'
 }
 
