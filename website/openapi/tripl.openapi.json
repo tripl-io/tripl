@@ -999,7 +999,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectResponse"
+                  "$ref": "#/components/schemas/ProjectCreateResponse"
                 }
               }
             }
@@ -1926,6 +1926,31 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/project-templates": {
+      "get": {
+        "tags": [
+          "project-templates"
+        ],
+        "summary": "List Project Templates",
+        "operationId": "list_project_templates_api_v1_project_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectTemplateSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Project Templates Api V1 Project Templates Get"
                 }
               }
             }
@@ -36069,6 +36094,19 @@
             "maxLength": 64,
             "title": "Timezone",
             "default": "UTC"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
           }
         },
         "type": "object",
@@ -36077,6 +36115,168 @@
           "slug"
         ],
         "title": "ProjectCreate"
+      },
+      "ProjectCreateResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "app_version_keep_releases": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "App Version Keep Releases",
+            "default": 5
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "default": "UTC"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ProjectSummary"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "generation_status": {
+            "$ref": "#/components/schemas/ProjectGenerationStatus",
+            "default": "ready"
+          },
+          "generation_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Stage"
+          },
+          "generation_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Error"
+          },
+          "demo_recipe_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Recipe Version"
+          },
+          "demo_seeded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Seeded At"
+          },
+          "demo_last_tick_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Last Tick At"
+          },
+          "created_by_user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By User Id"
+          },
+          "can_mutate": {
+            "type": "boolean",
+            "title": "Can Mutate",
+            "default": false
+          },
+          "my_role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ],
+            "title": "My Role",
+            "default": "viewer"
+          },
+          "template_branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Branch Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectCreateResponse",
+        "description": "``POST /projects``: the project plus the template branch it opened, if any.\n\n``template_branch_id`` is the draft branch holding a template's starter plan\n(F21, GH #274); null when the project was created blank. Only the create\nroute returns it, so the shared ``ProjectResponse`` and the cached project\nlist stay untouched."
       },
       "ProjectGenerationStatus": {
         "type": "string",
@@ -36691,6 +36891,208 @@
         },
         "type": "object",
         "title": "ProjectSummary"
+      },
+      "ProjectTemplateAlertSuggestionOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "needs": {
+            "type": "string",
+            "const": "alert_destination",
+            "title": "Needs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "needs"
+        ],
+        "title": "ProjectTemplateAlertSuggestionOut"
+      },
+      "ProjectTemplateCounts": {
+        "properties": {
+          "event_types": {
+            "type": "integer",
+            "title": "Event Types"
+          },
+          "fields": {
+            "type": "integer",
+            "title": "Fields"
+          },
+          "events": {
+            "type": "integer",
+            "title": "Events"
+          },
+          "variables": {
+            "type": "integer",
+            "title": "Variables"
+          },
+          "metric_suggestions": {
+            "type": "integer",
+            "title": "Metric Suggestions"
+          },
+          "alert_suggestions": {
+            "type": "integer",
+            "title": "Alert Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_types",
+          "fields",
+          "events",
+          "variables",
+          "metric_suggestions",
+          "alert_suggestions"
+        ],
+        "title": "ProjectTemplateCounts"
+      },
+      "ProjectTemplateMetricSuggestionOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event_composition",
+              "fact",
+              "sql"
+            ],
+            "title": "Kind"
+          },
+          "composition": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "single",
+                  "ratio"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composition"
+          },
+          "numerator_event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numerator Event"
+          },
+          "denominator_event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator Event"
+          },
+          "needs": {
+            "type": "string",
+            "enum": [
+              "scan",
+              "data_source"
+            ],
+            "title": "Needs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "description",
+          "kind",
+          "needs"
+        ],
+        "title": "ProjectTemplateMetricSuggestionOut"
+      },
+      "ProjectTemplateSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "branch_name": {
+            "type": "string",
+            "title": "Branch Name"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ProjectTemplateCounts"
+          },
+          "event_type_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Event Type Names"
+          },
+          "metric_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectTemplateMetricSuggestionOut"
+            },
+            "type": "array",
+            "title": "Metric Suggestions"
+          },
+          "alert_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectTemplateAlertSuggestionOut"
+            },
+            "type": "array",
+            "title": "Alert Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "name",
+          "description",
+          "branch_name",
+          "counts",
+          "event_type_names",
+          "metric_suggestions",
+          "alert_suggestions"
+        ],
+        "title": "ProjectTemplateSummary"
       },
       "ProjectTrackerConfigResponse": {
         "properties": {
