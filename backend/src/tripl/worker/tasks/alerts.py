@@ -1396,6 +1396,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
         session.commit()
         if project is not None:
             realtime.publish_project_event(
+                project.id,
                 project.slug,
                 realtime.EVENT_ACTIVITY_CREATED,
                 {"delivery_id": delivery_id, "status": AlertDeliveryStatus.sent.value},
@@ -1434,6 +1435,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
             failed_project = session.get(Project, delivery.project_id)
             if failed_project is not None:
                 realtime.publish_project_event(
+                    failed_project.id,
                     failed_project.slug,
                     realtime.EVENT_ACTIVITY_CREATED,
                     {"delivery_id": delivery_id, "status": AlertDeliveryStatus.failed.value},

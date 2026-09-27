@@ -24,12 +24,12 @@ async def list_meta_fields(
     session: AsyncSession, slug: str, branch_id: uuid.UUID | None = None
 ) -> list[MetaFieldResponse]:
     use_cache = branch_id is None
+    project_id = await resolve_project_id(session, slug)
     if use_cache:
-        cached = await cache.get_json(cache.key_meta_fields_list(slug))
+        cached = await cache.get_json(cache.key_meta_fields_list(project_id))
         if cached is not None:
             return [MetaFieldResponse.model_validate(item) for item in cached]
 
-    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(MetaFieldDefinition)
@@ -44,7 +44,7 @@ async def list_meta_fields(
     responses = [MetaFieldResponse.model_validate(mf) for mf in rows]
     if use_cache:
         await cache.set_json(
-            cache.key_meta_fields_list(slug),
+            cache.key_meta_fields_list(project_id),
             [r.model_dump(mode="json") for r in responses],
             ttl_seconds=300,
         )
@@ -75,7 +75,7 @@ async def create_meta_field(
     await session.refresh(mf)
     await reindex_project_branch(session, project_id=project_id, branch_id=branch_id, slug=slug)
     if is_main:
-        await cache.delete_prefix(cache.prefix_meta_fields(slug))
+        await cache.delete_prefix(cache.prefix_meta_fields(project_id))
     return mf
 
 
@@ -118,7 +118,7 @@ async def update_meta_field(
     await session.refresh(mf)
     await reindex_project_branch(session, project_id=project_id, branch_id=branch_id, slug=slug)
     if is_main:
-        await cache.delete_prefix(cache.prefix_meta_fields(slug))
+        await cache.delete_prefix(cache.prefix_meta_fields(project_id))
     return mf
 
 
@@ -145,7 +145,7 @@ async def delete_meta_field(
     await session.commit()
     await reindex_project_branch(session, project_id=project_id, branch_id=branch_id, slug=slug)
     if is_main:
-        await cache.delete_prefix(cache.prefix_meta_fields(slug))
+        await cache.delete_prefix(cache.prefix_meta_fields(project_id))
 
 
 async def get_meta_field_usage(

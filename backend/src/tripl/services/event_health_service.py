@@ -596,14 +596,14 @@ async def _trend(
 async def project_health(
     session: AsyncSession, slug: str, trend_days: int = 30
 ) -> ProjectHealthResponse:
-    key = cache.key_project_health(slug, trend_days)
+    project_id = await resolve_project_id(session, slug)
+    key = cache.key_project_health(project_id, trend_days)
     cached = await cache.get_json(key)
     if cached is not None:
         try:
             return ProjectHealthResponse.model_validate(cached)
         except ValueError:
             await cache.delete(key)
-    project_id = await resolve_project_id(session, slug)
     now = datetime.now(UTC)
     summary = await project_summary_for_snapshot(session, project_id, now)
     trend, previous = await _trend(session, project_id, now.date(), trend_days)

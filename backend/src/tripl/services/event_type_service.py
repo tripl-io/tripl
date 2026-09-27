@@ -26,12 +26,12 @@ async def list_event_types(
     session: AsyncSession, slug: str, branch_id: uuid.UUID | None = None
 ) -> list[EventTypeResponse]:
     use_cache = branch_id is None
+    project_id = await resolve_project_id(session, slug)
     if use_cache:
-        cached = await cache.get_json(cache.key_event_types_list(slug))
+        cached = await cache.get_json(cache.key_event_types_list(project_id))
         if cached is not None:
             return [EventTypeResponse.model_validate(item) for item in cached]
 
-    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(EventType)
@@ -44,7 +44,7 @@ async def list_event_types(
     responses = [EventTypeResponse.model_validate(et) for et in rows]
     if use_cache:
         await cache.set_json(
-            cache.key_event_types_list(slug),
+            cache.key_event_types_list(project_id),
             [r.model_dump(mode="json") for r in responses],
             ttl_seconds=300,
         )
@@ -148,7 +148,7 @@ async def create_event_type(
     await session.commit()
     await reindex_project_branch(session, project_id=project_id, branch_id=branch_id, slug=slug)
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(project_id))
         # Event types feed ProjectsPage summary counts; bust those too.
         await cache.delete_prefix(cache.prefix_projects())
     # Re-fetch so the selectin field_definitions relationship is populated for the response.
@@ -176,7 +176,7 @@ async def update_event_type(
         slug=slug,
     )
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(et.project_id))
     return et
 
 
@@ -239,5 +239,5 @@ async def delete_event_type(
         slug=slug,
     )
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(project_id))
         await cache.delete_prefix(cache.prefix_projects())

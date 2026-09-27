@@ -6,7 +6,7 @@ Design choices:
   cache. This means the app still works with Redis off.
 - JSON codec by default (Pydantic-dumpable payloads); callers pass a dumped
   ``str`` or dict and get a ``dict``/``list``/``None`` back.
-- Namespaced keys: callers always pass a full key like ``"tripl:projects:list"``.
+- Namespaced keys: callers always pass a full key built by a ``key_*`` helper below.
   Invalidation helpers use ``delete_prefix`` which scans via SCAN (not KEYS)
   so it's safe for production-sized keyspaces.
 
@@ -227,59 +227,82 @@ async def close() -> None:
 # ── Key-schema conventions ───────────────────────────────────────────────
 # Put all cache keys through these helpers so invalidation prefixes stay
 # aligned with reads. Never hand-roll a key at a call site.
+#
+# Project-scoped keys are built from the project's id, never its slug: a slug
+# names a project only inside its organization (F20), so two organizations may
+# each own a project ``web`` and must never share a cache entry. Instance-level
+# lists are keyed by organization for the same reason.
+
+# Project-scoped key families (the second segment of every key).
+_SIGNALS = "signals"
+_EVENT_TYPES = "event_types"
+_META_FIELDS = "meta_fields"
+_HEALTH = "health"
 
 
-def key_projects_list() -> str:
-    return "tripl:projects:list"
+def _project_prefix(family: str, project_id: uuid.UUID) -> str:
+    return f"tripl:{family}:{project_id}:"
 
 
-def key_signals_all(slug: str) -> str:
-    return f"tripl:signals:{slug}:all"
+def key_projects_list(org_id: uuid.UUID) -> str:
+    """``GET /projects`` for one organization."""
+    return f"tripl:projects:{org_id}:list"
 
 
-def key_signals_all_expanded(slug: str) -> str:
+def key_signals_all(project_id: uuid.UUID) -> str:
+    return f"{_project_prefix(_SIGNALS, project_id)}all"
+
+
+def key_signals_all_expanded(project_id: uuid.UUID) -> str:
     """Expanded AnomaliesPage variant: includes per-event scope and keeps
     incident children (tagged) instead of collapsing them. Cached separately
     from :func:`key_signals_all` so the top-bar/overview/events callers keep the
     smaller collapsed payload."""
-    return f"tripl:signals:{slug}:all:expanded"
+    return f"{_project_prefix(_SIGNALS, project_id)}all:expanded"
 
 
-def key_data_sources_list() -> str:
-    return "tripl:data_sources:list"
+def key_data_sources_list(org_id: uuid.UUID) -> str:
+    """``GET /data-sources`` as seen from one organization."""
+    return f"tripl:data_sources:{org_id}:list"
 
 
-def key_event_types_list(slug: str) -> str:
-    return f"tripl:event_types:{slug}:list"
+def key_event_types_list(project_id: uuid.UUID) -> str:
+    return f"{_project_prefix(_EVENT_TYPES, project_id)}list"
 
 
-def key_meta_fields_list(slug: str) -> str:
-    return f"tripl:meta_fields:{slug}:list"
+def key_meta_fields_list(project_id: uuid.UUID) -> str:
+    return f"{_project_prefix(_META_FIELDS, project_id)}list"
 
 
 def prefix_projects() -> str:
+    """Every organization's project list."""
     return "tripl:projects:"
 
 
-def prefix_signals(slug: str | None = None) -> str:
-    return f"tripl:signals:{slug}:" if slug else "tripl:signals:"
+def prefix_signals(project_id: uuid.UUID | None = None) -> str:
+    return _project_prefix(_SIGNALS, project_id) if project_id is not None else "tripl:signals:"
 
 
 def prefix_data_sources() -> str:
+    """Every organization's data-source list."""
     return "tripl:data_sources:"
 
 
-def prefix_event_types(slug: str | None = None) -> str:
-    return f"tripl:event_types:{slug}:" if slug else "tripl:event_types:"
+def prefix_event_types(project_id: uuid.UUID | None = None) -> str:
+    if project_id is None:
+        return "tripl:event_types:"
+    return _project_prefix(_EVENT_TYPES, project_id)
 
 
-def prefix_meta_fields(slug: str | None = None) -> str:
-    return f"tripl:meta_fields:{slug}:" if slug else "tripl:meta_fields:"
+def prefix_meta_fields(project_id: uuid.UUID | None = None) -> str:
+    if project_id is None:
+        return "tripl:meta_fields:"
+    return _project_prefix(_META_FIELDS, project_id)
 
 
-def key_project_health(slug: str, trend_days: int) -> str:
+def key_project_health(project_id: uuid.UUID, trend_days: int) -> str:
     """``GET /projects/{slug}/health`` (F15): short-TTL, never invalidated."""
-    return f"tripl:health:{slug}:project:{trend_days}"
+    return f"{_project_prefix(_HEALTH, project_id)}project:{trend_days}"
 
 
 def key_health_sort(project_id: uuid.UUID, filter_digest: str) -> str:
@@ -287,5 +310,5 @@ def key_health_sort(project_id: uuid.UUID, filter_digest: str) -> str:
     return f"tripl:health_sort:{project_id}:{filter_digest}"
 
 
-def prefix_health(slug: str | None = None) -> str:
-    return f"tripl:health:{slug}:" if slug else "tripl:health:"
+def prefix_health(project_id: uuid.UUID | None = None) -> str:
+    return _project_prefix(_HEALTH, project_id) if project_id is not None else "tripl:health:"

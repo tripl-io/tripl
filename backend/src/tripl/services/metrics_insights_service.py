@@ -692,15 +692,18 @@ async def get_active_signals(
     # collapsed for top-bar/overview/events, expanded for the AnomaliesPage).
     # Filtered variants have too many permutations — pass through.
     cacheable = not event_ids
-    cache_key = cache.key_signals_all_expanded(slug) if expanded else cache.key_signals_all(slug)
+    project = await _resolve_project(session, slug)
+    cache_key = (
+        cache.key_signals_all_expanded(project.id)
+        if expanded
+        else cache.key_signals_all(project.id)
+    )
     if cacheable:
         cached = await cache.get_json(cache_key)
         if cached is not None:
             cached_signals = [MetricSignalResponse.model_validate(item) for item in cached]
-            project = await _resolve_project(session, slug)
             return await _with_live_state(session, project.id, cached_signals, expanded=expanded)
 
-    project = await _resolve_project(session, slug)
     scope_types = [SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE]
     # Expanded (AnomaliesPage) pulls every per-event scope even without an
     # event-id filter; the collapsed callers stay on total + event_type only.

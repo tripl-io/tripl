@@ -81,6 +81,7 @@ def _publish_scan_job_event(
     if project is None:
         return
     realtime.publish_project_event(
+        project.id,
         project.slug,
         realtime.EVENT_SCAN_JOB_UPDATED,
         {"scan_config_id": scan_config_id, "job_id": job_id, "status": status},

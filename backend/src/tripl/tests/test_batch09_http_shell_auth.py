@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -127,7 +128,9 @@ async def test_realtime_subscribes_before_replay(monkeypatch: pytest.MonkeyPatch
     order: list[str] = []
 
     @asynccontextmanager
-    async def subscribed(_slug: str) -> AsyncIterator[AsyncIterator[dict[str, Any] | None]]:
+    async def subscribed(
+        _project_id: uuid.UUID,
+    ) -> AsyncIterator[AsyncIterator[dict[str, Any] | None]]:
         order.append("subscribe")
 
         async def messages() -> AsyncIterator[dict[str, Any] | None]:
@@ -136,7 +139,7 @@ async def test_realtime_subscribes_before_replay(monkeypatch: pytest.MonkeyPatch
 
         yield messages()
 
-    async def replay(_slug: str, _cursor: int | None) -> realtime.ResumePoint:
+    async def replay(_project_id: uuid.UUID, _cursor: int | None) -> realtime.ResumePoint:
         order.append("replay")
         return realtime.ResumePoint(seq=0, epoch="e", replay=[])
 
@@ -148,7 +151,11 @@ async def test_realtime_subscribes_before_replay(monkeypatch: pytest.MonkeyPatch
     frames = [
         frame
         async for frame in realtime.project_response_stream(
-            slug="test", last_event_id=1, is_disconnected=connected, max_messages=0
+            project_id=uuid.uuid4(),
+            slug="test",
+            last_event_id=1,
+            is_disconnected=connected,
+            max_messages=0,
         )
     ]
     assert order == ["subscribe", "replay"]

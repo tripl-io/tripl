@@ -518,11 +518,15 @@ class _FakePipeline:
         return results
 
 
+# The project whose realtime keys the fakes below answer for.
+_PID = uuid.UUID("00000000-0000-0000-0000-0000000000a1")
+
+
 class _FakeAsyncRedis:
     def __init__(
         self, seq: bytes | None, *, buffer: list[str] | None = None, fail: bool = False
     ) -> None:
-        self.store: dict[str, bytes] = {} if seq is None else {"tripl:events:p:seq": seq}
+        self.store: dict[str, bytes] = {} if seq is None else {realtime._seq_key(_PID): seq}
         self.buffer = buffer or []
         self.fail = fail
 
@@ -572,6 +576,7 @@ async def test_hello_carries_the_current_sequence_and_ring_size(
 
     hello = await _hello_data(
         realtime.project_response_stream(
+            project_id=_PID,
             slug="p",
             last_event_id=None,
             is_disconnected=_never_disconnected,
@@ -593,11 +598,11 @@ async def test_the_epoch_is_stable_until_the_sequence_is_lost() -> None:
     redis = _FakeAsyncRedis(b"7")
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(realtime.cache, "get_async_client", lambda: redis)
-        first = await realtime.read_resume_point("p", None)
-        again = await realtime.read_resume_point("p", None)
+        first = await realtime.read_resume_point(_PID, None)
+        again = await realtime.read_resume_point(_PID, None)
         # Redis restarted without persistence: counter and epoch are both gone.
         redis.store.clear()
-        restarted = await realtime.read_resume_point("p", None)
+        restarted = await realtime.read_resume_point(_PID, None)
 
     assert first.epoch == again.epoch
     assert restarted.epoch != first.epoch
@@ -612,7 +617,7 @@ async def test_resume_point_replays_past_the_cursor_from_the_same_read() -> None
     redis = _FakeAsyncRedis(b"9", buffer=envelopes)
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(realtime.cache, "get_async_client", lambda: redis)
-        resume = await realtime.read_resume_point("p", 7)
+        resume = await realtime.read_resume_point(_PID, 7)
 
     assert resume.seq == 9
     assert [event["id"] for event in resume.replay] == [8, 9]
@@ -623,7 +628,7 @@ async def test_a_failed_resume_read_reports_no_sequence() -> None:
     redis = _FakeAsyncRedis(b"9", fail=True)
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(realtime.cache, "get_async_client", lambda: redis)
-        resume = await realtime.read_resume_point("p", 3)
+        resume = await realtime.read_resume_point(_PID, 3)
 
     assert resume == realtime.ResumePoint(seq=None, epoch=None, replay=[])
 
@@ -778,3 +783,30 @@ async def test_audit_actions_route_serves_every_recorded_action(client: AsyncCli
     assert {"data_source.create", "user.role_update", "project.delete"} <= workspace
     # _record_lifecycle passes the action positionally.
     assert {"project.create", "project.update", "project.reset"} <= project
+
+
+class _DeletingRedis:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.deleted: list[str] = []
+        self.fail = fail
+
+    async def delete(self, *keys: str) -> int:
+        if self.fail:
+            raise ConnectionError("redis down")
+        self.deleted.extend(keys)
+        return len(keys)
+
+
+async def test_a_purged_projects_realtime_keys_are_dropped() -> None:
+    """Delete and demo reset retire an id for good; its seq, epoch and ring go too."""
+    redis = _DeletingRedis()
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(realtime.cache, "get_async_client", lambda: redis)
+        await realtime.async_drop_project_keys(_PID)
+        # A Redis failure is logged, never raised.
+        patch.setattr(realtime.cache, "get_async_client", lambda: _DeletingRedis(fail=True))
+        await realtime.async_drop_project_keys(_PID)
+
+    assert sorted(redis.deleted) == sorted(
+        [realtime._seq_key(_PID), realtime._epoch_key(_PID), realtime._buffer_key(_PID)]
+    )

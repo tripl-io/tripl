@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from sqlalchemy import case, delete, func, literal, or_, select, union_all, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl import cache
+from tripl import cache, realtime
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
     SCOPE_EVENT_TYPE,
@@ -772,7 +772,10 @@ def _only_visible(
 
 
 async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
-    cached = await cache.get_json(cache.key_projects_list())
+    # Keyed by the bound organization (F20 PR3) so no two organizations ever
+    # share the entry; what is listed is unchanged until the list is org-scoped.
+    list_key = cache.key_projects_list(owning_org_id())
+    cached = await cache.get_json(list_key)
     if cached is not None:
         return [ProjectResponse.model_validate(item) for item in cached]
 
@@ -793,7 +796,7 @@ async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
     summaries = await _get_project_summaries(session, [project.id for project in projects])
     responses = _serialize_projects(projects, summaries)
     await cache.set_json(
-        cache.key_projects_list(),
+        list_key,
         [response.model_dump(mode="json") for response in responses],
         ttl_seconds=await _projects_list_ttl(session, [project.id for project in projects]),
     )
@@ -1020,8 +1023,7 @@ async def update_project(session: AsyncSession, slug: str, data: ProjectUpdate) 
     await session.refresh(project)
     await cache.delete_prefix(cache.prefix_projects())
     if slug_changed:
-        await _invalidate_slug_caches(slug)
-        await _invalidate_slug_caches(project.slug)
+        await _invalidate_project_caches(project.id)
         from tripl.services.search_service import reindex_project_branch
 
         branch_ids = (
@@ -1091,14 +1093,27 @@ async def purge_project_rows(session: AsyncSession, project: Project) -> None:
 
 async def delete_project(session: AsyncSession, slug: str) -> None:
     project = await resolve_project(session, slug)
+    project_id = project.id
     await purge_project_rows(session, project)
     await session.commit()
     await cache.delete_prefix(cache.prefix_projects())
     await cache.delete_prefix(cache.prefix_data_sources())
-    await _invalidate_slug_caches(slug)
+    await _invalidate_project_caches(project_id)
+    await _forget_purged_project(project_id)
 
 
-async def _invalidate_slug_caches(slug: str) -> None:
-    await cache.delete_prefix(cache.prefix_event_types(slug))
-    await cache.delete_prefix(cache.prefix_meta_fields(slug))
-    await cache.delete_prefix(cache.prefix_signals(slug))
+async def _forget_purged_project(project_id: uuid.UUID) -> None:
+    """Drop id-keyed state that only a purged project's id can reach.
+
+    Not part of :func:`_invalidate_project_caches`, which also runs on a slug
+    rename: the stream's sequence and replay ring must survive that.
+    """
+    await cache.delete_prefix(cache.prefix_health(project_id))
+    await realtime.async_drop_project_keys(project_id)
+
+
+async def _invalidate_project_caches(project_id: uuid.UUID) -> None:
+    """Drop the project's event-type, meta-field and signal caches (keyed by id)."""
+    await cache.delete_prefix(cache.prefix_event_types(project_id))
+    await cache.delete_prefix(cache.prefix_meta_fields(project_id))
+    await cache.delete_prefix(cache.prefix_signals(project_id))

@@ -32,6 +32,7 @@ from tripl.api.deps import require_project_membership
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
 from tripl.models.data_source import DataSource
+from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.scan_config import ScanConfig
@@ -334,7 +335,7 @@ async def test_the_shared_list_cache_never_leaks_across_users(
     """
     memory = _InMemoryCache()
     memory.install(monkeypatch)
-    key = cache.key_projects_list()
+    key = cache.key_projects_list(DEFAULT_ORG_ID)
 
     await _create_project(actors.owner, "cache-a")
     await _create_project(actors.owner, "cache-b")
@@ -808,6 +809,32 @@ async def test_deleting_a_project_drops_its_memberships(actors: Actors) -> None:
     assert remaining == 0
 
 
+@pytest.mark.asyncio
+async def test_deleting_or_resetting_a_project_drops_its_realtime_keys(
+    actors: Actors, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A purged id is never reused, so its stream state must not linger in Redis."""
+    from tripl import realtime
+
+    dropped: list[uuid.UUID] = []
+
+    async def spy(project_id: uuid.UUID) -> None:
+        dropped.append(project_id)
+
+    monkeypatch.setattr(realtime, "async_drop_project_keys", spy)
+
+    project = await _create_project(actors.owner, "doomed-rt")
+    deleted = await actors.owner.delete("/api/v1/projects/doomed-rt")
+    assert deleted.status_code == 204, deleted.text
+    assert dropped == [uuid.UUID(project["id"])]
+
+    demo = await actors.owner.post("/api/v1/projects/demo")
+    assert demo.status_code == 201, demo.text
+    reset = await actors.owner.post(f"/api/v1/projects/demo/{demo.json()['slug']}/reset")
+    assert reset.status_code == 200, reset.text
+    assert dropped[-1] == uuid.UUID(demo.json()["id"])
+
+
 # ── an open SSE stream ends when its caller loses the project ───────────────
 
 
@@ -901,6 +928,41 @@ async def test_the_event_stream_guard_keeps_the_owner_and_fails_closed(actors: A
     assert await broken_guard() is False
     clock.now += 1.0
     assert await broken_guard() is True
+
+
+@pytest.mark.asyncio
+async def test_the_event_stream_guard_ends_the_owners_stream_after_a_demo_reset(
+    actors: Actors,
+) -> None:
+    """A reset re-creates the demo under a new id; the owner's old-id stream must end.
+
+    ``member_role`` answers an instance owner without a query, so only the
+    project-exists check stops a stream left on the dead id's channel.
+    """
+    from tripl.api.v1.events_stream import membership_guard
+
+    demo = await actors.owner.post("/api/v1/projects/demo")
+    assert demo.status_code == 201, demo.text
+    slug = demo.json()["slug"]
+    old_id = uuid.UUID(demo.json()["id"])
+    clock = _Clock()
+    owner_guard = membership_guard(
+        user_id=uuid.UUID(actors.ids["owner"]),
+        project_id=old_id,
+        is_disconnected=_connected,
+        session_factory=TestSessionLocal,
+        interval_seconds=1.0,
+        clock=clock,
+    )
+    clock.now += 1.0
+    assert await owner_guard() is False
+
+    reset = await actors.owner.post(f"/api/v1/projects/demo/{slug}/reset")
+    assert reset.status_code == 200, reset.text
+    assert uuid.UUID(reset.json()["id"]) != old_id
+
+    clock.now += 1.0
+    assert await owner_guard() is True
 
 
 @pytest.mark.asyncio

@@ -2338,8 +2338,8 @@ async def merge_branch(
     # TTLs ran out. Best-effort by construction: delete_prefix swallows Redis
     # errors.
     for prefix in (
-        cache.prefix_event_types(slug),
-        cache.prefix_meta_fields(slug),
+        cache.prefix_event_types(project.id),
+        cache.prefix_meta_fields(project.id),
         cache.prefix_projects(),
     ):
         await cache.delete_prefix(prefix)

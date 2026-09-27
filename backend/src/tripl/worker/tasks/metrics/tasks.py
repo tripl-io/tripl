@@ -1404,6 +1404,7 @@ def collect_metrics(
         project = session.get(Project, config.project_id)
         if project is not None:
             realtime.publish_project_event(
+                project.id,
                 project.slug,
                 realtime.EVENT_METRIC_COLLECTION_UPDATED,
                 {
@@ -1419,6 +1420,7 @@ def collect_metrics(
                 or (breakdown_anomalies_detected)
             ):
                 realtime.publish_project_event(
+                    project.id,
                     project.slug,
                     realtime.EVENT_SIGNALS_UPDATED,
                     {"scan_config_id": scan_config_id},
@@ -1469,6 +1471,7 @@ def collect_metrics(
                 project = session.get(Project, config.project_id) if config is not None else None
                 if project is not None:
                     realtime.publish_project_event(
+                        project.id,
                         project.slug,
                         realtime.EVENT_METRIC_COLLECTION_UPDATED,
                         {

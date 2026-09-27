@@ -41,6 +41,7 @@ from tripl.schemas.field_definition import (
 )
 from tripl.services import field_service
 from tripl.tests._members import add_member_by_slug
+from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_plan_branches import _approve_and_merge, _create_branch, _transition
 from tripl.tests.test_rbac import _register, _set_role, iter_api_routes
@@ -350,7 +351,7 @@ async def test_every_field_write_on_main_by_id_drops_the_event_type_list(
     async with TestSessionLocal() as session:
         await write(session, slug, event_type_id, ids["main"], ids)
 
-    assert cache.prefix_event_types(slug) in dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) in dropped
 
 
 @pytest.mark.asyncio
@@ -376,7 +377,7 @@ async def test_a_field_write_on_a_working_branch_leaves_mains_list_alone(
             uuid.UUID(branch_id),
         )
 
-    assert cache.prefix_event_types(slug) not in dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) not in dropped
 
 
 # --- tripl-0zpq.145: a merged or closed branch takes no plan writes -------------

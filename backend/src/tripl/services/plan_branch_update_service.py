@@ -350,7 +350,7 @@ async def update_from_main(
         raise
 
     await session.refresh(branch)
-    for prefix in (cache.prefix_event_types(slug), cache.prefix_meta_fields(slug)):
+    for prefix in (cache.prefix_event_types(project_id), cache.prefix_meta_fields(project_id)):
         await cache.delete_prefix(prefix)
     try:
         from tripl.services.search_service import reindex_project_branch

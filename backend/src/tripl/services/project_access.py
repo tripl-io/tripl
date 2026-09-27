@@ -218,8 +218,17 @@ async def still_member(
     Opens (and closes) its own short-lived session, so the stream holds no
     pooled connection between checks. The user row is re-read too: a deleted
     user, or an instance owner demoted to a non-member, loses the stream.
+
+    A project that no longer exists ends the stream for everyone, the instance
+    owner included (for whom :func:`member_role` answers without a query). A
+    demo reset re-creates the project under the same slug with a new id, so a
+    stream left on the old id's channel would never see another event; ending
+    it lets the client reconnect and resolve the new id.
     """
     async with session_factory() as session:
+        exists = await session.scalar(select(Project.id).where(Project.id == project_id))
+        if exists is None:
+            return False
         user = await session.get(User, user_id)
         if user is None:
             return False
