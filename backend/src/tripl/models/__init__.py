@@ -16,6 +16,7 @@ from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
+from tripl.models.doc_file import DocFile, DocLink, DocRevision
 from tripl.models.duplicate_dismissal import DuplicateDismissal
 from tripl.models.event import Event
 from tripl.models.event_change import EventChange
@@ -140,6 +141,9 @@ __all__ = [
     "Variable",
     "DataSource",
     "DistributionDrift",
+    "DocFile",
+    "DocLink",
+    "DocRevision",
     "DuplicateDismissal",
     "ScanConfig",
     "ScanDryRunJob",

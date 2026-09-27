@@ -15,14 +15,14 @@ from pathlib import Path
 from typing import Any, get_args
 
 import pytest
-from tripl_cli.api import events, monitoring, search
+from tripl_cli.api import docs, events, monitoring, search
 from tripl_cli.api import variables as variables_api
 from tripl_cli.api.endpoints import ALL_TEMPLATES
 from tripl_cli.client import API_PREFIX
 
 import tripl_mcp
 from tripl_mcp.contract import TOOL_ENDPOINTS
-from tripl_mcp.enums import EventOrderBy, EventStatus, SearchEntityType
+from tripl_mcp.enums import DocAudience, DocScope, EventOrderBy, EventStatus, SearchEntityType
 from tripl_mcp.server import build_server
 
 OPENAPI_PATH = Path(__file__).resolve().parents[2] / "backend" / "openapi.json"
@@ -51,6 +51,13 @@ CLOSED_SET_PARAMETERS: tuple[tuple[str, str, tuple[str, str, str, str]], ...] = 
     ("list_events", "order_by", ("query", "get", events.LIST, "order_by")),
     ("search_plan", "types", ("query", "get", search.SEARCH, "types")),
     ("create_event", "status", ("body", "post", events.LIST, "status")),
+    ("read_doc", "scope", ("query", "get", docs.FILE, "scope")),
+    ("search_docs", "scope", ("query", "get", docs.SEARCH, "scope")),
+    ("write_doc", "scope", ("query", "put", docs.FILE, "scope")),
+    # The tree route takes no `scope`: it answers both roots and list_docs narrows
+    # them locally. Its argument is still DocScope, so it is held to the file
+    # route's own `scope` - the one the item it names is then read with.
+    ("list_docs", "scope", ("query", "get", docs.FILE, "scope")),
 )
 
 # Closed sets that a wrapped route declares and NO tool parameter mirrors, each
@@ -370,6 +377,8 @@ def test_the_mirrored_enums_are_the_cli_s_own() -> None:
             search.ENTITY_TYPES,
             "api.search.ENTITY_TYPES",
         ),
+        ("DocScope", DocScope, docs.SCOPES, "api.docs.SCOPES"),
+        ("DocAudience", DocAudience, docs.AUDIENCES, "api.docs.AUDIENCES"),
     ):
         mirrored = get_args(literal)
         if mirrored != tuple(shared):
@@ -472,7 +481,7 @@ def test_no_tool_re_derives_a_shared_response_fact() -> None:
 def test_write_tools_are_not_marked_read_only() -> None:
     mcp = build_server()
     tools = asyncio.run(mcp.list_tools())
-    write_tools = {"create_event", "update_event", "trigger_scan"}
+    write_tools = {"create_event", "update_event", "trigger_scan", "write_doc"}
     for tool in tools:
         assert tool.annotations is not None, f"{tool.name} lacks annotations"
         expected_read_only = tool.name not in write_tools
@@ -481,8 +490,10 @@ def test_write_tools_are_not_marked_read_only() -> None:
 
 DOCS_PATH = Path(__file__).resolve().parents[2] / "website" / "docs" / "integrate" / "mcp-server.md"
 
-# The three rows of the "Enumerated arguments" table, by the argument each names.
-_DOC_ENUM_ROW = re.compile(r"^\|\s*`(status|order_by|types)`\s*\|[^|]*\|(.*)\|\s*$", re.MULTILINE)
+# The rows of the "Enumerated arguments" table, by the argument each names.
+_DOC_ENUM_ROW = re.compile(
+    r"^\|\s*`(status|order_by|types|scope|audience)`\s*\|[^|]*\|(.*)\|\s*$", re.MULTILINE
+)
 
 
 def _documented_enum_values(argument: str) -> tuple[str, ...]:
@@ -521,6 +532,8 @@ def test_the_published_enum_table_is_the_one_the_tools_carry() -> None:
         ("status", EventStatus),
         ("order_by", EventOrderBy),
         ("types", SearchEntityType),
+        ("scope", DocScope),
+        ("audience", DocAudience),
     ):
         assert _documented_enum_values(argument) == get_args(literal), (
             f"the `{argument}` row of the Enumerated arguments table in {DOCS_PATH.name} "

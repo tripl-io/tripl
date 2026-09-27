@@ -650,3 +650,206 @@ async def test_trigger_scan_posts_to_the_run_route(stdio_runtime: Runtime) -> No
     assert not is_error
     assert route.calls.last.request.method == "POST"
     assert json.loads(text)["id"] == "j9"
+
+
+# --- docs catalog (F22) -------------------------------------------------------
+
+
+def _doc_row(path: str, *, scope: str = "project", audience: str = "both") -> dict[str, Any]:
+    return {
+        "scope": scope,
+        "path": path,
+        "title": path,
+        "description": "",
+        "tags": ["warehouse"],
+        "audience": audience,
+        "revision": 3,
+        "size_bytes": 120,
+        "updated_at": "2026-09-27T10:00:00Z",
+        "updated_by_name": "Ada",
+    }
+
+
+@respx.mock
+async def test_list_docs_merges_both_roots_and_trims_rows(stdio_runtime: Runtime) -> None:
+    respx.get(f"{API_BASE}/projects/demo/docs").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "project": {"slug": "demo", "name": "Demo"},
+                "organization": {"id": "o1", "slug": "default", "name": "Default"},
+                "project_docs": [
+                    _doc_row("a.md", audience="agent"),
+                    _doc_row("b.md", audience="human"),
+                ],
+                "organization_docs": [_doc_row("c.md", scope="organization")],
+                "limits": {},
+            },
+        )
+    )
+
+    is_error, text = await call_tool("list_docs", {"slug": "demo", "audience": "agent"})
+
+    assert not is_error
+    payload = json.loads(text)
+    # `both` is written for either reader, so it matches `agent` too.
+    assert [(row["scope"], row["path"]) for row in payload["items"]] == [
+        ("project", "a.md"),
+        ("organization", "c.md"),
+    ]
+    assert payload["total"] == 2
+    assert "size_bytes" not in payload["items"][0]
+
+
+@respx.mock
+async def test_list_docs_narrows_to_one_scope(stdio_runtime: Runtime) -> None:
+    respx.get(f"{API_BASE}/projects/demo/docs").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "project_docs": [_doc_row("a.md")],
+                "organization_docs": [_doc_row("c.md", scope="organization")],
+            },
+        )
+    )
+
+    is_error, text = await call_tool("list_docs", {"slug": "demo", "scope": "organization"})
+
+    assert not is_error
+    assert [row["path"] for row in json.loads(text)["items"]] == ["c.md"]
+
+
+@respx.mock
+async def test_read_doc_sends_scope_and_path_and_drops_the_duplicate_body(
+    stdio_runtime: Runtime,
+) -> None:
+    route = respx.get(f"{API_BASE}/projects/demo/docs/file").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                **_doc_row("guides/warehouse.md", scope="organization"),
+                "id": "d1",
+                "content": "---\ntitle: W\n---\nUse [[event:purchase]].\n",
+                "body": "Use [[event:purchase]].\n",
+                "extra_frontmatter": {"name": "warehouse"},
+                "links": [{"kind": "event", "target": "purchase", "status": "resolved"}],
+            },
+        )
+    )
+
+    is_error, text = await call_tool(
+        "read_doc", {"slug": "demo", "scope": "organization", "path": "guides/warehouse.md"}
+    )
+
+    assert not is_error
+    params = route.calls.last.request.url.params
+    assert params["scope"] == "organization"
+    assert params["path"] == "guides/warehouse.md"
+    payload = json.loads(text)
+    assert payload["content"].startswith("---\n")
+    assert "body" not in payload
+    assert "id" not in payload
+    assert payload["links"][0]["status"] == "resolved"
+
+
+@respx.mock
+async def test_read_doc_refuses_an_unknown_scope_before_any_request(
+    stdio_runtime: Runtime,
+) -> None:
+    route = respx.get(f"{API_BASE}/projects/demo/docs/file").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    is_error, _ = await call_tool("read_doc", {"slug": "demo", "scope": "team", "path": "a.md"})
+
+    assert is_error
+    assert route.call_count == 0
+
+
+@respx.mock
+async def test_search_docs_reports_the_route_envelope(stdio_runtime: Runtime) -> None:
+    route = respx.get(f"{API_BASE}/projects/demo/docs/search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [{"scope": "project", "path": "a.md", "title": "A", "confidence": 0.8}],
+                "total": 1,
+                "truncated": True,
+                "semantic_used": True,
+            },
+        )
+    )
+
+    is_error, text = await call_tool(
+        "search_docs", {"slug": "demo", "q": "late events", "scope": "project", "limit": 5}
+    )
+
+    assert not is_error
+    params = route.calls.last.request.url.params
+    assert (params["q"], params["scope"], params["limit"]) == ("late events", "project", "5")
+    payload = json.loads(text)
+    assert payload["truncated"] is True
+    assert payload["semantic_used"] is True
+    assert payload["items"][0]["path"] == "a.md"
+
+
+@respx.mock
+async def test_write_doc_puts_the_content_with_the_lock_and_hoists_link_warnings(
+    stdio_runtime: Runtime,
+) -> None:
+    route = respx.put(f"{API_BASE}/projects/demo/docs/file").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                **_doc_row("a.md"),
+                "revision": 4,
+                "content": "big",
+                "body": "big",
+                "created": False,
+                "changed": True,
+                "warnings": ["Broken link [[event:gone]]: no event named 'gone' on the main plan"],
+                "links": [],
+            },
+        )
+    )
+
+    is_error, text = await call_tool(
+        "write_doc",
+        {
+            "slug": "demo",
+            "scope": "project",
+            "path": "a.md",
+            "content": "See [[event:gone]].",
+            "base_revision": 3,
+            "message": "agent edit",
+        },
+    )
+
+    assert not is_error
+    request = route.calls.last.request
+    assert request.method == "PUT"
+    assert request.url.params["scope"] == "project"
+    assert request.url.params["path"] == "a.md"
+    assert json.loads(request.content) == {
+        "content": "See [[event:gone]].",
+        "base_revision": 3,
+        "message": "agent edit",
+    }
+    payload = json.loads(text)
+    assert "gone" in payload["IMPORTANT_warnings"][0]
+    assert payload["result"]["revision"] == 4
+    assert "content" not in payload["result"]
+
+
+@respx.mock
+async def test_write_doc_with_a_read_key_surfaces_the_server_403(stdio_runtime: Runtime) -> None:
+    respx.put(f"{API_BASE}/projects/demo/docs/file").mock(
+        return_value=httpx.Response(403, json={"detail": "API key has read-only scope"})
+    )
+
+    is_error, text = await call_tool(
+        "write_doc", {"slug": "demo", "scope": "project", "path": "a.md", "content": "x"}
+    )
+
+    assert is_error
+    assert "read-only scope" in text

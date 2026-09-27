@@ -49,6 +49,18 @@ describe('auditSentences', () => {
     expect(actionSentence('project.member_remove')).toBe('Removed a member from project')
   })
 
+  it('reads every docs-catalog action as a sentence (F22)', () => {
+    expect(actionSentence('doc.create')).toBe('Created note')
+    expect(actionSentence('doc.update')).toBe('Updated note')
+    expect(actionSentence('doc.move')).toBe('Moved note')
+    expect(actionSentence('doc.delete')).toBe('Deleted note')
+    expect(actionSentence('doc.folder_delete')).toBe('Deleted a folder of notes')
+    expect(actionSentence('doc.restore')).toBe('Restored an earlier revision of note')
+    expect(actionSentence('doc.import')).toBe('Imported notes')
+    expect(actionTone('doc.folder_delete')).toBe('danger')
+    expect(actionTone('doc.create')).toBe('success')
+  })
+
   it('names the code only where two option labels would read alike', () => {
     const labels = actionOptionLabels(['event.delete', 'event.bulk_delete', 'event.create'])
     expect(labels.get('event.delete')).toBe('Deleted event (event.delete)')

@@ -535,6 +535,39 @@ If something lands on main that shouldn't have:
 
 ---
 
+## Write down what the plan cannot say: Docs
+
+Some knowledge does not fit in an event definition: which warehouse table
+double-counts retries, how to query a checkout funnel, why a field is in cents.
+**Plan › Docs** keeps it as Markdown notes next to the plan, for people and for
+AI agents (they read the same notes through MCP and `tripl docs`).
+
+1. Open **Docs** and choose **New note**. A path with a `/` makes the folder
+   too — `recipes/checkout-funnel.md`. Pick **This project** or the
+   **Organization** root: organization notes show up in every project of the
+   organization.
+2. Write Markdown in the editor; the preview on the right renders it as you
+   type. Link plan entities by name with `[[event:checkout_started]]`,
+   `[[event-type:checkout]]` or `[[field:checkout/amount]]` (add `|label` for
+   your own link text). A link that points at nothing on the main plan turns
+   red and is listed above the note, so a rename never breaks a note silently.
+3. Optional frontmatter at the top sets the title, a description, tags and the
+   audience (`human`, `agent` or `both`).
+4. **Save**. Every save is a revision: **History** shows who changed what, with
+   a diff, and **Restore** brings an earlier version back as a new revision.
+
+Notes that link to an event or event type appear on its page under **Notes**,
+with **New note about this** for editors. **Ctrl/⌘+P** on the Docs page opens
+any note by title or path, and the global search (**Ctrl/⌘+K**) finds notes by
+their text. **Import / export** moves a whole folder of `.md` files in or out as
+a zip — an agent skill (`SKILL.md` plus `references/`) imports as it is.
+
+Viewers read notes; editors write them. Notes are not branch-aware: there is one
+version of each, and links resolve against main. More in
+[Docs catalog](./docs-catalog).
+
+---
+
 ## Observe: watch the data
 
 With a plan in place and metrics collecting, monitoring comes to life: tripl
@@ -818,6 +851,7 @@ For a wider list of issues, see [Troubleshooting](./troubleshooting).
 ## Where to go next
 
 - Don't recognise a term used here? → [Concepts](./concepts)
+- Keeping team notes and agent skills next to the plan? → [Docs catalog](./docs-catalog)
 - Automating tripl from a script or agent? → [Agent API guide](../integrate/agent-api-guide)
 - Working on tripl itself? → [Architecture](../develop/architecture) and
   [CONTRIBUTING.md](https://github.com/vladenisov/tripl/blob/main/CONTRIBUTING.md)

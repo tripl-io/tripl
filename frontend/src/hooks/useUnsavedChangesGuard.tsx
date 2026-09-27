@@ -12,6 +12,15 @@ type GuardOptions = {
   message?: string
 }
 
+type PageGuardOptions = GuardOptions & {
+  /**
+   * Also block a same-path navigation this returns true for. For a page whose
+   * editing mode lives in the query string (`?edit=1`), a link to the same
+   * path without it would otherwise unmount the editor with no prompt.
+   */
+  alsoBlock?: BlockerFunction
+}
+
 /**
  * The page guard that is mounted right now, for exits that are neither a
  * navigation nor inside the guarded page: the sidebar's branch switcher swaps
@@ -116,7 +125,7 @@ function useConfirmDiscard(isDirty: boolean, message: string) {
  */
 export function useUnsavedChangesGuard(
   isDirty: boolean,
-  { message = UNSAVED_CHANGES_MESSAGE }: GuardOptions = {},
+  { message = UNSAVED_CHANGES_MESSAGE, alsoBlock }: PageGuardOptions = {},
 ): { dialog: ReactNode; requestLeave: (action: () => void) => void; release: () => void } {
   const { confirmDiscard, runIfDiscarded, dialog: confirmDialog, dirtyRef } = useConfirmDiscard(isDirty, message)
   const releasedRef = useRef(false)
@@ -138,11 +147,16 @@ export function useUnsavedChangesGuard(
     }
   }, [runIfDiscarded])
 
+  // Read through a ref so an inline `alsoBlock` does not re-register the blocker.
+  const alsoBlockRef = useRef(alsoBlock)
+  useLayoutEffect(() => {
+    alsoBlockRef.current = alsoBlock
+  }, [alsoBlock])
   const shouldBlock = useCallback<BlockerFunction>(
-    ({ currentLocation, nextLocation }) =>
+    args =>
       dirtyRef.current
       && !releasedRef.current
-      && currentLocation.pathname !== nextLocation.pathname,
+      && (args.currentLocation.pathname !== args.nextLocation.pathname || (alsoBlockRef.current?.(args) ?? false)),
     [dirtyRef],
   )
   const ask = useCallback(async () => {

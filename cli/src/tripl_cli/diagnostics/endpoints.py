@@ -21,6 +21,7 @@ from tripl_cli.api import (
     branches,
     chart_annotations,
     data_sources,
+    docs,
     event_types,
     events,
     monitoring,
@@ -155,4 +156,16 @@ CHECK_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
 CODEGEN_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "export": (("get", plan_export.EXPORT),),
     "branches": (("get", branches.LIST),),
+}
+
+# `tripl docs <verb>`. Three reads and one write. `push` posts the folder to the
+# import route, and on a terminal it posts it twice: once with `dry_run=true` to
+# show what would change before asking, then for real. Same route either way, so
+# one entry. The write route for a single note (PUT on docs.FILE) is not here: no
+# verb sends it, and tripl-mcp's `write_doc` declares it in its own map.
+DOCS_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "ls": (("get", docs.TREE),),
+    "cat": (("get", docs.FILE),),
+    "pull": (("get", docs.EXPORT),),
+    "push": (("post", docs.IMPORT),),
 }

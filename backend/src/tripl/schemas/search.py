@@ -22,6 +22,9 @@ SearchEntityType = Literal[
     # branch's index holds a copy (tripl-dfct).
     "scan_config",
     "alert_rule",
+    # Docs catalog notes (F22): the project's own and its organization's. Not
+    # branched either, so every branch's index carries a copy.
+    "doc",
 ]
 
 

@@ -10287,7 +10287,8 @@
                       "metric",
                       "fact_table",
                       "scan_config",
-                      "alert_rule"
+                      "alert_rule",
+                      "doc"
                     ],
                     "type": "string"
                   }
@@ -14161,6 +14162,1057 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "List Docs",
+        "operationId": "list_docs_api_v1_projects__slug__docs_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocTreeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/file": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Read Doc",
+        "operationId": "read_doc_api_v1_projects__slug__docs_file_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocFileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Write Doc",
+        "operationId": "write_doc_api_v1_projects__slug__docs_file_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocWriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocWriteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Delete Doc",
+        "operationId": "delete_doc_api_v1_projects__slug__docs_file_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/folder": {
+      "delete": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Delete Doc Folder",
+        "operationId": "delete_doc_folder_api_v1_projects__slug__docs_folder_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "A folder prefix.",
+              "title": "Path"
+            },
+            "description": "A folder prefix."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocFolderDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/move": {
+      "post": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Move Doc",
+        "operationId": "move_doc_api_v1_projects__slug__docs_move_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocMoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocMoveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/revisions": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "List Doc Revisions",
+        "operationId": "list_doc_revisions_api_v1_projects__slug__docs_revisions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocRevisionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/revisions/{revision_id}": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Get Doc Revision",
+        "operationId": "get_doc_revision_api_v1_projects__slug__docs_revisions__revision_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Revision Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocRevisionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/revisions/{revision_id}/restore": {
+      "post": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Restore Doc Revision",
+        "operationId": "restore_doc_revision_api_v1_projects__slug__docs_revisions__revision_id__restore_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Revision Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocRestoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocWriteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/search": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Search Docs",
+        "operationId": "search_docs_api_v1_projects__slug__docs_search_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "project",
+                    "organization"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/backlinks": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Doc Backlinks",
+        "operationId": "doc_backlinks_api_v1_projects__slug__docs_backlinks_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "event",
+                "event_type",
+                "field"
+              ],
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Name"
+            }
+          },
+          {
+            "name": "qualifier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Qualifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocBacklinksResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/links": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Resolve Doc Links",
+        "operationId": "resolve_doc_links_api_v1_projects__slug__docs_links_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 200,
+              "description": "kind:name, kind being event, event-type or field (repeatable).",
+              "title": "Ref"
+            },
+            "description": "kind:name, kind being event, event-type or field (repeatable)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocLinkResolution"
+                  },
+                  "title": "Response Resolve Doc Links Api V1 Projects  Slug  Docs Links Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/export": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Export Docs",
+        "operationId": "export_docs_api_v1_projects__slug__docs_export_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "zip"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocBundle"
+                }
+              },
+              "application/zip": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/import": {
+      "post": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Import Docs",
+        "operationId": "import_docs_api_v1_projects__slug__docs_import_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "merge",
+                "mirror"
+              ],
+              "type": "string",
+              "default": "merge",
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/import/zip": {
+      "post": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Import Docs Zip",
+        "operationId": "import_docs_zip_api_v1_projects__slug__docs_import_zip_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "merge",
+                "mirror"
+              ],
+              "type": "string",
+              "default": "merge",
+              "title": "Mode"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          },
+          {
+            "name": "keep_root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Keep Root"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocImportResult"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -22572,6 +23624,21 @@
         "title": "BigQuerySettings",
         "description": "Typed BigQuery execution controls (location, cost guard, dataset scope)."
       },
+      "Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "A zip of .md files."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post"
+      },
       "Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post": {
         "properties": {
           "file": {
@@ -24856,6 +25923,1282 @@
           "data"
         ],
         "title": "DistributionDriftsResponse"
+      },
+      "DocBacklinkItem": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent",
+              "both"
+            ],
+            "title": "Audience",
+            "default": "both"
+          },
+          "link_raw": {
+            "type": "string",
+            "title": "Link Raw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "title",
+          "link_raw"
+        ],
+        "title": "DocBacklinkItem"
+      },
+      "DocBacklinksResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event",
+              "event_type",
+              "field"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "qualifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qualifier"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocBacklinkItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "items"
+        ],
+        "title": "DocBacklinksResponse"
+      },
+      "DocBundle": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "tripl-docs/v1",
+            "title": "Format",
+            "default": "tripl-docs/v1"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "project_slug": {
+            "type": "string",
+            "title": "Project Slug"
+          },
+          "organization_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Slug"
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exported At"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DocBundleFile"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "project_slug",
+          "exported_at",
+          "files"
+        ],
+        "title": "DocBundle"
+      },
+      "DocBundleFile": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "DocBundleFile"
+      },
+      "DocFileResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent",
+              "both"
+            ],
+            "title": "Audience",
+            "default": "both"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "updated_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Name"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "extra_frontmatter": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra Frontmatter",
+            "default": {}
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/DocLinkResolution"
+            },
+            "type": "array",
+            "title": "Links",
+            "default": []
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "title",
+          "revision",
+          "size_bytes",
+          "updated_at",
+          "id",
+          "content",
+          "body",
+          "created_at"
+        ],
+        "title": "DocFileResponse"
+      },
+      "DocFolderDeleteResponse": {
+        "properties": {
+          "deleted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "DocFolderDeleteResponse"
+      },
+      "DocImportError": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "detail"
+        ],
+        "title": "DocImportError"
+      },
+      "DocImportRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "tripl-docs/v1",
+            "title": "Format",
+            "default": "tripl-docs/v1"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DocBundleFile"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "DocImportRequest"
+      },
+      "DocImportResult": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "mirror"
+            ],
+            "title": "Mode"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "created": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created",
+            "default": []
+          },
+          "updated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated",
+            "default": []
+          },
+          "unchanged": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unchanged",
+            "default": []
+          },
+          "deleted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted",
+            "default": []
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/DocImportSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "default": []
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/DocImportError"
+            },
+            "type": "array",
+            "title": "Errors",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "mode",
+          "dry_run"
+        ],
+        "title": "DocImportResult"
+      },
+      "DocImportSkipped": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "reason"
+        ],
+        "title": "DocImportSkipped"
+      },
+      "DocLimits": {
+        "properties": {
+          "max_file_bytes": {
+            "type": "integer",
+            "title": "Max File Bytes"
+          },
+          "max_files_per_scope": {
+            "type": "integer",
+            "title": "Max Files Per Scope"
+          },
+          "max_bundle_files": {
+            "type": "integer",
+            "title": "Max Bundle Files"
+          },
+          "max_bundle_bytes": {
+            "type": "integer",
+            "title": "Max Bundle Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_file_bytes",
+          "max_files_per_scope",
+          "max_bundle_files",
+          "max_bundle_bytes"
+        ],
+        "title": "DocLimits"
+      },
+      "DocLinkResolution": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "event",
+              "event_type",
+              "field"
+            ],
+            "title": "Kind"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "qualifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qualifier"
+          },
+          "raw": {
+            "type": "string",
+            "title": "Raw"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "resolved",
+              "ambiguous",
+              "broken"
+            ],
+            "title": "Status"
+          },
+          "route_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route Path"
+          },
+          "entity_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Id"
+          },
+          "candidates": {
+            "type": "integer",
+            "title": "Candidates",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "target",
+          "raw",
+          "status"
+        ],
+        "title": "DocLinkResolution"
+      },
+      "DocMoveRequest": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "from_path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "From Path"
+          },
+          "to_path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "To Path"
+          },
+          "folder": {
+            "type": "boolean",
+            "title": "Folder",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "from_path",
+          "to_path"
+        ],
+        "title": "DocMoveRequest"
+      },
+      "DocMoveResponse": {
+        "properties": {
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/DocMovedPath"
+            },
+            "type": "array",
+            "title": "Moved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "moved"
+        ],
+        "title": "DocMoveResponse"
+      },
+      "DocMovedPath": {
+        "properties": {
+          "from_path": {
+            "type": "string",
+            "title": "From Path"
+          },
+          "to_path": {
+            "type": "string",
+            "title": "To Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_path",
+          "to_path"
+        ],
+        "title": "DocMovedPath"
+      },
+      "DocRestoreRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "DocRestoreRequest"
+      },
+      "DocRevisionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "move",
+              "restore",
+              "import"
+            ],
+            "title": "Action"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "content_sha256": {
+            "type": "string",
+            "title": "Content Sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "restored_from_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restored From Number"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "diff": {
+            "type": "string",
+            "title": "Diff"
+          },
+          "diff_truncated": {
+            "type": "boolean",
+            "title": "Diff Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "action",
+          "path",
+          "message",
+          "created_at",
+          "content_sha256",
+          "size_bytes",
+          "content",
+          "diff"
+        ],
+        "title": "DocRevisionDetail"
+      },
+      "DocRevisionListResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "current_revision": {
+            "type": "integer",
+            "title": "Current Revision"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocRevisionSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "current_revision",
+          "items"
+        ],
+        "title": "DocRevisionListResponse"
+      },
+      "DocRevisionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "move",
+              "restore",
+              "import"
+            ],
+            "title": "Action"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "content_sha256": {
+            "type": "string",
+            "title": "Content Sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "restored_from_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restored From Number"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "action",
+          "path",
+          "message",
+          "created_at",
+          "content_sha256",
+          "size_bytes"
+        ],
+        "title": "DocRevisionSummary"
+      },
+      "DocSearchHit": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent",
+              "both"
+            ],
+            "title": "Audience",
+            "default": "both"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet",
+            "default": ""
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "title",
+          "score"
+        ],
+        "title": "DocSearchHit"
+      },
+      "DocSearchResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocSearchHit"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          },
+          "semantic_used": {
+            "type": "boolean",
+            "title": "Semantic Used",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "DocSearchResponse"
+      },
+      "DocSummary": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent",
+              "both"
+            ],
+            "title": "Audience",
+            "default": "both"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "updated_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "title",
+          "revision",
+          "size_bytes",
+          "updated_at"
+        ],
+        "title": "DocSummary"
+      },
+      "DocTreeOrganization": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "DocTreeOrganization"
+      },
+      "DocTreeProject": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "DocTreeProject"
+      },
+      "DocTreeResponse": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/DocTreeProject"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/DocTreeOrganization"
+          },
+          "project_docs": {
+            "items": {
+              "$ref": "#/components/schemas/DocSummary"
+            },
+            "type": "array",
+            "title": "Project Docs"
+          },
+          "organization_docs": {
+            "items": {
+              "$ref": "#/components/schemas/DocSummary"
+            },
+            "type": "array",
+            "title": "Organization Docs"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/DocLimits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "organization",
+          "project_docs",
+          "organization_docs",
+          "limits"
+        ],
+        "title": "DocTreeResponse"
+      },
+      "DocWriteRequest": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 1048576,
+            "title": "Content"
+          },
+          "base_revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Revision"
+          },
+          "create_only": {
+            "type": "boolean",
+            "title": "Create Only",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "DocWriteRequest"
+      },
+      "DocWriteResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent",
+              "both"
+            ],
+            "title": "Audience",
+            "default": "both"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "updated_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Name"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "extra_frontmatter": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Extra Frontmatter",
+            "default": {}
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/DocLinkResolution"
+            },
+            "type": "array",
+            "title": "Links",
+            "default": []
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "created": {
+            "type": "boolean",
+            "title": "Created"
+          },
+          "changed": {
+            "type": "boolean",
+            "title": "Changed"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "title",
+          "revision",
+          "size_bytes",
+          "updated_at",
+          "id",
+          "content",
+          "body",
+          "created_at",
+          "created",
+          "changed"
+        ],
+        "title": "DocWriteResponse"
       },
       "DriftResetCounts": {
         "properties": {
@@ -40412,7 +42755,8 @@
               "metric",
               "fact_table",
               "scan_config",
-              "alert_rule"
+              "alert_rule",
+              "doc"
             ],
             "title": "Entity Type"
           },

@@ -31,6 +31,7 @@ from tripl_cli.diagnostics.endpoints import (
     ANNOTATE_ENDPOINTS,
     CHECK_ENDPOINTS,
     CODEGEN_ENDPOINTS,
+    DOCS_ENDPOINTS,
     DOCTOR_ENDPOINTS,
     DRIFTS_ENDPOINTS,
     EVENTS_ENDPOINTS,
@@ -103,6 +104,7 @@ DECLARED = {
         ("annotate", ANNOTATE_ENDPOINTS),
         ("check", CHECK_ENDPOINTS),
         ("codegen", CODEGEN_ENDPOINTS),
+        ("docs", DOCS_ENDPOINTS),
     )
     for section, endpoints in group_map.items()
 }
@@ -541,7 +543,7 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
     me". Both are silent, so the numbers are read out of the document rather
     than trusted (tripl-3ixs).
     """
-    from tripl_cli.api import events, search, variables
+    from tripl_cli.api import docs, events, search, variables
 
     expected = {
         (events.LIST, "limit", "maximum"): events.LIMIT_MAX,
@@ -557,6 +559,9 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
         (search.SEARCH, "limit", "maximum"): search.LIMIT_MAX,
         (search.SEARCH, "limit", "default"): search.LIMIT_DEFAULT,
         (search.SEARCH, "q", "maxLength"): search.QUERY_MAX_LENGTH,
+        (docs.SEARCH, "limit", "maximum"): docs.SEARCH_LIMIT_MAX,
+        (docs.SEARCH, "limit", "default"): docs.SEARCH_LIMIT_DEFAULT,
+        (docs.SEARCH, "q", "maxLength"): docs.SEARCH_QUERY_MAX_LENGTH,
     }
     wrong: list[str] = []
     for (path, parameter, key), declared in expected.items():
@@ -699,6 +704,62 @@ def test_the_declared_enums_are_the_openapi_ones(
         "tripl_cli.api.chart_annotations.SCOPE_TYPES and the API's ChartAnnotationScopeType "
         "disagree"
     )
+
+
+def _enum_of(openapi: dict[str, Any], schema: dict[str, Any]) -> list[str] | None:
+    """The ``enum`` of a schema, inline or behind one ``$ref`` into the components."""
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        schema = openapi["components"]["schemas"][ref.rpartition("/")[2]]
+    members = schema.get("enum")
+    return list(members) if isinstance(members, list) else None
+
+
+def test_the_docs_enums_are_the_openapi_ones(
+    openapi: dict[str, Any], openapi_paths: dict[str, Any]
+) -> None:
+    """``--scope`` and ``--audience`` are ``choices=``; hold them to the routes (F22).
+
+    ``scope`` is read off the file route's own query parameter, the one every
+    ``docs`` verb but ``ls`` sends; ``audience`` off ``DocSummary``, the row
+    ``ls`` filters. Either may be a named schema or an inline ``Literal``, so
+    both spellings are accepted and neither is trusted to be absent.
+    """
+    from tripl_cli.api import docs
+
+    for method, path in (("get", docs.FILE), ("put", docs.FILE), ("get", docs.EXPORT)):
+        scope = _query_schema(openapi_paths[f"{API_PREFIX}{path}"][method], "scope")
+        assert _enum_of(openapi, scope) == list(docs.SCOPES), (
+            f"tripl_cli.api.docs.SCOPES and {method.upper()} {path}?scope disagree"
+        )
+    audience = openapi["components"]["schemas"]["DocSummary"]["properties"]["audience"]
+    assert _enum_of(openapi, audience) == list(docs.AUDIENCES), (
+        "tripl_cli.api.docs.AUDIENCES and the API's DocSummary.audience disagree"
+    )
+    mode = _query_schema(openapi_paths[f"{API_PREFIX}{docs.IMPORT}"]["post"], "mode")
+    assert _enum_of(openapi, mode) == list(docs.IMPORT_MODES), (
+        "tripl_cli.api.docs.IMPORT_MODES and POST /docs/import?mode disagree"
+    )
+
+
+def test_the_docs_bundle_limits_are_the_ones_the_page_states() -> None:
+    """``push`` checks the service's limits locally; the page states the same numbers."""
+    from tripl_cli.api import docs
+
+    section = " ".join(_section(DOCS_PATH.read_text(encoding="utf-8"), "## `tripl docs`").split())
+    missing = [
+        phrase
+        for phrase in (
+            f"{docs.MAX_FILE_BYTES // 1024} KiB",
+            f"{docs.MAX_BUNDLE_FILES} files",
+            f"{docs.MAX_BUNDLE_BYTES // (1024 * 1024)} MiB",
+        )
+        if phrase not in section
+    ]
+    assert not missing, f"cli.md's docs section does not state: {missing}"
+    documented = set(re.findall(r"`([a-z_]+)`", section))
+    undocumented = (set(docs.SCOPES) | set(docs.AUDIENCES)) - documented
+    assert not undocumented, f"cli.md's docs section never names: {sorted(undocumented)}"
 
 
 def test_the_sse_stream_is_deliberately_absent_from_the_spec(
@@ -1065,7 +1126,11 @@ def test_the_write_safety_section_agrees_with_how_many_mutations_there_are() -> 
 
     from_maps = {
         f"tripl {group} {key}"
-        for group, mapping in (("scans", SCANS_ENDPOINTS), ("drifts", DRIFTS_ENDPOINTS))
+        for group, mapping in (
+            ("scans", SCANS_ENDPOINTS),
+            ("drifts", DRIFTS_ENDPOINTS),
+            ("docs", DOCS_ENDPOINTS),
+        )
         for key, entries in mapping.items()
         if any(method == "post" for method, _ in entries)
     } | {
@@ -1104,7 +1169,7 @@ def test_the_write_safety_section_agrees_with_how_many_mutations_there_are() -> 
         f"the write-safety table lists {sorted(rows)}, but the mutations are {sorted(from_maps)}"
     )
 
-    counts = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five"}
+    counts = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven"}
     word = counts.get(len(from_maps), str(len(from_maps)))
     claim = f"**{word} verbs do not**"
     assert claim in section, f"the write-safety intro does not say {claim!r}"

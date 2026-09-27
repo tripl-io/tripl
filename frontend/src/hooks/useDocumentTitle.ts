@@ -73,6 +73,7 @@ const PROJECT_SURFACE_LABELS: Record<string, string> = {
   'fact-tables': 'Fact tables',
   scans: 'Scans',
   concepts: 'Concepts',
+  docs: 'Docs',
   settings: 'Project settings',
 }
 

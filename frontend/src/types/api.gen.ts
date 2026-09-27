@@ -1744,6 +1744,229 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Docs */
+        get: operations["list_docs_api_v1_projects__slug__docs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/backlinks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Doc Backlinks */
+        get: operations["doc_backlinks_api_v1_projects__slug__docs_backlinks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Docs */
+        get: operations["export_docs_api_v1_projects__slug__docs_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Doc */
+        get: operations["read_doc_api_v1_projects__slug__docs_file_get"];
+        /** Write Doc */
+        put: operations["write_doc_api_v1_projects__slug__docs_file_put"];
+        post?: never;
+        /** Delete Doc */
+        delete: operations["delete_doc_api_v1_projects__slug__docs_file_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Doc Folder */
+        delete: operations["delete_doc_folder_api_v1_projects__slug__docs_folder_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Docs */
+        post: operations["import_docs_api_v1_projects__slug__docs_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/import/zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Docs Zip */
+        post: operations["import_docs_zip_api_v1_projects__slug__docs_import_zip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve Doc Links */
+        get: operations["resolve_doc_links_api_v1_projects__slug__docs_links_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move Doc */
+        post: operations["move_doc_api_v1_projects__slug__docs_move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Doc Revisions */
+        get: operations["list_doc_revisions_api_v1_projects__slug__docs_revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Doc Revision */
+        get: operations["get_doc_revision_api_v1_projects__slug__docs_revisions__revision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/revisions/{revision_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Doc Revision */
+        post: operations["restore_doc_revision_api_v1_projects__slug__docs_revisions__revision_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search Docs */
+        get: operations["search_docs_api_v1_projects__slug__docs_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/duplicates": {
         parameters: {
             query?: never;
@@ -6183,6 +6406,14 @@ export interface components {
             /** Maximum Bytes Billed */
             maximum_bytes_billed?: number | null;
         };
+        /** Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post */
+        Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post: {
+            /**
+             * File
+             * @description A zip of .md files.
+             */
+            file: string;
+        };
         /** Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post */
         Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post: {
             /** File */
@@ -7127,6 +7358,602 @@ export interface components {
             scan_config_id?: string | null;
             /** Scope */
             scope: string;
+        };
+        /** DocBacklinkItem */
+        DocBacklinkItem: {
+            /**
+             * Audience
+             * @default both
+             * @enum {string}
+             */
+            audience: "human" | "agent" | "both";
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Link Raw */
+            link_raw: string;
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /** Title */
+            title: string;
+        };
+        /** DocBacklinksResponse */
+        DocBacklinksResponse: {
+            /** Items */
+            items: components["schemas"]["DocBacklinkItem"][];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field";
+            /** Name */
+            name: string;
+            /** Qualifier */
+            qualifier?: string | null;
+        };
+        /** DocBundle */
+        DocBundle: {
+            /**
+             * Exported At
+             * Format: date-time
+             */
+            exported_at: string;
+            /** Files */
+            files: components["schemas"]["DocBundleFile"][];
+            /**
+             * Format
+             * @default tripl-docs/v1
+             * @constant
+             */
+            format: "tripl-docs/v1";
+            /** Organization Slug */
+            organization_slug?: string | null;
+            /** Project Slug */
+            project_slug: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+        };
+        /** DocBundleFile */
+        DocBundleFile: {
+            /** Content */
+            content: string;
+            /** Path */
+            path: string;
+            /** Sha256 */
+            sha256?: string | null;
+        };
+        /** DocFileResponse */
+        DocFileResponse: {
+            /**
+             * Audience
+             * @default both
+             * @enum {string}
+             */
+            audience: "human" | "agent" | "both";
+            /** Body */
+            body: string;
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Extra Frontmatter
+             * @default {}
+             */
+            extra_frontmatter: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Links
+             * @default []
+             */
+            links: components["schemas"]["DocLinkResolution"][];
+            /** Path */
+            path: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Name */
+            updated_by_name?: string | null;
+        };
+        /** DocFolderDeleteResponse */
+        DocFolderDeleteResponse: {
+            /** Deleted */
+            deleted: string[];
+        };
+        /** DocImportError */
+        DocImportError: {
+            /** Detail */
+            detail: string;
+            /** Path */
+            path: string;
+        };
+        /** DocImportRequest */
+        DocImportRequest: {
+            /** Files */
+            files: components["schemas"]["DocBundleFile"][];
+            /**
+             * Format
+             * @default tripl-docs/v1
+             * @constant
+             */
+            format: "tripl-docs/v1";
+        };
+        /** DocImportResult */
+        DocImportResult: {
+            /**
+             * Created
+             * @default []
+             */
+            created: string[];
+            /**
+             * Deleted
+             * @default []
+             */
+            deleted: string[];
+            /** Dry Run */
+            dry_run: boolean;
+            /**
+             * Errors
+             * @default []
+             */
+            errors: components["schemas"]["DocImportError"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "merge" | "mirror";
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /**
+             * Skipped
+             * @default []
+             */
+            skipped: components["schemas"]["DocImportSkipped"][];
+            /**
+             * Unchanged
+             * @default []
+             */
+            unchanged: string[];
+            /**
+             * Updated
+             * @default []
+             */
+            updated: string[];
+        };
+        /** DocImportSkipped */
+        DocImportSkipped: {
+            /** Path */
+            path: string;
+            /** Reason */
+            reason: string;
+        };
+        /** DocLimits */
+        DocLimits: {
+            /** Max Bundle Bytes */
+            max_bundle_bytes: number;
+            /** Max Bundle Files */
+            max_bundle_files: number;
+            /** Max File Bytes */
+            max_file_bytes: number;
+            /** Max Files Per Scope */
+            max_files_per_scope: number;
+        };
+        /** DocLinkResolution */
+        DocLinkResolution: {
+            /**
+             * Candidates
+             * @default 0
+             */
+            candidates: number;
+            /** Entity Id */
+            entity_id?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field";
+            /** Qualifier */
+            qualifier?: string | null;
+            /** Raw */
+            raw: string;
+            /** Route Path */
+            route_path?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "resolved" | "ambiguous" | "broken";
+            /** Target */
+            target: string;
+        };
+        /** DocMoveRequest */
+        DocMoveRequest: {
+            /**
+             * Folder
+             * @default false
+             */
+            folder: boolean;
+            /** From Path */
+            from_path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /** To Path */
+            to_path: string;
+        };
+        /** DocMoveResponse */
+        DocMoveResponse: {
+            /** Moved */
+            moved: components["schemas"]["DocMovedPath"][];
+        };
+        /** DocMovedPath */
+        DocMovedPath: {
+            /** From Path */
+            from_path: string;
+            /** To Path */
+            to_path: string;
+        };
+        /** DocRestoreRequest */
+        DocRestoreRequest: {
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        };
+        /** DocRevisionDetail */
+        DocRevisionDetail: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "create" | "update" | "move" | "restore" | "import";
+            /** Author Name */
+            author_name?: string | null;
+            /** Content */
+            content: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Diff */
+            diff: string;
+            /**
+             * Diff Truncated
+             * @default false
+             */
+            diff_truncated: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Number */
+            number: number;
+            /** Path */
+            path: string;
+            /** Restored From Number */
+            restored_from_number?: number | null;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** DocRevisionListResponse */
+        DocRevisionListResponse: {
+            /** Current Revision */
+            current_revision: number;
+            /** Items */
+            items: components["schemas"]["DocRevisionSummary"][];
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+        };
+        /** DocRevisionSummary */
+        DocRevisionSummary: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "create" | "update" | "move" | "restore" | "import";
+            /** Author Name */
+            author_name?: string | null;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Number */
+            number: number;
+            /** Path */
+            path: string;
+            /** Restored From Number */
+            restored_from_number?: number | null;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** DocSearchHit */
+        DocSearchHit: {
+            /**
+             * Audience
+             * @default both
+             * @enum {string}
+             */
+            audience: "human" | "agent" | "both";
+            /**
+             * Confidence
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /** Score */
+            score: number;
+            /**
+             * Snippet
+             * @default
+             */
+            snippet: string;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+        };
+        /** DocSearchResponse */
+        DocSearchResponse: {
+            /** Items */
+            items: components["schemas"]["DocSearchHit"][];
+            /**
+             * Semantic Used
+             * @default false
+             */
+            semantic_used: boolean;
+            /** Total */
+            total: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** DocSummary */
+        DocSummary: {
+            /**
+             * Audience
+             * @default both
+             * @enum {string}
+             */
+            audience: "human" | "agent" | "both";
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Path */
+            path: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Name */
+            updated_by_name?: string | null;
+        };
+        /** DocTreeOrganization */
+        DocTreeOrganization: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** DocTreeProject */
+        DocTreeProject: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** DocTreeResponse */
+        DocTreeResponse: {
+            limits: components["schemas"]["DocLimits"];
+            organization: components["schemas"]["DocTreeOrganization"];
+            /** Organization Docs */
+            organization_docs: components["schemas"]["DocSummary"][];
+            project: components["schemas"]["DocTreeProject"];
+            /** Project Docs */
+            project_docs: components["schemas"]["DocSummary"][];
+        };
+        /** DocWriteRequest */
+        DocWriteRequest: {
+            /** Base Revision */
+            base_revision?: number | null;
+            /** Content */
+            content: string;
+            /**
+             * Create Only
+             * @default false
+             */
+            create_only: boolean;
+            /**
+             * Message
+             * @default
+             */
+            message: string;
+        };
+        /** DocWriteResponse */
+        DocWriteResponse: {
+            /**
+             * Audience
+             * @default both
+             * @enum {string}
+             */
+            audience: "human" | "agent" | "both";
+            /** Body */
+            body: string;
+            /** Changed */
+            changed: boolean;
+            /** Content */
+            content: string;
+            /** Created */
+            created: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Extra Frontmatter
+             * @default {}
+             */
+            extra_frontmatter: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Links
+             * @default []
+             */
+            links: components["schemas"]["DocLinkResolution"][];
+            /** Path */
+            path: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Tags
+             * @default []
+             */
+            tags: string[];
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Name */
+            updated_by_name?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
         };
         /** DriftResetCounts */
         DriftResetCounts: {
@@ -13047,7 +13874,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "event" | "event_type" | "field" | "meta_field" | "variable" | "relation" | "tag" | "metric" | "fact_table" | "scan_config" | "alert_rule";
+            entity_type: "event" | "event_type" | "field" | "meta_field" | "variable" | "relation" | "tag" | "metric" | "fact_table" | "scan_config" | "alert_rule" | "doc";
             /** Event Id */
             event_id?: string | null;
             /**
@@ -18102,6 +18929,543 @@ export interface operations {
             };
         };
     };
+    list_docs_api_v1_projects__slug__docs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocTreeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    doc_backlinks_api_v1_projects__slug__docs_backlinks_get: {
+        parameters: {
+            query: {
+                kind: "event" | "event_type" | "field";
+                name: string;
+                qualifier?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocBacklinksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_docs_api_v1_projects__slug__docs_export_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                format?: "json" | "zip";
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocBundle"];
+                    "application/zip": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_doc_api_v1_projects__slug__docs_file_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocFileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    write_doc_api_v1_projects__slug__docs_file_put: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocWriteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_doc_api_v1_projects__slug__docs_file_delete: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_doc_folder_api_v1_projects__slug__docs_folder_delete: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description A folder prefix. */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocFolderDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_docs_api_v1_projects__slug__docs_import_post: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                mode?: "merge" | "mirror";
+                dry_run?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocImportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_docs_zip_api_v1_projects__slug__docs_import_zip_post: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                mode?: "merge" | "mirror";
+                dry_run?: boolean;
+                keep_root?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_doc_links_api_v1_projects__slug__docs_links_get: {
+        parameters: {
+            query: {
+                /** @description kind:name, kind being event, event-type or field (repeatable). */
+                ref: string[];
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocLinkResolution"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_doc_api_v1_projects__slug__docs_move_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocMoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocMoveResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_doc_revisions_api_v1_projects__slug__docs_revisions_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocRevisionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_doc_revision_api_v1_projects__slug__docs_revisions__revision_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocRevisionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_doc_revision_api_v1_projects__slug__docs_revisions__revision_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocRestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocWriteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_docs_api_v1_projects__slug__docs_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                scope?: ("project" | "organization") | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_duplicate_clusters_api_v1_projects__slug__duplicates_get: {
         parameters: {
             query?: {
@@ -22875,7 +24239,7 @@ export interface operations {
         parameters: {
             query: {
                 q: string;
-                types?: ("event" | "event_type" | "field" | "meta_field" | "variable" | "relation" | "tag" | "metric" | "fact_table" | "scan_config" | "alert_rule")[] | null;
+                types?: ("event" | "event_type" | "field" | "meta_field" | "variable" | "relation" | "tag" | "metric" | "fact_table" | "scan_config" | "alert_rule" | "doc")[] | null;
                 include_archived?: boolean;
                 limit?: number;
                 /** @description Run the embedding leg as well as the lexical one. Pass false for a keyword-only answer that skips the provider round trip; ``semantic_used`` in the response is then always false. */
