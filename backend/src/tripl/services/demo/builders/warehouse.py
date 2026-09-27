@@ -357,6 +357,10 @@ async def _build_breakdown(session: AsyncSession, ctx: DemoContext) -> None:
             }
             for platform, count in home_counts.items()
         )
-    # Same executemany treatment as the volume rows above.
+    # Same executemany treatment as the volume rows above. The ORM's bulk insert
+    # groups CONSECUTIVE rows by which columns are NULL, so the event rows
+    # (event_type_id NULL) and the rollup rows (event_id NULL) go in as two
+    # contiguous runs; interleaved, it issued one INSERT per bucket.
+    breakdown_rows.sort(key=lambda row: row["event_id"] is None)
     if breakdown_rows:
         await session.execute(insert(EventMetricBreakdown), breakdown_rows)

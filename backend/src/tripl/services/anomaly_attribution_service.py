@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, String, and_, cast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.analyzers.anomaly_detector import (
@@ -26,7 +26,6 @@ from tripl.core.analyzers.anomaly_detector import (
 )
 from tripl.core.analyzers.attribution import attribution_headline, release_line
 from tripl.models.event import Event
-from tripl.models.event_metric import EventMetric
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_anomaly_attribution import MetricAnomalyAttribution
 from tripl.models.metric_definition import MetricDefinition
@@ -41,6 +40,12 @@ from tripl.schemas.event_metric import (
 from tripl.services.project_lookup import get_project_by_slug
 
 ATTRIBUTED_SCOPES: frozenset[str] = frozenset({SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT})
+
+
+def has_breakdown_columns() -> ColumnElement[bool]:
+    """``events.metric_breakdown_columns`` is set and not an empty list."""
+    as_text = cast(Event.metric_breakdown_columns, String)
+    return and_(Event.metric_breakdown_columns.is_not(None), as_text != "[]", as_text != "null")
 
 
 def _stored_payload(row: MetricAnomalyAttribution) -> dict[str, Any]:
@@ -96,6 +101,7 @@ async def scans_with_breakdown_columns(
         await session.execute(
             select(
                 ScanConfig.id,
+                ScanConfig.project_id,
                 ScanConfig.metric_breakdown_columns,
                 ScanConfig.platform_column,
                 ScanConfig.app_version_column,
@@ -103,9 +109,11 @@ async def scans_with_breakdown_columns(
         )
     ).all()
     app_version_by_scan: dict[uuid.UUID, str | None] = {}
+    project_by_scan: dict[uuid.UUID, uuid.UUID] = {}
     result: set[uuid.UUID] = set()
-    for scan_id, columns, platform_column, app_version_column in configs:
+    for scan_id, project_id, columns, platform_column, app_version_column in configs:
         app_version_by_scan[scan_id] = app_version_column
+        project_by_scan[scan_id] = project_id
         named = {column for column in (columns or []) if column}
         if platform_column:
             named.add(platform_column)
@@ -115,15 +123,23 @@ async def scans_with_breakdown_columns(
     pending = set(app_version_by_scan) - result
     if not pending:
         return result
+    # The project's events, not a walk over event_metrics (unbounded): an
+    # event-level breakdown column anywhere in the project counts, the same
+    # rule the worker's scan_breakdown_columns applies.
     rows = await session.execute(
-        select(EventMetric.scan_config_id, Event.metric_breakdown_columns)
-        .join(Event, Event.id == EventMetric.event_id)
-        .where(EventMetric.scan_config_id.in_(pending))
-        .distinct()
+        select(Event.project_id, Event.metric_breakdown_columns).where(
+            Event.project_id.in_({project_by_scan[scan_id] for scan_id in pending}),
+            has_breakdown_columns(),
+        )
     )
-    for scan_id, event_columns in rows.all():
+    columns_by_project: dict[uuid.UUID, set[str]] = {}
+    for project_id, event_columns in rows.all():
+        columns_by_project.setdefault(project_id, set()).update(
+            column for column in (event_columns or []) if column
+        )
+    for scan_id in pending:
         app_version = app_version_by_scan.get(scan_id) or ""
-        if any(column and column != app_version for column in (event_columns or [])):
+        if columns_by_project.get(project_by_scan[scan_id], set()) - {app_version}:
             result.add(scan_id)
     return result
 

@@ -69,6 +69,7 @@ from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_anomaly_attribution import MetricAnomalyAttribution
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
+from tripl.services.anomaly_attribution_service import has_breakdown_columns
 from tripl.services.version_activation import compile_prerelease_pattern, resolve_share_min
 from tripl.worker.tasks.metrics.release_annotations import RELEASE_ANNOTATION_LOOKBACK
 
@@ -105,13 +106,13 @@ def scan_breakdown_columns(session: Session, config: ScanConfig) -> set[str]:
     columns = {column for column in (config.metric_breakdown_columns or []) if column}
     if config.platform_column:
         columns.add(config.platform_column)
-    event_ids = (
-        select(EventMetric.event_id)
-        .where(EventMetric.scan_config_id == config.id, EventMetric.event_id.is_not(None))
-        .distinct()
-    )
+    # Read from the project's events, not by walking event_metrics for the
+    # scan: that table is unbounded, and a project's other scans only ever add
+    # a column that has no breakdown rows here, which the ranking then skips.
     for event_columns in session.execute(
-        select(Event.metric_breakdown_columns).where(Event.id.in_(event_ids))
+        select(Event.metric_breakdown_columns).where(
+            Event.project_id == config.project_id, has_breakdown_columns()
+        )
     ).scalars():
         columns.update(column for column in (event_columns or []) if column)
     columns.discard(app_version or "")
