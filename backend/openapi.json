@@ -5447,6 +5447,189 @@
         "title": "ClickHouseSettings",
         "type": "object"
       },
+      "CodegenEvent": {
+        "properties": {
+          "deprecated": {
+            "default": false,
+            "title": "Deprecated",
+            "type": "boolean"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "field_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Field Values",
+            "type": "object"
+          },
+          "identity": {
+            "title": "Identity",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Overrides",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identity",
+          "name",
+          "status"
+        ],
+        "title": "CodegenEvent",
+        "type": "object"
+      },
+      "CodegenEventType": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "name_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Rule"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CodegenEventType",
+        "type": "object"
+      },
+      "CodegenField": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "variable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variable"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "CodegenField",
+        "type": "object"
+      },
+      "CodegenVariable": {
+        "properties": {
+          "allowed_values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Values",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tokens": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tokens",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CodegenVariable",
+        "type": "object"
+      },
       "ColumnSchema": {
         "properties": {
           "data_type": {
@@ -16048,6 +16231,112 @@
           "added_name"
         ],
         "title": "PlanDiffRename",
+        "type": "object"
+      },
+      "PlanExportCodegenModel": {
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "branch_id": {
+            "format": "uuid",
+            "title": "Branch Id",
+            "type": "string"
+          },
+          "event_types": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenEventType"
+            },
+            "title": "Event Types",
+            "type": "array"
+          },
+          "format": {
+            "const": "codegen_model",
+            "default": "codegen_model",
+            "title": "Format",
+            "type": "string"
+          },
+          "plan_hash": {
+            "title": "Plan Hash",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenVariable"
+            },
+            "title": "Variables",
+            "type": "array"
+          }
+        },
+        "required": [
+          "branch",
+          "branch_id",
+          "plan_hash"
+        ],
+        "title": "PlanExportCodegenModel",
+        "type": "object"
+      },
+      "PlanExportJsonSchemaBundle": {
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "branch_id": {
+            "format": "uuid",
+            "title": "Branch Id",
+            "type": "string"
+          },
+          "format": {
+            "const": "jsonschema",
+            "default": "jsonschema",
+            "title": "Format",
+            "type": "string"
+          },
+          "plan_hash": {
+            "title": "Plan Hash",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "schemas": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Schemas",
+            "type": "object"
+          }
+        },
+        "required": [
+          "branch",
+          "branch_id",
+          "plan_hash"
+        ],
+        "title": "PlanExportJsonSchemaBundle",
         "type": "object"
       },
       "PlanFieldChange": {
@@ -36615,6 +36904,91 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/plan/export": {
+      "get": {
+        "description": "The plan of main (or ``?branch=``) as a schema bundle or a codegen model.\n\nDeterministic: the same plan exports byte-identical, with the plan\nrevision, the branch and a content hash. Changes nothing.",
+        "operationId": "export_plan_api_v1_projects__slug__plan_export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "``jsonschema``: one JSON Schema (draft 2020-12) per event. ``codegen_model``: the plan shaped for ``tripl codegen``.",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "jsonschema",
+              "description": "``jsonschema``: one JSON Schema (draft 2020-12) per event. ``codegen_model``: the plan shaped for ``tripl codegen``.",
+              "enum": [
+                "jsonschema",
+                "codegen_model"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PlanExportJsonSchemaBundle"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlanExportCodegenModel"
+                    }
+                  ],
+                  "title": "Response Export Plan Api V1 Projects  Slug  Plan Export Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Plan",
+        "tags": [
+          "plan-export"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/plan/validate": {
       "post": {
         "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing.",
@@ -41546,6 +41920,10 @@
     {
       "description": "Check tracking calls or captured payloads against the plan (tripl check).",
       "name": "plan-validation"
+    },
+    {
+      "description": "Export the plan as JSON Schema or as a model for tripl codegen.",
+      "name": "plan-export"
     },
     {
       "description": "Annotations overlaid on metric charts.",

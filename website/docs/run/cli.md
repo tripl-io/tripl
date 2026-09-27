@@ -59,6 +59,16 @@ One more checks **your code** against the plan, and is one word:
 It sends a `POST`, but only to carry the calls it found to the validator: it
 changes nothing, and a `tk_r_` key is enough.
 
+Two more turn the plan **into files** in your repository. Both only read the
+instance; the files they write are local:
+
+- **`tripl codegen`** — generates typed Swift, Kotlin and TypeScript tracking
+  code from the plan, on top of your own tracking wrapper, with a `--check` mode
+  for CI. See [`tripl codegen`](#tripl-codegen).
+- **`tripl export`** — writes the plan as a JSON Schema bundle, one schema per
+  event, or as the model `tripl codegen --model` reads. See
+  [`tripl export`](#tripl-export).
+
 Two act on a **host**, not on an instance — no URL, no API key, no HTTP except a
 `/health` poll at the end:
 
@@ -208,8 +218,9 @@ shell history. Prefer the environment variable or the config file.
 list`, `scans jobs` and `drifts list`, and it should be your default.** Those
 six issue nothing but `GET`, so a write key buys them nothing and risks
 everything.
-A read key is also enough for the `events` and `plan` verbs, and for
-`tripl check`, which posts to a validator that changes nothing.
+A read key is also enough for the `events` and `plan` verbs, for
+`tripl check`, which posts to a validator that changes nothing, and for
+`tripl codegen` and `tripl export`, which only read the plan.
 
 Five verbs mutate the instance and need a **`tk_w_` key backed by a user with
 the editor or owner role**: `scans run`, `scans cancel`, `drifts dismiss`,
@@ -2186,6 +2197,186 @@ The full workflow, with the permissions SARIF upload needs, is in the
 **Cost:** one request per 5,000 calls or payloads, plus one to resolve
 `--branch` when you pass it.
 
+## `tripl codegen`
+
+Generates typed tracking code from the plan: Swift, Kotlin and TypeScript
+files whose enums and event types come from the plan's values, calling **your
+own** tracking wrapper. What is generated for each event type (its style,
+languages, transport and templates) is configured in a `codegen` block in the
+same `.tripl/check.yml` that `tripl check` reads, and a top-level `codegen`
+block sets the output directories, the default languages and the Kotlin
+package. The [code generation guide](../integrate/codegen.md) covers the
+styles, the configuration, the generated code and custom templates.
+
+```
+usage: tripl codegen [-h] [--url URL] [--api-key KEY] [--config PATH]
+                     [--lang LANG] [--out DIR] [--check-config PATH]
+                     [--project SLUG] [--branch REF] [--model FILE] [--check]
+                     [--json] [--timeout SECONDS]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--lang LANG` | Only this language: `swift`, `kotlin` or `ts`. Repeat it for more than one. Default: each event type's own `languages` (the top-level `codegen.languages`, else all three). |
+| `--out DIR` | Write into DIR instead of the `codegen.out` directories. DIR itself when the run writes one language, `DIR/<lang>` when it writes several. Created when missing. Without `--out` and without `codegen.out`, the run is a configuration error. |
+| `--check-config PATH` | The configuration to read, as for [`tripl check`](#tripl-check). Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) at or above the current directory, up to the repository root. Only event types with a `codegen` block are generated. |
+| `--project SLUG` | The project to read the plan from. Overrides `project` in the configuration. One of the two is required. |
+| `--branch REF` | Generate from a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the configuration. Not allowed with `--model`. |
+| `--model FILE` | Read a saved `codegen_model` export (from [`tripl export --format codegen_model`](#tripl-export)) instead of asking the instance. No request is sent, and the header line reads `offline (from --model)`. |
+| `--check` | Write nothing. Render every file, compare it with what is on disk, and exit 1 when any file is missing, differs or is stale, naming each one. For CI. |
+| `--json` | One JSON document on stdout, every human line on stderr. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+**Read-only. A `tk_r_` key is enough.** It reads
+[`GET /projects/{slug}/plan/export?format=codegen_model`](../integrate/agent-api-guide.md#plan-export)
+once and renders everything locally. It writes one file per event type and
+language, named after the event type's namespace (`AppEvents.swift`,
+`AppEvents.kt`, `appEvents.ts`), plus one shared file per language that
+declares `TriplDestination`: `TriplTransport.swift`, `TriplTransport.kt` and
+`triplTransport.ts`. Output is deterministic: the header names the project,
+the branch and the plan's content hash, not its revision, and carries no
+timestamp, so re-running against an unchanged plan rewrites nothing.
+
+A write also removes **stale** files, ones an earlier run generated that this
+run no longer produces. Only files whose header names the same project, in a
+language this run writes into that directory, are ever removed; `--check`
+reports them as `stale` instead.
+
+```bash
+tripl codegen                                        # write into the codegen.out directories
+tripl codegen --check                                # CI: exit 1 when a file is out of date
+tripl codegen --lang swift --out App/Generated       # one language, straight into App/Generated
+tripl export --format codegen_model --out build      # save the plan once...
+tripl codegen --model build/codegen_model.json       # ...and generate from it offline
+```
+
+The output of the first run on the CLI's test fixture (`cli/tests/codegen`,
+with `codegen: {out: generated}` and `--model`):
+
+```text
+tripl codegen - offline (from --model)
+
+  created    generated/kotlin/AppEvents.kt
+  created    generated/kotlin/LegacyTracking.kt
+  created    generated/kotlin/ScreenTracking.kt
+  created    generated/kotlin/SdTracking.kt
+  created    generated/kotlin/TriplTransport.kt
+  created    generated/swift/AppEvents.swift
+  created    generated/swift/LegacyTracking.swift
+  created    generated/swift/ScreenTracking.swift
+  created    generated/swift/SdTracking.swift
+  created    generated/swift/TriplTransport.swift
+  created    generated/ts/appEvents.ts
+  created    generated/ts/legacyTracking.ts
+  created    generated/ts/screenTracking.ts
+  created    generated/ts/sdTracking.ts
+  created    generated/ts/triplTransport.ts
+
+15 files from the plan (revision 9b1f0c52-5d0e-4d6a-8a31-2f6c0e7d4a42 of main): 15 created, 0 changed, 0 unchanged, 0 stale removed.
+```
+
+Each file's status is `created`, `changed`, `unchanged` or `stale`. Under
+`--check`, the last line says instead that the files are in sync with the
+plan, or how many of them are out of date, with a reminder to run
+`tripl codegen` and commit the result. The plan revision appears only in this
+line and in the JSON document, never in the files.
+
+With `--json`, the document carries `project`, `branch`, `revision`, `check`,
+`exit_code` and `files`, one entry per file with `path`, `language`,
+`event_type` (`null` for the shared transport file and for a stale file) and
+`status`.
+
+**Exit codes.** 0 when the files were written, or with `--check` when every
+file matches. 1 with `--check` when a file is missing, differs or is stale, or
+when the request failed or a file could not be written. 2 on a configuration or
+usage error, including no check configuration, no event type with a `codegen`
+block, no output directory, and `--model` with `--branch`. See
+[Exit codes](#exit-codes).
+
+**Cost:** one request, plus one to resolve `--branch` when you pass it. None
+with `--model`.
+
+### In a GitHub Actions workflow {#tripl-codegen-in-github-actions}
+
+```yaml
+- name: Generated tracking code matches the plan
+  env:
+    TRIPL_BASE_URL: https://tripl.example.com
+    TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
+  run: uvx tripl codegen --check
+```
+
+This checks every language in one step when the configuration sets
+`codegen.out`. The guide has the [full workflow](../integrate/codegen.md#check-in-ci).
+
+## `tripl export`
+
+Exports the plan in one of two formats. `jsonschema` is a bundle of **JSON
+Schema** (draft 2020-12) documents, one per live event, for validators and
+generators outside tripl; it is the same bundle the **Export JSON Schema**
+button on the **Plan history** page downloads. `codegen_model` is the plan as
+[`tripl codegen`](#tripl-codegen) reads it, for `tripl codegen --model`
+(offline generation, custom template development).
+
+```
+usage: tripl export [-h] [--url URL] [--api-key KEY] [--config PATH]
+                    --format {jsonschema,codegen_model} [--out DIR]
+                    [--check-config PATH] [--project SLUG] [--branch REF]
+                    [--json] [--timeout SECONDS]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--format FORMAT` | `jsonschema` or `codegen_model`. Required, so that a future format is never picked by default. |
+| `--out DIR` | Write into DIR (created when missing). Without it, the export is printed to stdout as JSON and nothing else is printed. |
+| `--check-config PATH` | Read `project` and `branch` from this configuration. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`), as for [`tripl check`](#tripl-check). Optional: without one, pass `--project`. |
+| `--project SLUG` | The project to export. Overrides `project` in the configuration. One of the two is required. |
+| `--branch REF` | Export a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the configuration. |
+| `--json` | One JSON document on stdout, every human line on stderr. Needs `--out`, because without it stdout holds the export. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+**Read-only. A `tk_r_` key is enough.** It reads
+[`GET /projects/{slug}/plan/export`](../integrate/agent-api-guide.md#plan-export)
+once. With `--out DIR` it writes:
+
+| Format | Files |
+|--------|-------|
+| `jsonschema` | `DIR/bundle.json`, the whole bundle as served, and `DIR/<event type>/<identity>.schema.json`, one schema per event. |
+| `codegen_model` | `DIR/codegen_model.json`. |
+
+File names come from plan strings, so they are reduced to `[A-Za-z0-9._-]` and
+can never leave DIR; two identities that reduce alike get `-2`, `-3`. JSON is
+written with sorted keys and a trailing newline, so a committed export diffs
+cleanly between revisions. It then prints one line:
+`Exported <N> event schemas of <project> (<branch>, revision <revision>) to <DIR>: <count> files.`
+(`the codegen model` instead of the schema count for `codegen_model`).
+With `--json`, the document carries `project`, `branch`, `format`, `revision`,
+`files` (the paths written) and `schemas` (the number of event schemas, `0`
+for `codegen_model`).
+
+In a `jsonschema` export, archived events are left out and deprecated ones are
+marked. Each schema has the event type's fields as properties, required fields
+in `required`, the event's own values as `const`, enums from the field's
+options or the variable's allowed values, and `pattern`, `minimum` and
+`maximum` from the field's contract. The
+[API guide](../integrate/agent-api-guide.md#plan-export-jsonschema) has the
+full mapping, and the [`codegen_model` format](../integrate/agent-api-guide.md#plan-export-codegen-model)
+too.
+
+```bash
+tripl export --project shop --format jsonschema --out build/plan-schema
+tripl export --project shop --branch checkout-redesign --format jsonschema --out build/plan-schema
+tripl export --project shop --format codegen_model > codegen_model.json
+```
+
+**Exit codes.** 0 when the export was written or printed. 1 when the request
+failed or a file could not be written. 2 on a usage or configuration error: a
+missing `--format`, `--json` without `--out`, no project from either
+`--project` or the configuration, or a configuration that does not parse. See
+[Exit codes](#exit-codes).
+
+**Cost:** one request, plus one to resolve `--branch` when you pass it.
+
 ## `tripl install`
 
 Every command above needs an instance to talk to. This is the one that **makes
@@ -2691,9 +2882,9 @@ produced it, but not every code is reachable from every command — `doctor` own
 
 | Code | Meaning |
 |------|---------|
-| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either. |
-| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss` or `drifts reopen` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either. `codegen`: the files were written — or, with `--check`, every file on disk already matches. `export`: the export was written, or printed to stdout without `--out`. |
+| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss` or `drifts reopen` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. `codegen --check` also reaches 1 by verdict: a generated file is missing, differs from what the plan produces now, or is stale. `codegen` and `export` reach it the ordinary way too, when the plan read fails or a file cannot be written. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. `codegen` adds: no check configuration, a `codegen` block with an unknown key, style or language, a template file that does not exist or does not parse, a `type_names` value that is not an identifier in one of its languages, no event type with a `codegen` block, no output directory from either `--out` or `codegen.out`, a `--model` file that is not a `codegen_model` export, and `--model` with `--branch`. `export` adds: a missing `--format`, and `--json` without `--out`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
 
@@ -4001,5 +4192,9 @@ tripl check --json \
   clients speak.
 - [Check code against the plan](../integrate/tripl-check.md) — the
   configuration file, presets and CI workflow behind [`tripl check`](#tripl-check).
+- [Generate typed tracking code](../integrate/codegen.md) — the styles,
+  `codegen` configuration, transports and templates behind
+  [`tripl codegen`](#tripl-codegen), and the schema bundle behind
+  [`tripl export`](#tripl-export).
 - [API keys & governance](../administer/admin-guide.md#api-keys--governance) —
   scopes, project binding, expiry.

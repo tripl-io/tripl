@@ -1,0 +1,30 @@
+project: demo
+codegen:
+  out: generated
+  kotlin_package: com.example.tracking
+event_types:
+  se:
+    calls:
+      - function: "Analytics.shared.log"
+        args: {category: category, action: action, label: label, properties: properties}
+    codegen:
+      style: structured
+      transport:
+        swift: "Analytics.shared.log"
+        kotlin: {function: "Analytics.log", args: {category: category, action: action, label: label, properties: properties}}
+        ts:
+          function: "analytics.log"
+          positional: [category, action, label, properties]
+          import: "import { analytics } from './analytics';"
+      type_names: {namespace: AppEvents}
+  screen:
+    preset: snowplow_screen_view
+    codegen: {}
+  legacy:
+    calls: [{function: "Analytics.shared.logEvent", name_arg: 0, properties_arg: parameters}]
+    codegen:
+      style: named
+      transport: {swift: "Analytics.shared.logEvent"}
+  sd:
+    preset: snowplow_self_describing
+    codegen:

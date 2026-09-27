@@ -48,6 +48,32 @@ event's name/identity), ``name:iglu`` (the event name inside an Iglu schema
 URI) and ``properties`` (a free-form dictionary whose literal keys are checked
 as field names). ``field:<x>`` addresses a plan field literally called ``name``
 or ``properties``; ``null`` ignores the argument.
+
+``tripl codegen`` reads the same file. An event type opts in with a ``codegen``
+block, and a top-level ``codegen`` block holds what is shared::
+
+    codegen:
+      out: {swift: "Sources/Tracking/Generated", ts: "web/src/tracking"}
+      languages: [swift, kotlin, ts]      # the default for every event type
+      kotlin_package: com.example.tracking
+    event_types:
+      se:
+        calls:
+          - function: "Analytics.shared.log"
+            args: {category: category, action: action, label: label, properties: properties}
+        codegen:
+          style: structured     # structured | screen_view | named | self_describing
+          transport:
+            swift: "Analytics.shared.log"
+            ts: {function: "analytics.log", import: "import { analytics } from './analytics';"}
+          type_names: {namespace: AppEvents, category: EventCategory}
+          template: {swift: ".tripl/templates/structured.swift.mustache"}
+
+``style`` defaults from the preset (``segment_track``/``amplitude_log_event``
+-> named, ``snowplow_structured`` -> structured, …), then from the plan (a name
+rule -> structured, none -> named). A ``transport`` given as a bare function
+reuses the argument mapping of the ``calls`` entry with the same ``function``;
+without one the generated code forwards to the shared ``TriplDestination``.
 """
 
 from __future__ import annotations
@@ -86,8 +112,31 @@ DEFAULT_EXCLUDES = (
     "**/*.min.js",
 )
 
-_TOP_KEYS = frozenset({"project", "branch", "root", "sources", "exclude", "enums", "event_types"})
-_TYPE_KEYS = frozenset({"calls", "preset", "presets", "field_map"})
+_TOP_KEYS = frozenset(
+    {"project", "branch", "root", "sources", "exclude", "enums", "event_types", "codegen"}
+)
+_TYPE_KEYS = frozenset({"calls", "preset", "presets", "field_map", "codegen"})
+_CODEGEN_TOP_KEYS = frozenset({"out", "languages", "kotlin_package"})
+_CODEGEN_KEYS = frozenset({"style", "languages", "transport", "type_names", "template", "schema"})
+_TRANSPORT_KEYS = frozenset(
+    {"function", "args", "positional", "object_arg", "name_arg", "properties_arg", "import"}
+)
+
+STYLE_STRUCTURED = "structured"
+STYLE_SCREEN_VIEW = "screen_view"
+STYLE_NAMED = "named"
+STYLE_SELF_DESCRIBING = "self_describing"
+STYLES: tuple[str, ...] = (STYLE_STRUCTURED, STYLE_SCREEN_VIEW, STYLE_NAMED, STYLE_SELF_DESCRIBING)
+CODEGEN_LANGUAGES: tuple[str, ...] = ("swift", "kotlin", "ts")
+PRESET_STYLES: dict[str, str] = {
+    "segment_track": STYLE_NAMED,
+    "amplitude_log_event": STYLE_NAMED,
+    "snowplow_structured": STYLE_STRUCTURED,
+    "snowplow_screen_view": STYLE_SCREEN_VIEW,
+    "snowplow_self_describing": STYLE_SELF_DESCRIBING,
+}
+_KOTLIN_PACKAGE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
+_TYPE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _CALL_KEYS = frozenset(
     {
         "function",
@@ -173,10 +222,55 @@ class CallSpec:
 
 
 @dataclass(frozen=True)
+class Transport:
+    """The call a generated adapter forwards to: the team's own wrapper.
+
+    ``positional`` and ``labelled`` are the argument targets in call order;
+    both empty means "no mapping known", and the style's default applies.
+    ``object_arg`` (TS) wraps the labelled arguments into one object literal at
+    that position, as ``trackStructEvent({category, action})`` takes them.
+    """
+
+    function: str
+    positional: tuple[str | None, ...] = ()
+    labelled: tuple[tuple[str, str | None], ...] = ()
+    object_arg: int | None = None
+    import_line: str | None = None
+
+    @property
+    def mapped(self) -> bool:
+        return bool(self.positional or self.labelled)
+
+
+@dataclass(frozen=True)
+class CodegenSpec:
+    """One event type's ``codegen`` block."""
+
+    style: str | None = None
+    languages: tuple[str, ...] = ()
+    transport: Mapping[str, Transport] = field(default_factory=dict)
+    type_names: Mapping[str, str] = field(default_factory=dict)
+    templates: Mapping[str, Path] = field(default_factory=dict)
+    schema: str | None = None
+
+
+@dataclass(frozen=True)
+class CodegenDefaults:
+    """The top-level ``codegen`` block."""
+
+    out: Mapping[str, Path] = field(default_factory=dict)
+    out_root: Path | None = None
+    languages: tuple[str, ...] = ()
+    kotlin_package: str | None = None
+
+
+@dataclass(frozen=True)
 class EventTypeSpec:
     name: str
     calls: tuple[CallSpec, ...]
     field_map: Mapping[str, str] = field(default_factory=dict)
+    presets: tuple[str, ...] = ()
+    codegen: CodegenSpec | None = None
 
     def resolve_target(self, target: str) -> str:
         return self.field_map.get(target, target)
@@ -198,6 +292,7 @@ class CheckConfig:
     exclude: tuple[str, ...] = DEFAULT_EXCLUDES
     enums: tuple[EnumSource, ...] = ()
     event_types: tuple[EventTypeSpec, ...] = ()
+    codegen: CodegenDefaults = field(default_factory=CodegenDefaults)
 
 
 def default_target(label: str) -> str:
@@ -277,7 +372,12 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
         )
         for preset in presets:
             calls.extend(preset_specs(preset, f"{type_where}.preset"))
-        if not calls:
+        codegen: CodegenSpec | None = None
+        if "codegen" in spec_body:  # a bare `codegen:` opts in with every default
+            codegen = parse_codegen(
+                spec_body["codegen"], f"{type_where}.codegen", calls=calls, base=base
+            )
+        if not calls and codegen is None:
             raise TriplConfigError(
                 f"{type_where}: say how this event type is tracked, with `calls:` or `preset:`."
             )
@@ -287,7 +387,9 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
                 spec_body.get("field_map") or {}, f"{type_where}.field_map"
             ).items()
         }
-        event_types.append(EventTypeSpec(str(type_name), tuple(calls), field_map))
+        event_types.append(
+            EventTypeSpec(str(type_name), tuple(calls), field_map, tuple(presets), codegen)
+        )
     enums: list[EnumSource] = []
     for number, item in enumerate(_list(top.get("enums"), f"{where}: enums")):
         enum_where = f"{where}: enums[{number}]"
@@ -315,6 +417,7 @@ def parse(document: Any, *, path: Path | None, base: Path) -> CheckConfig:
         exclude=exclude,
         enums=tuple(enums),
         event_types=tuple(event_types),
+        codegen=parse_codegen_defaults(top.get("codegen"), f"{where}: codegen", base=root),
     )
 
 
@@ -394,6 +497,138 @@ def parse_call(raw: Any, where: str) -> CallSpec:
         object_arg=object_arg,
         languages=_languages(body.get("languages"), where),
     )
+
+
+# --- the codegen blocks ---------------------------------------------------------
+def parse_codegen_defaults(raw: Any, where: str, *, base: Path) -> CodegenDefaults:
+    if raw is None:
+        return CodegenDefaults()
+    body = _mapping(raw, where)
+    _known(body, _CODEGEN_TOP_KEYS, where)
+    out: dict[str, Path] = {}
+    out_root: Path | None = None
+    if isinstance(body.get("out"), dict):
+        for language, directory in _mapping(body["out"], f"{where}.out").items():
+            name = _codegen_language(language, f"{where}.out")
+            out[name] = base / _text(directory, f"{where}.out.{language}")
+    elif body.get("out") is not None:
+        out_root = base / _text(body["out"], f"{where}.out")
+    package = body.get("kotlin_package")
+    if package is not None:
+        package = _text(package, f"{where}.kotlin_package")
+        if not _KOTLIN_PACKAGE.fullmatch(package):
+            raise TriplConfigError(
+                f"{where}.kotlin_package: {package!r} is not a package name, "
+                "e.g. com.example.tracking."
+            )
+    return CodegenDefaults(
+        out=out,
+        out_root=out_root,
+        languages=_codegen_languages(body.get("languages"), f"{where}.languages"),
+        kotlin_package=package,
+    )
+
+
+def parse_codegen(raw: Any, where: str, *, calls: list[CallSpec], base: Path) -> CodegenSpec:
+    body = _mapping(raw if raw is not None else {}, where)
+    _known(body, _CODEGEN_KEYS, where)
+    style = body.get("style")
+    if style is not None:
+        style = _text(style, f"{where}.style")
+        if style not in STYLES:
+            raise TriplConfigError(f"{where}.style: {style!r} is not one of {', '.join(STYLES)}.")
+    languages = _codegen_languages(body.get("languages"), f"{where}.languages")
+    transport: dict[str, Transport] = {}
+    for language, spec in _mapping(body.get("transport") or {}, f"{where}.transport").items():
+        name = _codegen_language(language, f"{where}.transport")
+        transport[name] = parse_transport(spec, f"{where}.transport.{language}", name, calls)
+    type_names: dict[str, str] = {}
+    for key, value in _mapping(body.get("type_names") or {}, f"{where}.type_names").items():
+        text = _text(value, f"{where}.type_names.{key}")
+        if not _TYPE_NAME.fullmatch(text):
+            raise TriplConfigError(f"{where}.type_names.{key}: {text!r} is not an identifier.")
+        type_names[str(key)] = text
+    templates: dict[str, Path] = {}
+    template = body.get("template")
+    if isinstance(template, dict):
+        for language, path in template.items():
+            name = _codegen_language(language, f"{where}.template")
+            templates[name] = base / _text(path, f"{where}.template.{language}")
+    elif template is not None:
+        if len(languages) != 1:
+            raise TriplConfigError(
+                f"{where}.template: a single template needs exactly one entry in `languages:`; "
+                "otherwise give one per language, e.g. {swift: path, ts: path}."
+            )
+        templates[languages[0]] = base / _text(template, f"{where}.template")
+    schema = body.get("schema")
+    return CodegenSpec(
+        style=style,
+        languages=languages,
+        transport=transport,
+        type_names=type_names,
+        templates=templates,
+        schema=_text(schema, f"{where}.schema") if schema is not None else None,
+    )
+
+
+def parse_transport(raw: Any, where: str, language: str, calls: list[CallSpec]) -> Transport:
+    """A bare function reuses the matching ``calls`` entry's argument mapping."""
+    import_line: str | None = None
+    if isinstance(raw, str):
+        function = _text(raw, where)
+        spec = _matching_call(function, language, calls)
+        if spec is None:
+            return Transport(function=function)
+    else:
+        body = dict(_mapping(raw, where))
+        _known(body, _TRANSPORT_KEYS, where)
+        if body.get("import") is not None:
+            import_line = _text(body.pop("import"), f"{where}.import")
+            if "\n" in import_line:
+                raise TriplConfigError(f"{where}.import: one line, please.")
+        if body.get("function") is None:
+            raise TriplConfigError(f"{where}: needs `function:` (the call to forward to).")
+        function = _text(body["function"], f"{where}.function")
+        spec = parse_call(body, where)
+        if not (spec.args or spec.positional):
+            spec = _matching_call(function, language, calls) or spec
+    return Transport(
+        function=function,
+        positional=spec.positional,
+        labelled=tuple((str(label), target) for label, target in (spec.args or {}).items()),
+        object_arg=spec.object_arg,
+        import_line=import_line,
+    )
+
+
+def _matching_call(function: str, language: str, calls: list[CallSpec]) -> CallSpec | None:
+    wanted = _plain_callee(function)
+    for spec in calls:
+        if spec.function is None or _plain_callee(spec.function) != wanted:
+            continue
+        if spec.languages and language not in spec.languages:
+            continue
+        return spec
+    return None
+
+
+def _codegen_language(value: Any, where: str) -> str:
+    name = LANGUAGE_ALIASES.get(str(value).lower())
+    if name is None or name not in CODEGEN_LANGUAGES:
+        raise TriplConfigError(
+            f"{where}: {value!r} is not a codegen language; use {', '.join(CODEGEN_LANGUAGES)}."
+        )
+    return name
+
+
+def _codegen_languages(value: Any, where: str) -> tuple[str, ...]:
+    found: list[str] = []
+    for item in _names(value, where):
+        name = _codegen_language(item, where)
+        if name not in found:
+            found.append(name)
+    return tuple(found)
 
 
 # --- small validators ----------------------------------------------------------

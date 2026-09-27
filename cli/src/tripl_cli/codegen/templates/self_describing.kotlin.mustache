@@ -1,0 +1,66 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+{{#has_imports}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{/has_imports}}
+
+/**
+ * A `{{event_type.raw}}` event ({{style}}): one class per schema, carrying exactly the
+ * values the plan leaves open. Send one with `{{namespace}}.{{function.name}}`.
+ */
+sealed interface {{event_name}} {
+    /** The event's identity, exactly as the plan spells it. */
+    val name: String
+    /** The schema URI the event is sent with. */
+    val schema: String
+    val data: Map<String, Any?>
+{{#enums}}
+
+    enum class {{name}}(val value: String) {
+{{#cases}}
+        {{ident}}({{literal}}){{sep}}
+{{/cases}}
+    }
+{{/enums}}
+{{#events}}
+
+    /** `{{identity}}` */
+{{#deprecated}}
+    @Deprecated("Deprecated in the tracking plan.")
+{{/deprecated}}
+{{#has_props}}
+    data class {{class_name}}(
+{{#props}}
+        {{init}},
+{{/props}}
+    ) : {{event_name}} {
+        override val name: String get() = {{name_expr}}
+        override val schema: String get() = {{schema_expr}}
+        override val data: Map<String, Any?> get() = buildMap<String, Any?> {
+{{#puts}}
+            {{stmt}}
+{{/puts}}
+        }
+    }
+{{/has_props}}
+{{^has_props}}
+    object {{class_name}} : {{event_name}} {
+        override val name: String get() = {{name_expr}}
+        override val schema: String get() = {{schema_expr}}
+        override val data: Map<String, Any?> get() = {{properties_literal}}
+    }
+{{/has_props}}
+{{/events}}
+}
+
+object {{namespace}} {
+    fun {{function.name}}(event: {{event_name}}) {
+        {{function.forward}}
+    }
+}

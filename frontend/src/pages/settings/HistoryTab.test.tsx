@@ -26,8 +26,21 @@ vi.mock('@/api/users', () => ({
   usersApi: { list: vi.fn(async () => []) },
 }))
 
+// The schema export (GH #262): the API is mocked and the download itself is
+// replaced, so the test sees the bundle and the file name it would save.
+vi.mock('@/api/planExport', () => ({
+  planExportApi: { jsonSchema: vi.fn() },
+}))
+vi.mock('./planSchemaDownload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./planSchemaDownload')>()),
+  downloadJson: vi.fn(),
+}))
+
 import { planBranchesApi } from '@/api/planBranches'
+import { planExportApi } from '@/api/planExport'
 import { planRevisionsApi } from '@/api/planRevisions'
+import { BranchContext } from '@/components/branch-context-internal'
+import { downloadJson } from './planSchemaDownload'
 
 const SLUG = 'demo'
 
@@ -404,5 +417,78 @@ describe('HistoryTab — the diff reads aloud (review 204)', () => {
     expect(screen.getByText('before:')).toBeInTheDocument()
     expect(screen.getByText('after:')).toBeInTheDocument()
     expect(screen.getByText('removed:')).toBeInTheDocument()
+  })
+})
+
+describe('HistoryTab — Export JSON Schema (GH #262)', () => {
+  const BUNDLE = {
+    format: 'jsonschema' as const,
+    revision: 'rev-9',
+    branch: 'main',
+    branch_id: 'b-main',
+    plan_hash: 'sha256:abc',
+    schemas: {
+      'screen_view/home': {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        required: ['screen_type'],
+      },
+    },
+  }
+
+  beforeEach(() => {
+    vi.mocked(planExportApi.jsonSchema).mockReset()
+    vi.mocked(downloadJson).mockReset()
+  })
+
+  it('downloads the bundle for main as a dated .json file', async () => {
+    vi.mocked(planExportApi.jsonSchema).mockResolvedValue(BUNDLE)
+    renderHistory()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Export JSON Schema/ }))
+
+    await waitFor(() => expect(downloadJson).toHaveBeenCalledTimes(1))
+    expect(planExportApi.jsonSchema).toHaveBeenCalledWith(SLUG, null)
+    const [filename, data] = vi.mocked(downloadJson).mock.calls[0] ?? []
+    expect(filename).toMatch(/^tripl-plan-schema-demo-main-\d{4}-\d{2}-\d{2}\.json$/)
+    expect(data).toEqual(BUNDLE)
+  })
+
+  it('exports the active branch and names the file after the branch it read', async () => {
+    vi.mocked(planExportApi.jsonSchema).mockResolvedValue({
+      ...BUNDLE,
+      branch: 'feature/checkout',
+      branch_id: 'b-9',
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BranchContext.Provider value={{ branchId: 'b-9', setBranchId: () => {}, slug: SLUG }}>
+          <MemoryRouter>
+            <HistoryTab slug={SLUG} />
+          </MemoryRouter>
+        </BranchContext.Provider>
+      </QueryClientProvider>,
+    )
+    await screen.findByText(BRANCH_SUMMARY)
+
+    fireEvent.click(screen.getByRole('button', { name: /Export JSON Schema/ }))
+
+    await waitFor(() => expect(downloadJson).toHaveBeenCalledTimes(1))
+    expect(planExportApi.jsonSchema).toHaveBeenCalledWith(SLUG, 'b-9')
+    expect(vi.mocked(downloadJson).mock.calls[0]?.[0]).toMatch(
+      /^tripl-plan-schema-demo-feature-checkout-\d{4}-\d{2}-\d{2}\.json$/,
+    )
+  })
+
+  it('says so when the export fails, and downloads nothing', async () => {
+    vi.mocked(planExportApi.jsonSchema).mockRejectedValue(new Error('boom'))
+    renderHistory()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Export JSON Schema/ }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't export the plan as JSON Schema")
+    expect(downloadJson).not.toHaveBeenCalled()
   })
 })

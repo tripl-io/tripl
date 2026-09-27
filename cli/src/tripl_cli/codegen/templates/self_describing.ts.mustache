@@ -1,0 +1,84 @@
+{{header}}
+{{#has_imports}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{/has_imports}}
+{{#enums}}
+
+export const {{name}} = {
+{{#cases}}
+  {{ident}}: {{literal}},
+{{/cases}}
+} as const;
+export type {{name}} = (typeof {{name}})[keyof typeof {{name}}];
+{{/enums}}
+
+/**
+ * The `{{event_type.raw}}` events ({{style}}), keyed by their exact plan names: each
+ * schema's data is exactly the values the plan leaves open.
+ */
+export interface {{props_type}} {
+{{#events}}
+  /**
+   * `{{identity}}`
+{{#deprecated}}
+   * @deprecated Deprecated in the tracking plan.
+{{/deprecated}}
+   */
+{{#has_props}}
+  readonly {{identity_literal}}: {
+{{#props}}
+    readonly {{key}}{{#optional}}?{{/optional}}: {{base_type}};
+{{/props}}
+  };
+{{/has_props}}
+{{^has_props}}
+  readonly {{identity_literal}}: Record<string, never>;
+{{/has_props}}
+{{/events}}
+}
+
+export type {{names_type}} = keyof {{props_type}};
+{{#events}}
+export type {{class_name}} = {{props_type}}[{{identity_literal}}];
+{{/events}}
+
+const SCHEMAS: { readonly [K in {{names_type}}]: string } = {
+{{#events}}
+  {{identity_literal}}: {{schema_literal}},
+{{/events}}
+};
+
+const FIXED: { readonly [K in {{names_type}}]: Readonly<Record<string, unknown>> } = {
+{{#events}}
+  {{identity_literal}}: {{properties_literal}},
+{{/events}}
+};
+
+const TOKENS: { readonly [K in {{names_type}}]: readonly string[] } = {
+{{#events}}
+  {{identity_literal}}: {{tokens_literal}},
+{{/events}}
+};
+
+export function {{function.name}}<K extends {{names_type}}>(name: K, props: {{props_type}}[K]): void {
+  const values = props as unknown as Readonly<Record<string, unknown>>;
+{{#function.uses_name}}
+  const resolvedName = triplInterpolate(name, values);
+{{/function.uses_name}}
+{{#function.uses_schema}}
+  const schema = triplInterpolate(SCHEMAS[name], values);
+{{/function.uses_schema}}
+  const data: Record<string, unknown> = {};
+  for (const [key, fixed] of Object.entries(FIXED[name])) {
+    data[key] = typeof fixed === 'string' ? triplInterpolate(fixed, values) : fixed;
+  }
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined && !TOKENS[name].includes(key)) {
+      data[key] = value;
+    }
+  }
+  {{function.forward}};
+}

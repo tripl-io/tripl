@@ -1,0 +1,33 @@
+{{header}}
+
+/// Typed screen views for the `{{event_type.raw}}` event type ({{style}}): the plan's
+/// screen types (and ids, where it has them), and the wrapper's call narrowed to them.
+public enum {{namespace}} {
+{{#enums}}
+    public enum {{name}}: String, CaseIterable, Sendable {
+{{#cases}}
+        case {{ident}} = {{literal}}
+{{/cases}}
+    }
+
+{{/enums}}
+{{#known}}
+    public struct KnownEvent: Sendable {
+        public let identity: String
+{{#fields}}
+        public let {{ident}}: {{type}}
+{{/fields}}
+    }
+
+    /// Every planned screen view, checked by the compiler against the enums above.
+    public static let knownEvents: [KnownEvent] = [
+{{#events}}
+        KnownEvent({{args}}),
+{{/events}}
+    ]
+
+{{/known}}
+    public static func {{function.name}}({{function.signature}}) {
+        {{function.forward}}
+    }
+}

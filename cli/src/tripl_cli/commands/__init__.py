@@ -60,9 +60,11 @@ def register_all(
     from tripl_cli.commands import (
         annotate,
         check,
+        codegen,
         doctor,
         drifts,
         events,
+        export,
         install,
         plan,
         scans,
@@ -97,6 +99,10 @@ def register_all(
     # One word too: it validates a checkout (or a capture file) as a whole against
     # the plan, from a developer's terminal or a CI step (#261).
     check.register(subparsers, parent)
+    # One word each as well, for the same reason: `codegen` turns the plan into typed
+    # tracking code for a checkout, `export` writes the plan out as JSON Schema (#262).
+    codegen.register(subparsers, parent)
+    export.register(subparsers, parent)
 
 
 def group_help(parser: argparse.ArgumentParser) -> Handler:

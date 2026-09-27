@@ -30,6 +30,7 @@ from tripl_cli.diagnostics import checks, collect, scan_checks
 from tripl_cli.diagnostics.endpoints import (
     ANNOTATE_ENDPOINTS,
     CHECK_ENDPOINTS,
+    CODEGEN_ENDPOINTS,
     DOCTOR_ENDPOINTS,
     DRIFTS_ENDPOINTS,
     EVENTS_ENDPOINTS,
@@ -101,6 +102,7 @@ DECLARED = {
         ("plan", PLAN_ENDPOINTS),
         ("annotate", ANNOTATE_ENDPOINTS),
         ("check", CHECK_ENDPOINTS),
+        ("codegen", CODEGEN_ENDPOINTS),
     )
     for section, endpoints in group_map.items()
 }

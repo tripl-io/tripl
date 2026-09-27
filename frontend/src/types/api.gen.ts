@@ -2951,6 +2951,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/plan/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Plan
+         * @description The plan of main (or ``?branch=``) as a schema bundle or a codegen model.
+         *
+         *     Deterministic: the same plan exports byte-identical, with the plan
+         *     revision, the branch and a content hash. Changes nothing.
+         */
+        get: operations["export_plan_api_v1_projects__slug__plan_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/plan/validate": {
         parameters: {
             query?: never;
@@ -6199,6 +6222,89 @@ export interface components {
          *     first-class columns on the data source, not connection settings.
          */
         ClickHouseSettings: Record<string, never>;
+        /** CodegenEvent */
+        CodegenEvent: {
+            /**
+             * Deprecated
+             * @default false
+             */
+            deprecated: boolean;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Field Values */
+            field_values?: {
+                [key: string]: string;
+            };
+            /** Identity */
+            identity: string;
+            /** Name */
+            name: string;
+            /** Overrides */
+            overrides?: {
+                [key: string]: string[];
+            };
+            /** Status */
+            status: string;
+        };
+        /** CodegenEventType */
+        CodegenEventType: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Events */
+            events?: components["schemas"]["CodegenEvent"][];
+            /** Fields */
+            fields?: components["schemas"]["CodegenField"][];
+            /** Name */
+            name: string;
+            /** Name Rule */
+            name_rule?: string | null;
+        };
+        /** CodegenField */
+        CodegenField: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /** Name */
+            name: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Type */
+            type: string;
+            /** Values */
+            values?: string[] | null;
+            /** Variable */
+            variable?: string | null;
+        };
+        /** CodegenVariable */
+        CodegenVariable: {
+            /** Allowed Values */
+            allowed_values?: string[];
+            /** Name */
+            name: string;
+            /** Tokens */
+            tokens?: string[];
+        };
         /** ColumnSchema */
         ColumnSchema: {
             /** Data Type */
@@ -10157,6 +10263,56 @@ export interface components {
             parent?: string | null;
             /** Removed Name */
             removed_name: string;
+        };
+        /** PlanExportCodegenModel */
+        PlanExportCodegenModel: {
+            /** Branch */
+            branch: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /** Event Types */
+            event_types?: components["schemas"]["CodegenEventType"][];
+            /**
+             * Format
+             * @default codegen_model
+             * @constant
+             */
+            format: "codegen_model";
+            /** Plan Hash */
+            plan_hash: string;
+            /** Revision */
+            revision?: string | null;
+            /** Variables */
+            variables?: components["schemas"]["CodegenVariable"][];
+        };
+        /** PlanExportJsonSchemaBundle */
+        PlanExportJsonSchemaBundle: {
+            /** Branch */
+            branch: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Format
+             * @default jsonschema
+             * @constant
+             */
+            format: "jsonschema";
+            /** Plan Hash */
+            plan_hash: string;
+            /** Revision */
+            revision?: string | null;
+            /** Schemas */
+            schemas?: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
         };
         /**
          * PlanFieldChange
@@ -20070,6 +20226,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_plan_api_v1_projects__slug__plan_export_get: {
+        parameters: {
+            query?: {
+                /** @description ``jsonschema``: one JSON Schema (draft 2020-12) per event. ``codegen_model``: the plan shaped for ``tripl codegen``. */
+                format?: "jsonschema" | "codegen_model";
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanExportJsonSchemaBundle"] | components["schemas"]["PlanExportCodegenModel"];
                 };
             };
             /** @description Validation Error */

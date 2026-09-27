@@ -1,0 +1,40 @@
+{{header}}
+{{#has_imports}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{/has_imports}}
+{{#enums}}
+
+export const {{name}} = {
+{{#cases}}
+  {{ident}}: {{literal}},
+{{/cases}}
+} as const;
+export type {{name}} = (typeof {{name}})[keyof typeof {{name}}];
+{{/enums}}
+{{#known}}
+
+export interface KnownEvent {
+  readonly identity: string;
+{{#fields}}
+  readonly {{ident}}: {{type}};
+{{/fields}}
+}
+
+/** Every planned screen view, checked by the compiler against the types above. */
+export const knownEvents: readonly KnownEvent[] = [
+{{#events}}
+  { {{args}} },
+{{/events}}
+];
+{{/known}}
+
+/**
+ * The `{{event_type.raw}}` screen views ({{style}}): the wrapper's own call, with its
+ * arguments narrowed to the plan's screen types and ids.
+ */
+export function {{function.name}}({{function.signature}}): void {
+  {{function.forward}};
+}

@@ -24,6 +24,7 @@ from tripl_cli.api import (
     event_types,
     events,
     monitoring,
+    plan_export,
     plan_validation,
     projects,
     scans,
@@ -145,5 +146,13 @@ ANNOTATE_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
 # branch listing when --branch or `branch:` names a plan branch to resolve.
 CHECK_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "validate": (("post", plan_validation.VALIDATE),),
+    "branches": (("get", branches.LIST),),
+}
+
+# `tripl codegen` and `tripl export`: the plan export GET (codegen_model for the
+# first, jsonschema or codegen_model for the second), plus the branch listing when
+# --branch or `branch:` names a plan branch to resolve.
+CODEGEN_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "export": (("get", plan_export.EXPORT),),
     "branches": (("get", branches.LIST),),
 }

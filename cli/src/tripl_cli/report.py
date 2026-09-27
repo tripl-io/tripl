@@ -601,3 +601,57 @@ def check_document(report: CheckReport) -> JsonDict:
         for result in report.results
     ]
     return document
+
+
+def codegen_document(
+    run: Run,
+    *,
+    project: str,
+    branch: JsonDict | None,
+    revision: str | None,
+    check: bool,
+    files: Sequence[JsonDict],
+    exit_code: int,
+) -> JsonDict:
+    """``tripl codegen --json``: one row per file, with what happened to it.
+
+    ``status`` is ``created``, ``changed``, ``unchanged`` or ``stale`` (a file
+    this run no longer produces, carrying the generated-file marker). Under
+    ``--check`` nothing is written and any status but ``unchanged`` is drift
+    (``exit_code`` 1); otherwise the created/changed files were written and the
+    stale ones removed. ``event_type`` is null for the shared transport file.
+    """
+    document = _run_envelope("codegen", run)
+    document["project"] = project
+    document["branch"] = branch
+    document["revision"] = revision
+    document["check"] = check
+    document["files"] = [dict(item) for item in files]
+    document["exit_code"] = exit_code
+    return document
+
+
+def export_document(
+    run: Run,
+    *,
+    project: str,
+    branch: JsonDict | None,
+    export_format: str,
+    revision: str | None,
+    files: Sequence[str],
+    schemas: int,
+) -> JsonDict:
+    """``tripl export --json``: what was exported and where it was written.
+
+    ``files`` lists the paths written (empty when the export went to stdout, in
+    which case the export itself is NOT embedded — use ``--out -`` for that).
+    ``schemas`` counts the event schemas in a ``jsonschema`` export, else 0.
+    """
+    document = _run_envelope("export", run)
+    document["project"] = project
+    document["branch"] = branch
+    document["format"] = export_format
+    document["revision"] = revision
+    document["files"] = list(files)
+    document["schemas"] = schemas
+    return document
