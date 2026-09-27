@@ -1,0 +1,65 @@
+{
+  "format": "codegen_model",
+  "revision": "4f7c2d10-8a3b-4c5e-9f61-0b2d3e4f5a67",
+  "branch": "main",
+  "plan_hash": "a1b2c3d4e5f6",
+  "event_types": [
+    {
+      "name": "se",
+      "display_name": "Structured event",
+      "name_rule": "{category}:{action}:{label}",
+      "fields": [
+        {"name": "category", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "action", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "label", "required": false, "type": "string", "values": null, "variable": null},
+        {"name": "property", "required": false, "type": "string", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "checkout:tap:pay_button", "name": "checkout:tap:pay_button", "status": "active", "field_values": {"category": "checkout", "action": "tap", "label": "pay_button"}, "deprecated": false},
+        {"identity": "checkout:open:paywall", "name": "checkout:open:paywall", "status": "active", "field_values": {"category": "checkout", "action": "open", "label": "paywall", "property": "class"}, "deprecated": false},
+        {"identity": "home:open:default", "name": "home:open:default", "status": "active", "field_values": {"category": "home", "action": "open", "label": "default"}, "deprecated": false},
+        {"identity": "home:tap:promo_sheet", "name": "home:tap:promo_sheet", "status": "active", "field_values": {"category": "home", "action": "tap", "label": "promo_sheet"}, "deprecated": false},
+        {"identity": "home:tap:promo-sheet", "name": "home:tap:promo-sheet", "status": "active", "field_values": {"category": "home", "action": "tap", "label": "promo-sheet"}, "deprecated": true},
+        {"identity": "home:view:1st_card", "name": "home:view:1st_card", "status": "active", "field_values": {"category": "home", "action": "view", "label": "1st_card"}, "deprecated": false},
+        {"identity": "paywall:${paywall_step}:offer", "name": "paywall:${paywall_step}:offer", "status": "active", "field_values": {"category": "paywall", "action": "${paywall_step}", "label": "offer"}, "deprecated": false}
+      ]
+    },
+    {
+      "name": "screen",
+      "display_name": "Screen view",
+      "name_rule": "{type}",
+      "fields": [
+        {"name": "type", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "id", "required": false, "type": "string", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "Home", "name": "Home", "status": "active", "field_values": {"type": "home", "id": "main"}, "deprecated": false},
+        {"identity": "Checkout Cart", "name": "Checkout Cart", "status": "active", "field_values": {"type": "checkout", "id": "cart"}, "deprecated": false},
+        {"identity": "Checkout Confirm", "name": "Checkout Confirm", "status": "active", "field_values": {"type": "checkout", "id": "confirm"}, "deprecated": false},
+        {"identity": "Paywall ${paywall_plan}", "name": "Paywall ${paywall_plan}", "status": "active", "field_values": {"type": "paywall", "id": "${paywall_plan}"}, "deprecated": false},
+        {"identity": "Settings", "name": "Settings", "status": "active", "field_values": {"type": "settings"}, "deprecated": false}
+      ]
+    },
+    {
+      "name": "app",
+      "display_name": "App events",
+      "name_rule": null,
+      "fields": [
+        {"name": "plan_tier", "required": false, "type": "enum", "values": ["free", "pro"], "variable": null},
+        {"name": "source", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "is_trial", "required": false, "type": "boolean", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "checkout_started", "name": "checkout_started", "status": "active", "field_values": {"source": "paywall"}, "deprecated": false},
+        {"identity": "paywall_shown", "name": "paywall_shown", "status": "active", "field_values": {}, "deprecated": false},
+        {"identity": "class", "name": "class", "status": "active", "field_values": {}, "deprecated": true},
+        {"identity": "promo_${promo_code}_applied", "name": "promo_${promo_code}_applied", "status": "active", "field_values": {}, "deprecated": false}
+      ]
+    }
+  ],
+  "variables": [
+    {"name": "paywall_step", "allowed_values": ["show", "close"]},
+    {"name": "paywall_plan", "allowed_values": ["monthly", "annual"]},
+    {"name": "promo_code", "allowed_values": []}
+  ]
+}

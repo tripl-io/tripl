@@ -1,0 +1,23 @@
+{{header}}
+
+/// The `{{event_type.raw}}` event names, exactly as the plan spells them.
+public enum {{vars.prefix}}EventNames {
+{{#plan.events}}
+{{#deprecated}}
+    @available(*, deprecated, message: "Deprecated in the tracking plan.")
+{{/deprecated}}
+{{^dynamic}}
+    public static let {{names.camel}} = {{literal}}
+{{/dynamic}}
+{{#dynamic}}
+    public static func {{names.camel}}({{#tokens}}{{names.camel}}: String{{^last}}, {{/last}}{{/tokens}}) -> String { {{name_expr}} }
+{{/dynamic}}
+{{/plan.events}}
+}
+
+/// The `{{event_type.raw}}` property keys.
+public enum {{vars.prefix}}EventKeys {
+{{#plan.fields}}
+    public static let {{names.camel}} = {{literal}}
+{{/plan.fields}}
+}

@@ -1,0 +1,18 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/** The planned `{{event_type.raw}}` screens: a (type, id) pair the plan does not list does not compile. */
+enum class {{vars.prefix}}Screen(val type: String, val id: String?) {
+{{#plan.combinations}}
+    {{names.upper_snake}}({{value.type.literal}}, {{#value.id}}{{literal}}{{/value.id}}{{^value.id}}null{{/value.id}}){{#last}};{{/last}}{{^last}},{{/last}}
+{{/plan.combinations}}
+}
+
+object {{namespace}} {
+    fun {{function.name}}(screen: {{vars.prefix}}Screen) {
+        {{transport.function}}({{#transport.args}}{{label}} = screen.{{names.camel}}{{^last}}, {{/last}}{{/transport.args}})
+    }
+}

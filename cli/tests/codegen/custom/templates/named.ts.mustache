@@ -1,0 +1,23 @@
+{{header}}
+
+/** The `{{event_type.raw}}` event names, exactly as the plan spells them. */
+export const {{vars.prefix}}EventNames = {
+{{#plan.events}}
+{{#deprecated}}
+  /** @deprecated Deprecated in the tracking plan. */
+{{/deprecated}}
+{{^dynamic}}
+  {{names.camel}}: {{literal}},
+{{/dynamic}}
+{{#dynamic}}
+  {{names.camel}}: ({{#tokens}}{{names.camel}}: string{{^last}}, {{/last}}{{/tokens}}): string => {{name_expr}},
+{{/dynamic}}
+{{/plan.events}}
+} as const;
+
+/** The `{{event_type.raw}}` property keys. */
+export const {{vars.prefix}}EventKeys = {
+{{#plan.fields}}
+  {{names.camel}}: {{literal}},
+{{/plan.fields}}
+} as const;

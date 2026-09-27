@@ -1,0 +1,21 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/**
+ * Builds a `{{event_type.raw}}` event as the team's own {{vars.event_class}}, to be handed
+ * on; pass the constants of {{#plan.fields}}{{#closed}}{{vars.prefix}}{{names.pascal}}{{^last}}, {{/last}}{{/closed}}{{/plan.fields}}.
+ */
+object {{namespace}} {
+    fun {{function.name}}(
+{{#function.params}}
+        {{ident}}: {{#is_field}}String{{#optional}}? = null{{/optional}}{{/is_field}}{{#is_value}}Double? = null{{/is_value}}{{comma}}
+{{/function.params}}
+    ): {{vars.event_class}} = {{transport.function}}(
+{{#transport.args}}
+        {{label}} = {{param}}{{comma}}
+{{/transport.args}}
+    )
+}

@@ -1,0 +1,19 @@
+{{header}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{#plan.fields}}
+{{#closed}}
+import type { {{vars.prefix}}{{names.pascal}} } from './{{vars.prefix_lower}}{{names.pascal}}';
+{{/closed}}
+{{/plan.fields}}
+
+/** Builds a `{{event_type.raw}}` event as the team's own {{vars.event_class}}, to be handed on. */
+export function {{function.name}}(
+{{#function.params}}
+  {{ident}}{{#optional}}?{{/optional}}: {{#is_field}}{{#is_enum}}{{vars.prefix}}{{names.pascal}}{{/is_enum}}{{^is_enum}}string{{/is_enum}}{{/is_field}}{{#is_value}}number{{/is_value}},
+{{/function.params}}
+): {{vars.event_class}} {
+  return {{transport.function}}({ {{#transport.args}}{{label}}: {{param}}{{^last}}, {{/last}}{{/transport.args}} });
+}

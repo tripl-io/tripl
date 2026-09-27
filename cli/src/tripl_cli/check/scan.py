@@ -27,6 +27,7 @@ from tripl_cli.check.config import (
     NAME,
     NAME_IGLU,
     PROPERTIES,
+    VALUE_NUMBER,
     CallSpec,
     CheckConfig,
     EventTypeSpec,
@@ -280,8 +281,8 @@ def _flatten(entries: Iterable[tuple[str, Value]], prefix: str = "") -> Iterator
 
 
 def _assign(collected: _Collected, target: str, value: Value) -> None:
-    if value.kind == "absent":
-        return
+    if value.kind == "absent" or target == VALUE_NUMBER:
+        return  # the numeric value is no plan field: nothing to check
     if target == NAME:
         collected.name = value
     elif target == NAME_IGLU:

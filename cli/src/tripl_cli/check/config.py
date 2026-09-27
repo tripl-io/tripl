@@ -74,6 +74,51 @@ block, and a top-level ``codegen`` block holds what is shared::
 rule -> structured, none -> named). A ``transport`` given as a bare function
 reuses the argument mapping of the ``calls`` entry with the same ``function``;
 without one the generated code forwards to the shared ``TriplDestination``.
+
+The built-in output follows the industry-standard shapes; a team whose code has
+ANOTHER shape builds it with custom templates, not with a switch per shape. Three
+keys give those templates what they need::
+
+    codegen:
+      vars: {prefix: Acme}                 # top level: shared by every event type
+    event_types:
+      se:
+        calls:
+          - function: "AcmeEvent"
+            args: {category: category, action: action, value: "value:number"}
+        codegen:
+          vars: {event_class: AcmeEvent}    # merged over the top-level vars
+          transport: {kotlin: "AcmeEvent"}  # bare: reuses the `calls` mapping above
+          template: {kotlin: templates/structured.kotlin.mustache}
+          files:
+            - {language: kotlin, template: templates/holder.kotlin.mustache,
+               each: closed_fields, file: "{{vars.prefix}}{{names.pascal}}.kt"}
+
+``vars``
+    A flat map of name -> STRING (a number or boolean must be quoted), read by a
+    template as ``{{vars.NAME}}``. Names are identifiers. An event type's own
+    ``vars`` are merged over the top-level ones.
+``files``
+    Extra files per event type, rendered with the same context as its own file
+    and written next to it. ``language`` is one of the event type's languages;
+    ``template`` a path (relative like ``template``); ``file`` a bare file name
+    with the language's extension (``.swift``, ``.kt``, ``.ts``) — no directory,
+    no leading ``.`` — which may itself use ``{{…}}`` tags. With ``each``
+    (``fields``, ``closed_fields`` or ``events``) the entry renders once per item
+    of ``plan.<each>``, the item pushed over the context (and also as ``item``),
+    so the name must contain a tag. Names must be unique (case-insensitively),
+    and a rendered file must start with ``{{header}}``: ``--check`` compares these
+    files and stale-file cleanup spares them like any other generated file.
+``value:number``
+    A reserved argument target for Snowplow's numeric ``value``: the generated
+    structured / screen_view function takes an optional ``Double`` (Kotlin),
+    ``Double?`` (Swift) or ``number`` (TS) parameter and forwards it as is.
+    It takes effect in the argument mapping of a language's ``transport`` (its
+    own, or the ``calls`` entry a bare-function transport reuses); a language
+    without a transport forwards to ``TriplDestination``, which has no numeric
+    value, so there it has no effect. ``tripl check`` ignores it (it is not a
+    plan field); ``field:value`` still
+    addresses a plan field called ``value``.
 """
 
 from __future__ import annotations
@@ -96,8 +141,12 @@ CONFIG_NAMES = ("check.yml", "check.yaml", "check.json")
 NAME = "name"
 NAME_IGLU = "name:iglu"
 PROPERTIES = "properties"
+# A codegen-only role: the Snowplow structured event's numeric ``value``, generated
+# as an optional Double / number parameter and forwarded as is. Not a plan field
+# (``field:value`` still addresses a plan field called ``value``).
+VALUE_NUMBER = "value:number"
 FIELD_PREFIX = "field:"
-RESERVED_TARGETS = frozenset({NAME, NAME_IGLU, PROPERTIES})
+RESERVED_TARGETS = frozenset({NAME, NAME_IGLU, PROPERTIES, VALUE_NUMBER})
 
 DEFAULT_SOURCES = ("**/*",)
 DEFAULT_EXCLUDES = (
@@ -116,8 +165,15 @@ _TOP_KEYS = frozenset(
     {"project", "branch", "root", "sources", "exclude", "enums", "event_types", "codegen"}
 )
 _TYPE_KEYS = frozenset({"calls", "preset", "presets", "field_map", "codegen"})
-_CODEGEN_TOP_KEYS = frozenset({"out", "languages", "kotlin_package"})
-_CODEGEN_KEYS = frozenset({"style", "languages", "transport", "type_names", "template", "schema"})
+_CODEGEN_TOP_KEYS = frozenset({"out", "languages", "kotlin_package", "vars"})
+_CODEGEN_KEYS = frozenset(
+    {"style", "languages", "transport", "type_names", "template", "schema", "vars", "files"}
+)
+_FILE_KEYS = frozenset({"language", "template", "file", "each"})
+FILE_EACH: tuple[str, ...] = ("fields", "closed_fields", "events")
+CODEGEN_EXTENSIONS: dict[str, str] = {"swift": "swift", "kotlin": "kt", "ts": "ts"}
+_VAR_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_TAG = re.compile(r"\{\{.*?\}\}", re.DOTALL)
 _TRANSPORT_KEYS = frozenset(
     {"function", "args", "positional", "object_arg", "name_arg", "properties_arg", "import"}
 )
@@ -243,6 +299,22 @@ class Transport:
 
 
 @dataclass(frozen=True)
+class ExtraFile:
+    """One entry of a ``codegen.files`` list: one more file rendered from ``template``.
+
+    ``file`` is a bare file name (no directory), itself a Mustache template over
+    the same context, so ``"Acme{{names.pascal}}.kt"`` names one file per item
+    when ``each`` is set (``fields``, ``closed_fields`` or ``events`` of ``plan``).
+    """
+
+    where: str
+    language: str
+    template: Path
+    file: str
+    each: str | None = None
+
+
+@dataclass(frozen=True)
 class CodegenSpec:
     """One event type's ``codegen`` block."""
 
@@ -252,6 +324,8 @@ class CodegenSpec:
     type_names: Mapping[str, str] = field(default_factory=dict)
     templates: Mapping[str, Path] = field(default_factory=dict)
     schema: str | None = None
+    vars: Mapping[str, str] = field(default_factory=dict)
+    files: tuple[ExtraFile, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -262,6 +336,7 @@ class CodegenDefaults:
     out_root: Path | None = None
     languages: tuple[str, ...] = ()
     kotlin_package: str | None = None
+    vars: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -526,6 +601,7 @@ def parse_codegen_defaults(raw: Any, where: str, *, base: Path) -> CodegenDefaul
         out_root=out_root,
         languages=_codegen_languages(body.get("languages"), f"{where}.languages"),
         kotlin_package=package,
+        vars=parse_vars(body.get("vars"), f"{where}.vars"),
     )
 
 
@@ -569,7 +645,93 @@ def parse_codegen(raw: Any, where: str, *, calls: list[CallSpec], base: Path) ->
         type_names=type_names,
         templates=templates,
         schema=_text(schema, f"{where}.schema") if schema is not None else None,
+        vars=parse_vars(body.get("vars"), f"{where}.vars"),
+        files=parse_files(body.get("files"), f"{where}.files", base=base),
     )
+
+
+def parse_vars(raw: Any, where: str) -> dict[str, str]:
+    """``vars``: a flat map of identifier -> string, handed to templates as ``vars``."""
+    if raw is None:
+        return {}
+    found: dict[str, str] = {}
+    for key, value in _mapping(raw, where).items():
+        name = str(key)
+        if not _VAR_NAME.fullmatch(name):
+            raise TriplConfigError(
+                f"{where}: {name!r} is not a variable name; use letters, digits and _ "
+                "(a template reads it as {{vars.NAME}})."
+            )
+        if not isinstance(value, str):
+            scalar = isinstance(value, bool | int | float)
+            hint = 'quote it, e.g. "1.0"' if scalar else "a var is one string"
+            raise TriplConfigError(
+                f"{where}.{name}: expected a string, got {type(value).__name__} {value!r}; {hint}."
+            )
+        found[name] = value
+    return found
+
+
+def parse_files(raw: Any, where: str, *, base: Path) -> tuple[ExtraFile, ...]:
+    """``files``: extra files per event type, each ``{language, template, file, each}``."""
+    files: list[ExtraFile] = []
+    seen: dict[tuple[str, str], str] = {}
+    for number, item in enumerate(_list(raw, where)):
+        item_where = f"{where}[{number}]"
+        body = _mapping(item, item_where)
+        _known(body, _FILE_KEYS, item_where)
+        for key in ("language", "template", "file"):
+            if body.get(key) is None:
+                raise TriplConfigError(f"{item_where}: needs `{key}:`.")
+        language = _codegen_language(body["language"], f"{item_where}.language")
+        name = _text(body["file"], f"{item_where}.file")
+        check_file_name(name, language, f"{item_where}.file")
+        each = body.get("each")
+        if each is not None:
+            each = _text(each, f"{item_where}.each")
+            if each not in FILE_EACH:
+                raise TriplConfigError(
+                    f"{item_where}.each: {each!r} is not one of {', '.join(FILE_EACH)}."
+                )
+            if not _TAG.search(name):
+                raise TriplConfigError(
+                    f"{item_where}.file: with `each`, the name needs a {{{{…}}}} tag "
+                    "(e.g. {{names.pascal}}) so every item gets its own file."
+                )
+        seen_key = (language, name.casefold())
+        if seen_key in seen:
+            raise TriplConfigError(
+                f"{item_where}.file: {name!r} is already written by {seen[seen_key]}; "
+                "give every file its own name."
+            )
+        seen[seen_key] = f"files[{number}]"
+        files.append(
+            ExtraFile(
+                where=item_where,
+                language=language,
+                template=base / _text(body["template"], f"{item_where}.template"),
+                file=name,
+                each=each,
+            )
+        )
+    return tuple(files)
+
+
+def check_file_name(name: str, language: str, where: str) -> None:
+    """A generated file name: a bare name in the output directory, with the
+    language's extension. ``{{…}}`` tags are checked by what surrounds them here
+    and again, rendered, by ``tripl codegen``."""
+    literal = _TAG.sub("x", name)
+    extension = "." + CODEGEN_EXTENSIONS[language]
+    problem = None
+    if any(char in literal for char in "/\\:\x00") or literal in (".", ".."):
+        problem = "must be a file name, without a directory"
+    elif literal.startswith("."):
+        problem = "must not start with '.'"
+    elif not literal.endswith(extension) or len(literal) <= len(extension):
+        problem = f"must end in {extension} for {language}"
+    if problem is not None:
+        raise TriplConfigError(f"{where}: {name!r} {problem}.")
 
 
 def parse_transport(raw: Any, where: str, language: str, calls: list[CallSpec]) -> Transport:

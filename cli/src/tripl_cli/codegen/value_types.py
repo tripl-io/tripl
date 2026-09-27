@@ -37,6 +37,7 @@ class EnumDef:
 
     def context(self, dialect: Dialect) -> dict[str, Any]:
         cases = []
+        names = naming.NameScope(dialect.name)
         for number, case in enumerate(self.cases):
             last = number == len(self.cases) - 1
             cases.append(
@@ -47,6 +48,7 @@ class EnumDef:
                     # Kotlin enum entries are separated by `,` and closed by `;`.
                     "sep": ";" if last else ",",
                     "last": last,
+                    "names": names.take(case.raw),
                 }
             )
         return {"name": self.name, "cases": cases}

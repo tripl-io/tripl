@@ -2206,7 +2206,11 @@ languages, transport and templates) is configured in a `codegen` block in the
 same `.tripl/check.yml` that `tripl check` reads, and a top-level `codegen`
 block sets the output directories, the default languages and the Kotlin
 package. The [code generation guide](../integrate/codegen.md) covers the
-styles, the configuration, the generated code and custom templates.
+styles, the configuration, the generated code and custom templates. The
+generated shapes are the industry-standard ones and have no switches; a team
+whose code has another shape builds it with its own templates, `vars` and
+extra `files` (see
+[Building your own shape](../integrate/codegen.md#own-shape)).
 
 ```
 usage: tripl codegen [-h] [--url URL] [--api-key KEY] [--config PATH]

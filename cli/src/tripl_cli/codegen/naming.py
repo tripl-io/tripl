@@ -353,3 +353,103 @@ class Namer:
         unique = f"{name}{number}"
         self._taken.add(unique)
         return unique
+
+
+# --- the ``names`` object of a template context --------------------------------------
+NAME_FORMS: tuple[str, ...] = ("upper_snake", "lower_snake", "camel", "pascal")
+
+
+def lower_snake(text: str) -> str:
+    parts = words(text) or [EMPTY_WORD]
+    return "_".join(word.lower() for word in parts)
+
+
+# Members the language itself gives every enum (or `CaseIterable`/`RawRepresentable`
+# type), so a case or property spelled like one does not compile. Kotlin's enum
+# members are lowerCamel while its entries are UPPER_SNAKE; TypeScript has none.
+SYNTHESIZED_MEMBERS: dict[str, frozenset[str]] = {
+    SWIFT: frozenset({"rawValue", "allCases", "hashValue", "init"}),
+    KOTLIN: frozenset(),
+    TS: frozenset(),
+}
+
+
+def name_forms(text: str, language: str) -> dict[str, str]:
+    """Every casing of ``text`` a custom template may need, each a valid identifier.
+
+    ``camel``/``lower_snake``/``upper_snake`` escape a reserved word with a
+    trailing ``_`` (``default_``), and so does ``camel`` for a member the
+    language synthesizes (Swift ``rawValue``, ``allCases``, ``hashValue``);
+    ``pascal`` follows the type-name rule, so a keyword or a type the language
+    owns gets ``Value`` (``StringValue``).
+    """
+    forms = {
+        "upper_snake": _leading_digit(upper_snake(text)),
+        "lower_snake": _leading_digit(lower_snake(text)),
+        "camel": _leading_digit(lower_camel(text)),
+    }
+    for form, name in forms.items():
+        if name in KEYWORDS[language]:
+            forms[form] = name + "_"
+    if forms["camel"] in SYNTHESIZED_MEMBERS[language]:
+        forms["camel"] += "_"
+    forms["pascal"] = type_name(text, language)
+    return {form: forms[form] for form in NAME_FORMS}
+
+
+class NameScope:
+    """Hands out ``names`` objects unique within one scope (one field's values, the
+    fields of an event type …). Every form of one item gets the SAME numeric suffix:
+    the first free number across all four forms, so ``names.camel`` and
+    ``names.upper_snake`` of one item never disagree on which item is ``2``."""
+
+    def __init__(self, language: str) -> None:
+        self.language = language
+        self._taken: dict[str, set[str]] = {form: set() for form in NAME_FORMS}
+
+    def take(self, text: str) -> dict[str, str]:
+        base = name_forms(text, self.language)
+        suffix = ""
+        number = 1
+        while any(base[form] + suffix in self._taken[form] for form in NAME_FORMS):
+            number += 1
+            suffix = str(number)
+        chosen = {form: base[form] + suffix for form in NAME_FORMS}
+        for form, name in chosen.items():
+            self._taken[form].add(name)
+        return chosen
+
+
+class KeyedNames:
+    """``names`` per key (a plan field name), all from ONE ``NameScope``: a key gets
+    the same names wherever the context shows it (``plan.fields``,
+    ``function.params``, ``transport.args``), and two keys never share them. The
+    keys given up front are named in that order; any other on first use."""
+
+    def __init__(self, language: str, keys: Iterable[str] = ()) -> None:
+        self._scope = NameScope(language)
+        self._names: dict[str, dict[str, str]] = {}
+        for key in keys:
+            self.of(key)
+
+    def of(self, key: str) -> dict[str, str]:
+        found = self._names.get(key)
+        if found is None:
+            found = self._names[key] = self._scope.take(key)
+        return found
+
+
+def plain_key(text: str) -> str:
+    """A plan string as a template key (``plan.field.<key>``, ``value.<key>``): its
+    lower_snake words, a leading digit prefixed with ``_``, and NOTHING else — no
+    keyword escaping and no numbering, so the key is the same in every language."""
+    return _leading_digit(lower_snake(text))
+
+
+_FILE_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-]*")
+
+
+def is_file_name(name: str) -> bool:
+    """A generated file name as a template rendered it: portable characters only,
+    so a plan string or a ``vars`` value can never add a directory or a drive."""
+    return _FILE_NAME.fullmatch(name) is not None and ".." not in name

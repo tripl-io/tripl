@@ -1,0 +1,11 @@
+{{header}}
+
+/// Every planned `{{event_type.raw}}` combination, spelled with the constants of
+/// {{namespace}}.swift: an event the plan does not list is not here.
+public enum AcmePlanned {
+    public static let all: [{{vars.event_class}}] = [
+{{#plan.combinations}}
+        {{namespace}}.{{function.name}}({{#values}}{{field.names.camel}}: {{vars.prefix}}{{field.names.pascal}}.{{names.camel}}{{^last}}, {{/last}}{{/values}}),{{#deprecated}} // deprecated{{/deprecated}}
+{{/plan.combinations}}
+    ]
+}

@@ -20,9 +20,9 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from tripl_cli.check.config import Transport
-from tripl_cli.codegen.languages import Dialect, ts_string
-from tripl_cli.codegen.naming import KOTLIN, SWIFT
+from tripl_cli.check.config import NAME, NAME_IGLU, PROPERTIES, VALUE_NUMBER, Transport
+from tripl_cli.codegen.languages import Dialect, comment, ts_string
+from tripl_cli.codegen.naming import KOTLIN, SWIFT, KeyedNames
 from tripl_cli.errors import TriplConfigError
 
 _CALLEE = re.compile(r"[A-Za-z_$][\w$]*(?:\(\))?(?:\.[A-Za-z_$][\w$]*(?:\(\))?)*")
@@ -110,3 +110,74 @@ def _ts_render(tree: dict[str, Any]) -> str:
         rendered = _ts_render(value) if isinstance(value, dict) else value
         items.append(f"{spelled}: {rendered}")
     return "{ " + ", ".join(items) + " }"
+
+
+# --- the ``transport`` object of a template context ------------------------------------
+ROLES = {NAME: "name", NAME_IGLU: "name_iglu", PROPERTIES: "properties", VALUE_NUMBER: "value"}
+
+
+def role_of(plan_target: str | None) -> str:
+    """What an argument carries: ``field``, ``name``, ``name_iglu``, ``properties``,
+    ``value`` (the numeric ``value:number``) or ``none`` (a ``null`` target)."""
+    if plan_target is None:
+        return "none"
+    return ROLES.get(plan_target, "field")
+
+
+@dataclass(frozen=True)
+class ArgRow:
+    """One forwarded argument, resolved: what a template needs to build its own call."""
+
+    label: str | None
+    plan_target: str | None
+    param: str | None
+    expression: str
+
+
+def transport_context(
+    transport: Transport | None, rows: list[ArgRow], object_arg: int | None, names: KeyedNames
+) -> dict[str, Any] | None:
+    """``transport``: the configured wrapper call and its arguments in call order,
+    so a custom template can spell the call (or a constructor) itself.
+
+    A key with no value for an argument (``label`` of a positional one, ``param``
+    of one no parameter feeds, ``target``/``names`` of one that is not a field) is
+    LEFT OUT rather than ``None``: ``{{param}}`` on it is then an "unknown value"
+    error instead of an empty hole in the code, and ``{{#param}}``/``{{^label}}``
+    still work as guards. A field's ``names`` are the ones ``plan.fields`` gives it."""
+    if transport is None:
+        return None
+    args = []
+    for number, row in enumerate(rows):
+        role = role_of(row.plan_target)
+        last = number == len(rows) - 1
+        arg: dict[str, Any] = {
+            "positional": row.label is None,
+            "role": role,
+            "is_field": role == "field",
+            "is_name": role in ("name", "name_iglu"),
+            "is_properties": role == "properties",
+            "is_value": role == "value",
+            "is_none": role == "none",
+            "expression": row.expression,
+            "last": last,
+            "comma": "" if last else ",",
+        }
+        if row.label is not None:
+            arg["label"] = row.label
+        if role == "field" and row.plan_target:
+            arg["target"] = comment(row.plan_target)
+            arg["names"] = names.of(row.plan_target)
+        if row.param is not None:
+            arg["param"] = row.param
+        args.append(arg)
+    context: dict[str, Any] = {
+        "function": transport.function.strip(),
+        "args": args,
+        "has_args": bool(args),
+    }
+    if transport.import_line:
+        context["import"] = transport.import_line
+    if transport.object_arg is not None:
+        context["object_arg"] = transport.object_arg
+    return context

@@ -1,0 +1,17 @@
+{{header}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+
+/** The planned `{{event_type.raw}}` screens: a (type, id) pair the plan does not list does not type-check. */
+export const {{vars.prefix}}Screens = {
+{{#plan.combinations}}
+  {{names.camel}}: { type: {{value.type.literal}}, id: {{#value.id}}{{literal}}{{/value.id}}{{^value.id}}null{{/value.id}} },
+{{/plan.combinations}}
+} as const;
+export type {{vars.prefix}}Screen = (typeof {{vars.prefix}}Screens)[keyof typeof {{vars.prefix}}Screens];
+
+export function {{function.name}}(screen: {{vars.prefix}}Screen): void {
+  {{transport.function}}({{#transport.args}}screen.{{names.camel}}{{^last}}, {{/last}}{{/transport.args}});
+}

@@ -138,6 +138,7 @@ through [`TriplDestination`](#destination).
 | `out` | Where the files go. A directory, which gets one subdirectory per language (`generated/swift`, `generated/kotlin`, `generated/ts`), or a map from language to directory (`{swift: DIR, kotlin: DIR, ts: DIR}`). Relative paths start from the directory that holds `.tripl/` (or `root`, when set). `tripl codegen --out` overrides it. With neither, a run is a configuration error (exit 2). |
 | `languages` | The default `languages` for every event type. Default: `[swift, kotlin, ts]`. |
 | `kotlin_package` | The `package` line of every Kotlin file, e.g. `com.example.tracking`. Without it, the Kotlin files have no `package` line. |
+| `vars` | Optional. A flat map of names to **strings** that every template reads as `{{vars.NAME}}`, e.g. `{prefix: Acme}`. Quote a number or boolean. See [`vars`](#template-vars). |
 
 ### An event type's `codegen` block {#codegen-keys}
 
@@ -148,6 +149,8 @@ through [`TriplDestination`](#destination).
 | `transport` | Optional. Per language, the call the generated code forwards to. See [The transport](#transport). A language with no entry goes through [`TriplDestination`](#destination). |
 | `type_names` | Optional. Renames generated types, taken verbatim. `namespace` is the enclosing type and the file name; `event` is the `named` / `self_describing` event type; `function` is the generated function; any **plan field name** or **`${token}` name** renames the enum generated for it. |
 | `template` | Optional. Your own template: a map from language to path, or one path when `languages` has exactly one entry. Relative paths start from the directory that holds `.tripl/`. See [Custom templates](#custom-templates). |
+| `vars` | Optional. Like the top-level `vars`, merged over them for this event type. |
+| `files` | Optional. Extra files rendered from your own templates with the same context, written next to the event type's own file. See [`files`](#template-files). |
 | `schema` | Optional, for `self_describing`. The schema URI sent with each event, where `{name}` is replaced by the event's identity. Default: the identity itself. When the URI is an Iglu URI, the type is named after the schema name, with a version suffix when the plan has several versions of it (`CheckoutStartedV1_0_0`). |
 
 A `codegen` block with an unknown key, style or language, a template file that
@@ -1023,7 +1026,13 @@ used as written. Arguments are spelled the way the wrapper is called:
   (`event.schema` gives `{ event: { schema: … } }`).
 
 A target is a plan field, `properties`, `name` (the event's name; for
-`structured` and `screen_view`, built from the name rule) or `name:iglu`. The fixture's `se` entry shows all three forms:
+`structured` and `screen_view`, built from the name rule), `name:iglu` or
+`value:number`. `value:number` is Snowplow's numeric `value`: for
+`structured` and `screen_view`, the generated function gets an optional
+`value: Double? = nil` (Swift), `value: Double? = null` (Kotlin) or
+`value?: number` (TypeScript) parameter that is forwarded as it is. It is not a
+plan field, so `tripl check` ignores it, and `field:value` still means a plan
+field called `value`. See [The `value` role](#value-role). The fixture's `se` entry shows all three forms:
 a bare Swift function reusing the `calls` entry, a Kotlin object with `args`,
 and a TypeScript object with `positional` and `import`.
 
@@ -1255,6 +1264,12 @@ template only, and the other languages keep the built-in ones. A single path
 (`template: PATH`) is allowed when the event type's `languages` has exactly
 one entry.
 
+A custom template is opt-in and per event type: without one, the built-in,
+industry-standard output is generated and stays as it is. When your code base
+needs a different shape altogether (constant holders, your own event object,
+screens as (type, id) pairs, name constants), see
+[Building your own shape](#own-shape).
+
 A good start is to copy the built-in template for the same style and language
 from the installed package (`tripl_cli/codegen/templates/`, named like
 `structured.swift.mustache`) and edit it. To iterate without an instance, save
@@ -1280,7 +1295,667 @@ not an empty string: a typo must not generate code with a hole in it.
 **Escaping is done before the template sees a value.** A plan string that ends
 up in code arrives already quoted or escaped for the target language. The
 built-in templates for the same style and language are the complete reference
-for every key in the context.
+for every key they use; [The template context](#template-context) lists every
+key, including those only templates of your own need.
+
+### Building your own shape {#own-shape}
+
+**The defaults do not change.** Without a `template`, every style generates
+the industry-standard shape described above: one enum per closed field, a
+typed function per event type, one case or class per event. There is no
+switch for another shape (no "constants instead of enums" flag, no "screens as
+pairs" mode), and none is planned: a code base that already has its own shape
+builds it itself, with templates of its own. Everything below is opt-in and
+only takes effect for an event type whose `template` or `files` points at your
+own files.
+
+What a team's own shape needs, the context gives it: the plan's fields,
+values, events and planned combinations with every string already quoted and
+already named in four casings (`plan`), the configured wrapper call with its
+arguments (`transport`), strings of your own (`vars`), more than one file per
+event type (`files`), and Snowplow's numeric `value` as an argument
+(`value:number`).
+
+The CLI's test fixture `cli/tests/codegen/custom/` builds four such shapes
+from templates only, and its `check.yml`, `templates/` and `golden/` are a
+working starting point. The [recipes](#own-shape-recipes) below are copied from
+it.
+
+#### `vars` {#template-vars}
+
+`vars` is a flat map of names to **strings**, set in the top-level `codegen`
+block and, per event type, in its `codegen` block. A template reads it as
+`{{vars.NAME}}`. An event type's own `vars` are merged over the top-level
+ones, key by key:
+
+```yaml
+codegen:
+  vars: {prefix: Acme, prefix_lower: acme, event_class: AcmeEvent}
+event_types:
+  app:
+    codegen:
+      style: named
+      vars: {prefix: AcmeApp}        # this event type only: AcmeApp…, the rest as above
+```
+
+A name is letters, digits and `_`, not starting with a digit. A value must be
+a string: quote a number or boolean (`version: "1.0"`), or the configuration is
+rejected (exit 2). The built-in templates never read `vars`.
+
+#### `files` {#template-files}
+
+An event type writes one file of its own (named after `namespace`). To write
+more, list them under its `files`; each is rendered from your template with the
+same context as the event type's own file and written next to it:
+
+```yaml
+codegen:
+  files:
+    - {language: kotlin, template: templates/holder.kotlin.mustache,
+       each: closed_fields, file: "{{vars.prefix}}{{names.pascal}}.kt"}
+    - {language: swift, template: templates/planned.swift.mustache,
+       file: AcmePlanned.swift}
+```
+
+| Key | What it is |
+|-----|------------|
+| `language` | Required. `swift`, `kotlin` or `ts`, and one of the event type's `languages`. `--lang` skips the entries of the other languages. |
+| `template` | Required. The template file, relative to the directory that holds `.tripl/` like `template`. |
+| `file` | Required. A bare file name with the language's extension (`.swift`, `.kt`, `.ts`): no directory, no leading `.`, only letters, digits, `_`, `-` and `.`. It may use tags, and the rendered name is checked again. Names must be unique, ignoring case, among the event type's files. |
+| `each` | Optional. `fields`, `closed_fields` (the fields whose every value is known) or `events`: render the entry once per item of `plan.fields` or `plan.events`, with the item's keys in scope (and the item itself as `item`). The file name must then contain a tag, so every item gets its own file. |
+
+The rendered file must start with `{{header}}`, or the run fails (exit 2).
+That header is how `--check` compares the file and how stale-file cleanup
+knows it: a file you still configure is never removed, and one you drop from
+`files` is removed like any other stale file.
+
+#### The `value` role {#value-role}
+
+Snowplow's structured event has a numeric `value` that is not a plan field. The
+argument target `value:number` gives it a role in the argument mapping of the
+language's `transport`: either the transport's own `args`/`positional`, or the
+`calls` entry that a bare-function `transport` reuses:
+
+```yaml
+event_types:
+  se:
+    calls:
+      - function: "AcmeEvent"
+        args: {category: category, action: action, label: label, property: property, value: "value:number"}
+    codegen:
+      transport:
+        kotlin: "AcmeEvent"      # a bare function: reuses the `calls` entry above
+```
+
+For `structured` and `screen_view`, the generated function then takes an
+optional `value: Double? = nil` (Swift), `value: Double? = null` (Kotlin) or
+`value?: number` (TypeScript) parameter and forwards it as it is. A language
+with **no** `transport` forwards to `TriplDestination`, which carries plan
+fields only: there `value:number` in `calls` has no effect, and the generated
+function has no numeric parameter. In the
+context, that parameter and that argument have the role `value` (`is_value`).
+`tripl check` ignores the argument, since it is not a plan field, and
+`field:value` still means a plan field called `value`. For `named` and
+`self_describing`, `value:number` is a configuration error.
+
+#### The template context {#template-context}
+
+Every key a template can read, by where it comes from. A key the context does
+not have is an error, not an empty string. A key that has no value for one item
+(a positional argument's `label`, say) is **absent** from that item, so
+`{{label}}` there is an error too; test it with `{{#label}}…{{/label}}` or
+`{{^label}}…{{/label}}`.
+
+**Every style:**
+
+| Key | What it holds |
+|-----|---------------|
+| `header` | The generated-file header. A file from `files` must start with it. |
+| `kotlin_package` | The top-level `kotlin_package`, for Kotlin; empty otherwise. |
+| `imports` | Lines to import (`line`): the transport's `import` (not for Swift) and, for TypeScript, what the file needs from `triplTransport.ts`. `has_imports` says whether there are any. |
+| `event_type` | `raw` (the name, safe in a comment), `literal` (quoted for the language), `display_name`, `names`. |
+| `style` | `structured`, `screen_view`, `named` or `self_describing`. |
+| `uses_destination` | True when the event type has no `transport` for this language. |
+| `namespace` | The enclosing type and file name (`type_names.namespace`, or derived from the event type). |
+| `transport` | The configured wrapper for this language; absent without one: see below. |
+| `plan` | The plan, independent of the style: see below. |
+| `vars` | The merged `vars`. |
+| `language` | `swift`, `kotlin` or `ts`. |
+
+**`transport`** (absent when the event type has no `transport` for this
+language):
+
+| Key | What it holds |
+|-----|---------------|
+| `function` | The configured function, as written. |
+| `import` | The configured `import` line; absent without one. |
+| `object_arg` | The TypeScript `object_arg` position; absent without one. |
+| `args`, `has_args` | The arguments in call order. Each has `label` (absent when positional), `positional`, `role` (`field`, `name`, `name_iglu`, `properties`, `value` or `none`), the flags `is_field`, `is_name` (for `name` and `name_iglu`), `is_properties`, `is_value`, `is_none`, and for a field `target` and `names` (the field's names, as in `plan.fields`); `param` (for `structured` and `screen_view`: the generated parameter it forwards; absent when none does, as for `name`) and `expression` (what the built-in template passes). |
+
+**`plan`**:
+
+| Key | What it holds |
+|-----|---------------|
+| `plan.event_type` | `raw`, `literal`, `names`. |
+| `plan.fields`, `plan.has_fields` | The event type's fields, which are also its property keys: `raw`, `literal`, `names`, `type`, `required`, `closed` (every value is known), `variable` (absent when the field has none), `values` (each `raw`, `literal`, `names`) and `has_values`. |
+| `plan.field.<key>` | The same field item, by the field's **key**: its name in lower_snake words, with a leading digit prefixed by `_` and nothing else (`plan.field.category`, `plan.field.promo_code` for `promo-code`, `plan.field.default` in every language). Unlike `names.lower_snake`, a key is never escaped or numbered, so it is the same in every language; when two fields have one key, the first in plan order keeps it. |
+| `plan.events`, `plan.has_events` | Each event: `raw`, `literal`, `names` (of its identity), `deprecated`, `dynamic` (the identity has a `${token}`), `name_expr` (the identity as an expression over the token parameters), `values` (each value the event sets: `field` with `raw`, `literal`, `names`; `raw`, `literal`, `names`, `dynamic`), `value.<key>` (the same, by the field's key, as for `plan.field`), `tokens` and `has_tokens` (each `raw`, `literal`, `names`, `closed`, `values`), `properties` and `has_properties` (every field, with `raw`, `literal`, `names`, `required`, `fixed` and the fixed `value`, absent when the event does not fix it). |
+| `plan.combinations`, `plan.has_combinations` | Every planned combination: one per event, and an event whose `${token}` has allowed values once per value (an event with a free token, or with more than 1000 combinations, is left out). Each has `raw`, `literal`, `names` (of the expanded identity), `event` (`raw`, `literal`, `names` of the event), `deprecated`, `values` and `value.<key>` as for events. |
+
+**`structured` and `screen_view`** add:
+
+| Key | What it holds |
+|-----|---------------|
+| `enums` | The generated enums: `name`, and `cases` with `ident`, `raw`, `literal`, `sep`, `last`, `names`. |
+| `function` | `name`, `signature`, `forward` (the call the built-in template makes) and `params`, each with `ident`, `type`, `optional`, `default`, `role` (`field`, `properties` or `value`), `is_field`, `is_properties`, `is_value`, `is_enum` (the parameter is a generated enum), for a field `target` (the field), `text` (the parameter as the plan string) and `names` (the field's names, as in `plan.fields`; all three absent for `properties` and `value`), `last`, `comma`. |
+| `known` | Nothing, or the typed known-event list: `fields` (`ident`, `type`, `raw`, `literal`, `names` as in `plan.fields`) and `events` (`args`, `identity`, `identity_literal`, `deprecated`, `names`). |
+
+**`named` and `self_describing`** add `event_name`, `props_type`,
+`names_type`, `enums` (as above), `has_deprecated`, `resolver`, `function`
+(`name`, `forward`, `uses_name`, `uses_schema`) and `events`, each with
+`case`, `class_name`, `identity`, `identity_literal`, `schema_literal`,
+`deprecated`, `names`, `props` and `has_props` (each prop `ident`, `type`,
+`base_type`, `optional`, `key`, `sep`, `init`, `names`), `init_signature`,
+`name_expr`, `schema_expr`, `puts` (`stmt`) and `has_puts`,
+`properties_literal`, `fixed` (`key`, `value`), `tokens` (`literal`) and
+`tokens_literal`.
+
+**`names`** holds four spellings of a plan string: `upper_snake`,
+`lower_snake`, `camel` and `pascal`. Each is already a valid identifier in the
+target language: a leading digit gets `_` (`_1stCard`), a reserved word gets
+`_` (`default_`, `class_`), in Swift `camel` also avoids the members Swift
+synthesizes (`rawValue_`, `allCases_`, `hashValue_`), and `pascal` follows the
+type-name rule of [Identifier naming](#identifier-naming). Each is unique
+within its list: two values that land on the same name get `2`, `3`, … in every
+spelling alike (`promo-sheet` and `promo_sheet` give `promoSheet` and
+`promoSheet2`). A field has the same names wherever it appears (`plan.fields`,
+`function.params`, `transport.args`, `known.fields`), so a member declared from
+one list is the member another list refers to. Names you add yourself are not
+checked: an enum or class of your own may still have members of its own a
+case must not take. A value
+inside an event or a combination has the names its field's `values` gave it,
+so `AcmeLabel.{{value.label.names.camel}}` in one file refers to the constant
+another file declared.
+
+For separators, every item of `transport.args` and `function.params` has
+`last` and `comma` (`,` except on the last item), and every item of a `plan`
+list has `first` as well.
+
+#### Recipes {#own-shape-recipes}
+
+Each recipe shows the configuration, one template and what it generates, all
+taken from `cli/tests/codegen/custom/` (project `acme`, with
+`kotlin_package: com.example.acme` and
+`vars: {prefix: Acme, prefix_lower: acme, event_class: AcmeEvent}`). The
+fixture has the same shapes for Swift and TypeScript as well.
+
+##### Constant holders instead of enums {#recipe-constant-holders}
+
+One `object` of string constants per closed field, one file each, instead of
+one enum per field. A `files` entry with `each: closed_fields` renders the
+template once per field:
+
+```yaml
+event_types:
+  se:
+    codegen:
+      style: structured
+      files:
+        - {language: kotlin, template: templates/holder.kotlin.mustache, each: closed_fields, file: "{{vars.prefix}}{{names.pascal}}.kt"}
+        - {language: ts, template: templates/holder.ts.mustache, each: closed_fields, file: "{{vars.prefix_lower}}{{names.pascal}}.ts"}
+```
+
+`templates/holder.kotlin.mustache`:
+
+```text
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/** The plan's values for `{{raw}}` ({{event_type.raw}}). */
+object {{vars.prefix}}{{names.pascal}} {
+{{#values}}
+    const val {{names.pascal}} = {{literal}}
+{{/values}}
+}
+```
+
+`AcmeCategory.kt`, one of the four files it writes (with `AcmeAction.kt`,
+`AcmeLabel.kt` and `AcmeProperty.kt`):
+
+```kotlin
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: se (structured). Regenerate with `tripl codegen`.
+
+package com.example.acme
+
+/** The plan's values for `category` (se). */
+object AcmeCategory {
+    const val Checkout = "checkout"
+    const val Home = "home"
+    const val Paywall = "paywall"
+}
+```
+
+The values' `names` are already escaped and unique: in `AcmeLabel.kt`,
+
+```kotlin
+object AcmeLabel {
+    const val _1stCard = "1st_card"
+    const val Default = "default"
+    const val Offer = "offer"
+    const val PayButton = "pay_button"
+    const val Paywall = "paywall"
+    const val PromoSheet = "promo-sheet"
+    const val PromoSheet2 = "promo_sheet"
+}
+```
+
+`templates/holder.ts.mustache` writes the same holder as a TypeScript `const`
+object with a matching union type:
+
+```text
+{{header}}
+
+/** The plan's values for `{{raw}}` ({{event_type.raw}}). */
+export const {{vars.prefix}}{{names.pascal}} = {
+{{#values}}
+  {{names.camel}}: {{literal}},
+{{/values}}
+} as const;
+export type {{vars.prefix}}{{names.pascal}} = (typeof {{vars.prefix}}{{names.pascal}})[keyof typeof {{vars.prefix}}{{names.pascal}}];
+```
+
+```ts
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: se (structured). Regenerate with `tripl codegen`.
+
+/** The plan's values for `category` (se). */
+export const AcmeCategory = {
+  checkout: 'checkout',
+  home: 'home',
+  paywall: 'paywall',
+} as const;
+export type AcmeCategory = (typeof AcmeCategory)[keyof typeof AcmeCategory];
+```
+
+##### A factory returning your own event object {#recipe-factory}
+
+The generated function builds the team's own event value and returns it
+instead of sending it, with the numeric `value` as a
+[`value:number`](#value-role) argument. The `transport` names the
+constructor, and the template spells the call from `transport.args` and the
+return type from `vars.event_class`:
+
+```yaml
+event_types:
+  se:
+    calls:
+      - function: "AcmeEvent"
+        args: {category: category, action: action, label: label, property: property, value: "value:number"}
+    codegen:
+      style: structured
+      transport:
+        kotlin: "AcmeEvent"
+        swift: "AcmeEvent"
+        ts:
+          function: "acmeEvent"
+          object_arg: 0
+          args: {category: category, action: action, label: label, property: property, value: "value:number"}
+          import: "import { acmeEvent, type AcmeEvent } from './acmeEvent';"
+      type_names: {namespace: AcmeStructured, function: event}
+      template:
+        kotlin: templates/structured.kotlin.mustache
+        swift: templates/structured.swift.mustache
+        ts: templates/structured.ts.mustache
+```
+
+`templates/structured.kotlin.mustache`:
+
+```text
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/**
+ * Builds a `{{event_type.raw}}` event as the team's own {{vars.event_class}}, to be handed
+ * on; pass the constants of {{#plan.fields}}{{#closed}}{{vars.prefix}}{{names.pascal}}{{^last}}, {{/last}}{{/closed}}{{/plan.fields}}.
+ */
+object {{namespace}} {
+    fun {{function.name}}(
+{{#function.params}}
+        {{ident}}: {{#is_field}}String{{#optional}}? = null{{/optional}}{{/is_field}}{{#is_value}}Double? = null{{/is_value}}{{comma}}
+{{/function.params}}
+    ): {{vars.event_class}} = {{transport.function}}(
+{{#transport.args}}
+        {{label}} = {{param}}{{comma}}
+{{/transport.args}}
+    )
+}
+```
+
+`AcmeStructured.kt`:
+
+```kotlin
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: se (structured). Regenerate with `tripl codegen`.
+
+package com.example.acme
+
+/**
+ * Builds a `se` event as the team's own AcmeEvent, to be handed
+ * on; pass the constants of AcmeCategory, AcmeAction, AcmeLabel, AcmeProperty.
+ */
+object AcmeStructured {
+    fun event(
+        category: String,
+        action: String,
+        label: String? = null,
+        property: String? = null,
+        value: Double? = null
+    ): AcmeEvent = AcmeEvent(
+        category = category,
+        action = action,
+        label = label,
+        property = property,
+        value = value
+    )
+}
+```
+
+The TypeScript template types each closed field with its holder type
+(`is_enum`), importing it from the holder's file:
+
+```text
+{{header}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{#plan.fields}}
+{{#closed}}
+import type { {{vars.prefix}}{{names.pascal}} } from './{{vars.prefix_lower}}{{names.pascal}}';
+{{/closed}}
+{{/plan.fields}}
+
+/** Builds a `{{event_type.raw}}` event as the team's own {{vars.event_class}}, to be handed on. */
+export function {{function.name}}(
+{{#function.params}}
+  {{ident}}{{#optional}}?{{/optional}}: {{#is_field}}{{#is_enum}}{{vars.prefix}}{{names.pascal}}{{/is_enum}}{{^is_enum}}string{{/is_enum}}{{/is_field}}{{#is_value}}number{{/is_value}},
+{{/function.params}}
+): {{vars.event_class}} {
+  return {{transport.function}}({ {{#transport.args}}{{label}}: {{param}}{{^last}}, {{/last}}{{/transport.args}} });
+}
+```
+
+```ts
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: se (structured). Regenerate with `tripl codegen`.
+
+import { acmeEvent, type AcmeEvent } from './acmeEvent';
+import type { AcmeCategory } from './acmeCategory';
+import type { AcmeAction } from './acmeAction';
+import type { AcmeLabel } from './acmeLabel';
+import type { AcmeProperty } from './acmeProperty';
+
+/** Builds a `se` event as the team's own AcmeEvent, to be handed on. */
+export function event(
+  category: AcmeCategory,
+  action: AcmeAction,
+  label?: AcmeLabel,
+  property?: AcmeProperty,
+  value?: number,
+): AcmeEvent {
+  return acmeEvent({ category: category, action: action, label: label, property: property, value: value });
+}
+```
+
+`plan.combinations` can list every planned event in the same shape. The
+fixture's Swift `files` entry `{language: swift, template:
+templates/planned.swift.mustache, file: "AcmePlanned.swift"}` writes:
+
+```text
+{{header}}
+
+/// Every planned `{{event_type.raw}}` combination, spelled with the constants of
+/// {{namespace}}.swift: an event the plan does not list is not here.
+public enum AcmePlanned {
+    public static let all: [{{vars.event_class}}] = [
+{{#plan.combinations}}
+        {{namespace}}.{{function.name}}({{#values}}{{field.names.camel}}: {{vars.prefix}}{{field.names.pascal}}.{{names.camel}}{{^last}}, {{/last}}{{/values}}),{{#deprecated}} // deprecated{{/deprecated}}
+{{/plan.combinations}}
+    ]
+}
+```
+
+```swift
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: se (structured). Regenerate with `tripl codegen`.
+
+/// Every planned `se` combination, spelled with the constants of
+/// AcmeStructured.swift: an event the plan does not list is not here.
+public enum AcmePlanned {
+    public static let all: [AcmeEvent] = [
+        AcmeStructured.event(category: AcmeCategory.checkout, action: AcmeAction.open, label: AcmeLabel.paywall, property: AcmeProperty.class_),
+        AcmeStructured.event(category: AcmeCategory.checkout, action: AcmeAction.tap, label: AcmeLabel.payButton),
+        AcmeStructured.event(category: AcmeCategory.home, action: AcmeAction.open, label: AcmeLabel.default_),
+        AcmeStructured.event(category: AcmeCategory.home, action: AcmeAction.tap, label: AcmeLabel.promoSheet), // deprecated
+        AcmeStructured.event(category: AcmeCategory.home, action: AcmeAction.tap, label: AcmeLabel.promoSheet2),
+        AcmeStructured.event(category: AcmeCategory.home, action: AcmeAction.view, label: AcmeLabel._1stCard),
+        AcmeStructured.event(category: AcmeCategory.paywall, action: AcmeAction.close, label: AcmeLabel.offer),
+        AcmeStructured.event(category: AcmeCategory.paywall, action: AcmeAction.show, label: AcmeLabel.offer),
+    ]
+}
+```
+
+##### Screens as planned (type, id) pairs {#recipe-screen-pairs}
+
+A `screen_view` event type whose screens are one enum of the planned
+(type, id) pairs, so that a pair the plan does not list does not compile. The
+template reads each field's value of a combination through `value.<field>`:
+
+```yaml
+event_types:
+  screen:
+    codegen:
+      style: screen_view
+      transport:
+        kotlin: {function: "AcmeTracker.trackScreen", args: {type: type, id: id}}
+        swift: {function: "AcmeTracker.shared.trackScreen", args: {type: type, id: id}}
+        ts:
+          function: "acmeTracker.trackScreen"
+          positional: [type, id]
+          import: "import { acmeTracker } from './acmeTracker';"
+      type_names: {namespace: AcmeScreens, function: screen}
+      template:
+        kotlin: templates/screen.kotlin.mustache
+        swift: templates/screen.swift.mustache
+        ts: templates/screen.ts.mustache
+```
+
+`templates/screen.kotlin.mustache`:
+
+```text
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/** The planned `{{event_type.raw}}` screens: a (type, id) pair the plan does not list does not compile. */
+enum class {{vars.prefix}}Screen(val type: String, val id: String?) {
+{{#plan.combinations}}
+    {{names.upper_snake}}({{value.type.literal}}, {{#value.id}}{{literal}}{{/value.id}}{{^value.id}}null{{/value.id}}){{#last}};{{/last}}{{^last}},{{/last}}
+{{/plan.combinations}}
+}
+
+object {{namespace}} {
+    fun {{function.name}}(screen: {{vars.prefix}}Screen) {
+        {{transport.function}}({{#transport.args}}{{label}} = screen.{{names.camel}}{{^last}}, {{/last}}{{/transport.args}})
+    }
+}
+```
+
+`AcmeScreens.kt`:
+
+```kotlin
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: screen (screen_view). Regenerate with `tripl codegen`.
+
+package com.example.acme
+
+/** The planned `screen` screens: a (type, id) pair the plan does not list does not compile. */
+enum class AcmeScreen(val type: String, val id: String?) {
+    CHECKOUT_CART("checkout", "cart"),
+    CHECKOUT_CONFIRM("checkout", "confirm"),
+    HOME("home", "main"),
+    PAYWALL_ANNUAL("paywall", "annual"),
+    PAYWALL_MONTHLY("paywall", "monthly"),
+    SETTINGS("settings", null);
+}
+
+object AcmeScreens {
+    fun screen(screen: AcmeScreen) {
+        AcmeTracker.trackScreen(type = screen.type, id = screen.id)
+    }
+}
+```
+
+In TypeScript, the same pairs are a `const` object:
+
+```ts
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: screen (screen_view). Regenerate with `tripl codegen`.
+
+import { acmeTracker } from './acmeTracker';
+
+/** The planned `screen` screens: a (type, id) pair the plan does not list does not type-check. */
+export const AcmeScreens = {
+  checkoutCart: { type: 'checkout', id: 'cart' },
+  checkoutConfirm: { type: 'checkout', id: 'confirm' },
+  home: { type: 'home', id: 'main' },
+  paywallAnnual: { type: 'paywall', id: 'annual' },
+  paywallMonthly: { type: 'paywall', id: 'monthly' },
+  settings: { type: 'settings', id: null },
+} as const;
+export type AcmeScreen = (typeof AcmeScreens)[keyof typeof AcmeScreens];
+
+export function screen(screen: AcmeScreen): void {
+  acmeTracker.trackScreen(screen.type, screen.id);
+}
+```
+
+##### Event-name and property-key constants {#recipe-named-constants}
+
+A `named` event type as plain constants: the event names exactly as the plan
+spells them (a function for a name with a `${token}`) and the property keys.
+The event type's own `vars` override the prefix:
+
+```yaml
+event_types:
+  app:
+    codegen:
+      style: named
+      vars: {prefix: AcmeApp}
+      type_names: {namespace: AcmeAppConstants}
+      template:
+        kotlin: templates/named.kotlin.mustache
+        swift: templates/named.swift.mustache
+        ts: templates/named.ts.mustache
+```
+
+`templates/named.kotlin.mustache`:
+
+```text
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/** The `{{event_type.raw}}` event names, exactly as the plan spells them. */
+object {{vars.prefix}}EventNames {
+{{#plan.events}}
+{{#deprecated}}
+    @Deprecated("Deprecated in the tracking plan.")
+{{/deprecated}}
+{{^dynamic}}
+    const val {{names.upper_snake}} = {{literal}}
+{{/dynamic}}
+{{#dynamic}}
+    fun {{names.camel}}({{#tokens}}{{names.camel}}: String{{^last}}, {{/last}}{{/tokens}}): String = {{name_expr}}
+{{/dynamic}}
+{{/plan.events}}
+}
+
+/** The `{{event_type.raw}}` property keys. */
+object {{vars.prefix}}EventKeys {
+{{#plan.fields}}
+    const val {{names.upper_snake}} = {{literal}}
+{{/plan.fields}}
+}
+```
+
+`AcmeAppConstants.kt`:
+
+```kotlin
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: app (named). Regenerate with `tripl codegen`.
+
+package com.example.acme
+
+/** The `app` event names, exactly as the plan spells them. */
+object AcmeAppEventNames {
+    const val CHECKOUT_STARTED = "checkout_started"
+    @Deprecated("Deprecated in the tracking plan.")
+    const val CLASS = "class"
+    const val PAYWALL_SHOWN = "paywall_shown"
+    fun promoPromoCodeApplied(promoCode: String): String = "promo_${promoCode}_applied"
+}
+
+/** The `app` property keys. */
+object AcmeAppEventKeys {
+    const val IS_TRIAL = "is_trial"
+    const val PLAN_TIER = "plan_tier"
+    const val SOURCE = "source"
+}
+```
+
+In Swift:
+
+```swift
+// Generated by tripl codegen — do not edit.
+// Plan: project acme, branch main, plan a1b2c3d4e5f6.
+// Event type: app (named). Regenerate with `tripl codegen`.
+
+/// The `app` event names, exactly as the plan spells them.
+public enum AcmeAppEventNames {
+    public static let checkoutStarted = "checkout_started"
+    @available(*, deprecated, message: "Deprecated in the tracking plan.")
+    public static let class_ = "class"
+    public static let paywallShown = "paywall_shown"
+    public static func promoPromoCodeApplied(promoCode: String) -> String { "promo_\(promoCode)_applied" }
+}
+
+/// The `app` property keys.
+public enum AcmeAppEventKeys {
+    public static let isTrial = "is_trial"
+    public static let planTier = "plan_tier"
+    public static let source = "source"
+}
+```
 
 ## `--check` in CI {#check-in-ci}
 
