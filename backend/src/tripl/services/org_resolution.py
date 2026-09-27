@@ -8,7 +8,10 @@ known and before any project slug is resolved. The rules, in order:
 2. An API key belongs to one organization: that is the org. A URL naming a
    different one gets the same 404, so a key is no oracle for other orgs.
 3. A cookie session with an org in the URL must be a member of it, else the
-   same 404.
+   same 404 — except the default organization on a self-hosted instance, which
+   every user acts in without a membership row (rule 4), so its org-qualified
+   URL answers exactly like the legacy one. Accounts created between the PR1
+   migration and this release have no membership row at all.
 4. No org in the URL: a self-hosted instance acts in the default organization
    (no query, exactly as before organizations existed); a hosted one acts in the
    user's only organization, and answers 400 "Organization required" when the
@@ -107,11 +110,14 @@ async def resolve_request_org(
             return path_org
         return await _org_by_id(session, key_org_id)
 
+    self_hosted = settings.deployment_mode == DEPLOYMENT_SELF_HOSTED
     if path_org is not None:
+        if self_hosted and path_org.id == DEFAULT_ORG_ID:
+            return path_org
         if not await _is_member(session, path_org.id, user.id):
             raise _not_found()
         return path_org
 
-    if settings.deployment_mode == DEPLOYMENT_SELF_HOSTED:
+    if self_hosted:
         return OrgRef(id=DEFAULT_ORG_ID, slug=DEFAULT_ORG_SLUG)
     return await _only_org_of(session, user.id)

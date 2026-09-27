@@ -51,7 +51,7 @@ from tripl.services.incident_summary_facts import (
     as_utc,
     gather_incident_facts,
 )
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +202,7 @@ async def get_summary(
     session: AsyncSession, slug: str, correlation_group_id: uuid.UUID
 ) -> IncidentSummaryResponse:
     """The cached summary and whether it is current. Never calls the LLM."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     reason, _config = await _disabled_reason(session, project)
     if reason is not None:
         await _require_group(session, project.id, correlation_group_id)
@@ -236,7 +236,7 @@ async def ensure_summary(
     Always answers: AI off is ``disabled`` and a provider or parse failure is
     ``failed``, never an error. A failure keeps the previous body.
     """
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     reason, config = await _disabled_reason(session, project)
     if reason is not None:
         await _require_group(session, project.id, correlation_group_id)

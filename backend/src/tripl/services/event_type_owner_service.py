@@ -23,7 +23,7 @@ from tripl.models.user import User
 from tripl.schemas.event_type_owner import EventTypeOwnerResponse
 from tripl.services import subscription_service
 from tripl.services.project_access import member_role
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import project_slug_clause, resolve_project_id
 from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
 
 
@@ -40,7 +40,7 @@ async def _resolve_main_event_type(
         select(EventType, PlanBranch, Project)
         .join(PlanBranch, EventType.branch_id == PlanBranch.id)
         .join(Project, EventType.project_id == Project.id)
-        .where(EventType.id == event_type_id, Project.slug == slug)
+        .where(EventType.id == event_type_id, project_slug_clause(slug))
     )
     hit = row.first()
     if hit is None:
@@ -87,7 +87,7 @@ async def list_project_owners(session: AsyncSession, slug: str) -> list[EventTyp
     request per event type (PLAN-42). Grouped by event type, then oldest grant
     first, the order ``list_owners`` returns one type's owners in.
     """
-    project_id = await get_project_id_by_slug(session, slug)  # 404 for an unknown project
+    project_id = await resolve_project_id(session, slug)  # 404 for an unknown project
     rows = await session.execute(
         select(EventTypeOwner, User)
         .join(User, EventTypeOwner.user_id == User.id)

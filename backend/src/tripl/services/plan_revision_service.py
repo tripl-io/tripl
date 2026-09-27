@@ -43,7 +43,7 @@ from tripl.schemas.plan_revision import (
 )
 from tripl.services._origin_pairing import pair_rows, snapshot_id, snapshot_ref
 from tripl.services._plan_diff_housekeeping import note_references
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 PLAN_REVISIONS_DEFAULT_LIMIT = 50
 PLAN_SNAPSHOT_VERSION = 2
@@ -257,7 +257,7 @@ def _meta_value_order(member: dict[str, Any]) -> tuple[str, str]:
 
 
 async def _resolve_project(session: AsyncSession, slug: str) -> Project:
-    return await get_project_by_slug(session, slug, detail=f"Project '{slug}' not found")
+    return await resolve_project(session, slug, detail=f"Project '{slug}' not found")
 
 
 async def build_plan_snapshot(

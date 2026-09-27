@@ -10,7 +10,7 @@ from tripl.schemas.project_branch_settings import (
     ProjectBranchSettingsResponse,
     ProjectBranchSettingsUpdate,
 )
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 DEFAULT_MIN_APPROVALS = 1
 DEFAULT_BLOCK_SELF_APPROVAL = False
@@ -78,7 +78,7 @@ async def get_project_branch_settings(
 ) -> ProjectBranchSettingsResponse:
     """Read-only: projects that never customized the policy get the defaults
     back without a row being written (GETs must not mutate the database)."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     settings = await session.scalar(
         select(ProjectBranchSettings).where(ProjectBranchSettings.project_id == project.id)
     )
@@ -96,7 +96,7 @@ async def update_project_branch_settings(
     slug: str,
     data: ProjectBranchSettingsUpdate,
 ) -> ProjectBranchSettings:
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     settings = await _ensure_settings(session, project.id)
     # exclude_none: an explicit JSON null is not a valid value for either
     # NOT NULL column — treat it the same as omitting the field.

@@ -16,7 +16,7 @@ from tripl.schemas.fact_table import (
 )
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_service, fact_table_service
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 router = APIRouter(prefix="/projects/{slug}/fact-tables", tags=["fact-tables"])
 
@@ -85,7 +85,7 @@ async def preview_fact_table(
         introspect_fact_table,
     )
 
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     # Audited, unlike most read-shaped routes, because this one and the metrics
     # catalog's previews are the only places an editor's own SQL reaches a
     # warehouse credential WITHOUT leaving a stored object behind. Saving a fact

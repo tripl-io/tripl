@@ -19,7 +19,7 @@ from tripl.schemas.project_member import (
     ProjectMemberUpdate,
 )
 from tripl.services import audit_service, project_member_service
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 router = APIRouter(prefix="/projects/{slug}/members", tags=["project-members"])
 
@@ -36,7 +36,7 @@ def _require_session_auth(request: Request) -> None:
 async def list_members(
     session: SessionDep, _current_user: CurrentUserDep, slug: str
 ) -> list[ProjectMemberResponse]:
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     return await project_member_service.list_members(session, project.id)
 
 
@@ -49,7 +49,7 @@ async def add_member(
     data: ProjectMemberCreate,
 ) -> ProjectMemberResponse:
     _require_session_auth(request)
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     project_member_service.require_member_manager(current_user, project)
     member = await project_member_service.add_member(
         session, project, user_id=data.user_id, role=data.role, added_by=current_user.id
@@ -77,7 +77,7 @@ async def update_member(
     data: ProjectMemberUpdate,
 ) -> ProjectMemberResponse:
     _require_session_auth(request)
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     project_member_service.require_member_manager(current_user, project)
     member, previous = await project_member_service.update_member(
         session, project, user_id=user_id, role=data.role
@@ -108,7 +108,7 @@ async def remove_member(
     user_id: uuid.UUID,
 ) -> None:
     _require_session_auth(request)
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     project_member_service.require_member_manager(current_user, project)
     removed = await project_member_service.remove_member(session, project, user_id=user_id)
     await audit_service.record(

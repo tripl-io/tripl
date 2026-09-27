@@ -21,10 +21,22 @@ from fastapi import HTTPException
 from sqlalchemy import ColumnElement, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.middleware.org_context import require_org_id
+from tripl.middleware.org_context import current_org_id, require_org_id
+from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.models.project import Project
 
 PROJECT_NOT_FOUND = "Project not found"
+
+
+def owning_org_id() -> uuid.UUID:
+    """The organization a new project-scoped row (project, API key) belongs to.
+
+    The bound organization, so a create through ``/api/v1/orgs/{org}/...`` lands
+    in that org and is found again by the same prefix. With none bound (a script,
+    a worker, a service test) it is the default organization, the column's ORM
+    default: the row is written exactly as before organizations were bound.
+    """
+    return current_org_id() or DEFAULT_ORG_ID
 
 
 def project_slug_clause(slug: str) -> ColumnElement[bool]:
@@ -58,9 +70,3 @@ async def resolve_project_id(
     if project_id is None:
         raise HTTPException(status_code=404, detail=detail)
     return project_id
-
-
-# Transition aliases, org-filtered like the functions they name, so a call site
-# not yet converted is still correct. Deleted once every caller has moved.
-get_project_by_slug = resolve_project
-get_project_id_by_slug = resolve_project_id

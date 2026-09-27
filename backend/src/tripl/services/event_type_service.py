@@ -12,7 +12,7 @@ from tripl.schemas.event_type import EventTypeCreate, EventTypeResponse, EventTy
 from tripl.services._branch_event_threads import rescue_branch_event_threads
 from tripl.services._event_reference_cleanup import drop_dangling_event_references
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.scan_config_lookup import (
     event_type_binding_conflict_detail,
     governing_name_format,
@@ -31,7 +31,7 @@ async def list_event_types(
         if cached is not None:
             return [EventTypeResponse.model_validate(item) for item in cached]
 
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(EventType)
@@ -57,7 +57,7 @@ async def get_event_type(
     event_type_id: uuid.UUID,
     branch_id: uuid.UUID | None = None,
 ) -> EventType:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(EventType).where(
@@ -118,7 +118,7 @@ async def create_event_type(
 ) -> EventType:
     is_main = branch_id is None
     requested_branch_id = branch_id
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     existing = await session.execute(
         select(EventType).where(

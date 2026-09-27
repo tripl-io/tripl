@@ -15,7 +15,7 @@ from tripl.schemas.implementation_ticket import ImplementationTicketResponse
 from tripl.services._branch_counterparts import main_counterparts
 from tripl.services.event_service import get_event
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ async def list_branch_tickets(
     predicate, and ``deps.get_branch_id_override`` is a third. Reusing one of
     those beats writing a fourth, which is all this choice claims.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     rows = (
         (

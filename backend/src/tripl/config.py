@@ -40,7 +40,11 @@ REGISTRATION_DISABLED = "disabled"
 REGISTRATION_MODES = (REGISTRATION_OPEN, REGISTRATION_DISABLED)
 
 # Organizations (F20). All three are ENV-ONLY operator settings — never editable
-# through app_settings — and today only the migration reads any of them.
+# through app_settings. The migration reads all three; request handling reads
+# DEPLOYMENT_MODE too (services/org_resolution.py): a request whose URL names
+# no organization acts in the default organization when self-hosted, and in the
+# user's only organization when hosted (400 "Organization required" when the
+# user has none or several).
 #
 # DEPLOYMENT_MODE
 #   "self_hosted" — one team's instance: everyone lives in the default

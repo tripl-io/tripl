@@ -62,9 +62,18 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
     return user
 
 
-#: Identity routes act in no organization: signing out or reading one's own
-#: account must work for a hosted user who belongs to several (or none).
-_ORG_FREE_PATH_PREFIX = "/api/v1/auth/"
+#: Routes that act in no organization, so a cookie session skips org resolution
+#: there. Identity routes: signing out or reading one's own account must work for
+#: a hosted user who belongs to several organizations (or none). Instance-wide
+#: routes (``/settings``, ``/project-templates``) have no org-qualified form
+#: (they are not in ``ORG_REWRITE_PREFIXES``), so resolving an org for them
+#: would lock that same user out with a permanent 400. None of them resolves a
+#: project slug. An API key still binds its own organization everywhere.
+_ORG_FREE_PATH_PREFIXES: tuple[str, ...] = (
+    "/api/v1/auth/",
+    "/api/v1/settings",
+    "/api/v1/project-templates",
+)
 
 
 def _is_org_free(request: Request) -> bool:
@@ -72,7 +81,10 @@ def _is_org_free(request: Request) -> bool:
     root_path: str = request.scope.get("root_path", "") or ""
     if root_path and path.startswith(root_path):
         path = path[len(root_path) :]
-    return path.startswith(_ORG_FREE_PATH_PREFIX)
+    return any(
+        path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/")
+        for prefix in _ORG_FREE_PATH_PREFIXES
+    )
 
 
 async def _bind_request_org(

@@ -13,10 +13,11 @@ from collections.abc import AsyncIterator
 import pytest
 from fastapi import HTTPException
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from tripl.config import DEPLOYMENT_HOSTED, DEPLOYMENT_SELF_HOSTED, settings
 from tripl.middleware.org_context import OrgRef
+from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole
 from tripl.models.organization import (
     DEFAULT_ORG_ID,
@@ -24,6 +25,7 @@ from tripl.models.organization import (
     Organization,
     OrganizationMember,
 )
+from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.services.org_resolution import (
     ORG_NOT_FOUND,
@@ -132,6 +134,27 @@ async def test_unknown_path_org_is_404(user: User) -> None:
         assert (err.status_code, err.detail) == (404, ORG_NOT_FOUND)
 
 
+async def test_self_hosted_default_path_org_needs_no_membership(
+    user: User, self_hosted: None
+) -> None:
+    # Rule 4 serves the legacy URL without a membership row, so the default
+    # org's qualified URL must too, or the two forms disagree.
+    org = await _resolve(user, key_org_id=None, path=DEFAULT_ORG_SLUG)
+    assert (org.id, org.slug) == (DEFAULT_ORG_ID, DEFAULT_ORG_SLUG)
+
+
+async def test_self_hosted_other_path_org_still_needs_membership(
+    user: User, self_hosted: None
+) -> None:
+    err = await _resolve_error(user, key_org_id=None, path=ACME_SLUG)
+    assert (err.status_code, err.detail) == (404, ORG_NOT_FOUND)
+
+
+async def test_hosted_default_path_org_needs_membership(user: User, hosted: None) -> None:
+    err = await _resolve_error(user, key_org_id=None, path=DEFAULT_ORG_SLUG)
+    assert (err.status_code, err.detail) == (404, ORG_NOT_FOUND)
+
+
 async def test_self_hosted_without_path_org_is_the_default_org(
     user: User, self_hosted: None
 ) -> None:
@@ -208,6 +231,77 @@ async def test_hosted_multi_org_cookie_user_needs_the_org_in_the_path(
     assert (await client.get("/api/v1/orgs/acme/projects")).status_code == 200
     # Identity routes act in no organization.
     assert (await client.get("/api/v1/auth/me")).status_code == 200
+    # Nor do instance-wide routes, which have no org-qualified form.
+    assert (await client.get("/api/v1/project-templates")).status_code == 200
+    settings_resp = await client.get("/api/v1/settings")
+    assert settings_resp.status_code != 400, settings_resp.text
+
+
+async def test_self_hosted_default_org_path_works_without_a_membership_row(
+    client: AsyncClient, self_hosted: None
+) -> None:
+    # Accounts registered between the PR1 migration and PR2 have no row.
+    assert (
+        await client.post("/api/v1/projects", json={"name": "Nm", "slug": "nm"})
+    ).status_code == 201
+    async with TestSessionLocal() as session:
+        await session.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == await _user_id())
+        )
+        await session.commit()
+
+    for path in ("/api/v1/orgs/default/projects", "/api/v1/orgs/default/projects/nm"):
+        resp = await client.get(path)
+        assert resp.status_code == 200, (path, resp.text)
+
+
+async def test_another_orgs_project_is_not_reachable_through_the_org_path(
+    client: AsyncClient,
+) -> None:
+    assert (
+        await client.post("/api/v1/projects", json={"name": "Iso", "slug": "iso"})
+    ).status_code == 201
+    await _add_acme()
+    await _add_member(await _user_id(), ACME_ID)
+
+    for suffix in ("", "/branches", "/event-types"):
+        hidden = await client.get(f"/api/v1/orgs/acme/projects/iso{suffix}")
+        assert hidden.status_code == 404, (suffix, hidden.text)
+        assert hidden.json()["detail"] == "Project not found"
+        shown = await client.get(f"/api/v1/orgs/default/projects/iso{suffix}")
+        assert shown.status_code == 200, (suffix, shown.text)
+
+
+async def test_creates_through_the_org_path_land_in_that_org(
+    client: AsyncClient, self_hosted: None
+) -> None:
+    await _add_acme()
+    await _add_member(await _user_id(), ACME_ID)
+
+    created = await client.post(
+        "/api/v1/orgs/acme/projects", json={"name": "Acme P", "slug": "acme-p"}
+    )
+    assert created.status_code == 201, created.text
+    assert (await client.get("/api/v1/orgs/acme/projects/acme-p")).status_code == 200
+    # Not in the default organization, which the legacy URL acts in (self-hosted).
+    assert (await client.get("/api/v1/projects/acme-p")).status_code == 404
+
+    key = await client.post(
+        "/api/v1/orgs/acme/me/api-keys",
+        json={"name": "k", "scope": "read", "project_slug": "acme-p"},
+    )
+    assert key.status_code == 201, key.text
+    async with TestSessionLocal() as session:
+        project_org: uuid.UUID | None = await session.scalar(
+            select(Project.organization_id).where(Project.slug == "acme-p")
+        )
+        key_org: uuid.UUID | None = await session.scalar(
+            select(ApiKey.organization_id).where(ApiKey.id == uuid.UUID(key.json()["id"]))
+        )
+    assert project_org == key_org == ACME_ID
+    bearer = {"Authorization": f"Bearer {key.json()['token']}"}
+    via_key = await client.get("/api/v1/projects/acme-p/event-types", headers=bearer)
+    assert via_key.status_code == 200, via_key.text
 
 
 async def test_api_key_is_held_to_its_org(client: AsyncClient) -> None:

@@ -23,7 +23,7 @@ from tripl.schemas.variable import (
 )
 from tripl.services import variable_retirement_service
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 from tripl.services.variable_value_service import attach_variable_summaries
 
@@ -124,7 +124,7 @@ async def list_variables(
     The predicate costs one pass over the project's stored field values, so it
     runs only when the filter is actually asked for.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     scope: list[ColumnElement[bool]] = [
         Variable.project_id == project_id,
@@ -180,7 +180,7 @@ async def create_variable(
     data: VariableCreate,
     branch_id: uuid.UUID | None = None,
 ) -> Variable:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     existing = await session.execute(
         select(Variable).where(
@@ -291,7 +291,7 @@ async def update_variable(
     was replaced was not recoverable from the trail (tripl-0zpq.241). Unchanged
     when the patch is not a rename, which is how the route tells the two apart.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(Variable).where(
@@ -392,7 +392,7 @@ async def delete_variable(
     lookup — the indexed (id, project_id, branch_id) read below is the only one
     the delete path needs.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     var = await _get_variable_in_branch(session, project_id, branch_id, variable_id)
     name = var.name
@@ -435,7 +435,7 @@ async def clear_variable_values(
     Returns the variable's name for the audit record and the number of rows
     removed.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     var = await _get_variable_in_branch(session, project_id, branch_id, variable_id)
     name = var.name
@@ -484,7 +484,7 @@ async def bulk_update_variables(
     data: VariableBulkUpdate,
     branch_id: uuid.UUID | None = None,
 ) -> None:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variables = await _load_variables_by_ids(session, project_id, branch_id, data.variable_ids)
     for variable in variables:
@@ -521,7 +521,7 @@ async def bulk_delete_variables(
     by ``_load_variables_by_ids``, so recording the request body would file a
     delete of rows that were never there (tripl-0zpq.241).
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variables = await _load_variables_by_ids(session, project_id, branch_id, data.variable_ids)
     deleted = [(variable.id, variable.name) for variable in variables]
@@ -557,7 +557,7 @@ async def list_event_overrides(
     variable_id: uuid.UUID,
     branch_id: uuid.UUID | None = None,
 ) -> list[VariableEventValueOverride]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     await _get_variable_in_branch(session, project_id, branch_id, variable_id)
     result = await session.execute(
@@ -587,7 +587,7 @@ async def upsert_event_override(
     variable target, so a reader could not tell which variable was overridden
     (tripl-0zpq.241). The event name belongs in the payload, not the target.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variable = await _get_variable_in_branch(session, project_id, branch_id, variable_id)
     event = await session.execute(
@@ -636,7 +636,7 @@ async def delete_event_override(
     row this feeds had an EMPTY ``target_name`` and named neither
     (tripl-0zpq.241).
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variable = await _get_variable_in_branch(session, project_id, branch_id, variable_id)
     result = await session.execute(

@@ -9,6 +9,7 @@ tell a real org from an unknown one.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 from httpx import AsyncClient
@@ -21,7 +22,11 @@ from tripl.middleware.org_context import (
     bound_org,
     current_org,
 )
-from tripl.middleware.org_path_rewrite import OrgPathRewriteMiddleware, rewrite_org_path
+from tripl.middleware.org_path_rewrite import (
+    OrgPathRewriteMiddleware,
+    _org_location,
+    rewrite_org_path,
+)
 from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG
 
 
@@ -152,3 +157,32 @@ async def test_non_allow_listed_org_paths_reach_no_route(client: AsyncClient, pa
     resp = await client.get(path)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Not Found"
+
+
+@pytest.mark.parametrize(
+    ("location", "expected"),
+    [
+        ("/api/v1/projects", "/api/v1/orgs/acme/projects"),
+        ("/api/v1/projects/p?x=1", "/api/v1/orgs/acme/projects/p?x=1"),
+        ("http://test/api/v1/me/api-keys", "http://test/api/v1/orgs/acme/me/api-keys"),
+        # Another host, a path outside the allow-list: left alone.
+        ("http://elsewhere/api/v1/projects", "http://elsewhere/api/v1/projects"),
+        ("/api/v1/settings", "/api/v1/settings"),
+        ("/login", "/login"),
+    ],
+)
+def test_redirect_location_keeps_the_org(location: str, expected: str) -> None:
+    assert _org_location(location, "", "acme", "test") == expected
+
+
+async def test_trailing_slash_redirect_stays_on_the_org_path(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/orgs/default/projects/?q=1")
+    assert resp.status_code == 307
+    assert urlsplit(resp.headers["location"]).path == "/api/v1/orgs/default/projects"
+    assert urlsplit(resp.headers["location"]).query == "q=1"
+
+
+async def test_legacy_trailing_slash_redirect_is_unchanged(client: AsyncClient) -> None:
+    resp = await client.get("/api/v1/projects/")
+    assert resp.status_code == 307
+    assert urlsplit(resp.headers["location"]).path == "/api/v1/projects"

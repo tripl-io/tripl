@@ -15,10 +15,13 @@ import re
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+#: ``backend/scripts``: operator scripts resolve slugs too (they bind an org with
+#: ``bound_org``), so they are held to the same rule. Reported as ``scripts/...``.
+SCRIPTS_ROOT = PACKAGE_ROOT.parents[1] / "scripts"
 _EXCLUDED_DIRS = frozenset({"tests", "alembic"})
 
-#: path (relative to the package) -> the number of sites it may hold, or None
-#: for any number. Each entry says why.
+#: path (relative to the package, or ``scripts/...``) -> the number of sites it
+#: may hold, or None for any number. Each entry says why.
 ALLOWLIST: dict[str, int | None] = {
     # The one resolver.
     "services/project_lookup.py": None,
@@ -33,42 +36,120 @@ _MATCHER_METHODS = frozenset(
     {"in_", "not_in", "notin_", "like", "ilike", "not_like", "not_ilike", "startswith",
      "endswith", "contains", "is_", "isnot", "is_not", "is_distinct_from", "op"}
 )  # fmt: skip
-_RAW_SQL = re.compile(r"\bprojects\.slug\s*(=|!=|<>|\bin\b|\blike\b|\bilike\b)", re.IGNORECASE)
+#: SQL functions a slug may be wrapped in on one side of a comparison
+#: (``func.lower(Project.slug) == s``, ``cast(Project.slug, ...)``).
+_WRAPPER_FUNCS = frozenset({"lower", "upper", "trim", "cast", "coalesce", "type_coerce"})
+#: ``[alias.]slug`` compared with a bind parameter, a literal or a list:
+#: ``p.slug = :s``, ``slug IN (...)``, ``projects.slug LIKE '%x'``. Prose such as
+#: "the slug in the URL" has no operand of that shape and is not flagged.
+_RAW_SQL = re.compile(
+    r"\b(?:\w+\.)?slug\s*(?:=|!=|<>|\bin\b|\blike\b|\bilike\b)\s*[:%?'\"(]",
+    re.IGNORECASE,
+)
+_RAW_SQL_TABLE = re.compile(r"\bprojects\b", re.IGNORECASE)
 
 
 def _project_names(tree: ast.Module) -> set[str]:
+    """Names bound to ``Project``: the class, ``as`` aliases, ``aliased(Project)``."""
     names = {"Project"}
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 if alias.name == "Project" and alias.asname:
                     names.add(alias.asname)
+    # aliased() may wrap an alias bound anywhere above, so iterate to a fixpoint.
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Assign)
+                and isinstance(node.value, ast.Call)
+                and _call_name(node.value) == "aliased"
+                and node.value.args
+                and _is_project_ref(node.value.args[0], names)
+            ):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id not in names:
+                        names.add(target.id)
+                        changed = True
     return names
 
 
+def _call_name(call: ast.Call) -> str | None:
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _is_project_ref(node: ast.AST, names: set[str]) -> bool:
+    """``Project``, an alias of it, or ``something.Project`` (``models.Project``)."""
+    if isinstance(node, ast.Name):
+        return node.id in names
+    return isinstance(node, ast.Attribute) and node.attr == "Project"
+
+
 def _is_project_slug(node: ast.AST, names: set[str]) -> bool:
+    if not (isinstance(node, ast.Attribute) and node.attr == "slug"):
+        return False
+    receiver = node.value
+    if _is_project_ref(receiver, names):
+        return True
+    # Project.__table__.c.slug
     return (
-        isinstance(node, ast.Attribute)
-        and node.attr == "slug"
-        and isinstance(node.value, ast.Name)
-        and node.value.id in names
+        isinstance(receiver, ast.Attribute)
+        and receiver.attr == "c"
+        and isinstance(receiver.value, ast.Attribute)
+        and receiver.value.attr == "__table__"
+        and _is_project_ref(receiver.value.value, names)
     )
+
+
+def _is_slug_operand(node: ast.AST, names: set[str]) -> bool:
+    """A project slug, possibly inside SQL wrapper functions."""
+    if _is_project_slug(node, names):
+        return True
+    return (
+        isinstance(node, ast.Call)
+        and _call_name(node) in _WRAPPER_FUNCS
+        and any(_is_slug_operand(arg, names) for arg in node.args)
+    )
+
+
+def _docstrings(tree: ast.Module) -> set[int]:
+    """ids of docstring constants: prose, never SQL."""
+    ids: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = node.body
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
+                ids.add(id(body[0].value))
+    return ids
 
 
 def _violations(tree: ast.Module) -> list[int]:
     names = _project_names(tree)
+    docstrings = _docstrings(tree)
     lines: list[int] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Compare):
             operands = [node.left, *node.comparators]
-            if any(_is_project_slug(o, names) for o in operands):
+            if any(_is_slug_operand(o, names) for o in operands):
                 lines.append(node.lineno)
         elif isinstance(node, ast.Call):
             func = node.func
             if (
                 isinstance(func, ast.Attribute)
                 and func.attr in _MATCHER_METHODS
-                and _is_project_slug(func.value, names)
+                and _is_slug_operand(func.value, names)
             ) or (
                 isinstance(func, ast.Attribute)
                 and func.attr == "filter_by"
@@ -78,21 +159,29 @@ def _violations(tree: ast.Module) -> list[int]:
         elif (
             isinstance(node, ast.Constant)
             and isinstance(node.value, str)
+            and id(node) not in docstrings
+            and _RAW_SQL_TABLE.search(node.value)
             and _RAW_SQL.search(node.value)
         ):
             lines.append(node.lineno)
     return sorted(lines)
 
 
-def _scan() -> dict[str, list[int]]:
-    found: dict[str, list[int]] = {}
-    for path in sorted(PACKAGE_ROOT.rglob("*.py")):
-        rel = path.relative_to(PACKAGE_ROOT)
+def _scan_root(root: Path, prefix: str, found: dict[str, list[int]]) -> None:
+    for path in sorted(root.rglob("*.py")):
+        rel = path.relative_to(root)
         if _EXCLUDED_DIRS & set(rel.parts):
             continue
         lines = _violations(ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
         if lines:
-            found[rel.as_posix()] = lines
+            found[prefix + rel.as_posix()] = lines
+
+
+def _scan() -> dict[str, list[int]]:
+    found: dict[str, list[int]] = {}
+    _scan_root(PACKAGE_ROOT, "", found)
+    if SCRIPTS_ROOT.is_dir():
+        _scan_root(SCRIPTS_ROOT, "scripts/", found)
     return found
 
 
@@ -132,13 +221,22 @@ d = select(Project).where(Project.slug.in_(xs))
 e = select(Project).where(Project.slug.ilike(x))
 f = q.filter_by(slug=s)
 g = text("SELECT id FROM projects WHERE projects.slug = :s")
+h = select(Project).where(func.lower(Project.slug) == s)
+i = select(models.Project).where(models.Project.slug == s)
+p = aliased(Project)
+j = select(p).where(p.slug == s)
+k = select(Project).where(Project.__table__.c.slug == s)
+m = text("SELECT id FROM projects p WHERE p.slug = :s")
+n = text("SELECT id FROM projects WHERE slug = :s")
 ok1 = select(Project.slug).where(Project.id == i)
 ok2 = select(Project.id, Project.slug.label("project_slug"))
+ok3 = text("SELECT id FROM users WHERE slug = :s")
 """
-    assert _violations(ast.parse(source)) == [4, 5, 6, 7, 8, 9, 10]
+    assert _violations(ast.parse(source)) == [4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17]
 
 
 def test_the_scan_sees_the_package() -> None:
     # Guard against the scan silently matching nothing (a wrong package root).
     assert (PACKAGE_ROOT / "services" / "project_lookup.py").is_file()
     assert sum(1 for _ in PACKAGE_ROOT.rglob("*.py")) > 100
+    assert SCRIPTS_ROOT.is_dir()

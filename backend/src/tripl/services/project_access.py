@@ -165,7 +165,9 @@ async def member_role_by_slug(session: AsyncSession, user: User, slug: str) -> P
     project does not exist.
     """
     if is_instance_owner(user):
-        project_id = await session.scalar(select(Project.id).where(project_slug_clause(slug)))
+        project_id: uuid.UUID | None = await session.scalar(
+            select(Project.id).where(project_slug_clause(slug))
+        )
         return OWNER if project_id is not None else None
     row_role = await session.scalar(
         select(ProjectMember.role)

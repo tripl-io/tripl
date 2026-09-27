@@ -101,7 +101,7 @@ from tripl.services.alerting_rendering import (
 from tripl.services.alerting_rendering import (
     trim_alert_text as _trim_alert_text,
 )
-from tripl.services.project_lookup import get_project_by_slug as _get_project
+from tripl.services.project_lookup import resolve_project as _get_project
 
 # The one scope family whose label is a CONSTANT rather than a row lookup.
 # ``worker.tasks.metrics.alert_payload`` imports the identical string as

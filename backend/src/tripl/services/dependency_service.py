@@ -91,7 +91,7 @@ from tripl.services.plan_branch_service import (
     ensure_main_branch_id,
     resolve_branch_id,
 )
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 __all__ = [
     "Dependencies",
@@ -476,7 +476,7 @@ async def branch_impact_response(
     * additions are skipped (nothing can depend on a row that does not exist
       yet), and so are housekeeping rows, which are the machine's doing.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     diff = await diff_branch(session, slug, branch_id)
     main_scope = await _scope(session, project_id, None, slug)
     branch_scope = Scope(
