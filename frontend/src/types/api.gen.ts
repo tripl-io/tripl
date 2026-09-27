@@ -2951,6 +2951,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/plan/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Plan
+         * @description One verdict per tracking call: known event, allowed values, contracts.
+         *
+         *     Up to 5000 items per request. A ``null`` field value means "set at runtime"
+         *     and is never an error. Changes nothing.
+         */
+        post: operations["validate_plan_api_v1_projects__slug__plan_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/reconciliation/coverage": {
         parameters: {
             query?: never;
@@ -10245,6 +10268,95 @@ export interface components {
             project_id: string;
             /** Summary */
             summary: string;
+        };
+        /** PlanValidationFinding */
+        PlanValidationFinding: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic";
+            /** Field */
+            field?: string | null;
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+        };
+        /** PlanValidationItemIn */
+        PlanValidationItemIn: {
+            /**
+             * Complete
+             * @default false
+             */
+            complete: boolean;
+            /** Event Type */
+            event_type?: string | null;
+            /** Fields */
+            fields?: {
+                [key: string]: string | boolean | number | null;
+            };
+            /** Name */
+            name?: string | null;
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            } | null;
+            /** Ref */
+            ref?: string | null;
+        };
+        /** PlanValidationItemResult */
+        PlanValidationItemResult: {
+            /** Event Id */
+            event_id?: string | null;
+            /** Findings */
+            findings?: components["schemas"]["PlanValidationFinding"][];
+            /** Identity */
+            identity?: string | null;
+            /** Ref */
+            ref: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "warning" | "error";
+        };
+        /** PlanValidationRequest */
+        PlanValidationRequest: {
+            /** Items */
+            items: components["schemas"]["PlanValidationItemIn"][];
+            /**
+             * Strict
+             * @default false
+             */
+            strict: boolean;
+        };
+        /** PlanValidationResponse */
+        PlanValidationResponse: {
+            /** Items */
+            items: components["schemas"]["PlanValidationItemResult"][];
+            summary: components["schemas"]["PlanValidationSummary"];
+        };
+        /** PlanValidationSummary */
+        PlanValidationSummary: {
+            /**
+             * Errors
+             * @default 0
+             */
+            errors: number;
+            /**
+             * Ok
+             * @default 0
+             */
+            ok: number;
+            /**
+             * Warnings
+             * @default 0
+             */
+            warnings: number;
         };
         /**
          * PlanValueChange
@@ -19958,6 +20070,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_plan_api_v1_projects__slug__plan_validate_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanValidationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanValidationResponse"];
                 };
             };
             /** @description Validation Error */

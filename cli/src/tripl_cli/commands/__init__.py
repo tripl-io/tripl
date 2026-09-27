@@ -59,6 +59,7 @@ def register_all(
     # close the cycle.
     from tripl_cli.commands import (
         annotate,
+        check,
         doctor,
         drifts,
         events,
@@ -93,6 +94,9 @@ def register_all(
     # One word as well: it records one fact about the project ("we deployed") from
     # a CI step, rather than acting on a class of objects an operator browses.
     annotate.register(subparsers, parent)
+    # One word too: it validates a checkout (or a capture file) as a whole against
+    # the plan, from a developer's terminal or a CI step (#261).
+    check.register(subparsers, parent)
 
 
 def group_help(parser: argparse.ArgumentParser) -> Handler:

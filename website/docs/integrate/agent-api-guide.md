@@ -1316,6 +1316,143 @@ notifications are limited to one per new signal, at most one per entity per
 subscriber every 6 hours, and are never created for hidden or verdicted
 signals.
 
+## Plan validation {#plan-validation}
+
+Check tracking calls or captured events against the plan in one batch. This is
+the validator behind [`tripl check`](./tripl-check.md). Use it directly when
+your own tool already knows what an event looks like, for example a test
+harness that records what the app sent.
+
+```http
+POST /api/v1/projects/{slug}/plan/validate?branch=<branch_id>
+```
+
+The route is read-like. It writes nothing, and it is a `POST` only to carry the
+batch. Any project member can call it, viewers included, and a `read` key is
+enough. Without `branch` it validates against main. With `branch`, it validates
+against that branch's plan, with the usual `400` / `404` for a malformed or
+foreign id.
+
+```json
+{
+  "items": [
+    {
+      "ref": "App/Checkout/PayButton.swift:42:9",
+      "event_type": "se",
+      "name": null,
+      "fields": { "category": "checkout", "action": "tap", "label": "pay_button", "plan": null },
+      "properties": { "source": "cart" }
+    },
+    {
+      "ref": "payload:7",
+      "event_type": null,
+      "name": "promo_banner_shown",
+      "fields": {},
+      "properties": { "slot": "homepage" },
+      "complete": true
+    }
+  ],
+  "strict": false
+}
+```
+
+The body has two top-level keys:
+
+| Key | Meaning |
+|-----|---------|
+| `items` | 1 to 5,000 items. More is a `422`, so split a larger batch. |
+| `strict` | Optional, default `false`. `true` adds a `dynamic_value` `info` finding for every value that is only known at runtime. `tripl check --strict` sets it. |
+
+Each item has these keys:
+
+| Key | Meaning |
+|-----|---------|
+| `ref` | Optional. Any string. It is echoed back so you can match verdicts to your inputs, for example `file:line` or a payload line number. |
+| `event_type` | The plan event type **name**, or `null`. |
+| `name` | The event name or identity, or `null`. |
+| `fields` | Plan field name to value: a string, number, boolean or `null`. In a call-site item (`complete` false) a `null` value means *dynamic*: the value is unknown at scan time, and a dynamic value is never an error. |
+| `properties` | Optional. Other keys the event carries. Each key is checked as a field name of the type, and each literal value like a field value. |
+| `complete` | Optional, default `false`. `true` says this is a whole event, as sent, rather than one call site. Only then is a required field that is absent reported, and the item's values are taken as sent: they are never holes. |
+
+How an item is resolved:
+
+- **With `event_type` and `fields`**: the server builds the identity with the
+  type's name rule (its resolved `event_name_format`, for example
+  `{category}:{action}:{label}` gives `checkout:tap:pay_button`) and looks up
+  the event with that identity within the type. A `null` field the rule needs
+  becomes a `${key}` **hole**: `checkout:${action}:pay_button`. A type with no
+  name rule uses `name` as the identity.
+- **With only `name`**: it is matched against event identities and names across
+  every type. `${…}` tokens in the name (from interpolation in code) are holes
+  too.
+
+A hole matches whatever the plan has in that place, and the plan's own
+`${variable}` placeholders match the item's literal text (which is then checked
+against the variable's documented values). The fields an item carries are
+checked against the type whether or not the identity matched. When the identity
+matches no planned event:
+
+- **Fully literal**: `unknown_event`, `error`.
+- **With holes and some literal text**: `unknown_event`, `warning`. Nothing
+  readable matches, but the runtime value might.
+- **Only holes and separators** (`${category}:${action}:${label}`): nothing is
+  matched and nothing is reported. `event_id` is `null`.
+- **More than 10 holes**: `too_dynamic`, `info`. The identity is not matched.
+
+A `complete: true` item never has holes, so an unmatched identity there is
+always an error.
+
+The response has one verdict per item, in the order of the request:
+
+```json
+{
+  "items": [
+    {
+      "ref": "App/Checkout/PayButton.swift:42:9",
+      "status": "warning",
+      "event_id": "5a1f…",
+      "identity": "checkout:tap:pay_button",
+      "findings": [
+        { "code": "unknown_field", "severity": "warning", "field": "source",
+          "message": "'source' is not a field of event type 'se'" }
+      ]
+    },
+    {
+      "ref": "payload:7",
+      "status": "error",
+      "event_id": "9c02…",
+      "identity": "promo_banner_shown",
+      "findings": [
+        { "code": "value_not_allowed", "severity": "error", "field": "slot",
+          "message": "'homepage' is not an allowed value of slot (home, cart)." },
+        { "code": "missing_required_field", "severity": "error", "field": "variant",
+          "message": "Required field 'variant' is missing" }
+      ]
+    }
+  ],
+  "summary": { "ok": 0, "warnings": 1, "errors": 1 }
+}
+```
+
+An item's `status` is `ok`, `warning` or `error`, the worst severity among its
+findings. `summary` counts items by status. The finding codes are:
+
+| Code | Severity | When |
+|------|----------|------|
+| `unknown_event_type` | error | `event_type` names no event type in the plan. |
+| `unknown_event` | error, or warning | No event has the built identity, or the given name. An error when the identity is fully literal, a warning when it has holes. An identity of holes alone gets no finding. |
+| `deprecated_event` | warning, or error | The matched event is `deprecated` (warning) or `archived` (error). |
+| `unknown_field` | warning | A `fields` or `properties` key that the event type does not define. |
+| `missing_required_field` | error | Only for `complete: true`: a required field of the type is absent. |
+| `value_not_allowed` | error | A literal value is outside the field's enum options, outside the documented `allowed_values` of the variable the field refers to, or fails the field's contract regex or min/max. |
+| `dynamic_value` | info | Only with `"strict": true`: a field was sent as `null` or with a hole, or the identity has holes. |
+| `too_dynamic` | info | The identity has more than 10 holes, too many to match. |
+
+An `info` finding never changes an item's `status`.
+
+`field` names the plan field a finding is about, or is `null` for findings about
+the whole item. `message` is prose and may change. Select on `code`.
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.
@@ -1323,6 +1460,7 @@ signals.
 - Pass `branch=<branch_id>` for all write calls unless the operator intentionally wants to edit main.
 - Search first, then fetch the canonical entity by id before making decisions.
 - Before a delete, deprecate or rename, check `GET /projects/{slug}/dependencies` (or `POST /impact` for several changes) and report what it names; the write itself will not stop you.
+- Before you add tracking code for an event, or after you change it, validate the calls with `POST /projects/{slug}/plan/validate`. It needs only a `read` key.
 - Prefer partial `PATCH` payloads over sending whole objects.
 - Treat field and meta value lists as full replacements when included in an event update.
 - Monitoring outputs — signals, schema/distribution/variable-value drift, and

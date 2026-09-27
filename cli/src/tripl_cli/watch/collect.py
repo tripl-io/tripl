@@ -64,7 +64,7 @@ async def read_tick(
     ]
     # No date floor. `date_from` filters AlertDelivery.created_at, so a delivery
     # created before the floor that FAILS during the run would be invisible;
-    # asking for the newest failures instead has no blind spot and one fewer flag.
+    # asking for the newest failures instead has no coverage gap and one fewer flag.
     delivery_reads = [
         reader.try_read_dict(
             monitoring_api.list_alert_deliveries(

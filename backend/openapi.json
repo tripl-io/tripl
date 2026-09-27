@@ -16263,6 +16263,264 @@
         "title": "PlanRevisionSummary",
         "type": "object"
       },
+      "PlanValidationFinding": {
+        "properties": {
+          "code": {
+            "enum": [
+              "unknown_event_type",
+              "unknown_event",
+              "deprecated_event",
+              "unknown_field",
+              "missing_required_field",
+              "value_not_allowed",
+              "dynamic_value",
+              "too_dynamic"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "PlanValidationFinding",
+        "type": "object"
+      },
+      "PlanValidationItemIn": {
+        "properties": {
+          "complete": {
+            "default": false,
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "fields": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "maxLength": 2000,
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxProperties": 200,
+            "propertyNames": {
+              "maxLength": 255,
+              "minLength": 1
+            },
+            "title": "Fields",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "properties": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "maxProperties": 200,
+                "propertyNames": {
+                  "maxLength": 255,
+                  "minLength": 1
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties"
+          },
+          "ref": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          }
+        },
+        "title": "PlanValidationItemIn",
+        "type": "object"
+      },
+      "PlanValidationItemResult": {
+        "properties": {
+          "event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/PlanValidationFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warning",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "status"
+        ],
+        "title": "PlanValidationItemResult",
+        "type": "object"
+      },
+      "PlanValidationRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlanValidationItemIn"
+            },
+            "maxItems": 5000,
+            "title": "Items",
+            "type": "array"
+          },
+          "strict": {
+            "default": false,
+            "title": "Strict",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PlanValidationRequest",
+        "type": "object"
+      },
+      "PlanValidationResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlanValidationItemResult"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PlanValidationSummary"
+          }
+        },
+        "required": [
+          "items",
+          "summary"
+        ],
+        "title": "PlanValidationResponse",
+        "type": "object"
+      },
+      "PlanValidationSummary": {
+        "properties": {
+          "errors": {
+            "default": 0,
+            "title": "Errors",
+            "type": "integer"
+          },
+          "ok": {
+            "default": 0,
+            "title": "Ok",
+            "type": "integer"
+          },
+          "warnings": {
+            "default": 0,
+            "title": "Warnings",
+            "type": "integer"
+          }
+        },
+        "title": "PlanValidationSummary",
+        "type": "object"
+      },
       "PlanValueChange": {
         "description": "One member of a collection-valued field that moved.\n\n``key`` is the member's natural identifier \u2014 the field name behind an event\nfield value, the tag itself, the event an override targets. ``before``/\n``after`` carry that member's value with the key stripped out, so a reviewer\nreads \"currency: USD \u2192 EUR\" instead of two JSON dumps of the whole\ncollection.",
         "properties": {
@@ -36357,6 +36615,77 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/plan/validate": {
+      "post": {
+        "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing.",
+        "operationId": "validate_plan_api_v1_projects__slug__plan_validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanValidationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanValidationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Plan",
+        "tags": [
+          "plan-validation"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/reconciliation/coverage": {
       "get": {
         "operationId": "get_coverage_api_v1_projects__slug__reconciliation_coverage_get",
@@ -41213,6 +41542,10 @@
     {
       "description": "Committed plan revisions and history.",
       "name": "plan-revisions"
+    },
+    {
+      "description": "Check tracking calls or captured payloads against the plan (tripl check).",
+      "name": "plan-validation"
     },
     {
       "description": "Annotations overlaid on metric charts.",

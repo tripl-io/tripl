@@ -489,7 +489,7 @@ class TickSnapshot:
     """Every stream as of the last SUCCESSFUL read of each.
 
     A stream whose read failed keeps its previous entry, which is what turns an
-    outage into a reporting DELAY rather than a blind spot: the next good poll
+    outage into a reporting DELAY rather than a coverage gap: the next good poll
     fires every transition that happened while watch could not see, late but
     complete. A stream absent from the mapping has never been read - the diff
     seeds it silently instead of dumping its history as events.

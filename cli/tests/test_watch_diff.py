@@ -430,7 +430,7 @@ def test_a_target_whose_read_failed_this_tick_accrues_no_stall_time() -> None:
     """The rows in an unrefreshed stream are last tick's, so nothing was observed.
 
     A failed read holds the last GOOD snapshot - that is what turns an outage
-    into a reporting delay rather than a blind spot - and a tracker that counts
+    into a reporting delay rather than a coverage gap - and a tracker that counts
     those held rows as fresh sightings ends up printing "unchanged for 4m" in the
     same tick as "jobs read failed: HTTP 502".
     """

@@ -24,6 +24,7 @@ from tripl_cli.api import (
     event_types,
     events,
     monitoring,
+    plan_validation,
     projects,
     scans,
     search,
@@ -138,4 +139,11 @@ PLAN_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
 # posting a deploy marker should cost exactly one request.
 ANNOTATE_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "annotate": (("post", chart_annotations.CREATE),),
+}
+
+# `tripl check`: the batched validate POST (a read, despite the verb), plus the
+# branch listing when --branch or `branch:` names a plan branch to resolve.
+CHECK_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "validate": (("post", plan_validation.VALIDATE),),
+    "branches": (("get", branches.LIST),),
 }

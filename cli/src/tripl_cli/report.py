@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from tripl_cli.check.model import CheckReport
     from tripl_cli.install.health import HealthOutcome
     from tripl_cli.install.plan import FileWrite, InstallPlan, UpgradePlan
     from tripl_cli.install.shell import Command
@@ -536,4 +537,67 @@ def mutation_document(outcome: MutationOutcome) -> JsonDict:
     # Null under --dry-run, always: nothing was sent, so there is no result and
     # a consumer must not be able to read one.
     document["result"] = None if outcome.result is None else dict(outcome.result)
+    return document
+
+
+def check_document(report: CheckReport) -> JsonDict:
+    """``tripl check --json``: one row per call site (static) or captured event (payloads).
+
+    Every result is listed, the passing ones included, so a consumer can count
+    coverage as well as failures. ``status`` is ``ok``, ``warning``, ``error`` or
+    ``dynamic`` (nothing about the call was knowable statically, so nothing was
+    sent for it). ``location.column`` is null for a payload; ``location.line``
+    is the NDJSON line, or 1 for an event in a JSON array (``snippet`` then
+    names its position). Finding ``code``s are the validator's plus the CLI's
+    own ``dynamic_value`` (``--strict`` only), ``oversize_value`` (a value over
+    the validator's size limits, sent as null) and ``no_verdict``.
+    """
+    document = _run_envelope("check", report.run)
+    document["project"] = report.project
+    document["branch"] = (
+        None if report.branch_id is None else {"id": report.branch_id, "name": report.branch_name}
+    )
+    document["mode"] = report.mode
+    document["strict"] = report.strict
+    document["config"] = report.config_path
+    document["files_scanned"] = report.files_scanned
+    counts = {"checked": len(report.results), "ok": 0, "warnings": 0, "errors": 0, "dynamic": 0}
+    keys = {"ok": "ok", "warning": "warnings", "error": "errors", "dynamic": "dynamic"}
+    for result in report.results:
+        counts[keys.get(result.status, "errors")] += 1
+    document["summary"] = counts
+    document["exit_code"] = report.exit_code
+    document["results"] = [
+        {
+            "status": result.status,
+            "location": {
+                "path": result.item.origin.path,
+                "line": result.item.origin.line,
+                "column": result.item.origin.column,
+                "end_line": result.item.origin.end_line,
+                "end_column": result.item.origin.end_column,
+            },
+            "snippet": result.item.origin.snippet,
+            "event_type": result.item.event_type,
+            "name": result.item.name,
+            "fields": dict(result.item.fields),
+            "properties": (
+                None if result.item.properties is None else dict(result.item.properties)
+            ),
+            "complete": result.item.complete,
+            "dynamic": list(result.item.dynamic),
+            "event_id": result.event_id,
+            "identity": result.identity,
+            "findings": [
+                {
+                    "code": finding.code,
+                    "severity": finding.severity,
+                    "field": finding.field,
+                    "message": finding.message,
+                }
+                for finding in result.findings
+            ],
+        }
+        for result in report.results
+    ]
     return document

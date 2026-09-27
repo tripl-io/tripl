@@ -49,6 +49,16 @@ Both read one project at a time, so both need `--project SLUG` exactly once, and
 every verb but `plan branches` takes `--branch` to read a plan branch instead of
 the live main plan.
 
+One more checks **your code** against the plan, and is one word:
+
+- **`tripl check`** — scans source files for tracking calls, or reads a file of
+  captured events, and reports unknown events, unknown fields, missing required
+  fields and values the plan does not allow. Built for a CI step, with SARIF
+  output for code scanning. See [`tripl check`](#tripl-check).
+
+It sends a `POST`, but only to carry the calls it found to the validator: it
+changes nothing, and a `tk_r_` key is enough.
+
 Two act on a **host**, not on an instance — no URL, no API key, no HTTP except a
 `/health` poll at the end:
 
@@ -198,6 +208,8 @@ shell history. Prefer the environment variable or the config file.
 list`, `scans jobs` and `drifts list`, and it should be your default.** Those
 six issue nothing but `GET`, so a write key buys them nothing and risks
 everything.
+A read key is also enough for the `events` and `plan` verbs, and for
+`tripl check`, which posts to a validator that changes nothing.
 
 Five verbs mutate the instance and need a **`tk_w_` key backed by a user with
 the editor or owner role**: `scans run`, `scans cancel`, `drifts dismiss`,
@@ -2086,6 +2098,94 @@ The same request without the CLI is in the
 **Cost:** one request, or none with `--dry-run`. The slug is not resolved
 first: a wrong one comes back as the route's own `404`.
 
+## `tripl check`
+
+Checks tracking code against the plan: unknown events, unknown fields, values
+the plan does not allow and, for captured events, missing required fields. It
+is built for a **CI step**. The configuration (which functions track which
+event type) lives in `.tripl/check.yml` in your repository. The
+[`tripl check` guide](../integrate/tripl-check.md) covers the whole file,
+the presets, enum sources and interpolated names.
+
+```
+usage: tripl check [-h] [--url URL] [--api-key KEY] [--config PATH]
+                   [--check-config PATH] [--project SLUG] [--branch REF]
+                   [--payloads FILE] [--strict] [--format {text,json,sarif}]
+                   [--json] [--timeout SECONDS]
+```
+
+| Flag | Meaning |
+|------|---------|
+| `--check-config PATH` | The check configuration to read. Default: the nearest `.tripl/check.yml` (or `.yaml`, or `.json`) in the current directory or a parent, up to the repository root. (`--config` is the connection config file, as on every other command.) |
+| `--project SLUG` | The project to check against. Overrides `project` in the check configuration. One of the two is required. |
+| `--branch REF` | Check against a plan branch instead of the live main plan. Name or id, matched exactly, like [`tripl plan --branch`](#the---branch-flag). Overrides `branch` in the check configuration. |
+| `--payloads FILE` | Payload mode: validate the events in `FILE` (NDJSON, a JSON array, or one object; `-` reads stdin) instead of scanning source files. A missing required field is an error in this mode. |
+| `--strict` | Fail on warnings too. Also report a `dynamic_value` finding for every value the scanner could not read, and list the calls where nothing was readable (status `dynamic`) as warnings. |
+| `--format FORMAT` | `text` (the default), `json`, or `sarif` for a SARIF 2.1.0 log. |
+| `--json` | One JSON document on stdout, every human line on stderr. The same as `--format json`. |
+| `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+**Read-only. A `tk_r_` key is enough.** The request is a `POST` only because it
+carries the calls it found, up to 5,000 per request, to
+[`POST /projects/{slug}/plan/validate`](../integrate/agent-api-guide.md#plan-validation).
+It changes nothing.
+
+```bash
+tripl check                                   # static: scan the sources in .tripl/check.yml
+tripl check --payloads build/events.ndjson    # payload: validate captured events
+tripl check --branch checkout-redesign --format sarif > tripl-check.sarif
+```
+
+```text
+tripl check - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+App/Checkout/PayButton.swift:42:9  error  se  checkout:tap:pay_buton
+    error  unknown_event: The plan has no event of type 'se' 'checkout:tap:pay_buton'
+App/Promo/Banner.swift:17:5  error  legacy  promo_banner_shown
+    error  value_not_allowed [slot]: 'homepage' is not an allowed value of slot (home, cart)
+App/Legacy/Settings.m:88:3  warning  legacy  settings_opened
+    warning  deprecated_event: 'settings_opened' is deprecated
+
+214 call sites in 58 files: 211 ok, 1 warning, 2 errors.
+```
+
+Items that pass are counted, not listed. Each listed item shows its location,
+status, event type and identity (or name), then one indented line per finding.
+With `--strict`, calls whose status is `dynamic` are listed too.
+
+Findings use the codes in the guide's
+[findings table](../integrate/tripl-check.md#findings): `unknown_event_type`,
+`unknown_event`, `deprecated_event`, `unknown_field`, `missing_required_field`,
+`value_not_allowed`, `dynamic_value`, `too_dynamic`, `oversize_value` and
+`no_verdict`.
+
+**Exit codes.** 0 when there is no error (and, with `--strict`, no warning). 1
+when there is at least one, or when a request failed. 2 on a configuration or
+usage error. See [Exit codes](#exit-codes).
+
+### In a GitHub Actions workflow {#tripl-check-in-github-actions}
+
+```yaml
+- name: Check tracking calls against the plan
+  env:
+    TRIPL_BASE_URL: https://tripl.example.com
+    TRIPL_API_KEY: ${{ secrets.TRIPL_READ_ONLY_KEY }}
+  run: uvx tripl check --format sarif > tripl-check.sarif
+
+- name: Upload findings to code scanning
+  if: always()
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: tripl-check.sarif
+    category: tripl-check
+```
+
+The full workflow, with the permissions SARIF upload needs, is in the
+[guide](../integrate/tripl-check.md#github-actions).
+
+**Cost:** one request per 5,000 calls or payloads, plus one to resolve
+`--branch` when you pass it.
+
 ## `tripl install`
 
 Every command above needs an instance to talk to. This is the one that **makes
@@ -2591,9 +2691,9 @@ produced it, but not every code is reachable from every command — `doctor` own
 
 | Code | Meaning |
 |------|---------|
-| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. |
-| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss` or `drifts reopen` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. |
-| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
+| **0** | `doctor`: every check passed, or only warned and `--strict` was not given. `status`: it completed. `watch`: the run completed — `--duration` elapsed. A failed job, a new signal and a failed delivery all still exit 0, because `watch` reaches no verdict. `scans list` / `drifts list`: every read arrived, including a run that legitimately found nothing. `scans jobs`: the history was read. `events list` / `events show` / every `plan` verb: the read arrived — including a page that stopped at `--limit` with more behind it, which is reported in the footer and in `truncated`, not in the exit code. `scans run` / `scans cancel` / `drifts dismiss` / `drifts reopen` / `annotate`: the API accepted the write — or `--dry-run` resolved everything and sent nothing. For `annotate` that includes a `200` for a label the API de-duplicated, which created nothing and is reported as such. `install`: the files are on disk and, unless `--no-start`, `pull` and `up -d` both succeeded and `/health` answered (or `--wait 0` skipped the wait). `upgrade`: the new tag is pinned and running — **or the pin already equalled `--to`**, which runs nothing and is deliberately 0 so a converging provisioning script is not a failing one. `check`: no finding at error severity — and, with `--strict`, none at warning severity either. |
+| **1** | The tool itself broke, or a command other than `doctor` could not complete a request — unreachable, or the API refused it (a project-scoped key with no `--project` gets a 403 here, on a perfectly healthy instance). `watch` reaches it two ways: a startup read it cannot proceed without (the project listing, or a project's scan listing), and a key revoked mid-run, which ends the run after a `watch.stopped` line carrying `reason: "authentication_failed"`. Every *other* failed read during a run is a `poll.degraded` line, not an exit. Three more routes into 1 belong to the object commands: **any** failed read in a `scans list` or `drifts list` fan-out, a `scans run` whose job came back already `failed`, and a `scans cancel`, `drifts dismiss` or `drifts reopen` you **declined at the prompt** — "the operator said no" must never be readable as "the mutation happened". `install` and `upgrade` reach 1 three ways of their own: `docker compose pull` or `up -d` exited non-zero, `/health` did not answer within `--wait`, or a file could not be written (a read-only directory, or a race with a second `tripl install`). The `events` and `plan` verbs reach 1 the ordinary way and only that way: each reads ONE resource of ONE project, so there is no partial answer to report beside a failure — a refused read is the client's message and exit 1, never an empty table at exit 0. **In none of those is anything rolled back** — for `install` the stack is started, and for a failed `up -d` the new pin is left in place on purpose. Declining the backup gate is also 1. **`doctor` should never exit 1** — it turns every API failure into a finding, so an exit 1 out of doctor is a bug report, not a diagnosis. `check` is the one command other than `doctor` that reaches 1 **by verdict**: at least one finding at error severity, or at warning severity with `--strict`. It also reaches 1 the ordinary way, when a validate request fails, and then it writes no document; with `--json` or `--format sarif`, a document on stdout means the run completed and the findings decided the code. |
+| **2** | Usage or configuration error: a bad flag, an out-of-range value, no URL, no API key, an unreadable config file. For `doctor` and `status` that is always resolved before any socket opens. `watch` adds two refusals it can only reach *after* reading the project and scan listings — `--scan` matching nothing, and more than 24 selected scan configs — so for it the resolution is two rounds of HTTP in, not zero. The `scans` and `drifts` verbs add: a bare group with no verb, a missing or repeated `--project` on a command that acts on one object, a `<scan>` selector matching nothing or matching two configs, a `--snooze-until` that is not RFC 3339, a `--limit` outside 1–200, a `--status` that is not one of the six, and **`scans cancel` / `drifts dismiss` / `drifts reopen` on a non-TTY without `--yes`**. `annotate` adds: a `--url` that is not an absolute `http`/`https` URL or is over 500 characters, an `--at` that is not RFC 3339, a blank or over-long `<label>`, and `--scope-type` without `--scope-ref` or the reverse. The read groups add: a missing or repeated `--project` (every one of their routes is per project), a `--branch` or `<event-type>` selector matching nothing or matching two, a `--status` or `--type` outside the API's own enum, an `--offset`/`--limit` outside the route's range, a `<query>` that is blank or over 500 characters, and `--branch` on `plan branches`, which has no such flag. `install` and `upgrade` add: an explicit `--url` or `--api-key`, an `--app-url` that is not a URL, a `--version`/`--to` that is not a valid image tag, a `--wait` outside 0–3600, a `--dir` that looks like a tripl source checkout, no `docker` on `PATH` / no Compose v2 plugin / a daemon that will not answer, a `--dir` with no stack in it, a refused **downgrade**, an unorderable tag pair without `--yes`, and any prompt met on a non-TTY without `--yes`. `check` adds: no check configuration, a check configuration that is not valid YAML or names an unknown key or preset, a call entry with no `function` / `pattern` / `objc_selector`, no project from either `--project` or the file, a `--payloads` file that is not JSON or NDJSON, and a `--branch` matching nothing. Either way **no JSON is emitted**, no write is ever sent, and no file is written. |
 | **3** | `doctor` only: at least one check failed — or, with `--strict`, at least one warned. No other command reaches 3, whatever it observes. |
 | **130** | Interrupted (`Ctrl-C`). For `doctor` and `status` that is an abandoned run. For `watch` **it is the normal ending**: a run without `--duration` has no other way to stop, so 130 out of `watch` means "you pressed Ctrl-C", not "something went wrong". A wrapper that treats non-zero as failure needs to know this before it pages somebody. |
 
@@ -2758,7 +2858,7 @@ assert on prose.**
 tool, so a consumer branches on `command` and never on a per-command version.
 The `command` values are `"doctor"`, `"status"`, `"watch"`, `"scans list"`,
 `"scans jobs"`, `"scans run"`, `"scans cancel"`, `"drifts list"`,
-`"drifts dismiss"`, `"install"` and `"upgrade"` — the invocation with its space,
+`"drifts dismiss"`, `"install"`, `"upgrade"` and `"check"` — the invocation with its space,
 so `command` and what you typed are the same string.
 
 Every document shares the same first six keys: `schema_version`, `tool`,
@@ -3543,6 +3643,88 @@ the `ChartAnnotationResponse`. Read `deduplicated` before you report "annotation
 created": a retried job gets `true`, and the `result` it holds is the earlier
 annotation.
 
+### `check` document
+
+One document per run, in either mode. `results` holds one row per call site
+(static mode) or captured event (payload mode), **the passing ones included**,
+so a consumer can count coverage as well as failures. `summary` counts the rows
+by status the way the exit code does.
+
+```json
+{
+  "schema_version": 1,
+  "tool": "tripl",
+  "tool_version": "0.1.0",
+  "command": "check",
+  "generated_at": "2026-09-27T09:12:51Z",
+  "duration_ms": 412,
+  "requests": 1,
+  "instance": {
+    "base_url": "https://tripl.example.com",
+    "base_url_source": "$TRIPL_BASE_URL",
+    "api_key_source": "$TRIPL_API_KEY",
+    "api_key_scope": "unknown"
+  },
+  "project": "shop",
+  "branch": null,
+  "mode": "static",
+  "strict": false,
+  "config": "/home/ci/shop/.tripl/check.yml",
+  "files_scanned": 58,
+  "summary": { "checked": 214, "ok": 211, "warnings": 1, "errors": 2, "dynamic": 0 },
+  "exit_code": 1,
+  "results": [
+    {
+      "status": "error",
+      "location": {
+        "path": "App/Checkout/PayButton.swift",
+        "line": 42,
+        "column": 9,
+        "end_line": 42,
+        "end_column": 87
+      },
+      "snippet": "Analytics.shared.log",
+      "event_type": "se",
+      "name": null,
+      "fields": { "category": "checkout", "action": "tap", "label": "pay_buton" },
+      "properties": null,
+      "complete": false,
+      "dynamic": [],
+      "event_id": null,
+      "identity": "checkout:tap:pay_buton",
+      "findings": [
+        { "code": "unknown_event", "severity": "error", "field": null,
+          "message": "The plan has no event of type 'se' 'checkout:tap:pay_buton'" }
+      ]
+    }
+  ]
+}
+```
+
+| Key | Meaning |
+|-----|---------|
+| `project` | The project slug checked against. |
+| `branch` | `{id, name}` when a branch was named (by `--branch` or the check configuration), `null` when it was not — the same rule as the [`events` and `plan` documents](#events-and-plan-documents). |
+| `mode` | `"static"` or `"payloads"`. |
+| `strict` | Whether `--strict` was given. |
+| `config` | The path of the check configuration that was read (as given to `--check-config`, or the absolute path of the one found), or `null` when none was (payload mode without a config file). |
+| `files_scanned` | How many source files the static scan read. `0` in payload mode. |
+| `summary` | `checked` (every row), and the rows by status: `ok`, `warnings`, `errors`, `dynamic`. |
+| `exit_code` | The process exit code: `1` when `errors` is non-zero, or with `strict` when `warnings` is; else `0`. |
+| `results[].status` | `ok`, `warning` or `error` (the worst finding's severity), or `dynamic`: nothing about the call was readable, so nothing was sent for it. With `--strict` a `dynamic` call, and an otherwise clean row with an `info` finding, becomes a `warning`. |
+| `results[].location` | `path`, `line`, `column`, `end_line`, `end_column`. In static mode, the call's span, with 1-based lines and columns and `path` relative to the scan root (the check configuration's `root`, by default the directory that holds `.tripl/`). In payload mode, `path` is the `--payloads` argument as typed, relative to the working directory the command ran in (`<stdin>` for `-`), `line` is the NDJSON line (or `1` for an event in a JSON array), and `column`, `end_line` and `end_column` are `null`. |
+| `results[].snippet` | Static mode: the callee or selector as matched, for example `Analytics.shared.log`. Payload mode: `event N` (the 1-based position) for an event in a JSON array, else `""`. |
+| `results[].event_type` / `name` | The plan event type name and the event name as read from the call or payload; either may be `null`. |
+| `results[].fields` | Field name to value, as sent for validation. A `null` value is dynamic, not missing. |
+| `results[].properties` | The literal property dictionary, or `null` when there was none. |
+| `results[].complete` | `true` for a payload (a whole event, so a missing required field is an error), `false` for a call site. |
+| `results[].dynamic` | The targets whose value was only known at runtime: `name` or field names. |
+| `results[].event_id` / `identity` | The plan event the item resolved to, and the identity it was matched by, with `${…}` holes for parts only known at runtime. `event_id` is `null` when nothing matched; both are `null` for a row that was never sent. |
+| `results[].findings[]` | `code`, `severity` (`error`, `warning` or `info`), `field` (the plan field concerned, or `null`) and a prose `message`. Select on `code`: the codes are the validator's plus the CLI's own `dynamic_value` (with `--strict`), `oversize_value` (a value over the validator's size limits, sent as `null`) and `no_verdict`. |
+
+With `--format sarif` stdout carries a SARIF 2.1.0 log instead, and none of the
+keys above: each finding is a result whose `ruleId` is its `code`.
+
 ### `install` document
 
 A completed first run. Note the two absent keys — no `requests`, no `instance`.
@@ -3793,6 +3975,10 @@ tripl plan branches --project prod --json \
 
 # Did the semantic index answer, or did you get substring matches?
 tripl plan search 'checkout funnel' --project prod --json | jq '.meta.semantic_used'
+
+# Every error tripl check found, as path:line code.
+tripl check --json \
+  | jq -r '.results[] | .location as $l | .findings[] | select(.severity=="error") | "\($l.path):\($l.line) \(.code)"'
 ```
 
 ## See also
@@ -3813,5 +3999,7 @@ tripl plan search 'checkout funnel' --project prod --json | jq '.meta.semantic_u
   spelling of `tripl scans`.
 - [Agent API guide](../integrate/agent-api-guide.md) — the REST surface both
   clients speak.
+- [Check code against the plan](../integrate/tripl-check.md) — the
+  configuration file, presets and CI workflow behind [`tripl check`](#tripl-check).
 - [API keys & governance](../administer/admin-guide.md#api-keys--governance) —
   scopes, project binding, expiry.

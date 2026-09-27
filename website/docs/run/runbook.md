@@ -502,7 +502,7 @@ a side effect of `alembic upgrade head`. With embeddings disabled (the default)
 a rebuild is free apart from the CPU it takes.
 
 Verify by searching for an entity whose name contains an underscore, using a
-space instead (`screen spot` for `screen_spot`): the entity itself should come
+space instead (`screen home` for `screen_home`): the entity itself should come
 back first rather than the variables that merely mention it.
 
 ### The surface-form release: check BEFORE you deploy, no rebuild after

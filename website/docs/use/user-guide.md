@@ -21,7 +21,7 @@ The four steps build on each other:
 | Step | What you do there |
 | --- | --- |
 | **Plan** | Describe the events, fields, and value lists your product should send. |
-| **Observe** | Watch the real numbers your warehouse reports and spot anomalies. |
+| **Observe** | Watch the real numbers your warehouse reports and catch anomalies. |
 | **Govern** | Keep the plan honest against reality, and control who can change what. |
 | **Connect** | Point tripl at the warehouse it reads from. |
 

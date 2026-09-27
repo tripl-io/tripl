@@ -104,7 +104,7 @@ one per breakdown combination — and they collapse onto that one field.
 The rule is **the busiest row wins**. Rows are applied in ascending order of
 volume, so the highest-count row for an identity is written last and its value
 is the one stored. A rare row cannot overwrite the common case: an event seen
-12,000 times on `spot` and three times on `purchase/main` keeps `spot`.
+12,000 times on `home` and three times on `purchase/main` keeps `home`.
 
 Nothing is merged, and nothing warns you in the plan itself — so when a field
 did see more than one value, the **scan report says so**, naming the field and

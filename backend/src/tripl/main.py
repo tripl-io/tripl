@@ -82,6 +82,10 @@ _OPENAPI_TAGS = [
         "description": "What depends on a plan entity, and what a planned change affects.",
     },
     {"name": "plan-revisions", "description": "Committed plan revisions and history."},
+    {
+        "name": "plan-validation",
+        "description": "Check tracking calls or captured payloads against the plan (tripl check).",
+    },
     {"name": "chart-annotations", "description": "Annotations overlaid on metric charts."},
     {"name": "anomaly-settings", "description": "Per-project anomaly detection settings."},
     {"name": "alerting", "description": "Alert rules and delivery destinations."},
