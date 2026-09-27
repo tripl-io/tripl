@@ -36,6 +36,17 @@ vi.mock('@/api/events', () => ({
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+// Duplicate detection (F12, #265) asks the catalog as the name is typed. No
+// matches by default, so every other test stays on the quiet path.
+vi.mock('@/api/duplicates', () => ({
+  MAX_DUPLICATE_CANDIDATES: 500,
+  duplicatesApi: {
+    check: vi.fn().mockResolvedValue({ items: [], threshold: 0.88 }),
+    clusters: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}))
+
 vi.mock('@/api/users', () => ({
   usersApi: { list: vi.fn().mockResolvedValue([]) },
 }))

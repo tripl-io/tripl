@@ -1677,6 +1677,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Duplicate Clusters
+         * @description Clusters of existing events that look like one event spelled several ways.
+         */
+        get: operations["list_duplicate_clusters_api_v1_projects__slug__duplicates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/duplicates/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Duplicate Pair
+         * @description Mark two events as not duplicates; the pair is never clustered again.
+         */
+        post: operations["dismiss_duplicate_pair_api_v1_projects__slug__duplicates_dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/event-type-owners": {
         parameters: {
             query?: never;
@@ -1987,6 +2027,28 @@ export interface paths {
         get: operations["lookup_events_by_names_api_v1_projects__slug__events_by_names_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/events/duplicate-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Duplicate Check
+         * @description Likely duplicates and naming-convention lint for would-be events.
+         *
+         *     Up to 500 candidates, answered in order. Changes nothing.
+         */
+        post: operations["duplicate_check_api_v1_projects__slug__events_duplicate_check_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6881,6 +6943,153 @@ export interface components {
             /** Schema Drifts */
             schema_drifts: number;
         };
+        /** DuplicateCandidateIn */
+        DuplicateCandidateIn: {
+            /** Description */
+            description?: string | null;
+            /** Event Id */
+            event_id?: string | null;
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /** Field Values */
+            field_values?: components["schemas"]["EventFieldValueIn"][];
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+        };
+        /** DuplicateCheckRequest */
+        DuplicateCheckRequest: {
+            /** Candidates */
+            candidates: components["schemas"]["DuplicateCandidateIn"][];
+        };
+        /** DuplicateCheckResponse */
+        DuplicateCheckResponse: {
+            /** Items */
+            items: components["schemas"]["DuplicateCheckResult"][];
+            /**
+             * Semantic Used
+             * @default false
+             */
+            semantic_used: boolean;
+            /** Threshold */
+            threshold: number;
+        };
+        /** DuplicateCheckResult */
+        DuplicateCheckResult: {
+            convention?: components["schemas"]["NamingConventionOut"] | null;
+            /** Duplicates */
+            duplicates?: components["schemas"]["DuplicateHit"][];
+            /** Lint */
+            lint?: components["schemas"]["NameLintIssue"][];
+            /**
+             * Lint Applicable
+             * @default true
+             */
+            lint_applicable: boolean;
+            /** Name */
+            name: string;
+            /** Suggestion */
+            suggestion?: string | null;
+        };
+        /** DuplicateCluster */
+        DuplicateCluster: {
+            /** Events */
+            events: components["schemas"]["DuplicateClusterEvent"][];
+            /** Score */
+            score: number;
+        };
+        /** DuplicateClusterEvent */
+        DuplicateClusterEvent: {
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Status */
+            status: string;
+            /**
+             * Volume 7D
+             * @default 0
+             */
+            volume_7d: number;
+        };
+        /** DuplicateClusterPage */
+        DuplicateClusterPage: {
+            /** Items */
+            items: components["schemas"]["DuplicateCluster"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Threshold */
+            threshold: number;
+            /** Total */
+            total: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /** DuplicateDismissRequest */
+        DuplicateDismissRequest: {
+            /**
+             * Event A Id
+             * Format: uuid
+             */
+            event_a_id: string;
+            /**
+             * Event B Id
+             * Format: uuid
+             */
+            event_b_id: string;
+        };
+        /** DuplicateDismissResponse */
+        DuplicateDismissResponse: {
+            /** Created */
+            created: boolean;
+            /**
+             * Event A Id
+             * Format: uuid
+             */
+            event_a_id: string;
+            /**
+             * Event B Id
+             * Format: uuid
+             */
+            event_b_id: string;
+        };
+        /** DuplicateHit */
+        DuplicateHit: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /** Name */
+            name: string;
+            /** Reasons */
+            reasons?: string[];
+            /** Score */
+            score: number;
+            /** Status */
+            status: string;
+        };
         /** EmailSettings */
         EmailSettings: {
             /** Smtp From Address */
@@ -9888,6 +10097,41 @@ export interface components {
             /** Warning Count */
             warning_count: number;
         };
+        /** NameLintIssue */
+        NameLintIssue: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "case" | "separator" | "verb_order" | "prefix";
+            /** Message */
+            message: string;
+            /** Suggestion */
+            suggestion: string;
+        };
+        /** NamingConventionOut */
+        NamingConventionOut: {
+            /**
+             * Case
+             * @enum {string}
+             */
+            case: "snake" | "camel" | "pascal" | "kebab" | "space" | "mixed";
+            /** Confidence */
+            confidence: number;
+            /** Prefix */
+            prefix?: string | null;
+            /** Sample Size */
+            sample_size: number;
+            /** Separator */
+            separator?: string | null;
+            /** Space Style */
+            space_style?: ("title" | "lower" | "sentence") | null;
+            /**
+             * Verb Position
+             * @enum {string}
+             */
+            verb_position: "first" | "last" | "unknown";
+        };
         /** NotificationActor */
         NotificationActor: {
             /** Email */
@@ -11707,6 +11951,20 @@ export interface components {
             /** Time Column */
             time_column?: string | null;
         };
+        /** ScanDryRunDuplicateOf */
+        ScanDryRunDuplicateOf: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Name */
+            name: string;
+            /** Score */
+            score: number;
+            /** Status */
+            status: string;
+        };
         /**
          * ScanDryRunEvent
          * @description One event the config would produce, and how much of the sample it is.
@@ -11792,6 +12050,41 @@ export interface components {
             updated_at: string;
         };
         /**
+         * ScanDryRunNameWarning
+         * @description A problem with the NAMES a run would create (GH #265).
+         *
+         *     ``combinatorial_explosion``: more than 50 new names under one event type
+         *     differ only in one slot (``slot`` / ``slot_label``; ``pattern`` shows the
+         *     fixed parts with ``*``), i.e. a high-cardinality value is part of the name.
+         *     ``duplicate``: the new event ``name`` looks like ``duplicate_of`` already in
+         *     the plan. Best-effort; an empty list never means "checked and clean" when
+         *     the check could not run.
+         */
+        ScanDryRunNameWarning: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "combinatorial_explosion" | "duplicate";
+            /** Count */
+            count?: number | null;
+            duplicate_of?: components["schemas"]["ScanDryRunDuplicateOf"] | null;
+            /** Event Type */
+            event_type: string;
+            /** Message */
+            message: string;
+            /** Name */
+            name?: string | null;
+            /** Pattern */
+            pattern?: string | null;
+            /** Samples */
+            samples?: string[];
+            /** Slot */
+            slot?: number | null;
+            /** Slot Label */
+            slot_label?: string | null;
+        };
+        /**
          * ScanDryRunRequest
          * @description Inputs for "what would this scan create?".
          *
@@ -11874,6 +12167,8 @@ export interface components {
              * @default false
              */
             max_events_reached: boolean;
+            /** Name Warnings */
+            name_warnings?: components["schemas"]["ScanDryRunNameWarning"][];
             /** Reserved Columns */
             reserved_columns?: string[];
             /**
@@ -17090,6 +17385,76 @@ export interface operations {
             };
         };
     };
+    list_duplicate_clusters_api_v1_projects__slug__duplicates_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateClusterPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_duplicate_pair_api_v1_projects__slug__duplicates_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DuplicateDismissRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateDismissResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_project_owners_api_v1_projects__slug__event_type_owners_get: {
         parameters: {
             query?: never;
@@ -17985,6 +18350,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventIdentityHoldersResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    duplicate_check_api_v1_projects__slug__events_duplicate_check_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DuplicateCheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateCheckResponse"];
                 };
             };
             /** @description Validation Error */

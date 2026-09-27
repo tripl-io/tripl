@@ -541,6 +541,46 @@ total — do not compute one. `errors` carries event-name-format failures verbat
 and does **not** fail the job; a non-empty `errors` means the config would fail
 every real run.
 
+The response also carries `name_warnings`, from the
+[duplicate check](#duplicates-and-naming) over the events the run would add.
+It is scored lexically only:
+
+```json
+"name_warnings": [
+  {
+    "code": "combinatorial_explosion",
+    "event_type": "Promo",
+    "message": "80 new names under 'Promo' differ only in {offer} (…)",
+    "count": 80,
+    "slot": 1,
+    "slot_label": "{offer}",
+    "pattern": "promo_banner_click:*",
+    "samples": ["promo_banner_click:offer_001", "promo_banner_click:offer_002"]
+  },
+  {
+    "code": "duplicate",
+    "event_type": "Purchase",
+    "name": "Purchase Complete",
+    "message": "New event 'Purchase Complete' looks like 'Purchase Completed' (…)",
+    "duplicate_of": { "event_id": "5a1f…", "name": "Purchase Completed",
+                      "score": 0.9189, "status": "live" }
+  }
+]
+```
+
+- `combinatorial_explosion` is raised only when the scan has a name rule: more
+  than 50 new names under one event type are the same except in one slot, and
+  that slot's distinct values (`count`) are still at or below the scan's
+  `cardinality_threshold`. Above the threshold the column already becomes a
+  `${...}` template. `pattern` shows the fixed slots with `*`; `samples` holds
+  up to five names.
+- `duplicate` is raised for a new name that looks like an event of the same
+  event type already on main (`duplicate_of`, the best match). At most 200 new
+  names are checked per run.
+
+Both are best-effort: when the check cannot run the list is empty, and the job
+still completes.
+
 Both routes are **owner-only** and session-only (an API key cannot reach them),
 because the draft's `base_query` is free-text SQL run against a stored warehouse
 credential. This is the same gate `/scans/preview` carries.
@@ -1073,6 +1113,193 @@ field's type, an event's breakdown columns) without being renamed, deprecated or
 archived. A rename appears once, paired the way the diff's `renames` list pairs
 it; additions are left out. This is what the branch's **Impact** panel shows;
 an agent reviewing a branch can read it before approving.
+
+## Duplicates and naming {#duplicates-and-naming}
+
+Before an agent creates events, it can ask whether they already exist under a
+near name and whether the names follow the project's convention. No language
+model is involved. In short:
+
+- A **lexical score** in 0..1 over normalised tokens: the higher of token
+  Jaccard and character-trigram Dice, raised to 0.95 when one name only adds
+  filler words (`screen`, `page`, `button`, ...), capped at 0.75 when the same
+  words appear in another order (unless only an action verb moved), and capped
+  at 0.5 when each name has a number the other lacks.
+- Under an event type's naming rule, two names of that type are scored **slot
+  by slot** and take the weakest slot's score. Every literal between two
+  placeholders of the rule is a separator.
+- When the deployment has `SEARCH_EMBEDDINGS_ENABLED` and vectors exist, the
+  combined score is `max(lexical, 0.5 × lexical + 0.5 × cosine)`. A pair needs
+  a lexical score of at least 0.76 before an embedding is considered, and a
+  slot-by-slot pair must reach the threshold lexically. Otherwise the score is
+  the lexical score.
+- A pair is a likely duplicate at **0.88** or above.
+
+See [Duplicates & naming](../use/duplicates-and-naming.md) for the full rules,
+convention inference and the lint codes.
+
+All three routes follow the project's membership, and plan reads resolve on the
+branch named by the usual `branch` query parameter, or on main without one.
+
+**Check candidates** (any member, viewers and `read` API keys included):
+
+```http
+POST /api/v1/projects/{slug}/events/duplicate-check
+```
+
+```json
+{
+  "candidates": [
+    {
+      "name": "paywall_screen_view",
+      "event_type_id": "91c0…",
+      "description": "Paywall shown",
+      "field_values": [
+        { "field_definition_id": "c4e8…", "value": "onboarding" }
+      ]
+    }
+  ]
+}
+```
+
+It is a `POST` only because the list can be long (1 to **500** candidates); it
+writes nothing, and it is allowlisted as a read in the role checks and the
+mutation audit. `event_type_id` is required. `description` and `field_values`
+are optional. Under a naming rule, `name` may be empty and the name is rendered
+from `field_values`. Send `event_id` when checking an event that already exists,
+so it is not reported as its own duplicate.
+
+The answer has one item per candidate, in the order sent:
+
+```json
+{
+  "items": [
+    {
+      "name": "paywall_screen_view",
+      "duplicates": [
+        {
+          "event_id": "5a1f…",
+          "name": "paywall_view",
+          "event_type_id": "91c0…",
+          "status": "live",
+          "score": 0.95,
+          "reasons": ["similar name", "same event type", "1 shared field value"]
+        }
+      ],
+      "lint": [],
+      "suggestion": null,
+      "lint_applicable": true,
+      "convention": {
+        "case": "snake",
+        "space_style": null,
+        "separator": null,
+        "verb_position": "last",
+        "prefix": null,
+        "confidence": 0.97,
+        "sample_size": 184
+      }
+    }
+  ],
+  "threshold": 0.88,
+  "semantic_used": false
+}
+```
+
+- `name` is the name that was checked: the candidate's own, or the one its
+  naming rule rendered.
+- `duplicates` holds at most three matches at or above `threshold`. Neighbours
+  are the branch's non-archived events of every type; matches of the
+  candidate's own event type come first, then the others, each by score.
+  `reasons` uses these strings: `same name`, `similar name` (the lexical score
+  alone reaches the threshold), `semantic match` (cosine 0.85 or more),
+  `same event type` or `different event type`, and `N shared field value` /
+  `N shared field values`.
+- `lint` is one entry per departure from the inferred convention, each
+  `{ "code", "message", "suggestion" }`; `code` is `case`, `separator`,
+  `verb_order` or `prefix`.
+- `suggestion` is one name that fixes every lint entry at once, or `null`.
+- `lint_applicable` is `false` for an event type with a naming rule: the rule
+  decides the spelling, so `lint` is empty and `convention` is `null`.
+  `convention` is the inferred convention (with the type's prefix) otherwise.
+- `semantic_used` is `true` when embedding cosines took part in the scores.
+  Candidates are embedded only for requests of up to 50 candidates.
+
+Treat the answer as advice. The create routes do not consult it, and a warned
+candidate still creates; the existing `409` for a taken scan identity is
+unchanged.
+
+**List duplicate clusters** (any member):
+
+```http
+GET /api/v1/projects/{slug}/duplicates?cursor=<cursor>
+```
+
+Groups the branch's `live`, `implemented` and `ready_for_dev` events into
+clusters. Only events of the same event type are compared; pairs at or above
+the threshold are joined transitively, and dismissed pairs never link. The
+clusters come 25 per page, strongest first; pass `next_cursor` back as `cursor`
+for the next page.
+
+```json
+{
+  "items": [
+    {
+      "events": [
+        { "id": "5a1f…", "name": "paywall_view", "status": "live",
+          "event_type_id": "91c0…", "volume_7d": 18230 },
+        { "id": "77b2…", "name": "paywall_screen_view", "status": "live",
+          "event_type_id": "91c0…", "volume_7d": 412 }
+      ],
+      "score": 0.95
+    }
+  ],
+  "next_cursor": "25",
+  "total": 31,
+  "threshold": 0.88,
+  "truncated": false
+}
+```
+
+A cluster's `score` is its strongest pair, and at most 20 of its events are
+listed. `total` counts the clusters on all pages. `truncated` is `true` when the
+answer is partial: the branch has more than 5,000 such events, or scoring
+stopped at 200,000 pairs. A malformed cursor answers `422`.
+
+**Dismiss a pair** (editor):
+
+```http
+POST /api/v1/projects/{slug}/duplicates/dismiss
+```
+
+```json
+{ "event_a_id": "5a1f…", "event_b_id": "77b2…" }
+```
+
+```json
+{ "event_a_id": "5a1f…", "event_b_id": "77b2…", "created": true }
+```
+
+The pair is stored once per project, against the main events that branch
+copies came from, so it holds on every branch. Either order of the two ids
+dismisses the same pair, and the response gives the stored pair in its fixed
+order. Sending it again answers `created: false`. The two ids must differ (`422`)
+and both must be events of the project (`404`). The dismissal is recorded in
+the audit log as `event.duplicate_dismiss`.
+
+**Merging is not a route.** To merge a duplicate into the event you keep, patch
+the one you retire through the existing event update:
+
+```http
+PATCH /api/v1/projects/{slug}/events/{event_id}?branch=<branch_id>
+```
+
+```json
+{ "status": "deprecated", "superseded_by_event_id": "5a1f…" }
+```
+
+It is an ordinary plan edit: branch rules apply, nothing is re-pointed and no
+volume moves. Check [dependencies](#dependencies-and-impact) first, and see
+[Event lifecycle](#event-lifecycle) for how the retirement is then watched.
 
 ## Event lifecycle {#event-lifecycle}
 

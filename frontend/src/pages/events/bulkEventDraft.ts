@@ -201,3 +201,20 @@ export function bulkUnsupportedReason(options: {
   }
   return null
 }
+
+/**
+ * The paste with one line's name swapped for `name` — "Use suggested name" on
+ * the bulk preview (F12, #265). Only for a type without a naming rule, where
+ * the name is the line's first cell: the part before the first tab, or the
+ * whole line when it has none. Anything after the tab (the title) is kept.
+ * `line` is 1-based, as {@link BulkRow.line}; an out-of-range line changes
+ * nothing.
+ */
+export function replaceBulkLineName(text: string, line: number, name: string): string {
+  const lines = text.split('\n')
+  const target = lines[line - 1]
+  if (target === undefined) return text
+  const tab = target.indexOf('\t')
+  lines[line - 1] = tab === -1 ? name : `${name}${target.slice(tab)}`
+  return lines.join('\n')
+}

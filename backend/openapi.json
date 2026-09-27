@@ -7109,6 +7109,340 @@
         "title": "DriftResetCounts",
         "type": "object"
       },
+      "DuplicateCandidateIn": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 10000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "event_type_id": {
+            "format": "uuid",
+            "title": "Event Type Id",
+            "type": "string"
+          },
+          "field_values": {
+            "items": {
+              "$ref": "#/components/schemas/EventFieldValueIn"
+            },
+            "maxItems": 500,
+            "title": "Field Values",
+            "type": "array"
+          },
+          "name": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_type_id"
+        ],
+        "title": "DuplicateCandidateIn",
+        "type": "object"
+      },
+      "DuplicateCheckRequest": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCandidateIn"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Candidates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "candidates"
+        ],
+        "title": "DuplicateCheckRequest",
+        "type": "object"
+      },
+      "DuplicateCheckResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCheckResult"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "semantic_used": {
+            "default": false,
+            "title": "Semantic Used",
+            "type": "boolean"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "items",
+          "threshold"
+        ],
+        "title": "DuplicateCheckResponse",
+        "type": "object"
+      },
+      "DuplicateCheckResult": {
+        "properties": {
+          "convention": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NamingConventionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duplicates": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateHit"
+            },
+            "title": "Duplicates",
+            "type": "array"
+          },
+          "lint": {
+            "items": {
+              "$ref": "#/components/schemas/NameLintIssue"
+            },
+            "title": "Lint",
+            "type": "array"
+          },
+          "lint_applicable": {
+            "default": true,
+            "title": "Lint Applicable",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DuplicateCheckResult",
+        "type": "object"
+      },
+      "DuplicateCluster": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateClusterEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "events",
+          "score"
+        ],
+        "title": "DuplicateCluster",
+        "type": "object"
+      },
+      "DuplicateClusterEvent": {
+        "properties": {
+          "event_type_id": {
+            "format": "uuid",
+            "title": "Event Type Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "volume_7d": {
+            "default": 0,
+            "title": "Volume 7D",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "status",
+          "event_type_id"
+        ],
+        "title": "DuplicateClusterEvent",
+        "type": "object"
+      },
+      "DuplicateClusterPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCluster"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "threshold"
+        ],
+        "title": "DuplicateClusterPage",
+        "type": "object"
+      },
+      "DuplicateDismissRequest": {
+        "properties": {
+          "event_a_id": {
+            "format": "uuid",
+            "title": "Event A Id",
+            "type": "string"
+          },
+          "event_b_id": {
+            "format": "uuid",
+            "title": "Event B Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_a_id",
+          "event_b_id"
+        ],
+        "title": "DuplicateDismissRequest",
+        "type": "object"
+      },
+      "DuplicateDismissResponse": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "event_a_id": {
+            "format": "uuid",
+            "title": "Event A Id",
+            "type": "string"
+          },
+          "event_b_id": {
+            "format": "uuid",
+            "title": "Event B Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_a_id",
+          "event_b_id",
+          "created"
+        ],
+        "title": "DuplicateDismissResponse",
+        "type": "object"
+      },
+      "DuplicateHit": {
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_type_id": {
+            "format": "uuid",
+            "title": "Event Type Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "name",
+          "event_type_id",
+          "status",
+          "score"
+        ],
+        "title": "DuplicateHit",
+        "type": "object"
+      },
       "EmailSettings": {
         "properties": {
           "smtp_from_address": {
@@ -15240,6 +15574,114 @@
         "title": "MonitorsSummaryResponse",
         "type": "object"
       },
+      "NameLintIssue": {
+        "properties": {
+          "code": {
+            "enum": [
+              "case",
+              "separator",
+              "verb_order",
+              "prefix"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "suggestion": {
+            "title": "Suggestion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "suggestion"
+        ],
+        "title": "NameLintIssue",
+        "type": "object"
+      },
+      "NamingConventionOut": {
+        "properties": {
+          "case": {
+            "enum": [
+              "snake",
+              "camel",
+              "pascal",
+              "kebab",
+              "space",
+              "mixed"
+            ],
+            "title": "Case",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prefix"
+          },
+          "sample_size": {
+            "title": "Sample Size",
+            "type": "integer"
+          },
+          "separator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Separator"
+          },
+          "space_style": {
+            "anyOf": [
+              {
+                "enum": [
+                  "title",
+                  "lower",
+                  "sentence"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Style"
+          },
+          "verb_position": {
+            "enum": [
+              "first",
+              "last",
+              "unknown"
+            ],
+            "title": "Verb Position",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case",
+          "verb_position",
+          "confidence",
+          "sample_size"
+        ],
+        "title": "NamingConventionOut",
+        "type": "object"
+      },
       "NotificationActor": {
         "properties": {
           "email": {
@@ -20011,6 +20453,35 @@
         "title": "ScanConfigUpdate",
         "type": "object"
       },
+      "ScanDryRunDuplicateOf": {
+        "properties": {
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "name",
+          "score",
+          "status"
+        ],
+        "title": "ScanDryRunDuplicateOf",
+        "type": "object"
+      },
       "ScanDryRunEvent": {
         "description": "One event the config would produce, and how much of the sample it is.\n\nAn event is identified by ``(event_type, source_name)``, not by the name\nalone: a run writes one Event per event type, so a grouped scan whose name\nformat collapses to the same string under two event types creates two\nEvents. Listing them as one would undercount the answer this panel exists to\ngive.",
         "properties": {
@@ -20188,6 +20659,106 @@
           "updated_at"
         ],
         "title": "ScanDryRunJobResponse",
+        "type": "object"
+      },
+      "ScanDryRunNameWarning": {
+        "description": "A problem with the NAMES a run would create (GH #265).\n\n``combinatorial_explosion``: more than 50 new names under one event type\ndiffer only in one slot (``slot`` / ``slot_label``; ``pattern`` shows the\nfixed parts with ``*``), i.e. a high-cardinality value is part of the name.\n``duplicate``: the new event ``name`` looks like ``duplicate_of`` already in\nthe plan. Best-effort; an empty list never means \"checked and clean\" when\nthe check could not run.",
+        "properties": {
+          "code": {
+            "enum": [
+              "combinatorial_explosion",
+              "duplicate"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScanDryRunDuplicateOf"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern"
+          },
+          "samples": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Samples",
+            "type": "array"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot"
+          },
+          "slot_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Label"
+          }
+        },
+        "required": [
+          "code",
+          "event_type",
+          "message"
+        ],
+        "title": "ScanDryRunNameWarning",
         "type": "object"
       },
       "ScanDryRunRequest": {
@@ -20382,6 +20953,13 @@
             "default": false,
             "title": "Max Events Reached",
             "type": "boolean"
+          },
+          "name_warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ScanDryRunNameWarning"
+            },
+            "title": "Name Warnings",
+            "type": "array"
           },
           "reserved_columns": {
             "items": {
@@ -30663,6 +31241,136 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/duplicates": {
+      "get": {
+        "description": "Clusters of existing events that look like one event spelled several ways.",
+        "operationId": "list_duplicate_clusters_api_v1_projects__slug__duplicates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateClusterPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Duplicate Clusters",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/duplicates/dismiss": {
+      "post": {
+        "description": "Mark two events as not duplicates; the pair is never clustered again.",
+        "operationId": "dismiss_duplicate_pair_api_v1_projects__slug__duplicates_dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateDismissRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateDismissResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Duplicate Pair",
+        "tags": [
+          "duplicates"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/event-type-owners": {
       "get": {
         "description": "Owners of every live event type in the project; group by ``event_type_id``.",
@@ -32665,6 +33373,77 @@
         "summary": "Lookup Events By Names",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/events/duplicate-check": {
+      "post": {
+        "description": "Likely duplicates and naming-convention lint for would-be events.\n\nUp to 500 candidates, answered in order. Changes nothing.",
+        "operationId": "duplicate_check_api_v1_projects__slug__events_duplicate_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Duplicate Check",
+        "tags": [
+          "duplicates"
         ]
       }
     },

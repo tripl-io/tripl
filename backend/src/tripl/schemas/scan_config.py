@@ -590,6 +590,36 @@ class ScanDryRunTemplatedColumn(BaseModel):
     threshold: int
 
 
+class ScanDryRunDuplicateOf(BaseModel):
+    event_id: uuid.UUID
+    name: str
+    score: float
+    status: str
+
+
+class ScanDryRunNameWarning(BaseModel):
+    """A problem with the NAMES a run would create (GH #265).
+
+    ``combinatorial_explosion``: more than 50 new names under one event type
+    differ only in one slot (``slot`` / ``slot_label``; ``pattern`` shows the
+    fixed parts with ``*``), i.e. a high-cardinality value is part of the name.
+    ``duplicate``: the new event ``name`` looks like ``duplicate_of`` already in
+    the plan. Best-effort; an empty list never means "checked and clean" when
+    the check could not run.
+    """
+
+    code: Literal["combinatorial_explosion", "duplicate"]
+    event_type: str
+    message: str
+    count: int | None = None
+    slot: int | None = None
+    slot_label: str | None = None
+    pattern: str | None = None
+    samples: list[str] = Field(default_factory=list)
+    name: str | None = None
+    duplicate_of: ScanDryRunDuplicateOf | None = None
+
+
 class ScanDryRunResponse(BaseModel):
     """What a scan would create, bounded by three separate partialities.
 
@@ -624,6 +654,7 @@ class ScanDryRunResponse(BaseModel):
     # unknown-key format in a dry-run, instead of after 200 failed production
     # runs, is the single highest-value thing this endpoint does (tripl-lpin).
     errors: list[str] = Field(default_factory=list)
+    name_warnings: list[ScanDryRunNameWarning] = Field(default_factory=list)
 
 
 class ScanDryRunJobResponse(BaseModel):

@@ -305,6 +305,7 @@ describe('resolveNavLocation', () => {
     ['/p/demo/anomalies', 'Observe', 'Anomalies'],
     ['/p/demo/alerting', 'Observe', 'Alerting'],
     ['/p/demo/reconciliation', 'Govern', 'Reconciliation'],
+    ['/p/demo/duplicates', 'Govern', 'Duplicates'],
     ['/p/demo/coverage', 'Govern', 'Coverage'],
     ['/p/demo/scans', 'Govern', 'Scans'],
     ['/p/demo/scans/scan-1', 'Govern', 'Scans'],

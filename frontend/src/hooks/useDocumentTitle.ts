@@ -67,6 +67,7 @@ const PROJECT_SURFACE_LABELS: Record<string, string> = {
   alerting: 'Alerting',
   audit: 'Audit log',
   reconciliation: 'Reconciliation',
+  duplicates: 'Duplicates',
   coverage: 'Coverage',
   metrics: 'Metrics',
   'fact-tables': 'Fact tables',

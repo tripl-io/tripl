@@ -115,6 +115,17 @@ DELIBERATELY_DROPPED: dict[tuple[str, str], str] = {
         "Cosmetic resolution-audit pointer ('a human triaged this ghost identity into that "
         "event'), read only by the reconciliation list response; nothing operational consumes it."
     ),
+    ("duplicate_dismissals", "event_a_id"): (
+        "A 'not a duplicate' judgement about exactly one PAIR (GH #265). MERGE: the FK is "
+        "ondelete CASCADE and the row dies with the source — the pair it described no longer "
+        "exists, and the survivor is a different event whose resemblance to the other side "
+        "nobody has judged, so carrying the dismissal would hide a comparison no one made. "
+        "DELETE: same CASCADE, nothing to clean up by hand."
+    ),
+    ("duplicate_dismissals", "event_b_id"): (
+        "The other half of the ordered pair; same policy as duplicate_dismissals.event_a_id. "
+        "MERGE and DELETE both go by the ondelete CASCADE."
+    ),
 }
 
 # Known defects, parked here so the ledger stays complete without pretending

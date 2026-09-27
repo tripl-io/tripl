@@ -12,7 +12,10 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import type {
+  DuplicateCandidate,
+  DuplicateMatch,
   Event as TEvent,
   EventMutationResponse,
   EventType,
@@ -36,6 +39,9 @@ import { EVENT_STATUS_LABELS, EVENT_STATUSES } from '@/lib/eventStatus'
 import type { EventStatus } from '@/lib/eventStatus'
 import { ErrorState } from '@/components/error-state'
 import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
+import { DuplicateHints, DuplicateLiveRegion } from '@/components/duplicates/DuplicateHints'
+import { visibleDuplicates } from '@/components/duplicates/duplicateHints'
+import { useDuplicateCheck } from '@/components/duplicates/useDuplicateCheck'
 import { validateJsonWithVars } from './jsonTemplate'
 import { applyEventNameFormat, nameFormatBaseColumns } from './utils'
 import { EvField, EvInput, EvTextarea, SelectControl, SurfCard } from './eventFormLayout'
@@ -74,6 +80,7 @@ import { SuccessorPicker } from './SuccessorPicker'
 import { FieldValuesCard, MetaFieldsCard, TagsBreakdownsCard } from './EventFormCards'
 
 const NO_CREATED: CreatedIdentity[] = []
+const NO_DUPLICATE_CANDIDATES: DuplicateCandidate[] = []
 
 export function EventForm({
   slug,
@@ -426,7 +433,72 @@ export function EventForm({
     () => inferNameConvention((nameSampleQuery.data?.items ?? []).map(item => item.name)),
     [nameSampleQuery.data],
   )
-  const offConvention = !generatedName && isNew && !namesake && breaksNameConvention(name, nameConvention)
+
+  // Near-duplicates and the project's naming convention, asked of the server
+  // while the name and the values are typed (F12, #265). Advisory: nothing
+  // here blocks Save. Only for a new event — an existing one already is the
+  // catalog entry the check would compare against.
+  const duplicateCandidates = useMemo((): DuplicateCandidate[] => {
+    if (!isNew || !etId) return NO_DUPLICATE_CANDIDATES
+    const candidateName = generatedName ? completedName ?? '' : name.trim()
+    if (!candidateName) return NO_DUPLICATE_CANDIDATES
+    const trimmedDescription = description.trim()
+    return [{
+      name: candidateName,
+      event_type_id: etId,
+      ...(trimmedDescription ? { description: trimmedDescription } : {}),
+      field_values: Object.entries(fieldValues)
+        .filter(([, value]) => value !== '')
+        .map(([fieldId, value]) => ({ field_definition_id: fieldId, value })),
+    }]
+  }, [isNew, etId, generatedName, completedName, name, description, fieldValues])
+  const duplicateCheck = useDuplicateCheck({
+    slug,
+    branchId,
+    candidates: duplicateCandidates,
+    enabled: isNew && editable,
+  })
+  const duplicateResult = duplicateCheck.results?.[0]
+  // The exact namesake has its own line above, and an event this form has just
+  // created is not a duplicate the author needs pointing at.
+  const duplicateExclude = useMemo(() => {
+    const ids = new Set(createdHere.map(item => item.id))
+    if (identityTaken) ids.add(identityTaken.id)
+    return ids
+  }, [createdHere, identityTaken])
+  // "Mark as replacement": `EventCreate` takes no successor (a new event has
+  // no predecessor to name), so the marked event is retired AFTER the create —
+  // deprecated, with the new event as its successor, through the ordinary
+  // update. The same two fields the Duplicates page's merge sets.
+  // Remembers the type it was marked under: a match belongs to one answer
+  // about one would-be event, and the form describing another type is not it.
+  const [replaces, setReplaces] = useState<
+    (Pick<DuplicateMatch, 'event_id' | 'name'> & { eventTypeId: string }) | null
+  >(null)
+  // Adjust-during-render with an equality guard (the idiom used for
+  // `justCreated` below): the mark is dropped the moment the event type
+  // changes, or once the latest answer — not one still in flight, which is
+  // `undefined` — no longer lists the marked event. Otherwise a save would
+  // deprecate an event nothing on screen still points at.
+  if (
+    replaces !== null
+    && (replaces.eventTypeId !== etId
+      || (duplicateResult !== undefined
+        && !duplicateResult.duplicates.some(match => match.event_id === replaces.event_id)))
+  ) {
+    setReplaces(null)
+  }
+  const replacesImpact = useMemo(
+    (): ImpactChange[] => (replaces ? [{ kind: 'event', id: replaces.event_id, change: 'deprecate' }] : []),
+    [replaces],
+  )
+  // How many matches the hints list, for the form's one live region.
+  const duplicateMatchCount = visibleDuplicates(duplicateResult, duplicateExclude).length
+  // The server's lint supersedes the sample-based pointer below once it has
+  // something to say, so the same advice is not given twice.
+  const serverLintShown = (duplicateResult?.lint.length ?? 0) > 0 || !!duplicateResult?.suggestion
+  const offConvention =
+    !generatedName && isNew && !namesake && !serverLintShown && breaksNameConvention(name, nameConvention)
 
   // Adjust-during-render with an equality guard — this repo's idiom for state
   // that has to follow a computed value (see the comments in
@@ -611,6 +683,28 @@ export function EventForm({
             ...current,
             { id: _data.id, name: _data.name, eventTypeId: _data.event_type_id },
           ])
+        }
+        // The event this one was marked to replace is retired now that its
+        // successor exists. A failure leaves the new event in place and says
+        // what is left to do; it never undoes the create.
+        if (replaces && _data.id) {
+          const replaced = replaces
+          setReplaces(null)
+          try {
+            await eventsApi.update(
+              slug,
+              replaced.event_id,
+              { status: 'deprecated', superseded_by_event_id: _data.id },
+              branchId,
+            )
+            toast.success(`Deprecated ${replaced.name}; ${_data.name} replaces it.`)
+          } catch (err) {
+            const reason = err instanceof Error ? ` ${err.message}` : ''
+            toast.error(
+              `Created ${_data.name}, but could not deprecate ${replaced.name}. Set its successor from its own page.${reason}`,
+            )
+          }
+          qc.invalidateQueries({ queryKey: projectEventKey(slug) })
         }
       }
       // Direct scenario completion — inert unless the demo's edit-event chapter
@@ -871,6 +965,27 @@ export function EventForm({
                       . Creating another splits the events that match between the two.
                     </p>
                   )}
+                  {isNew && editable && (
+                    <DuplicateLiveRegion count={replaces ? 0 : duplicateMatchCount} />
+                  )}
+                  {isNew && editable && (
+                    <DuplicateHints
+                      slug={slug}
+                      name={generatedName ? generatedName.name : name}
+                      result={duplicateResult}
+                      exclude={duplicateExclude}
+                      // A scan rule writes the name: there is nothing to rename.
+                      onUseSuggestion={generatedName ? undefined : setName}
+                      onMarkReplacement={match =>
+                        setReplaces({ event_id: match.event_id, name: match.name, eventTypeId: etId })}
+                      replacement={replaces}
+                      onClearReplacement={() => setReplaces(null)}
+                      disabled={saveMut.isPending}
+                    />
+                  )}
+                  {replaces && (
+                    <ImpactNotice slug={slug} branchId={branchId} changes={replacesImpact} />
+                  )}
                   {offConvention && nameConvention && (
                     // A pointer, not a block: the name must be what the app
                     // sends, whatever the other events look like.
@@ -1103,6 +1218,14 @@ export function EventForm({
                   from — change what differs and save the next one.
                 </span>
               </span>
+            ) : isNew && editable && replaces ? (
+              // The one side effect of this save that is not the event itself,
+              // named beside the button that causes it.
+              <span data-testid="replaces-confirm">
+                Creating this event also deprecates{' '}
+                <span className="font-medium">{replaces.name}</span>, with this event as its
+                successor.
+              </span>
             ) : isNew && activeBranchName ? (
               // Where this lands, beside the button that lands it (AU-25).
               <>
@@ -1118,7 +1241,9 @@ export function EventForm({
                 ? 'danger'
                 : justCreated !== null
                   ? 'success'
-                  : 'muted'
+                  : isNew && editable && replaces
+                    ? 'warning'
+                    : 'muted'
           }
           onStatusClick={
             blockingSummary

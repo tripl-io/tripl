@@ -1,4 +1,6 @@
-import type { ScanDryRunResponse } from '@/types'
+import { Link } from 'react-router-dom'
+import type { ScanDryRunNameWarning, ScanDryRunResponse } from '@/types'
+import { duplicateEventPath, formatDuplicateScore } from '@/components/duplicates/duplicateHints'
 import { formatDateTime } from '@/lib/datetime'
 import { countOf } from '@/lib/plural'
 import { dryRunNameExplosion, type NameExplosion, type NamingFixTarget } from './scanDryRunWarnings'
@@ -208,6 +210,104 @@ function NameExplosionWarning({
   )
 }
 
+/** How many sample names an explosion warning lists. */
+const MAX_EXPLOSION_SAMPLES = 3
+
+/**
+ * What is wrong with the NAMES a run would create (F12, #265), from the dry
+ * run's `name_warnings`: a slot that carries a high-cardinality value, and new
+ * names that look like events already in the plan. Advisory — the draft still
+ * saves and runs. The duplicate's name links to its page when the caller knows
+ * the project (`slug`); otherwise it is plain text.
+ */
+function NameWarnings({ warnings, slug }: { warnings: ScanDryRunNameWarning[]; slug?: string }) {
+  if (warnings.length === 0) return null
+  const explosions = warnings.filter(warning => warning.code === 'combinatorial_explosion')
+  const duplicates = warnings.flatMap(warning =>
+    warning.code === 'duplicate' && warning.name && warning.duplicate_of
+      ? [{ warning, name: warning.name, existing: warning.duplicate_of }]
+      : [],
+  )
+  if (explosions.length === 0 && duplicates.length === 0) return null
+  return (
+    <div data-testid="dry-run-name-warnings" className="space-y-2">
+      {explosions.map(warning => {
+        const samples = (warning.samples ?? []).slice(0, MAX_EXPLOSION_SAMPLES)
+        const where = warning.slot_label
+          ?? (warning.slot != null ? `part ${warning.slot + 1}` : 'one part of the name')
+        return (
+          <div
+            key={`explosion.${warning.event_type}.${warning.slot ?? ''}.${warning.pattern ?? ''}`}
+            data-testid="dry-run-name-explosion"
+            className="rounded-card border p-3 text-body-sm border-warning bg-warning-soft text-fg"
+          >
+            <p className="m-0">
+              {warning.count != null ? (
+                <strong>{countOf(warning.count, 'new name', 'new names')}</strong>
+              ) : (
+                <strong>Many new names</strong>
+              )}
+              {warning.event_type ? <> under {warning.event_type}</> : null} differ only in{' '}
+              <strong>{where}</strong>
+              {warning.pattern ? (
+                <>
+                  {' '}(<code className="mono">{warning.pattern}</code>)
+                </>
+              ) : null}
+              . A high-cardinality value is part of the event name.
+            </p>
+            {samples.length > 0 && (
+              <p className="m-0 mt-1 text-caption text-fg-secondary">
+                For example:{' '}
+                {samples.map((sample, index) => (
+                  <span key={sample}>
+                    {index > 0 && ', '}
+                    <code className="mono">{sample}</code>
+                  </span>
+                ))}
+              </p>
+            )}
+          </div>
+        )
+      })}
+      {duplicates.length > 0 && (
+        <div data-testid="dry-run-name-duplicates">
+          <div className="text-body font-medium text-fg">
+            {countOf(duplicates.length, 'new event looks', 'new events look')} like one already in
+            your plan
+          </div>
+          <ul className="m-0 mt-1.5 list-none space-y-1 p-0">
+            {duplicates.map(({ warning, name, existing }) => {
+              return (
+                <li
+                  key={`duplicate.${warning.event_type}.${name}.${existing.event_id}`}
+                  className="text-body-sm text-fg"
+                >
+                  <span className="font-medium">{name}</span>
+                  <span className="text-fg-tertiary"> looks like </span>
+                  {slug ? (
+                    <Link
+                      to={duplicateEventPath(slug, existing.event_id)}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      {existing.name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">{existing.name}</span>
+                  )}
+                  <span className="text-caption text-fg-tertiary">
+                    {' '}({formatDuplicateScore(existing.score)})
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EventList({ events }: { events: ScanDryRunResponse['events'] }) {
   if (events.length === 0) return null
   const shown = events.slice(0, MAX_LISTED)
@@ -301,8 +401,11 @@ function FieldList({ fields }: { fields: ScanDryRunResponse['fields'] }) {
 export function ScanDryRunSummary({
   dryRun,
   onFixNaming,
+  slug,
 }: {
   dryRun: ScanDryRunResponse
+  /** The project, so a duplicate warning can link to the planned event. */
+  slug?: string
   /** Opens the naming control a warning names; omitted where there is none. */
   onFixNaming?: (target: NamingFixTarget) => void
 }) {
@@ -333,6 +436,7 @@ export function ScanDryRunSummary({
     <div data-testid="scan-dry-run-summary" className="space-y-3">
       <NameFormatErrors errors={dryRun.errors} />
       {explosion && <NameExplosionWarning explosion={explosion} onFixNaming={onFixNaming} />}
+      <NameWarnings warnings={dryRun.name_warnings ?? []} slug={slug} />
 
       <div>
         <h4 className="m-0 text-body font-semibold text-fg">

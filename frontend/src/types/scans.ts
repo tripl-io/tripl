@@ -396,6 +396,39 @@ export interface ScanDryRunResponse {
   warnings: string[]
   /** Name-format failures: reported, not raised — the job still completes. */
   errors: string[]
+  /** Problems with the names a run would create (F12, #265). Best-effort:
+   *  empty never means "checked and clean" when the check could not run.
+   *  Optional so an answer from before the field existed still renders. */
+  name_warnings?: ScanDryRunNameWarning[]
+}
+
+/** The planned event a would-be-new name looks like. */
+export interface ScanDryRunDuplicateOf {
+  event_id: string
+  name: string
+  /** 0..1 */
+  score: number
+  status: string
+}
+
+/**
+ * `combinatorial_explosion`: `count` new names under one event type differ
+ * only in one slot (`slot` / `slot_label`; `pattern` shows the fixed parts
+ * with `*`), i.e. a high-cardinality value is part of the name.
+ * `duplicate`: the new event `name` looks like `duplicate_of`, already planned.
+ * Mirrors `ScanDryRunNameWarning` in backend/src/tripl/schemas/scan_config.py.
+ */
+export interface ScanDryRunNameWarning {
+  code: 'combinatorial_explosion' | 'duplicate'
+  event_type: string
+  message: string
+  count?: number | null
+  slot?: number | null
+  slot_label?: string | null
+  pattern?: string | null
+  samples?: string[]
+  name?: string | null
+  duplicate_of?: ScanDryRunDuplicateOf | null
 }
 
 /** The draft a dry run is computed from. Mirrors ScanDryRunRequest. */
