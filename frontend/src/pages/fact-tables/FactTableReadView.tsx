@@ -3,6 +3,7 @@ import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
 import { CodeToken } from '@/components/primitives/code-token'
 import { SCard } from '@/components/settings/kit'
+import { UsedBySection } from '@/components/dependencies/UsedBySection'
 import { ReadOnlyDefinition, ReadOnlyNotice, type DefinitionItem } from '@/components/states'
 import type { DataSource, FactTable } from '@/types'
 
@@ -15,10 +16,13 @@ import type { DataSource, FactTable } from '@/types'
  * once, then the definition as a description list, titled after the table.
  */
 export function FactTableReadView({
+  slug,
   factTable,
   dataSources,
   onClose,
 }: {
+  /** Enables the "Used by" section (#257); the read view renders without it. */
+  slug?: string
   factTable: FactTable
   dataSources: readonly DataSource[]
   onClose: () => void
@@ -107,6 +111,14 @@ export function FactTableReadView({
             <ReadOnlyDefinition items={items} />
           </div>
         </SCard>
+        {slug && (
+          <UsedBySection
+            className="mt-[18px]"
+            slug={slug}
+            entity={{ kind: 'fact_table', id: factTable.id }}
+            branchId={null}
+          />
+        )}
       </PageContainer>
     </div>
   )

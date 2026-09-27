@@ -22,6 +22,7 @@ export function bulkUpdateConfirmation({
   selectedVisibleCount,
   actionLabel,
   archives = false,
+  deprecates = false,
 }: {
   selectedCount: number
   selectedVisibleCount: number
@@ -29,9 +30,12 @@ export function bulkUpdateConfirmation({
   actionLabel: string
   /** The change archives the events. */
   archives?: boolean
+  /** The change deprecates the events: always asked, so the dialog can list
+   * the metrics and alert rules that depend on them (#257). */
+  deprecates?: boolean
 }): BulkConfirmation | null {
   const offScreen = selectedCount - selectedVisibleCount
-  if (offScreen <= 0 && selectedCount <= BULK_CONFIRM_THRESHOLD && !archives) return null
+  if (offScreen <= 0 && selectedCount <= BULK_CONFIRM_THRESHOLD && !archives && !deprecates) return null
   const noun = `${selectedCount.toLocaleString()} selected event${selectedCount === 1 ? '' : 's'}`
   const message =
     offScreen > 0

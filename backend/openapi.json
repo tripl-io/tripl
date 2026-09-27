@@ -6404,6 +6404,160 @@
         "title": "DemoCancelResponse",
         "type": "object"
       },
+      "DependenciesResponse": {
+        "properties": {
+          "counts_by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts By Kind",
+            "type": "object"
+          },
+          "downstream": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "title": "Downstream",
+            "type": "array"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/DependencyEntity"
+          },
+          "possible_counts_by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Possible Counts By Kind",
+            "type": "object"
+          },
+          "upstream": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "title": "Upstream",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entity",
+          "upstream",
+          "downstream",
+          "counts_by_kind"
+        ],
+        "title": "DependenciesResponse",
+        "type": "object"
+      },
+      "DependencyEdge": {
+        "properties": {
+          "certainty": {
+            "enum": [
+              "direct",
+              "possible"
+            ],
+            "title": "Certainty",
+            "type": "string"
+          },
+          "depth": {
+            "default": 1,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "variable",
+              "metric",
+              "fact_table",
+              "alert_rule",
+              "relation",
+              "scan_config",
+              "detection_override"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "relation": {
+            "title": "Relation",
+            "type": "string"
+          },
+          "url_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Hint"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "relation",
+          "certainty"
+        ],
+        "title": "DependencyEdge",
+        "type": "object"
+      },
+      "DependencyEntity": {
+        "properties": {
+          "exists": {
+            "default": true,
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "variable",
+              "metric",
+              "fact_table",
+              "alert_rule",
+              "relation"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "DependencyEntity",
+        "type": "object"
+      },
       "DetectionResetPeriod": {
         "description": "Optional half-open window (``after <= t < before``) for a danger-zone reset.\n\nBoth bounds are optional; omitting both clears the whole project.\n\n``dry_run`` returns the counts the reset WOULD delete and deletes nothing, so\nthe confirm dialog can name them (ST-39). It defaults to false, unlike\n``VariableRetirementRequest``: this body predates it, and a client that\nomits it has always meant \"delete\".",
         "properties": {
@@ -11154,6 +11308,129 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImpactChange": {
+        "properties": {
+          "change": {
+            "enum": [
+              "delete",
+              "deprecate",
+              "rename",
+              "change"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "variable",
+              "metric",
+              "fact_table",
+              "alert_rule",
+              "relation"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "change"
+        ],
+        "title": "ImpactChange",
+        "type": "object"
+      },
+      "ImpactItem": {
+        "properties": {
+          "affected": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyEdge"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "change": {
+            "$ref": "#/components/schemas/ImpactChange"
+          },
+          "entity": {
+            "$ref": "#/components/schemas/DependencyEntity"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "change",
+          "entity",
+          "affected",
+          "summary"
+        ],
+        "title": "ImpactItem",
+        "type": "object"
+      },
+      "ImpactRequest": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactChange"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Changes",
+            "type": "array"
+          },
+          "depth": {
+            "default": 1,
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Depth",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "ImpactRequest",
+        "type": "object"
+      },
+      "ImpactResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ImpactResponse",
         "type": "object"
       },
       "ImplementationTicketResponse": {
@@ -27840,6 +28117,59 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/branches/{branch_id}/impact": {
+      "get": {
+        "description": "The downstream objects a working branch's changes touch, from its diff.",
+        "operationId": "get_branch_impact_api_v1_projects__slug__branches__branch_id__impact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Branch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Branch Impact",
+        "tags": [
+          "dependencies"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/branches/{branch_id}/implementation-tickets": {
       "get": {
         "description": "Read-only: tickets are opened by the merge worker, never by a client.\n\nAuth matches the other branch reads \u2014 any authenticated project reader, via\nthe router-level ``get_current_user`` dependency; no editor gate, because\nnothing here mutates.",
@@ -28595,6 +28925,91 @@
         "summary": "Retire Unused Variables",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/dependencies": {
+      "get": {
+        "description": "Upstream and downstream edges of one entity, on ``?branch=`` or main.\n\nAn id that no longer resolves answers ``entity.exists = false`` with any\nproject-wide rows that still name it, rather than 404.",
+        "operationId": "get_dependencies_api_v1_projects__slug__dependencies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The entity to explain, as '<kind>:<uuid>' with kind one of event, event_type, field, variable, metric, fact_table, alert_rule, relation.",
+            "in": "query",
+            "name": "entity",
+            "required": true,
+            "schema": {
+              "description": "The entity to explain, as '<kind>:<uuid>' with kind one of event, event_type, field, variable, metric, fact_table, alert_rule, relation.",
+              "maxLength": 64,
+              "title": "Entity",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 2,
+              "minimum": 1,
+              "title": "Depth",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dependencies",
+        "tags": [
+          "dependencies"
         ]
       }
     },
@@ -32674,6 +33089,77 @@
         "summary": "Update Fact Table",
         "tags": [
           "fact-tables"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/impact": {
+      "post": {
+        "description": "What each planned delete / deprecate / rename would affect. Changes nothing.\n\nAlways one hop: ``depth`` in the body is accepted for compatibility and\nignored (use ``GET /dependencies?depth=2`` to walk further).",
+        "operationId": "post_impact_api_v1_projects__slug__impact_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Impact",
+        "tags": [
+          "dependencies"
         ]
       }
     },
@@ -39277,6 +39763,10 @@
     {
       "description": "Working branches of a tracking plan.",
       "name": "plan-branches"
+    },
+    {
+      "description": "What depends on a plan entity, and what a planned change affects.",
+      "name": "dependencies"
     },
     {
       "description": "Committed plan revisions and history.",

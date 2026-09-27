@@ -1265,6 +1265,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/branches/{branch_id}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Branch Impact
+         * @description The downstream objects a working branch's changes touch, from its diff.
+         */
+        get: operations["get_branch_impact_api_v1_projects__slug__branches__branch_id__impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/branches/{branch_id}/implementation-tickets": {
         parameters: {
             query?: never;
@@ -1517,6 +1537,29 @@ export interface paths {
          *     surviving row was kept.
          */
         post: operations["retire_unused_variables_api_v1_projects__slug__danger_retire_unused_variables_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dependencies
+         * @description Upstream and downstream edges of one entity, on ``?branch=`` or main.
+         *
+         *     An id that no longer resolves answers ``entity.exists = false`` with any
+         *     project-wide rows that still name it, rather than 404.
+         */
+        get: operations["get_dependencies_api_v1_projects__slug__dependencies_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2264,6 +2307,29 @@ export interface paths {
         head?: never;
         /** Update Fact Table */
         patch: operations["update_fact_table_api_v1_projects__slug__fact_tables__fact_table_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Impact
+         * @description What each planned delete / deprecate / rename would affect. Changes nothing.
+         *
+         *     Always one hop: ``depth`` in the body is accepted for compatibility and
+         *     ignored (use ``GET /dependencies?depth=2`` to walk further).
+         */
+        post: operations["post_impact_api_v1_projects__slug__impact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/projects/{slug}/members": {
@@ -6284,6 +6350,71 @@ export interface components {
              */
             state: "stopped" | "finished" | "none";
         };
+        /** DependenciesResponse */
+        DependenciesResponse: {
+            /** Counts By Kind */
+            counts_by_kind: {
+                [key: string]: number;
+            };
+            /** Downstream */
+            downstream: components["schemas"]["DependencyEdge"][];
+            entity: components["schemas"]["DependencyEntity"];
+            /** Possible Counts By Kind */
+            possible_counts_by_kind?: {
+                [key: string]: number;
+            };
+            /** Upstream */
+            upstream: components["schemas"]["DependencyEdge"][];
+        };
+        /** DependencyEdge */
+        DependencyEdge: {
+            /**
+             * Certainty
+             * @enum {string}
+             */
+            certainty: "direct" | "possible";
+            /**
+             * Depth
+             * @default 1
+             */
+            depth: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field" | "variable" | "metric" | "fact_table" | "alert_rule" | "relation" | "scan_config" | "detection_override";
+            /** Name */
+            name: string;
+            /** Relation */
+            relation: string;
+            /** Url Hint */
+            url_hint?: string | null;
+        };
+        /** DependencyEntity */
+        DependencyEntity: {
+            /**
+             * Exists
+             * @default true
+             */
+            exists: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field" | "variable" | "metric" | "fact_table" | "alert_rule" | "relation";
+            /** Name */
+            name?: string | null;
+        };
         /**
          * DetectionResetPeriod
          * @description Optional half-open window (``after <= t < before``) for a danger-zone reset.
@@ -8050,6 +8181,51 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** ImpactChange */
+        ImpactChange: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "delete" | "deprecate" | "rename" | "change";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field" | "variable" | "metric" | "fact_table" | "alert_rule" | "relation";
+        };
+        /** ImpactItem */
+        ImpactItem: {
+            /** Affected */
+            affected: components["schemas"]["DependencyEdge"][];
+            change: components["schemas"]["ImpactChange"];
+            entity: components["schemas"]["DependencyEntity"];
+            /** Name */
+            name?: string | null;
+            /** Summary */
+            summary: string;
+        };
+        /** ImpactRequest */
+        ImpactRequest: {
+            /** Changes */
+            changes: components["schemas"]["ImpactChange"][];
+            /**
+             * Depth
+             * @default 1
+             * @enum {integer}
+             */
+            depth: 1 | 2;
+        };
+        /** ImpactResponse */
+        ImpactResponse: {
+            /** Items */
+            items: components["schemas"]["ImpactItem"][];
         };
         /**
          * ImplementationTicketResponse
@@ -15418,6 +15594,38 @@ export interface operations {
             };
         };
     };
+    get_branch_impact_api_v1_projects__slug__branches__branch_id__impact_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpactResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_branch_implementation_tickets_api_v1_projects__slug__branches__branch_id__implementation_tickets_get: {
         parameters: {
             query?: never;
@@ -15851,6 +16059,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VariableRetirementCounts"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dependencies_api_v1_projects__slug__dependencies_get: {
+        parameters: {
+            query: {
+                /** @description The entity to explain, as '<kind>:<uuid>' with kind one of event, event_type, field, variable, metric, fact_table, alert_rule, relation. */
+                entity: string;
+                depth?: number;
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DependenciesResponse"];
                 };
             };
             /** @description Validation Error */
@@ -17835,6 +18080,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FactTableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_impact_api_v1_projects__slug__impact_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImpactRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImpactResponse"];
                 };
             };
             /** @description Validation Error */

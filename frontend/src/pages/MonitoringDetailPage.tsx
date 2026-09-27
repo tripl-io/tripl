@@ -19,6 +19,7 @@ import EventPhotosSection from '@/components/event-photos-section'
 import { EventValueDriftPanel } from '@/pages/events/EventValueDriftPanel'
 import { EventSpecCard } from '@/components/EventSpecCard'
 import { MetricDefinitionCard } from '@/components/monitoring/metric-definition-card'
+import { UsedBySection } from '@/components/dependencies/UsedBySection'
 import { SeasonalityHeatmap } from '@/components/monitoring/seasonality-heatmap'
 import { EntityNotFound, PageSkeleton, QueryErrorState, SectionSkeleton } from '@/components/states'
 import { Card, CardContent } from '@/components/ui/card'
@@ -842,6 +843,16 @@ export default function MonitoringDetailPage() {
           )}
         </Tabs>
       </div>
+
+      {/* What depends on this event or metric (#257): the metrics built on the
+          event, the alert rules filtered on or scoped to either. The event is
+          read on the branch on screen; a metric is project-level, so main. */}
+      {isEventScope && event && slug && (
+        <UsedBySection slug={slug} entity={{ kind: 'event', id: event.id }} branchId={branchId} />
+      )}
+      {scope === 'metric' && slug && metricDefinition && (
+        <UsedBySection slug={slug} entity={{ kind: 'metric', id: scopeId }} branchId={null} />
+      )}
 
       {scope === 'event' && scopeId && (
         <EventValueDriftPanel slug={slug!} eventId={scopeId} />

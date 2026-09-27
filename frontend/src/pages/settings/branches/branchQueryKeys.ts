@@ -9,9 +9,11 @@
 
 import type { QueryClient } from '@tanstack/react-query'
 import {
+  branchDependenciesKey,
   branchEventHistoryKey,
   branchEventKey,
   branchEventsKey,
+  branchImpactKey,
   eventTagsKey,
   eventTypesKey,
   metaFieldsKey,
@@ -22,6 +24,7 @@ import {
   planBranchesKey,
   planBranchTicketsKey,
   planBranchUpdatePreviewKey,
+  projectDependenciesKey,
   projectEventHistoryKey,
   projectEventKey,
   projectEventsKey,
@@ -59,6 +62,8 @@ export function invalidateBranchReview(qc: QueryClient, slug: string, branchId: 
   // refused for "field conflicts below" must find them below (PLAN-4).
   void qc.invalidateQueries({ queryKey: planBranchConflictsKey(slug, branchId) })
   void qc.invalidateQueries({ queryKey: planBranchTicketsKey(slug, branchId) })
+  // The Impact panel is computed from the diff (#257).
+  void qc.invalidateQueries({ queryKey: branchImpactKey(slug, branchId) })
 }
 
 /**
@@ -80,6 +85,8 @@ export function invalidateMainPlan(qc: QueryClient, slug: string) {
     projectMetaFieldsKey(slug),
     projectRelationsKey(slug),
     projectPlanRevisionsKey(slug),
+    // "Used by" lists and impact read the plan (#257).
+    projectDependenciesKey(slug),
   ]) {
     void qc.invalidateQueries({ queryKey })
   }
@@ -99,6 +106,7 @@ export function invalidateBranchPlan(qc: QueryClient, slug: string, branchId: st
     branchEventHistoryKey(slug, branchId),
     metaFieldsKey(slug, branchId),
     relationsKey(slug, branchId),
+    branchDependenciesKey(slug, branchId),
   ]) {
     void qc.invalidateQueries({ queryKey })
   }

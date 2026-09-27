@@ -35,4 +35,15 @@ describe('bulkUpdateConfirmation (EVT-10)', () => {
       })?.variant,
     ).toBe('danger')
   })
+
+  it('always asks before a deprecation, so the dialog can list dependents (#257)', () => {
+    const confirmation = bulkUpdateConfirmation({
+      selectedCount: 1,
+      selectedVisibleCount: 1,
+      actionLabel: 'Set status to Deprecated',
+      deprecates: true,
+    })
+    expect(confirmation).not.toBeNull()
+    expect(confirmation?.variant).toBe('primary')
+  })
 })

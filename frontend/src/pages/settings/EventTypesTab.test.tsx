@@ -267,12 +267,17 @@ describe('FieldsEditor fields table', () => {
       'cannot build an event name and every collection fails with ' +
       "'the event name format references unknown keys'. Edit the scan's " +
       'Event name format so it no longer references this column, then delete the field.'
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ detail }), {
+    // A fresh Response per call, routed by URL: the confirm now asks
+    // POST /impact what the field affects (#257), and a single shared Response
+    // would be consumed by that request before the DELETE could read it.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input instanceof Request ? input.url : input)
+      if (url.includes('/impact')) return mockJsonResponse({ items: [] })
+      return new Response(JSON.stringify({ detail }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' },
-      }),
-    )
+      })
+    })
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })
