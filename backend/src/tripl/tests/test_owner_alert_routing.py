@@ -17,7 +17,7 @@ and the two manual "Notify owners" routes with their membership / editor gates.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -109,7 +109,11 @@ def _user(session: Session, email: str, name: str | None) -> uuid.UUID:
     return user.id
 
 
-def _build_world(session: Session, *, notify_owners: bool = True) -> World:
+def _build_world(
+    session: Session, *, notify_owners: bool = True, email_domain: str = "example.com"
+) -> World:
+    # ``email_domain`` lets a test build a second world in the same database:
+    # ``users.email`` is unique, so the default addresses can exist only once.
     project = Project(id=uuid.uuid4(), name="Shop", slug=f"shop-{uuid.uuid4().hex[:8]}")
     data_source = DataSource(
         id=uuid.uuid4(),
@@ -142,10 +146,10 @@ def _build_world(session: Session, *, notify_owners: bool = True) -> World:
     event = Event(id=uuid.uuid4(), project_id=project.id, event_type_id=owned_type.id, name="view")
     session.add(event)
 
-    anna = _user(session, "anna@example.com", "Anna")
-    oleg = _user(session, "oleg@example.com", "Oleg")
-    stranger = _user(session, "stranger@example.com", "Stranger")
-    nomail = _user(session, "no-address", "Nomail")
+    anna = _user(session, f"anna@{email_domain}", "Anna")
+    oleg = _user(session, f"oleg@{email_domain}", "Oleg")
+    stranger = _user(session, f"stranger@{email_domain}", "Stranger")
+    nomail = _user(session, f"no-address-{uuid.uuid4().hex[:8]}", "Nomail")
     for member in (anna, oleg, nomail):
         session.add(ProjectMember(project_id=project.id, user_id=member, role="editor"))
     # ``stranger`` owns the type but is not (or no longer) a member.
@@ -383,7 +387,9 @@ def test_unowned_scopes_and_rules_without_the_switch_behave_as_before(
     assert _rows(factory, unowned) == []
 
     with factory() as session:
-        quiet_world = _build_world(session, notify_owners=False)
+        quiet_world = _build_world(
+            session, notify_owners=False, email_domain=f"quiet-{uuid.uuid4().hex[:8]}.example.com"
+        )
         quiet = _full_delivery(session, quiet_world)
     assert alerts.send_alert_delivery.run(quiet)["status"] == "sent"
     assert quiet not in harness.enqueued
@@ -975,12 +981,17 @@ async def test_manual_notify_needs_an_editor_member(
         await session.commit()
 
     url = f"/api/v1/projects/{world.slug}/alert-inbox/{world.group_id}/notify-owners"
-    for user, expected in ((viewer, 403), (outsider, 404)):
 
-        async def _as_user(user: User = user) -> User:
+    def _as(user: User) -> Callable[[], Awaitable[User]]:
+        # A parameterless override: FastAPI introspects an override's signature,
+        # so a ``user: User = user`` default would be read as a request field.
+        async def _as_user() -> User:
             return user
 
-        app.dependency_overrides[get_current_user] = _as_user
+        return _as_user
+
+    for user, expected in ((viewer, 403), (outsider, 404)):
+        app.dependency_overrides[get_current_user] = _as(user)
         try:
             resp = await client.post(url)
         finally:
