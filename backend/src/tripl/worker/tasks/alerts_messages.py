@@ -47,7 +47,12 @@ from tripl.alerting_matching import (
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
 )
-from tripl.anomaly_context import build_alert_item_context
+from tripl.anomaly_context import (
+    SCOPE_EVENT,
+    SCOPE_EVENT_TYPE,
+    SCOPE_PROJECT_TOTAL,
+    build_alert_item_context,
+)
 from tripl.core.alert_schedule import resolve_timezone
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_delivery_item import AlertDeliveryItem
@@ -64,6 +69,7 @@ from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services import app_settings_service, llm_service
+from tripl.services.attribution_text import attribution_line_for_scope
 
 logger = logging.getLogger(__name__)
 
@@ -251,13 +257,56 @@ def _drift_facts(item: AlertDeliveryItem) -> DriftLineFacts:
     )
 
 
+# Only the volume scopes get a stored attribution (GH #255): the worker computes
+# it for project_total / event_type / event anomalies and nothing else.
+_ATTRIBUTION_SCOPES = frozenset({SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT})
+
+
+def _unpack_item_context(cached: tuple[str, ...]) -> tuple[str, str, str]:
+    """``(sparkline, top_movers, attribution)`` from a cache entry.
+
+    Entries were ``(sparkline, top_movers)`` before the attribution line joined
+    them; a two-tuple still unpacks, with no attribution.
+    """
+    padded = (*cached, "", "", "")
+    return padded[0], padded[1], padded[2]
+
+
+def _load_item_attribution(
+    session: Session,
+    scan_config_id: uuid.UUID,
+    item: AlertDeliveryItem,
+) -> str:
+    """The stored attribution one-liner for a volume item, or ``""``.
+
+    Read from ``metric_anomaly_attributions`` — the row the metrics worker wrote
+    at detection time — so the alert quotes the same numbers as the Why panel.
+    Best-effort like the sparkline: a failed read costs the line, not the alert.
+    """
+    if item.scope_type not in _ATTRIBUTION_SCOPES:
+        return ""
+    try:
+        with session.no_autoflush:
+            return attribution_line_for_scope(
+                session,
+                scan_config_id=scan_config_id,
+                scope_type=item.scope_type,
+                scope_ref=item.scope_ref,
+                bucket=item.bucket,
+                direction=item.direction,
+            )
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to load the alert item attribution", exc_info=True)
+        return ""
+
+
 def _build_item_template_context(
     item: AlertDeliveryItem,
     *,
     message_format: str,
     session: Session | None = None,
     scan_config_id: uuid.UUID | None = None,
-    item_context_cache: dict[uuid.UUID, tuple[str, str]] | None = None,
+    item_context_cache: dict[uuid.UUID, tuple[str, ...]] | None = None,
     metric_unit: str | None = None,
 ) -> AlertTemplateContext:
     scope_label = alert_scope_label(item.scope_type)
@@ -288,9 +337,10 @@ def _build_item_template_context(
     # (e.g. the MarkdownV2→plain fallback) reuses it instead of re-querying.
     sparkline = ""
     top_movers = ""
+    attribution = ""
     cached = item_context_cache.get(item.id) if item_context_cache is not None else None
     if cached is not None:
-        sparkline, top_movers = cached
+        sparkline, top_movers, attribution = _unpack_item_context(cached)
     elif session is not None and scan_config_id is not None:
         try:
             sparkline, top_movers = build_alert_item_context(
@@ -302,10 +352,12 @@ def _build_item_template_context(
             )
         except Exception:  # noqa: BLE001
             logger.warning("Failed to build alert item context", exc_info=True)
+        attribution = _load_item_attribution(session, scan_config_id, item)
         if item_context_cache is not None:
-            item_context_cache[item.id] = (sparkline, top_movers)
+            item_context_cache[item.id] = (sparkline, top_movers, attribution)
     sparkline_line = f"\n  trend: {sparkline}" if sparkline else ""
     top_movers_line = f"\n  movers: {top_movers}" if top_movers else ""
+    attribution_line = f"\n  why: {attribution}" if attribution else ""
 
     variables = {
         "scope_name": escape_alert_value(item.scope_name, message_format),
@@ -363,6 +415,8 @@ def _build_item_template_context(
         "top_movers": escape_alert_value(top_movers, message_format),
         "sparkline_line": escape_alert_value(sparkline_line, message_format),
         "top_movers_line": escape_alert_value(top_movers_line, message_format),
+        "attribution": escape_alert_value(attribution, message_format),
+        "attribution_line": escape_alert_value(attribution_line, message_format),
         # A digest groups by direction, so a reader who has scrolled past the
         # heading has nothing else telling them which way the number moved —
         # the sign alone does not, because format_percent_delta prints an
@@ -500,7 +554,7 @@ def _build_items_text(
     items_template: str,
     session: Session | None = None,
     scan_config_id: uuid.UUID | None = None,
-    item_context_cache: dict[uuid.UUID, tuple[str, str]] | None = None,
+    item_context_cache: dict[uuid.UUID, tuple[str, ...]] | None = None,
     metric_units_cache: dict[str, str | None] | None = None,
     digest: bool = False,
 ) -> str:
@@ -556,7 +610,7 @@ def _build_template_context(
     project: Project | None,
     message_format_override: str | None = None,
     session: Session | None = None,
-    item_context_cache: dict[uuid.UUID, tuple[str, str]] | None = None,
+    item_context_cache: dict[uuid.UUID, tuple[str, ...]] | None = None,
     metric_units_cache: dict[str, str | None] | None = None,
     items: list[AlertDeliveryItem] | None = None,
     summary_items: list[AlertDeliveryItem] | None = None,
@@ -659,7 +713,7 @@ def _render_delivery_message(
     project: Project | None,
     message_format_override: str | None = None,
     session: Session | None = None,
-    item_context_cache: dict[uuid.UUID, tuple[str, str]] | None = None,
+    item_context_cache: dict[uuid.UUID, tuple[str, ...]] | None = None,
     metric_units_cache: dict[str, str | None] | None = None,
     items: list[AlertDeliveryItem] | None = None,
     summary_items: list[AlertDeliveryItem] | None = None,
@@ -722,7 +776,7 @@ def split_telegram_messages(
     items: list[AlertDeliveryItem] | None = None,
     summary_items: list[AlertDeliveryItem] | None = None,
     session: Session | None = None,
-    item_context_cache: dict[uuid.UUID, tuple[str, str]] | None = None,
+    item_context_cache: dict[uuid.UUID, tuple[str, ...]] | None = None,
     metric_units_cache: dict[str, str | None] | None = None,
     ai_explanation: str | None = None,
     max_chars: int = TELEGRAM_MESSAGE_MAX_CHARS,
@@ -960,7 +1014,7 @@ def _build_ai_explanation(
     *,
     scan_name: str,
     project_name: str,
-    item_context_cache: dict[uuid.UUID, tuple[str, str]],
+    item_context_cache: dict[uuid.UUID, tuple[str, ...]],
     session: Session | None = None,
     now: datetime | None = None,
     max_items: int = _AI_EXPLANATION_MAX_ITEMS,
@@ -983,7 +1037,9 @@ def _build_ai_explanation(
         (item.bucket, item.direction) for item in delivery.items
     )
     for item in delivery.items[:max_items]:
-        sparkline, top_movers = item_context_cache.get(item.id, ("", ""))
+        sparkline, top_movers, attribution = _unpack_item_context(
+            item_context_cache.get(item.id, ())
+        )
         if item.scope_type == SCOPE_RELEASE_REGRESSION:
             # Same basis clause as the rendered message. Without it the model
             # writes the note from "observed 345 vs expected 715.7" alone and
@@ -1025,6 +1081,11 @@ def _build_ai_explanation(
         )
         if sparkline:
             line += f", recent trend (old→new): {sparkline}"
+        if attribution:
+            # The stored detection-time decomposition, the same sentence the
+            # message line carries — so the note cannot credit a different
+            # dimension than the alert body does.
+            line += f", attribution: {attribution}"
         if top_movers:
             line += f", top movers: {top_movers}"
         if cofiring_sizes.get((item.bucket, item.direction), 0) > 1:

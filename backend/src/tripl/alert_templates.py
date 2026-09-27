@@ -76,25 +76,29 @@ DEFAULT_ALERT_ITEMS_TEMPLATES: dict[str, str] = {
         "- ${scope_label} ${scope_name}: ${direction_label}, "
         "actual=${actual_count}, expected=${expected_count}${expected_basis}, "
         "delta=${absolute_delta} (${percent_delta_label})"
-        "${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}"
+        "${drift_line}${details_line}${monitoring_line}${attribution_line}"
+        "${top_movers_line}${sparkline_line}"
     ),
     ALERT_MESSAGE_FORMAT_SLACK_MRKDWN: (
         "- ${scope_label} ${scope_name}: ${direction_label}, "
         "actual=${actual_count}, expected=${expected_count}${expected_basis}, "
         "delta=${absolute_delta} (${percent_delta_label})"
-        "${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}"
+        "${drift_line}${details_line}${monitoring_line}${attribution_line}"
+        "${top_movers_line}${sparkline_line}"
     ),
     ALERT_MESSAGE_FORMAT_TELEGRAM_HTML: (
         "- ${scope_label} ${scope_name}: ${direction_label}, "
         "actual=${actual_count}, expected=${expected_count}${expected_basis}, "
         "delta=${absolute_delta} (${percent_delta_label})"
-        "${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}"
+        "${drift_line}${details_line}${monitoring_line}${attribution_line}"
+        "${top_movers_line}${sparkline_line}"
     ),
     ALERT_MESSAGE_FORMAT_TELEGRAM_MARKDOWNV2: (
         "\\- ${scope_label} ${scope_name}: ${direction_label}, "
         "actual=${actual_count}, expected=${expected_count}${expected_basis}, "
         "delta=${absolute_delta} \\(${percent_delta_label}\\)"
-        "${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}"
+        "${drift_line}${details_line}${monitoring_line}${attribution_line}"
+        "${top_movers_line}${sparkline_line}"
     ),
 }
 
@@ -147,6 +151,12 @@ ALERT_ITEM_TEMPLATE_VARIABLES: dict[str, str] = {
     "top_movers": "Inline summary of top-3 breakdown movers (empty if none)",
     "sparkline_line": "Rendered trend line with leading newline when sparkline exists",
     "top_movers_line": "Rendered movers line with leading newline when movers exist",
+    "attribution": (
+        "Why it moved, as stored at detection time: the breakdown value that explains "
+        'the delta, e.g. "92% of the drop comes from platform = ios (−3,120 of −3,390)", '
+        "plus a release that crossed the activation gate in the window (empty if none)"
+    ),
+    "attribution_line": "Rendered attribution line with leading newline when one exists",
     "direction_arrow": "A single up/down arrow for the direction",
     "scope_link": (
         "Scope name linked to its incident on formats that support links; the bare name on plain"
@@ -182,8 +192,9 @@ DIGEST_ALERT_MESSAGE_TEMPLATES: dict[str, str] = {
 }
 
 # One line per item, and it must STAY one line: no variable here may carry a
-# newline. ``${top_movers_line}`` and ``${sparkline_line}`` are deliberately
-# absent because both are built with a leading "\n  " — three breakdown movers
+# newline. ``${top_movers_line}``, ``${attribution_line}`` and ``${sparkline_line}``
+# are deliberately absent because all three are built with a leading "\n  " —
+# three breakdown movers
 # per line across 24 items is not a scanning surface, it is what the page
 # behind the link is for. ``${sparkline}`` (newline-free) carries the trend.
 #

@@ -1161,6 +1161,34 @@ raised `recent_signal_window_hours`. Only a signal that is still **open** widens
 the range; one that has since closed leaves your selection exactly where you put
 it.
 
+**Why panel.** Directly under the signal card, a volume signal on an `event`,
+`event_type` or `project_total` scope gets a **Why** panel that says where the
+change came from. It reads the
+[attribution](./anomaly-detection.md#attribution) stored with the anomaly when
+it was detected, so it quotes the same numbers as the alert that linked here.
+
+- A **headline** — the same sentence the alert quotes, returned by the API and
+  printed verbatim: *"92% of the drop comes from platform = ios (−3,120 of
+  −3,390)"*, or *"Platform shifted in both directions; no single value explains
+  the drop"* when the column's values offset each other.
+- Up to **three breakdown columns**, each with a small diverging bar chart of
+  its top values — bars to one side for values that fell, to the other for
+  values that rose — and the share of the change the column explains. *Other*
+  is never listed as a value.
+- On an **event** drilldown each value is a **link** that opens the event's
+  **Breakdowns** tab filtered to that value. On event-type and project-total
+  drilldowns the values are plain text — there is no per-value breakdown view
+  to open there.
+- A **release line** when a new app version reached the release gate shortly
+  before the bucket: *"Release 4.12 (after 4.11) reached 38% of traffic 3h
+  before the drop"* — again the backend's sentence, the same one the alert
+  carries.
+
+A scan with no breakdown column shows the panel's empty state instead: **No
+breakdown columns configured — add one in scan settings**, linking to that
+scan's settings. A signal detected before attribution existed shows no numbers
+until the period is replayed.
+
 ### Metrics catalog
 
 **Where:** Observe › Metrics (route `/p/<slug>/metrics`). A project-wide catalog of

@@ -62,6 +62,20 @@ export function readMonitoringDetailSearch(params: URLSearchParams): MonitoringD
 }
 
 /**
+ * The drilldown's search narrowed to one breakdown value: the Breakdowns tab
+ * on `column` with only `value` selected, the rest of the view (range,
+ * granularity) kept. The Why panel's per-value links (#255) open it.
+ */
+export function breakdownValueSearch(current: URLSearchParams | string, column: string, value: string): string {
+  const params = new URLSearchParams(current)
+  params.set('tab', 'breakdowns')
+  params.set('column', column)
+  params.delete('value')
+  params.append('value', value)
+  return `?${params.toString()}`
+}
+
+/**
  * The drilldown's view state — tab, range, granularity, version filter,
  * distribution field, breakdown column and values — lives in the URL, so a link
  * or a refresh reopens the same view and Back from a drilldown does not reset

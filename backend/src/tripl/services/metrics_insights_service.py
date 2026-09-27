@@ -49,7 +49,11 @@ from tripl.schemas.event_metric import (
     SignalVerdictCountsResponse,
     TopMoverItem,
 )
-from tripl.services import alerting_service, signal_triage_service
+from tripl.services import (
+    alerting_service,
+    anomaly_attribution_service,
+    signal_triage_service,
+)
 from tripl.services.metrics_service import (
     _get_anomaly_rows,
     _get_metric_rows,
@@ -882,13 +886,16 @@ async def _with_live_state(
     )
     if expanded:
         signals = _with_incident_refs(signals, refs)
-    return await signal_triage_service.apply_triage(
+    triaged = await signal_triage_service.apply_triage(
         session,
         project_id,
         signals,
         drop_hidden=not expanded,
         refs=refs,
     )
+    # "Why did it change?" (F02, #255), after the drop so only returned rows
+    # are looked up.
+    return await anomaly_attribution_service.attach_attributions(session, triaged)
 
 
 def _with_incident_refs(

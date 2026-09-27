@@ -3510,6 +3510,53 @@
         "title": "AlertScopeReadiness",
         "type": "object"
       },
+      "AnomalyAttributionResponse": {
+        "description": "``GET /projects/{slug}/anomalies/{anomaly_id}/attribution``.",
+        "properties": {
+          "anomaly_id": {
+            "format": "uuid",
+            "title": "Anomaly Id",
+            "type": "string"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalAttribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attribution_status": {
+            "enum": [
+              "ready",
+              "no_breakdown_columns",
+              "not_computed"
+            ],
+            "title": "Attribution Status",
+            "type": "string"
+          },
+          "scan_config_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Id"
+          }
+        },
+        "required": [
+          "anomaly_id",
+          "attribution_status"
+        ],
+        "title": "AnomalyAttributionResponse",
+        "type": "object"
+      },
       "AnomalyDirection": {
         "enum": [
           "spike",
@@ -4149,6 +4196,102 @@
           "series"
         ],
         "title": "AppVersionSeriesResponse",
+        "type": "object"
+      },
+      "AttributionColumn": {
+        "description": "One breakdown column's split: its top values and the part of the change\nthey explain (0..1).",
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "explained_share": {
+            "title": "Explained Share",
+            "type": "number"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionValue"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "column",
+          "explained_share"
+        ],
+        "title": "AttributionColumn",
+        "type": "object"
+      },
+      "AttributionRelease": {
+        "description": "A release that crossed the activation gate shortly before the signal.",
+        "properties": {
+          "previous_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Version"
+          },
+          "reached_at": {
+            "format": "date-time",
+            "title": "Reached At",
+            "type": "string"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "share",
+          "reached_at"
+        ],
+        "title": "AttributionRelease",
+        "type": "object"
+      },
+      "AttributionValue": {
+        "description": "One breakdown value's part of a signal's delta (F02, #255).\n\n``delta`` is ``actual - expected`` for the value, where ``expected`` is the\nscope's expected total times the value's baseline share; ``share`` is\n``delta`` over the signal's delta (signed: a value moving against the\nchange is negative).",
+        "properties": {
+          "actual": {
+            "title": "Actual",
+            "type": "number"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "number"
+          },
+          "expected": {
+            "title": "Expected",
+            "type": "number"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "delta",
+          "expected",
+          "actual",
+          "share"
+        ],
+        "title": "AttributionValue",
         "type": "object"
       },
       "AuditActionCatalog": {
@@ -13333,6 +13476,38 @@
             "title": "Actual Count",
             "type": "number"
           },
+          "anomaly_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anomaly Id"
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalAttribution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attribution_status": {
+            "default": "not_computed",
+            "enum": [
+              "ready",
+              "no_breakdown_columns",
+              "not_computed"
+            ],
+            "title": "Attribution Status",
+            "type": "string"
+          },
           "bucket": {
             "format": "date-time",
             "title": "Bucket",
@@ -20438,6 +20613,71 @@
         "title": "ShadowEventStatus",
         "type": "string"
       },
+      "SignalAttribution": {
+        "description": "Why the signal changed, computed and stored when it was detected.",
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "delta": {
+            "title": "Delta",
+            "type": "number"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
+          "release": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttributionRelease"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "release_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release Line"
+          }
+        },
+        "required": [
+          "delta"
+        ],
+        "title": "SignalAttribution",
+        "type": "object"
+      },
       "SignalExpectedReason": {
         "description": "Why an ``expected`` signal was expected. Documents only; it does not\nsuppress later buckets.",
         "enum": [
@@ -26796,6 +27036,59 @@
           }
         },
         "summary": "Query Signal Series",
+        "tags": [
+          "metrics"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/anomalies/{anomaly_id}/attribution": {
+      "get": {
+        "description": "Why did it change, for one anomaly (F02, #255): the contribution\nbreakdown and release context stored when it was detected, for lazy loading\n(a chart marker other than the latest signal). 404 when the anomaly is not\nthis project's.",
+        "operationId": "get_anomaly_attribution_api_v1_projects__slug__anomalies__anomaly_id__attribution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "anomaly_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Anomaly Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnomalyAttributionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Anomaly Attribution",
         "tags": [
           "metrics"
         ]

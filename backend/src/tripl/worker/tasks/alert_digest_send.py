@@ -154,7 +154,7 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
         # / metric ref rather than on a delivery, so the warehouse and DB reads
         # behind sparklines and units happen once for the digest instead of once
         # per rule.
-        item_context_cache: dict[uuid.UUID, tuple[str, str]] = {}
+        item_context_cache: dict[uuid.UUID, tuple[str, ...]] = {}
         metric_units_cache: dict[str, str | None] = {}
 
         # (destination_id, message_format) — NOT destination alone. The format

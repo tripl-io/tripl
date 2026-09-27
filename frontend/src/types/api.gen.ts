@@ -1045,6 +1045,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/anomalies/{anomaly_id}/attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Anomaly Attribution
+         * @description Why did it change, for one anomaly (F02, #255): the contribution
+         *     breakdown and release context stored when it was detected, for lazy loading
+         *     (a chart marker other than the latest signal). 404 when the anomaly is not
+         *     this project's.
+         */
+        get: operations["get_anomaly_attribution_api_v1_projects__slug__anomalies__anomaly_id__attribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/anomaly-settings": {
         parameters: {
             query?: never;
@@ -5077,6 +5100,25 @@ export interface components {
             variable_value_drift: boolean;
         };
         /**
+         * AnomalyAttributionResponse
+         * @description ``GET /projects/{slug}/anomalies/{anomaly_id}/attribution``.
+         */
+        AnomalyAttributionResponse: {
+            /**
+             * Anomaly Id
+             * Format: uuid
+             */
+            anomaly_id: string;
+            attribution?: components["schemas"]["SignalAttribution"] | null;
+            /**
+             * Attribution Status
+             * @enum {string}
+             */
+            attribution_status: "ready" | "no_breakdown_columns" | "not_computed";
+            /** Scan Config Id */
+            scan_config_id?: string | null;
+        };
+        /**
          * AnomalyDirection
          * @enum {string}
          */
@@ -5315,6 +5357,57 @@ export interface components {
             sigma_threshold: number;
             /** Versions */
             versions: components["schemas"]["AppVersionInfo"][];
+        };
+        /**
+         * AttributionColumn
+         * @description One breakdown column's split: its top values and the part of the change
+         *     they explain (0..1).
+         */
+        AttributionColumn: {
+            /** Column */
+            column: string;
+            /** Explained Share */
+            explained_share: number;
+            /** Values */
+            values?: components["schemas"]["AttributionValue"][];
+        };
+        /**
+         * AttributionRelease
+         * @description A release that crossed the activation gate shortly before the signal.
+         */
+        AttributionRelease: {
+            /** Previous Version */
+            previous_version?: string | null;
+            /**
+             * Reached At
+             * Format: date-time
+             */
+            reached_at: string;
+            /** Share */
+            share: number;
+            /** Version */
+            version: string;
+        };
+        /**
+         * AttributionValue
+         * @description One breakdown value's part of a signal's delta (F02, #255).
+         *
+         *     ``delta`` is ``actual - expected`` for the value, where ``expected`` is the
+         *     scope's expected total times the value's baseline share; ``share`` is
+         *     ``delta`` over the signal's delta (signed: a value moving against the
+         *     change is negative).
+         */
+        AttributionValue: {
+            /** Actual */
+            actual: number;
+            /** Delta */
+            delta: number;
+            /** Expected */
+            expected: number;
+            /** Share */
+            share: number;
+            /** Value */
+            value: string;
         };
         /**
          * AuditActionCatalog
@@ -8815,6 +8908,15 @@ export interface components {
             acknowledged_at?: string | null;
             /** Actual Count */
             actual_count: number;
+            /** Anomaly Id */
+            anomaly_id?: string | null;
+            attribution?: components["schemas"]["SignalAttribution"] | null;
+            /**
+             * Attribution Status
+             * @default not_computed
+             * @enum {string}
+             */
+            attribution_status: "ready" | "no_breakdown_columns" | "not_computed";
             /**
              * Bucket
              * Format: date-time
@@ -11518,6 +11620,23 @@ export interface components {
          * @enum {string}
          */
         ShadowEventStatus: "new" | "accepted" | "dismissed";
+        /**
+         * SignalAttribution
+         * @description Why the signal changed, computed and stored when it was detected.
+         */
+        SignalAttribution: {
+            /** Columns */
+            columns?: components["schemas"]["AttributionColumn"][];
+            /** Computed At */
+            computed_at?: string | null;
+            /** Delta */
+            delta: number;
+            /** Headline */
+            headline?: string | null;
+            release?: components["schemas"]["AttributionRelease"] | null;
+            /** Release Line */
+            release_line?: string | null;
+        };
         /**
          * SignalExpectedReason
          * @description Why an ``expected`` signal was expected. Documents only; it does not
@@ -14768,6 +14887,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignalSeriesResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_anomaly_attribution_api_v1_projects__slug__anomalies__anomaly_id__attribution_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                anomaly_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnomalyAttributionResponse"];
                 };
             };
             /** @description Validation Error */

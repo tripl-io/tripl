@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { GitBranch, GitCompareArrows, Grid3x3, Layers } from 'lucide-react'
@@ -63,7 +63,12 @@ import { useCommentDraftHandoff } from './monitoring/useCommentDraftHandoff'
 import { SignalVerdictCard } from './monitoring/SignalVerdictCard'
 import { useChartAnnotations } from './monitoring/useChartAnnotations'
 import { useMetricCollect } from './monitoring/useMetricCollect'
-import { useMonitoringDetailSearch, type MonitoringDetailTab } from './monitoring/useMonitoringDetailSearch'
+import {
+  breakdownValueSearch,
+  useMonitoringDetailSearch,
+  type MonitoringDetailTab,
+} from './monitoring/useMonitoringDetailSearch'
+import { WhyChangedPanel, type AttributionValueHref } from './monitoring/WhyChangedPanel'
 import { partialWindow } from './monitoring/partialBuckets'
 import { VersionsTab } from './monitoring/VersionsTab'
 import { VolumeTab } from './monitoring/VolumeTab'
@@ -88,6 +93,7 @@ export default function MonitoringDetailPage() {
     eventId?: string
   }>()
   const navigate = useNavigate()
+  const location = useLocation()
   // Edit, collect, delete and annotations are EditorUserDep; a viewer reads the
   // page without them instead of meeting each as a 403 (MON-6).
   const canWrite = useCanWriteProject()
@@ -453,6 +459,14 @@ export default function MonitoringDetailPage() {
   const { commentDraft, startDraft } = useCommentDraftHandoff({ ready: detailReady && isEventScope })
   // The flagged bucket the Signal card is about: the scope's latest signal.
   const latestSignal = metrics?.latest_signal ?? null
+  // The Why panel's per-value links (#255): the Breakdowns tab narrowed to the
+  // value where this page has one (the event scope; the metric scope carries
+  // no attribution). Event-type and project-total pages have no breakdown
+  // view, so their values stay plain text.
+  const attributionValueHref: AttributionValueHref | undefined = availableTabs.includes('breakdowns')
+    ? (column, value) => `${location.pathname}${breakdownValueSearch(location.search, column, value)}`
+    : undefined
+  const scanSettingsHref = slug && scanConfigId ? `/p/${slug}/scans/${scanConfigId}` : null
   // A missing entity is not a failure to retry (SH-33): a deleted event or
   // metric, or a stale link, says so and offers the way back to its list.
   const notFound = scope === 'metric'
@@ -614,6 +628,15 @@ export default function MonitoringDetailPage() {
           signal={latestSignal}
           canWrite={canWrite}
           onOpenComment={isEventScope ? startDraft : undefined}
+        />
+      )}
+
+      {/* Which breakdown values and release the flagged change comes from (#255). */}
+      {slug && latestSignal && (
+        <WhyChangedPanel
+          signal={latestSignal}
+          valueHref={attributionValueHref}
+          scanSettingsHref={scanSettingsHref}
         />
       )}
 

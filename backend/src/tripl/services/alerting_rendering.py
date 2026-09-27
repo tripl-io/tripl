@@ -170,6 +170,10 @@ def render_firing_item(
         "top_movers": "",
         "sparkline_line": "",
         "top_movers_line": "",
+        # Read from the stored attribution row at send time; a simulated firing
+        # has no anomaly row behind it, so the preview leaves the line out.
+        "attribution": "",
+        "attribution_line": "",
         "direction_arrow": "\u25b2" if firing.direction == "spike" else "\u25bc",
         # The simulator has no delivery, so no incident to link to. The bare
         # escaped name is what ``format_alert_link`` returns for an empty URL,

@@ -67,7 +67,7 @@ from tripl.semver import (
     APP_VERSION_OTHER_LABEL,
     order_versions,
 )
-from tripl.services import signal_verdict_service
+from tripl.services import anomaly_attribution_service, signal_verdict_service
 from tripl.services._branch_counterparts import main_counterparts, metrics_row_for
 from tripl.services.monitoring_utils import (
     classify_signal_state,
@@ -680,6 +680,7 @@ def _signal_from_anomaly(
         z_score=anomaly.z_score,
         direction=anomaly.direction,
         detected_at=anomaly.created_at,
+        anomaly_id=getattr(anomaly, "id", None),
     )
 
 
@@ -1141,9 +1142,10 @@ async def get_event_metrics(
         scan_latest_bucket=scan_latest_bucket,
         collection_timing=collection_timing,
     )
-    return await signal_verdict_service.with_chart_verdicts(
+    response = await signal_verdict_service.with_chart_verdicts(
         session, project.id, response, scope_type=SCOPE_EVENT, scope_ref=str(event.id)
     )
+    return await anomaly_attribution_service.with_latest_signal_attribution(session, response)
 
 
 async def get_event_metric_breakdowns(
@@ -2585,9 +2587,10 @@ async def get_event_type_metrics(
         scan_latest_bucket=scan_latest_bucket,
         collection_timing=collection_timing,
     )
-    return await signal_verdict_service.with_chart_verdicts(
+    response = await signal_verdict_service.with_chart_verdicts(
         session, project.id, response, scope_type=SCOPE_EVENT_TYPE, scope_ref=str(event_type.id)
     )
+    return await anomaly_attribution_service.with_latest_signal_attribution(session, response)
 
 
 async def get_project_total_metrics(
@@ -2669,10 +2672,11 @@ async def get_project_total_metrics(
         scan_latest_bucket=scan_latest_bucket,
         collection_timing=collection_timing,
     )
-    return await signal_verdict_service.with_chart_verdicts(
+    response = await signal_verdict_service.with_chart_verdicts(
         session,
         project.id,
         response,
         scope_type=SCOPE_PROJECT_TOTAL,
         scope_ref=str(resolved_scan_config_id),
     )
+    return await anomaly_attribution_service.with_latest_signal_attribution(session, response)

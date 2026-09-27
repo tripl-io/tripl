@@ -567,6 +567,94 @@ fractional metric series that floor would be a category error, so it is
 did not compute it — fall back to your own count-shaped estimate rather than
 treating the signal as having no magnitude.
 
+### Why it changed: attribution {#attribution}
+
+A signal says the volume moved; **attribution** says where. For a flagged
+bucket, tripl splits the change — the **delta**, actual minus expected — across
+the values of each breakdown column, so a drop reads *"92% of the drop comes
+from platform = ios (−3,120 of −3,390)"* instead of just *"−3,390"*.
+
+**It is computed once, at detection time, and stored with the anomaly.** The
+metrics worker works it out right after it writes the scan's anomalies, and the
+alert message, the AI explanation and the drilldown's **Why** panel all read
+that stored copy — so an alert and the page it links to always quote the same
+numbers. Replaying a period recomputes it along with the anomalies; an anomaly
+that is deleted or re-scored away takes its attribution with it.
+
+**The math, in plain words.** Take one breakdown column — say `platform` — and
+the flagged bucket:
+
+1. Each value's **baseline share** is its part of the scope over the trailing
+   `baseline_window_buckets` buckets before the flagged one — always that
+   window (the **Baseline window (buckets)** setting), even when the detector
+   scored the bucket against a seasonal baseline. A value present in
+   fewer than half of those buckets has no stable share: it is folded into
+   **Other** rather than given one.
+2. Each value's **expected** count is the scope's expected total multiplied by
+   that baseline share, and its **contribution** is its actual count minus that
+   expected count. If `ios` was expected at 3,400 and came in at 280, it
+   contributed −3,120. A value's **share** is its contribution over the scope's
+   delta, signed — a value that rose during a drop has a negative share.
+3. Whatever the named values do not account for — values folded in step 1,
+   values outside the top ones, and any gap between the breakdown and the scope
+   total — is booked to **Other**, so a column's contributions always add up to
+   the scope's delta exactly. Nothing is lost or double-counted. **Other is
+   never named** as a cause: it has no filter to open and says nothing about
+   where the change came from.
+4. The column's **explained share** is how much of the delta its top values
+   carry: the sum of their contributions that point the same way as the delta,
+   divided by the delta, kept between 0% and 100%. A value that moved against
+   the drop does not reduce the share, and no column can claim more than all of
+   it.
+
+The top **3 columns** are kept, each with its top **3 named values** — every
+value with its expected count, its actual count, its contribution and its share
+of the delta.
+
+**The headline.** One sentence sums it up, and it is the same sentence
+everywhere — the API returns it as `headline`, the **Why** panel prints it, and
+the alert quotes it. tripl picks the column with the highest explained share
+and, within it, the largest value that moved the same way as the delta:
+
+> 92% of the drop comes from platform = ios (−3,120 of −3,390)
+
+The percent is that value's contribution over the scope's delta, kept between 0%
+and 100% and rounded to a whole percent; counts use thousands separators and a
+real minus sign. When the column's values offset each other — their movements
+in both directions add up to more than twice the delta, or none moved the same
+way as the delta — no single value is honest to name, and the headline says so
+without a percent:
+
+> Platform shifted in both directions; no single value explains the drop
+
+**Release context.** When the scan has an app-version column, attribution also
+checks whether a new version crossed the release [maturity
+gate](#release-regression) — the same share-of-traffic test that draws release
+markers — in the window leading up to the flagged bucket. If one did, the
+attribution records the version, the version it followed, the share of traffic
+it reached and when, as the **release line**: *"Release 4.12 (after 4.11)
+reached 38% of traffic 3h before the drop"*. The hours are rounded down; a
+release that activated in the flagged bucket itself reads *"… at the drop"*, and
+*"(after …)"* is left out when no earlier released version carried the traffic.
+App-version series are used **only** for this line. They never enter the column
+ranking, for the same reason they carry no anomaly markers of their own: a
+version's share moves with its rollout, not with a problem.
+
+**When there is no attribution.** Attribution covers **volume** anomalies on the
+project total, an event type, or an event. It needs the scan to have at least
+one breakdown column — a scan-level or event-level breakdown column, or the
+platform column. Every signal says which case it is in:
+
+| `attribution_status` | Means |
+|---|---|
+| `ready` | Attribution was computed and stored with the anomaly. |
+| `no_breakdown_columns` | The scan has no breakdown column to split the delta by. Add one in the scan's settings; the next scan (or a replay of the period) computes it. |
+| `not_computed` | No attribution is stored for this anomaly — for example one detected before attribution existed and not replayed since, or a kind of signal attribution does not cover. |
+
+On the drilldown the stored attribution is shown in the **Why** panel under the
+signal card (see [Monitoring detail](./feature-reference.md#monitoring-detail));
+in alerts it is the [attribution line](./alerting.md#attribution-line).
+
 ### Triaging a signal {#triaging-a-signal}
 
 Every signal can be triaged from the **⋯** menu at the end of its row on the

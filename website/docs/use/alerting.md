@@ -908,9 +908,12 @@ variable is rejected, so a typo fails fast rather than sending a broken message)
   `${absolute_delta}`, `${percent_delta}`, `${percent_delta_label}`,
   `${bucket}`, `${details_url}`,
   `${monitoring_url}`, `${drift_field}`, `${drift_type}`, `${sample_value}`,
-  `${sparkline}`, `${top_movers}`, plus pre-formatted `*_line` variants
-  (`${details_line}`, `${monitoring_line}`, `${drift_line}`, `${sparkline_line}`,
-  `${top_movers_line}`).
+  `${sparkline}`, `${top_movers}`, `${attribution}`, plus pre-formatted
+  `*_line` variants (`${details_line}`, `${monitoring_line}`, `${drift_line}`,
+  `${attribution_line}`, `${sparkline_line}`, `${top_movers_line}`).
+  `${attribution}` is the bare [attribution](#attribution-line) sentence;
+  `${attribution_line}` is the same text on its own line, prefixed `why: `.
+  Both are empty when the item has no attribution.
 
   `${percent_delta_label}` is the one the default templates use: it carries its
   own `%` sign and says `no baseline` when the expected count was zero, where a
@@ -941,6 +944,45 @@ variable is rejected, so a typo fails fast rather than sending a broken message)
 An optional **AI explanation** can be appended to messages; it is off by default
 and does nothing unless an AI provider is configured — see
 [AI & search providers](../run/ai-and-search.md).
+
+### The attribution line {#attribution-line}
+
+A volume anomaly item carries one extra line when tripl could say where the
+change came from — the [attribution](./anomaly-detection.md#attribution)
+stored with the anomaly, for example
+
+> why: 92% of the drop comes from platform = ios (−3,120 of −3,390); Release 4.12 (after 4.11) reached 38% of traffic 3h before the drop
+
+The line is `why: ` followed by the attribution's **headline**, plus `; ` and the
+**release line** when a new app version crossed the release gate shortly before
+the bucket. Both sentences are built once, by the backend, from the attribution
+stored at detection time, and are the very sentences the drilldown's **Why**
+panel prints — the alert and the page it links to always read the same, down to
+the digit. The headline takes one of two forms:
+
+- *"92% of the drop comes from platform = ios (−3,120 of −3,390)"* — the
+  breakdown column that explains the most of the change, its biggest value
+  moving the same way, that value's share of the delta, and its contribution
+  against the scope's whole delta;
+- *"Platform shifted in both directions; no single value explains the drop"* —
+  with no percent, when that column's values moved against each other so much
+  that naming one would mislead.
+
+The line is rendered under the item in the default item templates (as
+`${attribution_line}`; `${attribution}` holds the bare text for custom
+templates) and is given to the AI explanation, so the note reasons from the
+same breakdown instead of guessing one. The one-line-per-item digest templates
+leave it out, as they leave out the movers and sparkline lines. **Webhook
+destinations do not carry it**: the delivery's `items[]` has no attribution
+field — fetch it from
+[`GET /anomalies/{anomaly_id}/attribution`](../integrate/agent-api-guide.md#signal-attribution)
+if an integration needs it. The rule editor's preview leaves it out too, since a
+simulated firing has no stored anomaly behind it.
+
+The line is left out, rather than printed empty, when the item has no
+attribution: a scan with no breakdown column, an anomaly detected before
+attribution existed, and every item that is not a volume anomaly on the project
+total, an event type or an event (drift, release regression, catalog metrics).
 
 ## The page
 

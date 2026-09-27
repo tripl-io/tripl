@@ -12,6 +12,7 @@ from tripl.models.event import EventStatus
 from tripl.models.user import User
 from tripl.schemas.event_metric import (
     ActiveSignalsQuery,
+    AnomalyAttributionResponse,
     AppVersionAdoptionResponse,
     AppVersionSeriesResponse,
     BreakdownTimelineResponse,
@@ -39,6 +40,7 @@ from tripl.schemas.event_metric import (
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
     alerting_service,
+    anomaly_attribution_service,
     audit_service,
     metrics_insights_service,
     metrics_service,
@@ -254,6 +256,22 @@ async def query_active_signals(
     return await metrics_insights_service.get_active_signals(
         session, slug, event_ids=data.event_ids or None
     )
+
+
+@router.get(
+    "/projects/{slug}/anomalies/{anomaly_id}/attribution",
+    response_model=AnomalyAttributionResponse,
+)
+async def get_anomaly_attribution(
+    session: SessionDep,
+    slug: str,
+    anomaly_id: uuid.UUID,
+) -> AnomalyAttributionResponse:
+    """Why did it change, for one anomaly (F02, #255): the contribution
+    breakdown and release context stored when it was detected, for lazy loading
+    (a chart marker other than the latest signal). 404 when the anomaly is not
+    this project's."""
+    return await anomaly_attribution_service.get_anomaly_attribution(session, slug, anomaly_id)
 
 
 @router.post(
