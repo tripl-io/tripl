@@ -181,7 +181,8 @@ def test_self_describing_is_one_class_per_schema(tmp_path: Path) -> None:
     assert "public struct CheckoutStartedV2_0_0: SdEvent" in swift
     assert "public struct PromoSheetViewed: SdEvent" in swift  # one version: no suffix
     kotlin = files["kotlin/SdTracking.kt"]
-    assert "data class PromoSheetViewed(" in kotlin
+    # No open values: Kotlin has no data class without constructor parameters.
+    assert "object PromoSheetViewed : SdEvent {" in kotlin
     assert "name = event.schema, fields = emptyMap(), properties = event.data" in kotlin
     ts = files["ts/sdTracking.ts"]
     assert (
@@ -274,7 +275,18 @@ def test_an_events_own_override_types_its_token() -> None:
     assert model.allowed_for(event, "sheet_id") == ("autumn",)
     assert model.allowed("sheet_id") == ("spring", "summer")
     # Absent overrides (an older server) fall back to the variable.
-    assert _model().allowed_for(event, "sheet_id") == ("spring", "summer")
+    plain_model = _model()
+    plain_legacy = plain_model.event_type("legacy")
+    assert plain_legacy is not None
+    plain = next(item for item in plain_legacy.events if "${" in item.identity)
+    assert plain.overrides == {}
+    assert plain_model.allowed_for(plain, "sheet_id") == ("spring", "summer")
+    # The list form of overrides reads the same as the mapping form.
+    promo["overrides"] = [{"token": "sheet_id", "allowed_values": ["autumn"]}]
+    listed = parse_model(raw).event_type("legacy")
+    assert listed is not None
+    listed_event = next(item for item in listed.events if "${" in item.identity)
+    assert model.allowed_for(listed_event, "sheet_id") == ("autumn",)
     config = load(FIXTURES / "check.yml")
     files = {
         item.path.name: item.content
@@ -364,7 +376,9 @@ def test_the_header_hashes_the_generated_files_when_the_export_has_no_plan_hash(
         ("a\\(b)", r'"a\\(b)"', r'"a\\(b)"', r"'a\\(b)'"),
         ("${x}", '"${x}"', r'"\${x}"', "'${x}'"),
         ("line\nbreak", r'"line\nbreak"', r'"line\nbreak"', r"'line\nbreak'"),
-        (" ", r'"\u{2028}"', r'" "', r"' '"),
+        # U+2028 ends a line in a pre-ES2019 JS string literal, and is invisible in every
+        # editor: each language spells it as an escape.
+        ("\u2028", r'"\u{2028}"', r'"\u2028"', r"'\u2028'"),
     ],
 )
 def test_string_literals_escape_per_language(raw: str, swift: str, kotlin: str, ts: str) -> None:
