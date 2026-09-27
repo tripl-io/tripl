@@ -37,7 +37,7 @@ The project sidebar groups every surface into three job-based areas:
 |------|----------|
 | **Plan** | Events (with one entry per event type under it), Event types, Meta fields, Variables, Relations, Plan branches, Plan history |
 | **Observe** | Overview, Metrics, Anomalies, Alerting |
-| **Govern** | Reconciliation, Coverage, Scans, Audit log |
+| **Govern** | Reconciliation, Duplicates, Coverage, Scans, Audit log |
 
 Above the groups sit the **project switcher**, the **branch switcher** (shown
 only inside a project), and the **Search or jump** button (⌘K). The pinned
@@ -398,11 +398,35 @@ Only a type with a required JSON field, or one whose name format reads a value
 *inside* a JSON field, cannot be filled this way, and it says so instead. Add
 those events one at a time.
 
+The pasted lines are also checked for near-duplicates and naming style in one
+request, the same check the single form runs (see
+[Duplicate and naming hints](#duplicate-and-naming-hints)). A line that looks
+like an existing event carries the warning; its status is unchanged, and it is
+still sent.
+
 Behind it is `POST /projects/{slug}/events/bulk`, which applies the naming rule
 per item exactly as the single create does. It is one transaction: if any item
 is refused — a missing required field, a taken identity, or two items claiming
 one identity — nothing is created, and the message names the item by its
 position in the batch.
+
+#### Duplicate and naming hints {#duplicate-and-naming-hints}
+
+While you type a new event's name or field values, the form checks them against
+the catalog after a short pause. When an existing event scores at or above the
+duplicate threshold (0.88), a warning reads
+*Looks like **paywall_view** (94%) — Open · Mark as replacement*, followed by
+the match's reasons (for example `similar name`, `same event type`,
+`1 shared field value`). Up to three matches are listed, those of the same
+event type first. **Mark as replacement** makes the save also deprecate that
+event, with the new one as its successor; the save bar says so
+(*Creating this event also deprecates …*), and **Undo** clears it. Hints about
+the project's naming convention appear under the name, followed by
+*Suggested: …* and a **Use suggested name** button; there are none for an event
+type whose name a scan rule builds. Nothing here blocks **Save**. How the score
+and the convention are computed, without any language model, is described in
+[Duplicates & naming](./duplicates-and-naming.md). Behind it is
+`POST /projects/{slug}/events/duplicate-check`.
 
 Setting an event to `archived` takes it out of circulation on both sides:
 `GET /projects/{slug}/events` leaves it out unless the request asks for that
@@ -1862,7 +1886,10 @@ that it measures data match — not the Coverage page's plan coverage — so the
 governance numbers are not read as contradictory. The **shadow events inbox** (tabs: `new` / `accepted` /
 `dismissed`) lists events seen in data but missing from the plan — **Accept**
 creates the event on the active branch (you pick an event type when none is
-inferred), or **Dismiss** it. The inbox loads 100 rows at a time and says how
+inferred), or **Dismiss** it. **Accept** first checks the candidate: when it
+looks like an event already in the plan, a dialog *Accept a possible
+duplicate?* lists the matches with **Open** links, and **Accept anyway** goes
+ahead. The inbox loads 100 rows at a time and says how
 many it is showing ("Showing 100 of 812"); **Show more** loads the next 100, as
 far as the list goes. The `new` tab carries the count of new events. Tick rows
 (or the select-all box) to **Accept** or **Dismiss** them in bulk. A row's
@@ -2009,6 +2036,35 @@ Two consequences are worth knowing before you delete rather than archive:
 
 **Archiving remains the non-destructive option**: an archived event keeps all of
 this and simply goes quiet.
+
+### Duplicates {#duplicates}
+
+**Where:** Govern › Duplicates (route `/p/:slug/duplicates`), next to
+Reconciliation. It lists clusters of likely duplicate events on the current
+branch: events that are `live`, `implemented` or `ready_for_dev`, compared only
+within their own event type and grouped when pairs score at or above the
+duplicate threshold (0.88). Each cluster is headed *N events · 93% alike* (its
+strongest pair) and shows its events with their status and 7-day volume. The
+page proposes the event to keep (most volume, then most advanced status); the
+**Keep** radio button picks another. Clusters load 25 at a time and **Load
+more** fetches the next ones.
+
+For each event other than the kept one:
+
+- **Open** the event.
+- **Set successor & deprecate**: the "merge" action. After a confirmation it
+  sets that event to `deprecated` with the kept event as **Replaced by**,
+  through the ordinary event edit, so branch rules, the
+  [dependency warnings](#dependencies-and-impact) and the event history apply
+  as for any deprecation. No volume moves and nothing is re-pointed; see
+  [Retiring an event](#retiring-an-event).
+- **Not a duplicate**: dismisses the pair of that event and the kept one, for
+  the project on every branch.
+
+Viewers see the list; setting a successor and dismissing need an editor. How
+pairs are scored is in [Duplicates & naming](./duplicates-and-naming.md).
+Behind it are `GET /projects/{slug}/duplicates` and
+`POST /projects/{slug}/duplicates/dismiss`.
 
 ### Coverage
 
@@ -2252,6 +2308,23 @@ Four more things it reports, each answering a question the raw rows could not:
   on that event type; it never offers a reserved column, because it is driven by
   the same `unmapped_columns` answer rather than by a second reading of the
   preview.
+
+Two more warnings come from the duplicate check (`name_warnings`; see
+[Duplicates & naming](./duplicates-and-naming.md#scan-dry-run-warnings)), shown
+in the dry-run summary:
+
+- **`combinatorial_explosion`**: only for a scan with a name rule. More than 50
+  new names under one event type differ only in one slot of the rule, and that
+  slot's distinct values are still at or below the scan's cardinality
+  threshold. The summary names the slot and the pattern, with up to three
+  sample names. Lowering the threshold below the count turns the column into a
+  `${...}` template; dropping the slot from the name format also fixes it.
+- **`duplicate`**: a new name that looks like an event of the same type already
+  on main. The summary lists *name looks like existing (score)*, linking to the
+  existing event.
+
+Both are lexical only and best-effort: if the check cannot run, the dry run
+completes without them.
 
 Like the preview, the dry run runs free-text SQL against a stored credential, so
 it is **owner-only**.
@@ -2793,5 +2866,6 @@ dialect-correct SQL examples and troubleshooting.
 - [Troubleshooting](./troubleshooting.md)
 - [Dependencies & impact](./dependencies-and-impact.md)
 - [Notifications & watching](./notifications.md)
+- [Duplicates & naming](./duplicates-and-naming.md)
 - [Agent / API Guide](../integrate/agent-api-guide.md)
 - [Configuration](../run/configuration.md)

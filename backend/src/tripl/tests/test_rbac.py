@@ -111,6 +111,10 @@ READ_LIKE_MUTATING_PATHS = {
     # ``tripl check``); POST only to carry up to 5000 items, and it writes
     # nothing. Ungated so a CI job's read-scope key and viewers can call it.
     "/api/v1/projects/{slug}/plan/validate",
+    # Read-like: duplicate and naming-lint check for would-be events (GH #265);
+    # POST only to carry up to 500 candidates, and it writes nothing. Ungated so
+    # a viewer sees the same warning an editor does.
+    "/api/v1/projects/{slug}/events/duplicate-check",
 }
 
 

@@ -66,6 +66,7 @@ describe('resolveTitleFromPath', () => {
   it('labels a project-scoped surface and carries its slug', () => {
     expect(resolveTitleFromPath('/p/acme/anomalies')).toEqual({ label: 'Anomalies', slug: 'acme' })
     expect(resolveTitleFromPath('/p/acme/overview')).toEqual({ label: 'Overview', slug: 'acme' })
+    expect(resolveTitleFromPath('/p/acme/duplicates')).toEqual({ label: 'Duplicates', slug: 'acme' })
     // A bare project path lands on Events (the default surface).
     expect(resolveTitleFromPath('/p/acme')).toEqual({ label: 'Events', slug: 'acme' })
   })

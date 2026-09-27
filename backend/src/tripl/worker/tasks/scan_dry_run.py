@@ -53,6 +53,7 @@ from tripl.worker.db import _build_adapter, _get_sync_session
 from tripl.worker.plan_scope import main_branch_id
 from tripl.worker.tasks._errors import NO_EVENT_NAMING_MSG, ScanError, user_facing_error
 from tripl.worker.utils.event_types import event_type_name_rejection
+from tripl.worker.utils.name_warnings import dry_run_name_warnings
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
 
@@ -369,6 +370,25 @@ def build_dry_run_payload(
     # an event that will not be created.
     count_confidence = "exact" if sample_is_complete and scan_window is None else "sampled"
 
+    # GH #265: combinatorial explosions and near-duplicates among the names a
+    # run would CREATE. Best-effort — it returns [] rather than raise — and kept
+    # out of ``warnings`` so that list stays the run's own partialities.
+    new_names_by_type: dict[str, list[str]] = {}
+    for key in counts_by_identity:
+        if key not in existing_identities:
+            new_names_by_type.setdefault(key[0], []).append(display_by_identity[key])
+    name_warnings = dry_run_name_warnings(
+        session,
+        config.project_id,
+        new_names_by_type=new_names_by_type,
+        event_type_ids={
+            target.name: target.event_type.id if target.event_type is not None else None
+            for target in targets
+        },
+        name_format=config.event_name_format,
+        cardinality_threshold=config.cardinality_threshold,
+    )
+
     events = [
         {
             "name": display_by_identity[key],
@@ -414,6 +434,7 @@ def build_dry_run_payload(
         else [],
         "warnings": warnings,
         "errors": errors,
+        "name_warnings": name_warnings,
     }
 
 

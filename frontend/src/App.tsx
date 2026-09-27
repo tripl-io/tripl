@@ -39,6 +39,7 @@ const MonitoringDetailPage = lazyWithReload(() => import('./pages/MonitoringDeta
 const ProjectSettingsPage = lazyWithReload(() => import('./pages/ProjectSettingsPage'))
 const ProjectScansPage = lazyWithReload(() => import('./pages/ProjectScansPage'))
 const ReconciliationPage = lazyWithReload(() => import('./pages/ReconciliationPage'))
+const DuplicatesPage = lazyWithReload(() => import('./pages/DuplicatesPage'))
 const AnomaliesPage = lazyWithReload(() => import('./pages/AnomaliesPage'))
 const MetricsPage = lazyWithReload(() => import('./pages/metrics/MetricsPage'))
 const MetricEditPage = lazyWithReload(() => import('./pages/metrics/MetricForm'))
@@ -504,6 +505,7 @@ export default function App() {
               <Route path="/p/:slug/monitors" element={<MonitorsRedirect />} />
               <Route path="/p/:slug/monitors/:monitorId" element={withSuspense('monitor-detail', <MonitorDetailPage />, 'detail')} />
               <Route path="/p/:slug/reconciliation" element={withSuspense('reconciliation', <ReconciliationPage />)} />
+              <Route path="/p/:slug/duplicates" element={withSuspense('duplicates', <DuplicatesPage />)} />
               <Route path="/p/:slug/anomalies" element={withSuspense('anomalies', <AnomaliesPage />)} />
               <Route path="/p/:slug/metrics/new" element={withMetricSuspense('metrics-new', <MetricEditPage />, 'form')} />
               <Route path="/p/:slug/metrics/:metricId/edit" element={withMetricSuspense('metrics-edit', <MetricEditPage />, 'form')} />

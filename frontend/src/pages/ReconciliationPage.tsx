@@ -17,6 +17,10 @@ import {
   type ShadowEventStatus,
 } from '@/api/reconciliation'
 import { eventTypesApi } from '@/api/eventTypes'
+import { duplicatesApi } from '@/api/duplicates'
+import { DuplicateHints } from '@/components/duplicates/DuplicateHints'
+import { visibleDuplicates } from '@/components/duplicates/duplicateHints'
+import type { DuplicateCheckResult } from '@/types'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { useDemoScenarioActions } from '@/demo/demoScenarioContext'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
@@ -173,6 +177,8 @@ export default function ReconciliationPage() {
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null)
   const [bulkNotice, setBulkNotice] = useState<string | null>(null)
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
+  // The row whose accept is waiting on the duplicate check (F12, #265).
+  const [checkingAcceptId, setCheckingAcceptId] = useState<string | null>(null)
   const [selectedEventType, setSelectedEventType] = useState<Record<string, string>>({})
   const [rowError, setRowError] = useState<Record<string, string>>({})
   // A Set, not an array: select-all used `includes` over arrays, O(n²) on a
@@ -307,15 +313,58 @@ export default function ReconciliationPage() {
     },
   })
 
+  // Before a shadow event joins the plan, ask whether the plan already has it
+  // under another name (F12, #265): a scan that saw "Paywall Screen View" next
+  // to a planned "Paywall View" should say so, not add a second entry
+  // silently. Advisory and best-effort — a failed check accepts as before, and
+  // the name is never offered for rewriting: it is what the app sends.
+  const confirmNotDuplicate = async (item: ShadowEvent, eventTypeId: string | undefined) => {
+    if (!slug || !eventTypeId) return true
+    setCheckingAcceptId(item.id)
+    let result: DuplicateCheckResult | undefined
+    try {
+      const response = await duplicatesApi.check(
+        slug,
+        [{ name: item.event_name, event_type_id: eventTypeId }],
+        branchId,
+      )
+      result = response.items[0]
+    } catch {
+      return true
+    } finally {
+      setCheckingAcceptId(null)
+    }
+    if (!result || visibleDuplicates(result).length === 0) return true
+    return confirm({
+      title: 'Accept a possible duplicate?',
+      message: (
+        <>
+          <p className="m-0">
+            Accepting adds “{eventNameLabel(item.event_name)}” to the plan as an event of its own.
+          </p>
+          <DuplicateHints
+            slug={slug}
+            name={item.event_name}
+            result={{ duplicates: result.duplicates, lint: [], suggestion: null }}
+          />
+        </>
+      ),
+      confirmLabel: 'Accept anyway',
+      variant: 'primary',
+    })
+  }
+
+  const acceptWithCheck = async (item: ShadowEvent, eventTypeId: string | undefined) => {
+    if (!(await confirmNotDuplicate(item, eventTypeId))) return
+    acceptMutation.mutate({ id: item.id, eventTypeId })
+  }
+
   const handleAccept = (item: ShadowEvent) => {
     if (!item.event_type_name && !selectedEventType[item.id]) {
       setAcceptingId(item.id)
       return
     }
-    acceptMutation.mutate({
-      id: item.id,
-      eventTypeId: item.event_type_id ?? selectedEventType[item.id] ?? undefined,
-    })
+    void acceptWithCheck(item, item.event_type_id ?? selectedEventType[item.id] ?? undefined)
   }
 
   const coverage = coverageQuery.data
@@ -713,6 +762,7 @@ export default function ReconciliationPage() {
               {shadow?.items.map((item) => {
                 const isActing =
                   bulkRunning ||
+                  checkingAcceptId === item.id ||
                   (acceptMutation.isPending && acceptMutation.variables?.id === item.id) ||
                   (dismissMutation.isPending && dismissMutation.variables === item.id)
                 const needsEventTypeSelect = acceptingId === item.id && !item.event_type_name
@@ -737,8 +787,8 @@ export default function ReconciliationPage() {
                     onConfirm={() => {
                       const eventTypeId = selectedEventType[item.id]
                       if (!eventTypeId) return
-                      acceptMutation.mutate({ id: item.id, eventTypeId })
                       setAcceptingId(null)
+                      void acceptWithCheck(item, eventTypeId)
                     }}
                     onCancel={() => setAcceptingId(null)}
                     confirmDisabled={!selectedEventType[item.id] || acceptMutation.isPending}

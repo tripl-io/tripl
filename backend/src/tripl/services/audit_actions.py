@@ -38,6 +38,7 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "event.bulk_update",
             "event.delete",
             "event.bulk_delete",
+            "event.duplicate_dismiss",
             "event_comment.create",
             "event_comment.delete",
             "event_comment.action",

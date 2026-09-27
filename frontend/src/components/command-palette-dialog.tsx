@@ -281,6 +281,7 @@ const NAV_KEYWORDS: Record<string, string[]> = {
   scans: ['data source', 'sql'],
   branches: ['review', 'merge'],
   history: ['snapshots', 'revisions'],
+  duplicates: ['merge', 'near-duplicates', 'naming', 'successor'],
 }
 
 /**

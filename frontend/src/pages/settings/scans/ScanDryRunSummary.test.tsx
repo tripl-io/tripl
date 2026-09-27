@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { ScanDryRunEvent, ScanDryRunResponse } from '@/types'
+import type { ScanDryRunEvent, ScanDryRunNameWarning, ScanDryRunResponse } from '@/types'
 
 import { ScanDryRunSummary } from './ScanDryRunSummary'
 
@@ -382,5 +383,60 @@ describe('ScanDryRunSummary — a draft that would swamp the plan (#247 DA-1)', 
   it('stays quiet on an ordinary answer', () => {
     render(<ScanDryRunSummary dryRun={dryRun({ events: THREE_EVENTS })} />)
     expect(screen.queryByTestId('dry-run-explosion')).toBeNull()
+  })
+})
+
+describe('ScanDryRunSummary — name warnings (F12, #265)', () => {
+  const EXPLOSION: ScanDryRunNameWarning = {
+    code: 'combinatorial_explosion',
+    event_type: 'Screen',
+    message: '120 new names under Screen differ only in screen_id.',
+    count: 120,
+    slot: 1,
+    slot_label: 'screen_id',
+    pattern: 'view_*',
+    samples: ['view_a1', 'view_b2', 'view_c3', 'view_d4'],
+  }
+  const DUPLICATE: ScanDryRunNameWarning = {
+    code: 'duplicate',
+    event_type: 'Screen',
+    message: 'paywall_screen_view looks like paywall_view.',
+    samples: [],
+    name: 'paywall_screen_view',
+    duplicate_of: { event_id: 'ev-paywall', name: 'paywall_view', score: 0.93, status: 'live' },
+  }
+
+  it('describes a combinatorial explosion: count, slot, pattern and a few samples', () => {
+    render(<ScanDryRunSummary dryRun={dryRun({ name_warnings: [EXPLOSION] })} />)
+    const box = screen.getByTestId('dry-run-name-explosion')
+    expect(box).toHaveTextContent('120 new names under Screen differ only in screen_id (view_*)')
+    expect(box).toHaveTextContent('For example: view_a1, view_b2, view_c3')
+    expect(box).not.toHaveTextContent('view_d4')
+  })
+
+  it('names the duplicate and links to the planned event', () => {
+    render(
+      <MemoryRouter>
+        <ScanDryRunSummary slug="demo" dryRun={dryRun({ name_warnings: [DUPLICATE] })} />
+      </MemoryRouter>,
+    )
+    const block = screen.getByTestId('dry-run-name-duplicates')
+    expect(block).toHaveTextContent('1 new event looks like one already in your plan')
+    expect(block).toHaveTextContent('paywall_screen_view looks like paywall_view (93%)')
+    expect(within(block).getByRole('link', { name: 'paywall_view' })).toHaveAttribute(
+      'href',
+      '/p/demo/monitoring/event/ev-paywall',
+    )
+  })
+
+  it('names the duplicate as plain text where there is no project to link into', () => {
+    render(<ScanDryRunSummary dryRun={dryRun({ name_warnings: [DUPLICATE] })} />)
+    expect(screen.getByTestId('dry-run-name-duplicates')).toHaveTextContent('paywall_view')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('renders nothing for an answer without name warnings', () => {
+    render(<ScanDryRunSummary dryRun={dryRun({ events: THREE_EVENTS })} />)
+    expect(screen.queryByTestId('dry-run-name-warnings')).toBeNull()
   })
 })

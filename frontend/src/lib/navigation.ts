@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bell,
   Braces,
+  Copy,
   GitBranch,
   GitCompare,
   History,
@@ -255,6 +256,16 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           icon: GitCompare,
           href: `${base}/reconciliation`,
           match: (p) => p.startsWith(`${base}/reconciliation`),
+        },
+        {
+          // Likely duplicates already in the catalog, and what to keep (F12,
+          // #265). Beside Reconciliation: both ask whether the plan and the
+          // data describe each event once.
+          id: 'duplicates',
+          label: 'Duplicates',
+          icon: Copy,
+          href: `${base}/duplicates`,
+          match: (p) => p.startsWith(`${base}/duplicates`),
         },
         {
           id: 'coverage',

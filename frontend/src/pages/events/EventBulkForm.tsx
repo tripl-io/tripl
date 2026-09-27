@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { EventType } from '@/types'
+import type { DuplicateCandidate, DuplicateCheckResult, EventType } from '@/types'
 import { eventsApi } from '@/api/events'
 import { eventTypesApi } from '@/api/eventTypes'
 import { usersApi } from '@/api/users'
@@ -29,7 +29,16 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { AlertTriangle, Check, ChevronLeft, Loader2, Plus, X, type LucideIcon } from 'lucide-react'
 import { EV_INPUT_CLASS, EvField, SelectControl, SurfCard } from './eventFormLayout'
 import { nameFormatBaseColumns } from './utils'
-import { bulkExtraColumns, bulkUnsupportedReason, parseBulkDraft, type BulkRow } from './bulkEventDraft'
+import {
+  bulkExtraColumns,
+  bulkUnsupportedReason,
+  parseBulkDraft,
+  replaceBulkLineName,
+  type BulkRow,
+} from './bulkEventDraft'
+import { DuplicateHints, DuplicateLiveRegion } from '@/components/duplicates/DuplicateHints'
+import { visibleDuplicates } from '@/components/duplicates/duplicateHints'
+import { useDuplicateCheck } from '@/components/duplicates/useDuplicateCheck'
 import { normalizeTag } from './eventFormValues'
 import { rememberCreatedEvents } from './createdEventsHandoff'
 import { useCanWriteProject } from '@/lib/permissions'
@@ -227,7 +236,40 @@ export default function EventBulkForm() {
         : [],
     [draft, etId, unsupported, namingColumns, nameFormat, taken, extraColumns],
   )
-  const ready = rows.filter(row => row.status === 'ready')
+  const ready = useMemo(() => rows.filter(row => row.status === 'ready'), [rows])
+
+  // Near-duplicates and naming hints per line that would be created (F12,
+  // #265): one request for the whole paste, debounced like the identity probe.
+  // A warning on the line, never a refusal — the server creates what it is sent.
+  const readyRows = ready
+  const duplicateCandidates = useMemo(
+    (): DuplicateCandidate[] =>
+      readyRows.map(row => ({
+        name: row.name,
+        event_type_id: etId,
+        field_values: bulkFieldValues(row, namingColumns, extraColumns, fieldsByName),
+      })),
+    [readyRows, etId, namingColumns, extraColumns, fieldsByName],
+  )
+  const duplicateCheck = useDuplicateCheck({
+    slug,
+    branchId,
+    candidates: duplicateCandidates,
+    enabled: canWrite && !!etId,
+  })
+  const duplicatesByLine = useMemo(() => {
+    const byLine = new Map<number, DuplicateCheckResult>()
+    readyRows.forEach((row, index) => {
+      const result = duplicateCheck.results?.[index]
+      if (result) byLine.set(row.line, result)
+    })
+    return byLine
+  }, [readyRows, duplicateCheck.results])
+  // Lines whose compact hint names a match, for the table's live region.
+  const duplicateLineCount = useMemo(
+    () => [...duplicatesByLine.values()].filter(result => visibleDuplicates(result, undefined, 1).length > 0).length,
+    [duplicatesByLine],
+  )
   // Until the paste has settled and every probe has answered, "will be created"
   // would be a guess: an empty `taken` set reads every line as free, and a
   // Create pressed then sends a batch the server refuses whole (EVT-37).
@@ -264,13 +306,7 @@ export default function EventBulkForm() {
           // exactly what it always did.
           ...(ownerId ? { owner_id: ownerId } : {}),
           ...(tags.length > 0 ? { tags } : {}),
-          field_values: [
-            ...namingColumns.map((column, position) => [column, row.values[position]] as const),
-            ...extraNames.map((column, position) => [column, row.extras[position]] as const),
-          ].flatMap(([column, value]) => {
-            const field = fieldsByName.get(column)
-            return field && value ? [{ field_definition_id: field.id, value }] : []
-          }),
+          field_values: bulkFieldValues(row, namingColumns, extraColumns, fieldsByName),
         })),
         branchId,
       ),
@@ -489,6 +525,9 @@ export default function EventBulkForm() {
                       : undefined
                 }
               >
+                {/* One polite region for the whole table: "2 possible
+                    duplicates", not one announcement per row. */}
+                <DuplicateLiveRegion count={duplicateLineCount} />
                 <div className="max-h-[360px] overflow-auto">
                   {/* The box above scrolls both ways, so the table's own
                       wrapper does not add a second scroller whose bar sits
@@ -518,7 +557,24 @@ export default function EventBulkForm() {
                           </TableCell>
                           {/* Sans like the catalog's names (DS-17); the paste above stays
                               mono, since it is raw identifier input. */}
-                          <TableCell className="py-[6px] max-md:pl-4">{row.name}</TableCell>
+                          <TableCell className="py-[6px] max-md:pl-4">
+                            {row.name}
+                            {row.status === 'ready' && slug && (
+                              <DuplicateHints
+                                compact
+                                slug={slug}
+                                name={row.name}
+                                result={duplicatesByLine.get(row.line)}
+                                // Under a rule the name is built from the
+                                // columns, so there is no single cell to swap.
+                                onUseSuggestion={
+                                  nameFormat
+                                    ? undefined
+                                    : suggestion => setDraft(current => replaceBulkLineName(current, row.line, suggestion))
+                                }
+                              />
+                            )}
+                          </TableCell>
                           {/* The extra columns as read, so a value that slid into
                               the title (or out of it) shows before it is stored. */}
                           {extraNames.length > 0 && (
@@ -579,6 +635,26 @@ export default function EventBulkForm() {
       </div>
     </PageContainer>
   )
+}
+
+/**
+ * The values a line writes, keyed by field id — what the create sends and what
+ * the duplicate check compares. A column with no field, or left empty, is not
+ * written.
+ */
+function bulkFieldValues(
+  row: BulkRow,
+  namingColumns: readonly string[],
+  extraColumns: readonly { name: string }[],
+  fieldsByName: ReadonlyMap<string, { id: string }>,
+): { field_definition_id: string; value: string }[] {
+  return [
+    ...namingColumns.map((column, position) => [column, row.values[position]] as const),
+    ...extraColumns.map((column, position) => [column.name, row.extras[position]] as const),
+  ].flatMap(([column, value]) => {
+    const field = fieldsByName.get(column)
+    return field && value ? [{ field_definition_id: field.id, value }] : []
+  })
 }
 
 /** One line's verdict with its icon; "checking…" has none until it is known. */

@@ -878,3 +878,20 @@ export const projectSubscriptionsKey = (slug: string | undefined) => ['subscript
 /** The reader's watch state on one entity — `GET /projects/{slug}/subscriptions/{type}/{id}`. */
 export const subscriptionKey = (slug: string | undefined, entityType: string, entityId: string | undefined) =>
   [...projectSubscriptionsKey(slug), entityType, entityId] as const
+
+/**
+ * Duplicate detection (F12, #265). Under the branch's events prefix, so any
+ * event write — a create, a deprecate, a successor — refreshes what the form
+ * and the Duplicates page say about the catalog.
+ */
+export const branchDuplicatesKey = (slug: string | undefined, branchId: string | null | undefined) =>
+  [...branchEventsKey(slug, branchId), 'duplicates'] as const
+/** One duplicate-check request; `payload` is the candidates, serialized. */
+export const duplicateCheckKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  payload: string,
+) => [...branchDuplicatesKey(slug, branchId), 'check', payload] as const
+/** The Duplicates page's cluster pages. */
+export const duplicateClustersKey = (slug: string | undefined, branchId: string | null | undefined) =>
+  [...branchDuplicatesKey(slug, branchId), 'clusters'] as const

@@ -549,6 +549,7 @@ export function ScanEssentialsSection({
             eventTargetMissing={!hasEventTarget(state)}
             onRecheck={runDryRun}
             onFixNaming={openNamingControl}
+            slug={slug}
           />
           {/* Directly under the answer it acts on, and driven by the same
               `unmapped_columns` the panel just listed — it used to sit hundreds

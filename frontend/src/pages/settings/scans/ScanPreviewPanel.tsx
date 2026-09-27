@@ -46,7 +46,10 @@ export function ScanPreviewPanel({
   eventTargetMissing,
   onRecheck,
   onFixNaming,
+  slug,
 }: {
+  /** The project, so the dry run's duplicate warnings can link to events. */
+  slug?: string
   preview: ScanConfigPreview
   /** Null until the first dry run resolves — the rows still render without it. */
   dryRun: ScanDryRunResponse | null
@@ -123,7 +126,7 @@ export function ScanPreviewPanel({
               </Button>
             </div>
           )}
-          <ScanDryRunSummary dryRun={dryRun} onFixNaming={onFixNaming} />
+          <ScanDryRunSummary dryRun={dryRun} onFixNaming={onFixNaming} slug={slug} />
         </div>
       )}
 

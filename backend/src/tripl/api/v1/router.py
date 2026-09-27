@@ -11,6 +11,8 @@ from tripl.api.v1.auth import router as auth_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
 from tripl.api.v1.data_sources import router as data_sources_router
 from tripl.api.v1.dependencies import router as dependencies_router
+from tripl.api.v1.duplicates import check_router as duplicate_check_router
+from tripl.api.v1.duplicates import router as duplicates_router
 from tripl.api.v1.event_comments import router as event_comments_router
 from tripl.api.v1.event_photos import router as event_photos_router
 from tripl.api.v1.event_type_owners import project_router as project_event_type_owners_router
@@ -72,6 +74,8 @@ router.include_router(meta_fields_router, dependencies=protected_dependencies)
 # Registered BEFORE events_router so `/projects/{slug}/events/stream` is matched
 # by the SSE route and not captured by `/projects/{slug}/events/{event_id}`.
 router.include_router(events_stream_router, dependencies=protected_dependencies)
+# Also BEFORE events_router: `/projects/{slug}/events/duplicate-check` (GH #265).
+router.include_router(duplicate_check_router, dependencies=protected_dependencies)
 router.include_router(events_router, dependencies=protected_dependencies)
 router.include_router(lifecycle_router, dependencies=protected_dependencies)
 router.include_router(event_photos_router, dependencies=protected_dependencies)
@@ -93,6 +97,7 @@ router.include_router(plan_revisions_router, dependencies=protected_dependencies
 router.include_router(plan_validation_router, dependencies=protected_dependencies)
 router.include_router(plan_export_router, dependencies=protected_dependencies)
 router.include_router(reconciliation_router, dependencies=protected_dependencies)
+router.include_router(duplicates_router, dependencies=protected_dependencies)
 router.include_router(audit_router, dependencies=protected_dependencies)
 router.include_router(users_router, dependencies=protected_dependencies)
 router.include_router(api_keys_router, dependencies=protected_dependencies)
