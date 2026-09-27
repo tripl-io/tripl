@@ -28,6 +28,7 @@ import {
   toCsv,
 } from './events/eventsCsv'
 import {
+  HEALTH_COL_KEY,
   shownColumnKey,
   typeSpecificFieldKeys,
   useColumnVisibility,
@@ -55,6 +56,7 @@ import { tabDefaultStatuses, useEventsQuery } from './events/useEventsQuery'
 import { useEventsRouteState } from './events/useEventsRouteState'
 import { useEventsSelection } from './events/useEventsSelection'
 import { useEventRowSignals, useEventsSignals } from './events/useEventsSignals'
+import { useEventsHealth } from './events/useEventsHealth'
 import { useEventsTableOverflow } from './events/useEventsTableOverflow'
 import { useEventsTableVirtualization } from './events/useEventsTableVirtualization'
 import { useCreatedEventsHighlight } from './events/useCreatedEventsHighlight'
@@ -267,7 +269,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
     activeTabLabel,
     activeTabSignal,
     clearAllFilters,
-    colCount,
+    colCount: baseColCount,
     hasActiveFilters,
     hideDelta,
     hideLastSeen,
@@ -332,7 +334,16 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   // small drag rewrote the manual order of every loaded row into volume order,
   // with nothing visible changing (EVT-3). Filters and search keep catalog
   // order, so a drag among the rows they leave still means what it shows.
-  const canReorder = canWrite && sort !== 'volume'
+  // The same goes for "Least healthy first" (F15, #268).
+  const canReorder = canWrite && sort === 'catalog'
+
+  // Health scores exist for the main plan's non-archived events only: a branch
+  // gets neither the column nor the sort, and the Archived tab no column of
+  // dashes. The Columns menu governs it everywhere else.
+  const healthAvailable = !branchId
+  const hideHealth =
+    !healthAvailable || activeTab === 'archived' || hiddenColumns.has(HEALTH_COL_KEY)
+  const colCount = baseColCount + (hideHealth ? 0 : 1)
 
   // `useEventsFiltering` returns the exact `rawEvents` reference when no
   // client-side field/meta filter is active and a fresh filtered array
@@ -387,6 +398,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   })
 
   const eventSignals = useEventRowSignals({ slug, events, virtualItems })
+  const healthByEvent = useEventsHealth({ slug, events: rawEvents, enabled: !hideHealth })
 
   // Schema drift, once per event type (EVT-33). `drift_count` on a row is its
   // type's count, so the loaded rows name every drifting type they cover.
@@ -793,6 +805,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
               onFilterOpenQuestionsChange={setFilterOpenQuestions}
               sortOrder={sort}
               onSortOrderChange={setSort}
+              healthAvailable={healthAvailable && activeTab !== 'archived'}
               hasActiveFilters={hasActiveFilters}
               onClearFilters={clearAllFilters}
               savedViews={savedViews}
@@ -882,6 +895,8 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
               hideStatus={hideStatus}
               hideReviewed={hideReviewed}
               hideMonitor={hideMonitor}
+              hideHealth={hideHealth}
+              healthByEvent={healthByEvent}
               hideOwner={hideOwner}
               hideDelta={hideDelta}
               usersById={usersById}

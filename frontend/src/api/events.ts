@@ -32,7 +32,11 @@ type ListQuery = NonNullable<
  * must pass a limit it chose and read `total` to say what it did not show.
  */
 export type EventListParams = {
-  [K in Exclude<keyof ListQuery, 'branch'>]?: NonNullable<ListQuery[K]>
+  [K in Exclude<keyof ListQuery, 'branch' | 'order_by'>]?: NonNullable<ListQuery[K]>
+} & {
+  /** 'health' (least healthy first, F15 #268) is main-plan only: a branch gets
+   *  a 400. Spelled out until the regenerated `api.gen.ts` carries it. */
+  order_by?: NonNullable<ListQuery['order_by']> | 'health'
 }
 
 /**

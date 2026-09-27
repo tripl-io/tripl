@@ -205,7 +205,8 @@ def _register_list(
         help=(
             f"order the page by {'|'.join(events_api.ORDER_BY)} "
             f"(default: {events_api.ORDER_BY_DEFAULT}, the authored catalog order; "
-            "volume ranks busiest-first by ingested volume over the last 24h)"
+            "volume ranks busiest-first by ingested volume over the last 24h; "
+            "health ranks least healthy first, main plan only)"
         ),
     )
     add_json(parser)

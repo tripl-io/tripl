@@ -50,6 +50,12 @@ def _active_drift_predicates(now: datetime) -> list[ColumnElement[bool]]:
     ]
 
 
+# Public names for readers outside this module (the health score, F15 #268):
+# they must judge "active" exactly as the drift lists do.
+retention_cutoff = _retention_cutoff
+active_drift_predicates = _active_drift_predicates
+
+
 def _logical_type_from_observed(observed_type: str | None) -> str:
     # Match the detector's `_infer_logical_field_type`: accepts must write the
     # same auto-managed type that a fresh scan would infer from this column.

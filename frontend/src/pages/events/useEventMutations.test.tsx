@@ -237,7 +237,10 @@ describe('useEventMutations optimistic apply/rollback', () => {
     expect(infiniteItems().map(e => e.status)).toEqual(['draft', 'live'])
     // The selection made since the original action is not the undo's to clear.
     expect(onUpdateSuccess).not.toHaveBeenCalled()
-    expect(invalidate).toHaveBeenCalledTimes(1)
+    // Once for the lists, once for the main plan's health scores (F15).
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey)
+    expect(keys).toHaveLength(2)
+    expect(keys).toContainEqual(['events', SLUG, 'health'])
   })
 
   it('rolls every undo group back when one fails', async () => {

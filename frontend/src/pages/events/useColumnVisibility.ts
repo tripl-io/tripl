@@ -5,6 +5,13 @@ import type { EventType, FieldDefinition } from '@/types'
 const STORAGE_KEY = 'tripl.eventsHiddenCols'
 
 /**
+ * The Health column (F15, #268): a toggleable column like Signal or Δ, shown
+ * by default. It exists on the main plan only; on a branch the table leaves it
+ * out whatever this preference says, and the Columns menu hides its toggle.
+ */
+export const HEALTH_COL_KEY = 'health'
+
+/**
  * Columns hidden by default for a first-time user (no persisted preference).
  *
  * UX-14: a fresh user should meet a lean, scannable table that leads with the

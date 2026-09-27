@@ -25,6 +25,7 @@ import { Dot } from '@/components/primitives/dot'
 import { MiniStat, MiniStatStrip, type MiniStatTone } from '@/components/primitives/mini-stat'
 import { Sparkline } from '@/components/primitives/sparkline'
 import { Panel } from '@/components/settings/kit'
+import { OverviewPlanHealthPanel } from './OverviewPlanHealthPanel'
 import { PageContainer } from '@/components/primitives/page-container'
 import { PageHeader } from '@/components/primitives/page-header'
 import { EmptyState } from '@/components/empty-state'
@@ -724,6 +725,9 @@ export default function OverviewPage() {
         </div>
       </Panel>
       )}
+
+      {/* Plan health (F15, #268): the main plan's score beside the sources'. */}
+      {slug && <OverviewPlanHealthPanel slug={slug} sparklineVariant={chartStyle} />}
 
       {/* Source health */}
       <Panel title="Source health">

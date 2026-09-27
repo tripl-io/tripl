@@ -71,6 +71,8 @@ import {
 } from './fieldContract'
 import { describedByIds, SFieldHintContext, useSFieldHintId } from './sFieldContext'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { AggregateHealthPopover } from '@/components/health/health-averages'
+import { useEventTypesHealth } from './useEventTypesHealth'
 
 const FIELD_TYPES = ['string', 'number', 'boolean', 'json', 'enum', 'url']
 
@@ -166,6 +168,10 @@ export function EventTypesTab({ slug }: { slug: string }) {
     )
   })
 
+  // Health (F15, #268) is a main-plan score: a branch gets no column, and
+  // neither does a failed or empty answer (a column of dashes says nothing).
+  const healthByType = useEventTypesHealth(slug, onMain)
+
   if (creating) {
     return <CreateEventTypeView slug={slug} branchId={branchId} onDone={() => setCreating(false)} />
   }
@@ -179,6 +185,10 @@ export function EventTypesTab({ slug }: { slug: string }) {
   // column used to say "ungated" for every row there — wrong for exactly the
   // types whose owners will block this branch's merge (PLAN-40).
   const showStatus = onMain
+  // Every main type is answered, scored or not: show the column only when at
+  // least one has a score.
+  const showHealth =
+    healthByType !== undefined && [...healthByType.values()].some((h) => h.score !== null)
 
   return (
     <PageContainer>
@@ -254,6 +264,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
               <TableRow style={{ background: 'var(--bg-sunken)' }}>
                 <Th>Type</Th>
                 <Th>Fields</Th>
+                {showHealth && <Th>Health</Th>}
                 <Th align="right" wideOnly>Required</Th>
                 {showSensitive && <Th wideOnly>Sensitive</Th>}
                 {showOwner && <Th wideOnly>Owner</Th>}
@@ -293,6 +304,21 @@ export function EventTypesTab({ slug }: { slug: string }) {
                   <Td>
                     <span className="tnum">{et.field_definitions.length}</span>
                   </Td>
+                  {showHealth && (
+                    <Td>
+                      {(() => {
+                        const health = healthByType?.get(et.id)
+                        if (!health) {
+                          return (
+                            <span className="text-fg-tertiary" title="No scored events on the main plan">
+                              —
+                            </span>
+                          )
+                        }
+                        return <AggregateHealthPopover health={health} name={et.display_name} />
+                      })()}
+                    </Td>
+                  )}
                   <Td align="right" wideOnly>
                     <span className="tnum text-fg-secondary">
                       {requiredFieldCount(et)}

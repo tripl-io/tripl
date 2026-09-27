@@ -54,6 +54,7 @@ import {
   eventTagsKey,
   planBranchesKey,
   projectEventKey,
+  projectHealthRootKey,
   scansKey,
   usersKey,
 } from '@/lib/queryKeys'
@@ -674,6 +675,9 @@ export function EventForm({
       qc.invalidateQueries({ queryKey: branchEventsKey(slug, branchId) })
       qc.invalidateQueries({ queryKey: eventTagsKey(slug, branchId) })
       if (event) qc.invalidateQueries({ queryKey: projectEventKey(slug) })
+      // Health scores the main plan: its documentation component reads the
+      // description and owner edited right here, and status moves the rest.
+      if (branchId === null) qc.invalidateQueries({ queryKey: projectHealthRootKey(slug) })
       if (!event) {
         // The name just created is no longer free: a probe that answered "not
         // taken" a moment ago must ask again (EVT-25).

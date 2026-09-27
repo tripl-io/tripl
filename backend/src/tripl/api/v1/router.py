@@ -22,6 +22,7 @@ from tripl.api.v1.events import router as events_router
 from tripl.api.v1.events_stream import router as events_stream_router
 from tripl.api.v1.fact_tables import router as fact_tables_router
 from tripl.api.v1.fields import router as fields_router
+from tripl.api.v1.health import router as health_router
 from tripl.api.v1.implementation_tickets import (
     event_router as event_implementation_tickets_router,
 )
@@ -78,6 +79,7 @@ router.include_router(events_stream_router, dependencies=protected_dependencies)
 router.include_router(duplicate_check_router, dependencies=protected_dependencies)
 router.include_router(events_router, dependencies=protected_dependencies)
 router.include_router(lifecycle_router, dependencies=protected_dependencies)
+router.include_router(health_router, dependencies=protected_dependencies)
 router.include_router(event_photos_router, dependencies=protected_dependencies)
 router.include_router(event_comments_router, dependencies=protected_dependencies)
 router.include_router(variables_router, dependencies=protected_dependencies)

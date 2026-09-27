@@ -3,6 +3,7 @@ import type { FieldDefinition, MetaFieldDefinition } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { LAST_SEEN_COL_KEY, ROW_METRICS_LABEL } from './utils'
+import { HEALTH_COL_KEY } from './useColumnVisibility'
 
 export function ColumnsMenu({
   open,
@@ -14,6 +15,7 @@ export function ColumnsMenu({
   hiddenColumns,
   offscreenColumnCount = 0,
   reviewedPinned = false,
+  healthAvailable = false,
   onToggle,
 }: {
   open: boolean
@@ -27,6 +29,8 @@ export function ColumnsMenu({
   hiddenColumns: Set<string>
   /** Columns scrolled outside the table's horizontal viewport right now. */
   offscreenColumnCount?: number
+  /** The Health column exists on the main plan only (F15, #268). */
+  healthAvailable?: boolean
   onToggle: (key: string) => void
 }) {
   const statusHidden = hiddenColumns.has('status')
@@ -36,7 +40,9 @@ export function ColumnsMenu({
   const monitorHidden = hiddenColumns.has('monitor')
   const ownerHidden = hiddenColumns.has('owner')
   const deltaHidden = hiddenColumns.has('delta')
+  const healthHidden = healthAvailable && hiddenColumns.has(HEALTH_COL_KEY)
   const totalHidden =
+    (healthHidden ? 1 : 0) +
     (statusHidden ? 1 : 0) +
     (reviewedHidden ? 1 : 0) +
     (monitorHidden ? 1 : 0) +
@@ -97,6 +103,14 @@ export function ColumnsMenu({
           checked={!monitorHidden}
           onChange={() => onToggle('monitor')}
         />
+        {healthAvailable && (
+          <ColumnToggle
+            label="Health"
+            pinned={false}
+            checked={!healthHidden}
+            onChange={() => onToggle(HEALTH_COL_KEY)}
+          />
+        )}
         <ColumnToggle
           label="Owner"
           pinned={false}

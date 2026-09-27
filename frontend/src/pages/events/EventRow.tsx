@@ -33,6 +33,8 @@ import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { useDemoScenario } from '@/demo/demoScenarioContext'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
 import { EventWindowMetricsCell } from './EventWindowMetricsCell'
+import { HealthPopover } from '@/components/health/health-breakdown'
+import type { EventHealth } from '@/types/health'
 import { PINNED_EVENT_CONTENT_MAX_WIDTH, PINNED_EVENT_CELL_STYLE } from './useEventsTableOverflow'
 import {
   PHONE_DROPPED_CELL,
@@ -134,6 +136,10 @@ export type EventRowProps = {
   hideStatus: boolean
   hideReviewed: boolean
   hideMonitor: boolean
+  /** No Health column: hidden by the reader, or a branch (health is main-only). */
+  hideHealth?: boolean
+  /** The row's health score (F15, #268); undefined while loading or unscored. */
+  health?: EventHealth
   hideOwner: boolean
   hideDelta: boolean
   usersById: Map<string, { name: string | null; email: string }>
@@ -180,6 +186,8 @@ export const EventRow = memo(function EventRow({
   hideStatus,
   hideReviewed,
   hideMonitor,
+  hideHealth = true,
+  health,
   hideOwner,
   hideDelta,
   usersById,
@@ -471,6 +479,23 @@ export const EventRow = memo(function EventRow({
                 ev.monitored
                   ? 'No open signal. A monitor (alert rule) covers this event.'
                   : 'No open signal, and no monitor (alert rule) covers this event'
+              }
+            />
+          )}
+        </TableCell>
+      )}
+      {!hideHealth && (
+        // The badge opens its breakdown; a click on the cell around it must
+        // not open the event as well.
+        <TableCell className={health ? 'w-16' : `w-16 ${PHONE_QUIET_CELL}`} data-no-row-click>
+          {health ? (
+            <HealthPopover health={health} />
+          ) : (
+            <NoData
+              title={
+                ev.status === 'archived'
+                  ? 'Archived events are not scored'
+                  : 'No health score for this event yet'
               }
             />
           )}
