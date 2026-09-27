@@ -1,6 +1,7 @@
 import { api, withBranch } from './client'
 import type { Project } from '../types'
 import type { components } from '../types/api.gen'
+import type { ProjectCreateInput, ProjectCreateResult } from '../types/projectTemplates'
 
 /** Optional half-open window (`after <= t < before`) for a danger-zone reset. */
 export interface DetectionResetPeriod {
@@ -48,8 +49,10 @@ export const projectsApi = {
   // branch's own lists (SH-11). Omitted, they are main's.
   get: (slug: string, signal?: AbortSignal, branchId?: string | null) =>
     api.get<Project>(withBranch(`/projects/${slug}`, branchId), signal),
-  create: (data: { name: string; slug: string; description?: string }) =>
-    api.post<Project>('/projects', data),
+  // With a `template_id` the server also opens the template's plan as a draft
+  // branch and returns its id as `template_branch_id` (F21, #274); main stays
+  // empty. Without one the field is null.
+  create: (data: ProjectCreateInput) => api.post<ProjectCreateResult>('/projects', data),
   // Demo lifecycle (tripl-2su6). Create BLOCKS while seeding (for about
   // DEMO_PROVISION_EXPECTED_MS, demo/provisioningPhases.ts) and returns a
   // fully-ready project (201) or 500 on failure. Reset/delete are scoped to the

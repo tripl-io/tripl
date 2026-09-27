@@ -22,8 +22,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { projectsKey } from '@/lib/queryKeys'
 import { SLUG_ERROR, SLUG_HINT, isValidSlug, slugify } from '@/lib/slug'
+import { ProjectTemplatePicker } from './ProjectTemplatePicker'
+import { TEMPLATE_HINT } from './projectTemplateCopy'
 
 const SLUG_TAKEN_MESSAGE = 'Another project already uses this URL. Choose a different one.'
+const TEMPLATE_HINT_ID = 'project-template-hint'
 
 function isSlugConflict(error: unknown): error is ApiError {
   return error instanceof ApiError && error.status === 409
@@ -56,6 +59,8 @@ export function CreateProjectDialog({
   // reader has to fix by hand (SH-29).
   const [customizing, setCustomizing] = useState(false)
   const [description, setDescription] = useState('')
+  // Null is a blank project (F21, #274).
+  const [templateId, setTemplateId] = useState<string | null>(null)
   // The server's word on the slug (a 409: taken). `existingSlugs` cannot rule it
   // out: the list hides seeding and failed demos, whose slugs are still held.
   // Cleared as soon as the slug changes.
@@ -66,12 +71,25 @@ export function CreateProjectDialog({
   const createMut = useMutation({
     // The dialog renders its own ErrorState, so the global toast stays quiet.
     meta: SILENT_ERROR_META,
-    mutationFn: () => projectsApi.create({ name, slug, description }),
+    // A blank project sends the same body it always did.
+    mutationFn: () =>
+      projectsApi.create({
+        name,
+        slug,
+        description,
+        ...(templateId ? { template_id: templateId } : {}),
+      }),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: projectsKey() })
       // Enter the freshly-created project instead of stranding the user on the
       // workspace list — mirrors the demo path's success routing (tripl-q7i1.8).
-      void navigate(`/p/${created.slug}/overview`)
+      // A template's plan is on a draft branch and main is empty, so the
+      // overview would show nothing: open that branch's review instead (F21).
+      void navigate(
+        created.template_branch_id
+          ? `/p/${created.slug}/branches/${created.template_branch_id}`
+          : `/p/${created.slug}/overview`,
+      )
       onClose()
     },
     onError: (error) => {
@@ -237,6 +255,17 @@ export function CreateProjectDialog({
                 className="min-h-8"
               />
             </div>
+            <ProjectTemplatePicker
+              value={templateId}
+              onChange={setTemplateId}
+              disabled={createMut.isPending}
+              describedBy={templateId ? TEMPLATE_HINT_ID : undefined}
+            />
+            {templateId && (
+              <p id={TEMPLATE_HINT_ID} className="m-0 text-body-sm text-fg-tertiary">
+                {TEMPLATE_HINT}
+              </p>
+            )}
             {/* A slug conflict is told under the URL field, not here — also
                 once the reader has edited the slug and cleared it there. */}
             {createMut.isError && !isSlugConflict(createMut.error) && (
@@ -248,7 +277,7 @@ export function CreateProjectDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={createMut.isPending}>
-              {createMut.isPending ? 'Creating…' : 'Create'}
+              {createMut.isPending ? 'Creating…' : templateId ? 'Create from template' : 'Create'}
             </Button>
           </DialogFooter>
         </form>

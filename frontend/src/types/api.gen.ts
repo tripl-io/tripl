@@ -490,6 +490,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/project-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Project Templates */
+        get: operations["list_project_templates_api_v1_project_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -11293,11 +11310,88 @@ export interface components {
             name: string;
             /** Slug */
             slug: string;
+            /** Template Id */
+            template_id?: string | null;
             /**
              * Timezone
              * @default UTC
              */
             timezone: string;
+        };
+        /**
+         * ProjectCreateResponse
+         * @description ``POST /projects``: the project plus the template branch it opened, if any.
+         *
+         *     ``template_branch_id`` is the draft branch holding a template's starter plan
+         *     (F21, GH #274); null when the project was created blank. Only the create
+         *     route returns it, so the shared ``ProjectResponse`` and the cached project
+         *     list stay untouched.
+         */
+        ProjectCreateResponse: {
+            /**
+             * App Version Keep Releases
+             * @default 5
+             */
+            app_version_keep_releases: number;
+            /**
+             * Can Mutate
+             * @default false
+             */
+            can_mutate: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By User Id */
+            created_by_user_id?: string | null;
+            /** Demo Last Tick At */
+            demo_last_tick_at?: string | null;
+            /** Demo Recipe Version */
+            demo_recipe_version?: string | null;
+            /** Demo Seeded At */
+            demo_seeded_at?: string | null;
+            /** Description */
+            description: string;
+            /** Generation Error */
+            generation_error?: string | null;
+            /** Generation Stage */
+            generation_stage?: string | null;
+            /** @default ready */
+            generation_status: components["schemas"]["ProjectGenerationStatus"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            /**
+             * My Role
+             * @default viewer
+             * @enum {string}
+             */
+            my_role: "owner" | "editor" | "viewer";
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            summary?: components["schemas"]["ProjectSummary"];
+            /** Template Branch Id */
+            template_branch_id?: string | null;
+            /**
+             * Timezone
+             * @default UTC
+             */
+            timezone: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * ProjectGenerationStatus
@@ -11602,6 +11696,78 @@ export interface components {
              * @default 0
              */
             variable_count: number;
+        };
+        /** ProjectTemplateAlertSuggestionOut */
+        ProjectTemplateAlertSuggestionOut: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+            /**
+             * Needs
+             * @constant
+             */
+            needs: "alert_destination";
+        };
+        /** ProjectTemplateCounts */
+        ProjectTemplateCounts: {
+            /** Alert Suggestions */
+            alert_suggestions: number;
+            /** Event Types */
+            event_types: number;
+            /** Events */
+            events: number;
+            /** Fields */
+            fields: number;
+            /** Metric Suggestions */
+            metric_suggestions: number;
+            /** Variables */
+            variables: number;
+        };
+        /** ProjectTemplateMetricSuggestionOut */
+        ProjectTemplateMetricSuggestionOut: {
+            /** Composition */
+            composition?: ("single" | "ratio") | null;
+            /** Denominator Event */
+            denominator_event?: string | null;
+            /** Description */
+            description: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event_composition" | "fact" | "sql";
+            /** Name */
+            name: string;
+            /**
+             * Needs
+             * @enum {string}
+             */
+            needs: "scan" | "data_source";
+            /** Numerator Event */
+            numerator_event?: string | null;
+        };
+        /** ProjectTemplateSummary */
+        ProjectTemplateSummary: {
+            /** Alert Suggestions */
+            alert_suggestions: components["schemas"]["ProjectTemplateAlertSuggestionOut"][];
+            /** Branch Name */
+            branch_name: string;
+            counts: components["schemas"]["ProjectTemplateCounts"];
+            /** Description */
+            description: string;
+            /** Event Type Names */
+            event_type_names: string[];
+            /** Id */
+            id: string;
+            /** Metric Suggestions */
+            metric_suggestions: components["schemas"]["ProjectTemplateMetricSuggestionOut"][];
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
         };
         /**
          * ProjectTrackerConfigResponse
@@ -15207,6 +15373,26 @@ export interface operations {
             };
         };
     };
+    list_project_templates_api_v1_project_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTemplateSummary"][];
+                };
+            };
+        };
+    };
     list_projects_api_v1_projects_get: {
         parameters: {
             query?: never;
@@ -15246,7 +15432,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectResponse"];
+                    "application/json": components["schemas"]["ProjectCreateResponse"];
                 };
             };
             /** @description Validation Error */

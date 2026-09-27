@@ -233,6 +233,9 @@ export const metricDrilldownKeys = (slug: string | undefined, metricId: string) 
     appVersionSeriesKey(slug, 'metric', metricId),
   ] as const
 
+/** Project templates — `GET /project-templates`, workspace-wide (F21). */
+export const projectTemplatesKey = () => ['projectTemplates'] as const
+
 /** Every project the viewer can see — `GET /projects`, one list for the app. */
 export const projectsKey = () => ['projects'] as const
 

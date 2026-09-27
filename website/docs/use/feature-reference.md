@@ -1123,6 +1123,29 @@ The working branch-review controls live under **Plan → Plan branches → Merge
 policy** (`min_approvals`, `block_self_approval`). Scan **Event name format** is
 the working naming rule for scan-targeted event types.
 
+### New project & templates {#project-templates}
+
+**Where:** **New project** on the workspace's project list (and the welcome
+screen of an empty workspace); editor role. The dialog asks for a name, URL
+slug and description, then offers a **Blank project** (the default) or one of
+four industry templates: **E-commerce**, **Subscriptions**, **Mobile games**
+and **B2B SaaS**. Each template card shows its description, counts (events,
+event types, variables) and version. Below the cards, a **Starter metrics and
+alerts** disclosure lists the chosen template's suggestions; the submit button
+reads **Create from template** once one is chosen.
+
+A template seeds its starter plan (event types with fields, variables, and
+example events with the status **draft**) onto a draft working branch such as
+`template/ecommerce`, then opens that branch instead of the Overview. The
+project's main plan stays empty until the branch is merged through the normal
+branch review (see **Tracking-plan branches & merges** above); closing the
+branch leaves a blank project. Starter metrics and alert rules are suggestions
+only, listed in the picker and as a checklist in the branch description: a
+metric needs a scan or data source, an alert rule needs a destination, and no
+data source, scan, metric or alert is created. A template is applied once, at
+creation; later template versions never touch existing projects. See
+[Project templates](./project-templates.md) for each template's contents.
+
 ### Project general & danger zone
 
 **Where:** Workspace settings › Project › **General**. The rail's Project group

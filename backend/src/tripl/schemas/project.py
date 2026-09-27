@@ -33,6 +33,10 @@ class ProjectCreate(BaseModel):
     # String(64) column; the longest real zone is 32 characters
     # (America/Argentina/ComodRivadavia), so it constrains nothing valid.
     timezone: str = Field("UTC", max_length=64)
+    # A built-in template (``GET /project-templates``) whose starter plan is
+    # seeded onto a draft branch for review; main stays empty (F21, GH #274).
+    # Not a Project column: ``create_project`` excludes it from the ORM kwargs.
+    template_id: str | None = Field(None, min_length=1, max_length=64)
 
     @field_validator("timezone")
     @classmethod
@@ -299,3 +303,15 @@ class ProjectResponse(BaseModel):
     my_role: Literal["owner", "editor", "viewer"] = "viewer"
 
     model_config = {"from_attributes": True}
+
+
+class ProjectCreateResponse(ProjectResponse):
+    """``POST /projects``: the project plus the template branch it opened, if any.
+
+    ``template_branch_id`` is the draft branch holding a template's starter plan
+    (F21, GH #274); null when the project was created blank. Only the create
+    route returns it, so the shared ``ProjectResponse`` and the cached project
+    list stay untouched.
+    """
+
+    template_branch_id: uuid.UUID | None = None
