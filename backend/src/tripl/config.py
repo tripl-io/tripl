@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, NoDecode
 
 from tripl.alerting_validation import validate_sender_address
 
@@ -37,6 +38,23 @@ _DEV_CREDENTIAL_MARKERS = ("tripl:tripl", "guest:guest")
 REGISTRATION_OPEN = "open"
 REGISTRATION_DISABLED = "disabled"
 REGISTRATION_MODES = (REGISTRATION_OPEN, REGISTRATION_DISABLED)
+
+# Organizations (F20). All three are ENV-ONLY operator settings — never editable
+# through app_settings — and today only the migration reads any of them.
+#
+# DEPLOYMENT_MODE
+#   "self_hosted" — one team's instance: everyone lives in the default
+#                   organization and the instance owners operate the platform.
+#   "hosted"      — a multi-tenant service. Platform admins come only from
+#                   PLATFORM_ADMIN_EMAILS, never from being an instance owner.
+# ORG_SETTINGS_OPERATOR_FALLBACK
+#   "all"  — an organization without its own AI / SMTP / embeddings settings
+#            uses the operator's.
+#   "none" — such an organization has those features disabled.
+DeploymentMode = Literal["self_hosted", "hosted"]
+DEPLOYMENT_SELF_HOSTED: DeploymentMode = "self_hosted"
+DEPLOYMENT_HOSTED: DeploymentMode = "hosted"
+OrgSettingsOperatorFallback = Literal["all", "none"]
 
 # How the SMTP client secures the connection. These are three different
 # protocols, not three strengths of one:
@@ -145,6 +163,15 @@ class Settings(BaseSettings):
     # which takes effect on the very next request with no redeploy. See
     # website/docs/run/security.md.
     registration_mode: str = REGISTRATION_OPEN
+
+    # Organizations (F20). Stored now, consumed by later releases — see the
+    # comment on DeploymentMode above. DEPLOYMENT_MODE and PLATFORM_ADMIN_EMAILS
+    # are read by the organization migration to decide who becomes a platform
+    # admin: every instance owner when self-hosted, only these addresses when
+    # hosted. PLATFORM_ADMIN_EMAILS is comma-separated.
+    deployment_mode: DeploymentMode = DEPLOYMENT_SELF_HOSTED
+    platform_admin_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    org_settings_operator_fallback: OrgSettingsOperatorFallback = "all"
 
     # Event photo uploads. Backend can be "local" (filesystem) or "gcs"
     # (Google Cloud Storage). Local files are served through an authenticated
@@ -333,6 +360,24 @@ class Settings(BaseSettings):
             msg = f"registration_mode must be one of {', '.join(REGISTRATION_MODES)}"
             raise ValueError(msg)
         return normalized
+
+    @field_validator("deployment_mode", "org_settings_operator_fallback", mode="before")
+    @classmethod
+    def _normalize_org_modes(cls, value: object) -> object:
+        # The Literal type does the refusing; this only forgives case and
+        # surrounding whitespace, as registration_mode does.
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("platform_admin_emails", mode="before")
+    @classmethod
+    def _split_platform_admin_emails(cls, value: object) -> object:
+        if isinstance(value, str):
+            value = value.split(",")
+        if isinstance(value, list | tuple):
+            # Normalized as stored (auth_utils.normalize_email), so a lookup by
+            # users.email matches however the operator capitalised it.
+            return [str(item).strip().lower() for item in value if str(item).strip()]
+        return value
 
     @field_validator("search_embedding_dimensions")
     @classmethod

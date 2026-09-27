@@ -67,9 +67,16 @@ x-app-environment: &app-environment
   # container, not as an absent one. Falling through to the application default
   # is therefore not free: it works because Settings sets
   # `env_ignore_empty=True` (backend/src/tripl/config.py). Without that flag the
-  # five typed members of this list ("" parsed as a bool/int/enum) crash
+  # typed members of this list ("" parsed as a bool/int/enum) crash
   # `Settings()` at import and every container exits on boot (tripl-ey6j.3).
   REGISTRATION_MODE: ${REGISTRATION_MODE:-}
+  # Organizations (F20). DEPLOYMENT_MODE and PLATFORM_ADMIN_EMAILS are read by
+  # the `migrate` one-shot too: the organization migration uses them to decide
+  # who becomes a platform admin. ORG_SETTINGS_OPERATOR_FALLBACK is stored for a
+  # later release and changes nothing yet.
+  DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-}
+  PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+  ORG_SETTINGS_OPERATOR_FALLBACK: ${ORG_SETTINGS_OPERATOR_FALLBACK:-}
   CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-}
   CONTENT_SECURITY_POLICY: ${CONTENT_SECURITY_POLICY:-}
   MAX_REQUEST_BODY_MB: ${MAX_REQUEST_BODY_MB:-}

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
 from tripl.models.domain_enums import ProjectGenerationStatus
 from tripl.models.enum_types import db_enum
+from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 from tripl.semver import DEFAULT_APP_VERSION_KEEP_RELEASES
 
 if TYPE_CHECKING:
@@ -24,6 +25,15 @@ class Project(UUIDMixin, TimestampMixin, Base):
 
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # F20 PR1: the owning organization. Always the default one for now — the
+    # ORM default and the server default both name it (see models/organization).
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        default=DEFAULT_ORG_ID,
+        server_default=default_org_server_default(),
+        nullable=False,
+        index=True,
+    )
     description: Mapped[str] = mapped_column(Text, default="")
     # One retention policy for every app-version series in this project. The
     # source column remains per scan/metric, but the number of explicit releases

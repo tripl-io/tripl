@@ -156,6 +156,19 @@ the backend, so these stay at their defaults.
 | --- | --- | --- | --- |
 | `REGISTRATION_MODE` | `open` | **Decide it** | Who may create an account. `open` (**the default**) allows self-service signup — anyone who can reach the instance gets an **editor** account that can read the member roster and create projects of its own. It sees no existing project until the project's creator or an owner adds it as a member (**Settings → Project → Access**). Data source connection details (host, port, username) are owner-only. `disabled` refuses `POST /auth/register` with `403` and hides the sign-up form. `open` is the default for historical reasons — it used to be the only way to onboard anyone. An owner can now invite people directly (**Settings → Members → Invite a member**), so `disabled` no longer blocks onboarding; set it once your team has accounts. The first registration on an **empty** instance is always allowed and becomes the owner. Overridable at runtime in **Settings → Instance → Security & access**, where it applies immediately. See [Security & Hardening](./security.md#self-service-registration). |
 
+### Organizations
+
+Organizations are being introduced in stages. The current release adds the
+schema only: every user, project, data source and API key is in one **default
+organization**, and nothing about access changes. These settings are
+environment-only — they cannot be changed in **Settings → Instance**.
+
+| Variable | Default | Required in prod? | Purpose |
+| --- | --- | --- | --- |
+| `DEPLOYMENT_MODE` | `self_hosted` | No | `self_hosted` is one team's instance. `hosted` is a multi-tenant service. It is read when the database is migrated to decide who becomes a **platform admin** (the operator of the whole instance). When the value is `self_hosted`, every instance owner becomes a platform admin. When the value is `hosted`, only the addresses in `PLATFORM_ADMIN_EMAILS` do. Everything else hosted mode changes arrives in later releases. Any other value refuses to start. The value is applied once, by the upgrade that adds organizations: changing it afterwards neither grants nor revokes platform admin until platform-admin management lands. |
+| `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. It takes effect when the migration runs, so set it before upgrading. The list is applied once, by that upgrade: adding or removing an email afterwards neither grants nor revokes platform admin until platform-admin management lands. |
+| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or embeddings settings. `all` means it uses the operator's settings; `none` means those features are off for it. Account mail (sign-up, password reset, invitations) always uses the operator's SMTP. It is stored now and **takes effect in a later release**, when organizations can hold their own settings. |
+
 ### Rate limiting
 
 | Variable | Default | Required in prod? | Purpose |

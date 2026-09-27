@@ -9,6 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, UUIDMixin
+from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 
 
 class AuditLog(UUIDMixin, Base):
@@ -47,6 +48,10 @@ class AuditLog(UUIDMixin, Base):
         # table on every load — the same failure as the others, with no predicate
         # to narrow it first.
         Index("ix_audit_log_created", "created_at", "id"),
+        # 4. One organization's log (F20). Nothing reads by it yet; it lands with
+        # the column so the backfill and the index are one migration, and it is
+        # also what the ``ON DELETE SET NULL`` below scans on an org delete.
+        Index("ix_audit_log_organization_created", "organization_id", "created_at", "id"),
         # There is deliberately NO standalone ``ix_audit_log_project`` on
         # ``project_id`` alone. It existed for one revision, and e7a1c04b62d8
         # dropped it as superseded once the composite above claimed the same
@@ -66,6 +71,17 @@ class AuditLog(UUIDMixin, Base):
         ForeignKey("projects.id", ondelete="SET NULL"), nullable=True
     )
     project_slug: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    # The organization the action belongs to. NULLABLE, unlike every other
+    # ``organization_id``: platform-level actions (operator settings, platform
+    # admin grants) belong to no organization. SET NULL, like ``project_id``, so
+    # the append-only log survives the organization. Until writers pass it
+    # explicitly (F20 PR4/PR5) every row lands in the default organization.
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        default=DEFAULT_ORG_ID,
+        server_default=default_org_server_default(),
+    )
     # The plan branch the write was scoped to. NULL/"" means the write was not
     # made through a branch-scoped request — main, or an action with no
     # plan-branch dimension at all (alerting, scans, users). It does NOT assert

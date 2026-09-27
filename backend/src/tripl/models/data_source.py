@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
 from tripl.models.enum_types import db_enum
+from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 
 if TYPE_CHECKING:
     from tripl.models.scan_config import ScanConfig
@@ -42,6 +43,15 @@ class DataSource(UUIDMixin, TimestampMixin, Base):
     # the project (ON DELETE CASCADE) instead of leaking a workspace-wide orphan.
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, default=None, index=True
+    )
+    # F20 PR1: the owning organization. Always the default one for now — the
+    # ORM default and the server default both name it (see models/organization).
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"),
+        default=DEFAULT_ORG_ID,
+        server_default=default_org_server_default(),
+        nullable=False,
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(String(255))

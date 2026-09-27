@@ -325,6 +325,18 @@ class UserRole(enum.StrEnum):
     viewer = "viewer"
 
 
+class OrganizationRole(enum.StrEnum):
+    """A user's role in one organization (``organization_members.role``).
+
+    Schema only so far (F20 PR1): nothing reads it yet, and ``users.role`` stays
+    the source of truth for every permission check until the gates move over.
+    """
+
+    owner = "owner"
+    admin = "admin"
+    member = "member"
+
+
 class ApiKeyScope(enum.StrEnum):
     read = "read"
     write = "write"
