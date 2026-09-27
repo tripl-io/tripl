@@ -10,10 +10,13 @@ Tests do not touch this module directly — they monkey-patch the
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Engine, create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from tripl.config import settings
 from tripl.db_config import (
@@ -91,3 +94,26 @@ def _build_adapter(ds: DataSource) -> BaseAdapter:
     from tripl.core.adapters.registry import build_adapter
 
     return build_adapter(ds)
+
+
+async def run_with_async_worker_session(run: Callable[[AsyncSession], Awaitable[None]]) -> None:
+    """Async bridge for a Celery task that reuses async services.
+
+    Builds a THROWAWAY ``NullPool`` async engine that lives and dies inside the
+    current event loop and is disposed before it closes: asyncpg binds each
+    connection to the loop that opened it, so a pooled module-global engine
+    cannot be reused across the fresh ``asyncio.run`` loop each task invocation
+    creates. Moved here from ``worker.tasks.implementation_tickets`` so the
+    health snapshot task (F15) can share it.
+    """
+    engine = create_async_engine(
+        settings.database_url,
+        poolclass=NullPool,
+        connect_args=postgres_connect_args(settings.database_url),
+    )
+    try:
+        session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        async with session_factory() as session:
+            await run(session)
+    finally:
+        await engine.dispose()

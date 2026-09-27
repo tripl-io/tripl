@@ -10,7 +10,7 @@ import { eventsApi } from '@/api/events'
 import { refreshEventsLists } from '@/lib/eventsListCache'
 import type { EventStatus } from '@/lib/eventStatus'
 import type { EventListItem, EventListResponse } from '@/types'
-import { branchEventsKey } from '@/lib/queryKeys'
+import { branchEventsKey, projectHealthRootKey } from '@/lib/queryKeys'
 
 // Both shapes coexist under the `['events', slug, ...]` prefix: the main
 // table uses `useInfiniteQuery` (InfiniteData), and in-review-count / alerting
@@ -168,10 +168,12 @@ export function useEventMutations({
 
   // Reconcile with the server after a mutation, without re-requesting every
   // loaded page when nobody would see the difference (EVT-12).
-  const refreshEventsCaches = useCallback(
-    () => refreshEventsLists(qc, eventsKey),
-    [qc, eventsKey],
-  )
+  // A bulk status, archive, owner or delete change on main also moves health
+  // scores, which live under their own key rather than the list's.
+  const refreshEventsCaches = useCallback(() => {
+    if (branchId === null) void qc.invalidateQueries({ queryKey: projectHealthRootKey(slug) })
+    return refreshEventsLists(qc, eventsKey)
+  }, [qc, eventsKey, branchId, slug])
 
   const applyBulkPatch = useCallback(
     (eventIds: string[], patch: BulkUpdatePatch) => {

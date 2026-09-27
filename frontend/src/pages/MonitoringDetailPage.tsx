@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/empty-state'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
 import EventPhotosSection from '@/components/event-photos-section'
 import { EventValueDriftPanel } from '@/pages/events/EventValueDriftPanel'
+import { EventHealthCard } from '@/pages/events/EventHealthCard'
 import { EventSpecCard } from '@/components/EventSpecCard'
 import { MetricDefinitionCard } from '@/components/monitoring/metric-definition-card'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
@@ -848,6 +849,12 @@ export default function MonitoringDetailPage() {
           )}
         </Tabs>
       </div>
+
+      {/* The event's health score and its breakdown (F15, #268). Main-plan
+          only: the card renders nothing on a branch or for an archived event. */}
+      {scope === 'event' && scopeId && slug && (
+        <EventHealthCard slug={slug} eventId={scopeId} />
+      )}
 
       {/* What depends on this event or metric (#257): the metrics built on the
           event, the alert rules filtered on or scoped to either. The event is

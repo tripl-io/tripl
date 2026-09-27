@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowDown, ChevronDown, ChevronRight, Inbox, Layers, ListPlus, Loader2, Plus, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Inbox, Layers, ListPlus, Loader2, Plus, X } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -37,6 +37,7 @@ import type {
   MetaFieldDefinition,
   MonitoringSignal,
 } from '@/types'
+import type { EventHealth } from '@/types/health'
 
 import { ColumnFilter, FilterableHead, type ColumnFilterType } from './ColumnFilter'
 import { eventsEmptyCopy, type EventsEmptyContext } from './emptyState'
@@ -96,6 +97,10 @@ export type EventsTableProps = {
   hideStatus: boolean
   hideReviewed: boolean
   hideMonitor: boolean
+  /** No Health column: hidden by the reader, or a branch (health is main-only). */
+  hideHealth?: boolean
+  /** Health scores of the loaded rows, by event id (F15, #268). */
+  healthByEvent?: ReadonlyMap<string, EventHealth>
   hideOwner: boolean
   hideDelta: boolean
   usersById: Map<string, { name: string | null; email: string }>
@@ -181,6 +186,8 @@ export function EventsTable({
   hideStatus,
   hideReviewed,
   hideMonitor,
+  hideHealth = true,
+  healthByEvent,
   hideOwner,
   hideDelta,
   usersById,
@@ -303,6 +310,8 @@ export function EventsTable({
         hideStatus={hideStatus}
         hideReviewed={hideReviewed}
         hideMonitor={hideMonitor}
+        hideHealth={hideHealth}
+        health={healthByEvent?.get(ev.id)}
         hideOwner={hideOwner}
         hideDelta={hideDelta}
         usersById={usersById}
@@ -345,6 +354,7 @@ export function EventsTable({
   const isFirstLoad = isEmpty && (isLoading || isScanningForMatches)
   const sortable = !!onSortOrderChange
   const busiestFirst = sortOrder === 'volume'
+  const leastHealthyFirst = sortOrder === 'health'
   const filteredEmpty = !!emptyContext && (emptyContext.hasActiveFilters || !!emptyContext.search.trim())
 
   // Spacer rows stand in for the virtualized rows above and below the window.
@@ -501,6 +511,29 @@ export function EventsTable({
                       title="Open signal on this event — a spike or drop tripl detected in its volume"
                     >
                       Signal
+                    </TableHead>
+                  )}
+                  {/* The least-healthy-first toggle lives on the column it
+                      sorts by, like busiest-first on 48h (F15, #268). */}
+                  {!hideHealth && (
+                    <TableHead
+                      className="w-16"
+                      aria-sort={sortable ? (leastHealthyFirst ? 'ascending' : 'none') : undefined}
+                      title="Health score, 0–100, of the event on the main plan. Open a badge for its breakdown."
+                    >
+                      {sortable ? (
+                        <button
+                          type="button"
+                          onClick={() => onSortOrderChange?.(leastHealthyFirst ? 'catalog' : 'health')}
+                          className="inline-flex items-center gap-1 rounded-sm hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          aria-label={leastHealthyFirst ? 'Health, least healthy first. Sort by catalog order' : 'Health. Sort least healthy first'}
+                        >
+                          {leastHealthyFirst && <ArrowUp className="size-3" aria-hidden="true" />}
+                          Health
+                        </button>
+                      ) : (
+                        'Health'
+                      )}
                     </TableHead>
                   )}
                   {/* The busiest-first toggle lives on the column it sorts by:

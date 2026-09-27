@@ -135,6 +135,14 @@ celery_app.conf.beat_schedule = {
         # 7d — so a tighter tick could only rewrite unchanged rows.
         "schedule": crontab(hour=5, minute=45),
     },
+    "snapshot-project-health": {
+        "task": "tripl.worker.tasks.health.snapshot_project_health",
+        # Daily (F15, #268): after the 05:45 lifecycle findings the score reads,
+        # and before the Monday 08:00 plan digest, whose "Plan health" line reads
+        # today's snapshot. The score moves on day-scale windows (7d/30d seen,
+        # 7d distribution drift), so a tighter tick would only rewrite the row.
+        "schedule": crontab(hour=5, minute=55),
+    },
     "sync-implementation-tickets": {
         "task": "tripl.worker.tasks.implementation_tickets.sync_implementation_tickets",
         # Poll every 5 minutes — implementation tickets close on human timescales
@@ -255,6 +263,7 @@ import tripl.worker.tasks.alert_flush  # noqa: F401, E402
 import tripl.worker.tasks.alert_owner_notify  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
+import tripl.worker.tasks.health  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402
 import tripl.worker.tasks.lifecycle  # noqa: F401, E402
 import tripl.worker.tasks.maintenance  # noqa: F401, E402

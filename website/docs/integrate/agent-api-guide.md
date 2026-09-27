@@ -1388,6 +1388,143 @@ way round: send the new tracker's token or key in the same `PATCH`, or the
 tracker is left without one. Tickets are read the same
 way for both trackers, from the branch and event `implementation-tickets` routes.
 
+## Health score {#health-score}
+
+Every event of the **main** plan whose status is not `archived` has a health
+score from 0 to 100. How it is built (fixed weights, which components are
+excluded and when, the worked example) is in
+[Health score](../use/health-score.md). All routes below are reads: any project
+member, viewers included, may call them. They take no branch parameter and
+always answer about the main plan.
+
+**One event:**
+
+```http
+GET /api/v1/projects/{slug}/events/{event_id}/health
+```
+
+```json
+{
+  "event_id": "…",
+  "event_type_id": "…",
+  "name": "checkout_completed",
+  "score": 60,
+  "grade": "warning",
+  "renormalized": true,
+  "excluded": ["signals"],
+  "top_issue": "Last seen 10d ago",
+  "components": [
+    {
+      "key": "implemented_seen",
+      "label": "Implemented & seen",
+      "weight": 25,
+      "applies": true,
+      "excluded_reason": null,
+      "value": 0.5,
+      "effective_weight": 29.4,
+      "points": 14.7,
+      "detail": "Last seen 10d ago",
+      "counts": {"days_since_seen": 10}
+    },
+    {
+      "key": "signals",
+      "label": "Signals",
+      "weight": 15,
+      "applies": false,
+      "excluded_reason": "Anomaly detection is off for its scans",
+      "value": null,
+      "effective_weight": null,
+      "points": null,
+      "detail": "Anomaly detection is off for its scans",
+      "counts": {}
+    }
+  ]
+}
+```
+
+`components` always has six entries, in this order: `implemented_seen`,
+`contract`, `drifts`, `signals`, `freshness`, `documentation` (the example
+shows two). `weight` is the fixed weight; `effective_weight` is the component's
+share in percent after renormalization and `points` is `effective_weight ×
+value`, both `null` when the component is excluded. `grade` is `healthy` (80
+and above), `warning` (50 to 79) or `unhealthy` (below 50). `renormalized` is
+true when at least one component is excluded, and `excluded` lists them.
+`top_issue` is the `detail` of the component that loses the most points, `null`
+when nothing loses any. `counts` carries the numbers behind `detail`, per
+component:
+
+| Component | `counts` keys |
+|-----------|---------------|
+| `implemented_seen` | `days_since_seen`, or `sunset_overdue` / `successor_silent` for a deprecated event with that open finding |
+| `contract` | `violated`, `total` |
+| `drifts` | `schema`, `value`, `distribution` |
+| `signals` | `open` |
+| `freshness` | `sources`, `late`, `overdue` |
+| `documentation` | `has_description`, `has_owner` (0 or 1) |
+
+The route answers `404` for an event on a branch, an `archived` event, or an id
+that is not in the project.
+
+**Many events:**
+
+```http
+GET /api/v1/projects/{slug}/health/events?ids={id1}&ids={id2}
+```
+
+Repeat `ids` for each event, 1 to 150 per call (more, or none, is `422`).
+The cap keeps the URL near 6 KB, under the 8 KB request line a proxy with
+nginx's default buffers accepts; for more events, split them over several calls.
+The response is `{"items": [...], "computed_at": "…"}`: one item per scored
+event in the order you asked, with the shape above. Duplicate ids are answered
+once, and ids outside the scored population (a branch copy, an archived event,
+another project's event) are left out rather than failing the call.
+
+**Event types:**
+
+```http
+GET /api/v1/projects/{slug}/health/event-types
+```
+
+The response is `{"items": [...]}`, one item per event type of the main plan,
+including types with no scored events:
+
+| Field | Meaning |
+|-------|---------|
+| `event_type_id` | The event type. |
+| `score` / `grade` | Mean of its events' scores, rounded half up; `null` when it has no scored events. |
+| `scored_events` | How many of its events are scored. |
+| `healthy_count` / `warning_count` / `unhealthy_count` | Its events per grade. |
+| `component_averages` | Six `{key, value, applies_count}` entries: the mean component value over the events it applies to (`null` when it applies to none) and how many that is. |
+| `worst` | Up to five `{event_id, name, score, grade, top_issue}`, lowest score first, then by name. |
+
+**The plan:**
+
+```http
+GET /api/v1/projects/{slug}/health?trend_days=30
+```
+
+The same fields as an event-type item (without `event_type_id`), over every
+scored event of the project, plus:
+
+| Field | Meaning |
+|-------|---------|
+| `trend` | `{day, score, scored_events}` from the daily snapshots of the last `trend_days` days (1 to 365, default 30), oldest first. A day with no snapshot has no point. |
+| `previous_score` | The snapshot score from 7 days before today, or `null` when there is none. |
+| `computed_at` | When the score was computed. |
+
+The score part is live, but the response is cached for up to two minutes; the
+snapshots behind `trend` are written once a day at 05:55 UTC.
+
+**Catalog order.** `GET /api/v1/projects/{slug}/events?order_by=health` lists
+the filtered events least healthy first (score ascending, then name, then id);
+events with no score sort after all scored ones. `total` and the filters work
+as for any other order. The request with `offset=0` scores the filtered set
+and fixes its order for 60 seconds; later pages with the same filters slice
+that order, so paging neither repeats nor skips an event while scores change.
+Ask for `offset=0` again to re-sort. On a branch the call answers `400` with
+`Health sort is available on the main plan`. The other values of `order_by`
+are `catalog` (the default) and `volume`.
+
 ## Notifications and subscriptions {#notifications}
 
 Every user has an in-app notification list, email preferences, and a set of

@@ -30,6 +30,7 @@ import { getErrorMessage } from '@/lib/utils'
 import { rememberCreatedEvents } from './createdEventsHandoff'
 import { DraftDiscussionNote } from './DraftDiscussionNote'
 import { EventForm } from './EventFormView'
+import { EventHealthCard } from './EventHealthCard'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
 const EMPTY_META_FIELDS: MetaFieldDefinition[] = []
@@ -331,6 +332,9 @@ export default function EventEditPage() {
         // Below the sticky save bar with a clear break, so the page end is not
         // mistaken for more of the form (AU-6).
         <div className="mt-10 max-w-[880px] pb-10">
+          {/* Health (F15, #268): what the event scores on the main plan and
+              why. Renders nothing on a branch or for an archived event. */}
+          <EventHealthCard slug={slug} eventId={eventId} className="mb-6" />
           {handoff?.commentError && (
             <p role="alert" className="mb-2 text-body-sm text-destructive">
               {handoff.commentError}

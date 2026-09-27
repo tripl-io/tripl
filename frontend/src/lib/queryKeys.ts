@@ -895,3 +895,25 @@ export const duplicateCheckKey = (
 /** The Duplicates page's cluster pages. */
 export const duplicateClustersKey = (slug: string | undefined, branchId: string | null | undefined) =>
   [...branchDuplicatesKey(slug, branchId), 'clusters'] as const
+
+/**
+ * Plan health score (F15, #268). Health is about the MAIN plan only, so the
+ * family sits beside the branch caches under the project's events prefix
+ * (`['events', slug, 'health', …]`), not under one of them: an invalidation of
+ * `projectEventsKey(slug)` refreshes it, while the optimistic patches that walk
+ * `branchEventsKey(slug, branchId)` expecting list pages never reach it.
+ */
+export const projectHealthRootKey = (slug: string | undefined) =>
+  [...projectEventsKey(slug), 'health'] as const
+/** The catalog's batch read for one chunk of loaded ids. */
+export const eventsHealthKey = (slug: string | undefined, ids: readonly string[]) =>
+  [...projectHealthRootKey(slug), 'events', ids.join(',')] as const
+/** One event's breakdown — `GET /projects/{slug}/events/{id}/health`. */
+export const eventHealthKey = (slug: string | undefined, eventId: string | undefined) =>
+  [...projectHealthRootKey(slug), 'event', eventId] as const
+/** `GET /projects/{slug}/health/event-types`. */
+export const eventTypesHealthKey = (slug: string | undefined) =>
+  [...projectHealthRootKey(slug), 'eventTypes'] as const
+/** `GET /projects/{slug}/health?trend_days=N`. */
+export const projectHealthKey = (slug: string | undefined, trendDays: number) =>
+  [...projectHealthRootKey(slug), 'project', trendDays] as const
