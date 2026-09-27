@@ -276,16 +276,39 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
     ctx.spike_bucket = spike_bucket
 
 
-async def _build_breakdown(session: AsyncSession, ctx: DemoContext) -> None:
-    """Platform split for Home Screen View over the drift span, hourly.
+# Who the injected spike comes from (F02, #255): almost all of the excess is
+# iOS, so the signal's "Why" panel has a clear story to tell ("85% of the spike
+# comes from platform = ios"). The ordinary part of the spike bucket keeps the
+# drifting mix every other bucket has.
+_SPIKE_PLATFORM_SPLIT = {"ios": 0.85, "android": 0.10, "web": 0.05}
 
-    Bucket totals reuse the stored Home Screen View series so the split sums to
-    the volume chart; the mix drifts (web up, iOS down) to match the seeded
-    distribution-drift badges.
+
+def _platform_counts(
+    total: int, shares: dict[str, float], *, spike_excess: int = 0
+) -> dict[str, int]:
+    """``total`` split by ``shares``, with ``spike_excess`` of it split by the
+    spike's own mix instead."""
+    counts = noise.shares_to_counts(shares, total - spike_excess)
+    if spike_excess > 0:
+        for platform, extra in noise.shares_to_counts(_SPIKE_PLATFORM_SPLIT, spike_excess).items():
+            counts[platform] = counts.get(platform, 0) + extra
+    return counts
+
+
+async def _build_breakdown(session: AsyncSession, ctx: DemoContext) -> None:
+    """Platform split over the drift span, hourly: Home Screen View's own rows
+    and the ``screen_view`` event-type rollup it belongs to.
+
+    Bucket totals reuse the stored series so the split sums to the volume chart;
+    the mix drifts (web up, iOS down) to match the seeded distribution-drift
+    badges. The injected spike's excess is split by ``_SPIKE_PLATFORM_SPLIT`` in
+    both, so the event, event-type and project-total signals it trips all have
+    a platform attribution.
     """
     buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_HISTORY_DAYS)
     total_buckets = len(buckets)
     spike_event_id = ctx.event_ids[SPIKE_EVENT_NAME]
+    screen_view_type_id = ctx.event_type_ids["screen_view"]
     fallback_seed = noise.derive_seed(ctx.seed, SPIKE_EVENT_NAME) % 997
 
     breakdown_buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_DRIFT_SPAN_DAYS)
@@ -295,20 +318,49 @@ async def _build_breakdown(session: AsyncSession, ctx: DemoContext) -> None:
             bucket,
             noise.hourly_volume(1800, bucket, idx, fallback_seed, total_buckets),
         )
+        spike_excess = (
+            total_count - total_count // noise.DEMO_SPIKE_MULTIPLIER
+            if ctx.spike_bucket is not None and bucket == ctx.spike_bucket
+            else 0
+        )
         days_before = (ctx.now - bucket).total_seconds() / 86400.0
         shares = noise.platform_shares(noise.drift_span_progress(days_before))
+        home_counts = _platform_counts(total_count, shares, spike_excess=spike_excess)
         breakdown_rows.extend(
             {
                 "scan_config_id": ctx.scan_config_id,
                 "event_id": spike_event_id,
+                "event_type_id": None,
                 "bucket": bucket,
                 "breakdown_column": "platform",
                 "breakdown_value": platform,
                 "is_other": False,
                 "count": max(1, count),
             }
-            for platform, count in noise.shares_to_counts(shares, total_count).items()
+            for platform, count in home_counts.items()
         )
-    # Same executemany treatment as the volume rows above.
+        # The rollup: Home's split plus the rest of screen_view at the plain mix.
+        type_total = ctx.type_bucket_counts.get((screen_view_type_id, bucket))
+        if type_total is None:
+            continue
+        rest_counts = noise.shares_to_counts(shares, max(type_total - total_count, 0))
+        breakdown_rows.extend(
+            {
+                "scan_config_id": ctx.scan_config_id,
+                "event_id": None,
+                "event_type_id": screen_view_type_id,
+                "bucket": bucket,
+                "breakdown_column": "platform",
+                "breakdown_value": platform,
+                "is_other": False,
+                "count": max(1, count + rest_counts.get(platform, 0)),
+            }
+            for platform, count in home_counts.items()
+        )
+    # Same executemany treatment as the volume rows above. The ORM's bulk insert
+    # groups CONSECUTIVE rows by which columns are NULL, so the event rows
+    # (event_type_id NULL) and the rollup rows (event_id NULL) go in as two
+    # contiguous runs; interleaved, it issued one INSERT per bucket.
+    breakdown_rows.sort(key=lambda row: row["event_id"] is None)
     if breakdown_rows:
         await session.execute(insert(EventMetricBreakdown), breakdown_rows)

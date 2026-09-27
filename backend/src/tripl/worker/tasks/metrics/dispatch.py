@@ -24,6 +24,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.services import app_settings_service
 from tripl.worker.tasks.metrics.alert_payload import (
     _build_alert_scope_names,
+    _build_attribution_lines,
     _build_delivery_snapshot,
     _build_event_type_by_event_id,
     _load_enabled_alert_destinations,
@@ -1133,6 +1134,8 @@ def _create_deliveries(
     # delivery's typed items and its frozen ``payload_snapshot`` disagree about
     # the same item's link, with nothing but a warning in the log to say why.
     app_base_url = app_settings_service.get_runtime_config_sync(session).app_base_url
+    # One read for every chunk, before any delivery row is added (GH #255).
+    attribution_lines = _build_attribution_lines(session, config, list(anomalies))
     delivery_ids: list[uuid.UUID] = []
     for chunk in _delivery_chunks(anomalies, channel=destination.type, chunk_items=chunk_items):
         delivery = AlertDelivery(
@@ -1161,6 +1164,7 @@ def _create_deliveries(
             anomalies=chunk,
             scope_names=scope_names,
             delivery_id=delivery.id,
+            attribution_lines=attribution_lines,
         )
         if not chunk_items:
             # The send path has no other way to tell a digest from an immediate

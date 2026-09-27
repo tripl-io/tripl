@@ -183,6 +183,12 @@ export const ITEM_TEMPLATE_VARIABLE_OPTIONS = [
   { name: 'sparkline_line', description: 'Rendered sparkline with leading newline when history exists' },
   { name: 'top_movers', description: 'Inline summary of top-3 breakdown movers (empty if none)' },
   { name: 'top_movers_line', description: 'Rendered top-movers line with leading newline when movers exist' },
+  {
+    name: 'attribution',
+    description:
+      'Why it moved, as stored at detection time: the breakdown value that explains the delta, e.g. "92% of the drop comes from platform = ios (−3,120 of −3,390)", plus a release that crossed the activation gate in the window (empty if none)',
+  },
+  { name: 'attribution_line', description: 'Rendered attribution line with leading newline when one exists' },
 ] as const
 
 export const DEFAULT_MESSAGE_TEMPLATES: Record<AlertMessageFormat, string> = {
@@ -232,10 +238,10 @@ export const DEFAULT_MESSAGE_TEMPLATES: Record<AlertMessageFormat, string> = {
 // a raw-count comparison — would have been lost, along with `${top_movers_line}`
 // and `${sparkline_line}`, which had already drifted out unnoticed.
 export const DEFAULT_ITEMS_TEMPLATES: Record<AlertMessageFormat, string> = {
-  plain: '- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} (${percent_delta_label})${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}',
-  slack_mrkdwn: '- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} (${percent_delta_label})${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}',
-  telegram_html: '- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} (${percent_delta_label})${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}',
-  telegram_markdownv2: '\\- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} \\(${percent_delta_label}\\)${drift_line}${details_line}${monitoring_line}${top_movers_line}${sparkline_line}',
+  plain: '- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} (${percent_delta_label})${drift_line}${details_line}${monitoring_line}${attribution_line}${top_movers_line}${sparkline_line}',
+  slack_mrkdwn: '- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} (${percent_delta_label})${drift_line}${details_line}${monitoring_line}${attribution_line}${top_movers_line}${sparkline_line}',
+  telegram_html: '- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} (${percent_delta_label})${drift_line}${details_line}${monitoring_line}${attribution_line}${top_movers_line}${sparkline_line}',
+  telegram_markdownv2: '\\- ${scope_label} ${scope_name}: ${direction_label}, actual=${actual_count}, expected=${expected_count}${expected_basis}, delta=${absolute_delta} \\(${percent_delta_label}\\)${drift_line}${details_line}${monitoring_line}${attribution_line}${top_movers_line}${sparkline_line}',
 }
 
 export const MESSAGE_FORMAT_OPTIONS: Record<AlertDestinationType, { value: AlertMessageFormat; label: string }[]> = {

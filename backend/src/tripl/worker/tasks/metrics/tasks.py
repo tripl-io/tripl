@@ -65,6 +65,7 @@ from tripl.worker.tasks.metrics._helpers import (
 from tripl.worker.tasks.metrics._helpers import (
     _floor_to_interval as _floor_to_grid,
 )
+from tripl.worker.tasks.metrics.attribution import recompute_anomaly_attributions
 from tripl.worker.tasks.metrics.catalog_sync import sync_catalog
 from tripl.worker.tasks.metrics.chunk_processing import process_chunk
 from tripl.worker.tasks.metrics.coverage import covered_buckets_from_scan_jobs
@@ -491,6 +492,33 @@ def _resolve_collection_window(
         resume_from = to_utc(_floor_to_grid(min(progress_to, time_to), delta))
         time_from = resume_from - delta * SCHEDULED_RESUME_OVERLAP_BUCKETS
     return time_from, time_to, False
+
+
+def _recompute_attributions(
+    session: Session,
+    config: ScanConfig,
+    *,
+    evaluation_start: datetime,
+    evaluation_end: datetime,
+) -> int:
+    """Best-effort attribution pass (F02, #255) in its own SAVEPOINT.
+
+    The split explains an anomaly; it must never fail the collection that found
+    it. ANY failure — a database error, bad arithmetic, a shape nobody foresaw —
+    is logged and rolled back to the savepoint, the anomalies stay, and their
+    signals read ``not_computed`` until the next run.
+    """
+    try:
+        with session.begin_nested():
+            return recompute_anomaly_attributions(
+                session,
+                config,
+                evaluation_start=evaluation_start,
+                evaluation_end=evaluation_end,
+            )
+    except Exception:
+        logger.exception("anomaly attribution failed: scan=%s", config.id)
+        return 0
 
 
 def _widen_for_held_buckets(
@@ -1189,6 +1217,14 @@ def collect_metrics(
         # start of that slice that activated inside it gets its
         # "Release <version>" chart marker.
         release_annotations_created = _sync_release_annotations(session, config)
+        # "Why did it change?" (F02, #255), fixed at detection time and BEFORE
+        # the alert deliveries below, so the alert quotes the split the UI shows.
+        anomaly_attributions_computed = _recompute_attributions(
+            session,
+            config,
+            evaluation_start=anomaly_evaluation_start,
+            evaluation_end=time_to_dt,
+        )
         buffered_counts: list[int] = []
         delivery_ids = _prepare_alert_deliveries(
             session,
@@ -1248,6 +1284,7 @@ def collect_metrics(
             "breakdown_anomalies_detected": breakdown_anomalies_detected,
             "release_regressions_detected": release_regressions_detected,
             "release_annotations_created": release_annotations_created,
+            "anomaly_attributions_computed": anomaly_attributions_computed,
             "signals_added": signals_added,
             "signals_removed": signals_removed,
             "alerts_queued": len(delivery_ids),

@@ -6,7 +6,9 @@ separate because they are also useful to inspect and test independently.
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Mapping
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -32,9 +34,18 @@ from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.scan_config import ScanConfig
+from tripl.services.attribution_text import (
+    format_attribution_line,
+    load_attributions_for_scopes,
+)
 
 from ._helpers import SCOPE_SCHEMA_DRIFT
 from .urls import _build_item_paths
+
+logger = logging.getLogger(__name__)
+
+# The scopes the metrics worker stores an attribution for (GH #255).
+_ATTRIBUTION_SCOPES = frozenset({SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT})
 
 
 def _build_alert_scope_names(
@@ -190,6 +201,43 @@ def _build_event_type_by_event_id(
     }
 
 
+def _build_attribution_lines(
+    session: Session,
+    config: ScanConfig,
+    anomalies: list[AlertMatchCandidate],
+) -> dict[tuple[str, str], str]:
+    """``(scope_type, scope_ref)`` -> the stored attribution one-liner.
+
+    Frozen into ``payload_snapshot`` so the audit record says what the alert
+    said. Keyed by scope rather than by candidate id because the digest flush
+    rebuilds its candidates from the pending buffer; the metric_anomalies
+    unique key ``(scan_config_id, scope_type, scope_ref, bucket)`` is what every
+    path still carries. Best-effort: a failed read freezes no line, and never
+    costs the delivery.
+    """
+    candidates = [
+        anomaly
+        for anomaly in anomalies
+        if anomaly.scope_type in _ATTRIBUTION_SCOPES and anomaly.scan_config_id == config.id
+    ]
+    if not candidates:
+        return {}
+    keys = {(a.scope_type, a.scope_ref, a.bucket): a for a in candidates}
+    try:
+        with session.no_autoflush:
+            rows = load_attributions_for_scopes(session, scan_config_id=config.id, keys=keys)
+    except Exception:  # noqa: BLE001
+        logger.warning("Failed to load anomaly attributions for the snapshot", exc_info=True)
+        return {}
+    lines: dict[tuple[str, str], str] = {}
+    for key, row in rows.items():
+        anomaly = keys[key]
+        line = format_attribution_line(row, anomaly.direction, bucket=anomaly.bucket)
+        if line:
+            lines[(anomaly.scope_type, anomaly.scope_ref)] = line
+    return lines
+
+
 def _load_enabled_alert_destinations(
     session: Session,
     project_id: uuid.UUID,
@@ -219,8 +267,13 @@ def _build_delivery_snapshot(
     anomalies: list[AlertMatchCandidate],
     scope_names: dict[tuple[str, str], str],
     delivery_id: uuid.UUID | None = None,
+    attribution_lines: Mapping[tuple[str, str], str] | None = None,
 ) -> dict[str, object]:
     """Freeze what this delivery said, for the audit log and the Inbox.
+
+    ``attribution_lines`` (from ``_build_attribution_lines``) adds each volume
+    item's stored "why" one-liner as ``attribution_line``; ``None`` for items
+    without one, and for every item when the caller passes nothing.
 
     ``delivery_id`` is threaded in because release-regression items link back
     to this delivery's own audit row — the only surface that can show their
@@ -317,6 +370,9 @@ def _build_delivery_snapshot(
                 "drift_field": getattr(anomaly, "drift_field", None),
                 "drift_type": getattr(anomaly, "drift_type", None),
                 "sample_value": getattr(anomaly, "sample_value", None),
+                "attribution_line": (attribution_lines or {}).get(
+                    (anomaly.scope_type, anomaly.scope_ref)
+                ),
             }
         )
     return {

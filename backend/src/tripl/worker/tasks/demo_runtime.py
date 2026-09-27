@@ -101,6 +101,7 @@ from tripl.services.source_freshness import (
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.tasks._demo_pause import is_demo_paused
+from tripl.worker.tasks.metrics.attribution import recompute_anomaly_attributions
 
 logger = logging.getLogger(__name__)
 
@@ -566,7 +567,8 @@ def _recompute_anomalies(
     rows in the evaluation window are cleared and re-inserted, so a re-run at the
     same clock yields the same rows. ``hold_drops`` (the demo source is late,
     #269) withholds NEW drop-direction anomalies and spares stored drop rows,
-    as ``metrics.detect`` does for a live scan.
+    as ``metrics.detect`` does for a live scan. The window's attributions
+    (#255) are recomputed after the upserts, inside the same best-effort guard.
     """
     try:
         anomaly_settings = session.execute(
@@ -640,6 +642,20 @@ def _recompute_anomalies(
             eval_end=eval_end,
             hold_drops=hold_drops,
         )
+        # "Why did it change?" (#255): the scope upserts above replaced the
+        # anomaly rows (their attributions went with them), so re-attribute the
+        # window with the worker's own pass — the demo's Why panel and alerts
+        # then read the same split a real collection stores. The window reaches
+        # one bucket past ``eval_end`` so the newest flagged bucket is covered.
+        config = session.get(ScanConfig, scan_config_id)
+        if config is not None:
+            recompute_anomaly_attributions(
+                session,
+                config,
+                evaluation_start=eval_start,
+                evaluation_end=eval_end + _HOUR,
+                now=now,
+            )
     except OperationalError, DBAPIError:
         # A DBAPI-level failure (deadlock, lost connection) inside ``session.execute``
         # has POISONED the transaction: it can no longer be committed, and swallowing

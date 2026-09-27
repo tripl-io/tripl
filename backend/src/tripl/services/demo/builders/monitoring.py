@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
@@ -28,6 +29,7 @@ from tripl.core.analyzers.distribution_drift import DistributionDriftResult, com
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
+from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services.demo import noise
 from tripl.services.demo.builders.warehouse import SPIKE_EVENT_NAME
@@ -37,6 +39,7 @@ from tripl.services.demo.scenario import DemoContext
 async def build_monitoring(session: AsyncSession, ctx: DemoContext) -> None:
     await _build_anomaly_settings(session, ctx)
     await _build_anomalies(session, ctx)
+    await _build_attributions(session, ctx)
     await _build_distribution_drift(session, ctx)
     await _build_schema_drift(session, ctx)
 
@@ -169,6 +172,36 @@ async def _build_anomalies(session: AsyncSession, ctx: DemoContext) -> None:
                     direction=anomaly.direction,
                 )
             )
+    await session.flush()
+
+
+async def _build_attributions(session: AsyncSession, ctx: DemoContext) -> None:
+    """Why did it change, for the seeded anomalies (F02, #255).
+
+    Runs the worker's own pass over the seeded breakdown series, so the demo's
+    split is exactly what a scan would store. Sync code on the async session's
+    connection, like every other worker helper reused here.
+    """
+    # Imported here: the worker package pulls in the Celery task graph, which
+    # the demo seeder should not load at import time.
+    from tripl.worker.tasks.metrics.attribution import recompute_anomaly_attributions
+
+    evaluation_start = ctx.now - timedelta(hours=noise.DEMO_EVAL_WINDOW_HOURS)
+    evaluation_end = ctx.now
+
+    def _run(sync_session: Session) -> None:
+        config = sync_session.get(ScanConfig, ctx.scan_config_id)
+        if config is None:
+            return
+        recompute_anomaly_attributions(
+            sync_session,
+            config,
+            evaluation_start=evaluation_start,
+            evaluation_end=evaluation_end,
+            now=ctx.now,
+        )
+
+    await session.run_sync(_run)
     await session.flush()
 
 

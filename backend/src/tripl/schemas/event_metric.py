@@ -94,6 +94,68 @@ class PlatformParityAnomaly(BaseModel):
     direction: AnomalyDirection
 
 
+AttributionStatus = Literal["ready", "no_breakdown_columns", "not_computed"]
+
+
+class AttributionValue(BaseModel):
+    """One breakdown value's part of a signal's delta (F02, #255).
+
+    ``delta`` is ``actual - expected`` for the value, where ``expected`` is the
+    scope's expected total times the value's baseline share; ``share`` is
+    ``delta`` over the signal's delta (signed: a value moving against the
+    change is negative).
+    """
+
+    value: str
+    delta: float
+    expected: float
+    actual: float
+    share: float
+
+
+class AttributionColumn(BaseModel):
+    """One breakdown column's split: its top values and the part of the change
+    they explain (0..1)."""
+
+    column: str
+    explained_share: float
+    values: list[AttributionValue] = Field(default_factory=list)
+
+
+class AttributionRelease(BaseModel):
+    """A release that crossed the activation gate shortly before the signal."""
+
+    version: str
+    previous_version: str | None = None
+    # The release's share of traffic at the flagged bucket, 0..1.
+    share: float
+    # The bucket the release activated in.
+    reached_at: datetime
+
+
+class SignalAttribution(BaseModel):
+    """Why the signal changed, computed and stored when it was detected."""
+
+    delta: float
+    columns: list[AttributionColumn] = Field(default_factory=list)
+    release: AttributionRelease | None = None
+    # The one-liners alerts carry too, e.g. "92% of the drop comes from
+    # platform = ios (−3,120 of −3,390)" and "Release 4.12 reached 38% of
+    # traffic 3h before the drop". NULL when there is nothing to say.
+    headline: str | None = None
+    release_line: str | None = None
+    computed_at: datetime | None = None
+
+
+class AnomalyAttributionResponse(BaseModel):
+    """``GET /projects/{slug}/anomalies/{anomaly_id}/attribution``."""
+
+    anomaly_id: uuid.UUID
+    scan_config_id: uuid.UUID | None = None
+    attribution_status: AttributionStatus
+    attribution: SignalAttribution | None = None
+
+
 class MetricSignalResponse(BaseModel):
     # NULL for ``metric``-scope signals (catalog MetricDefinition series are
     # project-global and not tied to a single scan config).
@@ -177,6 +239,18 @@ class MetricSignalResponse(BaseModel):
     # not a verdict.
     verdict: SignalVerdictInfo | None = None
     incident: SignalIncidentBrief | None = None
+    # The stored anomaly row this signal was built from, for the lazy
+    # attribution route. NULL on a path that did not build it from a row.
+    anomaly_id: uuid.UUID | None = None
+    # "Why did it change?" (F02, #255): the contribution breakdown stored with
+    # the anomaly at detection time, filled after the signals cache like the
+    # triage fields. ``attribution_status`` says why ``attribution`` is NULL:
+    # ``no_breakdown_columns`` when the scan has no breakdown column to split by
+    # (the app-version column does not count), ``not_computed`` when it has one
+    # but no split is stored (a catalog-metric signal, a bucket scored before
+    # attributions existed, a scope with no breakdown series).
+    attribution: SignalAttribution | None = None
+    attribution_status: AttributionStatus = "not_computed"
 
 
 class SeasonalityCell(BaseModel):

@@ -184,6 +184,82 @@ export interface MonitoringSignal {
   // counts; one without is what the "Needs verdict" filter lists.
   verdict?: SignalVerdict | null
   incident?: SignalIncidentRef | null
+  // Why it changed (#255): the flagged bucket's delta split across the scan's
+  // breakdown columns, computed when the anomaly was written so the alert and
+  // this page read the same numbers. Optional: a payload that predates it, and
+  // every locally-synthesised signal, carries neither.
+  attribution?: SignalAttribution | null
+  attribution_status?: SignalAttributionStatus
+  // The stored anomaly this signal reads, for the attribution endpoint
+  // (`GET /projects/{slug}/anomalies/{anomaly_id}/attribution`). Null on a
+  // payload that predates it and on a locally-synthesised signal.
+  anomaly_id?: string | null
+}
+
+/**
+ * Whether a signal has an attribution (#255): `ready` carries one;
+ * `no_breakdown_columns` is a volume signal whose scan splits by nothing, so
+ * there is nothing to attribute; `not_computed` is everything else — a signal
+ * older than the feature, or a scope attribution does not cover.
+ */
+export type SignalAttributionStatus = 'ready' | 'no_breakdown_columns' | 'not_computed'
+
+/** One breakdown value's part of the flagged bucket's delta. */
+export interface SignalAttributionValue {
+  value: string
+  /** actual − expected for this value; the column's values and its Other sum to the scope's delta. */
+  delta: number
+  expected: number
+  actual: number
+  /**
+   * This value's delta over the scope's delta, SIGNED: negative for a value
+   * that moved against the change, and not clipped. Never render it as a raw
+   * 0..1 share; the panel prints `headline` and the signed counts instead.
+   */
+  share: number
+}
+
+/** One breakdown column's split of the delta, its top values first. */
+export interface SignalAttributionColumn {
+  column: string
+  /** Same-sign contributions of the top values over the delta, clipped 0..1. */
+  explained_share: number
+  values: SignalAttributionValue[]
+}
+
+/** An app version that crossed the activation gate within the anomaly's window. */
+export interface SignalAttributionRelease {
+  version: string
+  previous_version: string | null
+  /** Share of traffic the version reached, 0..1. */
+  share: number
+  reached_at: string
+}
+
+export interface SignalAttribution {
+  /** actual − expected for the flagged bucket. */
+  delta: number
+  /** Up to three columns, ranked by their top value's |contribution|. */
+  columns: SignalAttributionColumn[]
+  release: SignalAttributionRelease | null
+  /**
+   * The one-liners the alert carries too, worded by the backend (the single
+   * source of the formula): e.g. "92% of the drop comes from platform = ios
+   * (−3,120 of −3,390)" and "Release 4.12 reached 38% of traffic 3h before
+   * the drop". Render them verbatim; null when there is nothing to say.
+   */
+  headline?: string | null
+  release_line?: string | null
+  /** When the worker computed this attribution. */
+  computed_at?: string | null
+}
+
+/** `GET /projects/{slug}/anomalies/{anomaly_id}/attribution`. */
+export interface AnomalyAttributionResponse {
+  anomaly_id: string
+  scan_config_id: string | null
+  attribution: SignalAttribution | null
+  attribution_status: SignalAttributionStatus
 }
 
 /** The scope a triage verdict is about, keyed like the signal (MO-4 / JR-5). */

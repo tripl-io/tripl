@@ -813,7 +813,7 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
         # Built once and reused across re-renders (e.g. the MarkdownV2→plain
         # fallback) so the warehouse/DB queries behind sparkline + top-movers
         # don't run a second time when something is already failing.
-        item_context_cache: dict[uuid.UUID, tuple[str, str]] = {}
+        item_context_cache: dict[uuid.UUID, tuple[str, ...]] = {}
         # Same idea for metric units: resolved once (one batched query) and
         # reused by the session-less fallback render below.
         metric_units_cache: dict[str, str | None] = {}

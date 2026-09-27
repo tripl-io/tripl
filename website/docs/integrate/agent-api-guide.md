@@ -755,6 +755,100 @@ GET /api/v1/projects/{slug}/signals/verdict-counts
 signals by the verdict they carry. An acknowledged signal has no verdict and
 counts under `needs_verdict`.
 
+## Signal attribution {#signal-attribution}
+
+Attribution says where a volume signal's change came from — which breakdown
+column values explain the delta, and whether a release rolled out just before
+it. It is computed when the anomaly is detected and stored with it, so every
+surface returns the same numbers and the same sentences. See
+[Why it changed: attribution](../use/anomaly-detection.md#attribution) for the
+math.
+
+Signal payloads — the signals list and a drilldown's `latest_signal` — carry
+three fields. Chart anomaly points do **not** carry attribution; a chart point
+that needs it goes through its signal, or through the per-anomaly route below.
+
+| Field | Meaning |
+|-------|---------|
+| `anomaly_id` | The stored anomaly behind the signal — the id the per-anomaly route takes. |
+| `attribution_status` | `ready`, `no_breakdown_columns` or `not_computed`. |
+| `attribution` | The stored attribution when the status is `ready`, otherwise `null`. |
+
+```json
+{
+  "attribution_status": "ready",
+  "attribution": {
+    "delta": -3390,
+    "columns": [
+      {
+        "column": "platform",
+        "explained_share": 0.92,
+        "values": [
+          {"value": "ios", "delta": -3120, "expected": 3400, "actual": 280, "share": 0.92},
+          {"value": "web", "delta": 40, "expected": 900, "actual": 940, "share": -0.012}
+        ]
+      }
+    ],
+    "release": {
+      "version": "4.12",
+      "previous_version": "4.11",
+      "share": 0.38,
+      "reached_at": "2026-09-25T15:00:00Z"
+    },
+    "headline": "92% of the drop comes from platform = ios (−3,120 of −3,390)",
+    "release_line": "Release 4.12 (after 4.11) reached 38% of traffic 3h before the drop",
+    "computed_at": "2026-09-25T18:04:11Z"
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `delta` | The scope's actual minus expected in the flagged bucket. |
+| `columns` | Up to 3 breakdown columns. `explained_share` (0–1) is the part of `delta` the column's same-direction top values explain. |
+| `columns[].values` | Up to 3 named values per column: `expected`, `actual`, their difference `delta` (the value's contribution), and `share` — that contribution over the scope's `delta`, **signed**: a value that moved against the change has a negative share. The remainder outside the listed values is booked to *Other*, which is never listed as a value, so a column's contributions plus *Other* sum to `delta`. |
+| `release` | `{version, previous_version, share, reached_at}` when a new app version crossed the release gate shortly before the bucket, else `null`. `previous_version` is `null` when no earlier released version carried the traffic. App-version series feed only this field, never `columns`. |
+| `headline` | The one-sentence summary, or `null` when there is nothing to say. It is exactly the sentence the drilldown's **Why** panel and the [alert line](../use/alerting.md#attribution-line) print — quote it rather than rebuilding it from `columns`. |
+| `release_line` | The release sentence, or `null` when `release` is `null`. Same rule: quote it verbatim. |
+| `computed_at` | When the metrics worker stored this attribution. |
+
+`headline` takes one of two forms:
+
+- `<N>% of the <drop|spike> comes from <column> = <value> (<value delta> of <scope delta>)`
+  — the column with the highest `explained_share`, and within it the largest
+  value moving the same way as the delta. Counts use thousands separators and a
+  real minus sign (`−`).
+- `<Column> shifted in both directions; no single value explains the <drop|spike>`
+  — with no percent, when that column's values moved in both directions by more
+  than twice the delta in total, or none of them moved the same way as the
+  delta.
+
+`release_line` reads `Release <version> (after <previous>) reached <N>% of traffic <H>h before the <drop|spike>`,
+with the hours rounded down, `at the <drop|spike>` in place of the lead time
+when the release activated in the flagged bucket itself, and no `(after …)`
+when `previous_version` is `null`.
+
+To load it on its own, for example lazily on a detail view or for a chart point,
+use a read-level key:
+
+```http
+GET /api/v1/projects/{slug}/anomalies/{anomaly_id}/attribution
+```
+
+```json
+{
+  "anomaly_id": "7c0e…",
+  "scan_config_id": "2b9f…",
+  "attribution_status": "ready",
+  "attribution": {"delta": -3390, "columns": ["…same shape as above…"], "headline": "92% of the drop comes from platform = ios (−3,120 of −3,390)"}
+}
+```
+
+It returns the anomaly's id, the scan it belongs to (`null` for catalog-metric
+anomalies), and the same `attribution_status` and `attribution` a signal
+carries. Attribution is read-only: replaying a period recomputes it, and it is
+dropped with its anomaly.
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.

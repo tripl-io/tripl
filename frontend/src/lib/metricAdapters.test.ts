@@ -138,6 +138,7 @@ describe('metricSignalToMonitoringSignal', () => {
     expected: false,
     hidden: false,
     muted: false,
+    attribution_status: 'not_computed',
   }
 
   it('carries the unit and detection time the server sent (MON-34, MON-40)', () => {

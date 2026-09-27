@@ -213,6 +213,17 @@ describe('unknownTemplateVariables (ALR-21)', () => {
   })
 })
 
+describe('default items templates (#255)', () => {
+  it('carry the attribution line between the monitoring line and the movers, as the backend does', () => {
+    for (const format of ['plain', 'slack_mrkdwn', 'telegram_html', 'telegram_markdownv2'] as const) {
+      expect(getDefaultItemsTemplate(format)).toContain('${monitoring_line}${attribution_line}${top_movers_line}')
+    }
+    const names = ITEM_TEMPLATE_VARIABLE_OPTIONS.map(option => option.name as string)
+    expect(names).toContain('attribution')
+    expect(names).toContain('attribution_line')
+  })
+})
+
 describe('findTemplateVariableToken', () => {
   it('reads the half-typed variable before the cursor', () => {
     expect(findTemplateVariableToken('Hi ${rule_', 10)).toEqual({ start: 3, end: 10, query: 'rule_' })
