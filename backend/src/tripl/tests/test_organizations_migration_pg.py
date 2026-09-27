@@ -15,12 +15,15 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from types import ModuleType
 
 import pytest
 import sqlalchemy as sa
+from alembic.config import Config
 from alembic.operations import Operations
 from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import Connection, Engine
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -32,6 +35,12 @@ from tripl.tests.test_alert_digest_concurrency_pg import _PG_URL, _engine_or_ski
 pytestmark = pytest.mark.postgres
 
 MIGRATION = "b8d0f2a4c6e8_organizations_schema_and_default_org.py"
+# Revisions after ``MIGRATION`` whose schema the model metadata already carries,
+# newest first. The fixture builds the HEAD schema with ``create_all``, so these
+# must be unwound before ``MIGRATION.downgrade`` runs: ``doc_files`` (F22) keeps
+# an ``organization_id`` foreign key that would block dropping ``organizations``.
+# A new revision that depends on the organization schema belongs here.
+LATER_MIGRATIONS: tuple[str, ...] = ("c3f5a7b9d1e2_docs_catalog.py",)
 DEFAULT_ORG = "00000000-0000-0000-0000-00000000d0f1"
 _PSYCOPG_PREFIX = "postgresql+psycopg://"
 _ORG_COLUMNS = {
@@ -165,6 +174,27 @@ def _enum_exists(engine: Engine, name: str) -> bool:
         )
 
 
+def _revision_of(filename: str) -> str:
+    return filename.split("_", 1)[0]
+
+
+def test_later_migrations_lists_every_revision_after_this_one() -> None:
+    """``LATER_MIGRATIONS`` is the chain from head down to ``MIGRATION``, newest first.
+
+    Plain (no Postgres needed), so a revision added on top without an entry here
+    fails in every job rather than only in the Postgres one.
+    """
+    backend_root = Path(__file__).resolve().parents[3]
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    script = ScriptDirectory.from_config(config)
+    # Exclusive of the lower bound: the revisions strictly above MIGRATION.
+    chain = [
+        revision.revision for revision in script.iterate_revisions("heads", _revision_of(MIGRATION))
+    ]
+    assert chain == [_revision_of(filename) for filename in LATER_MIGRATIONS]
+
+
 @pytest.mark.asyncio
 async def test_organizations_revision_round_trips_on_postgres(
     pg_engine: Engine, monkeypatch: pytest.MonkeyPatch
@@ -173,7 +203,11 @@ async def test_organizations_revision_round_trips_on_postgres(
     monkeypatch.setattr(settings, "deployment_mode", "self_hosted")
     monkeypatch.setattr(settings, "platform_admin_emails", [])
 
-    # Down from the model schema to the shape the previous release runs on.
+    # Down from the model schema to the shape the previous release runs on:
+    # first the later revisions, so the schema is exactly this revision's head.
+    for index, filename in enumerate(LATER_MIGRATIONS):
+        later: ModuleType = _load_migration(f"organizations_migration_pg_later_{index}", filename)
+        await _run(later.downgrade)
     await _run(migration.downgrade)
     assert _org_column_nullability(pg_engine) == {}
     assert not _enum_exists(pg_engine, "organization_member_role")

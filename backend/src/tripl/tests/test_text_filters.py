@@ -146,6 +146,14 @@ _GUARDED_ELSEWHERE: dict[str, str] = {
         "for anything that does not decode, so a NUL never reaches a query. "
         "test_frontend_review_r3.py pins ?cursor=%00 to 422."
     ),
+    "path": (
+        "The docs catalog's note path / folder prefix (F22) is not a text filter: "
+        "every route taking it (/docs/file, /docs/folder, /docs/revisions) passes it "
+        "through docs_paths.normalize_doc_path or normalize_prefix before any query, "
+        "and both refuse any control character, U+0000 included, with a 422. "
+        "Stripping would silently address a different note. test_docs_api.py pins "
+        "?path=a%00b.md to 422 on all three."
+    ),
 }
 
 

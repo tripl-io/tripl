@@ -484,7 +484,10 @@ async def search_project(
     limit: int = 20,
     semantic: bool = True,
     group_variants: bool = False,
+    project_id: uuid.UUID | None = None,
 ) -> SearchResponse:
+    # ``project_id`` lets a caller that has already resolved the project (the
+    # docs catalog) skip a second slug lookup; ``slug`` is then ignored.
     # Sanitize here rather than in the router: this is the single funnel every
     # caller goes through (HTTP search and ai_service.ask_plan),
     # and it runs before the dialect split so the lexical SQL, the embedding
@@ -493,7 +496,8 @@ async def search_project(
     if not normalized_query:
         return SearchResponse(items=[], total=0, truncated=False, semantic_used=False)
 
-    project_id = await resolve_project_id(session, slug)
+    if project_id is None:
+        project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     await _ensure_index_exists(session, project_id, resolved_branch_id)
 

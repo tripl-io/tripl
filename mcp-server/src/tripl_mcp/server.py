@@ -34,7 +34,10 @@ INSTRUCTIONS = (
     "live main plan is never mutated by accident, picking an open branch (status "
     "draft, ready_for_review, changes_requested or approved), since a merged or closed "
     "branch is read-only and answers 409; always read mutation warnings and "
-    "adopt the server-canonical names/ids over your proposed ones. Read tools work "
+    "adopt the server-canonical names/ids over your proposed ones. Use read_doc/"
+    "search_docs for team notes (warehouse gotchas, query recipes, conventions) before "
+    "answering a question the plan alone cannot; write_doc needs a tk_w_ key backed by "
+    "an editor and is live at once, since notes are not branch-aware. Read tools work "
     "with a tk_r_ key; write tools need a tk_w_ key backed by an editor/owner user."
 )
 

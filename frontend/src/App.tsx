@@ -47,6 +47,7 @@ const FactTableEditPage = lazyWithReload(() => import('./pages/fact-tables/FactT
 const CoveragePage = lazyWithReload(() => import('./pages/CoveragePage'))
 const ConceptsPage = lazyWithReload(() => import('./pages/ConceptsPage'))
 const SettingsArea = lazyWithReload(() => import('./pages/settings-area/SettingsArea'))
+const DocsPage = lazyWithReload(() => import('./pages/docs/DocsPage'))
 
 /**
  * Route-level loading: a page-shaped skeleton rather than "Loading page…" in
@@ -521,6 +522,10 @@ export default function App() {
               <Route path="/p/:slug/fact-tables" element={<FactTablesRedirect />} />
               <Route path="/p/:slug/coverage" element={withSuspense('coverage', <CoveragePage />)} />
               <Route path="/p/:slug/concepts" element={withSuspense('concepts', <ConceptsPage />, 'settings')} />
+              {/* Docs catalog (F22): `*` is the note's path, so folders and nested
+                  notes share one Suspense key and never remount the tree. */}
+              <Route path="/p/:slug/docs/:scope/*" element={withSuspense('docs', <DocsPage />, 'detail')} />
+              <Route path="/p/:slug/docs" element={withSuspense('docs', <DocsPage />, 'detail')} />
               {/* Govern › Scans — a top-level operational surface, not a settings tab. */}
               <Route path="/p/:slug/scans/:scanId" element={withSuspense('scans', <ProjectScansPage />, 'detail')} />
               <Route path="/p/:slug/scans" element={withSuspense('scans', <ProjectScansPage />)} />

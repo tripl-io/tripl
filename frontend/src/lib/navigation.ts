@@ -10,6 +10,7 @@ import {
   History,
   LineChart,
   Link2,
+  NotebookText,
   ScanLine,
   ScrollText,
   ShieldCheck,
@@ -134,6 +135,16 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           icon: Link2,
           href: `${base}/relations`,
           match: (p) => p.startsWith(`${base}/relations`),
+        },
+        {
+          // The docs catalog (F22): Markdown notes for people and agents,
+          // project notes plus the organization's shared ones. Not BookOpen:
+          // the sidebar footer's Concepts link already wears it.
+          id: 'docs',
+          label: 'Docs',
+          icon: NotebookText,
+          href: `${base}/docs`,
+          match: (p) => p === `${base}/docs` || p.startsWith(`${base}/docs/`),
         },
         {
           id: 'branches',

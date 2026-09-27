@@ -208,7 +208,8 @@ class BuiltDocument:
 #:     branch gains documents it did not have, which no content_hash comparison
 #:     could have discovered, so this is exactly the case the stamp exists for.
 #: 3 — generated titles and subtitles are capped to their storage column width.
-DOCUMENT_BUILDER_VERSION = 3
+#: 4 — docs catalog notes (project + organization) became searchable (F22).
+DOCUMENT_BUILDER_VERSION = 4
 
 
 # Every caller reindexes inside its OWN transaction, right after mutating the
@@ -405,6 +406,12 @@ async def build_documents(
 
     for alert_rule in alert_rules:
         documents.append(_alert_rule_document(alert_rule, slug, scan_config_names))
+
+    # Docs catalog notes: global too, the project's own and its organization's
+    # (F22). Imported here because that module builds on this one's helpers.
+    from tripl.services._search_doc_documents import build_doc_documents
+
+    documents.extend(await build_doc_documents(session, project_id, slug))
 
     return documents
 

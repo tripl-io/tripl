@@ -21,6 +21,7 @@ import { EventHealthCard } from '@/pages/events/EventHealthCard'
 import { EventSpecCard } from '@/components/EventSpecCard'
 import { MetricDefinitionCard } from '@/components/monitoring/metric-definition-card'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
+import { DocNotesSection } from '@/components/docs/DocNotesSection'
 import { SeasonalityHeatmap } from '@/components/monitoring/seasonality-heatmap'
 import { EntityNotFound, PageSkeleton, QueryErrorState, SectionSkeleton } from '@/components/states'
 import { Card, CardContent } from '@/components/ui/card'
@@ -878,6 +879,11 @@ export default function MonitoringDetailPage() {
       )}
       {scope === 'metric' && slug && metricDefinition && (
         <UsedBySection slug={slug} entity={{ kind: 'metric', id: scopeId }} branchId={null} />
+      )}
+      {/* Docs-catalog notes that link to this event by name (F22). Links
+          resolve against main, so the card is for the main plan only. */}
+      {scope === 'event' && event && slug && branchId === null && (
+        <DocNotesSection slug={slug} kind="event" name={event.name} />
       )}
 
       {scope === 'event' && scopeId && (

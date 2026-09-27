@@ -100,7 +100,7 @@ Query parameters:
 Each item carries:
 
 - `entity_type` — one of `event`, `event_type`, `field`, `meta_field`, `variable`,
-  `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule`
+  `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule`, `doc`
 - `title`, `subtitle`, `description` (or `snippet`)
 - `confidence` — relevance in `0..1`
 - `semantic_used` — `true` when the **keyword leg did not surface this row inside

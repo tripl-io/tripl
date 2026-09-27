@@ -61,6 +61,7 @@ def register_all(
         annotate,
         check,
         codegen,
+        docs,
         doctor,
         drifts,
         events,
@@ -103,6 +104,9 @@ def register_all(
     # tracking code for a checkout, `export` writes the plan out as JSON Schema (#262).
     codegen.register(subparsers, parent)
     export.register(subparsers, parent)
+    # A group again: the docs catalog is a class of objects an operator browses
+    # (`ls`, `cat`), and `pull`/`push` move a folder of them to and from disk (F22).
+    docs.register(subparsers, parent)
 
 
 def group_help(parser: argparse.ArgumentParser) -> Handler:

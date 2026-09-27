@@ -170,6 +170,20 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        "Docs",
+        (
+            # Organization notes are written through a project, so these carry
+            # that project too, whichever scope the note is in (F22).
+            "doc.create",
+            "doc.update",
+            "doc.move",
+            "doc.delete",
+            "doc.folder_delete",
+            "doc.restore",
+            "doc.import",
+        ),
+    ),
+    (
         "Project",
         (
             # ``project.delete`` is recorded after its subject is gone, so it has

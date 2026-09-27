@@ -98,7 +98,7 @@ retired ones, pass `status=archived`.
 | Query param | Meaning |
 |-------------|---------|
 | `q` | Natural-language phrase (1–500 chars) |
-| `types` | Restrict to entity kinds (repeatable): `event`, `event_type`, `field`, `meta_field`, `variable`, `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule` |
+| `types` | Restrict to entity kinds (repeatable): `event`, `event_type`, `field`, `meta_field`, `variable`, `relation`, `tag`, `metric`, `fact_table`, `scan_config`, `alert_rule`, `doc` |
 | `include_archived` | Include archived entities (default `false`) |
 | `limit` | Max results (default `20`, max `100`) |
 
