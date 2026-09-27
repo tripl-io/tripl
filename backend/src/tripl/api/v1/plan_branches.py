@@ -134,7 +134,9 @@ async def add_reviewer(
     branch_id: uuid.UUID,
     data: BranchReviewerCreate,
 ) -> BranchReviewerResponse:
-    reviewer = await plan_branch_service.add_reviewer(session, slug, branch_id, data)
+    reviewer = await plan_branch_service.add_reviewer(
+        session, slug, branch_id, data, actor_user_id=current_user.id
+    )
     await audit_service.record(
         session,
         user=current_user,

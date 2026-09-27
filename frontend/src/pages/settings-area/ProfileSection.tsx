@@ -3,6 +3,7 @@ import { InfoRow, SCard, SHeader } from '@/components/settings/kit'
 import { RoleChip } from '@/components/settings/role-chip'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { ComingLaterCard } from './ComingLaterCard'
+import { NotificationPrefsCard } from './NotificationPrefsCard'
 import { ReadOnlyNotice } from '@/components/states'
 
 /**
@@ -21,11 +22,6 @@ const UNBUILT = [
   {
     title: 'Display preferences',
     detail: 'date format and start of week. Timestamps are relative, in your browser’s timezone, for everyone.',
-  },
-  {
-    title: 'Personal notifications',
-    detail:
-      'incident alerts and review requests addressed to you. Alerts and digests go to a project’s destinations under Alerting, so there is no per-person switch to offer yet.',
   },
 ] as const
 
@@ -49,7 +45,7 @@ export default function ProfileSection() {
           read-only section does, rather than leave a page of values that look
           like they should be (#237 ST-17). */}
       <ReadOnlyNotice className="mb-5">
-        These details can't be changed here yet. A workspace owner sets your role.
+        Your details can't be changed here yet. A workspace owner sets your role.
       </ReadOnlyNotice>
 
       {/* Read-only values in read-only rows (ST-23): editable-form Field rows
@@ -85,6 +81,9 @@ export default function ProfileSection() {
           last
         />
       </SCard>
+
+      {/* The one editable card: how your own notifications reach you (#259). */}
+      <NotificationPrefsCard />
 
       <ComingLaterCard items={UNBUILT} />
     </div>

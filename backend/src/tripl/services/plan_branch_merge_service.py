@@ -32,10 +32,12 @@ from tripl.models.plan_branch_approval import PlanBranchApproval
 from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
 from tripl.models.project_tracker_config import ProjectTrackerConfig
+from tripl.models.subscription import Subscription
+from tripl.models.user import User
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.schemas.plan_branch import PlanBranchDetailResponse
-from tripl.services import project_access
+from tripl.services import project_access, subscription_service
 from tripl.services._branch_counterparts import main_counterparts
 from tripl.services._branch_event_threads import move_event_threads
 from tripl.services._celery_dispatch import dispatch
@@ -693,6 +695,38 @@ async def _move_event_threads_to_main(
     # which has a main twin, so the two can never disagree about what a moved
     # thread looks like (tripl-0zpq.289).
     await move_event_threads(session, target_by_event_id=main_event_id_by_branch_event_id)
+
+
+async def _move_event_subscriptions_to_main(
+    session: AsyncSession, *, landed_by_branch_event_id: dict[uuid.UUID, uuid.UUID]
+) -> None:
+    """Re-key ``event`` subscriptions still held by branch rows onto main (#259).
+
+    Only branch rows somebody actually watches are touched, so this is bounded
+    by the branch's subscriptions, not by the catalog the branch copied.
+    """
+    if not landed_by_branch_event_id:
+        return
+    watched = set(
+        (
+            await session.scalars(
+                select(Subscription.entity_id)
+                .where(
+                    Subscription.entity_type == subscription_service.EVENT,
+                    Subscription.entity_id.in_(list(landed_by_branch_event_id)),
+                )
+                .distinct()
+            )
+        ).all()
+    )
+    await subscription_service.rekey_event_subscriptions(
+        session,
+        target_by_event_id={
+            event_id: target_id
+            for event_id, target_id in landed_by_branch_event_id.items()
+            if event_id in watched
+        },
+    )
 
 
 async def _apply_merge(
@@ -1601,6 +1635,17 @@ async def _apply_merge(
         elif landed is not None and landed.id in surviving_main_ids:
             thread_targets[branch_event_id] = landed.id
     await _move_event_threads_to_main(session, main_event_id_by_branch_event_id=thread_targets)
+    # Watchers of a branch-only event with no thread of its own (its author
+    # and owner, subscribed at creation) follow it to the main row it landed
+    # on, as the thread-holding rows' watchers just did (#259).
+    await _move_event_subscriptions_to_main(
+        session,
+        landed_by_branch_event_id={
+            branch_event_id: landed.id
+            for branch_event_id, landed in main_target_by_branch_id.items()
+            if branch_event_id not in thread_targets and landed.id in surviving_main_ids
+        },
+    )
 
     # --- variable event value overrides: replace only for variables whose
     # branch-side override map changed from the base. Each override follows its
@@ -2330,4 +2375,62 @@ async def merge_branch(
             )
     except Exception:  # noqa: BLE001 — search staleness must never break a merge
         logger.exception("Failed to reindex search after merging branch %s", branch_id)
+    await _announce_merge(
+        session,
+        slug=slug,
+        project_id=project.id,
+        branch_id=branch.id,
+        branch_name=branch.name,
+        author_id=branch.created_by,
+        actor_id=user_id,
+    )
     return await _to_detail(session, branch)
+
+
+async def _announce_merge(
+    session: AsyncSession,
+    *,
+    slug: str,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID,
+    branch_name: str,
+    author_id: uuid.UUID | None,
+    actor_id: uuid.UUID,
+) -> None:
+    """``branch_merged`` (#259) to the author, the reviewers and the branch's watchers.
+
+    Best-effort and in a session of its own, for the reason the search reindex
+    above gives: the merge is committed, and a failure on the request's session
+    would 500 it or expire what the caller still holds. ``notify`` drops the
+    actor, non-members and whoever muted the branch.
+    """
+    try:
+        from tripl.services import notification_service
+
+        async with AsyncSession(session.bind, expire_on_commit=False) as notify_session:
+            reviewers = set(
+                (
+                    await notify_session.scalars(
+                        select(PlanBranchReviewer.user_id).where(
+                            PlanBranchReviewer.branch_id == branch_id
+                        )
+                    )
+                ).all()
+            )
+            actor = await notify_session.get(User, actor_id)
+            who = (actor.name or actor.email) if actor is not None else "Someone"
+            await notification_service.notify(
+                notify_session,
+                project_id=project_id,
+                kind="branch_merged",
+                entity_type=subscription_service.BRANCH,
+                entity_id=branch_id,
+                title=f"{who} merged branch {branch_name} into main",
+                url=f"/p/{slug}/branches/{branch_id}",
+                actor_user_id=actor_id,
+                user_ids={*reviewers, *([author_id] if author_id is not None else [])},
+                watchers_of=[(subscription_service.BRANCH, branch_id)],
+            )
+            await notify_session.commit()
+    except Exception:  # noqa: BLE001 — a notification must never break a merge
+        logger.exception("Failed to notify about merged branch %s", branch_id)

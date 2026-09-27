@@ -1161,6 +1161,161 @@ way round: send the new tracker's token or key in the same `PATCH`, or the
 tracker is left without one. Tickets are read the same
 way for both trackers, from the branch and event `implementation-tickets` routes.
 
+## Notifications and subscriptions {#notifications}
+
+Every user has an in-app notification list, email preferences, and a set of
+subscriptions (watches) on events, event types, metrics and branches. A key
+acts as the user who created it, so these routes read and change **that
+user's** notifications and subscriptions. The product behaviour is described
+in [Notifications & watching](../use/notifications.md).
+
+### Reading notifications
+
+```http
+GET /api/v1/me/notifications?unread=true&limit=30&cursor=…
+GET /api/v1/me/notifications/unread-count
+```
+
+The list covers every project the user is currently a member of, newest
+first. `unread=true` returns only unread notifications; `limit` is the page
+size (default 30, at most 100). The list comes back as a page:
+
+```json
+{"items": [ … ], "next_cursor": "…"}
+```
+
+Pass `next_cursor` back as `cursor` to get the next (older) page; it is
+`null` on the last page. Treat the cursor as opaque. Each item carries:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | notification id |
+| `project_id`, `project_slug`, `project_name` | the project it belongs to |
+| `kind` | `comment`, `reply`, `mention`, `open_question`, `signal`, `branch_review_requested`, `branch_approved`, `branch_merged` or `lifecycle` |
+| `entity_type`, `entity_id` | what it is about: `event`, `event_type`, `metric` or `branch`, and its id |
+| `title`, `body` | a short title and text |
+| `url` | the in-app path to open |
+| `actor` | who caused it, as `{"id", "name", "email"}`, or `null` (for example a signal, or a deleted user) |
+| `read_at` | when it was marked read, or `null` |
+| `created_at` | when it was created |
+
+`unread-count` returns `{"unread": 3}`.
+
+Mark notifications read, either by id (up to 500 per call) or all at once;
+the body must name one or the other:
+
+```http
+POST /api/v1/me/notifications/read
+```
+
+```json
+{"ids": ["3f2a…", "9b41…"]}
+```
+
+```json
+{"all": true}
+```
+
+The response reports how many notifications changed and the unread count
+left: `{"updated": 2, "unread": 1}`.
+
+### Email preferences
+
+```http
+GET   /api/v1/me/notification-prefs
+PATCH /api/v1/me/notification-prefs
+```
+
+```json
+{"email_mode": "weekly", "mentions_email": true}
+```
+
+`email_mode` is `off`, `instant`, `daily` (the default) or `weekly`;
+`mentions_email` (default `true`) controls email for mentions separately from
+`email_mode`. Both fields are optional in a `PATCH`. The response also carries
+`email_available`, which is `false` when the instance has no SMTP configured:
+the preferences are kept, but nothing is emailed until SMTP is set up, and the
+in-app list is unaffected. Instant emails go out within about a minute. Daily
+and weekly digests group the notifications that are unread and not yet
+emailed, and each notification is emailed at most once.
+
+### Subscriptions
+
+A subscription is per user and entity, inside a project:
+
+```http
+GET    /api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}
+PUT    /api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}
+DELETE /api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}
+PATCH  /api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}
+```
+
+`entity_type` is `event`, `event_type`, `metric` or `branch`. `GET` returns the
+caller's own state for that entity; `PUT` watches it (adds the `manual`
+reason); `DELETE` unwatches it; `PATCH` sets `muted`:
+
+```json
+{"muted": true}
+```
+
+All four return the same body, the caller's subscription state:
+
+```json
+{
+  "entity_type": "event",
+  "entity_id": "7c1e…",
+  "watching": true,
+  "muted": true,
+  "reasons": ["author", "commenter"]
+}
+```
+
+`entity_id` is the id the subscription is kept under. For an event that is the
+event's discussion home, so watching an event's copy on a plan branch returns
+the id of its main-plan twin. `reasons` lists why the subscription exists:
+`author`, `owner`, `commenter`, `reviewer` and/or `manual`. tripl adds the
+automatic reasons itself (event author on create, event type owners through the
+`event_type` subscription, the first comment on an event, branch author and
+reviewers).
+
+A muted subscription stays in place: it still reads `watching: true` with
+`muted: true` and keeps its reasons, but produces no notifications except
+mentions, which always get through. `DELETE` removes the subscription
+entirely, muted or not.
+
+Watching an event type brings the signals, lifecycle findings and open
+questions on its events, not their ordinary comments and replies. To follow an
+event's discussion, watch the event itself.
+
+### Mentions
+
+A comment body mentions a member with `@[Name](user_id)`. Only that form
+notifies; plain `@name` text does not. Take the ids from
+[`GET /api/v1/projects/{slug}/members`](#project-members). A mentioned user who
+is not a member of the project is skipped. A mention notifies even when the
+mentioned user has muted the thread.
+
+### Who is notified
+
+| `kind` | Recipients |
+|--------|------------|
+| `comment`, `reply` on an event | the event's watchers |
+| `comment`, `reply` on a branch | the branch's watchers |
+| `mention` | the mentioned members |
+| `open_question` | the event's author and its event type's owners |
+| `signal` | watchers of the event, event type or metric; a signal on an event also reaches its event type's watchers |
+| `lifecycle` | watchers of the event and of its event type |
+| `branch_review_requested` | the requested reviewers |
+| `branch_approved`, `branch_merged` | the branch's author, its reviewers and its watchers |
+
+A user who already got a `mention` for a comment does not also get the
+`comment` or `open_question` for it. Recipients are checked against the
+project's current members when a notification is created and again before it
+is emailed, and the user whose action caused it is never notified. Signal
+notifications are limited to one per new signal, at most one per entity per
+subscriber every 6 hours, and are never created for hidden or verdicted
+signals.
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.

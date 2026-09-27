@@ -14,6 +14,7 @@ import { StatValueSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MetricsChart } from '@/components/ui/chart-lazy'
+import { WatchButton } from '@/components/watch-button'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -44,6 +45,7 @@ export function EventDetailHero({
   onDiscuss,
   onMarkVerified,
   alertsPath,
+  slug,
 }: {
   event: TEvent
   eventType: EventType | undefined
@@ -62,6 +64,8 @@ export function EventDetailHero({
   onMarkVerified?: () => void
   /** The alert inbox, where the signal's incident carries its triage actions (JR-5). */
   alertsPath?: string
+  /** The project, for the Watch button (#259); omitted, there is none. */
+  slug?: string
 }) {
   const stats = computeEventStats(metrics?.data)
   const signal = metrics?.latest_signal ?? null
@@ -77,6 +81,7 @@ export function EventDetailHero({
         discussionCount={discussionCount}
         onDiscuss={onDiscuss}
         onMarkVerified={onMarkVerified}
+        slug={slug}
         stats={<EventStatStrip event={event} stats={stats} pending={metrics === undefined} />}
       />
       {signal && (
@@ -118,6 +123,7 @@ function EventDetailHeader({
   discussionCount,
   onDiscuss,
   onMarkVerified,
+  slug,
   stats,
 }: {
   event: TEvent
@@ -128,6 +134,7 @@ function EventDetailHeader({
   discussionCount?: number
   onDiscuss?: () => void
   onMarkVerified?: () => void
+  slug?: string
   stats: ReactNode
 }) {
   const status = event.status as EventStatus
@@ -192,6 +199,9 @@ function EventDetailHeader({
       // ring and disabled look instead of an inline accent fill (AU-7).
       actions={
         <>
+          {/* One watch per event (#259): a branch copy watches its twin on
+              main when the payload names it, as the discussion is shared. */}
+          {slug && <WatchButton slug={slug} entityType="event" entityId={event.main_event_id ?? event.id} />}
           <Button variant="outline" onClick={onMetrics}>
             <TrendingUp aria-hidden="true" />
             Metrics

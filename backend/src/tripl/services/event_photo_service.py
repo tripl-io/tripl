@@ -17,7 +17,9 @@ from tripl.models.event_photo import EventPhoto
 from tripl.models.event_photo_comment import EventPhotoComment
 from tripl.models.plan_branch import BranchKind, BranchStatus
 from tripl.models.user import User
+from tripl.services import notification_announce, subscription_service
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
+from tripl.services.mentions import excerpt, mentioned_user_ids
 from tripl.services.project_service import get_project_id_by_slug
 from tripl.storage import PhotoStorage, get_photo_storage, storage_for
 
@@ -458,7 +460,8 @@ async def create_comment(
     parent_id: uuid.UUID | None,
     user_id: uuid.UUID | None,
 ) -> EventPhotoComment:
-    await get_photo(session, slug, event_id, photo_id)
+    event = await _get_event(session, slug, event_id)
+    await _photo_on(session, event, photo_id)
     if parent_id is not None:
         parent = await session.get(EventPhotoComment, parent_id)
         if parent is None or parent.photo_id != photo_id:
@@ -471,9 +474,45 @@ async def create_comment(
         body=body.strip(),
     )
     session.add(comment)
+    await session.flush()
+    # Best-effort, in a savepoint: a failed mention never fails the comment.
+    await notification_announce.best_effort(
+        session,
+        "photo comment mentions",
+        lambda: _announce_photo_comment_mentions(session, slug, event, comment),
+    )
     await session.commit()
     await session.refresh(comment)
     return comment
+
+
+async def _announce_photo_comment_mentions(
+    session: AsyncSession, slug: str, event: Event, comment: EventPhotoComment
+) -> None:
+    """@mentions in a screenshot's thread (#259): the same pass as an event comment.
+
+    Only mentions: a screenshot thread has no watchers of its own. The
+    notification is about the event's discussion home (the main twin of a
+    branch copy), the id an event's subscriptions and mutes are kept under.
+    """
+    if not mentioned_user_ids(comment.body):
+        return
+    home_id = await subscription_service.canonical_event_id(session, event.project_id, event)
+    who = await notification_announce.actor_label(session, comment.user_id)
+    label = event.name or "an event"
+    await notification_announce.announce_mentions(
+        session,
+        body=comment.body,
+        title=f"{who} mentioned you on a screenshot of {label}",
+        common={
+            "project_id": event.project_id,
+            "entity_type": subscription_service.EVENT,
+            "entity_id": home_id,
+            "url": f"/p/{slug}/events/detail/{home_id}",
+            "body": excerpt(comment.body),
+            "actor_user_id": comment.user_id,
+        },
+    )
 
 
 def ensure_comment_deletable(comment: EventPhotoComment, user: User) -> None:

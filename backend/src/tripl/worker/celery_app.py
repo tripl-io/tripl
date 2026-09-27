@@ -193,6 +193,26 @@ celery_app.conf.beat_schedule = {
         # metrics dispatchers (own task + per-project advisory lock).
         "schedule": crontab(minute="*/5"),
     },
+    "send-instant-notification-emails": {
+        "task": "tripl.worker.tasks.notification_email.send_notification_emails",
+        # Every minute (#259): the safety net under the per-write enqueue, so a
+        # lost broker message delays an "instant" email by a minute instead of
+        # dropping it. Cheap when idle: one indexed read of unemailed rows from
+        # the last 24h. The emailed_at claim makes an overlap with the enqueued
+        # run harmless.
+        "schedule": crontab(minute="*"),
+    },
+    "send-notification-digest-daily": {
+        "task": "tripl.worker.tasks.notification_email.send_notification_digest",
+        "schedule": crontab(hour=7, minute=0),
+        "args": ("daily",),
+    },
+    "send-notification-digest-weekly": {
+        "task": "tripl.worker.tasks.notification_email.send_notification_digest",
+        # Monday, after the daily run and before the 08:00 plan digest.
+        "schedule": crontab(day_of_week=1, hour=7, minute=15),
+        "args": ("weekly",),
+    },
 }
 
 
@@ -240,6 +260,7 @@ import tripl.worker.tasks.lifecycle  # noqa: F401, E402
 import tripl.worker.tasks.maintenance  # noqa: F401, E402
 import tripl.worker.tasks.metrics  # noqa: F401, E402
 import tripl.worker.tasks.metrics.freshness_sweep  # noqa: F401, E402
+import tripl.worker.tasks.notification_email  # noqa: F401, E402
 import tripl.worker.tasks.scan  # noqa: F401, E402
 import tripl.worker.tasks.scan_dry_run  # noqa: F401, E402
 import tripl.worker.tasks.search  # noqa: F401, E402

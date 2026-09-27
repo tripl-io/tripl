@@ -41,6 +41,7 @@ from tripl.models.metric_breakdown_anomaly import MetricBreakdownAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
+from tripl.models.notification import Notification
 from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.plan_branch import PlanBranch
 from tripl.models.plan_branch_approval import PlanBranchApproval
@@ -62,7 +63,9 @@ from tripl.models.schema_drift import SchemaDrift
 from tripl.models.search_document import SearchDocument
 from tripl.models.shadow_event_candidate import ShadowEventCandidate
 from tripl.models.signal_triage import SignalTriage
+from tripl.models.subscription import Subscription
 from tripl.models.user import User
+from tripl.models.user_notification_prefs import UserNotificationPrefs
 from tripl.models.user_session import UserSession
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
@@ -112,6 +115,7 @@ __all__ = [
     "MetricDefinition",
     "MetricValue",
     "MetricValueBreakdown",
+    "Notification",
     "PasswordResetToken",
     "PlanBranch",
     "PlanBranchApproval",
@@ -136,7 +140,9 @@ __all__ = [
     "SearchDocument",
     "ShadowEventCandidate",
     "SignalTriage",
+    "Subscription",
     "User",
+    "UserNotificationPrefs",
     "UserSession",
     "VariableEventValueOverride",
     "VariableValue",

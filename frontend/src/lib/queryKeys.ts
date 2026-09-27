@@ -864,3 +864,17 @@ export const impactKey = (
 ) => [...branchDependenciesKey(slug, branchId), 'impact', changes] as const
 export const branchImpactKey = (slug: string | undefined, branchId: string) =>
   [...branchDependenciesKey(slug, branchId), 'branchImpact'] as const
+
+/** The reader's own notifications (#259): the list, its unread count and the
+ * email prefs share one prefix, so marking read refreshes all of them. */
+export const myNotificationsRootKey = () => ['myNotifications'] as const
+export const myNotificationsListKey = (unreadOnly: boolean) =>
+  [...myNotificationsRootKey(), 'list', unreadOnly] as const
+export const myNotificationsUnreadCountKey = () =>
+  [...myNotificationsRootKey(), 'unreadCount'] as const
+export const myNotificationPrefsKey = () => ['myNotificationPrefs'] as const
+/** Every watch state the reader holds in one project. */
+export const projectSubscriptionsKey = (slug: string | undefined) => ['subscription', slug] as const
+/** The reader's watch state on one entity — `GET /projects/{slug}/subscriptions/{type}/{id}`. */
+export const subscriptionKey = (slug: string | undefined, entityType: string, entityId: string | undefined) =>
+  [...projectSubscriptionsKey(slug), entityType, entityId] as const

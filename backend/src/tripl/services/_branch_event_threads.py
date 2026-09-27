@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.event import Event
 from tripl.models.event_photo_comment import EventPhotoComment
+from tripl.services import subscription_service
 from tripl.services._branch_counterparts import main_counterparts
 
 __all__ = ["move_event_threads", "rescue_branch_event_threads"]
@@ -39,7 +40,14 @@ async def move_event_threads(
     unchanged, beside whatever thread the target row already had. A reply
     always hangs on its parent's anchor (``event_comment_service.create_comment``),
     so one UPDATE per anchor moves whole threads and never strands an answer.
+
+    The event's watchers (``subscriptions``, #259) move with the thread: they
+    are kept under the id the discussion lives on, so a subscription left on
+    the source row would stop hearing about the thread it followed.
     """
+    await subscription_service.rekey_event_subscriptions(
+        session, target_by_event_id=dict(target_by_event_id)
+    )
     for event_id, target_id in target_by_event_id.items():
         await session.execute(
             update(EventPhotoComment)

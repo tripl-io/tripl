@@ -1,4 +1,4 @@
-import { useContext, useState } from 'react'
+import { useContext, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
@@ -7,11 +7,16 @@ import { formatDateTime } from '@/lib/datetime'
 import { isThreadUnanswered, threadStateLabel } from '@/components/commentThreadState'
 import type { EventCommentAction, EventCommentStatus } from '@/types'
 import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
-import { eventsRootKey } from '@/lib/queryKeys'
+import { eventsRootKey, projectMembersQueryOptions, usersKey } from '@/lib/queryKeys'
+import { usersApi } from '@/api/users'
+import { projectCandidates } from '@/lib/projectCandidates'
 import { useConfirm } from '@/hooks/useConfirm'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { AuthContext } from '@/components/auth-context'
 import { ReadOnlyNotice } from '@/components/states/read-only-notice'
+import { MentionComposer } from '@/components/mention-composer'
+import { MentionText, type MentionPeople } from '@/components/mention-text'
+import type { MentionCandidate } from '@/lib/mentions'
 
 /**
  * The shape the thread renders. Both anchors — a photo and an event — keep
@@ -67,6 +72,12 @@ export interface CommentThreadProps {
     action: EventCommentAction,
     snoozedUntil?: string,
   ) => Promise<unknown>
+  /** The project whose members the composer offers after `@` (#259). Without
+   *  it the composer is a plain textarea; mentions in bodies render as chips
+   *  either way. */
+  mentionSlug?: string
+  /** Drawn at the right of the heading: the event thread's mute toggle (#259). */
+  headerAction?: ReactNode
 }
 
 /** How long "snooze" parks a thread. A week is long enough to stop the nag and
@@ -96,6 +107,8 @@ export function CommentThread({
   authorName,
   onCreated,
   onAction,
+  mentionSlug,
+  headerAction,
 }: CommentThreadProps) {
   const queryClient = useQueryClient()
   // Every comment write (post, reply, resolve, delete) is EditorUserDep on the
@@ -108,6 +121,41 @@ export function CommentThread({
   const [replyTo, setReplyTo] = useState<string | null>(null)
 
   const commentsQuery = useQuery({ queryKey: queryKey, queryFn: list })
+  // The @ list: the project's members plus the instance owners, who see every
+  // project without a member row (tripl-vefw) — the server notifies exactly
+  // those. Members are fetched only for someone who can post.
+  const membersQuery = useQuery({
+    ...projectMembersQueryOptions(mentionSlug),
+    enabled: !!mentionSlug && canWrite,
+    meta: SILENT_ERROR_META,
+    staleTime: 60_000,
+  })
+  // The roster names the owners for the list and the people behind the chips
+  // for every reader (`GET /users` is open to any signed-in user). Shared with
+  // useUsersById, so a page that already resolves authors pays nothing more.
+  const usersQuery = useQuery({
+    queryKey: usersKey(),
+    queryFn: () => usersApi.list(),
+    enabled: !!mentionSlug,
+    meta: SILENT_ERROR_META,
+    staleTime: 60_000,
+  })
+  const members = Array.isArray(membersQuery.data) ? membersQuery.data : []
+  const users = Array.isArray(usersQuery.data) ? usersQuery.data : []
+  const mentionCandidates: MentionCandidate[] | undefined = mentionSlug
+    ? projectCandidates(members, users)
+        .filter(candidate => candidate.user_id !== currentUserId)
+        .map(candidate => ({
+          userId: candidate.user_id,
+          name: candidate.name || candidate.email,
+          email: candidate.email,
+        }))
+    : undefined
+  // Who a chip's user id is now: a renamed member shows their current name,
+  // an id nobody knows keeps the name stored in the token.
+  const mentionPeople = new Map<string, { name: string; email: string }>()
+  for (const u of users) mentionPeople.set(u.id.toLowerCase(), { name: u.name || u.email, email: u.email })
+  for (const m of members) mentionPeople.set(m.user_id.toLowerCase(), { name: m.name || m.email, email: m.email })
 
   // A thread with resolution state (the event discussion — the one caller that
   // passes `onAction`) feeds the catalog's "?N" badge and its "Open questions"
@@ -204,6 +252,7 @@ export function CommentThread({
         <MessageCircle className="h-4 w-4 text-fg-tertiary" />
         {heading}
         <span className="text-body-sm font-normal text-fg-tertiary">({comments.length})</span>
+        {headerAction && <div className="ml-auto flex items-center">{headerAction}</div>}
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto pr-1 text-body">
         {commentsQuery.isLoading ? (
@@ -222,6 +271,7 @@ export function CommentThread({
               deletePending={deleteMut.isPending}
               replyingTo={replyTo}
               authorName={authorName}
+              mentionPeople={mentionPeople}
               onAction={
                 onAction && canWrite
                   ? (action, snoozedUntil) =>
@@ -255,19 +305,15 @@ export function CommentThread({
             </div>
           )}
           <label htmlFor={composerId} className="sr-only">Write a comment</label>
-          <textarea
+          {/* Enter belongs to the text — a comment is often several lines — so
+              posting is the shortcut every chat box uses, Cmd/Ctrl+Enter. */}
+          <MentionComposer
             id={composerId}
             value={body}
-            onChange={event => setBody(event.target.value)}
-            // Enter belongs to the text — a comment is often several lines — so
-            // the shortcut is the one every chat box uses.
-            onKeyDown={event => {
-              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault()
-                submit()
-              }
-            }}
-            placeholder="Write a comment…"
+            onChange={setBody}
+            onSubmit={submit}
+            candidates={mentionCandidates}
+            placeholder={mentionCandidates ? 'Write a comment… (@ to mention)' : 'Write a comment…'}
             className="min-h-[60px] w-full rounded-md border bg-background px-2 py-1 text-body"
           />
           <div className="flex items-center justify-end gap-2">
@@ -296,6 +342,7 @@ function CommentItem({
   deletePending,
   replyingTo,
   authorName,
+  mentionPeople,
   onAction,
   actionPending,
 }: {
@@ -309,6 +356,8 @@ function CommentItem({
   deletePending?: boolean
   replyingTo: string | null
   authorName?: (comment: ThreadComment) => string
+  /** Current names (and emails) behind mention chips, by lower-case user id. */
+  mentionPeople?: MentionPeople
   onAction?: (action: EventCommentAction, snoozedUntil?: string) => void
   actionPending?: boolean
 }) {
@@ -377,7 +426,7 @@ function CommentItem({
             )}
           </div>
         </div>
-        <p className="whitespace-pre-wrap text-body">{comment.body}</p>
+        <MentionText body={comment.body} people={mentionPeople} />
       </div>
       {replies.length > 0 && (
         <div className="ml-4 space-y-2 border-l pl-3">
@@ -400,7 +449,7 @@ function CommentItem({
                   </button>
                 )}
               </div>
-              <p className="whitespace-pre-wrap text-body">{reply.body}</p>
+              <MentionText body={reply.body} people={mentionPeople} />
             </div>
           ))}
         </div>

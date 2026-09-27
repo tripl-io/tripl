@@ -3230,10 +3230,14 @@ def test_collect_metrics_recalculates_and_clears_metric_anomalies(
         assert anomalies == []
 
 
-def test_collect_metrics_queues_alert_deliveries(
+def _arrange_alerting_collection(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
-) -> None:
+) -> tuple[str, list[str]]:
+    """A config whose next collection finds three anomalies one alert rule matches.
+
+    Answers the config id and the list ``send_alert_delivery.delay`` appends to.
+    """
     with sync_session_factory() as session:
         config, _event_type, _event = _seed_anomaly_scan_state(session, base=_ANOMALY_BASE)
         destination = AlertDestination(
@@ -3323,6 +3327,14 @@ def test_collect_metrics_queues_alert_deliveries(
         (_ANOMALY_BASE + timedelta(hours=8), "Login", 10),
         (_ANOMALY_BASE + timedelta(hours=9), "Login", 10),
     ]
+    return config_id, queued_delivery_ids
+
+
+def test_collect_metrics_queues_alert_deliveries(
+    sync_session_factory: sessionmaker[Session],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    config_id, queued_delivery_ids = _arrange_alerting_collection(sync_session_factory, monkeypatch)
     result = metrics.collect_metrics.run(config_id)
 
     assert result["alerts_queued"] == 1
@@ -3340,6 +3352,42 @@ def test_collect_metrics_queues_alert_deliveries(
         group_ids = {item.correlation_group_id for item in items}
         assert None not in group_ids
         assert len(group_ids) == 3
+
+
+def test_a_failing_notification_producer_never_fails_the_collection(
+    sync_session_factory: sessionmaker[Session],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """#259: the signal notification hook runs last and best-effort — when it
+    raises, the job still completes and the alert deliveries are still queued."""
+    config_id, queued_delivery_ids = _arrange_alerting_collection(sync_session_factory, monkeypatch)
+    with sync_session_factory() as session:
+        job = ScanJob(
+            id=uuid.uuid4(),
+            scan_config_id=uuid.UUID(config_id),
+            status=ScanJobStatus.pending.value,
+        )
+        session.add(job)
+        session.commit()
+        job_id = str(job.id)
+    produced: list[str] = []
+
+    def _boom(_session: Session, source: str, _subject: object) -> int:
+        produced.append(source)
+        raise RuntimeError("notifications unavailable")
+
+    monkeypatch.setattr(metrics, "produce_notifications", _boom)
+
+    result = metrics.collect_metrics.run(config_id, job_id)
+
+    assert produced == ["signals"]
+    assert result["alerts_queued"] == 1
+    assert len(queued_delivery_ids) == 1
+    with sync_session_factory() as session:
+        reloaded = session.get(ScanJob, uuid.UUID(job_id))
+        assert reloaded is not None
+        assert reloaded.status == ScanJobStatus.completed.value
+        assert len(session.execute(select(AlertDelivery)).scalars().all()) == 1
 
 
 def _seed_alert_rule(

@@ -28,6 +28,7 @@ from tripl.api.v1.lifecycle import router as lifecycle_router
 from tripl.api.v1.meta_fields import router as meta_fields_router
 from tripl.api.v1.metrics import router as metrics_router
 from tripl.api.v1.metrics_catalog import router as metrics_catalog_router
+from tripl.api.v1.notifications import router as notifications_router
 from tripl.api.v1.plan_branches import router as plan_branches_router
 from tripl.api.v1.plan_revisions import router as plan_revisions_router
 from tripl.api.v1.project_anomaly_settings import router as project_anomaly_settings_router
@@ -91,3 +92,4 @@ router.include_router(reconciliation_router, dependencies=protected_dependencies
 router.include_router(audit_router, dependencies=protected_dependencies)
 router.include_router(users_router, dependencies=protected_dependencies)
 router.include_router(api_keys_router, dependencies=protected_dependencies)
+router.include_router(notifications_router, dependencies=protected_dependencies)

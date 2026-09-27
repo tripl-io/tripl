@@ -12073,6 +12073,44 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "MarkReadRequest": {
+        "properties": {
+          "all": {
+            "default": false,
+            "title": "All",
+            "type": "boolean"
+          },
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "title": "MarkReadRequest",
+        "type": "object"
+      },
+      "MarkReadResponse": {
+        "properties": {
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          },
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated",
+          "unread"
+        ],
+        "title": "MarkReadResponse",
+        "type": "object"
+      },
       "MergeResolutionChoice": {
         "enum": [
           "ours",
@@ -15017,6 +15055,229 @@
           "scope_readiness"
         ],
         "title": "MonitorsSummaryResponse",
+        "type": "object"
+      },
+      "NotificationActor": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
+        ],
+        "title": "NotificationActor",
+        "type": "object"
+      },
+      "NotificationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "NotificationPage",
+        "type": "object"
+      },
+      "NotificationPrefsResponse": {
+        "properties": {
+          "email_available": {
+            "title": "Email Available",
+            "type": "boolean"
+          },
+          "email_mode": {
+            "enum": [
+              "off",
+              "instant",
+              "daily",
+              "weekly"
+            ],
+            "title": "Email Mode",
+            "type": "string"
+          },
+          "mentions_email": {
+            "title": "Mentions Email",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email_mode",
+          "mentions_email",
+          "email_available"
+        ],
+        "title": "NotificationPrefsResponse",
+        "type": "object"
+      },
+      "NotificationPrefsUpdate": {
+        "properties": {
+          "email_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "off",
+                  "instant",
+                  "daily",
+                  "weekly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Mode"
+          },
+          "mentions_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mentions Email"
+          }
+        },
+        "title": "NotificationPrefsUpdate",
+        "type": "object"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "actor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationActor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "enum": [
+              "event",
+              "event_type",
+              "metric",
+              "branch"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "comment",
+              "reply",
+              "mention",
+              "open_question",
+              "signal",
+              "branch_review_requested",
+              "branch_approved",
+              "branch_merged",
+              "lifecycle"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "project_slug": {
+            "title": "Project Slug",
+            "type": "string"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "project_slug",
+          "project_name",
+          "kind",
+          "entity_type",
+          "entity_id",
+          "title",
+          "body",
+          "url",
+          "actor",
+          "read_at",
+          "created_at"
+        ],
+        "title": "NotificationResponse",
         "type": "object"
       },
       "NotifyOwnersResponse": {
@@ -22562,6 +22823,69 @@
         "title": "StorageSettingsUpdate",
         "type": "object"
       },
+      "SubscriptionMuteRequest": {
+        "properties": {
+          "muted": {
+            "title": "Muted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "muted"
+        ],
+        "title": "SubscriptionMuteRequest",
+        "type": "object"
+      },
+      "SubscriptionState": {
+        "properties": {
+          "entity_id": {
+            "format": "uuid",
+            "title": "Entity Id",
+            "type": "string"
+          },
+          "entity_type": {
+            "enum": [
+              "event",
+              "event_type",
+              "metric",
+              "branch"
+            ],
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "muted": {
+            "title": "Muted",
+            "type": "boolean"
+          },
+          "reasons": {
+            "items": {
+              "enum": [
+                "author",
+                "owner",
+                "commenter",
+                "reviewer",
+                "manual"
+              ],
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "watching": {
+            "title": "Watching",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "watching",
+          "muted",
+          "reasons"
+        ],
+        "title": "SubscriptionState",
+        "type": "object"
+      },
       "SyntheticSettings": {
         "additionalProperties": false,
         "description": "The synthetic (demo) warehouse is in-memory: it has nothing to configure.",
@@ -22756,6 +23080,19 @@
           "direction"
         ],
         "title": "TopMoverItem",
+        "type": "object"
+      },
+      "UnreadCountResponse": {
+        "properties": {
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "unread"
+        ],
+        "title": "UnreadCountResponse",
         "type": "object"
       },
       "UpdateBlocker": {
@@ -24957,6 +25294,200 @@
         "summary": "Revoke Api Key",
         "tags": [
           "api-keys"
+        ]
+      }
+    },
+    "/api/v1/me/notification-prefs": {
+      "get": {
+        "operationId": "get_my_notification_prefs_api_v1_me_notification_prefs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPrefsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get My Notification Prefs",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "operationId": "update_my_notification_prefs_api_v1_me_notification_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPrefsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPrefsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update My Notification Prefs",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/me/notifications": {
+      "get": {
+        "operationId": "list_my_notifications_api_v1_me_notifications_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List My Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/me/notifications/read": {
+      "post": {
+        "operationId": "mark_my_notifications_read_api_v1_me_notifications_read_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkReadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark My Notifications Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/me/notifications/unread-count": {
+      "get": {
+        "operationId": "my_unread_count_api_v1_me_notifications_unread_count_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCountResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "My Unread Count",
+        "tags": [
+          "notifications"
         ]
       }
     },
@@ -38800,6 +39331,278 @@
         "summary": "List Source Freshness",
         "tags": [
           "scans"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}": {
+      "delete": {
+        "operationId": "unwatch_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "event",
+                "event_type",
+                "metric",
+                "branch"
+              ],
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unwatch Entity",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "get": {
+        "operationId": "get_my_subscription_api_v1_projects__slug__subscriptions__entity_type___entity_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "event",
+                "event_type",
+                "metric",
+                "branch"
+              ],
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get My Subscription",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "operationId": "mute_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "event",
+                "event_type",
+                "metric",
+                "branch"
+              ],
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionMuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mute Entity",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "watch_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "event",
+                "event_type",
+                "metric",
+                "branch"
+              ],
+              "title": "Entity Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Watch Entity",
+        "tags": [
+          "notifications"
         ]
       }
     },

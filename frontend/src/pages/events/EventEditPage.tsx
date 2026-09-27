@@ -349,6 +349,8 @@ export default function EventEditPage() {
             heading="Discussion"
             emptyText="Nothing raised yet. Questions and notes here stay out of the spec."
             composerId="event-discussion-body"
+            // @ offers the project's members; a mention notifies them (#259).
+            mentionSlug={slug}
             // The form's card geometry (AU-8), not a smaller box of its own.
             className="flex flex-col rounded-card border bg-(--surface) p-4"
           />
