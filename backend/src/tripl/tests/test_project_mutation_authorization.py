@@ -38,6 +38,11 @@ MEMBER_PERSONAL_WRITE_PATHS = {
     # Watch / Unwatch / Mute an entity (GH #259): a personal notification
     # preference, and a viewer must be able to watch what they read.
     "/api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}",
+    # Build the incident summary for the current facts (GH #267): a viewer who
+    # opens an incident gets its summary generated lazily. Membership is still
+    # required router-wide; a read API key is refused by the write gate, and
+    # forcing a fresh generation (/summary/regenerate) stays editor-only.
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/summary",
 }
 
 
