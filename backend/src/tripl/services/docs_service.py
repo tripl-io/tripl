@@ -172,9 +172,9 @@ async def write_file(
     The note is read ``FOR UPDATE``, and a unique-index clash from a racing
     create (or a writer on a database without row locks) answers 409, never 500.
     """
-    require_doc_writer(caller, scope)
-    user = caller.user
     project = await _resolve_project(session, slug)
+    await require_doc_writer(session, caller, scope, project.organization_id)
+    user = caller.user
     normalized = _path(path)
     if content_bytes(body.content) > MAX_FILE_BYTES:
         raise HTTPException(
@@ -271,9 +271,9 @@ async def move(
     session: AsyncSession, slug: str, body: DocMoveRequest, caller: DocCaller
 ) -> DocMoveResponse:
     """Rename or move one note, or every note under a folder; all or nothing."""
-    require_doc_writer(caller, body.scope)
-    user = caller.user
     project = await _resolve_project(session, slug)
+    await require_doc_writer(session, caller, body.scope, project.organization_id)
+    user = caller.user
     plan = [(doc, new) for doc, new in await _move_plan(session, project, body) if doc.path != new]
     if not plan:
         return DocMoveResponse(moved=[])
@@ -338,9 +338,9 @@ async def move(
 async def delete_file(
     session: AsyncSession, slug: str, scope: DocScope, path: str, caller: DocCaller
 ) -> None:
-    require_doc_writer(caller, scope)
-    user = caller.user
     project = await _resolve_project(session, slug)
+    await require_doc_writer(session, caller, scope, project.organization_id)
+    user = caller.user
     doc = await store.get_doc(session, project, scope, _path(path))
     await audit_service.record(
         session,
@@ -373,9 +373,11 @@ async def delete_folder(
     (:func:`docs_access.require_org_bulk_delete`). The audit row names every
     deleted note with its revision and content hash.
     """
-    require_org_bulk_delete(caller, scope, "delete folders of")
-    user = caller.user
     project = await _resolve_project(session, slug)
+    await require_org_bulk_delete(
+        session, caller, scope, project.organization_id, "delete folders of"
+    )
+    user = caller.user
     folder = _prefix(prefix)
     docs = list(
         await session.scalars(

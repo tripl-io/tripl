@@ -1265,9 +1265,9 @@ of that organization. Folders come from the note paths
   **Docs** type.
 
 Notes are not branch-aware: each note has one version. Any project member can
-read notes. Project editors write project notes. Organization notes need an
-instance editor or owner who can edit the current project, and mirroring
-organization notes needs the instance owner. Changes appear in the **Audit**
+read notes. Project editors write project notes. Organization notes are written
+by the organization's owners and admins, and mirroring organization notes needs
+one of them in a browser session. Changes appear in the **Audit**
 tab, in the **Docs** group. Agents use the same notes through MCP (`list_docs`,
 `read_doc`, `search_docs`, `write_doc`) and `tripl docs`. See
 [Docs catalog](./docs-catalog.md) for the path rules, limits and the import

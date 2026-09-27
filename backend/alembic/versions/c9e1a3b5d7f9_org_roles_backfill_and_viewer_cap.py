@@ -28,7 +28,7 @@ already expects to find (it wrote the same shape in PR1), and the capped rows
 are exactly what that release's ``users.role`` cap produced at read time.
 
 Revision ID: c9e1a3b5d7f9
-Revises: b8d0f2a4c6e8
+Revises: c3f5a7b9d1e2
 Create Date: 2026-09-27 18:00:00.000000
 
 """
@@ -44,7 +44,7 @@ from alembic import op
 from sqlalchemy.engine import Connection
 
 revision: str = "c9e1a3b5d7f9"
-down_revision: str | None = "b8d0f2a4c6e8"
+down_revision: str | None = "c3f5a7b9d1e2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

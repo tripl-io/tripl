@@ -2156,10 +2156,11 @@ POST   /api/v1/projects/{slug}/docs/import/zip?scope=project&mode=merge&dry_run=
 Reads (every `GET`) are open to any project member, including viewers and
 `read`-scope keys. A non-member gets `404`. Writes need an editor on the
 project and a `write`-scope key. Organization notes are readable from every
-project of the organization, so a key bound to one project cannot change them
-(`403`). Deleting organization notes in bulk, with `DELETE /docs/folder` or an
-import in `mirror` mode, needs the instance owner in a browser session: every
-API key gets `403`. Two writers racing on the same note get `409`, as a stale
+project of the organization, so only an owner or admin of the organization may
+change them (`403` for anyone else), and a key bound to one project cannot
+change them (`403`). Deleting organization notes in bulk, with
+`DELETE /docs/folder` or an import in `mirror` mode, needs an organization
+owner or admin in a browser session: every API key gets `403`. Two writers racing on the same note get `409`, as a stale
 `base_revision` does.
 
 `GET /docs` returns the tree: `project_docs` and `organization_docs` (each

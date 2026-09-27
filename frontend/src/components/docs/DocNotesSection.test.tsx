@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
-import type { Role } from '@/types'
+import { PersonaProject } from '@/test/PersonaProject'
+import { personaAuth, type Persona } from '@/test/persona'
 import type { DocBacklinksResponse } from '@/types/docs'
 import { newNoteHref } from '@/lib/docLinks'
 import { DocFieldNotes, DocNotesSection } from './DocNotesSection'
@@ -20,12 +20,14 @@ function response(items: DocBacklinksResponse['items']): DocBacklinksResponse {
   return { kind: 'event', name: 'checkout_started', qualifier: null, items }
 }
 
-function renderWith(ui: ReactNode, role: Role = 'editor') {
+function renderWith(ui: ReactNode, persona: Persona = 'member') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter>{ui}</MemoryRouter>
+      <AuthContext.Provider value={personaAuth(persona)}>
+        <PersonaProject persona={persona}>
+          <MemoryRouter>{ui}</MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )

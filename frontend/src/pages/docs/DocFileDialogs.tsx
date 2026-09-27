@@ -36,12 +36,15 @@ export function NewDocDialog({
   slug,
   request,
   organizationName,
+  canWriteOrganization = true,
   onClose,
   onCreated,
 }: {
   slug: string
   request: NewDocRequest | null
   organizationName: string
+  /** Organization notes are written by organization owners and admins only. */
+  canWriteOrganization?: boolean
   onClose: () => void
   onCreated: (doc: DocWriteResponse) => void
 }) {
@@ -53,6 +56,7 @@ export function NewDocDialog({
           slug={slug}
           request={request}
           organizationName={organizationName}
+          canWriteOrganization={canWriteOrganization}
           onClose={onClose}
           onCreated={onCreated}
         />
@@ -65,16 +69,18 @@ function NewDocForm({
   slug,
   request,
   organizationName,
+  canWriteOrganization,
   onClose,
   onCreated,
 }: {
   slug: string
   request: NewDocRequest
   organizationName: string
+  canWriteOrganization: boolean
   onClose: () => void
   onCreated: (doc: DocWriteResponse) => void
 }) {
-  const [scope, setScope] = useState<DocScope>(request.scope)
+  const [scope, setScope] = useState<DocScope>(canWriteOrganization ? request.scope : 'project')
   const [path, setPath] = useState(request.folder)
   const [error, setError] = useState<string | null>(null)
   const write = useWriteDoc(slug)
@@ -124,7 +130,12 @@ function NewDocForm({
               onChange={value => setScope(value)}
               options={[
                 { value: 'project', label: 'This project' },
-                { value: 'organization', label: `Organization · ${organizationName}` },
+                {
+                  value: 'organization',
+                  label: `Organization · ${organizationName}`,
+                  disabled: !canWriteOrganization,
+                  title: canWriteOrganization ? undefined : 'Only organization owners and admins write organization notes',
+                },
               ]}
             />
           </div>

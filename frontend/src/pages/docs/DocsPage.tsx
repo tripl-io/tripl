@@ -41,12 +41,15 @@ export default function DocsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const canEdit = useCanWriteProject()
-  const isOwner = useIsOwner()
+  // An organization owner or admin (useIsOwner covers both since F20 PR4): the
+  // only writers of organization notes (services/docs_access.py).
+  const isOrgAdmin = useIsOwner()
+  const canEditScope = (s: DocScope | null) => canEdit && (s === 'project' || (s === 'organization' && isOrgAdmin))
   const tree = useDocTree(slug)
   const scope: DocScope | null = isDocScope(scopeParam) ? scopeParam : null
   const path = docPathFromSplat(splat)
   const file = useDocFile(slug, scope, path)
-  const editing = canEdit && searchParams.get('edit') === '1'
+  const editing = canEditScope(scope) && searchParams.get('edit') === '1'
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
@@ -154,7 +157,7 @@ export default function DocsPage() {
         onNewInFolder: (s: DocScope, prefix: string) => setNewDoc({ scope: s, folder: prefix }),
         onMoveFolder: (s: DocScope, prefix: string) => setMoveReq({ scope: s, from: prefix, folder: true }),
         onDeleteFolder: (s: DocScope, prefix: string, count: number) => void onDeleteFolder(s, prefix, count),
-        canDeleteFolder: (s: DocScope) => s === 'project' || isOwner,
+        canEditScope,
       }
     : undefined
 
@@ -229,7 +232,7 @@ export default function DocsPage() {
             <DocView
               slug={slug}
               doc={file.data}
-              canEdit={canEdit}
+              canEdit={canEditScope(file.data.scope)}
               onEdit={() => setEditing(true)}
               onHistory={() => setHistoryOpen(true)}
               onMove={() => setMoveReq({ scope: file.data.scope, from: file.data.path, folder: false })}
@@ -240,7 +243,7 @@ export default function DocsPage() {
       </div>
 
       {scope && path && (
-        <DocHistoryPanel slug={slug} scope={scope} path={path} open={historyOpen} onOpenChange={setHistoryOpen} canEdit={canEdit} />
+        <DocHistoryPanel slug={slug} scope={scope} path={path} open={historyOpen} onOpenChange={setHistoryOpen} canEdit={canEditScope(scope)} />
       )}
       <DocQuickOpen
         slug={slug}
@@ -254,7 +257,7 @@ export default function DocsPage() {
         open={transferOpen}
         onOpenChange={setTransferOpen}
         canEdit={canEdit}
-        isOwner={isOwner}
+        isOrgAdmin={isOrgAdmin}
         organizationName={data.organization.name}
         limits={data.limits}
       />
@@ -262,6 +265,7 @@ export default function DocsPage() {
         slug={slug}
         request={newDoc ?? linkedNewDoc}
         organizationName={data.organization.name}
+        canWriteOrganization={isOrgAdmin}
         onClose={closeNewDoc}
         onCreated={created => {
           setNewDoc(null)

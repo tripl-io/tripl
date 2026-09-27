@@ -147,8 +147,8 @@ def _state(engine: Engine) -> tuple[dict[uuid.UUID, str], set[uuid.UUID], dict, 
     return members, admins, rows, invitations
 
 
-def test_the_revision_follows_pr1(migration: ModuleType) -> None:
-    assert migration.down_revision == "b8d0f2a4c6e8"
+def test_the_revision_follows_the_docs_catalog(migration: ModuleType) -> None:
+    assert migration.down_revision == "c3f5a7b9d1e2"
 
 
 def test_late_accounts_get_memberships_flags_and_viewers_are_capped(
