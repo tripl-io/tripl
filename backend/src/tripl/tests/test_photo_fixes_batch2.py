@@ -645,7 +645,8 @@ async def test_the_editor_gate_answers_before_the_read_only_409(
     wrong: dict[str, str] = {}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as viewer:
         await _register(viewer, "viewer@example.com")
-        # A member, so the answer is the role gate's 403, not the membership 404.
+        # A viewer member, so the answer is the project-role gate's 403, not the
+        # membership 404 (F20 PR4: write rights live on the project row).
         await add_member_by_slug(slug, "viewer@example.com", "viewer")
         # A role change ends the user's sessions, so sign in again after it.
         await _set_role(client, "viewer@example.com", "viewer")
@@ -656,7 +657,10 @@ async def test_the_editor_gate_answers_before_the_read_only_409(
         assert login.status_code == 200, login.text
         for write in _WRITES:
             resp = await _photo_write(viewer, base, write, photo_id)
-            if resp.status_code != 403 or resp.json()["detail"] != "Editor role required":
+            if (
+                resp.status_code != 403
+                or resp.json()["detail"] != "Editor access to this project is required"
+            ):
                 wrong[write] = f"{resp.status_code} {resp.text[:120]}"
 
     assert not wrong, wrong

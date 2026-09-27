@@ -28,7 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
-from tripl.api.deps import WRITE_GATES, get_branch_id_override
+from tripl.api.deps import ORG_ADMIN_REQUIRED, WRITE_GATES, get_branch_id_override
 from tripl.main import app
 from tripl.models.data_source import DataSource
 from tripl.models.field_definition import FieldDefinition
@@ -473,10 +473,11 @@ _BRANCH_BEFORE_GATE = [
 ]
 
 # What the gate says to each caller. Every gate checks a key's scope first; a
-# viewer fails the editor gate's role check, or the owner gate's on
-# retire-unused-variables, the one owner-gated route that takes ``?branch=``.
+# viewer (an organization member with a viewer project row, F20 PR4) fails the
+# editor gate's project-role check, or the owner gate's organization-role check
+# on retire-unused-variables, the one owner-gated route that takes ``?branch=``.
 _GATE_REFUSALS = {
-    "viewer": {"Editor role required", "Owner role required"},
+    "viewer": {"Editor access to this project is required", ORG_ADMIN_REQUIRED},
     "read-key": {"API key has read-only scope"},
 }
 
@@ -521,7 +522,12 @@ async def _signed_in_as(
             json={"email": "viewer@example.com", "password": "Password123!"},
         )
         assert resp.status_code == 200, resp.text
-        assert resp.json()["role"] == "viewer"
+        # A plain organization member whose row in this project is read-only.
+        assert resp.json()["role"] == "member"
+        project = await other.get(f"/api/v1/projects/{slug}")
+        assert project.status_code == 200, project.text
+        assert project.json()["my_role"] == "viewer"
+        assert project.json()["can_mutate"] is False
         yield other, {}
 
 

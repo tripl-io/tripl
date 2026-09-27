@@ -100,16 +100,18 @@ async def test_service_settings_are_owner_only(anon_client: AsyncClient) -> None
     assert owner.status_code == 201
     await anon_client.post("/api/v1/auth/logout")
 
-    editor = await anon_client.post(
+    # The second sign-up joins the default organization as a plain member
+    # (F20 PR4: organization roles are owner | admin | member).
+    member = await anon_client.post(
         "/api/v1/auth/register",
         json={
-            "email": "editor@example.com",
+            "email": "member@example.com",
             "password": "Password123!",
-            "name": "Editor",
+            "name": "Member",
         },
     )
-    assert editor.status_code == 201
-    assert editor.json()["role"] == "editor"
+    assert member.status_code == 201
+    assert member.json()["role"] == "member"
 
     resp = await anon_client.get("/api/v1/settings")
     assert resp.status_code == 403

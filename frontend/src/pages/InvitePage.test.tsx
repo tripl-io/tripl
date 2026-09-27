@@ -45,7 +45,7 @@ describe('InvitePage', () => {
         return Promise.resolve(
           jsonResponse({
             email: 'invitee@example.com',
-            role: 'editor',
+            role: 'member',
             expires_at: '2026-08-01T00:00:00Z',
           }),
         )
@@ -56,10 +56,14 @@ describe('InvitePage', () => {
     renderInvitePage()
 
     expect(await screen.findByText('invitee@example.com')).toBeInTheDocument()
-    expect(screen.getByText('Editor')).toBeInTheDocument()
+    // The invitation grants an organization role (F20 PR4: owner | admin |
+    // member); what a member may do in each project lives on the project row.
+    expect(screen.getByText('Member')).toBeInTheDocument()
     // The role is explained, not just named (SH-32).
     expect(
-      screen.getByText('Editor can change the tracking plan and alerts, and run scans.'),
+      screen.getByText(
+        'Member sees the projects they are added to, as an editor or a viewer of each.',
+      ),
     ).toBeInTheDocument()
     // The address is fixed by the invitation, so there must be no way to
     // redirect it to a different identity.
@@ -105,7 +109,7 @@ describe('InvitePage', () => {
         return Promise.resolve(
           jsonResponse({
             email: 'invitee@example.com',
-            role: 'viewer',
+            role: 'member',
             expires_at: '2026-08-01T00:00:00Z',
           }),
         )
@@ -136,14 +140,14 @@ describe('InvitePage', () => {
         if (url.includes(`/auth/invitations/${TOKEN}/accept`)) {
           accepted(JSON.parse(String(init?.body)))
           return Promise.resolve(
-            jsonResponse({ id: 'u1', email: 'invitee@example.com', role: 'editor' }, 201),
+            jsonResponse({ id: 'u1', email: 'invitee@example.com', role: 'member' }, 201),
           )
         }
         if (url.includes(`/auth/invitations/${TOKEN}`)) {
           return Promise.resolve(
             jsonResponse({
               email: 'invitee@example.com',
-              role: 'editor',
+              role: 'member',
               expires_at: '2026-08-01T00:00:00Z',
             }),
           )
@@ -175,7 +179,7 @@ describe('InvitePage', () => {
     expect(qc.getQueryData(['auth', 'me'])).toEqual({
       id: 'u1',
       email: 'invitee@example.com',
-      role: 'editor',
+      role: 'member',
     })
   })
   it('marks a missing password under the field instead of a browser bubble (AU-4)', async () => {
@@ -188,7 +192,7 @@ describe('InvitePage', () => {
       }
       if (url.includes(`/auth/invitations/${TOKEN}`)) {
         return Promise.resolve(
-          jsonResponse({ email: 'invitee@example.com', role: 'editor', expires_at: '2026-08-01T00:00:00Z' }),
+          jsonResponse({ email: 'invitee@example.com', role: 'member', expires_at: '2026-08-01T00:00:00Z' }),
         )
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
@@ -211,7 +215,7 @@ describe('InvitePage', () => {
       const url = urlOf(input)
       if (url.includes(`/auth/invitations/${TOKEN}`)) {
         return Promise.resolve(
-          jsonResponse({ email: 'invitee@example.com', role: 'viewer', expires_at: '2026-08-01T00:00:00Z' }),
+          jsonResponse({ email: 'invitee@example.com', role: 'member', expires_at: '2026-08-01T00:00:00Z' }),
         )
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
