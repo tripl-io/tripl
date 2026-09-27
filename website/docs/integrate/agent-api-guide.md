@@ -758,6 +758,92 @@ GET /api/v1/projects/{slug}/signals/verdict-counts
 signals by the verdict they carry. An acknowledged signal has no verdict and
 counts under `needs_verdict`.
 
+## Owner notifications {#owner-notifications}
+
+A rule can email the owners of what it matched, in addition to its destination.
+The switch is `notify_owners` (boolean, default `false`) on the alert rule —
+accepted by create
+(`POST /api/v1/projects/{slug}/alert-destinations/{destination_id}/rules`) and
+update (`PATCH …/rules/{rule_id}`), and returned on every rule response.
+
+Owners of a matched item are the event type's owners on `main` (for an event,
+its type's owners; for an event type, its own; for any other scope about an
+event or event type — drift, release regression, lifecycle — that type's
+owners) plus, for a catalog metric, the metric's `owner_id`; project total and
+source freshness have none. Only current project members with an account
+email are emailed; an owner who is not a member or has no email is neither
+notified nor listed. Each owner gets one plain-text email per rule delivery,
+sent after the rule's delivery is sent, through the instance SMTP settings. The
+email uses the default item lines (the digest's lines for a digest), not the
+rule's custom template. A digest that batches several rules sends one email
+per rule delivery, so an owner of items in two of those rules can get two
+emails.
+
+The delivery detail (`GET /api/v1/projects/{slug}/alert-deliveries/{delivery_id}`)
+carries the result as `owner_notifications`; the list route does not include
+it:
+
+```json
+[
+  {"user_id": "8f0c…", "name": "Anna", "email": "anna@example.com", "status": "sent", "error": null, "sent_at": "2026-09-25T18:04:11Z"},
+  {"user_id": "12ab…", "name": "Oleg", "email": "oleg@example.com", "status": "skipped", "error": "SMTP is not configured; owner email skipped.", "sent_at": null}
+]
+```
+
+`status` is one of:
+
+- `sent` — the email went out;
+- `failed` — the mail server rejected it (see `error`); other owners are still
+  attempted;
+- `skipped` — email was unavailable: no SMTP server or Default From address,
+  or a demo project;
+- `pending` — a short-lived in-progress claim while the send runs; a claim
+  older than 15 minutes is treated as abandoned and reclaimed.
+
+The list is empty when the rule does not notify owners or nothing matched had
+an owner. A `sent` owner is never emailed twice for the same delivery; a
+retried or re-run delivery re-attempts `skipped` and `failed` owners (and stale
+`pending` ones).
+
+Two editor-level routes send a one-off email to the current owners:
+
+```http
+POST /api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/notify-owners
+POST /api/v1/projects/{slug}/signals/notify-owners
+```
+
+The first targets an incident. The second targets a signal — including one no
+rule routed — and takes the signal key used by
+[signal verdicts](#signal-verdicts):
+
+```json
+{
+  "scope_type": "event_type",
+  "scope_ref": "3a9e…",
+  "scan_config_id": "5b1e…",
+  "bucket": "2026-09-25T18:00:00Z"
+}
+```
+
+Both return the owners they considered, with the same fields as above:
+
+```json
+{
+  "owners": [
+    {"user_id": "8f0c…", "name": "Anna", "email": "anna@example.com", "status": "sent", "error": null, "sent_at": "2026-09-27T09:12:40Z"},
+    {"user_id": "12ab…", "name": "Oleg", "email": "oleg@example.com", "status": "skipped", "error": "notified 4 minutes ago", "sent_at": null}
+  ]
+}
+```
+
+A manual notify has a 10-minute cooldown per incident (or signal key) and
+owner: an owner notified by hand within the last 10 minutes is returned as
+`skipped` with an error such as `notified 4 minutes ago`. One request notifies
+at most 20 owners.
+
+Neither route depends on the rule's `notify_owners` setting. See
+[Notifying owners](../use/alerting.md#owner-notifications).
+
 ## Signal attribution {#signal-attribution}
 
 Attribution says where a volume signal's change came from — which breakdown

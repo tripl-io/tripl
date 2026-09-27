@@ -37,6 +37,7 @@ from tripl.schemas.event_metric import (
     MetricSignalResponse,
     SignalAttribution,
 )
+from tripl.services import alert_owner_routing
 from tripl.services.project_lookup import get_project_by_slug
 
 ATTRIBUTED_SCOPES: frozenset[str] = frozenset({SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT})
@@ -194,13 +195,35 @@ async def attach_attributions(
 
 
 async def with_latest_signal_attribution(
-    session: AsyncSession, response: EventMetricsResponse
+    session: AsyncSession,
+    response: EventMetricsResponse,
+    *,
+    project_id: uuid.UUID | None = None,
 ) -> EventMetricsResponse:
-    """The drilldown response with its ``latest_signal`` attribution filled."""
+    """The drilldown response with its ``latest_signal`` attribution filled.
+
+    With ``project_id``, the signal's owners too (F07, #260) — the drilldown's
+    Signal card shows them and offers "Notify owners".
+    """
     if response.latest_signal is None:
         return response
     (latest,) = await attach_attributions(session, [response.latest_signal])
+    if project_id is not None:
+        (latest,) = await attach_owners(session, project_id, [latest])
     return response.model_copy(update={"latest_signal": latest})
+
+
+async def attach_owners(
+    session: AsyncSession, project_id: uuid.UUID, signals: list[MetricSignalResponse]
+) -> list[MetricSignalResponse]:
+    """Each signal with its owners (F07, #260), in one bulk resolution."""
+    if not signals:
+        return signals
+    owners = await alert_owner_routing.owner_refs_for(session, project_id, signals)
+    return [
+        signal.model_copy(update={"owners": refs})
+        for signal, refs in zip(signals, owners, strict=True)
+    ]
 
 
 async def _anomaly_in_project(

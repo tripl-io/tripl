@@ -149,6 +149,7 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "alert_rule.unmute",
             "alert_delivery.retry",
             *_family("alert_inbox", AlertInboxAction),
+            "alert_inbox.notify_owners",
             "anomaly_scope_override.delete",
             "anomaly_settings.update",
         ),
@@ -164,6 +165,7 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "signal.unmark_expected",
             "signal.verdict",
             "signal.clear_verdict",
+            "signal.notify_owners",
         ),
     ),
     (

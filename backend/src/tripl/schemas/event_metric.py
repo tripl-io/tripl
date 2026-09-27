@@ -16,6 +16,7 @@ from tripl.models.domain_enums import (
     SignalVerdict,
 )
 from tripl.models.project_anomaly_settings import DEFAULT_SIGMA_THRESHOLD
+from tripl.schemas.alert_owner import AlertOwnerRef
 
 SignalVerdictSource = Literal["signal", "incident"]
 
@@ -251,6 +252,11 @@ class MetricSignalResponse(BaseModel):
     # attributions existed, a scope with no breakdown series).
     attribution: SignalAttribution | None = None
     attribution_status: AttributionStatus = "not_computed"
+    # Owners of the signal's event type / catalog metric (F07, #260), for the
+    # Signal card's owners line and its "Notify owners" action. Filled after
+    # the signals cache on the expanded list and on the drilldown's
+    # ``latest_signal``; empty elsewhere and for an unowned scope.
+    owners: list[AlertOwnerRef] = Field(default_factory=list)
 
 
 class SeasonalityCell(BaseModel):

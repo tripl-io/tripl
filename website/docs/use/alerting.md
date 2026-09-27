@@ -587,6 +587,11 @@ release regressions and lifecycle findings **bypass** thresholds — if you enab
 those scopes, they fire regardless of the count thresholds.
 :::
 
+**Owners.** **Also notify owners of the affected event type (by email)** —
+off by default — emails the owners of what a delivery matched, in addition to
+the rule's destination. See
+[Notifying owners of the affected event type](#owner-notifications).
+
 ### Source freshness {#source-freshness}
 
 When a warehouse load is delayed, every scope on a scan looks low at once. The
@@ -940,6 +945,90 @@ A rule that pages Slack only on meaningful drops in checkout volume:
 - **Filter:** `event` `in` `checkout:completed`
 - **Cooldown:** `360` (re-alert at most every 6 hours)
 
+## Notifying owners of the affected event type {#owner-notifications}
+
+A rule sends to one destination, usually a shared channel, so the person who
+owns the event type that moved may not see it. Switch on **Also notify owners of
+the affected event type (by email)** in the rule editor (`notify_owners` in the
+API; off by default, and off for every rule saved before the option existed) and
+each delivery the rule sends also emails the owners of what it matched. The
+rule's own destination is unaffected: owners are notified **in addition to** it,
+never instead of it.
+
+**Email only, for now.** Owner notifications go by email to the owner's account
+email, through the same instance SMTP settings an **Email** destination uses (see
+[Email alerts (SMTP)](../run/configuration.md#email-alerts-smtp)). Per-user
+notification preferences and per-user Slack routing are not available yet.
+
+**Who counts as an owner.** For each matched item:
+
+| The item's scope | Its owners |
+|---|---|
+| An event | The owners of the event's type |
+| An event type | The owners of that type |
+| Any other signal about an event or event type (drift, release regression, lifecycle) | That type's owners |
+| A catalog metric | The metric's **owner**, when it has one |
+| Project total | Nobody |
+| Source freshness | Nobody |
+
+Event-type owners are the ones listed under **Owners** on the type's **Settings**
+tab on `main` (see [Event types](./feature-reference.md#event-types)); a branch's
+owner list does not count. An item on an event type with no owners, and a metric
+with no owner, notifies nobody beyond the rule's destination — exactly as before
+the option existed.
+
+**Members with an email only.** An owner is emailed only while they are a
+**member** of the project, since the email describes a project only its members
+can see. An owner who has left the project, or whose account has no email
+address, is not notified and does not appear in the list of owners notified.
+
+**One email per owner per rule delivery.** An owner of several matched items
+gets one plain-text email listing just the items they own. The email uses the
+default plain-text item lines (the digest's lines for a digest), **not** the
+rule's custom message template. It goes out **after** the rule's own delivery
+is sent; a delivery that fails, or that is stopped because its rule was
+disabled or muted, notifies no owners. An owner already emailed for a delivery
+is never emailed for it again.
+
+**Digests.** On a rule whose destination collects matches into a
+[digest](#delivery-schedule), owners are emailed when the digest is sent, each
+with the digest's items they own — not once per match. Owner emails are sent
+per **rule delivery**, so a digest that batches two rules can send an owner two
+emails, one for each rule.
+
+**When email is unavailable.** If the instance has no SMTP server or no
+**Default From** address, or the project is a demo project, owner notification
+is recorded as **skipped**; it never fails the rule's own delivery. A send the
+mail server rejects is recorded as **failed** with its error, the other owners
+are still emailed, and the rule's delivery still counts as **sent**. Retrying
+the delivery re-attempts its **skipped** and **failed** owners — so once SMTP is
+set up, a retry reaches the owners that were skipped.
+
+**Who was notified.** A delivery's detail lists its owner notifications — each
+owner's name, the address used and its status — so "did Anna get this?" has an
+answer on the delivery itself:
+
+- **sent** — the email went out;
+- **failed** — the mail server rejected it (the error is shown);
+- **skipped** — email was unavailable (see above), or, for a manual notify, the
+  owner was already notified by hand in the last 10 minutes;
+- **pending** — the send is in progress. This is a short-lived claim; one left
+  over from an interrupted send is reclaimed after 15 minutes.
+
+**Notifying owners by hand.** An incident card and a scope's drilldown
+**Signal** card show who owns the affected scope (**Owners: @anna, @oleg**) and,
+for editors, a **Notify owners** button. On an incident it sends a one-off email
+about that incident to its current owners, whether or not the rule has the
+option on. On a signal that no rule routed — the card reads **Not routed** — it
+is the only way to reach them; on a routed signal the button is on its incident
+card instead. Both report which owners were emailed and which were skipped. The
+same member, email and SMTP conditions apply, and two more limits:
+
+- **10-minute cooldown.** An owner already notified by hand about the same
+  incident (or signal) in the last 10 minutes is skipped, with a reason such as
+  *notified 4 minutes ago*.
+- **At most 20 owners** are notified per click.
+
 ## Message templates
 
 Messages are rendered from templates using `${variable}` placeholders (an unknown
@@ -1259,6 +1348,10 @@ about it holds. From the Inbox you can **acknowledge**, **resolve**, **mute**,
 it, but you no longer have to change an incident's status to write one down:
 saying why something was a false positive used to mean first undoing the false
 positive.
+
+A card whose scope has owners also shows them (**Owners: @anna, @oleg**) with a
+**Notify owners** button (editors) that emails them about the incident — see
+[Notifying owners by hand](#owner-notifications).
 
 The row counts matched **items**, including repeat firings of the same scope.
 Its scope names are distinct and show at most eight names; the adjacent

@@ -602,6 +602,13 @@
             "title": "Matched Count",
             "type": "integer"
           },
+          "owner_notifications": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOwnerNotificationResponse"
+            },
+            "title": "Owner Notifications",
+            "type": "array"
+          },
           "payload_snapshot": {
             "anyOf": [
               {
@@ -2452,6 +2459,13 @@
             ],
             "title": "Note"
           },
+          "owners": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOwnerRef"
+            },
+            "title": "Owners",
+            "type": "array"
+          },
           "percent_delta": {
             "anyOf": [
               {
@@ -2659,6 +2673,102 @@
         "title": "AlertMessageFormat",
         "type": "string"
       },
+      "AlertOwnerNotificationResponse": {
+        "description": "One owner email: who, where to, and what became of it.\n\n``user_id`` is NULL once the user was deleted; the address stays on record.\n``pending`` is a short-lived claim a worker holds while it sends.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertOwnerNotificationStatus"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "user_id",
+          "name",
+          "email",
+          "status"
+        ],
+        "title": "AlertOwnerNotificationResponse",
+        "type": "object"
+      },
+      "AlertOwnerNotificationStatus": {
+        "enum": [
+          "pending",
+          "sent",
+          "failed",
+          "skipped"
+        ],
+        "title": "AlertOwnerNotificationStatus",
+        "type": "string"
+      },
+      "AlertOwnerRef": {
+        "description": "An owner of the affected event type or catalog metric, for display.\n\nOnly current project members with an email address are listed \u2014 exactly the\npeople \"Notify owners\" would email. ``name`` falls back to the local part of\nthe address, never to the whole address.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "name"
+        ],
+        "title": "AlertOwnerRef",
+        "type": "object"
+      },
       "AlertRuleCreate": {
         "properties": {
           "ai_explanation_enabled": {
@@ -2791,6 +2901,11 @@
           "notify_on_spike": {
             "default": true,
             "title": "Notify On Spike",
+            "type": "boolean"
+          },
+          "notify_owners": {
+            "default": false,
+            "title": "Notify Owners",
             "type": "boolean"
           },
           "scan_config_id": {
@@ -3049,6 +3164,11 @@
           },
           "notify_on_spike": {
             "title": "Notify On Spike",
+            "type": "boolean"
+          },
+          "notify_owners": {
+            "default": false,
+            "title": "Notify Owners",
             "type": "boolean"
           },
           "scan_config_id": {
@@ -3497,6 +3617,17 @@
               }
             ],
             "title": "Notify On Spike"
+          },
+          "notify_owners": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Owners"
           },
           "scan_config_id": {
             "anyOf": [
@@ -14141,6 +14272,13 @@
             ],
             "title": "Muted Until"
           },
+          "owners": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOwnerRef"
+            },
+            "title": "Owners",
+            "type": "array"
+          },
           "relative_effect": {
             "anyOf": [
               {
@@ -14879,6 +15017,20 @@
           "scope_readiness"
         ],
         "title": "MonitorsSummaryResponse",
+        "type": "object"
+      },
+      "NotifyOwnersResponse": {
+        "description": "What a manual \"Notify owners\" did: one row per owner it tried.",
+        "properties": {
+          "owners": {
+            "items": {
+              "$ref": "#/components/schemas/AlertOwnerNotificationResponse"
+            },
+            "title": "Owners",
+            "type": "array"
+          }
+        },
+        "title": "NotifyOwnersResponse",
         "type": "object"
       },
       "ObservabilitySettings": {
@@ -26773,6 +26925,59 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/notify-owners": {
+      "post": {
+        "description": "Email the owners of this incident's event type / metric once, now (F07, #260).\n\nAnswers with one row per owner tried; a ``skipped`` or ``failed`` owner is\npart of the answer, not an error. No owners is an empty list. An owner\nemailed about this incident in the last 10 minutes is ``skipped`` (\"notified\nN minutes ago\"); at most 20 owners are contacted per request.",
+        "operationId": "notify_alert_inbox_owners_api_v1_projects__slug__alert_inbox__correlation_group_id__notify_owners_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "correlation_group_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Correlation Group Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotifyOwnersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Notify Alert Inbox Owners",
+        "tags": [
+          "alerting"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/annotations": {
       "get": {
         "operationId": "list_chart_annotations_api_v1_projects__slug__annotations_get",
@@ -38321,6 +38526,59 @@
         "summary": "Reindex Project Search",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/signals/notify-owners": {
+      "post": {
+        "description": "Email the owners of a signal's event type / metric once, now (F07, #260).\n\nThe \"Notify owners\" action for a signal no rule routed to an incident. One\nrow per owner tried; no owners is an empty list; an unknown signal is 404.\nAn owner emailed about this signal in the last 10 minutes is ``skipped``\n(\"notified N minutes ago\"); at most 20 owners are contacted per request.",
+        "operationId": "notify_signal_owners_api_v1_projects__slug__signals_notify_owners_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalTriageScope"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotifyOwnersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Notify Signal Owners",
+        "tags": [
+          "metrics"
         ]
       }
     },

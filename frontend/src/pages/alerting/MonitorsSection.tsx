@@ -973,6 +973,9 @@ function RuleRow({
               ? `default (${rule.message_format})`
               : `custom (${rule.message_format})`}
           />
+          {rule.notify_owners && (
+            <RuleSetting label="Owners" value="also emailed" />
+          )}
           {!!rule.filters.length && (
             <RuleSetting
               label="Filters"

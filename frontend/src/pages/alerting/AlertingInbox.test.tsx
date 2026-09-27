@@ -1344,3 +1344,31 @@ describe('AlertingInbox — the card leads with what broke and by how much (AL-1
     ).toBeInTheDocument()
   })
 })
+
+describe('AlertingInbox — owners (F07, #260)', () => {
+  const owners = [
+    { user_id: 'u-1', name: 'anna' },
+    { user_id: 'u-2', name: 'oleg' },
+  ]
+
+  it('names the owners and offers an editor "Notify owners"', () => {
+    renderInbox({ inbox: makeInbox({ items: [makeGroup({ owners })] }) })
+
+    expect(screen.getByText('Owners: @anna, @oleg')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: `Notify owners of ${TARGET} by email` }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows a viewer the owners without the action', () => {
+    renderInbox({ inbox: makeInbox({ items: [makeGroup({ owners })] }) }, 'viewer')
+
+    expect(screen.getByText('Owners: @anna, @oleg')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Notify owners/ })).toBeNull()
+  })
+
+  it('says nothing about owners on an unowned incident', () => {
+    renderInbox()
+    expect(screen.queryByText(/^Owners:/)).toBeNull()
+  })
+})

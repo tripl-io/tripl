@@ -400,3 +400,21 @@ describe('RuleEditorDialog — Lifecycle toggle (#258)', () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ include_lifecycle: true }))
   })
 })
+
+describe('RuleEditorDialog — notify owners (F07, #260)', () => {
+  it('offers the toggle off by default, explains it, and submits it', () => {
+    const onSubmit = vi.fn()
+    renderDialog({ onSubmit })
+
+    const toggle = screen.getByRole('checkbox', {
+      name: 'Also notify owners of the affected event type (by email)',
+    })
+    expect(toggle).not.toBeChecked()
+    expect(toggle).toHaveAccessibleDescription(/one email per delivery/)
+    fireEvent.click(toggle)
+    expect(toggle).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ notify_owners: true }))
+  })
+})

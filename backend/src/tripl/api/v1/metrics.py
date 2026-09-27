@@ -10,6 +10,7 @@ from tripl.api.v1.alerting import incident_audit_name
 from tripl.models.domain_enums import MetricScopeType
 from tripl.models.event import EventStatus
 from tripl.models.user import User
+from tripl.schemas.alert_owner import NotifyOwnersResponse
 from tripl.schemas.event_metric import (
     ActiveSignalsQuery,
     AnomalyAttributionResponse,
@@ -39,6 +40,7 @@ from tripl.schemas.event_metric import (
 )
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
+    alert_owner_notify_service,
     alerting_service,
     anomaly_attribution_service,
     audit_service,
@@ -527,6 +529,43 @@ async def _record_incident_move(
         commit=False,
     )
     await session.commit()
+
+
+@router.post("/projects/{slug}/signals/notify-owners", response_model=NotifyOwnersResponse)
+async def notify_signal_owners(
+    session: SessionDep,
+    slug: str,
+    data: SignalTriageScope,
+    current_user: EditorUserDep,
+) -> NotifyOwnersResponse:
+    """Email the owners of a signal's event type / metric once, now (F07, #260).
+
+    The "Notify owners" action for a signal no rule routed to an incident. One
+    row per owner tried; no owners is an empty list; an unknown signal is 404.
+    An owner emailed about this signal in the last 10 minutes is ``skipped``
+    ("notified N minutes ago"); at most 20 owners are contacted per request.
+    """
+    result = await alert_owner_notify_service.notify_signal_owners(
+        session, slug, data, current_user
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="signal.notify_owners",
+        target_type="signal",
+        target_id=None,
+        target_name=_signal_audit_name(data.scope_type, data.scope_ref),
+        project=result.project,
+        payload={
+            "bucket": data.bucket.isoformat(),
+            "scan_config_id": str(data.scan_config_id) if data.scan_config_id else None,
+            "owners": [
+                {"user_id": str(owner.user_id) if owner.user_id else None, "status": owner.status}
+                for owner in result.response.owners
+            ],
+        },
+    )
+    return result.response
 
 
 @router.post("/projects/{slug}/signals/verdict", response_model=SignalVerdictResponse)

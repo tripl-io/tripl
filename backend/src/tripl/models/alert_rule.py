@@ -132,6 +132,16 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
     # Append an LLM-generated explanation paragraph to delivered alert
     # messages. Off by default; a no-op unless AI features are enabled in
     # instance settings.
+    # Also email the owners of every event type / catalog metric a delivery of
+    # this rule touches (F07, #260), after the rule's own destination has the
+    # message. Off by default; unowned scopes behave exactly as without it. The
+    # follow-up is ``worker.tasks.alert_owner_notify.notify_owners``, and a
+    # failure there never fails the rule's own delivery.
+    notify_owners: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     ai_explanation_enabled: Mapped[bool] = mapped_column(
         Boolean,
         default=False,

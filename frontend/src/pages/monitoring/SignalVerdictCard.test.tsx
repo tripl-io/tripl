@@ -11,10 +11,16 @@ vi.mock('@/api/eventMetrics', () => ({
     clearSignalVerdict: vi.fn(),
   },
 }))
+vi.mock('@/api/alerting', () => ({
+  alertingApi: {
+    notifySignalOwners: vi.fn(),
+  },
+}))
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
 
+import { alertingApi } from '@/api/alerting'
 import { eventMetricsApi } from '@/api/eventMetrics'
 
 function makeSignal(overrides: Partial<MonitoringSignal> = {}): MonitoringSignal {
@@ -168,5 +174,51 @@ describe('SignalVerdictCard (#254)', () => {
     expect(screen.getByText(/by Ann Lee/)).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Verdict' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Open a comment/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('SignalVerdictCard owners (F07, #260)', () => {
+  const owners = [{ user_id: 'u-1', name: 'anna' }]
+
+  it('emails the owners of an unrouted signal on request', async () => {
+    vi.mocked(alertingApi.notifySignalOwners).mockResolvedValue([
+      { user_id: 'u-1', name: 'anna', email: 'anna@x.io', status: 'sent' },
+    ])
+    renderCard({ signal: makeSignal({ owners }) })
+
+    expect(screen.getByText('Owners: @anna')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Notify owners of signup_completed by email' }))
+
+    expect(await screen.findByText('Emailed anna.')).toBeInTheDocument()
+    expect(alertingApi.notifySignalOwners).toHaveBeenCalledWith('demo', {
+      scan_config_id: 'scan-1',
+      scope_type: 'event',
+      scope_ref: 'ev-1',
+      bucket: '2026-09-25T18:00:00Z',
+    })
+  })
+
+  it('says why an owner inside the manual cooldown was not emailed again', async () => {
+    vi.mocked(alertingApi.notifySignalOwners).mockResolvedValue([
+      { user_id: 'u-1', name: 'anna', email: 'anna@x.io', status: 'skipped', error: 'notified 3 minutes ago', sent_at: null },
+    ])
+    renderCard({ signal: makeSignal({ owners }) })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notify owners of signup_completed by email' }))
+
+    expect(await screen.findByText('Not sent to anna (notified 3 minutes ago).')).toBeInTheDocument()
+  })
+
+  it('leaves the button to the incident card on a routed signal', () => {
+    renderCard({
+      signal: makeSignal({ owners, incident: { id: 'grp-1', status: 'open' } }),
+    })
+    expect(screen.getByText('Owners: @anna')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Notify owners/ })).toBeNull()
+  })
+
+  it('offers no button to a viewer', () => {
+    renderCard({ signal: makeSignal({ owners }), canWrite: false })
+    expect(screen.queryByRole('button', { name: /Notify owners/ })).toBeNull()
   })
 })

@@ -1250,6 +1250,12 @@ and a collapsed **Customize message** — with an **Advanced** section after the
 A new rule alerts when the change is at least **30%**. The cooldown is entered
 as an amount and a unit (minutes, hours, days) and saved in minutes. The guided
 setup that creates a first rule includes a step for choosing the scan.
+The editor's **Also notify owners of the affected event type (by email)** switch
+(`notify_owners`, off by default) makes each delivery also email the owners of the
+event types (and catalog metrics) it matched — project members with an email
+only, one plain-text email per owner per rule delivery, using the default item
+lines rather than the rule's custom template — on top of the rule's destination.
+See [Notifying owners](./alerting.md#owner-notifications).
 
 The rule editor and the monitor detail also mark an enabled drift scope whose
 source data does not exist anywhere in the project — value drift with no
@@ -1773,7 +1779,24 @@ applies to the whole selection or to none of it.
 `correlation_group_ids` plus the single route's action fields and returns the
 rebuilt cards, a **batch id** and `overrides_written` (always `null`); each
 affected incident gets its own audit-log row under that shared batch id. See
-[Acting on several incidents at once](./alerting.md#bulk-actions). The **Delivery
+[Acting on several incidents at once](./alerting.md#bulk-actions). **Owner
+routing:** a rule with `notify_owners` on also emails, after its own delivery
+is sent, the owners of the matched items — event-type owners on `main` for event
+and event-type scopes and for other signals about an event or event type (drift,
+release regression, lifecycle), the metric's owner for a catalog metric, nobody
+for project total or source freshness. Owners who are not project members or
+have no email are neither notified nor listed; when email is unavailable (no
+SMTP or Default From, or a demo project) owners are recorded as skipped, never
+failing the delivery. One email goes out per rule delivery, so a digest batching
+two rules can mean two emails. Each delivery's detail lists its **owner
+notifications** (sent / failed / skipped / pending — pending being a short
+in-progress claim, reclaimed after 15 minutes); a retried delivery re-attempts
+skipped and failed owners. Incident cards and the drilldown **Signal** card show
+**Owners: @…** and, for editors, a **Notify owners** button for a one-off email
+(on a routed signal the button is on its incident card), which also reaches the
+owners of a signal no rule routed; it notifies at most 20 owners and skips an
+owner notified by hand in the last 10 minutes. See
+[Notifying owners](./alerting.md#owner-notifications). The **Delivery
 log** lists deliveries filterable by status (pending / sent / failed) with retry
 on failures, plus channel, destination, rule, and **scan**. That third section's
 `?section=` key is still `audit` — the label changed, the link did not, and it is

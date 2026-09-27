@@ -232,6 +232,7 @@ def _reset_sync_engine_after_fork(**_kwargs: object) -> None:
 # Import tasks so they are registered with the celery app
 import tripl.worker.tasks.alert_digest_send  # noqa: F401, E402
 import tripl.worker.tasks.alert_flush  # noqa: F401, E402
+import tripl.worker.tasks.alert_owner_notify  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402

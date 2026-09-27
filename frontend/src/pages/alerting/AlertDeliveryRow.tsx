@@ -23,6 +23,11 @@ import { TICKET_CHANNELS } from "@/lib/alertChannels"
 import { ChannelGlyph, channelLabel as channelMetaLabel } from "./channelMeta"
 import { alertDeliveryKey } from "@/lib/queryKeys"
 import { watchRetriedDelivery, type RetryWatchOptions } from "./retryWatch"
+import {
+  ownerNotificationStatusLabel,
+  ownerNotificationTone,
+  ownerNotificationWho,
+} from "./ownerNotifications"
 
 /**
  * The delivery table: its fixed columns, their widths, and the rows.
@@ -726,6 +731,32 @@ export function AlertDeliveryRow({
                       })}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+              {/* Owners this delivery's rule emailed besides its destination
+                  (F07, #260): who, at which address, and whether it went. */}
+              {!!detail.owner_notifications?.length && (
+                <div className="rounded-lg border p-3" data-testid="owner-notifications">
+                  <div className="mb-1.5 text-caption font-medium text-fg-tertiary">
+                    Owners notified by email
+                  </div>
+                  <ul className="m-0 grid list-none gap-1 p-0 text-body-sm">
+                    {detail.owner_notifications.map(row => (
+                      <li
+                        key={`${row.user_id ?? ""}:${row.email}`}
+                        className="flex flex-wrap items-center gap-2"
+                      >
+                        <span className="font-medium">{ownerNotificationWho(row)}</span>
+                        {row.name && <span className="text-fg-tertiary">{row.email}</span>}
+                        <Chip tone={ownerNotificationTone(row.status)} variant="outline">
+                          {ownerNotificationStatusLabel(row.status)}
+                        </Chip>
+                        {(row.status === "failed" || row.status === "skipped") && row.error && (
+                          <span className="break-words text-fg-tertiary">{row.error}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
               {/* The message exactly as the channel received it. It used to be

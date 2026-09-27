@@ -1,4 +1,4 @@
-import type { AlertInboxStatus } from './alerting'
+import type { AlertInboxStatus, SignalOwnerRef } from './alerting'
 
 // Exhaustive scope-type union mirroring the backend MetricScopeType enum
 // (backend/src/tripl/models/domain_enums.py). Keep every member in sync;
@@ -197,6 +197,10 @@ export interface MonitoringSignal {
   // (`GET /projects/{slug}/anomalies/{anomaly_id}/attribution`). Null on a
   // payload that predates it and on a locally-synthesised signal.
   anomaly_id?: string | null
+  // Owners of the signal's event type / catalog metric (F07, #260), for the
+  // Signal card's owners line and "Notify owners". Optional: a payload that
+  // predates owner routing omits it, which renders as no owners line.
+  owners?: SignalOwnerRef[]
 }
 
 /**

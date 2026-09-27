@@ -69,6 +69,8 @@ export type RuleFormState = {
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
+  // Also email the owners of each affected event type / metric (F07, #260).
+  notify_owners: boolean
   // The four numeric settings are held as the TEXT in their inputs and parsed
   // by `ruleFormToPayload` (ALR-16). Holding them as numbers made an emptied
   // box read back as "0" on the next render — the field could not be cleared
@@ -389,6 +391,8 @@ export function defaultRuleForm(): RuleFormState {
     notify_on_spike: true,
     notify_on_drop: true,
     ai_explanation_enabled: false,
+    // Opt-in: a rule keeps sending to its destination only, as before (F07).
+    notify_owners: false,
     // 30, not the server's old 100 (AL-2). The gate is
     // |actual − expected| / expected × 100, so a DROP can reach at most 100% —
     // and only when volume falls to zero. At 100 the obvious "tell me when X
@@ -425,6 +429,8 @@ export function ruleToForm(rule: AlertRule): RuleFormState {
     notify_on_spike: rule.notify_on_spike,
     notify_on_drop: rule.notify_on_drop,
     ai_explanation_enabled: rule.ai_explanation_enabled,
+    // `?? false`: a rule from a server that predates owner routing reads as off.
+    notify_owners: rule.notify_owners ?? false,
     min_percent_delta: String(rule.min_percent_delta),
     min_absolute_delta: String(rule.min_absolute_delta),
     min_expected_count: String(rule.min_expected_count),

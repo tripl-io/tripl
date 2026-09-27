@@ -70,7 +70,7 @@ from tripl.semver import (
     APP_VERSION_OTHER_LABEL,
     order_versions,
 )
-from tripl.services import signal_verdict_service
+from tripl.services import anomaly_attribution_service, signal_verdict_service
 from tripl.services.metrics_service import (
     _FORECAST_MAX_POINTS,
     _apply_scope_sigma_override,
@@ -573,7 +573,16 @@ async def get_metric_series(
         forecast=await _forecast_off_event_loop(data=data, interval=interval),
     )
     # Verdicts ride along for the chart markers and the signal card (F01, #254).
-    return await signal_verdict_service.with_metric_series_verdicts(session, project.id, response)
+    response = await signal_verdict_service.with_metric_series_verdicts(
+        session, project.id, response
+    )
+    # The metric's owner on the signal card (F07, #260).
+    if response.latest_signal is not None:
+        (latest,) = await anomaly_attribution_service.attach_owners(
+            session, project.id, [response.latest_signal]
+        )
+        response = response.model_copy(update={"latest_signal": latest})
+    return response
 
 
 async def _load_breakdown_value_rows(

@@ -4,6 +4,7 @@ import { MessageSquarePlus } from 'lucide-react'
 
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
+import { alertingApi } from '@/api/alerting'
 import { alertInboxStatusLabel, alertInboxStatusTone } from '@/lib/alertStatus'
 import { formatTimestamp } from '@/lib/datetime'
 import { formatSignalEffect } from '@/lib/monitoring'
@@ -28,8 +29,10 @@ import {
   clearVerdictLabel,
   clearVerdictReopensIncident,
   signalIncidentId,
+  triageScopeOf,
   useSignalTriage,
 } from '@/pages/anomalies/signalTriage'
+import { OwnersNotify } from '@/pages/alerting/OwnersNotify'
 
 /** What saving each verdict does to the incident of a routed signal. */
 const INCIDENT_EFFECT: Record<SignalVerdictKind, string> = {
@@ -162,6 +165,17 @@ export function SignalVerdictCard({
       {verdict?.note && (
         <p className="mt-1 whitespace-pre-wrap text-body-sm text-fg-secondary">{verdict.note}</p>
       )}
+
+      {/* Who owns what fired (F07, #260). A signal no rule routed reaches no
+          one on its own, so an editor can email its owners from here; a routed
+          one is notified from its incident card, where the button lives. */}
+      <OwnersNotify
+        className="mt-2"
+        owners={signal.owners}
+        canNotify={canWrite && !incidentId}
+        notify={() => alertingApi.notifySignalOwners(slug, triageScopeOf(signal))}
+        target={signal.scope_name ?? 'this signal'}
+      />
 
       {editable && (
         <div className="mt-3 grid gap-3 border-t pt-3">

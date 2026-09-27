@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -1024,5 +1024,49 @@ describe('AlertDeliveryRow — the status cell holds only the status', () => {
     const suffix = screen.getByText('Local · simulated')
     expect(suffix.closest('td')).not.toBe(screen.getByText('sent').closest('td'))
     expect(suffix.closest('td')).toHaveTextContent(/Ops/)
+  })
+})
+
+describe('AlertDeliveryRow owner notifications (F07, #260)', () => {
+  it('lists the owners the delivery emailed, with each outcome', async () => {
+    expandRow({
+      ...mockDelivery({ status: 'sent', error_message: null }),
+      items: [mockItem()],
+      owner_notifications: [
+        { user_id: 'u-1', name: 'Anna', email: 'anna@example.com', status: 'sent' },
+        { user_id: 'u-2', name: 'Oleg', email: 'oleg@example.com', status: 'failed', error: 'SMTP refused' },
+      ],
+    })
+
+    const block = await screen.findByTestId('owner-notifications')
+    expect(within(block).getByText('Owners notified by email')).toBeInTheDocument()
+    expect(within(block).getByText('Anna')).toBeInTheDocument()
+    expect(within(block).getByText('anna@example.com')).toBeInTheDocument()
+    expect(within(block).getByText('emailed')).toBeInTheDocument()
+    expect(within(block).getByText('failed')).toBeInTheDocument()
+    expect(within(block).getByText('SMTP refused')).toBeInTheDocument()
+  })
+
+  it('says nothing about owners when none were notified', async () => {
+    expandRow({ ...mockDelivery({ status: 'sent', error_message: null }), items: [mockItem()] })
+
+    expect(await screen.findByText('checkout_completed')).toBeInTheDocument()
+    expect(screen.queryByTestId('owner-notifications')).toBeNull()
+  })
+
+  it('shows a row still being sent as sending, without an error', async () => {
+    expandRow({
+      ...mockDelivery({ status: 'sent', error_message: null }),
+      items: [mockItem()],
+      owner_notifications: [
+        { user_id: 'u-1', name: 'Anna', email: 'anna@example.com', status: 'pending', error: 'stale', sent_at: null },
+        { user_id: 'u-2', name: 'Oleg', email: 'oleg@example.com', status: 'skipped', error: 'not a project member' },
+      ],
+    })
+
+    const block = await screen.findByTestId('owner-notifications')
+    expect(within(block).getByText('sending')).toBeInTheDocument()
+    expect(within(block).queryByText('stale')).toBeNull()
+    expect(within(block).getByText('not a project member')).toBeInTheDocument()
   })
 })
