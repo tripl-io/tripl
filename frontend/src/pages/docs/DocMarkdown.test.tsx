@@ -95,4 +95,56 @@ describe('DocMarkdown (F22)', () => {
     expect(docUrlTransform('tripl:event/a')).toBe('tripl:event/a')
     expect(docUrlTransform('javascript:alert(1)')).toBe('')
   })
+
+  it('marks an ambiguous link but still links to the first candidate', () => {
+    renderMarkdown('[[event:checkout_started]]', [resolution({ status: 'ambiguous', candidates: 2 })])
+    const link = screen.getByRole('link', { name: /checkout_started/ })
+    expect(link).toHaveAttribute('data-doc-link', 'ambiguous')
+    expect(link).toHaveAttribute('title')
+    expect(screen.getByLabelText('ambiguous')).toBeInTheDocument()
+  })
+
+  it('treats a resolved link without a route as broken', () => {
+    const { container } = renderMarkdown('[[event:checkout_started]]', [resolution({ route_path: null })])
+    expect(container.querySelector('[data-doc-link="broken"]')).not.toBeNull()
+  })
+
+  it('renders an entity link the server did not resolve as pending', () => {
+    const { container } = renderMarkdown('[[event:other]]', [resolution({})])
+    expect(container.querySelector('[data-doc-link="pending"]')).toHaveTextContent('other')
+  })
+
+  it('opens mailto links without the external-link icon', () => {
+    const { container } = renderMarkdown('[mail us](mailto:a@example.com)')
+    const link = screen.getByRole('link', { name: 'mail us' })
+    expect(link).toHaveAttribute('href', 'mailto:a@example.com')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(container.querySelector('svg')).toBeNull()
+  })
+
+  it('keeps an in-page anchor as a plain link', () => {
+    renderMarkdown('[jump](#setup)')
+    const link = screen.getByRole('link', { name: 'jump' })
+    expect(link).toHaveAttribute('href', '#setup')
+    expect(link).not.toHaveAttribute('target')
+  })
+
+  it('renders a stripped javascript: link as inert text', () => {
+    const { container } = renderMarkdown('[bad](javascript:alert(1))')
+    const anchor = container.querySelector('a')
+    expect(anchor).not.toBeNull()
+    expect(anchor).not.toHaveAttribute('href')
+  })
+
+  it('shows a relative image as a label, and falls back to its URL or "image"', () => {
+    renderMarkdown('![](diagram.png) and ![](https://example.com/x.png)')
+    expect(screen.getByText('[image: diagram.png]')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '[image: https://example.com/x.png]' })).toBeInTheDocument()
+  })
+
+  it('renders fenced code blocks verbatim', () => {
+    const { container } = renderMarkdown('```sql\nselect [[event:checkout_started]]\n```', [resolution({})])
+    expect(container.querySelector('pre code')).toHaveTextContent('select [[event:checkout_started]]')
+    expect(screen.queryByRole('link')).toBeNull()
+  })
 })

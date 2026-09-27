@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, RouterProvider, Routes, createMemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import { AuthContext } from '@/components/auth-context'
 import { authAs } from '@/test/auth'
@@ -34,6 +35,9 @@ vi.mock('@/api/docs', () => ({
     search: vi.fn(),
     revisions: vi.fn(),
     revision: vi.fn(),
+    remove: vi.fn(),
+    removeFolder: vi.fn(),
+    move: vi.fn(),
   },
 }))
 
@@ -257,5 +261,189 @@ describe('DocsPage (F22)', () => {
     await waitFor(() => expect(screen.queryByText('Leave without saving?')).toBeNull())
     expect(screen.getByLabelText('Markdown source')).toHaveValue('my unsaved draft')
     expect(screen.getByTestId('location')).toHaveTextContent('?edit=1')
+  })
+})
+
+describe('DocsPage (F22) states and file actions', () => {
+  beforeEach(() => {
+    vi.mocked(docsApi.tree).mockReset().mockResolvedValue(tree())
+    vi.mocked(docsApi.read).mockReset().mockResolvedValue(file())
+    vi.mocked(docsApi.links).mockReset().mockResolvedValue([])
+    vi.mocked(docsApi.revisions).mockReset().mockResolvedValue({
+      scope: 'project',
+      path: 'references/queries.md',
+      current_revision: 1,
+      items: [],
+    })
+    vi.mocked(docsApi.remove).mockReset()
+    vi.mocked(docsApi.removeFolder).mockReset()
+    vi.mocked(docsApi.move).mockReset()
+    vi.mocked(toast.success).mockReset()
+  })
+
+  it('offers a retry when the tree fails to load', async () => {
+    vi.mocked(docsApi.tree).mockRejectedValueOnce(new ApiError('boom', 500))
+    renderPage('/p/demo/docs')
+    expect(await screen.findByText("Couldn't load the docs")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('navigation', { name: 'Docs' })).toBeInTheDocument()
+  })
+
+  it('invites an editor to write or import the first note', async () => {
+    vi.mocked(docsApi.tree).mockResolvedValue(tree({ project_docs: [], organization_docs: [] }))
+    renderPage('/p/demo/docs')
+    expect(await screen.findByText('No notes yet')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Import a folder' }))
+    expect(await screen.findByRole('dialog', { name: 'Import and export notes' })).toBeInTheDocument()
+  })
+
+  it('shows a reader the empty state without write actions', async () => {
+    vi.mocked(docsApi.tree).mockResolvedValue(tree({ project_docs: [], organization_docs: [] }))
+    renderPage('/p/demo/docs', 'viewer')
+    expect(await screen.findByText('No notes yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Import a folder' })).toBeNull()
+  })
+
+  it('opens the new-note dialog from the empty state', async () => {
+    vi.mocked(docsApi.tree).mockResolvedValue(tree({ project_docs: [], organization_docs: [] }))
+    renderPage('/p/demo/docs')
+    await screen.findByText('No notes yet')
+    const newButtons = screen.getAllByRole('button', { name: 'New note' })
+    fireEvent.click(newButtons[newButtons.length - 1]!)
+    expect(await screen.findByLabelText('Path')).toHaveValue('')
+  })
+
+  it('lists recent notes with their organization, author and description', async () => {
+    vi.mocked(docsApi.tree).mockResolvedValue(
+      tree({
+        project_docs: [summary({ path: 'a.md', title: 'Alpha', description: 'What alpha is', updated_by_name: null })],
+      }),
+    )
+    renderPage('/p/demo/docs')
+    const recent = await screen.findByRole('region', { name: 'Recently updated' })
+    expect(within(recent).getByText('What alpha is')).toBeInTheDocument()
+    expect(within(recent).getByText(/^Acme · warehouse\/gotchas\.md/)).toHaveTextContent('· Editor')
+  })
+
+  it('says an unknown scope in the URL is not a notes root', async () => {
+    renderPage('/p/demo/docs/team/a.md')
+    expect(await screen.findByText('Unknown notes scope')).toBeInTheDocument()
+  })
+
+  it('names the organization in a missing organization note', async () => {
+    vi.mocked(docsApi.read).mockRejectedValue(new ApiError('Doc not found', 404))
+    renderPage('/p/demo/docs/organization/missing.md')
+    expect(await screen.findByText(/no organization note at missing\.md/)).toBeInTheDocument()
+  })
+
+  it('offers a retry when a note fails for another reason', async () => {
+    vi.mocked(docsApi.read).mockRejectedValueOnce(new ApiError('boom', 500))
+    renderPage('/p/demo/docs/project/references/queries.md')
+    expect(await screen.findByText("Couldn't load this note")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { name: 'Event query recipes', level: 2 })).toBeInTheDocument()
+  })
+
+  it('deletes the open note after confirmation and returns to the index', async () => {
+    vi.mocked(docsApi.remove).mockResolvedValue(undefined)
+    renderPage('/p/demo/docs/project/references/queries.md')
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete note' }))
+    const confirm = await screen.findByRole('alertdialog')
+    expect(within(confirm).getByText('Delete this note?')).toBeInTheDocument()
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete note' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/p\/demo\/docs$/))
+    expect(docsApi.remove).toHaveBeenCalledWith('demo', 'project', 'references/queries.md')
+    expect(toast.success).toHaveBeenCalledWith('Deleted references/queries.md')
+  })
+
+  it('deletes the folder holding the open note and returns to the index', async () => {
+    vi.mocked(docsApi.removeFolder).mockResolvedValue({ deleted: ['references/queries.md'] })
+    renderPage('/p/demo/docs/project/references/queries.md')
+    await screen.findByRole('heading', { name: 'Event query recipes', level: 2 })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete references/' }))
+    const confirm = await screen.findByRole('alertdialog')
+    expect(within(confirm).getByText('All 1 note under this folder are deleted with their history.')).toBeInTheDocument()
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete folder' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/p\/demo\/docs$/))
+    expect(docsApi.removeFolder).toHaveBeenCalledWith('demo', 'project', 'references/')
+    expect(toast.success).toHaveBeenCalledWith('Deleted references/')
+  })
+
+  it('makes the user type the folder name before deleting a large folder', async () => {
+    const many = Array.from({ length: 6 }, (_, i) => summary({ path: `big/n${i}.md`, title: `N${i}` }))
+    vi.mocked(docsApi.tree).mockResolvedValue(tree({ project_docs: many }))
+    vi.mocked(docsApi.removeFolder).mockResolvedValue({ deleted: [] })
+    renderPage('/p/demo/docs')
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete big/' }))
+    const confirm = await screen.findByRole('alertdialog')
+    const submit = within(confirm).getByRole('button', { name: 'Delete folder' })
+    expect(submit).toBeDisabled()
+    fireEvent.change(within(confirm).getByLabelText(/to confirm/), { target: { value: 'big/' } })
+    fireEvent.click(submit)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Deleted big/'))
+    // Not under the open location: the page stays put.
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/p\/demo\/docs$/)
+  })
+
+  it('lets only the owner delete organization folders', async () => {
+    renderPage('/p/demo/docs')
+    await screen.findByRole('navigation', { name: 'Docs' })
+    expect(screen.queryByRole('button', { name: 'Delete warehouse/' })).toBeNull()
+  })
+
+  it('renames the open note and follows it', async () => {
+    vi.mocked(docsApi.move).mockResolvedValue({
+      moved: [{ from_path: 'references/queries.md', to_path: 'references/recipes.md' }],
+    })
+    renderPage('/p/demo/docs/project/references/queries.md')
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename or move' }))
+    fireEvent.change(await screen.findByLabelText('New path'), { target: { value: 'references/recipes' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/p/demo/docs/project/references/recipes.md'),
+    )
+    expect(toast.success).toHaveBeenCalledWith('Moved to references/recipes.md')
+  })
+
+  it('moves a folder that does not hold the open note without navigating', async () => {
+    vi.mocked(docsApi.move).mockResolvedValue({
+      moved: [
+        { from_path: 'warehouse/gotchas.md', to_path: 'wh/gotchas.md' },
+        { from_path: 'warehouse/b.md', to_path: 'wh/b.md' },
+      ],
+    })
+    renderPage('/p/demo/docs/project/references/queries.md', 'owner')
+    await screen.findByRole('heading', { name: 'Event query recipes', level: 2 })
+    fireEvent.click(screen.getByRole('button', { name: 'Rename or move warehouse/' }))
+    fireEvent.change(await screen.findByLabelText('New folder path'), { target: { value: 'wh' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Move' }))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Moved 2 notes'))
+    expect(screen.getByTestId('location')).toHaveTextContent('/p/demo/docs/project/references/queries.md')
+  })
+
+  it('opens the history drawer for the open note', async () => {
+    renderPage('/p/demo/docs/project/references/queries.md')
+    fireEvent.click(await screen.findByRole('button', { name: 'History' }))
+    expect(await screen.findByRole('dialog', { name: 'History' })).toBeInTheDocument()
+    await waitFor(() => expect(docsApi.revisions).toHaveBeenCalled())
+  })
+
+  it('starts a new note in a folder from the tree', async () => {
+    renderPage('/p/demo/docs')
+    fireEvent.click(await screen.findByRole('button', { name: 'New note in references/' }))
+    expect(await screen.findByLabelText('Path')).toHaveValue('references/')
+  })
+
+  it('drops ?new and ?link when the linked new-note dialog is cancelled', async () => {
+    renderPage(`/p/demo/docs?new=1&link=${encodeURIComponent('[[event:a]]')}`)
+    await screen.findByLabelText('Path')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/p\/demo\/docs$/))
+  })
+
+  it('opens quick open from the header button', async () => {
+    renderPage('/p/demo/docs')
+    fireEvent.click(await screen.findByRole('button', { name: /Open note/ }))
+    expect(await screen.findByPlaceholderText('Open a note by title or path…')).toBeInTheDocument()
   })
 })

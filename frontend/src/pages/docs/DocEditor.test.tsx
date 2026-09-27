@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import type { DocFileResponse, DocWriteResponse } from '@/types/docs'
 import { DocEditor } from './DocEditor'
@@ -176,5 +177,66 @@ describe('DocEditor (F22)', () => {
     type('x'.repeat(262145))
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(screen.getByText(/too large to save/)).toBeInTheDocument()
+  })
+
+  it('saves on Ctrl+S and passes on the save warnings', async () => {
+    vi.mocked(toast.warning).mockReset()
+    vi.mocked(docsApi.write).mockResolvedValue(saved({ warnings: ['[[event:gone]] does not resolve'] }))
+    const onDone = renderEditor()
+    type('changed')
+    fireEvent.keyDown(window, { key: 'S', metaKey: true })
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(toast.success).toHaveBeenCalledWith('Saved revision 4')
+    expect(toast.warning).toHaveBeenCalledWith('[[event:gone]] does not resolve')
+  })
+
+  it('counts several warnings and says when nothing changed', async () => {
+    vi.mocked(toast.warning).mockReset()
+    vi.mocked(docsApi.write).mockResolvedValue(saved({ changed: false, warnings: ['a', 'b'] }))
+    const onDone = renderEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(toast.success).toHaveBeenCalledWith('No changes to save')
+    expect(toast.warning).toHaveBeenCalledWith('2 links do not resolve')
+  })
+
+  it('cancels a clean draft at once', () => {
+    const onDone = renderEditor()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onDone).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the draft when the conflict dialog is dismissed', async () => {
+    vi.mocked(docsApi.write).mockRejectedValueOnce(new ApiError('Doc changed', 409))
+    renderEditor()
+    type('mine')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Keep editing' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('heading', { name: 'This note changed while you were editing' })).toBeNull(),
+    )
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('mine')
+  })
+
+  it('reports a failed reload of their revision', async () => {
+    vi.mocked(docsApi.write).mockRejectedValueOnce(new ApiError('Doc changed', 409))
+    vi.mocked(docsApi.read).mockRejectedValue(new ApiError('Network down', 503))
+    renderEditor()
+    type('mine')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Load theirs' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Network down')
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('mine')
+  })
+
+  it('reports a failed overwrite without saving', async () => {
+    vi.mocked(docsApi.write).mockRejectedValueOnce(new ApiError('Doc changed', 409))
+    vi.mocked(docsApi.read).mockRejectedValue(new ApiError('Doc not found', 404))
+    renderEditor()
+    type('mine')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Overwrite with mine' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Doc not found')
+    expect(docsApi.write).toHaveBeenCalledTimes(1)
   })
 })
