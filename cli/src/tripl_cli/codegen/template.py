@@ -131,9 +131,11 @@ class Template:
             (stack[-1].children if stack else root).append(stripped[position:])
         return root
 
-    def render(self, context: Mapping[str, Any]) -> str:
+    def render(self, context: Mapping[str, Any], *frames: Any) -> str:
+        """Render with ``context`` at the bottom of the stack and ``frames`` pushed
+        over it, innermost last, as if the template sat inside sections of them."""
         out: list[str] = []
-        self._render(self._nodes, [context], out)
+        self._render(self._nodes, [context, *frames], out)
         return "".join(out)
 
     def _render(self, nodes: Sequence[_Node], stack: list[Any], out: list[str]) -> None:

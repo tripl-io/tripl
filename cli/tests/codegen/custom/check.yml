@@ -1,0 +1,57 @@
+# A team's own tracking shape, built from custom templates only (see
+# test_codegen_custom.py): constant holders instead of enums, a structured event
+# built as the team's AcmeEvent value, screens as planned (type, id) pairs, and
+# event-name / property-key constants.
+project: acme
+codegen:
+  out: generated
+  kotlin_package: com.example.acme
+  vars: {prefix: Acme, prefix_lower: acme, event_class: AcmeEvent}
+event_types:
+  se:
+    calls:
+      - function: "AcmeEvent"
+        args: {category: category, action: action, label: label, property: property, value: "value:number"}
+    codegen:
+      style: structured
+      transport:
+        kotlin: "AcmeEvent"
+        swift: "AcmeEvent"
+        ts:
+          function: "acmeEvent"
+          object_arg: 0
+          args: {category: category, action: action, label: label, property: property, value: "value:number"}
+          import: "import { acmeEvent, type AcmeEvent } from './acmeEvent';"
+      type_names: {namespace: AcmeStructured, function: event}
+      template:
+        kotlin: templates/structured.kotlin.mustache
+        swift: templates/structured.swift.mustache
+        ts: templates/structured.ts.mustache
+      files:
+        - {language: kotlin, template: templates/holder.kotlin.mustache, each: closed_fields, file: "{{vars.prefix}}{{names.pascal}}.kt"}
+        - {language: ts, template: templates/holder.ts.mustache, each: closed_fields, file: "{{vars.prefix_lower}}{{names.pascal}}.ts"}
+        - {language: swift, template: templates/planned.swift.mustache, file: "AcmePlanned.swift"}
+  screen:
+    codegen:
+      style: screen_view
+      transport:
+        kotlin: {function: "AcmeTracker.trackScreen", args: {type: type, id: id}}
+        swift: {function: "AcmeTracker.shared.trackScreen", args: {type: type, id: id}}
+        ts:
+          function: "acmeTracker.trackScreen"
+          positional: [type, id]
+          import: "import { acmeTracker } from './acmeTracker';"
+      type_names: {namespace: AcmeScreens, function: screen}
+      template:
+        kotlin: templates/screen.kotlin.mustache
+        swift: templates/screen.swift.mustache
+        ts: templates/screen.ts.mustache
+  app:
+    codegen:
+      style: named
+      vars: {prefix: AcmeApp}
+      type_names: {namespace: AcmeAppConstants}
+      template:
+        kotlin: templates/named.kotlin.mustache
+        swift: templates/named.swift.mustache
+        ts: templates/named.ts.mustache

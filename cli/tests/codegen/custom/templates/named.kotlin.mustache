@@ -1,0 +1,27 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/** The `{{event_type.raw}}` event names, exactly as the plan spells them. */
+object {{vars.prefix}}EventNames {
+{{#plan.events}}
+{{#deprecated}}
+    @Deprecated("Deprecated in the tracking plan.")
+{{/deprecated}}
+{{^dynamic}}
+    const val {{names.upper_snake}} = {{literal}}
+{{/dynamic}}
+{{#dynamic}}
+    fun {{names.camel}}({{#tokens}}{{names.camel}}: String{{^last}}, {{/last}}{{/tokens}}): String = {{name_expr}}
+{{/dynamic}}
+{{/plan.events}}
+}
+
+/** The `{{event_type.raw}}` property keys. */
+object {{vars.prefix}}EventKeys {
+{{#plan.fields}}
+    const val {{names.upper_snake}} = {{literal}}
+{{/plan.fields}}
+}

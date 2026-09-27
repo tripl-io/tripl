@@ -25,14 +25,21 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from tripl_cli.check.config import NAME, NAME_IGLU, PROPERTIES, STYLE_SELF_DESCRIBING
+from tripl_cli.check.config import (
+    NAME,
+    NAME_IGLU,
+    PROPERTIES,
+    STYLE_SELF_DESCRIBING,
+    VALUE_NUMBER,
+)
 from tripl_cli.codegen import naming
-from tripl_cli.codegen.calls import Arg, args_of, callee, render_call
+from tripl_cli.codegen.calls import Arg, ArgRow, args_of, callee, render_call, transport_context
 from tripl_cli.codegen.context import (
     DESTINATION_FUNCTION,
     SHARED_TYPES,
     Target,
     base_context,
+    field_names,
     field_target,
     interpolation,
 )
@@ -40,6 +47,7 @@ from tripl_cli.codegen.languages import Dialect, comment
 from tripl_cli.codegen.model import TOKEN, EventModel, FieldModel, tokens
 from tripl_cli.codegen.naming import KOTLIN, SWIFT, TS, Namer
 from tripl_cli.codegen.value_types import STRING, EnumRegistry, ValueType, scalar_type
+from tripl_cli.errors import TriplConfigError
 
 _IGLU = re.compile(r"iglu:([^/]+)/([^/]+)/([^/]+)/([0-9]+-[0-9]+-[0-9]+)")
 _RESERVED_PROPS = frozenset({"name", "properties", "schema", "data", "self", "this"})
@@ -201,6 +209,7 @@ def _event_context(
         (dialect.literal(key), fixed_literals[key] or dialect.literal(value))
         for key, value in fixed.items()
     ]
+    prop_names = naming.NameScope(lang)
     return {
         "case": case_name,
         "class_name": class_name,
@@ -210,7 +219,11 @@ def _event_context(
         "deprecated": event.deprecated,
         "has_props": bool(props),
         "props": [
-            _prop_context(dialect, prop, number, len(props)) for number, prop in enumerate(props)
+            {
+                **_prop_context(dialect, prop, number, len(props)),
+                "names": prop_names.take(prop.key or prop.token or prop.ident),
+            }
+            for number, prop in enumerate(props)
         ],
         "init_signature": ", ".join(_init_param(dialect, prop) for prop in props),
         "name_expr": name_expression,
@@ -270,9 +283,12 @@ def _map_literal(dialect: Dialect, pairs: list[tuple[str, str]]) -> str:
     return "{ " + ", ".join(f"{k}: {v}" for k, v in pairs) + " }" if pairs else "{}"
 
 
-def named_context(target: Target, dialect: Dialect) -> dict[str, Any]:
+def named_context(
+    target: Target, dialect: Dialect, names: naming.KeyedNames | None = None
+) -> dict[str, Any]:
     event_type = target.event_type
     lang = dialect.name
+    names = names or field_names(target, lang)
     self_describing = target.style == STYLE_SELF_DESCRIBING
     namespace = target.type_override("namespace") or naming.type_name(
         event_type.name + " tracking", lang
@@ -299,6 +315,11 @@ def named_context(target: Target, dialect: Dialect) -> dict[str, Any]:
         )
         for event in event_type.events
     ]
+    event_names = naming.NameScope(lang)
+    events = [
+        {**item, "names": event_names.take(event.identity)}
+        for item, event in zip(events, event_type.events, strict=True)
+    ]
     # Swift: the switches over the enum's cases live behind a private protocol when a
     # case is deprecated (see named.swift.mustache), under a name no event type took.
     resolver = types.take(f"{event_name}Resolving")
@@ -321,16 +342,26 @@ def named_context(target: Target, dialect: Dialect) -> dict[str, Any]:
             return receiver + ("resolvedName" if lang == TS else "name")
         if plan_target == PROPERTIES:
             return receiver + data
+        if plan_target == VALUE_NUMBER:
+            raise TriplConfigError(
+                f"event_types.{event_type.name}.codegen.transport.{lang}: {VALUE_NUMBER!r} "
+                f"is for the structured and screen_view styles, not {target.style}."
+            )
         key = dialect.literal(plan_target)
         if lang == TS:
             return f"{data}[{key}] as string | undefined"
         return f"{receiver}{data}[{key}] as? String"
 
+    rows = [
+        ArgRow(arg.label, field_target(target, arg.target), None, expression_for(arg.target))
+        for arg in (args if transport is not None else [])
+    ]
     if transport is not None:
         where = f"event_types.{event_type.name}.codegen.transport.{lang}"
         keep_labels = lang != TS or object_arg is not None
         arguments = [
-            (arg.label if keep_labels else None, expression_for(arg.target)) for arg in args
+            (arg.label if keep_labels else None, row.expression)
+            for arg, row in zip(args, rows, strict=True)
         ]
         forward = render_call(dialect, callee(transport, where), arguments, object_arg)
     else:
@@ -368,4 +399,7 @@ def named_context(target: Target, dialect: Dialect) -> dict[str, Any]:
             },
         }
     )
+    transport_items = transport_context(transport, rows, object_arg, names)
+    if transport_items is not None:
+        context["transport"] = transport_items
     return context

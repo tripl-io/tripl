@@ -1,0 +1,27 @@
+{{header}}
+{{#plan.fields}}
+{{#closed}}
+
+/// The plan's values for `{{raw}}` ({{event_type.raw}}).
+public enum {{vars.prefix}}{{names.pascal}} {
+{{#values}}
+    public static let {{names.camel}} = {{literal}}
+{{/values}}
+}
+{{/closed}}
+{{/plan.fields}}
+
+/// Builds a `{{event_type.raw}}` event as the team's own {{vars.event_class}}, to be handed on.
+public enum {{namespace}} {
+    public static func {{function.name}}(
+{{#function.params}}
+        {{ident}}: {{#is_field}}String{{#optional}}? = nil{{/optional}}{{/is_field}}{{#is_value}}Double? = nil{{/is_value}}{{comma}}
+{{/function.params}}
+    ) -> {{vars.event_class}} {
+        {{transport.function}}(
+{{#transport.args}}
+            {{label}}: {{param}}{{comma}}
+{{/transport.args}}
+        )
+    }
+}

@@ -1,0 +1,30 @@
+{{header}}
+
+/// The planned `{{event_type.raw}}` screens: a (type, id) pair the plan does not list does not compile.
+public enum {{vars.prefix}}Screen: CaseIterable, Sendable {
+{{#plan.combinations}}
+    case {{names.camel}}
+{{/plan.combinations}}
+
+    public var type: String {
+        switch self {
+{{#plan.combinations}}
+        case .{{names.camel}}: return {{value.type.literal}}
+{{/plan.combinations}}
+        }
+    }
+
+    public var id: String? {
+        switch self {
+{{#plan.combinations}}
+        case .{{names.camel}}: return {{#value.id}}{{literal}}{{/value.id}}{{^value.id}}nil{{/value.id}}
+{{/plan.combinations}}
+        }
+    }
+}
+
+public enum {{namespace}} {
+    public static func {{function.name}}(_ screen: {{vars.prefix}}Screen) {
+        {{transport.function}}({{#transport.args}}{{label}}: screen.{{names.camel}}{{^last}}, {{/last}}{{/transport.args}})
+    }
+}

@@ -1,0 +1,12 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+
+/** The plan's values for `{{raw}}` ({{event_type.raw}}). */
+object {{vars.prefix}}{{names.pascal}} {
+{{#values}}
+    const val {{names.pascal}} = {{literal}}
+{{/values}}
+}

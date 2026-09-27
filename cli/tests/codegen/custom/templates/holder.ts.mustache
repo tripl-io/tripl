@@ -1,0 +1,9 @@
+{{header}}
+
+/** The plan's values for `{{raw}}` ({{event_type.raw}}). */
+export const {{vars.prefix}}{{names.pascal}} = {
+{{#values}}
+  {{names.camel}}: {{literal}},
+{{/values}}
+} as const;
+export type {{vars.prefix}}{{names.pascal}} = (typeof {{vars.prefix}}{{names.pascal}})[keyof typeof {{vars.prefix}}{{names.pascal}}];
