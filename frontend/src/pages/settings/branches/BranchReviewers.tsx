@@ -72,8 +72,8 @@ export function BranchReviewSummary({
   )
   const description = branch.description.trim()
 
-  // Only the project's members, and the instance owners who see every project
-  // without a member row, can review: anyone else cannot see the project, and
+  // Only the project's members, and the organization's owners and admins who
+  // see every project without a member row, can review: anyone else cannot see the project, and
   // the server refuses them (tripl-vefw).
   const { data: members } = useQuery({
     ...projectMembersQueryOptions(slug),

@@ -9,6 +9,8 @@ export function authAs(role: Role, id = `${role}-1`): AuthContextValue {
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [{ slug: 'default', name: 'Default', role }],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },

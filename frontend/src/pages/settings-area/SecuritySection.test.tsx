@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SecuritySection from './SecuritySection'
 
-const mockAuth = vi.hoisted(() => ({ role: 'editor' }))
+const mockAuth = vi.hoisted(() => ({ role: 'member', platformAdmin: false }))
 
 vi.mock('@/components/auth-context', () => ({
   useAuth: () => ({
@@ -13,6 +13,8 @@ vi.mock('@/components/auth-context', () => ({
       email: 'ada@example.com',
       name: 'Ada Lovelace',
       role: mockAuth.role,
+      is_platform_admin: mockAuth.platformAdmin,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -67,7 +69,8 @@ function renderSection() {
 
 afterEach(() => {
   vi.restoreAllMocks()
-  mockAuth.role = 'editor'
+  mockAuth.role = 'member'
+  mockAuth.platformAdmin = false
 })
 
 describe('Account · Security', () => {
@@ -100,12 +103,13 @@ describe('Account · Security', () => {
     expect(await screen.findByText(/can't send email, so no link went out/i)).toBeInTheDocument()
     // Not "ask a workspace owner… or to reset the password for you": there is
     // no such action, and the reader may be the owner (ST-24).
-    expect(screen.getByText(/Ask an owner to set it up/)).toBeInTheDocument()
+    expect(screen.getByText(/Ask a platform admin to set it up/)).toBeInTheDocument()
     expect(screen.queryByText(/reset the password for you/i)).toBeNull()
   })
 
-  it('tells an owner up front that email is off, with the way to set it up (ST-24)', async () => {
-    mockAuth.role = 'owner'
+  it('tells a platform admin up front that email is off, with the way to set it up (ST-24)', async () => {
+    // SMTP is operator-only: one relay carries every organization's mail.
+    mockAuth.platformAdmin = true
     mockApi({ emailConfigured: false })
     renderSection()
 
@@ -117,12 +121,12 @@ describe('Account · Security', () => {
     expect(screen.getByRole('button', { name: 'Email me a reset link' })).toBeDisabled()
   })
 
-  it('tells anyone else up front too, and to ask an owner (ST-24)', async () => {
+  it('tells anyone else up front too, and to ask a platform admin (ST-24)', async () => {
     mockApi({ emailConfigured: false })
     renderSection()
 
     expect(await screen.findByText("This instance can't send email yet.")).toBeInTheDocument()
-    expect(screen.getByText('Ask an owner to set it up.')).toBeInTheDocument()
+    expect(screen.getByText('Ask a platform admin to set it up.')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Set up email' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Email me a reset link' })).toBeDisabled()
   })

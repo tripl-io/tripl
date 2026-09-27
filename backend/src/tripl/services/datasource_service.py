@@ -48,14 +48,16 @@ async def list_data_sources(
     """Every data source the caller may see, with usage counted over the same set.
 
     ``visible_project_ids`` is ``project_access.member_project_ids`` for the
-    caller (``None`` = every project, an instance owner). A workspace-global
+    caller (``None`` = every project, for scripts; a request always passes the
+    caller's set, which for an organization owner/admin is every project of
+    that organization). A workspace-global
     source (``project_id`` NULL) is listed for everyone; a source bound to a
     project the caller is not a member of is left out entirely, since a
     non-member must not learn the project exists. The cached list is
     instance-wide and filtered after the read, so one entry serves every user of
     an organization; the entry is keyed by the bound organization (F20 PR3) so
-    no two organizations share it. The defensive cap applies per organization,
-    so one organization's sources can never crowd another's out of the list.
+    no two organizations share it. Only the bound organization's sources are
+    read (F20 PR4): another organization's warehouses do not exist here.
     """
     list_key = cache.key_data_sources_list(owning_org_id())
     cached = await cache.get_json(list_key)
@@ -69,17 +71,11 @@ async def list_data_sources(
             visible_project_ids=visible_project_ids,
         )
 
-    ranked = select(
-        DataSource.id,
-        func.row_number()
-        .over(partition_by=DataSource.organization_id, order_by=DataSource.created_at.desc())
-        .label("position"),
-    ).subquery()
     result = await session.execute(
         select(DataSource)
-        .join(ranked, ranked.c.id == DataSource.id)
-        .where(ranked.c.position <= _LIST_LIMIT_PER_ORG)
+        .where(DataSource.organization_id == owning_org_id())
         .order_by(DataSource.created_at.desc())
+        .limit(_LIST_LIMIT_PER_ORG)
     )
     rows = result.scalars().all()
     responses = [_to_response(ds) for ds in rows]
@@ -137,7 +133,8 @@ async def _with_usage(
     project path invalidates the data-source cache.
 
     Counts and refs cover only scans in ``visible_project_ids`` (``None`` = all,
-    for an instance owner and the owner-only write paths). A shared source read
+    for the org-admin write paths, which answer about one of their
+    organization's sources). A shared source read
     by a project the caller is not a member of must not reveal that project's
     name, slug or even its scan volume.
     """
@@ -307,6 +304,8 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
     settings = _validated_settings(data.db_type.value, raw_settings)
 
     ds = DataSource(
+        # The bound organization, where every data-source route looks it up.
+        organization_id=owning_org_id(),
         name=data.name,
         db_type=data.db_type,
         host=data.host,
@@ -322,7 +321,7 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
     await session.commit()
     await session.refresh(ds)
     await cache.delete_prefix(cache.prefix_data_sources())
-    # Owner-only write path: the owner sees every project's usage.
+    # Org-admin write path: an owner/admin sees every project's usage of it.
     return (await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0]
 
 
@@ -375,7 +374,7 @@ async def update_data_source(
         raise
     await session.refresh(ds)
     await cache.delete_prefix(cache.prefix_data_sources())
-    # Owner-only write path: the owner sees every project's usage.
+    # Org-admin write path: an owner/admin sees every project's usage of it.
     return (await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0]
 
 
@@ -461,7 +460,12 @@ async def delete_data_source(session: AsyncSession, ds_id: uuid.UUID) -> None:
 async def _fetch_data_source(
     session: AsyncSession, ds_id: uuid.UUID, *, with_scan_configs: bool = False
 ) -> DataSource:
-    query = select(DataSource).where(DataSource.id == ds_id)
+    # Fenced to the bound organization (F20 PR4): another organization's source
+    # is "not found", the same 404 an unknown id gets, for every caller —
+    # get, update, delete, test and schema introspection.
+    query = select(DataSource).where(
+        DataSource.id == ds_id, DataSource.organization_id == owning_org_id()
+    )
     if with_scan_configs:
         query = query.options(selectinload(DataSource.scan_configs))
     result = await session.execute(query)
@@ -619,7 +623,7 @@ async def test_data_source_connection(
         success=success,
         message=message,
         tested_at=tested_at,
-        # Owner-only: the owner sees every project's usage.
+        # Org-admin only: an owner/admin sees every project's usage of it.
         data_source=(await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0],
     )
 

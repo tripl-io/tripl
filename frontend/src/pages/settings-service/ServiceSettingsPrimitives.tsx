@@ -118,6 +118,37 @@ export function InactiveGroup({
   )
 }
 
+/** Why an operator field cannot be changed from an organization admin's session. */
+export const OPERATOR_ONLY_REASON =
+  'Only a platform admin can change these: they apply to every organization on this instance.'
+
+/**
+ * Operator-only fields (backend `OPERATOR_FIELDS`) inside a section an
+ * organization admin may open. For anyone but a platform admin they are shown
+ * and disabled, with the reason once: a save carrying one is refused with 403,
+ * which also threw away the organization fields saved beside it.
+ */
+export function OperatorFields({
+  locked,
+  quiet = false,
+  children,
+}: {
+  locked: boolean
+  /** Leave the reason out when an earlier group in the same card said it. */
+  quiet?: boolean
+  children: ReactNode
+}) {
+  if (!locked) return <>{children}</>
+  return (
+    <fieldset disabled data-operator-only="true" className="m-0 min-w-0 border-0 p-0">
+      {!quiet && (
+        <p className="m-0 px-4 pt-2.5 text-caption text-fg-tertiary">{OPERATOR_ONLY_REASON}</p>
+      )}
+      <div className="opacity-60">{children}</div>
+    </fieldset>
+  )
+}
+
 /** Placeholder cards while the instance settings (or their chunk) load. */
 export function InstanceSettingsSkeleton() {
   return (

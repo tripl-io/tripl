@@ -3,9 +3,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from tripl.models.domain_enums import UserRole
+from tripl.models.domain_enums import OrganizationRole
 
-Role = UserRole
+# The role vocabulary of the users API and ``/auth/me``: the ORGANIZATION role
+# (owner | admin | member) since F20 PR4. ``users.role`` (owner | editor |
+# viewer) is no longer read or returned; what a member may do inside a project
+# is their project role.
+Role = OrganizationRole
 
 # Single source of truth for the password policy. Enforced authoritatively here
 # (the schema is the only place a new password is validated before it is stored),
@@ -75,26 +79,54 @@ class AuthStatusResponse(BaseModel):
     email_configured: bool = False
 
 
+class OrgMembershipOut(BaseModel):
+    """One organization the signed-in user belongs to, with their role there."""
+
+    slug: str
+    name: str
+    role: Role
+
+
 class AuthUserResponse(BaseModel):
+    """The signed-in account. Built by ``auth_service.build_auth_user_response``.
+
+    ``role`` is the organization role in the organization the request acts in
+    (``None`` when the user belongs to none that applies); ``orgs`` lists every
+    membership. ``is_platform_admin`` is the operator flag, which grants the
+    operator settings and nothing inside any organization.
+    """
+
     id: uuid.UUID
     email: str
     name: str | None
-    role: Role
+    role: Role | None
+    is_platform_admin: bool = False
+    orgs: list[OrgMembershipOut] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
-
 
 class UserListItem(BaseModel):
+    """A member of the request's organization, with their organization role.
+
+    Built explicitly by ``user_service`` from the membership row, never
+    validated from a ``User`` (whose ``role`` is the unread legacy column).
+    """
+
     id: uuid.UUID
     email: str
     name: str | None
     role: Role
     created_at: datetime
 
-    model_config = {"from_attributes": True}
-
 
 class UserRoleUpdate(BaseModel):
+    """``PATCH /users/{id}``: the target's new ORGANIZATION role.
+
+    The vocabulary is the organization's: ``owner``, ``admin`` or ``member``.
+    The instance-era values map as ``owner`` -> ``owner`` and ``editor`` /
+    ``viewer`` -> ``member`` (write rights inside a project are the project
+    role's business); they are not accepted here any more (422).
+    """
+
     role: Role

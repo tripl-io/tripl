@@ -1336,8 +1336,8 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
     queryKey: eventTypeOwnersKey(slug, eventType.id),
     queryFn: () => eventTypeOwnersApi.list(slug, eventType.id),
   })
-  // Only the project's members, and the instance owners who see every project
-  // without a member row, can own its event types: anyone else cannot see the
+  // Only the project's members, and the organization's owners and admins who
+  // see every project without a member row, can own its event types: anyone else cannot see the
   // project, and the server refuses them (tripl-vefw).
   const { data: members } = useQuery(projectMembersQueryOptions(slug))
   const { data: users } = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })

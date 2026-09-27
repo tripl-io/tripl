@@ -3,14 +3,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { eventsApi } from '@/api/events'
 import { variablesApi } from '@/api/variables'
 import { variableDriftsApi } from '@/api/variableDrifts'
 import { variableOverridesApi } from '@/api/variableOverrides'
-import type { Role, Variable } from '@/types'
+import type { Variable } from '@/types'
 import { VariableDetailPage } from './VariableDetailPage'
 import { variableDetailPath, variableListPath } from './variableDetailPath'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/variables', () => ({
   variablesApi: {
@@ -55,17 +56,19 @@ function ListProbe() {
   return <p>list at {location.search}</p>
 }
 
-function renderPage(path: string, role: Role = 'owner') {
+function renderPage(path: string, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/p/:slug/variables/:id" element={<PageRoute />} />
-            <Route path="/p/:slug/variables" element={<ListProbe />} />
-          </Routes>
-        </MemoryRouter>
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/p/:slug/variables/:id" element={<PageRoute />} />
+              <Route path="/p/:slug/variables" element={<ListProbe />} />
+            </Routes>
+          </MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )

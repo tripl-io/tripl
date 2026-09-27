@@ -17,6 +17,9 @@ vi.mock('@/components/auth-context', () => ({
       email: 'ada@example.com',
       name: 'Ada Lovelace',
       role: 'owner',
+      // The first account of a self-hosted instance also operates it.
+      is_platform_admin: true,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },

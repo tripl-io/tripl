@@ -12,7 +12,7 @@ import {
 } from '@/components/onboarding-steps'
 import { useAuth } from '@/components/auth-context'
 import type { ProjectSummary } from '@/types'
-import { canWrite, isOwner as isOwnerRole } from '@/lib/permissions'
+import { isOwner as isOwnerRole, useCanWriteProject } from '@/lib/permissions'
 import { isOnboardingDismissed, setOnboardingDismissed } from '@/lib/onboardingDismissal'
 
 /**
@@ -96,6 +96,7 @@ export function OnboardingChecklist({
   isDemo,
 }: OnboardingChecklistProps) {
   const { user } = useAuth()
+  const canWriteHere = useCanWriteProject()
   const stepsId = useId()
   // A tick to force a re-render (and thus a re-read of localStorage) after
   // dismissal. Reading dismissal on render also means a slug change is picked up
@@ -116,10 +117,10 @@ export function OnboardingChecklist({
   if (isOnboardingDismissed(slug, projectId)) return null
 
   // Every step is an editor's job (scans, review, metrics and alerting are
-  // editor-gated, sources owner-only). For a viewer this card was a to-do list
-  // they could never work through and never finish, pinned until dismissed —
-  // so it is simply not theirs.
-  if (!canWrite(user?.role)) return null
+  // editor-gated, sources owner-only). For a viewer of this project the card was
+  // a to-do list they could never work through and never finish, pinned until
+  // dismissed — so it is simply not theirs.
+  if (!canWriteHere) return null
 
   const isOwner = isOwnerRole(user?.role)
   const steps = buildOnboardingSteps(slug, summary, sourceCount, metricCount)

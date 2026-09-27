@@ -17,6 +17,8 @@ import { createNoteDraftStore } from './noteDraftStore'
 import { recordInboxActionFailure } from './inboxActionErrors'
 import { SEARCH_DEBOUNCE_MS } from '@/hooks/useDebouncedValue'
 import { at } from '@/test/at'
+import { type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 /**
  * A session at one role.
@@ -32,6 +34,8 @@ function authValue(role: Role): AuthContextValue {
       email: 'someone@example.com',
       name: 'Someone',
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -93,7 +97,7 @@ function makeInbox(overrides: Partial<AlertInboxListResponse> = {}): AlertInboxL
 
 function renderInbox(
   overrides: Partial<Parameters<typeof AlertingInbox>[0]> = {},
-  role: Role = 'editor',
+  role: Persona = 'member',
 ) {
   const onAction = vi.fn<(variables: InboxActionVariables) => void>()
   // Selection is page-held state threaded in as props, exactly like the note
@@ -105,38 +109,40 @@ function renderInbox(
     vi.fn<(ids: readonly string[], selected: boolean) => void>()
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const utils = render(
-    <AuthContext.Provider value={authValue(role)}>
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <AlertingInbox
-          slug="demo"
-          inbox={makeInbox({ items: [makeGroup()], total: 1 })}
-          isLoading={false}
-          isError={false}
-          loadError={null}
-          pinnedGroup={null}
-          hasRules
-          statusFilter=""
-          onStatusFilterChange={vi.fn()}
-          filters={EMPTY_INBOX_FILTERS}
-          onFiltersChange={onFiltersChange}
-          onLoadMore={vi.fn()}
-          hasMore={false}
-          isLoadingMore={false}
-          noteDraftStore={createNoteDraftStore()}
-          expandedIncidents={new Set()}
-          toggleIncident={vi.fn()}
-          selectedIncidents={new Set()}
-          toggleIncidentSelected={toggleIncidentSelected}
-          setIncidentsSelected={setIncidentsSelected}
-          onAction={onAction}
-          pendingGroupIds={new Set()}
-          actionErrors={new Map()}
-          onGoToMonitors={vi.fn()}
-          {...overrides}
-        />
-      </MemoryRouter>
-    </QueryClientProvider>
+    <AuthContext.Provider value={authValue(role === 'viewer' ? 'member' : role)}>
+      <PersonaProject persona={role}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AlertingInbox
+            slug="demo"
+            inbox={makeInbox({ items: [makeGroup()], total: 1 })}
+            isLoading={false}
+            isError={false}
+            loadError={null}
+            pinnedGroup={null}
+            hasRules
+            statusFilter=""
+            onStatusFilterChange={vi.fn()}
+            filters={EMPTY_INBOX_FILTERS}
+            onFiltersChange={onFiltersChange}
+            onLoadMore={vi.fn()}
+            hasMore={false}
+            isLoadingMore={false}
+            noteDraftStore={createNoteDraftStore()}
+            expandedIncidents={new Set()}
+            toggleIncident={vi.fn()}
+            selectedIncidents={new Set()}
+            toggleIncidentSelected={toggleIncidentSelected}
+            setIncidentsSelected={setIncidentsSelected}
+            onAction={onAction}
+            pendingGroupIds={new Set()}
+            actionErrors={new Map()}
+            onGoToMonitors={vi.fn()}
+            {...overrides}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+      </PersonaProject>
     </AuthContext.Provider>,
   )
   return { ...utils, onAction, toggleIncidentSelected, setIncidentsSelected, onFiltersChange }
@@ -1032,7 +1038,7 @@ describe('AlertingInbox — viewer gating (tripl-oxkt.9)', () => {
   ]
 
   it('gives an editor the full action row', () => {
-    renderInbox({}, 'editor')
+    renderInbox({}, 'member')
 
     // Present on every card, always — the fixed slots are the whole point of
     // tripl-oxkt.8. Reopen is the one that is DISABLED on an open incident
@@ -1065,7 +1071,7 @@ describe('AlertingInbox — viewer gating (tripl-oxkt.9)', () => {
       'viewer',
     )
 
-    expect(screen.getAllByText(/your account has the viewer role/i)).toHaveLength(1)
+    expect(screen.getAllByText(/you have the viewer role in this project/i)).toHaveLength(1)
   })
 
   it('leaves everything a viewer came to read', () => {
@@ -1137,7 +1143,7 @@ describe('AlertingInbox — narrowing the list past its status', () => {
     })
     const onStatusFilterChange = vi.fn()
     utils.rerender(
-      <AuthContext.Provider value={authValue('editor')}>
+      <AuthContext.Provider value={authValue('member')}>
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
           <MemoryRouter>
             <AlertingInbox

@@ -2537,7 +2537,7 @@ usage: tripl docs push [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `<dir>` | The folder to upload. |
 | `--project SLUG` | **Required**, exactly once. |
 | `--scope SCOPE` | `project` or `organization`, default `project`. |
-| `--mirror` | Also **delete** every note of the scope that the folder does not carry. On `organization` the API refuses it to every API key: only the instance owner, signed in to the web app, can mirror organization notes. |
+| `--mirror` | Also **delete** every note of the scope that the folder does not carry. On `organization` the API refuses it to every API key: only an organization owner or admin, signed in to the web app, can mirror organization notes. |
 | `--keep-root` | Prefix every path with the folder's own name: `./checkout-skill` uploads `checkout-skill/SKILL.md` instead of `SKILL.md`. |
 | `--dry-run` | Walk the folder and print the request, and send nothing. |
 | `--yes` | Skip the preview and the question. Required when stdin is not a terminal. |

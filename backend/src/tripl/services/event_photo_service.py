@@ -17,7 +17,7 @@ from tripl.models.event_photo import EventPhoto
 from tripl.models.event_photo_comment import EventPhotoComment
 from tripl.models.plan_branch import BranchKind, BranchStatus
 from tripl.models.user import User
-from tripl.services import notification_announce, subscription_service
+from tripl.services import notification_announce, project_access, subscription_service
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.mentions import excerpt, mentioned_user_ids
 from tripl.services.project_lookup import resolve_project_id
@@ -515,17 +515,21 @@ async def _announce_photo_comment_mentions(
     )
 
 
-def ensure_comment_deletable(comment: EventPhotoComment, user: User) -> None:
-    """Only the comment's author or an owner may delete it.
+async def ensure_comment_deletable(
+    session: AsyncSession, comment: EventPhotoComment, user: User, project_id: uuid.UUID
+) -> None:
+    """Only the comment's author or an owner of the project may delete it.
 
-    The editor gate on the route answers "may this user write to the project";
-    it does not make another editor's words theirs to remove. A comment whose
-    author was deleted (``user_id`` NULL) is left to owners. Shared by the event
-    and the photo threads, which are the same table.
+    "Owner" is project role ``owner``, i.e. an owner/admin of the project's own
+    organization (:func:`project_access.member_role`). The editor gate on the
+    route answers "may this user write to the project"; it does not make another
+    editor's words theirs to remove. A comment whose author was deleted
+    (``user_id`` NULL) is left to owners. Shared by the event and the photo
+    threads, which are the same table.
     """
-    if user.role == "owner":
-        return
     if comment.user_id is not None and comment.user_id == user.id:
+        return
+    if await project_access.member_role(session, user, project_id) == project_access.OWNER:
         return
     raise HTTPException(
         status_code=403,
@@ -542,11 +546,12 @@ async def delete_comment(
     *,
     user: User,
 ) -> None:
-    await get_photo(session, slug, event_id, photo_id)
+    event = await _get_event(session, slug, event_id)
+    await _photo_on(session, event, photo_id)
     comment = await session.get(EventPhotoComment, comment_id)
     if comment is None or comment.photo_id != photo_id:
         raise HTTPException(status_code=404, detail="Comment not found")
-    ensure_comment_deletable(comment, user)
+    await ensure_comment_deletable(session, comment, user, event.project_id)
     await session.delete(comment)
     await session.commit()
 

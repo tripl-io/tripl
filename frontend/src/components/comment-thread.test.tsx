@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthContext, type AuthContextValue } from './auth-context'
+import { AuthContext } from './auth-context'
 import { CommentThread, type ThreadComment } from './comment-thread'
 import { at } from '@/test/at'
 import { authAs } from '@/test/auth'
+import { personaAuth } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 const { listMembers, listUsers } = vi.hoisted(() => ({ listMembers: vi.fn(), listUsers: vi.fn() }))
 vi.mock('@/api/projectMembers', () => ({ projectMembersApi: { list: listMembers } }))
@@ -70,32 +72,22 @@ afterEach(() => {
 
 describe('CommentThread', () => {
   it('lets a viewer read the thread but offers no write (EVT-9)', async () => {
-    const viewer: AuthContextValue = {
-      user: {
-        id: 'viewer-1',
-        email: 'viewer@example.com',
-        name: 'Viewer',
-        role: 'viewer',
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      },
-      status: 'authenticated',
-      error: null,
-      isLoggingOut: false,
-      logout: async () => {},
-      refresh: () => {},
-    }
+    const viewer = personaAuth('viewer')
     render(
       createElement(
         AuthContext.Provider,
         { value: viewer },
-        createElement(CommentThread, {
-          queryKey: ['thread', 'demo'],
-          list: () => Promise.resolve([comment({ id: 'c1', body: 'is this still sent?' })]),
-          create: vi.fn(),
-          remove: vi.fn(),
-          onAction: vi.fn(),
-        }),
+        createElement(
+          PersonaProject,
+          { persona: 'viewer' },
+          createElement(CommentThread, {
+            queryKey: ['thread', 'demo'],
+            list: () => Promise.resolve([comment({ id: 'c1', body: 'is this still sent?' })]),
+            create: vi.fn(),
+            remove: vi.fn(),
+            onAction: vi.fn(),
+          }),
+        ),
       ),
       { wrapper },
     )
@@ -177,7 +169,7 @@ describe('CommentThread', () => {
 })
 
 function renderAs(
-  role: 'owner' | 'editor',
+  role: 'owner' | 'member',
   rows: ThreadComment[],
   extra: Partial<{ onAction: () => Promise<unknown>; create: () => Promise<unknown> }> = {},
 ) {
@@ -227,8 +219,8 @@ describe('CommentThread delete (EVT-29)', () => {
     )
   })
 
-  it("offers an editor delete on their own comment only", async () => {
-    renderAs('editor', [
+  it("offers a member delete on their own comment only", async () => {
+    renderAs('member', [
       comment({ id: 'c1', body: 'mine', user_id: 'me' }),
       comment({ id: 'c2', body: 'theirs', user_id: 'someone-else' }),
     ])
@@ -250,7 +242,7 @@ describe('CommentThread delete (EVT-29)', () => {
 describe('CommentThread catalog counts (EVT-29)', () => {
   it("refreshes the catalog's open-question count when a new question is posted", async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    renderAs('editor', [], { onAction: vi.fn().mockResolvedValue({}) })
+    renderAs('member', [], { onAction: vi.fn().mockResolvedValue({}) })
 
     fireEvent.change(await screen.findByLabelText('Write a comment'), {
       target: { value: 'does this fire on cancel?' },
@@ -264,7 +256,7 @@ describe('CommentThread catalog counts (EVT-29)', () => {
 
   it('leaves the catalog alone for a thread with no resolution state', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const { create } = renderAs('editor', [])
+    const { create } = renderAs('member', [])
 
     fireEvent.change(await screen.findByLabelText('Write a comment'), {
       target: { value: 'a branch note' },
@@ -394,7 +386,7 @@ describe('CommentThread mentions (#259)', () => {
     return render(
       createElement(
         AuthContext.Provider,
-        { value: authAs('editor') },
+        { value: authAs('member') },
         createElement(CommentThread, {
           queryKey: ['thread', 'mentions', rows.length],
           list: () => Promise.resolve(rows),
@@ -424,7 +416,7 @@ describe('CommentThread mentions (#259)', () => {
     render(
       createElement(
         AuthContext.Provider,
-        { value: authAs('editor') },
+        { value: authAs('member') },
         createElement(CommentThread, {
           queryKey: ['thread', 'mentions'],
           list: () => Promise.resolve([]),
@@ -473,7 +465,7 @@ describe('CommentThread mentions (#259)', () => {
     listUsers.mockResolvedValue([
       { id: ADA, name: 'Ada Lovelace', email: 'ada@example.com', role: 'owner' },
       { id: GRACE, name: 'Grace Hopper', email: 'grace@example.com', role: 'owner' },
-      { id: LINUS, name: 'Linus', email: 'linus@example.com', role: 'editor' },
+      { id: LINUS, name: 'Linus', email: 'linus@example.com', role: 'member' },
     ])
     renderMentionThread([])
     await waitFor(() => expect(listUsers).toHaveBeenCalled())
@@ -487,7 +479,7 @@ describe('CommentThread mentions (#259)', () => {
 
   it('draws a chip under the member\'s current name, with their email as its title', async () => {
     listUsers.mockResolvedValue([
-      { id: ADA, name: 'Ada King', email: 'ada@example.com', role: 'editor' },
+      { id: ADA, name: 'Ada King', email: 'ada@example.com', role: 'member' },
     ])
     renderMentionThread([comment({ id: 'c-1', body: `ask @[Ada Lovelace](${ADA}) and @[Gone](${GRACE})` })])
 

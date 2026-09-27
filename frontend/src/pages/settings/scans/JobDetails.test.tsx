@@ -2,11 +2,12 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MonitoringSignal, Role, ScanJob, ScanJobResultSummary } from '@/types'
+import type { MonitoringSignal, ScanJob, ScanJobResultSummary } from '@/types'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { JobDetails } from './JobDetails'
 import type { ScanMode } from './scanMode'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 /** Every counter the panel used to BE, in the order it renders them. */
 const RAW_COUNTERS = [
@@ -218,16 +219,18 @@ describe('JobDetails', () => {
 describe('JobDetails — the raw error behind "Scan failed." (DATA-19)', () => {
   const RAW = 'HTTPSConnectionPool(host=ch.internal, port=8443): Read timed out'
 
-  function renderFailed(role: Role) {
+  function renderFailed(role: Persona) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const failed = { ...job(null), status: 'failed' as const, error_message: RAW }
     return render(
-      <AuthContext.Provider value={authAs(role)}>
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter>
-            <JobDetails job={failed} slug="demo" scanConfigId="scan-1" mode="monitoring" dataSourceId="ds-1" />
-          </MemoryRouter>
-        </QueryClientProvider>
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter>
+              <JobDetails job={failed} slug="demo" scanConfigId="scan-1" mode="monitoring" dataSourceId="ds-1" />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </PersonaProject>
       </AuthContext.Provider>,
     )
   }
@@ -241,7 +244,7 @@ describe('JobDetails — the raw error behind "Scan failed." (DATA-19)', () => {
   })
 
   it('never shows the raw text to anyone else', () => {
-    renderFailed('editor')
+    renderFailed('member')
 
     expect(screen.getByText('Scan failed: the data source did not respond in time.')).toBeInTheDocument()
     expect(screen.queryByText('View technical details')).not.toBeInTheDocument()
@@ -264,7 +267,7 @@ describe('JobDetails — the raw error behind "Scan failed." (DATA-19)', () => {
   it('offers no connection link to a role the data-source page would bounce', () => {
     // Data-source pages are owner-only; an editor following the link landed
     // back on the list with nothing to test.
-    renderFailed('editor')
+    renderFailed('member')
 
     expect(screen.getByRole('link', { name: 'Open Limits' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open the connection' })).not.toBeInTheDocument()

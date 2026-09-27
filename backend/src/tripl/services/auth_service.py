@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -19,13 +20,19 @@ from tripl.auth_utils import (
     password_hash_needs_rehash,
     verify_password,
 )
-from tripl.config import REGISTRATION_OPEN, settings
+from tripl.config import DEPLOYMENT_SELF_HOSTED, REGISTRATION_OPEN, settings
+from tripl.middleware.org_context import current_org_id
 from tripl.models.domain_enums import OrganizationRole
-from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
+from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
-from tripl.schemas.auth import LoginRequest, RegisterRequest
+from tripl.schemas.auth import (
+    AuthUserResponse,
+    LoginRequest,
+    OrgMembershipOut,
+    RegisterRequest,
+)
 from tripl.services import app_settings_service
 
 # Password-reset link lifetime. Short on purpose: a reset link is a bearer
@@ -54,12 +61,13 @@ PASSWORD_RESET_NEUTRAL_MESSAGE = (
 # never leaks which of those a rejected token hit.
 _PASSWORD_RESET_INVALID_MESSAGE = "This password reset link is invalid or has expired."
 
-# Advisory-lock key serialising the first-user-becomes-owner decision. Constant
-# (not per-row) on purpose: the thing being serialised is the global "is the
-# users table empty?" check. Derived from a fixed 8-byte tag so it is stable
-# across releases and unlikely to collide with the per-project locks (which
-# derive their keys from UUID bytes, see demo_runtime._acquire_project_xact_lock).
-OWNER_SET_LOCK_KEY = int.from_bytes(b"trplown1", "big", signed=True)
+# Tag mixed into every owner-set advisory-lock key. The key is per organization
+# (F20 PR4): who owns org A has nothing to do with who owns org B, so their
+# owner changes need not wait for each other. Hashed with a fixed tag so the
+# keys are stable across releases and unlikely to collide with the per-project
+# locks (which derive their keys from raw UUID bytes, see
+# demo_runtime._acquire_project_xact_lock).
+_OWNER_SET_LOCK_TAG = b"trplown1"
 _DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
@@ -113,16 +121,23 @@ async def create_session_for_user(session: AsyncSession, user_id: uuid.UUID) -> 
     return await _create_user_session(session, user_id)
 
 
-async def acquire_owner_set_xact_lock(session: AsyncSession) -> None:
-    """Serialise every change to who is an owner: entry to the set, and exit.
+def owner_set_lock_key(org_id: uuid.UUID) -> int:
+    """The signed 64-bit advisory-lock key guarding ``org_id``'s owner set."""
+    digest = hashlib.blake2b(_OWNER_SET_LOCK_TAG + org_id.bytes, digest_size=8).digest()
+    return int.from_bytes(digest, "big", signed=True)
 
-    Takes a constant-key transaction advisory lock BEFORE the ``has_any_users``
-    check so two concurrent first registrations can't both observe an empty
-    users table and both become owner (TOCTOU). The same key guards the demotion
-    side in ``api/v1/users.update_user_role``, where two concurrent demotions of
-    the last two owners would otherwise each see the other as the survivor and
-    leave the instance with none. One global invariant, one lock — and a
-    constant-key advisory lock cannot deadlock against itself.
+
+async def acquire_owner_set_xact_lock(session: AsyncSession, org_id: uuid.UUID) -> None:
+    """Serialise every change to who owns ``org_id``: entry to the set, and exit.
+
+    Registration takes the default organization's lock BEFORE the
+    ``has_any_users`` check so two concurrent first registrations can't both
+    observe an empty users table and both become owner (TOCTOU). The same key
+    guards the demotion side in ``user_service.update_org_role``, where two
+    concurrent demotions of an organization's last two owners would otherwise
+    each see the other as the survivor and leave it with none. One invariant per
+    organization, one lock per organization; a caller only ever holds one, so
+    the locks cannot deadlock against each other.
 
     PostgreSQL-only, same idiom as
     ``demo_runtime._acquire_project_xact_lock``: SQLite (tests) has no advisory
@@ -135,7 +150,7 @@ async def acquire_owner_set_xact_lock(session: AsyncSession) -> None:
         return
     await session.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),
-        {"key": OWNER_SET_LOCK_KEY},
+        {"key": owner_set_lock_key(org_id)},
     )
 
 
@@ -152,46 +167,47 @@ async def is_registration_allowed(session: AsyncSession, *, is_first_user: bool)
     return await app_settings_service.get_registration_mode(session) == REGISTRATION_OPEN
 
 
-def org_role_for_user_role(user_role: str) -> OrganizationRole:
-    """The organization role an instance role maps to — PR1's backfill mapping.
-
-    Kept identical to ``_org_role_for`` in migration b8d0f2a4c6e8 so a user who
-    signs up after the backfill holds the same membership one who existed before
-    it does: the instance owner owns the organization, everyone else is a member.
-    """
-    return OrganizationRole.owner if user_role == "owner" else OrganizationRole.member
-
-
 def add_organization_membership(
     session: AsyncSession,
     user: User,
     *,
-    organization_id: uuid.UUID = DEFAULT_ORG_ID,
-    org_role: str | None = None,
+    organization_id: uuid.UUID,
+    org_role: OrganizationRole,
 ) -> OrganizationMember:
     """Stage ``user``'s membership row; the caller flushes and commits.
 
-    Every user creation writes one, or the new user would get 404 on every
+    Every user creation writes one: the membership is the user's only source of
+    rights (F20 PR4), and without it they would get 404 on every
     ``/api/v1/orgs/{org}/...`` URL (and 400 on a hosted instance).
     """
     member = OrganizationMember(
         organization_id=organization_id,
         user_id=user.id,
-        role=org_role or org_role_for_user_role(user.role).value,
+        role=OrganizationRole(org_role).value,
     )
     session.add(member)
     return member
 
 
 async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[User, str]:
+    """Self-service sign-up into the default organization.
+
+    On a self-hosted instance the first user becomes the default organization's
+    owner AND a platform admin, so the instance always has someone who can
+    manage members and the operator settings. Every later user (and every user
+    of a hosted instance) joins as ``member``. Self-service sign-up never grants
+    platform admin on a hosted instance: nothing here proves the caller owns the
+    address, so ``PLATFORM_ADMIN_EMAILS`` is applied only operator-side (by the
+    organization migrations, to accounts that already exist).
+
+    The advisory lock closes the TOCTOU window: taken before the empty-table
+    check and held until this registration's commit, so a concurrent first
+    registration waits and then observes this user — exactly one owner.
+    ``users.role`` is not written: nothing reads it any more.
+    """
     email = normalize_email(data.email)
 
-    # First registered user becomes owner so the instance always has at least
-    # one operator who can manage roles; subsequent users default to editor.
-    # The advisory lock closes the TOCTOU window: taken before the empty-table
-    # check and held until this registration's commit, so a concurrent first
-    # registration waits and then observes this user — exactly one owner.
-    await acquire_owner_set_xact_lock(session)
+    await acquire_owner_set_xact_lock(session, DEFAULT_ORG_ID)
     is_first_user = not await has_any_users(session)
 
     # Checked BEFORE the duplicate-email lookup on purpose: on a closed instance
@@ -210,22 +226,80 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
             detail="User with this email already exists",
         )
 
-    role = "owner" if is_first_user else "editor"
-
+    self_hosted = settings.deployment_mode == DEPLOYMENT_SELF_HOSTED
+    bootstrap = is_first_user and self_hosted
     user = User(
         email=email,
         name=_normalize_name(data.name),
         password_hash=await asyncio.to_thread(hash_password, data.password),
-        role=role,
+        is_platform_admin=bootstrap,
     )
     session.add(user)
     await session.flush()
-    add_organization_membership(session, user)
+    add_organization_membership(
+        session,
+        user,
+        organization_id=DEFAULT_ORG_ID,
+        org_role=OrganizationRole.owner if bootstrap else OrganizationRole.member,
+    )
 
     session_token = await _create_user_session(session, user.id)
     await session.commit()
     await session.refresh(user)
     return user, session_token
+
+
+async def _membership_rows(
+    session: AsyncSession, user_id: uuid.UUID
+) -> list[tuple[uuid.UUID, str, str, str]]:
+    rows = await session.execute(
+        select(Organization.id, Organization.slug, Organization.name, OrganizationMember.role)
+        .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+        .where(OrganizationMember.user_id == user_id)
+        .order_by(Organization.name, Organization.slug)
+    )
+    return [(org_id, slug, name, str(role)) for org_id, slug, name, role in rows.all()]
+
+
+async def user_org_memberships(session: AsyncSession, user_id: uuid.UUID) -> list[OrgMembershipOut]:
+    """Every organization ``user_id`` belongs to, with their role there."""
+    return [
+        OrgMembershipOut(slug=slug, name=name, role=OrganizationRole(role))
+        for _org_id, slug, name, role in await _membership_rows(session, user_id)
+    ]
+
+
+async def build_auth_user_response(session: AsyncSession, user: User) -> AuthUserResponse:
+    """``/auth/me`` (and the login/register answers) for ``user``.
+
+    ``role`` is the user's role in the organization the request acts in: the
+    bound one, else the default organization, else the user's only one; ``None``
+    when none of those applies. ``orgs`` lists every membership so the UI can
+    tell the roles apart once a user belongs to several.
+    """
+    rows = await _membership_rows(session, user.id)
+    by_id = {org_id: role for org_id, _slug, _name, role in rows}
+    target = current_org_id()
+    role: str | None = None
+    if target is not None:
+        role = by_id.get(target)
+    elif DEFAULT_ORG_ID in by_id:
+        role = by_id[DEFAULT_ORG_ID]
+    elif len(rows) == 1:
+        role = rows[0][3]
+    return AuthUserResponse(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+        role=None if role is None else OrganizationRole(role),
+        is_platform_admin=bool(user.is_platform_admin),
+        orgs=[
+            OrgMembershipOut(slug=slug, name=name, role=OrganizationRole(org_role))
+            for _org_id, slug, name, org_role in rows
+        ],
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
 
 
 async def authenticate_user(session: AsyncSession, data: LoginRequest) -> tuple[User, str]:

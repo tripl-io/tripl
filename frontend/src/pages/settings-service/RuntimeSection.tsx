@@ -1,6 +1,6 @@
 import type { ServiceSettings } from '@/types'
 import { Field, SCard, TextInput } from '@/components/settings/kit'
-import { NumberSettingInput, SourceBadge } from './ServiceSettingsPrimitives'
+import { NumberSettingInput, OperatorFields, SourceBadge } from './ServiceSettingsPrimitives'
 import type { EditableSettings, SectionKey } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
 
@@ -8,14 +8,18 @@ export function RuntimeSection({
   form,
   settings,
   setField,
+  platformAdmin,
 }: {
   form: EditableSettings
   settings: ServiceSettings
   setField: (section: SectionKey, field: string, value: string | number | boolean) => void
+  /** The public URL is operator-only (backend `OPERATOR_FIELDS`). */
+  platformAdmin: boolean
 }) {
   return (
     <>
       <SCard title="Server">
+        <OperatorFields locked={!platformAdmin}>
         <Field
           label="App base URL"
           hint="Used in emails, webhooks and the ingest endpoint."
@@ -29,6 +33,7 @@ export function RuntimeSection({
             mono
           />
         </Field>
+        </OperatorFields>
       </SCard>
 
       <SCard title="Query limits">

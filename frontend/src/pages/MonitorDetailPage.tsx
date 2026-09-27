@@ -216,7 +216,7 @@ export default function MonitorDetailPage() {
       )}
       {!canWrite && (
         <ReadOnlyNotice>
-          Read-only: your account has the viewer role. Muting this rule and
+          Read-only: you have the viewer role in this project. Muting this rule and
           retrying its deliveries are done by an editor or owner.
         </ReadOnlyNotice>
       )}

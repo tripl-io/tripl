@@ -67,6 +67,7 @@ export function SettingsCommandPalette({
   backHref,
   backLabel = 'Back to project',
   isOwner,
+  isPlatformAdmin = false,
   projects,
   onLeave,
   onSwitchProject,
@@ -79,7 +80,10 @@ export function SettingsCommandPalette({
   /** The rail's words for the same link ("Back to Acme iOS"), so both name
    *  where it really goes (ST-4). */
   backLabel?: string
+  /** An owner or admin of the organization. */
   isOwner: boolean
+  /** The operator flag: the security, observability and system sections. */
+  isPlatformAdmin?: boolean
   projects: readonly Pick<Project, 'name' | 'slug'>[]
   /** Guarded navigation. `settingsPath` is null for a destination outside /settings. */
   /** Navigate away. The destination is all a caller needs: the settings
@@ -181,9 +185,9 @@ export function SettingsCommandPalette({
   ]
 
   // The rail's own groups, in the rail's order and under its labels, so the
-  // palette reads as the same map of the area. Owner-only sections are filtered
-  // exactly as the rail filters them.
-  const sectionGroups: PaletteGroup[] = visibleGroupsAll(isOwner).map(group => ({
+  // palette reads as the same map of the area. Owner-only and platform-only
+  // sections are filtered exactly as the rail filters them.
+  const sectionGroups: PaletteGroup[] = visibleGroupsAll(isOwner, isPlatformAdmin).map(group => ({
     heading: `${group.label} settings`,
     rows: group.items.map(item => ({
       value: `section:${item.path}`,

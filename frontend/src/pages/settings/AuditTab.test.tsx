@@ -396,7 +396,7 @@ describe('AuditTab — branch chip (tripl-wkwv.6)', () => {
 
 describe('AuditTab — who may read it, and a failed read (PLAN-47)', () => {
   it('tells an editor the log is owner-only instead of claiming it is empty', () => {
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
 
     expect(screen.getByText('Only owners can read the audit log')).toBeInTheDocument()
     expect(screen.queryByText(/No audit entries yet/)).toBeNull()

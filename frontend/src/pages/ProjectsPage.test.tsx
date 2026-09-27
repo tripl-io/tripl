@@ -5,14 +5,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import ProjectsPage from './ProjectsPage'
 import { at } from '@/test/at'
+import type { Role } from '@/types'
 
-function authValue(role: 'owner' | 'editor' | 'viewer'): AuthContextValue {
+function authValue(role: Role): AuthContextValue {
   return {
     user: {
       id: `${role}-1`,
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -24,7 +27,7 @@ function authValue(role: 'owner' | 'editor' | 'viewer'): AuthContextValue {
   }
 }
 
-function renderProjectsPage(role: 'owner' | 'editor' | 'viewer' = 'owner') {
+function renderProjectsPage(role: Role = 'owner') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -236,7 +239,7 @@ describe('ProjectsPage', () => {
       return Promise.reject(new Error(`Unexpected request: ${url}`))
     })
 
-    renderProjectsPage('editor')
+    renderProjectsPage('member')
 
     expect(await screen.findByText('Alpha')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Delete Alpha/i })).not.toBeInTheDocument()
@@ -438,7 +441,7 @@ describe('ProjectsPage', () => {
   it('hides raw scan internals from non-owners (H3)', async () => {
     mockSingleProject()
 
-    renderProjectsPage('viewer')
+    renderProjectsPage('member')
 
     expect(await screen.findByText('Beta')).toBeInTheDocument()
     expect(
@@ -1223,22 +1226,18 @@ describe('ProjectsPage', () => {
     expect(generating).toBeDisabled()
   })
 
-  it('shows viewers the pillars and an ask-an-owner note without create buttons (tripl-odrj.1)', async () => {
+  it('offers any organization member the create buttons on an empty workspace (F20 PR4)', async () => {
+    // No organization role is read-only: a member may create a project, and
+    // being read-only is a matter of a project's own `viewer` row.
     mockEmptyWorkspace()
 
-    renderProjectsPage('viewer')
+    renderProjectsPage('member')
 
     expect(await screen.findByText('Keep your product analytics honest')).toBeInTheDocument()
-    expect(screen.getByText('Design what should be tracked')).toBeInTheDocument()
-    expect(screen.getByText('Watch the real data')).toBeInTheDocument()
-    expect(screen.getByText('Stay in control')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Generate demo project/i })).toBeInTheDocument()
     expect(
-      screen.getByText(/Ask a workspace owner or editor to create the first project/),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: /Generate demo project/i }),
+      screen.queryByText(/Ask a workspace owner or editor to create the first project/),
     ).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /New project/i })).not.toBeInTheDocument()
   })
 
   it('returns the stat band and header CTAs once the first project exists (tripl-odrj.1)', async () => {

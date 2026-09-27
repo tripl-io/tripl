@@ -10,8 +10,9 @@ from sqlalchemy.exc import IntegrityError
 
 from tripl.main import app
 from tripl.services import _docs_store as docs_store
+from tripl.services.docs_access import ORG_NOTES_ADMIN_REQUIRED
 from tripl.services.docs_paths import MAX_FILE_BYTES
-from tripl.tests._docs_helpers import PASSWORD, create_project, get_doc, put_doc, register
+from tripl.tests._docs_helpers import create_project, get_doc, put_doc, register
 from tripl.tests._members import add_member_by_slug
 
 BASE = "/api/v1/projects/{slug}/docs"
@@ -273,19 +274,13 @@ class _People:
 
 @pytest_asyncio.fixture
 async def people(client: AsyncClient) -> AsyncGenerator[_People]:
-    """``client`` is the instance owner; a viewer member and a non-member editor."""
+    """``client`` is the organization owner; a project viewer and a non-member."""
     crew = _People()
     await create_project(client, "guarded")
     await put_doc(client, "guarded", "readme.md", "# Readme")
     await put_doc(client, "guarded", "org.md", "# Org", scope="organization")
-    viewer = await register(crew.viewer, "viewer@example.com", "Viewer")
+    await register(crew.viewer, "viewer@example.com", "Viewer")
     await register(crew.stranger, "stranger@example.com", "Stranger")
-    demote = await client.patch(f"/api/v1/users/{viewer['id']}", json={"role": "viewer"})
-    assert demote.status_code == 200, demote.text
-    relogin = await crew.viewer.post(
-        "/api/v1/auth/login", json={"email": "viewer@example.com", "password": PASSWORD}
-    )
-    assert relogin.status_code == 200, relogin.text
     await add_member_by_slug("guarded", "viewer@example.com", "viewer")
     yield crew
     await crew.viewer.aclose()
@@ -426,7 +421,8 @@ async def test_an_owner_key_cannot_bulk_delete_organization_notes(client: AsyncC
             folder.json()["detail"]
             == "Owner session required to delete folders of organization notes"
         )
-        # A single organization note is still an ordinary edit for an instance-wide key.
+        # A single organization note is still an ordinary edit for an org owner's
+        # organization-wide key.
         one = await bearer.put(
             _url("bulk", "/file"),
             params={"scope": "organization", "path": "team/b.md"},
@@ -437,7 +433,44 @@ async def test_an_owner_key_cannot_bulk_delete_organization_notes(client: AsyncC
     await get_doc(client, "bulk", "team/a.md", scope="organization")
 
 
-async def test_organization_folder_delete_needs_the_owner_and_is_fully_audited(
+async def test_organization_notes_are_written_by_organization_owners_and_admins(
+    client: AsyncClient,
+) -> None:
+    """A project editor who is a plain organization member reads organization notes
+    but cannot change them; promoted to organization admin, they can."""
+    await create_project(client, "orgwriters")
+    await put_doc(client, "orgwriters", "org.md", "# Org", scope="organization")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as editor:
+        member = await register(editor, "org-writer@example.com", "Writer")
+        await add_member_by_slug("orgwriters", "org-writer@example.com", "editor")
+        await put_doc(editor, "orgwriters", "mine.md", "project note")
+        await get_doc(editor, "orgwriters", "org.md", scope="organization")
+        refused = await editor.put(
+            _url("orgwriters", "/file"),
+            params={"scope": "organization", "path": "org.md"},
+            json={"content": "changed"},
+        )
+        assert refused.status_code == 403
+        assert refused.json()["detail"] == ORG_NOTES_ADMIN_REQUIRED
+        moved = await editor.post(
+            _url("orgwriters", "/move"),
+            json={"scope": "organization", "from_path": "org.md", "to_path": "x.md"},
+        )
+        assert moved.status_code == 403
+        deleted = await editor.delete(
+            _url("orgwriters", "/file"), params={"scope": "organization", "path": "org.md"}
+        )
+        assert deleted.status_code == 403
+
+        promote = await client.patch(f"/api/v1/users/{member['id']}", json={"role": "admin"})
+        assert promote.status_code == 200, promote.text
+        await put_doc(editor, "orgwriters", "org.md", "# Changed", scope="organization")
+    assert (await get_doc(client, "orgwriters", "org.md", scope="organization"))[
+        "title"
+    ] == "Changed"
+
+
+async def test_organization_folder_delete_needs_an_org_admin_and_is_fully_audited(
     client: AsyncClient,
 ) -> None:
     await create_project(client, "orgfolder")
@@ -445,19 +478,12 @@ async def test_organization_folder_delete_needs_the_owner_and_is_fully_audited(
     await put_doc(client, "orgfolder", "team/deep/b.md", "b", scope="organization")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as editor:
         await register(editor, "folder-editor@example.com", "Editor")
-        await editor.post(
-            "/api/v1/auth/login",
-            json={"email": "folder-editor@example.com", "password": PASSWORD},
-        )
         await add_member_by_slug("orgfolder", "folder-editor@example.com", "editor")
         refused = await editor.delete(
             _url("orgfolder", "/folder"), params={"scope": "organization", "path": "team"}
         )
         assert refused.status_code == 403
-        assert (
-            refused.json()["detail"]
-            == "Owner role required to delete folders of organization notes"
-        )
+        assert refused.json()["detail"] == ORG_NOTES_ADMIN_REQUIRED
 
     deleted = await client.delete(
         _url("orgfolder", "/folder"), params={"scope": "organization", "path": "team"}

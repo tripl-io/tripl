@@ -21,8 +21,11 @@ export interface FolderActions {
   onNewInFolder: (scope: DocScope, prefix: string) => void
   onMoveFolder: (scope: DocScope, prefix: string) => void
   onDeleteFolder: (scope: DocScope, prefix: string, count: number) => void
-  /** Deleting organization folders is owner-only (the server's bulk-delete rule). */
-  canDeleteFolder: (scope: DocScope) => boolean
+  /**
+   * Whether the viewer may change notes of `scope`: project notes follow the
+   * project's write gate, organization notes need an organization owner or admin.
+   */
+  canEditScope: (scope: DocScope) => boolean
 }
 
 /**
@@ -140,7 +143,7 @@ function ScopeRoot({
           {label}
         </h2>
         <span className="tnum text-caption text-fg-faint">{docs.length}</span>
-        {actions && (
+        {actions?.canEditScope(scope) && (
           <IconButton
             label={scope === 'project' ? 'New project note' : 'New organization note'}
             size="icon-xs"
@@ -219,7 +222,7 @@ function FolderList({
                 <span className="truncate">{sub.name}</span>
                 <span className="tnum ml-1 text-caption text-fg-faint">{sub.count}</span>
               </button>
-              {actions && (
+              {actions?.canEditScope(scope) && (
                 <span className="hidden shrink-0 items-center group-focus-within:flex group-hover:flex">
                   <IconButton label={`New note in ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onNewInFolder(scope, sub.path)}>
                     <FilePlus2 />
@@ -227,11 +230,9 @@ function FolderList({
                   <IconButton label={`Rename or move ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onMoveFolder(scope, sub.path)}>
                     <FolderPen />
                   </IconButton>
-                  {actions.canDeleteFolder(scope) && (
-                    <IconButton label={`Delete ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onDeleteFolder(scope, sub.path, sub.count)}>
-                      <FolderX />
-                    </IconButton>
-                  )}
+                  <IconButton label={`Delete ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onDeleteFolder(scope, sub.path, sub.count)}>
+                    <FolderX />
+                  </IconButton>
                 </span>
               )}
             </div>

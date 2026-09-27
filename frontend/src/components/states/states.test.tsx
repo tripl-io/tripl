@@ -119,7 +119,7 @@ describe('ReadOnlyNotice', () => {
   it('defaults to the viewer copy and takes an action', () => {
     render(<ReadOnlyNotice action={<a href="/settings/profile">Go to Profile</a>} />)
     const note = screen.getByRole('note')
-    expect(note).toHaveTextContent('Read-only: your account has the viewer role.')
+    expect(note).toHaveTextContent('Read-only: you have the viewer role in this project.')
     expect(screen.getByRole('link', { name: 'Go to Profile' })).toBeInTheDocument()
   })
 

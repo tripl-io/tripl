@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.doc_file import DocFile
 from tripl.models.organization import Organization
+from tripl.models.project import Project
 from tripl.schemas.docs import (
     DocBundle,
     DocBundleFile,
@@ -210,16 +211,22 @@ def _validate(item: DocBundleFile, seen: dict[str, str]) -> tuple[str, ParsedDoc
         return DocImportError(path=path, detail=str(exc))
 
 
-def check_import_allowed(caller: DocCaller, scope: DocScope, mode: DocImportMode) -> None:
+async def check_import_allowed(
+    session: AsyncSession, slug: str, caller: DocCaller, scope: DocScope, mode: DocImportMode
+) -> Project:
     """The authorization half of an import, answered before any upload is read.
 
-    A mirror deletes the notes the bundle leaves out, so for organization notes
-    it takes the bulk-delete rule. TODO(F20 PR4): organization owner/admin.
+    Resolves the path's project (its organization owns the organization notes)
+    and returns it. A mirror deletes the notes the bundle leaves out, so for
+    organization notes it takes the bulk-delete rule (org owner/admin, browser
+    session only).
     """
+    project = await _resolve_project(session, slug)
     if mode == "mirror":
-        require_org_bulk_delete(caller, scope, "mirror")
+        await require_org_bulk_delete(session, caller, scope, project.organization_id, "mirror")
     else:
-        require_doc_writer(caller, scope)
+        await require_doc_writer(session, caller, scope, project.organization_id)
+    return project
 
 
 async def import_zip(
@@ -233,7 +240,7 @@ async def import_zip(
     dry_run: bool,
     caller: DocCaller,
 ) -> DocImportResult:
-    check_import_allowed(caller, scope, mode)
+    await check_import_allowed(session, slug, caller, scope, mode)
     files, skipped, errors = parse_zip_upload(data, keep_root=keep_root)
     return await import_bundle(
         session,
@@ -260,14 +267,13 @@ async def import_bundle(
     skipped: list[DocImportSkipped] | None = None,
     errors: list[DocImportError] | None = None,
 ) -> DocImportResult:
-    check_import_allowed(caller, scope, mode)
+    project = await check_import_allowed(session, slug, caller, scope, mode)
     user = caller.user
     if sum(content_bytes(item.content) for item in files) > MAX_BUNDLE_BYTES:
         raise HTTPException(
             status_code=413,
             detail=f"Bundle is larger than {MAX_BUNDLE_BYTES // (1024 * 1024)} MiB",
         )
-    project = await _resolve_project(session, slug)
     result = DocImportResult(
         scope=scope,
         mode=mode,

@@ -39,15 +39,16 @@ Invite member (owners) and the theme toggle.
 ## Before you start
 
 1. Open the app and create the first account on the sign-in screen. **The first
-   person to register becomes an owner**; everyone who registers after that
-   starts as an editor.
+   person to register becomes the owner of the organization** (and the instance's
+   platform admin); everyone who registers after that joins as a **member**, who
+   sees the projects they create or are added to.
 
    :::note Forgot your password?
    The sign-in screen has a **Forgot your password?** link. When the instance has
    email configured (see **[Email delivery](../run/security.md)** / the SMTP
    settings), it emails a single-use reset link that expires in one hour; open it
    to choose a new password. If email is **not** configured, the same screen tells
-   you to contact your instance owner, who can reset it for you. To avoid leaking
+   you to contact an owner, who can reset it for you. To avoid leaking
    who has an account, the request always shows the same confirmation regardless of
    whether the address is registered.
    :::
@@ -65,10 +66,11 @@ needs no warehouse, so you can learn the product before wiring up any data.
 
 A **project** is one tracking plan and everything around it — its own events,
 scans, metrics, and alert rules. Each project also has its own **members**:
-only they (and instance owners) can see it, and whoever creates a project is an
-editor member of it. Add people in **Settings → Project → Access**. Instance
-roles and data-source connections are workspace-wide, although API keys can be
-bound to one project.
+only they (and the organization's owners and admins) can see it, and whoever
+creates a project is an editor member of it. Add people in **Settings → Project →
+Access**, as an **editor** or a **viewer** of that project. Organization roles
+(owner, admin, member) and data-source connections are workspace-wide, although
+API keys can be bound to one project.
 A company with an
 iOS app, an Android app, and a website that share analytics is usually *one*
 project; two unrelated products are two projects.
@@ -174,10 +176,10 @@ without checking the certificate — to also authenticate the server, choose
 `verify-full` and supply a CA certificate.
 :::
 
-:::warning Only owners manage data sources
+:::warning Only owners and admins manage data sources
 Connecting, editing, testing, and deleting data sources is restricted to the
-**owner** role. Editors and viewers can use the events that a scan produces but
-cannot change the connection itself. Data sources live in workspace settings and
+organization's **owners and admins**. Members — project editors and viewers —
+can use the events that a scan produces but cannot change the connection itself. Data sources live in workspace settings and
 are shared across the workspace rather than scoped to a single project.
 :::
 
@@ -796,10 +798,14 @@ Replaying the rule against recent data is the quickest way to confirm whether it
   were written on main, or are actions that have no branch to name at all
   (alerting, scans, data sources, users, API keys). This is also your first stop
   when recovering from a mistaken change.
-- **Roles** — in workspace settings, invite teammates as **viewer** (read-only),
-  **editor** (can change the plan, scans, and alerts), or **owner** (full
-  control, including people and data sources). Owner is also the only role that
-  manages data sources.
+- **Roles** — in workspace settings, invite teammates into the organization as
+  a **member**, an **admin** or an **owner**. Owners and admins hold every
+  project and manage people, data sources and scan SQL; an admin cannot make or
+  remove owners. A member sees only the projects they are added to, as an
+  **editor** (can change the plan, and alerts) or a **viewer** (read-only) of
+  each — set per project under **Settings → Project → Access**. Instance-wide
+  operator settings (security, observability) belong to the platform admin,
+  which on a self-hosted instance is whoever registered first.
 - **API keys** — issue keys for scripts and AI agents, scoped to **read** or
   **write**, optionally locked to a single project and given an expiry. Revoke
   them at any time. See the [Agent API guide](../integrate/agent-api-guide) for

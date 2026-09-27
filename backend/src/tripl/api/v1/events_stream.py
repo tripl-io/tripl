@@ -9,10 +9,11 @@ Auth + scope: the router is mounted with ``Depends(get_current_user)`` (see
 API key, enforces that it may only reach ITS own project (``_enforce_project_scope``).
 Anonymous callers get 401; a foreign project-scoped key gets the same 404 ("Project
 not found") an unknown slug gets. The router's project-membership dependency then
-404s a caller who is not a member of the project — an instance owner reaches every
-project — before the stream opens, so a non-member cannot even learn the slug
-exists. The handler resolves the slug to the project's id within the request's
-organization, 404-ing an unknown project, and subscribes to that id's channel.
+404s a caller who is not a member of the project — an owner or admin of the project's
+organization reaches every project of that organization — before the stream opens,
+so a non-member cannot even learn the slug exists. The handler resolves the slug to
+the project's id within the request's organization, 404-ing an unknown project, and
+subscribes to that id's channel.
 
 Membership is checked again while the stream is open: a stream can live for hours,
 and a member removed from the project must stop receiving its events. Every

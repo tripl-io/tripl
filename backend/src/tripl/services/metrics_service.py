@@ -22,6 +22,7 @@ from tripl.core.analyzers.anomaly_detector import (
 )
 from tripl.core.intervals import get_interval
 from tripl.models.anomaly_scope_override import AnomalyScopeOverride
+from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import MetricBreakdownAnomalyKind
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
@@ -77,7 +78,7 @@ from tripl.services.monitoring_utils import (
     scan_liveness_cutoff,
 )
 from tripl.services.plan_branch_service import ensure_main_branch_id, resolve_branch_id
-from tripl.services.project_lookup import resolve_project
+from tripl.services.project_lookup import owning_org_id, resolve_project
 from tripl.services.version_activation import (
     DEFAULT_ACTIVE_SHARE_MIN,
     active_release_versions,
@@ -2263,7 +2264,17 @@ async def get_data_source_stats(
     the table flat reported matched volume twice and unmatched volume once —
     close to 2x (tripl-0zpq.118). ``events_tracked`` still counts distinct
     ``event_id`` across all rows, because only the event-level rows carry one.
+
+    Another organization's source is "not found" (F20 PR4), the answer every
+    other data-source route gives it.
     """
+    in_org = await session.scalar(
+        select(DataSource.id).where(
+            DataSource.id == data_source_id, DataSource.organization_id == owning_org_id()
+        )
+    )
+    if in_org is None:
+        raise HTTPException(404, "Data source not found")
     time_from = datetime.now(UTC) - timedelta(hours=window_hours)
     type_level = and_(EventMetric.event_id.is_(None), EventMetric.event_type_id.is_not(None))
     volume = func.coalesce(func.sum(case((type_level, EventMetric.count), else_=0)), 0)

@@ -32,8 +32,24 @@ export type SettingsNavItem = {
   icon: LucideIcon
   /** Route segment under /settings (e.g. 'project/general'). */
   path: string
-  /** Owner-only sections are hidden for non-owners. */
+  /**
+   * Owner-only sections are hidden for everyone but an owner or admin of the
+   * organization (`isOwner`).
+   */
   ownerOnly?: boolean
+  /**
+   * An organization-scoped INSTANCE settings section (runtime, email, AI,
+   * storage): `/settings` admits a platform admin as well as an org owner or
+   * admin (backend `get_settings_admin_user`), so it shows for either. Only
+   * meaningful next to `ownerOnly`.
+   */
+  settingsAdmin?: boolean
+  /**
+   * An operator-only section (security, observability, system): shown only to
+   * a platform admin (backend `require_platform_admin`), whatever their
+   * organization role. Wins over `ownerOnly`.
+   */
+  platformOnly?: boolean
   /**
    * What people type when they look for this section but do not know its name
    * ("timezone" finds General). Palettes match on these as well as the label
@@ -149,7 +165,10 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
   {
     label: 'Instance',
     sub: 'Owner only',
-    // "(owner only)" is the sub-label's job; saying it twice read as chrome (ST-7).
+    // "(owner only)" is the sub-label's job; saying it twice read as chrome
+    // (ST-7). "Owner" is the UI's word for an org owner or admin, who get the
+    // organization-scoped sections; the operator ones (security,
+    // email, observability, system) are the platform admin's.
     desc: 'Server-wide settings',
     items: [
       {
@@ -158,6 +177,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Cpu,
         path: 'instance/runtime',
         ownerOnly: true,
+        settingsAdmin: true,
         keywords: ['workers', 'scheduler', 'retention'],
       },
       {
@@ -166,6 +186,8 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Mail,
         path: 'instance/email',
         ownerOnly: true,
+        // One SMTP relay carries every organization's mail: operator-only.
+        platformOnly: true,
         keywords: ['smtp', 'mail'],
       },
       {
@@ -174,6 +196,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Sparkles,
         path: 'instance/ai',
         ownerOnly: true,
+        settingsAdmin: true,
         keywords: ['llm', 'model', 'explanations'],
       },
       {
@@ -182,17 +205,33 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Shield,
         path: 'instance/security',
         ownerOnly: true,
+        platformOnly: true,
         keywords: ['registration', 'sign up', 'sso', 'access'],
       },
-      { id: 'storage', label: 'Storage', icon: Archive, path: 'instance/storage', ownerOnly: true },
+      {
+        id: 'storage',
+        label: 'Storage',
+        icon: Archive,
+        path: 'instance/storage',
+        ownerOnly: true,
+        settingsAdmin: true,
+      },
       {
         id: 'observability',
         label: 'Observability',
         icon: Activity,
         path: 'instance/observability',
         ownerOnly: true,
+        platformOnly: true,
       },
-      { id: 'system', label: 'System', icon: Server, path: 'instance/system', ownerOnly: true },
+      {
+        id: 'system',
+        label: 'System',
+        icon: Server,
+        path: 'instance/system',
+        ownerOnly: true,
+        platformOnly: true,
+      },
       // The only Instance section that is not a settings form: it reads the
       // whole audit feed rather than editing configuration. It lives here
       // because the actions it exists for — data sources, member roles, API
@@ -272,12 +311,33 @@ export function contextForPath(path: string): SettingsContext {
   return path.startsWith('project/') ? 'project' : 'workspace'
 }
 
-/** Group the visible workspace groups for a role (drops owner-only Instance). */
-export function visibleGroups(ctx: SettingsContext, isOwner: boolean): SettingsNavGroup[] {
+/**
+ * Whether a section is shown to this caller (F20 PR4).
+ *
+ * `isOwner` is an owner or admin of the organization; `isPlatformAdmin` the
+ * operator flag. A platform-only section needs the flag; an org-scoped instance
+ * section takes either; any other owner-only section takes the org role.
+ */
+export function itemVisible(
+  item: Pick<SettingsNavItem, 'ownerOnly' | 'settingsAdmin' | 'platformOnly'>,
+  isOwner: boolean,
+  isPlatformAdmin = false,
+): boolean {
+  if (item.platformOnly) return isPlatformAdmin
+  if (!item.ownerOnly) return true
+  return isOwner || (item.settingsAdmin === true && isPlatformAdmin)
+}
+
+/** Group the visible workspace groups for a role (drops the Instance sections it cannot use). */
+export function visibleGroups(
+  ctx: SettingsContext,
+  isOwner: boolean,
+  isPlatformAdmin = false,
+): SettingsNavGroup[] {
   return SETTINGS_NAV[ctx]
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => !item.ownerOnly || isOwner),
+      items: group.items.filter((item) => itemVisible(item, isOwner, isPlatformAdmin)),
     }))
     .filter((group) => group.items.length > 0)
 }
@@ -287,6 +347,9 @@ export function visibleGroups(ctx: SettingsContext, isOwner: boolean): SettingsN
  * The settings nav no longer splits project vs workspace behind a segmented
  * toggle — all config lives under a single scrollable rail.
  */
-export function visibleGroupsAll(isOwner: boolean): SettingsNavGroup[] {
-  return [...visibleGroups('project', isOwner), ...visibleGroups('workspace', isOwner)]
+export function visibleGroupsAll(isOwner: boolean, isPlatformAdmin = false): SettingsNavGroup[] {
+  return [
+    ...visibleGroups('project', isOwner, isPlatformAdmin),
+    ...visibleGroups('workspace', isOwner, isPlatformAdmin),
+  ]
 }

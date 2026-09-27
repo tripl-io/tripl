@@ -66,7 +66,7 @@ from tripl.services.plan_revision_service import (
     compute_plan_diff_entries,
     plan_snapshot_hash,
 )
-from tripl.services.project_access import member_role
+from tripl.services.project_access import OWNER, member_role
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
 from tripl.services.project_lookup import resolve_project, resolve_project_id
 from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
@@ -1282,7 +1282,8 @@ async def add_reviewer(
     _reject_main(branch)
     reviewer_user = await _resolve_user(session, data.user_id)
     # A reviewer who cannot see the project could never open the branch to
-    # review it; the instance owner counts, as they see every project.
+    # review it; an owner/admin of the project's organization counts, as they see
+    # every project of it.
     if await member_role(session, reviewer_user, project_id) is None:
         raise HTTPException(status_code=422, detail=NOT_A_MEMBER_DETAIL)
     existing = await session.scalar(
@@ -1450,8 +1451,10 @@ async def delete_comment(
     if comment is None or comment.branch_id != branch.id:
         raise HTTPException(status_code=404, detail="Comment not found")
     # Same rule as the event and photo threads: an editor removes their own
-    # words, an owner moderates, and an orphaned comment is left to owners.
-    if user.role != "owner" and (comment.user_id is None or comment.user_id != user.id):
+    # words, a project owner (owner/admin of the project's organization)
+    # moderates, and an orphaned comment is left to owners.
+    is_author = comment.user_id is not None and comment.user_id == user.id
+    if not is_author and await member_role(session, user, project_id) != OWNER:
         raise HTTPException(
             status_code=403,
             detail="Only the comment's author or an owner can delete it",

@@ -3,8 +3,8 @@ import type { ProjectMember, ProjectMemberRole } from '../types'
 
 /**
  * Project membership. Anyone who can see the project may list its members;
- * adding, re-roling and removing are for the instance owner and the project's
- * creator, and the server enforces that.
+ * adding, re-roling and removing are for the organization's owners and admins
+ * and the project's creator, and the server enforces that.
  */
 export const projectMembersApi = {
   list: (slug: string, signal?: AbortSignal) =>

@@ -111,7 +111,7 @@ export interface paths {
          *
          *     Unauthenticated by necessity — the whole point is that this person cannot
          *     sign in yet. It discloses nothing the token holder does not already have:
-         *     the address it was issued to, the role it grants, and when it lapses. It
+         *     the address it was issued to, the organization role it grants, and when it lapses. It
          *     does not reveal whether the instance has other users, or who they are.
          *
          *     Shares the cheap /status bucket rather than the register bucket: previewing
@@ -196,7 +196,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Me */
+        /**
+         * Get Me
+         * @description The signed-in account with its organization role(s) and the platform-admin flag.
+         */
         get: operations["get_me_api_v1_auth_me_get"];
         put?: never;
         post?: never;
@@ -305,7 +308,7 @@ export interface paths {
          * Test Unsaved Data Source Connection
          * @description Test a connection before it is saved (DATA-30).
          *
-         *     The create gate (owner, browser session) and the create body's validation,
+         *     The create gate (org owner/admin, browser session) and the create body's validation,
          *     host format included; nothing is stored and no stored secret is read. Always
          *     200: a refused connection is the answer the caller asked for.
          */
@@ -4462,7 +4465,7 @@ export interface paths {
          * Get Photo Limits
          * @description The photo upload limit, readable by every signed-in user.
          *
-         *     The rest of this router is owner-only; this one value is not, because it is
+         *     The rest of this router is for settings admins; this one value is not, because it is
          *     an editor's upload it refuses and the browser should say so before the
          *     upload rather than after (EVT-28). The router's own dependency still
          *     requires a session.
@@ -4487,7 +4490,7 @@ export interface paths {
          * Get Row Limit Defaults
          * @description The instance row caps a scan falls back to, readable by every signed-in user.
          *
-         *     Owner-only like the rest of this router would hide the real numbers from the
+         *     Admin-only like the rest of this router would hide the real numbers from the
          *     editors who fill in a scan's Limits, so the form hard-coded the shipped
          *     defaults instead (B15). Two integers, nothing about the connection.
          */
@@ -4507,7 +4510,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Users */
+        /**
+         * List Users
+         * @description The members of the request's organization with their organization role.
+         *
+         *     Any member may see the roster (it feeds the member pickers); a signed-in
+         *     account outside the organization gets 403.
+         */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
         post?: never;
@@ -4526,17 +4535,18 @@ export interface paths {
         };
         /**
          * List Invitations
-         * @description Outstanding invitations. Owner-only: this is the roster of pending access.
+         * @description Outstanding invitations into the organization: the roster of pending access.
          */
         get: operations["list_invitations_api_v1_users_invitations_get"];
         put?: never;
         /**
          * Create Invitation
-         * @description Invite one person, at a role the owner picks.
+         * @description Invite one person into the request's organization, at an organization role.
          *
-         *     ``OwnerUserDep`` is owner-only AND rejects API keys of any scope, so minting
-         *     an account always requires an interactive owner session — an automation
-         *     token can never conjure a new identity.
+         *     ``OwnerUserDep`` is org owner/admin-only AND rejects API keys of any scope, so
+         *     minting an account always requires an interactive session — an automation
+         *     token can never conjure a new identity. Inviting at ``owner`` takes an
+         *     owner: an admin cannot mint an account more privileged than their own.
          *
          *     The redeem link is returned in the body, not merely emailed: SMTP is
          *     optional and unconfigured on many instances, so a body-only path is the one
@@ -4561,7 +4571,7 @@ export interface paths {
         post?: never;
         /**
          * Revoke Invitation
-         * @description Revoke an invitation; its link stops working immediately.
+         * @description Revoke an invitation into the organization; its link stops working immediately.
          */
         delete: operations["revoke_invitation_api_v1_users_invitations__invitation_id__delete"];
         options?: never;
@@ -4582,7 +4592,15 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update User Role */
+        /**
+         * Update User Role
+         * @description Change a member's ORGANIZATION role (owner | admin | member).
+         *
+         *     404 for an account outside the organization, 400 when it would leave the
+         *     organization without an owner, 403 when an admin tries to make or unmake an
+         *     owner. The member stays signed in; the new role applies from their next
+         *     request.
+         */
         patch: operations["update_user_role_api_v1_users__user_id__patch"];
         trace?: never;
     };
@@ -6338,7 +6356,15 @@ export interface components {
              */
             registration_enabled: boolean;
         };
-        /** AuthUserResponse */
+        /**
+         * AuthUserResponse
+         * @description The signed-in account. Built by ``auth_service.build_auth_user_response``.
+         *
+         *     ``role`` is the organization role in the organization the request acts in
+         *     (``None`` when the user belongs to none that applies); ``orgs`` lists every
+         *     membership. ``is_platform_admin`` is the operator flag, which grants the
+         *     operator settings and nothing inside any organization.
+         */
         AuthUserResponse: {
             /**
              * Created At
@@ -6352,9 +6378,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Platform Admin
+             * @default false
+             */
+            is_platform_admin: boolean;
             /** Name */
             name: string | null;
-            role: components["schemas"]["UserRole"];
+            /** Orgs */
+            orgs?: components["schemas"]["OrgMembershipOut"][];
+            role: components["schemas"]["OrganizationRole"] | null;
             /**
              * Updated At
              * Format: date-time
@@ -10109,8 +10142,8 @@ export interface components {
              * Format: email
              */
             email: string;
-            /** @default editor */
-            role: components["schemas"]["UserRole"];
+            /** @default member */
+            role: components["schemas"]["OrganizationRole"];
         };
         /**
          * InvitationCreatedResponse
@@ -10147,7 +10180,7 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /**
          * InvitationResponse
@@ -10186,7 +10219,7 @@ export interface components {
              *     to see that a link they sent no longer works.
              */
             readonly is_expired: boolean;
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /** LifecycleFindingListResponse */
         LifecycleFindingListResponse: {
@@ -11430,6 +11463,28 @@ export interface components {
             request_id_header?: string | null;
         };
         /**
+         * OrgMembershipOut
+         * @description One organization the signed-in user belongs to, with their role there.
+         */
+        OrgMembershipOut: {
+            /** Name */
+            name: string;
+            role: components["schemas"]["OrganizationRole"];
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * OrganizationRole
+         * @description A user's role in one organization (``organization_members.role``).
+         *
+         *     The source of truth for organization-level rights (F20 PR4). ``owner`` and
+         *     ``admin`` administer the organization and are the implicit ``owner`` of
+         *     every project in it; only an ``owner`` can make or unmake another owner.
+         *     ``member`` holds exactly the roles of their ``project_members`` rows.
+         * @enum {string}
+         */
+        OrganizationRole: "owner" | "admin" | "member";
+        /**
          * OverviewKpiSeriesResponse
          * @description Real daily series behind Overview KPI sparklines.
          *
@@ -12363,10 +12418,10 @@ export interface components {
          * ProjectMemberRole
          * @description A user's role inside one project (``project_members.role``).
          *
-         *     There is no per-project ``owner``: the instance owner (``UserRole.owner``)
-         *     sees and manages every project without a membership row. The effective role
-         *     is also capped by the instance role, so a ``viewer`` user holding an
-         *     ``editor`` membership still acts as a viewer (``services.project_access``).
+         *     There is no per-project ``owner``: an owner or admin of the project's
+         *     organization (:class:`OrganizationRole`) sees and manages every project of
+         *     that organization without a membership row, as project role ``owner``. For
+         *     everyone else the row is authoritative (``services.project_access``).
          * @enum {string}
          */
         ProjectMemberRole: "editor" | "viewer";
@@ -14043,7 +14098,7 @@ export interface components {
                 [key: string]: "env" | "override" | "default";
             };
             storage: components["schemas"]["StorageSettings"];
-            system: components["schemas"]["SystemSettings"];
+            system: components["schemas"]["SystemSettings"] | null;
         };
         /** ServiceSettingsUpdate */
         ServiceSettingsUpdate: {
@@ -14882,7 +14937,13 @@ export interface components {
             /** Updated */
             updated: boolean;
         };
-        /** UserListItem */
+        /**
+         * UserListItem
+         * @description A member of the request's organization, with their organization role.
+         *
+         *     Built explicitly by ``user_service`` from the membership row, never
+         *     validated from a ``User`` (whose ``role`` is the unread legacy column).
+         */
         UserListItem: {
             /**
              * Created At
@@ -14898,16 +14959,19 @@ export interface components {
             id: string;
             /** Name */
             name: string | null;
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /**
-         * UserRole
-         * @enum {string}
+         * UserRoleUpdate
+         * @description ``PATCH /users/{id}``: the target's new ORGANIZATION role.
+         *
+         *     The vocabulary is the organization's: ``owner``, ``admin`` or ``member``.
+         *     The instance-era values map as ``owner`` -> ``owner`` and ``editor`` /
+         *     ``viewer`` -> ``member`` (write rights inside a project are the project
+         *     role's business); they are not accepted here any more (422).
          */
-        UserRole: "owner" | "editor" | "viewer";
-        /** UserRoleUpdate */
         UserRoleUpdate: {
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /** ValidationError */
         ValidationError: {

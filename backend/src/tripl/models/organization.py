@@ -1,11 +1,11 @@
 """Organizations: the tenant boundary above projects (F20, GH #273).
 
-PR1 adds the schema and nothing else. Every project, data source, API key and
-invitation belongs to exactly one organization, and today that is always the
-default one below: the migration puts every existing row and every existing user
-there, and the ORM default puts every new row there too. Nothing reads these
-tables for a permission decision yet — ``users.role`` is still the source of
-truth until the gates switch over in a later PR.
+Every project, data source, API key and invitation belongs to exactly one
+organization, and today that is always the default one below: the migration
+puts every existing row and every existing user there, and the ORM default puts
+every new row there too. Since PR4 ``organization_members.role`` is the source
+of truth for every organization-level permission (``services.project_access``,
+``api.deps``); ``users.role`` is no longer read.
 """
 
 from __future__ import annotations

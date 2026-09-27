@@ -7,7 +7,7 @@ import { SCard, SHeader } from '@/components/settings/kit'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { isOwner as isOwnerRole } from '@/lib/permissions'
+import { isPlatformAdmin } from '@/lib/permissions'
 import { authStatusKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import { ComingLaterCard } from './ComingLaterCard'
@@ -44,7 +44,9 @@ const UNBUILT = [
 export default function SecuritySection() {
   const { user } = useAuth()
   const email = user?.email ?? ''
-  const isOwner = isOwnerRole(user?.role)
+  // Who can fix email: a platform admin. One SMTP relay carries every
+  // organization's mail, so its settings are operator-only.
+  const canSetUpEmail = isPlatformAdmin(user)
   const resetMut = useMutation({
     // The outcome renders under the button.
     meta: SILENT_ERROR_META,
@@ -97,7 +99,7 @@ export default function SecuritySection() {
           {emailOff && (
             <div className="flex flex-wrap items-baseline gap-x-2">
               <DisabledReason id="password-reset" reason={blocker} />
-              <span className="text-caption">{isOwner ? setUpEmail : 'Ask an owner to set it up.'}</span>
+              <span className="text-caption">{canSetUpEmail ? setUpEmail : 'Ask a platform admin to set it up.'}</span>
             </div>
           )}
           <div aria-live="polite" className="text-body-sm leading-[1.45]">
@@ -109,7 +111,7 @@ export default function SecuritySection() {
             {resetMut.isSuccess && !resetMut.data.email_configured && (
               <span className="text-warning">
                 This instance can't send email, so no link went out.{' '}
-                {isOwner ? setUpEmail : 'Ask an owner to set it up.'}
+                {canSetUpEmail ? setUpEmail : 'Ask a platform admin to set it up.'}
               </span>
             )}
           </div>

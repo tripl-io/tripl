@@ -74,7 +74,7 @@
           "auth"
         ],
         "summary": "Preview Invitation",
-        "description": "Show who an invitation is for, before the invitee has an account.\n\nUnauthenticated by necessity \u2014 the whole point is that this person cannot\nsign in yet. It discloses nothing the token holder does not already have:\nthe address it was issued to, the role it grants, and when it lapses. It\ndoes not reveal whether the instance has other users, or who they are.\n\nShares the cheap /status bucket rather than the register bucket: previewing\nis a read, and it must not consume the quota the invitee needs to actually\nredeem. Unknown, expired and used tokens all return the same 400.",
+        "description": "Show who an invitation is for, before the invitee has an account.\n\nUnauthenticated by necessity \u2014 the whole point is that this person cannot\nsign in yet. It discloses nothing the token holder does not already have:\nthe address it was issued to, the organization role it grants, and when it lapses. It\ndoes not reveal whether the instance has other users, or who they are.\n\nShares the cheap /status bucket rather than the register bucket: previewing\nis a read, and it must not consume the quota the invitee needs to actually\nredeem. Unknown, expired and used tokens all return the same 400.",
         "operationId": "preview_invitation_api_v1_auth_invitations__token__get",
         "parameters": [
           {
@@ -307,6 +307,7 @@
           "auth"
         ],
         "summary": "Get Me",
+        "description": "The signed-in account with its organization role(s) and the platform-admin flag.",
         "operationId": "get_me_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -789,7 +790,7 @@
           "settings"
         ],
         "summary": "Get Photo Limits",
-        "description": "The photo upload limit, readable by every signed-in user.\n\nThe rest of this router is owner-only; this one value is not, because it is\nan editor's upload it refuses and the browser should say so before the\nupload rather than after (EVT-28). The router's own dependency still\nrequires a session.",
+        "description": "The photo upload limit, readable by every signed-in user.\n\nThe rest of this router is for settings admins; this one value is not, because it is\nan editor's upload it refuses and the browser should say so before the\nupload rather than after (EVT-28). The router's own dependency still\nrequires a session.",
         "operationId": "get_photo_limits_api_v1_settings_photo_limits_get",
         "responses": {
           "200": {
@@ -811,7 +812,7 @@
           "settings"
         ],
         "summary": "Get Row Limit Defaults",
-        "description": "The instance row caps a scan falls back to, readable by every signed-in user.\n\nOwner-only like the rest of this router would hide the real numbers from the\neditors who fill in a scan's Limits, so the form hard-coded the shipped\ndefaults instead (B15). Two integers, nothing about the connection.",
+        "description": "The instance row caps a scan falls back to, readable by every signed-in user.\n\nAdmin-only like the rest of this router would hide the real numbers from the\neditors who fill in a scan's Limits, so the form hard-coded the shipped\ndefaults instead (B15). Two integers, nothing about the connection.",
         "operationId": "get_row_limit_defaults_api_v1_settings_row_limits_get",
         "responses": {
           "200": {
@@ -8971,7 +8972,7 @@
           "data-sources"
         ],
         "summary": "Test Unsaved Data Source Connection",
-        "description": "Test a connection before it is saved (DATA-30).\n\nThe create gate (owner, browser session) and the create body's validation,\nhost format included; nothing is stored and no stored secret is read. Always\n200: a refused connection is the answer the caller asked for.",
+        "description": "Test a connection before it is saved (DATA-30).\n\nThe create gate (org owner/admin, browser session) and the create body's validation,\nhost format included; nothing is stored and no stored secret is read. Always\n200: a refused connection is the answer the caller asked for.",
         "operationId": "test_unsaved_data_source_connection_api_v1_data_sources_test_post",
         "requestBody": {
           "content": {
@@ -18002,7 +18003,7 @@
           "users"
         ],
         "summary": "List Invitations",
-        "description": "Outstanding invitations. Owner-only: this is the roster of pending access.",
+        "description": "Outstanding invitations into the organization: the roster of pending access.",
         "operationId": "list_invitations_api_v1_users_invitations_get",
         "responses": {
           "200": {
@@ -18026,7 +18027,7 @@
           "users"
         ],
         "summary": "Create Invitation",
-        "description": "Invite one person, at a role the owner picks.\n\n``OwnerUserDep`` is owner-only AND rejects API keys of any scope, so minting\nan account always requires an interactive owner session \u2014 an automation\ntoken can never conjure a new identity.\n\nThe redeem link is returned in the body, not merely emailed: SMTP is\noptional and unconfigured on many instances, so a body-only path is the one\nthat always works. It appears here and nowhere else.",
+        "description": "Invite one person into the request's organization, at an organization role.\n\n``OwnerUserDep`` is org owner/admin-only AND rejects API keys of any scope, so\nminting an account always requires an interactive session \u2014 an automation\ntoken can never conjure a new identity. Inviting at ``owner`` takes an\nowner: an admin cannot mint an account more privileged than their own.\n\nThe redeem link is returned in the body, not merely emailed: SMTP is\noptional and unconfigured on many instances, so a body-only path is the one\nthat always works. It appears here and nowhere else.",
         "operationId": "create_invitation_api_v1_users_invitations_post",
         "requestBody": {
           "content": {
@@ -18068,7 +18069,7 @@
           "users"
         ],
         "summary": "Revoke Invitation",
-        "description": "Revoke an invitation; its link stops working immediately.",
+        "description": "Revoke an invitation into the organization; its link stops working immediately.",
         "operationId": "revoke_invitation_api_v1_users_invitations__invitation_id__delete",
         "parameters": [
           {
@@ -18105,6 +18106,7 @@
           "users"
         ],
         "summary": "List Users",
+        "description": "The members of the request's organization with their organization role.\n\nAny member may see the roster (it feeds the member pickers); a signed-in\naccount outside the organization gets 403.",
         "operationId": "list_users_api_v1_users_get",
         "parameters": [
           {
@@ -18165,6 +18167,7 @@
           "users"
         ],
         "summary": "Update User Role",
+        "description": "Change a member's ORGANIZATION role (owner | admin | member).\n\n404 for an account outside the organization, 400 when it would leave the\norganization without an owner, 403 when an admin tries to make or unmake an\nowner. The member stays signed in; the new role applies from their next\nrequest.",
         "operationId": "update_user_role_api_v1_users__user_id__patch",
         "parameters": [
           {
@@ -23554,7 +23557,26 @@
             "title": "Name"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrganizationRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_platform_admin": {
+            "type": "boolean",
+            "title": "Is Platform Admin",
+            "default": false
+          },
+          "orgs": {
+            "items": {
+              "$ref": "#/components/schemas/OrgMembershipOut"
+            },
+            "type": "array",
+            "title": "Orgs"
           },
           "created_at": {
             "type": "string",
@@ -23576,7 +23598,8 @@
           "created_at",
           "updated_at"
         ],
-        "title": "AuthUserResponse"
+        "title": "AuthUserResponse",
+        "description": "The signed-in account. Built by ``auth_service.build_auth_user_response``.\n\n``role`` is the organization role in the organization the request acts in\n(``None`` when the user belongs to none that applies); ``orgs`` lists every\nmembership. ``is_platform_admin`` is the operator flag, which grants the\noperator settings and nothing inside any organization."
       },
       "BigQuerySettings": {
         "properties": {
@@ -32953,8 +32976,8 @@
             "title": "Email"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole",
-            "default": "editor"
+            "$ref": "#/components/schemas/OrganizationRole",
+            "default": "member"
           }
         },
         "type": "object",
@@ -32995,7 +33018,7 @@
             "title": "Email"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole"
+            "$ref": "#/components/schemas/OrganizationRole"
           },
           "expires_at": {
             "type": "string",
@@ -33024,7 +33047,7 @@
             "title": "Email"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole"
+            "$ref": "#/components/schemas/OrganizationRole"
           },
           "invited_by_user_id": {
             "anyOf": [
@@ -36665,6 +36688,39 @@
         "type": "object",
         "title": "ObservabilitySettingsUpdate"
       },
+      "OrgMembershipOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/OrganizationRole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "role"
+        ],
+        "title": "OrgMembershipOut",
+        "description": "One organization the signed-in user belongs to, with their role there."
+      },
+      "OrganizationRole": {
+        "type": "string",
+        "enum": [
+          "owner",
+          "admin",
+          "member"
+        ],
+        "title": "OrganizationRole",
+        "description": "A user's role in one organization (``organization_members.role``).\n\nThe source of truth for organization-level rights (F20 PR4). ``owner`` and\n``admin`` administer the organization and are the implicit ``owner`` of\nevery project in it; only an ``owner`` can make or unmake another owner.\n``member`` holds exactly the roles of their ``project_members`` rows."
+      },
       "OverviewKpiSeriesResponse": {
         "properties": {
           "days": {
@@ -38966,7 +39022,7 @@
           "viewer"
         ],
         "title": "ProjectMemberRole",
-        "description": "A user's role inside one project (``project_members.role``).\n\nThere is no per-project ``owner``: the instance owner (``UserRole.owner``)\nsees and manages every project without a membership row. The effective role\nis also capped by the instance role, so a ``viewer`` user holding an\n``editor`` membership still acts as a viewer (``services.project_access``)."
+        "description": "A user's role inside one project (``project_members.role``).\n\nThere is no per-project ``owner``: an owner or admin of the project's\norganization (:class:`OrganizationRole`) sees and manages every project of\nthat organization without a membership row, as project role ``owner``. For\neveryone else the row is authoritative (``services.project_access``)."
       },
       "ProjectMemberUpdate": {
         "properties": {
@@ -43330,7 +43386,14 @@
             "$ref": "#/components/schemas/AiSettings"
           },
           "system": {
-            "$ref": "#/components/schemas/SystemSettings"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SystemSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "overridden_fields": {
             "items": {
@@ -45558,7 +45621,7 @@
             "title": "Name"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole"
+            "$ref": "#/components/schemas/OrganizationRole"
           },
           "created_at": {
             "type": "string",
@@ -45574,28 +45637,21 @@
           "role",
           "created_at"
         ],
-        "title": "UserListItem"
-      },
-      "UserRole": {
-        "type": "string",
-        "enum": [
-          "owner",
-          "editor",
-          "viewer"
-        ],
-        "title": "UserRole"
+        "title": "UserListItem",
+        "description": "A member of the request's organization, with their organization role.\n\nBuilt explicitly by ``user_service`` from the membership row, never\nvalidated from a ``User`` (whose ``role`` is the unread legacy column)."
       },
       "UserRoleUpdate": {
         "properties": {
           "role": {
-            "$ref": "#/components/schemas/UserRole"
+            "$ref": "#/components/schemas/OrganizationRole"
           }
         },
         "type": "object",
         "required": [
           "role"
         ],
-        "title": "UserRoleUpdate"
+        "title": "UserRoleUpdate",
+        "description": "``PATCH /users/{id}``: the target's new ORGANIZATION role.\n\nThe vocabulary is the organization's: ``owner``, ``admin`` or ``member``.\nThe instance-era values map as ``owner`` -> ``owner`` and ``editor`` /\n``viewer`` -> ``member`` (write rights inside a project are the project\nrole's business); they are not accepted here any more (422)."
       },
       "ValidationError": {
         "properties": {

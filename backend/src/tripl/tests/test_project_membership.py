@@ -5,9 +5,10 @@ Projects used to be visible to every user on the instance. Now:
 * a non-member does not see a project AT ALL: every ``/projects/{slug}/...``
   route (and ``/activity/projects/{slug}``, ``/projects/demo/{slug}/...``) answers
   404 "Project not found", and the project is absent from every list and feed;
-* the instance owner sees and manages everything without a membership row;
+* an owner or admin of the project's organization sees and manages every
+  project of it without a membership row (F20 PR4);
 * the creator of a project is an ``editor`` member from the first commit;
-* members are managed at ``/projects/{slug}/members`` by the instance owner or
+* members are managed at ``/projects/{slug}/members`` by an org owner/admin or
   the project's creator.
 
 The route audit at the top is structural (the membership dependency is mounted
@@ -147,7 +148,10 @@ async def _create_project(client: AsyncClient, slug: str) -> dict[str, Any]:
 
 
 class Actors:
-    """The instance owner, two editors and an instance viewer, each with a jar."""
+    """The org owner and three plain org members, each with a jar.
+
+    ``viewer`` is an org member like the others; tests give them viewer rows.
+    """
 
     def __init__(self) -> None:
         self.owner = _new_client()
@@ -170,14 +174,6 @@ async def actors() -> AsyncGenerator[Actors]:
         "id"
     ]
     people.ids["viewer"] = (await _register(people.viewer, "viewer@example.com", "Viewer"))["id"]
-    demote = await people.owner.patch(
-        f"/api/v1/users/{people.ids['viewer']}", json={"role": "viewer"}
-    )
-    assert demote.status_code == 200, demote.text
-    relogin = await people.viewer.post(
-        "/api/v1/auth/login", json={"email": "viewer@example.com", "password": PASSWORD}
-    )
-    assert relogin.status_code == 200, relogin.text
     yield people
     await people.aclose()
 
@@ -373,14 +369,14 @@ async def test_the_shared_list_cache_never_leaks_across_users(
 async def test_my_role_per_caller(actors: Actors) -> None:
     await _create_project(actors.editor, "roles")
     await add_member_by_slug("roles", "stranger@example.com", "viewer")
-    # An instance viewer holding an editor row is capped at viewer.
+    # The row is authoritative: an editor row makes an editor.
     await add_member_by_slug("roles", "viewer@example.com", "editor")
 
     expected = {
         "owner": ("owner", True),
         "editor": ("editor", True),
         "stranger": ("viewer", False),
-        "viewer": ("viewer", False),
+        "viewer": ("editor", True),
     }
     for who, (role, can_mutate) in expected.items():
         client = getattr(actors, who)
@@ -556,10 +552,10 @@ async def test_the_creator_is_an_editor_member(actors: Actors) -> None:
 
 @pytest.mark.asyncio
 async def test_member_role_service_rules(actors: Actors) -> None:
-    """``project_access`` in one place: owner, capped member, non-member."""
+    """``project_access`` in one place: org owner, members by row, non-member."""
     project = await _create_project(actors.editor, "svc-rules")
     project_id = uuid.UUID(project["id"])
-    await add_member_by_slug("svc-rules", "viewer@example.com", "editor")
+    await add_member_by_slug("svc-rules", "viewer@example.com", "viewer")
 
     async with TestSessionLocal() as session:
         users = {user.email: user for user in (await session.scalars(select(User))).all()}
@@ -579,7 +575,15 @@ async def test_member_role_service_rules(actors: Actors) -> None:
             await project_access.member_role(session, users["stranger@example.com"], project_id)
             is None
         )
-        assert await project_access.member_project_ids(session, users["owner@example.com"]) is None
+        # Every project of the org, never "everything on the instance" (None).
+        assert await project_access.member_project_ids(session, users["owner@example.com"]) == {
+            project_id
+        }
+        # A project that does not exist has no role, even for the org owner (critique #4).
+        assert (
+            await project_access.member_role(session, users["owner@example.com"], uuid.uuid4())
+            is None
+        )
         assert (
             await project_access.member_project_ids(session, users["stranger@example.com"]) == set()
         )
@@ -936,8 +940,8 @@ async def test_the_event_stream_guard_ends_the_owners_stream_after_a_demo_reset(
 ) -> None:
     """A reset re-creates the demo under a new id; the owner's old-id stream must end.
 
-    ``member_role`` answers an instance owner without a query, so only the
-    project-exists check stops a stream left on the dead id's channel.
+    ``member_role`` reads the project row for everyone, the org owner included,
+    so a stream left on the dead id's channel ends.
     """
     from tripl.api.v1.events_stream import membership_guard
 

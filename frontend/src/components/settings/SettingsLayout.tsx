@@ -30,7 +30,7 @@ import {
   type UnsavedWork,
 } from './unsaved-changes'
 import type { Project } from '@/types'
-import { isOwner as isOwnerRole } from '@/lib/permissions'
+import { isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
 
 const RAIL_TITLE_ID = 'settings-rail-title'
 const RAIL_ID = 'settings-rail'
@@ -102,6 +102,9 @@ export function SettingsLayout({
   const navigate = useNavigate()
   const { confirm, dialog } = useConfirm()
   const isOwner = isOwnerRole(auth.user?.role)
+  // The operator sections (security, observability, system) are the platform
+  // admin's alone, whatever their organization role (F20 PR4).
+  const isPlatformAdmin = isPlatformAdminUser(auth.user)
 
   // Personalize group sub-labels with live identity, matching the mockup
   // (Project → project name, Account → "You · <name>"). Workspace stays
@@ -356,6 +359,7 @@ export function SettingsLayout({
         activePath={activePath}
         backHref={backHref}
         isOwner={isOwner}
+        isPlatformAdmin={isPlatformAdmin}
         projects={projects}
         backLabel={backLabel}
         onLeave={leaveTo}
@@ -420,7 +424,7 @@ export function SettingsLayout({
           aria-labelledby={RAIL_TITLE_ID}
           className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_24px),transparent)]"
         >
-          {visibleGroupsAll(isOwner).map((group) => {
+          {visibleGroupsAll(isOwner, isPlatformAdmin).map((group) => {
             // Sentence case, not an uppercase eyebrow: these are names ("Demo
             // project 2", "You · Ada"), and caps shouted them (ST-7).
             const sub = subFor(group)

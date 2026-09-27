@@ -1,27 +1,42 @@
-"""Who may write which docs catalog notes (F22, GH #299).
+"""Who may write which docs catalog notes (F22, GH #299; F20 PR4 org roles).
 
-``EditorUserDep`` on every write route has already admitted an instance editor
-or owner with an editing role on the path's project, through a session or a
-``write`` key. Organization notes reach further than the path's project — they
-are shown in, and indexed into, every project of the organization — so they get
-two more rules here:
+Project notes need nothing here: ``EditorUserDep`` on every write route has
+already admitted a caller with an editing role on the path's project (a
+``project_members`` editor, or an owner/admin of the project's organization),
+through a session or a ``write`` key.
 
+Organization notes reach further than the path's project — they are shown in,
+and indexed into, every project of the organization — so they get more rules:
+
+* Only an owner or admin of the note's organization (``organization_members``,
+  the organization of the path's project) may create, edit, move, restore or
+  delete them. A plain organization member with an editor row on one project
+  may not change notes every other project reads. ``users.role`` is not read.
 * A project-bound API key is fenced into one project (``_enforce_project_scope``),
   so it may not change notes that other projects read.
 * Deleting organization notes in bulk (a folder delete, a ``mirror`` import)
-  follows the strict owner gate: owner role **and** a browser session, never an
-  API key, like every other owner-only route (``deps.get_owner_user``).
+  follows the strict owner gate: organization owner/admin **and** a browser
+  session, never an API key, like every other owner-only route
+  (``deps.get_owner_user``).
+
+The organization id is always taken from the resolved project row, never from
+the caller, so an admin of another organization holds nothing here.
 """
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.user import User
+from tripl.services import project_access
 from tripl.services.docs_paths import DocScope
+
+ORG_NOTES_ADMIN_REQUIRED = "Organization owner or admin role required to edit organization notes"
 
 
 @dataclass(frozen=True)
@@ -42,18 +57,18 @@ class DocCaller:
         )
 
 
-def require_doc_writer(caller: DocCaller, scope: DocScope) -> None:
+async def require_doc_writer(
+    session: AsyncSession, caller: DocCaller, scope: DocScope, org_id: uuid.UUID
+) -> None:
     """Who may create, edit, move, restore or delete a note of ``scope``.
 
-    TODO(F20 PR4): organization_members.role in ('owner', 'admin').
+    ``org_id`` is the organization of the path's project, which owns the
+    organization notes.
     """
     if scope != "organization":
         return
-    if caller.user.role not in ("owner", "editor"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Editor role required to edit organization notes",
-        )
+    if not await project_access.is_org_admin(session, caller.user, org_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_NOTES_ADMIN_REQUIRED)
     if caller.key_project_bound:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -61,16 +76,13 @@ def require_doc_writer(caller: DocCaller, scope: DocScope) -> None:
         )
 
 
-def require_org_bulk_delete(caller: DocCaller, scope: DocScope, what: str) -> None:
-    """Deleting many organization notes at once: owner role, browser session only."""
-    require_doc_writer(caller, scope)
+async def require_org_bulk_delete(
+    session: AsyncSession, caller: DocCaller, scope: DocScope, org_id: uuid.UUID, what: str
+) -> None:
+    """Deleting many organization notes at once: org owner/admin, browser session only."""
+    await require_doc_writer(session, caller, scope, org_id)
     if scope != "organization":
         return
-    if caller.user.role != "owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Owner role required to {what} organization notes",
-        )
     if caller.via_api_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

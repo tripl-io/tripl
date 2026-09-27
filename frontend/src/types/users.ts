@@ -1,18 +1,44 @@
-export type Role = 'owner' | 'editor' | 'viewer'
+/**
+ * An ORGANIZATION role (F20 PR4): what `/auth/me`, the users API and
+ * invitations speak. An owner and an admin hold every project of their
+ * organization; a member holds exactly their project rows (`editor` /
+ * `viewer`, see `ProjectMemberRole`). The instance-era owner/editor/viewer
+ * vocabulary is gone; the API refuses it with 422.
+ */
+export type Role = 'owner' | 'admin' | 'member'
 
 // A role's pill tone lives in components/settings/role-chip.tsx (ST-16); this
 // list is the order and the words.
 export const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'owner', label: 'Owner' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'viewer', label: 'Viewer' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'member', label: 'Member' },
 ]
+
+/** One organization the signed-in user belongs to, with their role there. */
+export interface OrgMembership {
+  slug: string
+  name: string
+  role: Role
+}
 
 export interface AuthUser {
   id: string
   email: string
   name: string | null
-  role: Role
+  /**
+   * The role in the organization this session acts in; `null` when the user
+   * belongs to none that applies.
+   */
+  role: Role | null
+  /**
+   * The operator flag: the instance-wide operator settings (security,
+   * observability, system, server paths). It grants nothing inside an
+   * organization.
+   */
+  is_platform_admin: boolean
+  /** Every organization membership. */
+  orgs: OrgMembership[]
   created_at: string
   updated_at: string
 }

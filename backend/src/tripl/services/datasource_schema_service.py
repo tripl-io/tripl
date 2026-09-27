@@ -13,21 +13,38 @@ from tripl.schemas.data_source_schema import (
     TableSchema,
 )
 from tripl.services import project_access
+from tripl.services.data_source_scope import scanning_project_ids_for
 from tripl.services.datasource_service import _fetch_data_source
 
 logger = logging.getLogger(__name__)
 
 
 async def authorize_schema_access(session: AsyncSession, ds_id: uuid.UUID, user: User) -> None:
-    """A project-bound catalog takes an editing role in that project.
+    """A catalog takes an editing role in a project that may use the source.
 
-    A source bound to a project the caller is not a member of does not exist for
-    them: the same 404 an unknown id gets. A viewer member is refused with 403,
-    the answer the project's own mutation gate gives. Instance-wide sources
-    (no ``project_id``) are left to the route's role gate.
+    Another organization's source, or one bound to a project the caller is not a
+    member of, does not exist for them: the same 404 an unknown id gets. A
+    viewer member is refused with 403, the answer the project's own mutation
+    gate gives.
+
+    An organization-wide source (no ``project_id``) takes org owner/admin, or an
+    editing role in a project the source is in scope for
+    (``data_source_scope``): a project that scans it, or — when nobody scans it
+    — any project. Plain org membership is not enough: a member who only views
+    projects must not open a live connection to the warehouse and read its
+    catalog.
     """
     source = await _fetch_data_source(session, ds_id)
     if source.project_id is None:
+        if await project_access.is_org_admin(session, user, source.organization_id):
+            return
+        scanning = await scanning_project_ids_for(session, source)
+        candidates = scanning or await project_access.member_project_ids(
+            session, user, source.organization_id
+        )
+        roles = await project_access.member_roles(session, user, candidates)
+        if not any(project_access.can_edit(role) for role in roles.values()):
+            raise HTTPException(status_code=403, detail="No access to this data source's schema")
         return
     role = await project_access.member_role(session, user, source.project_id)
     if role is None:

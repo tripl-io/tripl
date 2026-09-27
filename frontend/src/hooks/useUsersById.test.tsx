@@ -19,7 +19,7 @@ const ADA = {
   id: 'u-1',
   email: 'ada@example.com',
   name: 'Ada',
-  role: 'editor' as const,
+  role: 'member' as const,
   created_at: '2026-01-01T00:00:00Z',
 }
 

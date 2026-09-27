@@ -11,7 +11,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.auth_utils import hash_password, hash_session_token, normalize_email
-from tripl.models.domain_enums import UserRole
+from tripl.middleware.org_context import require_org_id
+from tripl.models.domain_enums import OrganizationRole
 from tripl.models.invitation import Invitation
 from tripl.models.user import User
 from tripl.services import auth_service
@@ -47,10 +48,14 @@ async def create_invitation(
     session: AsyncSession,
     *,
     email: str,
-    role: UserRole,
+    org_role: OrganizationRole,
+    organization_id: uuid.UUID,
     invited_by_user_id: uuid.UUID,
 ) -> tuple[Invitation, str]:
-    """Mint a single-use invitation and return it with its raw token.
+    """Mint a single-use invitation into ``organization_id`` and return it with its raw token.
+
+    The invitee joins that organization at ``org_role``; the legacy
+    ``invitations.role`` column keeps its default and is not read.
 
     The raw token is returned to the caller ONCE and never stored, so the route
     can put the redeem URL in its response body. That is the primary delivery
@@ -59,8 +64,8 @@ async def create_invitation(
 
     Refuses an address that already has an account — the owner wants the Members
     screen for that person, not a second identity. Any earlier outstanding
-    invite for the same address is dropped so only the newest link works,
-    matching how password resets supersede each other.
+    invite for the same address into the same organization is dropped so only
+    the newest link works, matching how password resets supersede each other.
     """
     normalized = normalize_email(email)
 
@@ -73,14 +78,19 @@ async def create_invitation(
 
     await session.execute(
         delete(Invitation)
-        .where(Invitation.email == normalized, Invitation.used_at.is_(None))
+        .where(
+            Invitation.email == normalized,
+            Invitation.organization_id == organization_id,
+            Invitation.used_at.is_(None),
+        )
         .execution_options(synchronize_session=False)
     )
 
     raw_token = secrets.token_urlsafe(INVITATION_TOKEN_BYTES)
     invitation = Invitation(
         email=normalized,
-        role=role,
+        org_role=OrganizationRole(org_role).value,
+        organization_id=organization_id,
         token_hash=_hash_token(raw_token),
         invited_by_user_id=invited_by_user_id,
         expires_at=_expires_at(),
@@ -91,25 +101,35 @@ async def create_invitation(
     return invitation, raw_token
 
 
-async def list_pending_invitations(session: AsyncSession) -> list[Invitation]:
-    """Outstanding invitations, newest first.
+async def list_pending_invitations(
+    session: AsyncSession, organization_id: uuid.UUID | None = None
+) -> list[Invitation]:
+    """Outstanding invitations into ``organization_id`` (default: the bound one), newest first.
 
     Expired-but-unused rows are included on purpose: an owner needs to see that
     a link they sent has gone stale, which is exactly when they would re-issue
     it. The redeem path still refuses them.
     """
+    org_id = organization_id if organization_id is not None else require_org_id()
     rows = await session.scalars(
         select(Invitation)
-        .where(Invitation.used_at.is_(None))
+        .where(Invitation.used_at.is_(None), Invitation.organization_id == org_id)
         .order_by(Invitation.created_at.desc())
     )
     return list(rows)
 
 
-async def revoke_invitation(session: AsyncSession, invitation_id: uuid.UUID) -> None:
-    """Delete an outstanding invitation, making its link stop working immediately."""
+async def revoke_invitation(
+    session: AsyncSession, invitation_id: uuid.UUID, organization_id: uuid.UUID | None = None
+) -> None:
+    """Delete an outstanding invitation, making its link stop working immediately.
+
+    Only an invitation into ``organization_id`` (default: the bound one); any
+    other is the same 404 as an unknown id.
+    """
+    org_id = organization_id if organization_id is not None else require_org_id()
     invitation = await session.get(Invitation, invitation_id)
-    if invitation is None:
+    if invitation is None or invitation.organization_id != org_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
     await session.delete(invitation)
     await session.commit()
@@ -152,8 +172,9 @@ async def redeem_invitation(
     single-use, expiring invitation are different mechanisms, and keeping them
     separate means a bug here can never accidentally widen self-service signup.
 
-    The account is created at the role the OWNER chose when inviting, not at a
-    role the invitee can influence, and the address is taken from the invitation
+    The account joins the invitation's organization at the organization role the
+    inviter chose (``invitations.org_role``), not at a role the invitee can
+    influence, and the address is taken from the invitation
     rather than from the request body — so a link cannot be redeemed into a
     different identity than the one it was issued for.
     """
@@ -174,7 +195,6 @@ async def redeem_invitation(
         email=invitation.email,
         name=stripped_name,
         password_hash=await asyncio.to_thread(hash_password, password),
-        role=invitation.role,
     )
     session.add(user)
     await session.flush()
@@ -182,7 +202,10 @@ async def redeem_invitation(
         session,
         user,
         organization_id=invitation.organization_id,
-        org_role=invitation.org_role,
+        # Migration c9e1a3b5d7f9 filled every pending invitation's org_role; a
+        # NULL could only come from a row written behind the application's
+        # back, and gets the least privilege.
+        org_role=OrganizationRole(invitation.org_role or OrganizationRole.member.value),
     )
 
     invitation.used_at = datetime.now(UTC)

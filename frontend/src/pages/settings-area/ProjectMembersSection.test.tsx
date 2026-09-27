@@ -54,7 +54,7 @@ function user(overrides: Partial<UserListItem>): UserListItem {
     id: 'u-1',
     name: 'Ada',
     email: 'ada@example.com',
-    role: 'editor',
+    role: 'member',
     created_at: '2026-01-01T00:00:00Z',
     ...overrides,
   }
@@ -67,9 +67,10 @@ const MEMBERS = [
 
 const ROSTER = [
   user({ id: 'u-ada', name: 'Ada', email: 'ada@example.com' }),
-  user({ id: 'u-grace', name: 'Grace', email: 'grace@example.com', role: 'viewer' }),
+  user({ id: 'u-grace', name: 'Grace', email: 'grace@example.com' }),
   user({ id: 'u-linus', name: 'Linus', email: 'linus@example.com' }),
   user({ id: 'u-boss', name: 'Boss', email: 'boss@example.com', role: 'owner' }),
+  user({ id: 'u-root', name: 'Root', email: 'root@example.com', role: 'admin' }),
 ]
 
 function renderSection(role: Role, id: string) {
@@ -98,12 +99,12 @@ beforeEach(() => {
 
 describe('Project · Access (tripl-vefw)', () => {
   it('lists the members with role chips and no controls for a plain member', async () => {
-    renderSection('editor', 'u-ada')
+    renderSection('member', 'u-ada')
 
     expect(await screen.findByText('grace@example.com')).toBeInTheDocument()
     expect(screen.getByText('2 people')).toBeInTheDocument()
     expect(
-      await screen.findByText(/Only an instance owner or the person who created this project/),
+      await screen.findByText(/Only an organization owner or admin, or the person who created this project/),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Add member' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Remove Ada' })).toBeNull()
@@ -112,8 +113,8 @@ describe('Project · Access (tripl-vefw)', () => {
     expect(usersApi.list).not.toHaveBeenCalled()
   })
 
-  it('lets the project creator add someone from the roster, leaving out members and owners', async () => {
-    renderSection('editor', CREATOR_ID)
+  it('lets the project creator add someone from the roster, leaving out members, owners and admins', async () => {
+    renderSection('member', CREATOR_ID)
 
     const person = await screen.findByLabelText('Person')
     await waitFor(() =>
@@ -121,6 +122,7 @@ describe('Project · Access (tripl-vefw)', () => {
     )
     expect(within(person).queryByRole('option', { name: /Ada/ })).toBeNull()
     expect(within(person).queryByRole('option', { name: /Boss/ })).toBeNull()
+    expect(within(person).queryByRole('option', { name: /Root/ })).toBeNull()
 
     fireEvent.change(person, { target: { value: 'u-linus' } })
     fireEvent.change(screen.getByLabelText('Role'), { target: { value: 'viewer' } })
@@ -176,19 +178,15 @@ describe('Project · Access (tripl-vefw)', () => {
     expect(await screen.findByText(/Could not remove the member: Not allowed/)).toBeInTheDocument()
   })
 
-  it('warns that a workspace viewer stays read-only whatever the project role', async () => {
-    vi.mocked(usersApi.list).mockResolvedValue([
-      ...ROSTER,
-      user({ id: 'u-view', name: 'Vera', email: 'vera@example.com', role: 'viewer' }),
-    ])
+  it('adds any organization member at the chosen role, with no org-level read-only cap (F20 PR4)', async () => {
     renderSection('owner', 'boss-1')
 
     const person = await screen.findByLabelText('Person')
     await waitFor(() =>
-      expect(within(person).getByRole('option', { name: 'Vera · vera@example.com' })).toBeInTheDocument(),
+      expect(within(person).getByRole('option', { name: 'Linus · linus@example.com' })).toBeInTheDocument(),
     )
-    fireEvent.change(person, { target: { value: 'u-view' } })
+    fireEvent.change(person, { target: { value: 'u-linus' } })
 
-    expect(screen.getByText(/can only read this project/)).toBeInTheDocument()
+    expect(screen.queryByText(/can only read this project/)).toBeNull()
   })
 })

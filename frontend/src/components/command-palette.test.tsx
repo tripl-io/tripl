@@ -45,6 +45,8 @@ const ownerUser: AuthUser = {
   email: 'owner@example.com',
   name: 'Owner',
   role: 'owner',
+  is_platform_admin: false,
+  orgs: [],
   created_at: '2026-04-18T10:00:00Z',
   updated_at: '2026-04-18T10:00:00Z',
 }
@@ -366,7 +368,7 @@ describe('CommandPalette', () => {
       throw new Error(`Unhandled fetch: ${url}`)
     })
 
-    renderHarness('/p/demo/events', { ...authValue, user: { ...ownerUser, role: 'editor' } })
+    renderHarness('/p/demo/events', { ...authValue, user: { ...ownerUser, role: 'member' } })
     fireEvent.click(screen.getByTestId('open-palette'))
     await screen.findByText('Demo')
 

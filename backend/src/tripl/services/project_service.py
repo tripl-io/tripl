@@ -827,12 +827,12 @@ class ProjectMutationScope:
     """The caller's standing in one project, as the mutation gate reads it.
 
     ``role`` is the caller's project role from
-    :func:`tripl.services.project_access.member_role`: ``"owner"`` for the
-    instance owner, the membership role (capped by the instance role) for a
-    member, ``None`` for a non-member. Mutating a project's contents takes an
-    editing role, the same rule ``api.deps.require_project_mutation_access``
+    :func:`tripl.services.project_access.member_role`: ``"owner"`` for an
+    owner/admin of the project's organization, the membership row's role for
+    anyone else, ``None`` for a non-member. Mutating a project's contents takes
+    an editing role, the same rule ``api.deps.require_project_mutation_access``
     enforces on the routes; project-identity edits (rename, reset, delete) are
-    narrower and stay with the instance owner and the project's creator
+    narrower and stay with project role ``owner`` and the project's creator
     (``api.v1.projects._is_project_manager``).
     """
 
@@ -859,7 +859,7 @@ async def with_can_mutate(
     mutation routes enforce, not a restatement of it. ``my_role`` is the
     caller's project role; it is left at its default for a project the caller
     is not a member of, which the membership-filtered callers never pass. The
-    roles come from ONE membership query (none for an instance owner), so a
+    roles come from ONE query over the organization and membership rows, so a
     project list costs a single extra round trip. Applied after
     ``list_projects``' cache read, never before its write: both fields belong to
     the caller, the cache to everyone.
@@ -934,7 +934,8 @@ async def create_project(
 
     ``created_by`` records who made it, mirroring demo provisioning. The API
     always passes it; it stays optional so scripts/fixtures can create a
-    creator-less project (which is then owner-managed, see
+    creator-less project (which is then managed by the organization's owners
+    and admins only, see
     ``api.v1.projects._require_project_manager``).
 
     ``data.template_id`` names a built-in template (F21, GH #274). It is resolved

@@ -40,7 +40,10 @@ MIGRATION = "b8d0f2a4c6e8_organizations_schema_and_default_org.py"
 # must be unwound before ``MIGRATION.downgrade`` runs: ``doc_files`` (F22) keeps
 # an ``organization_id`` foreign key that would block dropping ``organizations``.
 # A new revision that depends on the organization schema belongs here.
-LATER_MIGRATIONS: tuple[str, ...] = ("c3f5a7b9d1e2_docs_catalog.py",)
+LATER_MIGRATIONS: tuple[str, ...] = (
+    "c9e1a3b5d7f9_org_roles_backfill_and_viewer_cap.py",
+    "c3f5a7b9d1e2_docs_catalog.py",
+)
 DEFAULT_ORG = "00000000-0000-0000-0000-00000000d0f1"
 _PSYCOPG_PREFIX = "postgresql+psycopg://"
 _ORG_COLUMNS = {
@@ -233,7 +236,8 @@ async def test_organizations_revision_round_trips_on_postgres(
                 {"u": ids["viewer"]},
             ).all()
         )
-        # Left as the previous release wrote them: users.role still caps them.
+        # Left as the previous release wrote them: this revision does not cap
+        # them; c9e1a3b5d7f9 does (test_org_roles_migration_pg).
         assert project_roles == {ids["alpha"]: "editor", ids["beta"]: "viewer"}
         editor_role = connection.execute(
             sa.text("SELECT role::text FROM project_members WHERE user_id = :u"),

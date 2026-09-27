@@ -117,9 +117,10 @@ async def list_activity(
     """The activity rail, limited to the projects the caller may see.
 
     ``visible_project_ids`` is ``project_access.member_project_ids`` for the
-    caller: ``None`` means every project (an instance owner), a set limits every
-    source query to those projects. It is required, with no default, so a new
-    caller cannot silently fall back to the whole instance. A non-member never
+    caller: a set limits every source query to those projects (``None``, every
+    project on the instance, is kept for scripts; no request passes it). It is
+    required, with no default, so a new caller cannot silently fall back to the
+    whole instance. A non-member never
     sees a project exist, so a slug outside the set is "Project not found",
     exactly as for a slug that does not exist.
     """

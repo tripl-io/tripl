@@ -47,9 +47,18 @@ def _generate_token(scope: str) -> tuple[str, str]:
     return raw, raw[: len(_PREFIX) + 2 + 6]  # tk_<scope>_<first 6 chars>
 
 
-async def list_keys(session: AsyncSession, user_id: uuid.UUID) -> list[ApiKey]:
+async def list_keys(
+    session: AsyncSession, user_id: uuid.UUID, organization_id: uuid.UUID
+) -> list[ApiKey]:
+    """``user_id``'s keys bound to ``organization_id`` (the request's org), newest first.
+
+    A key acts in exactly one organization, so listing it under another would
+    show a key that does nothing there.
+    """
     rows = await session.execute(
-        select(ApiKey).where(ApiKey.user_id == user_id).order_by(ApiKey.created_at.desc())
+        select(ApiKey)
+        .where(ApiKey.user_id == user_id, ApiKey.organization_id == organization_id)
+        .order_by(ApiKey.created_at.desc())
     )
     return list(rows.scalars().all())
 

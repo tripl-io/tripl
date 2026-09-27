@@ -92,8 +92,9 @@ Scopes:
 - `read`: read-only. Mutation endpoints reject it, while read/query operations
   remain available even when an endpoint uses `POST` for a complex query body.
   Use this for retrieval, search, and agent context loading.
-- `write`: allowed on mutation endpoints, subject to the user role behind the key. Editor-only routes still require an editor or owner user.
-- Owner-only security and instance-administration routes require an interactive owner session; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key backed by an owner may call.
+- `write`: allowed on mutation endpoints, subject to the roles of the user behind the key. A project write still needs an editing project role (an `editor` membership, or owner/admin of the organization). Minting a `write` key needs membership of the organization.
+- Owner-only security and administration routes (data sources, scan SQL, members, invitations, the audit log) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The instance operator settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
+- A key belongs to the organization it was minted in and acts only there; a URL naming another organization answers `404`. `GET /api/v1/me/api-keys` lists the keys of the organization the request acts in.
 
 Project scope:
 
@@ -106,7 +107,8 @@ If a Bearer token is invalid, expired, or revoked, the API returns `401`. If a v
 Project membership:
 
 - A key acts as the user who created it, so it reaches only the projects that
-  user is a **member** of (an instance owner's key reaches every project). On any
+  user is a **member** of (the key of an owner or admin of the organization
+  reaches every project of it). On any
   other project every `/projects/{slug}/...` route answers `404`
   `Project not found`, the same answer as for a slug that does not exist, and the
   project is missing from `GET /api/v1/projects` and `GET /api/v1/activity`.
@@ -114,8 +116,8 @@ Project membership:
   answers `404`.
 - Writing needs an **editor** membership. A viewer member's key gets `403` on
   mutation routes, whatever its scope.
-- A new user is a member of no project. Ask the project's creator or an owner to
-  add the account behind your key.
+- A new user is a member of no project. Ask the project's creator or an owner or
+  admin of the organization to add the account behind your key.
 
 ### Project members
 
@@ -139,14 +141,16 @@ GET /api/v1/projects/{slug}/members
 
 `role` is the membership role, `editor` or `viewer`. The project response
 (`GET /api/v1/projects/{slug}`) also carries `my_role` (`owner`, `editor` or
-`viewer`), the caller's effective role, and `can_mutate`.
+`viewer`), the caller's effective role — `owner` for an owner or admin of the
+project's organization — and `can_mutate`.
 
-Changing membership is limited to the instance owner and the project's creator,
-and needs a browser session: every API key, whatever its scope, gets `403` on
-these routes. The creator also needs an editing role: a creator whose instance
-role is `viewer`, or who is a `viewer` member, gets `403`, and a creator who was
-removed from the project gets `404`. The same applies to renaming and resetting
-the project; deleting it is owner-only.
+Changing membership is limited to the organization's owners and admins and the
+project's creator, and needs a browser session: every API key, whatever its
+scope, gets `403` on these routes. The creator also needs an editing role: a
+creator who is a `viewer` member gets `403`, and a creator who was removed from
+the project gets `404`. The same applies to renaming and resetting the project;
+deleting it is for owners and admins only. The user you add must be a member of
+the project's organization.
 
 ```http
 POST   /api/v1/projects/{slug}/members            {"user_id": "…", "role": "viewer"}
@@ -697,14 +701,15 @@ the config's own interval first.
 
 This is the **only** owner-gated route an API key can reach, and the gate is
 strict about all three of its parts: the key's scope must be `write`, the user
-behind it must have the `owner` role, and a project-bound key still only reaches
-its own project. An editor's `write` key gets `403 Owner role required`; a `read`
-key gets `403 API key has read-only scope`.
+behind it must be an owner or admin of the organization the key belongs to (and
+so of the project's), and a project-bound key still only reaches its own
+project. A member's `write` key gets `403 Organization owner or admin role
+required`; a `read` key gets `403 API key has read-only scope`.
 
-It is reachable because a replay only re-runs SQL an owner already authored
-through the browser-only scan routes — it cannot introduce a new query. Creating
-or editing a scan config, like connecting a data source, stays an interactive
-owner session.
+It is reachable because a replay only re-runs SQL an owner or admin already
+authored through the browser-only scan routes — it cannot introduce a new query.
+Creating or editing a scan config, like connecting a data source, stays an
+interactive session of an owner or admin.
 
 ## Source freshness
 
@@ -2151,10 +2156,11 @@ POST   /api/v1/projects/{slug}/docs/import/zip?scope=project&mode=merge&dry_run=
 Reads (every `GET`) are open to any project member, including viewers and
 `read`-scope keys. A non-member gets `404`. Writes need an editor on the
 project and a `write`-scope key. Organization notes are readable from every
-project of the organization, so a key bound to one project cannot change them
-(`403`). Deleting organization notes in bulk, with `DELETE /docs/folder` or an
-import in `mirror` mode, needs the instance owner in a browser session: every
-API key gets `403`. Two writers racing on the same note get `409`, as a stale
+project of the organization, so only an owner or admin of the organization may
+change them (`403` for anyone else), and a key bound to one project cannot
+change them (`403`). Deleting organization notes in bulk, with
+`DELETE /docs/folder` or an import in `mirror` mode, needs an organization
+owner or admin in a browser session: every API key gets `403`. Two writers racing on the same note get `409`, as a stale
 `base_revision` does.
 
 `GET /docs` returns the tree: `project_docs` and `organization_docs` (each

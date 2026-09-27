@@ -85,8 +85,8 @@ def _seed_instance(engine: Engine) -> dict[str, uuid.UUID]:
             [
                 ProjectMember(project_id=ids["alpha"], user_id=ids["editor"], role="editor"),
                 ProjectMember(project_id=ids["beta"], user_id=ids["editor"], role="viewer"),
-                # A viewer holding an editor grant: users.role caps it at read
-                # time, and the backfill must leave the row as it is.
+                # A viewer holding an editor grant: the PR1 backfill leaves the
+                # row as it is (PR4's c9e1a3b5d7f9 caps it; test_org_roles_migration).
                 ProjectMember(project_id=ids["alpha"], user_id=ids["viewer"], role="editor"),
                 ProjectMember(project_id=ids["beta"], user_id=ids["viewer"], role="viewer"),
             ]
@@ -368,9 +368,8 @@ async def test_rows_written_by_existing_services_land_in_the_default_org(
         assert set(await session.scalars(select(Project.organization_id))) == {DEFAULT_ORG_ID}
         assert set(await session.scalars(select(DataSource.organization_id))) == {DEFAULT_ORG_ID}
         assert set(await session.scalars(select(ApiKey.organization_id))) == {DEFAULT_ORG_ID}
-        # The registering first user is not made a platform admin by anything in
-        # this PR: only the migration sets the flag.
-        assert set(await session.scalars(select(User.is_platform_admin))) == {False}
+        # Since PR4 the first user of a self-hosted instance is its platform admin.
+        assert set(await session.scalars(select(User.is_platform_admin))) == {True}
 
 
 async def _put_setting(organization_id: uuid.UUID | None, value: dict[str, Any]) -> None:

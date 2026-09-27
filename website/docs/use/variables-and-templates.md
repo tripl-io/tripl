@@ -458,7 +458,7 @@ table's **All / In use / Unused** filter asks the server the same question:
 rather than by a "used in no events" count.
 
 :::note Clearing a backlog that predates the sweep
-An instance owner can run the same pass over a whole branch on demand, from
+An organization owner or admin can run the same pass over a whole branch on demand, from
 **Retire unused variables** in the project's [danger
 zone](./feature-reference.md#project-general--danger-zone) — **Preview** first,
 which commits nothing and reports what it would take, then **Retire**. The route

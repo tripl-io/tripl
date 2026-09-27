@@ -138,7 +138,7 @@ async def restore_revision(
     project = await _resolve_project(session, slug)
     revision, doc = await _visible_revision(session, project, revision_id)
     scope = store.scope_of(doc)
-    require_doc_writer(caller, scope)
+    await require_doc_writer(session, caller, scope, project.organization_id)
     user = caller.user
     if doc.content == revision.content:
         return await _write_response(session, project, doc, created=False, changed=False)

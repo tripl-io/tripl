@@ -85,6 +85,7 @@ from tripl.models.metric_definition import (
 )
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
+from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.services.data_source_scope import data_source_out_of_project_scope
 from tripl.worker.analyzers.metric_composition import evaluate_composition
@@ -2183,9 +2184,11 @@ def _reject_foreign_data_source(
                 select(ScanConfig.project_id).where(ScanConfig.data_source_id == data_source.id)
             ).all()
         )
-    if data_source_out_of_project_scope(
+    project_org_id = session.scalar(select(Project.organization_id).where(Project.id == project_id))
+    if project_org_id is None or data_source_out_of_project_scope(
         data_source,
         project_id=project_id,
+        project_organization_id=project_org_id,
         scanning_project_ids=scanning_project_ids,
     ):
         msg = (

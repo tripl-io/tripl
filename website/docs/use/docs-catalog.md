@@ -107,14 +107,15 @@ meantime, you get a conflict and can reload their version or overwrite it.
 
 - Every project member can read the project's notes and its organization's
   notes. This includes viewers and `read`-scope API keys.
-- Project editors (and the instance owner) can write project notes.
-- Organization notes can be written by instance editors and owners who can
-  edit the project they are working in. An API key bound to one project can
-  read organization notes but cannot change them, because other projects read
-  them too.
+- Project editors (and the organization's owners and admins) can write project
+  notes.
+- Organization notes are written by the organization's owners and admins. A
+  member who edits one project can read organization notes but not change
+  them, because every project of the organization reads them. An API key bound
+  to one project cannot change them either.
 - Deleting organization notes in bulk, with a folder delete or an import in
-  **mirror** mode, needs the instance owner signed in to the web app. An API
-  key cannot do it, whoever owns it.
+  **mirror** mode, needs an organization owner or admin signed in to the web
+  app. An API key cannot do it, whoever owns it.
 
 Every change is recorded in the project's **Audit** tab, in the **Docs** group.
 
@@ -143,8 +144,8 @@ An import takes a zip or a JSON bundle:
 The **Import / export** button on the Docs page does both. It picks the root,
 exports a zip or JSON, and imports a `.zip` or `.json` file with **Merge** or
 **Mirror**. **Import** is enabled only after **Preview (dry run)** has run
-without errors. Only the instance owner, signed in to the web app, can mirror
-organization notes.
+without errors. Only organization owners and admins can import organization
+notes, and mirroring them needs one signed in to the web app.
 
 ### Layout of an export
 

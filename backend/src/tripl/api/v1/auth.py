@@ -12,6 +12,7 @@ from tripl.middleware.rate_limit import (
     register_rate_limiter,
     status_rate_limiter,
 )
+from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import (
     PASSWORD_MAX_LENGTH,
     AuthStatusResponse,
@@ -170,7 +171,7 @@ async def register(
 ) -> AuthUserResponse:
     user, session_token = await auth_service.register_user(session, data)
     _set_session_cookie(response, session_token)
-    return AuthUserResponse.model_validate(user)
+    return await auth_service.build_auth_user_response(session, user)
 
 
 @router.get(
@@ -183,7 +184,7 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
 
     Unauthenticated by necessity — the whole point is that this person cannot
     sign in yet. It discloses nothing the token holder does not already have:
-    the address it was issued to, the role it grants, and when it lapses. It
+    the address it was issued to, the organization role it grants, and when it lapses. It
     does not reveal whether the instance has other users, or who they are.
 
     Shares the cheap /status bucket rather than the register bucket: previewing
@@ -193,7 +194,9 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     invitation = await invitation_service.get_valid_invitation(session, token)
     return InvitationPreview(
         email=invitation.email,
-        role=invitation.role,
+        # The organization role the invitee joins with; NULL only for a row
+        # written behind the application's back, which redeems as member.
+        role=OrganizationRole(invitation.org_role or OrganizationRole.member.value),
         expires_at=invitation.expires_at,
     )
 
@@ -221,7 +224,7 @@ async def accept_invitation(
         session, raw_token=token, password=data.password, name=data.name
     )
     _set_session_cookie(response, session_token)
-    return AuthUserResponse.model_validate(user)
+    return await auth_service.build_auth_user_response(session, user)
 
 
 @router.post(
@@ -233,7 +236,7 @@ async def accept_invitation(
 async def login(response: Response, session: SessionDep, data: LoginRequest) -> AuthUserResponse:
     user, session_token = await auth_service.authenticate_user(session, data)
     _set_session_cookie(response, session_token)
-    return AuthUserResponse.model_validate(user)
+    return await auth_service.build_auth_user_response(session, user)
 
 
 @router.post(
@@ -306,5 +309,6 @@ async def logout(
 
 
 @router.get("/me", response_model=AuthUserResponse)
-async def get_me(current_user: CurrentUserDep) -> AuthUserResponse:
-    return AuthUserResponse.model_validate(current_user)
+async def get_me(session: SessionDep, current_user: CurrentUserDep) -> AuthUserResponse:
+    """The signed-in account with its organization role(s) and the platform-admin flag."""
+    return await auth_service.build_auth_user_response(session, current_user)

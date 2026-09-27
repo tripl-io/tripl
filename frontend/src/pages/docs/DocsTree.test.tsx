@@ -34,12 +34,12 @@ function tree(overrides: Partial<DocTreeResponse> = {}): DocTreeResponse {
   }
 }
 
-function actions(canDelete: (scope: DocScope) => boolean = () => true): FolderActions {
+function actions(canEdit: (scope: DocScope) => boolean = () => true): FolderActions {
   return {
     onNewInFolder: vi.fn(),
     onMoveFolder: vi.fn(),
     onDeleteFolder: vi.fn(),
-    canDeleteFolder: vi.fn(canDelete),
+    canEditScope: vi.fn(canEdit),
   }
 }
 
@@ -131,10 +131,12 @@ describe('DocsTree', () => {
     expect(a.onDeleteFolder).toHaveBeenCalledWith('project', 'references/', 2)
   })
 
-  it('hides folder delete where the user may not bulk-delete', () => {
+  it('hides organization folder actions from a project editor who is not an org owner or admin', () => {
     renderTree({ actions: actions(scope => scope === 'project') })
     expect(screen.getByRole('button', { name: 'Delete references/' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New project note' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete warehouse/' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Rename or move warehouse/' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rename or move warehouse/' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'New organization note' })).toBeNull()
   })
 })

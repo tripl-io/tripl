@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field, field_validator
 
-from tripl.models.domain_enums import UserRole
+from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import PASSWORD_MAX_LENGTH, validate_password_strength
 
 
@@ -13,9 +13,11 @@ class InvitationCreate(BaseModel):
     """What an owner submits to invite one person."""
 
     email: EmailStr
-    # Defaults to editor because that is what self-service registration produces,
-    # so inviting is not quietly more privileged than the door it replaces.
-    role: UserRole = UserRole.editor
+    # The ORGANIZATION role the invitee joins with. Defaults to member because
+    # that is what self-service registration produces, so inviting is not
+    # quietly more privileged than the door it replaces. Inviting an owner
+    # takes an owner.
+    role: OrganizationRole = OrganizationRole.member
 
 
 class InvitationResponse(BaseModel):
@@ -26,11 +28,13 @@ class InvitationResponse(BaseModel):
     to redeem them.
     """
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: uuid.UUID
     email: str
-    role: UserRole
+    # The organization role the invitee joins with, read from
+    # ``invitations.org_role`` (the legacy ``invitations.role`` is not read).
+    role: OrganizationRole = Field(validation_alias="org_role")
     invited_by_user_id: uuid.UUID | None
     expires_at: datetime
     created_at: datetime
@@ -73,7 +77,7 @@ class InvitationPreview(BaseModel):
     """
 
     email: str
-    role: UserRole
+    role: OrganizationRole
     expires_at: datetime
 
 

@@ -12,6 +12,7 @@ import { DisabledReason, disabledReasonAria } from '@/components/states'
 import {
   InactiveGroup,
   NumberSettingInput,
+  OperatorFields,
   SourceBadge,
   StatusBadge,
 } from './ServiceSettingsPrimitives'
@@ -31,6 +32,7 @@ export function AiSection({
   setSecretDrafts,
   saving,
   onClearSecret,
+  platformAdmin,
 }: {
   form: EditableSettings
   settings: ServiceSettings
@@ -39,6 +41,11 @@ export function AiSection({
   setSecretDrafts: (updater: (current: SecretDrafts) => SecretDrafts) => void
   saving: boolean
   onClearSecret: (section: 'ai' | 'email', field: SecretField) => void
+  /**
+   * The endpoint and keys that receive every organization's plan text are
+   * operator-only (backend `OPERATOR_FIELDS`) until each organization has its own.
+   */
+  platformAdmin: boolean
 }) {
   // The built-in prompts behind each "Restore default" (ST-30). Silent: without
   // them the links simply do not appear.
@@ -86,6 +93,7 @@ export function AiSection({
         {/* Still editable — preparing a config before switching it on is
             valid — but visibly idle while the switch is off (ST-26). */}
         <InactiveGroup inactive={!form.ai.ai_enabled} reason="Not used while AI is off.">
+        <OperatorFields locked={!platformAdmin}>
         <Field
           label="Base URL"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_base_url')} />}
@@ -96,6 +104,7 @@ export function AiSection({
             mono
           />
         </Field>
+        </OperatorFields>
         <Field
           label="Model"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_model')} />}
@@ -113,6 +122,7 @@ export function AiSection({
             (tripl-5qp9 / tripl-wkwv.2). The source says override/env/default and
             nothing about the value; the *_configured placeholder beside it
             already reveals more. */}
+        <OperatorFields locked={!platformAdmin} quiet>
         <Field
           label="AI API key"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_api_key')} />}
@@ -145,6 +155,7 @@ export function AiSection({
             </Button>
           </div>
         </Field>
+        </OperatorFields>
         {/* A test button and its status line, not a control to be named. The
             request carries no draft values, so it checks what is stored — said
             here the way the Email "Check" card says it. */}
@@ -305,6 +316,7 @@ export function AiSection({
         >
           <EnvOnlyValue value={String(form.ai.search_embedding_dimensions)} />
         </Field>
+        <OperatorFields locked={!platformAdmin}>
         <Field
           label="Embedding provider"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'search_embedding_provider')} />}
@@ -361,6 +373,7 @@ export function AiSection({
             </Button>
           </div>
         </Field>
+        </OperatorFields>
         </InactiveGroup>
       </SCard>
     </>

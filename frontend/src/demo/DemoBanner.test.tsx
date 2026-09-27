@@ -8,7 +8,7 @@ import { BranchProvider } from '@/components/branch-context'
 import { projectsApi } from '@/api/projects'
 import { ApiError } from '@/api/client'
 import { eventTypesKey, projectKey, projectsKey } from '@/lib/queryKeys'
-import type { Project } from '@/types'
+import type { Project, Role } from '@/types'
 import { DemoBanner } from './DemoBanner'
 import { DemoScenarioProvider } from './DemoScenarioProvider'
 import { readScenarioState, writeScenarioState } from './scenarioModel'
@@ -54,13 +54,15 @@ function makeProject(overrides: Partial<Project> = {}): Project {
   }
 }
 
-function authValue({ id, role }: { id: string; role: 'owner' | 'editor' | 'viewer' }): AuthContextValue {
+function authValue({ id, role }: { id: string; role: Role }): AuthContextValue {
   return {
     user: {
       id,
       email: `${id}@example.com`,
       name: id,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -88,7 +90,7 @@ function renderBanner(options: {
   scenario?: ReactNode
 } = {}) {
   const project = options.project ?? makeProject()
-  const auth = options.auth ?? authValue({ id: 'creator-1', role: 'editor' })
+  const auth = options.auth ?? authValue({ id: 'creator-1', role: 'member' })
   const initialPath = options.initialPath ?? `/p/${project.slug}/overview`
   const queryClient = options.queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -287,15 +289,19 @@ describe('DemoBanner', () => {
   })
 
   it('hides reset/delete from a non-creator, non-owner user', () => {
-    renderBanner({ auth: authValue({ id: 'someone-else', role: 'viewer' }) })
+    renderBanner({ auth: authValue({ id: 'someone-else', role: 'member' }) })
 
     expect(screen.queryByRole('button', { name: /^manage demo/i })).not.toBeInTheDocument()
   })
 
   it('hides reset/delete from the creator once they are demoted to viewer', () => {
     // The backend gates both routes on EditorUserDep before it looks at the
-    // creator, so the demoted creator's click could only ever answer 403.
-    renderBanner({ auth: authValue({ id: 'creator-1', role: 'viewer' }) })
+    // creator, so the demoted creator's click could only ever answer 403. The
+    // demotion is a `viewer` row in this project, which the server reports.
+    renderBanner({
+      auth: authValue({ id: 'creator-1', role: 'member' }),
+      project: makeProject({ my_role: 'viewer', can_mutate: false }),
+    })
 
     expect(screen.queryByRole('button', { name: /^manage demo/i })).not.toBeInTheDocument()
   })
@@ -327,7 +333,10 @@ describe('DemoBanner — the way back into the guided onboarding (tripl-imco)', 
   })
 
   it('offers the way back to a viewer, who has no Reset to fall back on', () => {
-    renderBanner({ auth: authValue({ id: 'someone-else', role: 'viewer' }) })
+    renderBanner({
+      auth: authValue({ id: 'someone-else', role: 'member' }),
+      project: makeProject({ my_role: 'viewer', can_mutate: false }),
+    })
 
     expect(screen.getByRole('button', { name: /Tour & chapters/i })).toBeInTheDocument()
   })
@@ -588,7 +597,7 @@ describe('DemoBanner — what a reset drops from the cache (DEMO-3)', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })
-    const user = authValue({ id: 'creator-1', role: 'editor' }).user
+    const user = authValue({ id: 'creator-1', role: 'member' }).user
     queryClient.setQueryData(['auth', 'me'], user)
     queryClient.setQueryData(projectsKey(), [makeProject()])
     queryClient.setQueryData(projectKey('demo-1'), makeProject())

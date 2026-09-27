@@ -13,7 +13,7 @@ import { SETTINGS_STORAGE_KEY, sectionLabel } from '@/components/settings/nav'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
-import { isOwner as isOwnerRole } from '@/lib/permissions'
+import { isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -93,6 +93,7 @@ function StateHeader({ section }: { section: string }) {
 export default function SettingsArea({ section }: { section: string }) {
   const auth = useAuth()
   const isOwner = isOwnerRole(auth.user?.role)
+  const platformAdmin = isPlatformAdmin(auth.user)
   const [pickedSlug, setPickedSlug] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const slug = useSettingsSlug(pickedSlug)
@@ -176,6 +177,7 @@ export default function SettingsArea({ section }: { section: string }) {
           section,
           slug,
           isOwner,
+          platformAdmin,
           projects,
           projectsStatus: projectsQuery.status,
           onPickProject: pickProject,
@@ -209,6 +211,7 @@ function renderSection({
   section,
   slug,
   isOwner,
+  platformAdmin,
   projects,
   projectsStatus,
   onPickProject,
@@ -219,6 +222,7 @@ function renderSection({
   section: string
   slug: string | undefined
   isOwner: boolean
+  platformAdmin: boolean
   projects: Project[]
   projectsStatus: 'pending' | 'error' | 'success'
   onPickProject: (slug: string) => void
@@ -232,12 +236,17 @@ function renderSection({
   if (section === 'profile') return <ProfileSection />
   if (section === 'security') return <SecuritySection />
   if (section.startsWith('instance/')) {
-    if (!isOwner) return <OwnerOnly section={section} />
     // Audit is the one Instance section that is not a settings form, so it does
     // not go through InstanceSection — that component's whole job is to frame a
-    // ServiceSettingsPage section, and this reads a feed instead. It shares the
-    // owner gate above rather than adding a second one (tripl-wkwv.17).
-    if (section === 'instance/audit') return <WorkspaceAuditSection />
+    // ServiceSettingsPage section, and this reads a feed instead. It is the
+    // organization's feed, so it takes the org owner gate (tripl-wkwv.17).
+    if (section === 'instance/audit') {
+      return isOwner ? <WorkspaceAuditSection /> : <OwnerOnly section={section} />
+    }
+    // The settings sections are also a platform admin's, who may hold no role
+    // in any organization; ServiceSettingsPage keeps the operator-only
+    // sections from an org admin.
+    if (!isOwner && !platformAdmin) return <OwnerOnly section={section} />
     return <InstanceSection section={section.slice('instance/'.length)} />
   }
   // Everything below is project-scoped. Never guess which project that is.

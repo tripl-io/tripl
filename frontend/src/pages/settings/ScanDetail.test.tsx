@@ -87,15 +87,16 @@ describe('ScanDetail', () => {
         { name: 'Home', condition_logic: 'all', conditions: [{ field: 'event_name', pattern: '^Home' }] },
       ],
     }
-    const auth = (role: 'editor' | 'owner'): AuthContextValue => ({
+    const auth = (role: 'member' | 'owner'): AuthContextValue => ({
       user: {
         id: 'u-1', email: 'operator@example.com', name: 'Operator', role,
+        is_platform_admin: false, orgs: [],
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
       status: 'authenticated', error: null, isLoggingOut: false,
       logout: async () => {}, refresh: () => {},
     })
-    const detail = (role: 'editor' | 'owner') => (
+    const detail = (role: 'member' | 'owner') => (
       <AuthContext.Provider value={auth(role)}>
         <QueryClientProvider client={queryClient}>
           <ScanDetail slug="demo" scanConfig={withRules} eventTypes={[]} />
@@ -103,7 +104,7 @@ describe('ScanDetail', () => {
       </AuthContext.Provider>
     )
 
-    const view = render(detail('editor'))
+    const view = render(detail('member'))
     expect(await screen.findByText('Recent runs')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Apply to existing events/ })).not.toBeInTheDocument()
 
@@ -124,6 +125,7 @@ describe('ScanDetail', () => {
       <AuthContext.Provider value={{
         user: {
           id: 'u-1', email: 'owner@example.com', name: 'Owner', role: 'owner',
+          is_platform_admin: false, orgs: [],
           created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
         },
         status: 'authenticated', error: null, isLoggingOut: false,
@@ -262,7 +264,7 @@ describe('ScanDetail', () => {
       defaultOptions: { queries: { retry: false } },
     })
 
-    const report = (role: 'owner' | 'editor') => (
+    const report = (role: 'owner' | 'member') => (
       <QueryClientProvider client={queryClient}>
         {/* The failure box links to its fixes, so the report needs a router.
             Data-source pages are owner-only, so an owner is signed in. */}
@@ -316,7 +318,7 @@ describe('ScanDetail', () => {
     expectRawErrorOnlyInClosedTechnicalDetails()
 
     // Anyone but an owner never gets the raw error in the DOM at all.
-    view.rerender(report('editor'))
+    view.rerender(report('member'))
     expect(screen.getAllByText('Scan failed: the data source did not respond in time.')).toHaveLength(2)
     expect(screen.queryByText('View technical details')).not.toBeInTheDocument()
     expect(screen.queryByText(/clickhouse\.internal/)).not.toBeInTheDocument()

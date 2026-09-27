@@ -8,11 +8,11 @@ from tripl.api.deps import (
     CurrentUserDep,
     EditorUserDep,
     OwnerUserDep,
+    ProjectRoleDep,
     SessionDep,
     can_mutate_project,
 )
 from tripl.config import settings
-from tripl.models.domain_enums import UserRole
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.schemas.project import (
@@ -31,6 +31,7 @@ from tripl.services import (
     audit_service,
     demo_service,
     detection_reset_service,
+    project_access,
     project_lookup,
     project_service,
     project_template_service,
@@ -40,28 +41,35 @@ from tripl.services import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _is_project_manager(user: User, project: Project) -> bool:
-    """An instance owner, or the user who created this project.
+def _is_project_manager(
+    project_role: project_access.ProjectRole | None, user: User, project: Project
+) -> bool:
+    """Project role ``owner`` in this project, or the user who created it.
 
-    Narrower than editing the project's contents (an ``editor`` member may do
-    that): renaming and re-slugging a project, resetting or deleting a demo, and
-    managing its members stay with its creator and the instance owner. Deleting
-    a real (non-demo) project is narrower still: it is instance-owner only
-    (``OwnerUserDep`` on ``DELETE /projects/{slug}``), so a creator cannot
-    delete one. A non-member never reaches this check; the membership gate has
-    already answered 404.
+    Project role ``owner`` means an owner or admin of the project's OWN
+    organization (:mod:`tripl.services.project_access`); ``users.role`` is not
+    read. Narrower than editing the project's contents (an ``editor`` member
+    may do that): renaming and re-slugging a project, resetting or deleting a
+    demo, and managing its members stay with its creator and the organization's
+    owners and admins. Deleting a real (non-demo) project is narrower still: it
+    is org owner/admin only (``OwnerUserDep`` on ``DELETE /projects/{slug}``),
+    so a creator cannot delete one. A non-member never reaches this check; the
+    membership gate has already answered 404.
     """
-    return user.role == UserRole.owner.value or project.created_by_user_id == user.id
+    return project_role == project_access.OWNER or project.created_by_user_id == user.id
 
 
-def _require_demo_manager(user: User, project: Project) -> None:
-    """Allow a demo's creator (any editor) or an owner to manage it.
+def _require_demo_manager(
+    project_role: project_access.ProjectRole | None, user: User, project: Project
+) -> None:
+    """Allow a demo's creator (any editor) or an org owner/admin to manage it.
 
     Resolves the create/delete permission mismatch: editors may create a demo,
-    so a creator may also reset or delete the demo they made, while owners may
-    manage any demo. Real projects stay owner-only for deletion.
+    so a creator may also reset or delete the demo they made, while the
+    organization's owners and admins may manage any demo. Real projects stay
+    org owner/admin-only for deletion.
     """
-    if _is_project_manager(user, project):
+    if _is_project_manager(project_role, user, project):
         return
     raise HTTPException(
         status_code=403,
@@ -69,15 +77,18 @@ def _require_demo_manager(user: User, project: Project) -> None:
     )
 
 
-def _require_project_manager(user: User, project: Project) -> None:
+def _require_project_manager(
+    project_role: project_access.ProjectRole | None, user: User, project: Project
+) -> None:
     """Guard project-identity edits (name, slug, retention policy).
 
     Being an ``editor`` member lets a user edit the tracking plan, not the
-    project's identity (tripl-jfm3.19), so the manager set is: the instance
-    owner, plus whoever created the project. Projects created before creators
-    were recorded have no creator and are therefore owner-managed.
+    project's identity (tripl-jfm3.19), so the manager set is: the owners and
+    admins of the project's organization, plus whoever created the project.
+    Projects created before creators were recorded have no creator and are
+    therefore org owner/admin-managed.
     """
-    if _is_project_manager(user, project):
+    if _is_project_manager(project_role, user, project):
         return
     raise HTTPException(
         status_code=403,
@@ -163,7 +174,8 @@ def _require_demo_enabled() -> None:
 async def list_projects(
     session: SessionDep, request: Request, current_user: CurrentUserDep
 ) -> list[ProjectResponse]:
-    # Only the projects the caller is a member of (every project for an owner).
+    # Only the projects the caller is a member of (every project of the org for
+    # an org owner/admin).
     projects = await project_service.list_projects(session, current_user)
     return await _for_caller(session, request, current_user, projects)
 
@@ -248,7 +260,11 @@ async def cancel_demo_provisioning(
 
 @router.post("/demo/{slug}/reset", response_model=ProjectResponse)
 async def reset_demo_project(
-    session: SessionDep, request: Request, current_user: EditorUserDep, slug: str
+    session: SessionDep,
+    request: Request,
+    current_user: EditorUserDep,
+    project_role: ProjectRoleDep,
+    slug: str,
 ) -> ProjectResponse:
     """Re-seed a demo in place. Restricted to the demo's creator or an owner."""
     # Reset re-provisions the demo from scratch, so it IS a provisioning path and
@@ -259,7 +275,7 @@ async def reset_demo_project(
     project = await project_lookup.resolve_project(session, slug)
     if not project.is_demo:
         raise HTTPException(status_code=404, detail="Demo project not found")
-    _require_demo_manager(current_user, project)
+    _require_demo_manager(project_role, current_user, project)
     replacement = await demo_service.reset_demo_project(session, slug, created_by=current_user.id)
     # Recorded against the REPLACEMENT, and after it exists, so the row survives:
     # the reset drops the old demo's audit rows by its id (tripl-wkwv.16), and a
@@ -278,12 +294,14 @@ async def reset_demo_project(
 
 
 @router.delete("/demo/{slug}", status_code=204)
-async def delete_demo_project(session: SessionDep, current_user: EditorUserDep, slug: str) -> None:
+async def delete_demo_project(
+    session: SessionDep, current_user: EditorUserDep, project_role: ProjectRoleDep, slug: str
+) -> None:
     """Delete a demo and its owned synthetic warehouse. Creator or owner only."""
     project = await project_lookup.resolve_project(session, slug)
     if not project.is_demo:
         raise HTTPException(status_code=404, detail="Demo project not found")
-    _require_demo_manager(current_user, project)
+    _require_demo_manager(project_role, current_user, project)
     # Captured before the delete: afterwards the row is the only thing that knows
     # what the id pointed at.
     project_id, name = project.id, project.name
@@ -316,11 +334,12 @@ async def update_project(
     session: SessionDep,
     request: Request,
     current_user: EditorUserDep,
+    project_role: ProjectRoleDep,
     slug: str,
     data: ProjectUpdate,
 ) -> ProjectResponse:
     project = await project_lookup.resolve_project(session, slug)
-    _require_project_manager(current_user, project)
+    _require_project_manager(project_role, current_user, project)
     updated = await project_service.update_project(session, slug, data)
     # Named as it stands AFTER the edit, like every other update row, and filed
     # under the NEW slug — the only slug this project answers to from here on.
