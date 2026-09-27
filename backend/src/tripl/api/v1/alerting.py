@@ -9,6 +9,7 @@ from tripl.models.alert_delivery import AlertDeliveryStatus
 from tripl.models.alert_destination import AlertDestinationType
 from tripl.models.anomaly_scope_override import RATCHET_SIGMA_CAP
 from tripl.models.domain_enums import AlertInboxStatus, AnomalyDirection, MetricScopeType
+from tripl.schemas.alert_owner import NotifyOwnersResponse
 from tripl.schemas.alerting import (
     AlertDeliveryDetailResponse,
     AlertDeliveryListResponse,
@@ -32,7 +33,7 @@ from tripl.schemas.alerting import (
     MonitorsSummaryResponse,
 )
 from tripl.schemas.text_filters import FreeTextFilter
-from tripl.services import alerting_service, audit_service
+from tripl.services import alert_owner_notify_service, alerting_service, audit_service
 
 router = APIRouter(prefix="/projects/{slug}", tags=["alerting"])
 
@@ -665,3 +666,41 @@ async def apply_alert_inbox_action(
         payload=data.model_dump(),
     )
     return result
+
+
+@router.post(
+    "/alert-inbox/{correlation_group_id}/notify-owners",
+    response_model=NotifyOwnersResponse,
+)
+async def notify_alert_inbox_owners(
+    session: SessionDep,
+    slug: str,
+    correlation_group_id: uuid.UUID,
+    current_user: EditorUserDep,
+) -> NotifyOwnersResponse:
+    """Email the owners of this incident's event type / metric once, now (F07, #260).
+
+    Answers with one row per owner tried; a ``skipped`` or ``failed`` owner is
+    part of the answer, not an error. No owners is an empty list. An owner
+    emailed about this incident in the last 10 minutes is ``skipped`` ("notified
+    N minutes ago"); at most 20 owners are contacted per request.
+    """
+    result = await alert_owner_notify_service.notify_incident_owners(
+        session, slug, correlation_group_id, current_user
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="alert_inbox.notify_owners",
+        target_type="alert_correlation_group",
+        target_id=correlation_group_id,
+        target_name=result.target_name,
+        project=result.project,
+        payload={
+            "owners": [
+                {"user_id": str(owner.user_id) if owner.user_id else None, "status": owner.status}
+                for owner in result.response.owners
+            ],
+        },
+    )
+    return result.response

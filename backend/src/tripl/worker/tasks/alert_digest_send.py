@@ -84,6 +84,7 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
         _assert_rule_active,
         _assert_rule_still_active,
         _claim_delivery,
+        _enqueue_owner_followup,
         _resolve_email_context,
         _resolve_slack_webhook,
         _send_email_message,
@@ -120,6 +121,12 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
         pending = [
             delivery for delivery in deliveries if delivery.status != AlertDeliveryStatus.sent.value
         ]
+        # What a re-run still owes the members that DID commit as sent: their
+        # owner follow-up (F07, #260), in case the run that sent them died
+        # before queueing it. Idempotent — the follow-up claims per owner.
+        for delivery in deliveries:
+            if delivery.status == AlertDeliveryStatus.sent.value:
+                _enqueue_owner_followup(session, delivery)
         if not pending:
             return {"status": "already_sent", "messages": 0, "sent": 0, "failed": 0, "skipped": 0}
 
@@ -390,6 +397,12 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
                 sent_count += 1
             session.commit()
             messages += 1
+            # Owner routing (F07, #260): each sent member whose rule notifies
+            # owners gets its own follow-up with that member's items — one owner
+            # email per rule delivery, not one per digest message — after the
+            # commit, and never able to fail the digest (the helper swallows).
+            for delivery, _text in members:
+                _enqueue_owner_followup(session, delivery)
 
         # Drained only now, after every successful group has committed, so a
         # rollback here cannot touch a delivery that was actually sent.

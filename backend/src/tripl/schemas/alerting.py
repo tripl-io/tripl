@@ -41,6 +41,7 @@ from tripl.models.domain_enums import (
     AnomalyDirection,
     MetricScopeType,
 )
+from tripl.schemas.alert_owner import AlertOwnerNotificationResponse, AlertOwnerRef
 from tripl.schemas.time_guards import require_future_instant
 
 # ``note`` is the only member that does NOT change the incident's status: it
@@ -112,6 +113,7 @@ class AlertRuleBase(BaseModel):
     notify_on_spike: bool | None = None
     notify_on_drop: bool | None = None
     ai_explanation_enabled: bool | None = None
+    notify_owners: bool | None = None
     min_percent_delta: float | None = Field(None, ge=0)
     min_absolute_delta: float | None = Field(None, ge=0)
     min_expected_count: float | None = Field(None, ge=0)
@@ -176,6 +178,9 @@ class AlertRuleCreate(AlertRuleBase):
     notify_on_spike: bool = True
     notify_on_drop: bool = True
     ai_explanation_enabled: bool = False
+    # Also email the owners of each affected event type / catalog metric
+    # (F07, #260). Off by default.
+    notify_owners: bool = False
     # A new rule starts at the measured volume threshold rather than wide open;
     # see DEFAULT_MIN_PERCENT_DELTA. Zero is still accepted, for a caller that
     # deliberately wants every deviation.
@@ -254,6 +259,7 @@ _RULE_NOT_NULLABLE_ON_UPDATE = frozenset(
         "notify_on_spike",
         "notify_on_drop",
         "ai_explanation_enabled",
+        "notify_owners",
         "min_percent_delta",
         "min_absolute_delta",
         "min_expected_count",
@@ -293,6 +299,9 @@ class AlertRuleResponse(BaseModel):
     notify_on_spike: bool
     notify_on_drop: bool
     ai_explanation_enabled: bool
+    # Defaulted so a response built by an older construction site stays valid;
+    # ``rule_to_response`` always sends it.
+    notify_owners: bool = False
     min_percent_delta: float
     min_absolute_delta: float
     min_expected_count: float
@@ -1110,6 +1119,9 @@ class AlertDeliveryResponse(BaseModel):
 
 class AlertDeliveryDetailResponse(AlertDeliveryResponse):
     items: list[AlertDeliveryItemResponse]
+    # The owners this delivery's rule emailed (F07, #260), oldest first. Empty
+    # when the rule does not notify owners or none of its scopes is owned.
+    owner_notifications: list[AlertOwnerNotificationResponse] = Field(default_factory=list)
 
 
 class AlertDeliveryListResponse(BaseModel):
@@ -1227,6 +1239,10 @@ class AlertInboxGroupResponse(BaseModel):
     # above — no default, so the generated client cannot call it optional while
     # the hand-written type calls it required.
     acted_by_name: str | None
+    # Owners of the newest item's event type / catalog metric (F07, #260): the
+    # current project members with an email that "Notify owners" would reach.
+    # Names only, never addresses — this payload is readable by every member.
+    owners: list[AlertOwnerRef] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def blank_percent_delta_without_a_baseline(self) -> AlertInboxGroupResponse:

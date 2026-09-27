@@ -895,7 +895,12 @@ async def _with_live_state(
     )
     # "Why did it change?" (F02, #255), after the drop so only returned rows
     # are looked up.
-    return await anomaly_attribution_service.attach_attributions(session, triaged)
+    attributed = await anomaly_attribution_service.attach_attributions(session, triaged)
+    # Owners (F07, #260) on the expanded list only: the Anomalies page shows
+    # them, while the collapsed list feeds counts that never read them.
+    if expanded:
+        return await anomaly_attribution_service.attach_owners(session, project_id, attributed)
+    return attributed
 
 
 def _with_incident_refs(

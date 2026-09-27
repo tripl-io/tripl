@@ -743,6 +743,31 @@ def _send_linear_issue(
     )
 
 
+def _enqueue_owner_followup(session: Session, delivery: AlertDelivery) -> None:
+    """Queue the owner follow-up (F07, #260) for a delivery committed as sent; never raises.
+
+    Called from the success path AND the ``already_sent`` early return of both
+    send tasks: a worker killed after the delivery's commit but before this
+    enqueue would otherwise leave its owners untold, and the follow-up's own
+    claim makes a repeat harmless. Nothing for a rule without ``notify_owners``
+    or a demo project (zero egress). Every caller sits inside a ``try`` whose
+    handler marks the delivery failed, so nothing may escape from here.
+    """
+    try:
+        rule = session.get(AlertRule, delivery.rule_id)
+        if rule is None or not rule.notify_owners:
+            return
+        project = session.get(Project, delivery.project_id)
+        if project is not None and project.is_demo:
+            return
+        # Deferred: alert_owner_notify imports this package's message helpers.
+        from tripl.worker.tasks.alert_owner_notify import enqueue_owner_notifications
+
+        enqueue_owner_notifications(str(delivery.id))
+    except Exception:  # noqa: BLE001 — the delivery is sent; the follow-up is best effort
+        logger.exception("Could not queue the owner follow-up for delivery %s", delivery.id)
+
+
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="tripl.worker.tasks.alerts.send_alert_delivery",
     bind=True,
@@ -765,6 +790,9 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
         # committed as sent, treat the re-run as a no-op so we don't re-send the
         # message or create a duplicate ticket.
         if delivery.status == AlertDeliveryStatus.sent.value:
+            # The one thing a re-run still owes: the owner follow-up, in case
+            # the run that sent died before queueing it (F07, #260).
+            _enqueue_owner_followup(session, delivery)
             return {"status": "already_sent", "delivery_id": delivery_id}
 
         # Single flight (tripl-0zpq.37). The early return above only catches a
@@ -1372,6 +1400,10 @@ def send_alert_delivery(self: object, delivery_id: str) -> dict[str, object]:
                 realtime.EVENT_ACTIVITY_CREATED,
                 {"delivery_id": delivery_id, "status": AlertDeliveryStatus.sent.value},
             )
+        # Owner routing (F07, #260): only once the send is committed, so a
+        # retried main delivery that fails never emails an owner. The helper
+        # skips demo projects and swallows its own errors.
+        _enqueue_owner_followup(session, delivery)
         return {"status": "sent", "delivery_id": delivery_id}
     except Exception as exc:
         logger.exception("Failed to send alert delivery %s", delivery_id)

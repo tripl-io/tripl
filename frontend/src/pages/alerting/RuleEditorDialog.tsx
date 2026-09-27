@@ -60,6 +60,7 @@ const RULE_FIELD_LABELS: Readonly<Record<string, string>> = {
   notify_on_drop: 'Drops',
   enabled: 'Rule enabled',
   ai_explanation_enabled: 'AI explanation',
+  notify_owners: 'Notify owners',
 }
 
 /**
@@ -764,7 +765,7 @@ export function RuleEditorDialog({
               </section>
             </Collapsible>
 
-            {/* Advanced: two switches most rules never touch, out of the way
+            {/* Advanced: switches most rules never touch, out of the way
                 of the four steps above (AL-1). */}
             <section aria-labelledby="rule-advanced-title" className="grid gap-2 border-t border-border-subtle pt-4">
               <h3 id="rule-advanced-title" className="m-0 text-body-sm font-semibold text-fg">Advanced</h3>
@@ -784,9 +785,20 @@ export function RuleEditorDialog({
                   />
                   AI explanation
                 </label>
+                <label className="flex items-center gap-2 text-body">
+                  <Checkbox
+                    checked={ruleForm.notify_owners}
+                    onCheckedChange={checked => setRuleForm(current => ({ ...current, notify_owners: !!checked }))}
+                    aria-describedby="rule-owners-hint"
+                  />
+                  Also notify owners of the affected event type (by email)
+                </label>
               </div>
               <p id="rule-ai-hint" className="m-0 text-caption text-fg-subtle">
                 AI explanation appends an LLM summary to each alert (needs AI enabled on the server).
+              </p>
+              <p id="rule-owners-hint" className="m-0 text-caption text-fg-subtle">
+                Owners of each affected event type, and of a catalog metric, get one email per delivery with the items they own, in addition to this destination. Owners who are not project members or have no email are skipped; needs email (SMTP) configured on the server.
               </p>
             </section>
 

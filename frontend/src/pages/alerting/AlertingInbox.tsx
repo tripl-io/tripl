@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BellRing } from 'lucide-react'
 
-import { MAX_INBOX_NOTE_LENGTH } from '@/api/alerting'
+import { MAX_INBOX_NOTE_LENGTH, alertingApi } from '@/api/alerting'
 import { Chip } from '@/components/primitives/chip'
 import { EmptyState } from '@/components/empty-state'
 import { Panel } from '@/components/settings/kit'
@@ -55,6 +55,7 @@ import {
   type InboxFilterState,
 } from './inboxFilters'
 import { IncidentDeliveries } from './IncidentDeliveries'
+import { OwnersNotify } from './OwnersNotify'
 import { useNoteDraft, type NoteDraftStore } from './noteDraftStore'
 
 /** The status filter, where `''` is "All" — the state with no `status=` param. */
@@ -990,6 +991,15 @@ const IncidentCard = memo(function IncidentCard({
           {group.note}
         </p>
       )}
+      {/* Who owns the affected event type / metric (F07, #260), readable by
+          everyone; the one-off email to them is an editor's action. */}
+      <OwnersNotify
+        className="mt-2"
+        owners={group.owners}
+        canNotify={canWrite}
+        notify={() => alertingApi.notifyIncidentOwners(slug, id)}
+        target={target}
+      />
 
       {/* Omitted, not disabled, for a viewer: five buttons and a note box per
           card, greyed out and unexplained, is a worse page than one that does

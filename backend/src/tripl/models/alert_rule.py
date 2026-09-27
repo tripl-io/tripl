@@ -132,6 +132,16 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
     # Append an LLM-generated explanation paragraph to delivered alert
     # messages. Off by default; a no-op unless AI features are enabled in
     # instance settings.
+    # Also email the owners of every event type / catalog metric a delivery of
+    # this rule touches (F07, #260), after the rule's own destination has the
+    # message. Off by default; unowned scopes behave exactly as without it. The
+    # follow-up is ``worker.tasks.alert_owner_notify.notify_owners``, and a
+    # failure there never fails the rule's own delivery.
+    notify_owners: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     ai_explanation_enabled: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
@@ -181,7 +191,9 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
     # ``alerts._assert_rule_still_active`` re-checks queued deliveries just
     # before outbound send, after rendering may have taken time.
     # ``metrics.freshness_sweep`` (overdue source-freshness alerts, #269) skips a
-    # muted rule the same way before it mints anything. The rule's
+    # muted rule the same way before it mints anything.
+    # ``alert_owner_notify._rule_is_muted`` (owner email routing, #260) skips
+    # emailing the owners of a muted rule's event types. The rule's
     # open/close state is updated before the dispatch check, deliberately, so a
     # mute does not leave the monitor stuck "firing" on a stale scope. The
     # API-side predicate is ``_alerting_monitors.is_rule_muted``.

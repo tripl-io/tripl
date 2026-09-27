@@ -800,6 +800,13 @@ def test_the_rule_mute_comment_reads_as_history_and_the_model_agrees() -> None:
         for path in worker_root.rglob("*.py")
         if "rule.muted_until" in path.read_text(encoding="utf-8")
     )
-    assert readers == ["alert_flush.py", "alerts.py", "dispatch.py", "freshness_sweep.py"]
+    assert readers == [
+        "alert_flush.py",
+        "alert_owner_notify.py",
+        "alerts.py",
+        "dispatch.py",
+        "freshness_sweep.py",
+    ]
     assert "alerts._assert_rule_still_active" in model_source
     assert "metrics.freshness_sweep" in model_source
+    assert "alert_owner_notify._rule_is_muted" in model_source

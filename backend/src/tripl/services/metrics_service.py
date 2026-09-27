@@ -1145,7 +1145,9 @@ async def get_event_metrics(
     response = await signal_verdict_service.with_chart_verdicts(
         session, project.id, response, scope_type=SCOPE_EVENT, scope_ref=str(event.id)
     )
-    return await anomaly_attribution_service.with_latest_signal_attribution(session, response)
+    return await anomaly_attribution_service.with_latest_signal_attribution(
+        session, response, project_id=project.id
+    )
 
 
 async def get_event_metric_breakdowns(
@@ -2590,7 +2592,9 @@ async def get_event_type_metrics(
     response = await signal_verdict_service.with_chart_verdicts(
         session, project.id, response, scope_type=SCOPE_EVENT_TYPE, scope_ref=str(event_type.id)
     )
-    return await anomaly_attribution_service.with_latest_signal_attribution(session, response)
+    return await anomaly_attribution_service.with_latest_signal_attribution(
+        session, response, project_id=project.id
+    )
 
 
 async def get_project_total_metrics(
@@ -2679,4 +2683,6 @@ async def get_project_total_metrics(
         scope_type=SCOPE_PROJECT_TOTAL,
         scope_ref=str(resolved_scan_config_id),
     )
-    return await anomaly_attribution_service.with_latest_signal_attribution(session, response)
+    return await anomaly_attribution_service.with_latest_signal_attribution(
+        session, response, project_id=project.id
+    )

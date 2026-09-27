@@ -883,6 +883,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/alert-inbox/{correlation_group_id}/notify-owners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Notify Alert Inbox Owners
+         * @description Email the owners of this incident's event type / metric once, now (F07, #260).
+         *
+         *     Answers with one row per owner tried; a ``skipped`` or ``failed`` owner is
+         *     part of the answer, not an error. No owners is an empty list. An owner
+         *     emailed about this incident in the last 10 minutes is ``skipped`` ("notified
+         *     N minutes ago"); at most 20 owners are contacted per request.
+         */
+        post: operations["notify_alert_inbox_owners_api_v1_projects__slug__alert_inbox__correlation_group_id__notify_owners_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/annotations": {
         parameters: {
             query?: never;
@@ -3485,6 +3510,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/signals/notify-owners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Notify Signal Owners
+         * @description Email the owners of a signal's event type / metric once, now (F07, #260).
+         *
+         *     The "Notify owners" action for a signal no rule routed to an incident. One
+         *     row per owner tried; no owners is an empty list; an unknown signal is 404.
+         *     An owner emailed about this signal in the last 10 minutes is ``skipped``
+         *     ("notified N minutes ago"); at most 20 owners are contacted per request.
+         */
+        post: operations["notify_signal_owners_api_v1_projects__slug__signals_notify_owners_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/signals/verdict": {
         parameters: {
             query?: never;
@@ -4208,6 +4258,8 @@ export interface components {
             items: components["schemas"]["AlertDeliveryItemResponse"][];
             /** Matched Count */
             matched_count: number;
+            /** Owner Notifications */
+            owner_notifications?: components["schemas"]["AlertOwnerNotificationResponse"][];
             /** Payload Snapshot */
             payload_snapshot: {
                 [key: string]: unknown;
@@ -4793,6 +4845,8 @@ export interface components {
             muted_until?: string | null;
             /** Note */
             note?: string | null;
+            /** Owners */
+            owners?: components["schemas"]["AlertOwnerRef"][];
             /** Percent Delta */
             percent_delta: number | null;
             /** Rule Names */
@@ -4886,6 +4940,48 @@ export interface components {
          * @enum {string}
          */
         AlertMessageFormat: "plain" | "slack_mrkdwn" | "telegram_html" | "telegram_markdownv2";
+        /**
+         * AlertOwnerNotificationResponse
+         * @description One owner email: who, where to, and what became of it.
+         *
+         *     ``user_id`` is NULL once the user was deleted; the address stays on record.
+         *     ``pending`` is a short-lived claim a worker holds while it sends.
+         */
+        AlertOwnerNotificationResponse: {
+            /** Email */
+            email: string;
+            /** Error */
+            error?: string | null;
+            /** Name */
+            name: string | null;
+            /** Sent At */
+            sent_at?: string | null;
+            status: components["schemas"]["AlertOwnerNotificationStatus"];
+            /** User Id */
+            user_id: string | null;
+        };
+        /**
+         * AlertOwnerNotificationStatus
+         * @enum {string}
+         */
+        AlertOwnerNotificationStatus: "pending" | "sent" | "failed" | "skipped";
+        /**
+         * AlertOwnerRef
+         * @description An owner of the affected event type or catalog metric, for display.
+         *
+         *     Only current project members with an email address are listed — exactly the
+         *     people "Notify owners" would email. ``name`` falls back to the local part of
+         *     the address, never to the whole address.
+         */
+        AlertOwnerRef: {
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /** AlertRuleCreate */
         AlertRuleCreate: {
             /**
@@ -4988,6 +5084,11 @@ export interface components {
              * @default true
              */
             notify_on_spike: boolean;
+            /**
+             * Notify Owners
+             * @default false
+             */
+            notify_owners: boolean;
             /** Scan Config Id */
             scan_config_id?: string | null;
         };
@@ -5091,6 +5192,11 @@ export interface components {
             notify_on_drop: boolean;
             /** Notify On Spike */
             notify_on_spike: boolean;
+            /**
+             * Notify Owners
+             * @default false
+             */
+            notify_owners: boolean;
             /** Scan Config Id */
             scan_config_id: string | null;
             /** Total Deliveries */
@@ -5196,6 +5302,8 @@ export interface components {
             notify_on_drop?: boolean | null;
             /** Notify On Spike */
             notify_on_spike?: boolean | null;
+            /** Notify Owners */
+            notify_owners?: boolean | null;
             /** Scan Config Id */
             scan_config_id?: string | null;
         };
@@ -9286,6 +9394,8 @@ export interface components {
             muted: boolean;
             /** Muted Until */
             muted_until?: string | null;
+            /** Owners */
+            owners?: components["schemas"]["AlertOwnerRef"][];
             /** Relative Effect */
             relative_effect?: number | null;
             /** Scan Config Id */
@@ -9542,6 +9652,14 @@ export interface components {
             total: number;
             /** Warning Count */
             warning_count: number;
+        };
+        /**
+         * NotifyOwnersResponse
+         * @description What a manual "Notify owners" did: one row per owner it tried.
+         */
+        NotifyOwnersResponse: {
+            /** Owners */
+            owners?: components["schemas"]["AlertOwnerNotificationResponse"][];
         };
         /** ObservabilitySettings */
         ObservabilitySettings: {
@@ -14810,6 +14928,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertInboxActionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notify_alert_inbox_owners_api_v1_projects__slug__alert_inbox__correlation_group_id__notify_owners_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                correlation_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotifyOwnersResponse"];
                 };
             };
             /** @description Validation Error */
@@ -20835,6 +20985,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchReindexResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notify_signal_owners_api_v1_projects__slug__signals_notify_owners_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignalTriageScope"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotifyOwnersResponse"];
                 };
             };
             /** @description Validation Error */

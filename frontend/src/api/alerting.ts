@@ -9,6 +9,7 @@ import type {
   AlertInboxListResponse,
   AlertInboxStatus,
   AlertDeliveryListResponse,
+  AlertOwnerNotification,
   AlertDestination,
   AlertDestinationDraftTestRequest,
   AlertDestinationTestResponse,
@@ -18,7 +19,21 @@ import type {
   MetricScopeType,
   MonitorDetail,
   MonitorsSummaryResponse,
+  NotifyOwnersResponse,
+  SignalTriageScope,
 } from '../types'
+
+/**
+ * The owners a manual "Notify owners" tried (F07, #260). Accepts the bare list
+ * as well as the `{ owners }` envelope, so the card reads the same rows
+ * whichever of the two the route answers with.
+ */
+function notifiedOwners(
+  body: NotifyOwnersResponse | AlertOwnerNotification[] | null | undefined,
+): AlertOwnerNotification[] {
+  if (Array.isArray(body)) return body
+  return body?.owners ?? []
+}
 
 /**
  * The largest selection {@link alertingApi.applyInboxBulkAction} may send
@@ -86,6 +101,8 @@ export interface AlertRuleUpdatePayload {
   notify_on_spike?: boolean
   notify_on_drop?: boolean
   ai_explanation_enabled?: boolean
+  // Also email the owners of each affected event type / metric (F07, #260).
+  notify_owners?: boolean
   min_percent_delta?: number
   min_absolute_delta?: number
   min_expected_count?: number
@@ -207,6 +224,7 @@ export const alertingApi = {
       notify_on_spike?: boolean
       notify_on_drop?: boolean
       ai_explanation_enabled?: boolean
+      notify_owners?: boolean
       min_percent_delta?: number
       min_absolute_delta?: number
       min_expected_count?: number
@@ -453,5 +471,30 @@ export const alertingApi = {
     api.post<AlertInboxBulkActionResponse>(
       `/projects/${slug}/alert-inbox/bulk-actions`,
       data,
+    ),
+
+  /**
+   * Email the owners of an incident's event type / metric once, now (F07,
+   * #260). Editor only. Resolves with one row per owner tried — a skipped or
+   * failed owner is an answer, not a thrown error.
+   */
+  notifyIncidentOwners: async (slug: string, correlationGroupId: string) =>
+    notifiedOwners(
+      await api.post<NotifyOwnersResponse | AlertOwnerNotification[]>(
+        `/projects/${slug}/alert-inbox/${correlationGroupId}/notify-owners`,
+        undefined,
+      ),
+    ),
+
+  /**
+   * The same for a signal no rule routed to an incident — the "Notify owners"
+   * on the drilldown's Signal card (F07, #260).
+   */
+  notifySignalOwners: async (slug: string, scope: SignalTriageScope) =>
+    notifiedOwners(
+      await api.post<NotifyOwnersResponse | AlertOwnerNotification[]>(
+        `/projects/${slug}/signals/notify-owners`,
+        scope,
+      ),
     ),
 }

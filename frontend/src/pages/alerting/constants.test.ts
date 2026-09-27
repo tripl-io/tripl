@@ -362,3 +362,17 @@ describe('lifecycle scope (#258)', () => {
     expect(scopeSummary(makeRule({ include_lifecycle: true }))).toContain('lifecycle')
   })
 })
+
+describe('notify owners (F07, #260)', () => {
+  it('is off on a new rule and carried both ways', () => {
+    expect(defaultRuleForm().notify_owners).toBe(false)
+    expect(ruleFormToPayload(ruleToForm(makeRule({ notify_owners: true }))))
+      .toMatchObject({ notify_owners: true })
+  })
+
+  it('reads a rule from a server that predates the flag as off', () => {
+    const legacy = makeRule()
+    delete (legacy as Partial<AlertRule>).notify_owners
+    expect(ruleToForm(legacy).notify_owners).toBe(false)
+  })
+})

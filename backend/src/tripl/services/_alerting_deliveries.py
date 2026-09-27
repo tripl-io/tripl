@@ -49,6 +49,7 @@ from tripl.schemas.alerting import (
     AlertInboxRuleRef,
     AlertInboxStatusCounts,
 )
+from tripl.services import alert_owner_routing
 from tripl.services._alerting_cursors import (
     decode_delivery_cursor,
     decode_inbox_cursor,
@@ -340,6 +341,9 @@ async def get_delivery(
             scan_name=scan_name,
         ).model_dump(),
         items=items,
+        owner_notifications=await alert_owner_routing.load_delivery_owner_notifications(
+            session, delivery.id
+        ),
     )
 
 
@@ -690,6 +694,30 @@ def _build_inbox_group_response(
         acted_by=state.acted_by if state else None,
         acted_by_name=acted_by_name,
     )
+
+
+async def _with_owners(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    page: list[AlertInboxGroupResponse],
+    rows_by_group: dict[uuid.UUID, list[InboxGroupRow]],
+) -> list[AlertInboxGroupResponse]:
+    """The page's cards with their owners filled in (F07, #260).
+
+    Resolved off each card's NEWEST item — the one its ``scope_type`` /
+    ``scope_ref`` already describe — and for the served page only, in one bulk
+    resolution, so paging through the inbox costs at most four extra queries.
+    """
+    if not page:
+        return page
+    latest = [
+        max(rows_by_group[group.correlation_group_id], key=lambda row: row[0].bucket)[0]
+        for group in page
+    ]
+    owners = await alert_owner_routing.owner_refs_for(session, project_id, latest)
+    return [
+        group.model_copy(update={"owners": refs}) for group, refs in zip(page, owners, strict=True)
+    ]
 
 
 def _inbox_sort_key(group: AlertInboxGroupResponse) -> tuple[bool, datetime, str]:
@@ -1104,7 +1132,7 @@ async def list_alert_inbox(
         if after is not None
         else responses[offset:]
     )
-    page = remaining[:limit]
+    page = await _with_owners(session, project.id, remaining[:limit], groups)
     return AlertInboxListResponse(
         items=page,
         total=total,
@@ -1216,13 +1244,15 @@ async def _build_one_inbox_group(
         )
     )
     acted_by_names = await _load_acting_user_names(session, _acting_user_ids([state]))
-    return _build_inbox_group_response(
+    response = _build_inbox_group_response(
         correlation_group_id=correlation_group_id,
         state=state,
         rows=rows,
         now=now,
         acted_by_name=_acted_by_name(state, acted_by_names),
     )
+    (owned,) = await _with_owners(session, project_id, [response], {correlation_group_id: rows})
+    return owned
 
 
 async def _get_or_create_correlation_state(

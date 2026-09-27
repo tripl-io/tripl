@@ -43,6 +43,9 @@ export interface AlertRule {
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
+  // Also email the owners of each affected event type / catalog metric (F07,
+  // #260). Optional: a server that predates the flag omits it, read as off.
+  notify_owners?: boolean
   min_percent_delta: number
   min_absolute_delta: number
   min_expected_count: number
@@ -325,8 +328,45 @@ export interface AlertDelivery {
   sent_at: string | null
 }
 
+/**
+ * `pending` is a row claimed by a sender that has not finished yet (the
+ * server re-claims one left pending past its lease on the next run).
+ */
+export type AlertOwnerNotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped'
+
+/**
+ * One owner emailed about a delivery (F07, #260). `user_id` is null once the
+ * user was deleted — the row, and the address it went to, stay on record.
+ */
+export interface AlertOwnerNotification {
+  user_id: string | null
+  name: string | null
+  email: string
+  status: AlertOwnerNotificationStatus
+  /** Why a `failed`/`skipped` row did not send. Optional: not every server sends it. */
+  error?: string | null
+  /** When the email went out; null until it did. Optional: older servers omit it. */
+  sent_at?: string | null
+}
+
 export interface AlertDeliveryDetail extends AlertDelivery {
   items: AlertDeliveryItem[]
+  /**
+   * The owners this delivery's rule emailed (F07, #260). Optional: a server
+   * that predates owner routing omits it, and an empty list means none.
+   */
+  owner_notifications?: AlertOwnerNotification[]
+}
+
+/** An owner of an incident's or signal's event type / metric (F07, #260). */
+export interface SignalOwnerRef {
+  user_id: string
+  name: string
+}
+
+/** What a manual "Notify owners" did: one row per owner it tried. */
+export interface NotifyOwnersResponse {
+  owners: AlertOwnerNotification[]
 }
 
 export interface AlertDeliveryListResponse {
@@ -409,6 +449,12 @@ export interface AlertInboxGroup {
   // Resolved display name of `acted_by` (a user id). "Acknowledged by
   // 3f2a…-c91b" told nobody anything.
   acted_by_name: string | null
+  /**
+   * Owners of the affected event type / catalog metric (F07, #260) — the
+   * people "Notify owners" would email. Optional: a server that predates
+   * owner routing omits it, which renders as no owners line.
+   */
+  owners?: SignalOwnerRef[]
 }
 
 /**
