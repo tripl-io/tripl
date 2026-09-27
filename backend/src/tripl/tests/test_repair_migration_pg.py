@@ -68,7 +68,7 @@ def _seed(engine: Engine) -> tuple[uuid.UUID, uuid.UUID]:
     project = Project(id=uuid.uuid4(), name="Repair PG", slug=f"repair-pg-{uuid.uuid4().hex[:8]}")
     main = PlanBranch(id=uuid.uuid4(), project_id=project.id, name="main", kind="main")
     working = PlanBranch(
-        id=uuid.uuid4(), project_id=project.id, name="WND-1", kind="working", status="draft"
+        id=uuid.uuid4(), project_id=project.id, name="PROJ-1", kind="working", status="draft"
     )
     main_type = EventType(
         id=uuid.uuid4(),

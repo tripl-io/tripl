@@ -270,7 +270,7 @@ describe('EventEditPage branch banner (EVT-42)', () => {
     total: 2,
     items: [
       { id: 'main-id', project_id: 'p', name: 'main', kind: 'main', status: 'merged' },
-      { id: 'br-1', project_id: 'p', name: 'WND-1', kind: 'working', status: 'draft' },
+      { id: 'br-1', project_id: 'p', name: 'PROJ-1', kind: 'working', status: 'draft' },
     ],
   }
 
@@ -322,7 +322,7 @@ describe('EventEditPage on the wrong branch (AU-1 / PL-2)', () => {
       total: 2,
       items: [
         { id: 'main-id', project_id: 'p', name: 'main', kind: 'main', status: 'merged' },
-        { id: 'br-1', project_id: 'p', name: 'WND-1', kind: 'working', status: 'draft' },
+        { id: 'br-1', project_id: 'p', name: 'PROJ-1', kind: 'working', status: 'draft' },
       ],
     } as never)
     vi.mocked(eventsApi.get).mockResolvedValue({ ...CREATED, id: 'ev-main', branch_id: 'main-id' } as never)

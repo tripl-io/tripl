@@ -112,8 +112,8 @@ describe('toCsv', () => {
 
 describe('eventsCsvFilename', () => {
   it('names the file after the project, tab and day', () => {
-    expect(eventsCsvFilename('windy-ios', 'review', new Date('2026-08-17T10:00:00Z'))).toBe(
-      'tripl-events-windy-ios-review-2026-08-17.csv',
+    expect(eventsCsvFilename('acme-ios', 'review', new Date('2026-08-17T10:00:00Z'))).toBe(
+      'tripl-events-acme-ios-review-2026-08-17.csv',
     )
   })
 })

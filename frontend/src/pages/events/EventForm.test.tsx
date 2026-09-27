@@ -810,7 +810,7 @@ describe('EventForm meta field link template (tripl-kjhi.5)', () => {
     // "Uses link template with ${value}" named a mechanism; production held
     // whole addresses where keys were meant (tripl-kjhi.5).
     expect(screen.getByText(/Enter the key/)).toHaveTextContent(
-      'Enter the key, e.g. WND-1234 — opens https://jira.example/browse/WND-1234',
+      'Enter the key, e.g. PROJ-1234 — opens https://jira.example/browse/PROJ-1234',
     )
   })
 
@@ -829,13 +829,13 @@ describe('EventForm meta field link template (tripl-kjhi.5)', () => {
     renderForm(null, { metaFields: [JIRA_FIELD] })
 
     const jira = screen.getByLabelText('Jira')
-    fireEvent.change(jira, { target: { value: 'https://jira.example/browse/WND-4770' } })
-    expect(jira).toHaveValue('WND-4770')
+    fireEvent.change(jira, { target: { value: 'https://jira.example/browse/PROJ-4770' } })
+    expect(jira).toHaveValue('PROJ-4770')
 
     // A bare key, or an address from elsewhere, is stored as typed.
-    fireEvent.change(jira, { target: { value: 'https://other.example/WND-1' } })
-    expect(jira).toHaveValue('https://other.example/WND-1')
-    fireEvent.change(jira, { target: { value: 'WND-4770' } })
+    fireEvent.change(jira, { target: { value: 'https://other.example/PROJ-1' } })
+    expect(jira).toHaveValue('https://other.example/PROJ-1')
+    fireEvent.change(jira, { target: { value: 'PROJ-4770' } })
 
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'checkout:started' } })
     fireEvent.click(screen.getByRole('button', { name: /Save and add another/i }))
@@ -843,7 +843,7 @@ describe('EventForm meta field link template (tripl-kjhi.5)', () => {
       expect(eventsApi.create).toHaveBeenCalledWith(
         'demo',
         expect.objectContaining({
-          meta_values: [{ meta_field_definition_id: 'mf-jira', value: 'WND-4770' }],
+          meta_values: [{ meta_field_definition_id: 'mf-jira', value: 'PROJ-4770' }],
         }),
         null,
       ),
@@ -1041,7 +1041,7 @@ describe('EventForm ticket prefill from the branch name (tripl-kjhi.14)', () => 
     branchName: string,
     { deferred = false }: { deferred?: boolean } = {},
   ) {
-    const list = { items: [{ id: 'b-wnd', name: branchName, kind: 'working' }], total: 1 } as never
+    const list = { items: [{ id: 'b-proj', name: branchName, kind: 'working' }], total: 1 } as never
     let release = () => {}
     if (deferred) {
       vi.mocked(planBranchesApi.list).mockReturnValue(
@@ -1068,7 +1068,7 @@ describe('EventForm ticket prefill from the branch name (tripl-kjhi.14)', () => 
             { client: queryClient },
             createElement(
               BranchContext.Provider,
-              { value: { branchId: 'b-wnd', setBranchId: () => {}, slug: 'demo' } },
+              { value: { branchId: 'b-proj', setBranchId: () => {}, slug: 'demo' } },
               createElement(MemoryRouter, null, children),
             ),
           ),
@@ -1078,8 +1078,8 @@ describe('EventForm ticket prefill from the branch name (tripl-kjhi.14)', () => 
   }
 
   it('fills the linking meta field with the key the branch is named after', async () => {
-    renderInBranch(null, 'WND-4770')
-    await waitFor(() => expect(screen.getByLabelText('Jira')).toHaveValue('WND-4770'))
+    renderInBranch(null, 'PROJ-4770')
+    await waitFor(() => expect(screen.getByLabelText('Jira')).toHaveValue('PROJ-4770'))
   })
 
   it('leaves a branch not named after a ticket, and an existing event, alone', async () => {
@@ -1089,9 +1089,9 @@ describe('EventForm ticket prefill from the branch name (tripl-kjhi.14)', () => 
   })
 
   it('leaves a field the reader cleared before the branch list arrived alone', async () => {
-    const { release } = renderInBranch(null, 'WND-4770', { deferred: true })
+    const { release } = renderInBranch(null, 'PROJ-4770', { deferred: true })
     const jira = screen.getByLabelText('Jira')
-    fireEvent.change(jira, { target: { value: 'WND-1' } })
+    fireEvent.change(jira, { target: { value: 'PROJ-1' } })
     fireEvent.change(jira, { target: { value: '' } })
 
     release()
@@ -1106,10 +1106,10 @@ describe('EventForm ticket prefill from the branch name (tripl-kjhi.14)', () => 
   it('never overwrites what an existing event already holds', async () => {
     const existing = {
       ...EXISTING_EVENT,
-      meta_values: [{ meta_field_definition_id: 'mf-jira', value: 'WND-1' }],
+      meta_values: [{ meta_field_definition_id: 'mf-jira', value: 'PROJ-1' }],
     } as unknown as TEvent
-    renderInBranch(existing, 'WND-4770')
-    expect(screen.getByLabelText('Jira')).toHaveValue('WND-1')
+    renderInBranch(existing, 'PROJ-4770')
+    expect(screen.getByLabelText('Jira')).toHaveValue('PROJ-1')
     expect(planBranchesApi.list).not.toHaveBeenCalled()
   })
 })
@@ -1251,9 +1251,9 @@ describe('EventForm multi-value meta field (tripl-h2sx.31)', () => {
     renderForm(null, { metaFields: [KEYS_FIELD] })
 
     const input = screen.getByLabelText('Add Jira keys')
-    fireEvent.change(input, { target: { value: 'WND-1' } })
+    fireEvent.change(input, { target: { value: 'PROJ-1' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    fireEvent.change(input, { target: { value: 'WND-2' } })
+    fireEvent.change(input, { target: { value: 'PROJ-2' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'checkout:started' } })
@@ -1263,8 +1263,8 @@ describe('EventForm multi-value meta field (tripl-h2sx.31)', () => {
         'demo',
         expect.objectContaining({
           meta_values: [
-            { meta_field_definition_id: 'mf-keys', value: 'WND-1' },
-            { meta_field_definition_id: 'mf-keys', value: 'WND-2' },
+            { meta_field_definition_id: 'mf-keys', value: 'PROJ-1' },
+            { meta_field_definition_id: 'mf-keys', value: 'PROJ-2' },
           ],
         }),
         null,
@@ -1276,23 +1276,23 @@ describe('EventForm multi-value meta field (tripl-h2sx.31)', () => {
     renderForm(null, { metaFields: [KEYS_FIELD] })
 
     const input = screen.getByLabelText('Add Jira keys')
-    fireEvent.change(input, { target: { value: 'https://jira.example/browse/WND-4770' } })
+    fireEvent.change(input, { target: { value: 'https://jira.example/browse/PROJ-4770' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
-    expect(screen.getByRole('button', { name: 'Remove WND-4770' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove PROJ-4770' })).toBeInTheDocument()
   })
 
   it('prefills every stored value when editing', () => {
     renderForm({
       ...EXISTING_EVENT,
       meta_values: [
-        { id: 'mv-1', meta_field_definition_id: 'mf-keys', value: 'WND-1' },
-        { id: 'mv-2', meta_field_definition_id: 'mf-keys', value: 'WND-2' },
+        { id: 'mv-1', meta_field_definition_id: 'mf-keys', value: 'PROJ-1' },
+        { id: 'mv-2', meta_field_definition_id: 'mf-keys', value: 'PROJ-2' },
       ],
     } as unknown as TEvent, { metaFields: [KEYS_FIELD] })
 
-    expect(screen.getByRole('button', { name: 'Remove WND-1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Remove WND-2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove PROJ-1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove PROJ-2' })).toBeInTheDocument()
   })
 
   it('submits only the value it shows once the field is single-valued again', async () => {
@@ -1303,19 +1303,19 @@ describe('EventForm multi-value meta field (tripl-h2sx.31)', () => {
     renderForm({
       ...EXISTING_EVENT,
       meta_values: [
-        { id: 'mv-1', meta_field_definition_id: 'mf-keys', value: 'WND-1' },
-        { id: 'mv-2', meta_field_definition_id: 'mf-keys', value: 'WND-2' },
+        { id: 'mv-1', meta_field_definition_id: 'mf-keys', value: 'PROJ-1' },
+        { id: 'mv-2', meta_field_definition_id: 'mf-keys', value: 'PROJ-2' },
       ],
     } as unknown as TEvent, { metaFields: [{ ...KEYS_FIELD, allow_multiple: false }] })
 
-    expect(screen.getByLabelText('Jira keys')).toHaveValue('WND-1')
+    expect(screen.getByLabelText('Jira keys')).toHaveValue('PROJ-1')
     fireEvent.click(screen.getByRole('button', { name: /Save event/i }))
     await waitFor(() =>
       expect(eventsApi.update).toHaveBeenCalledWith(
         'demo',
         'ev-1',
         expect.objectContaining({
-          meta_values: [{ meta_field_definition_id: 'mf-keys', value: 'WND-1' }],
+          meta_values: [{ meta_field_definition_id: 'mf-keys', value: 'PROJ-1' }],
         }),
         null,
       ),
@@ -1565,7 +1565,7 @@ describe('EventForm unsaved-changes guard (EVT-8)', () => {
       sensitivity: 'none',
     }
     vi.mocked(planBranchesApi.list).mockResolvedValue(
-      { items: [{ id: 'b-wnd', name: 'WND-4770', kind: 'working' }], total: 1 } as never,
+      { items: [{ id: 'b-proj', name: 'PROJ-4770', kind: 'working' }], total: 1 } as never,
     )
     render(
       createElement(EventForm, {
@@ -1583,13 +1583,13 @@ describe('EventForm unsaved-changes guard (EVT-8)', () => {
             { client: queryClient },
             createElement(
               BranchContext.Provider,
-              { value: { branchId: 'b-wnd', setBranchId: () => {}, slug: 'demo' } },
+              { value: { branchId: 'b-proj', setBranchId: () => {}, slug: 'demo' } },
               createElement(MemoryRouter, null, children),
             ),
           ),
       },
     )
-    await waitFor(() => expect(screen.getByLabelText('Jira')).toHaveValue('WND-4770'))
+    await waitFor(() => expect(screen.getByLabelText('Jira')).toHaveValue('PROJ-4770'))
     expect(reloadIsGuarded()).toBe(false)
   })
 })

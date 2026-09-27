@@ -83,7 +83,7 @@ def test_a_matched_event_type_is_not_buried_under_its_own_events() -> None:
     window, the only queries that ever pulled a type document into the set were
     the type's own name, and there the multiplier pushed the very document the
     user had named underneath its own members: ``q='pv'`` served "Pageview" at
-    rank 100 of 100 on windy-web and on windy-ios, rank 1 without the boost.
+    rank 100 of 100 on acme-web and on acme-ios, rank 1 without the boost.
 
     The set below is that production shape in miniature. Under the old boost the
     two Pageviews events banked 3.5 and 3.325 and displaced BOTH the type

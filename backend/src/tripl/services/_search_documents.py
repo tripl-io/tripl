@@ -198,7 +198,7 @@ class BuiltDocument:
 #: metrics collection, so they pick up a builder change within the hour. Working
 #: branches have no such path — they are rebuilt only when somebody edits them.
 #: Measured on production on 2026-08-16, eight days after the keywords fix
-#: shipped: all three main branches were correct, and eight windy-ios working
+#: shipped: all three main branches were correct, and eight acme-ios working
 #: branches still held 7117 documents built by the previous generation.
 #:
 #: HISTORY

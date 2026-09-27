@@ -317,7 +317,7 @@ describe('EventRow name and type cells', () => {
     expect(link).toHaveAttribute('href', '/p/proj-1/monitoring/event/evt-1')
   })
 
-  // tripl-wkwv.5: windy-ios holds one event whose name is the empty string. The
+  // tripl-wkwv.5: acme-ios holds one event whose name is the empty string. The
   // anchor's only child was <EventName name="">, which rendered nothing — a
   // zero-width click target with no accessible name, on the one row a user would
   // most want to open in order to rename or archive it.
@@ -454,7 +454,7 @@ const OBSERVED_PAGES: EventFieldVariableValue = {
 // tripl-xv77.1: on the default "All" tab the column a row renders under often
 // belongs to a DIFFERENT event type — whichever type was deduped first. The cell
 // resolved its text through the name fallback and its contexts through a second,
-// id-only lookup, so on windy-ios the majority of context-carrying values printed
+// id-only lookup, so on acme-ios the majority of context-carrying values printed
 // a value with no way to see what had been observed behind it.
 describe('EventRow observed-values popover', () => {
   const ALL_FIELD_DEFS = new Map([
@@ -573,13 +573,13 @@ describe('EventRow multi-value meta field (tripl-h2sx.31)', () => {
   it('renders one link per value, not one link around them joined', () => {
     renderRow(makeEvent(), [], undefined, {
       metaFields: [KEYS_FIELD],
-      metaValueMap: new Map([['mf-keys', ['WND-1', 'WND-2']]]),
+      metaValueMap: new Map([['mf-keys', ['PROJ-1', 'PROJ-2']]]),
     })
 
-    const first = screen.getByRole('link', { name: 'WND-1' })
-    const second = screen.getByRole('link', { name: 'WND-2' })
-    expect(first).toHaveAttribute('href', 'https://jira.example/browse/WND-1')
-    expect(second).toHaveAttribute('href', 'https://jira.example/browse/WND-2')
+    const first = screen.getByRole('link', { name: 'PROJ-1' })
+    const second = screen.getByRole('link', { name: 'PROJ-2' })
+    expect(first).toHaveAttribute('href', 'https://jira.example/browse/PROJ-1')
+    expect(second).toHaveAttribute('href', 'https://jira.example/browse/PROJ-2')
   })
 })
 

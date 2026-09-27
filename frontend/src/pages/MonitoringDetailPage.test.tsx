@@ -924,7 +924,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
   })
 
   it('titles the page when the event has no name (tripl-wkwv.5)', async () => {
-    // windy-ios holds one event whose name is the empty string. The <h1>
+    // acme-ios holds one event whose name is the empty string. The <h1>
     // rendered it raw, so the page had an empty top-level heading.
     installEventDetailFetch({ event: { ...eventFixture(), name: '' } })
     renderEventDetail()

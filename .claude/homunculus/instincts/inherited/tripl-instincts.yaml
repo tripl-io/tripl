@@ -23,7 +23,7 @@ Use conventional commit format with prefixes: feat, fix, ci, chore, style
 
 - 16 commits analyzed
 - Detected conventional commit pattern
-- Examples: fix: resolve pre-release browser-QA issues (blocker + 8 high + mediums/lows), chore: debrand slug prefix windylabs.co -> example.com
+- Examples: fix: resolve pre-release browser-QA issues (blocker + 8 high + mediums/lows), chore: debrand slug prefix example.com -> example.com
 
 ---
 id: tripl-commit-length

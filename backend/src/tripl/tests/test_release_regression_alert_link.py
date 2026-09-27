@@ -5,7 +5,7 @@ The trigger was a real alert:
     - Release regression spot:open:wind: down, actual=345, expected=715.7,
       delta=370.7 (51.8%)
       release: dropped in 15.7.5 (was 15.7.4)
-      details: https://tripl.windyapp.co/p/windy-ios/monitoring/event/c36b3ba...
+      details: https://tripl.example.com/p/acme-ios/monitoring/event/c36b3ba...
 
 Two defects, both the product's fault:
 
@@ -58,7 +58,7 @@ from tripl.worker.tasks.metrics.urls import (
 )
 
 BASE = "https://tripl.example"
-SLUG = "windy-ios"
+SLUG = "acme-ios"
 
 # The window the real alert measured over: 2026-07-24T09:00Z -> 2026-07-26T12:00Z.
 WINDOW_FROM = datetime(2026, 7, 24, 9, tzinfo=UTC)

@@ -2,7 +2,7 @@
 
 The scan is what mints variables, so the scan is where they should stop
 accumulating. Without this the catalog only ever grows: production's
-``windy-ios`` reached 1517 variables of which 1296 were referenced by nothing,
+``acme-ios`` reached 1517 variables of which 1296 were referenced by nothing,
 1279 of them minted from the keys of one JSON map column (tripl-10h4).
 
 The predicate is :mod:`tripl.core.variable_retirement`, shared verbatim with the
@@ -59,7 +59,7 @@ that is the split ``include_scalar_derived`` carries (tripl-bwo8):
   stopped arriving" the sweep exists for, seen over one hour instead of one
   table, and recycling a key nothing refers to is the point rather than a
   hazard. Measured 2026-09-03, 1929 of production's 1931 variables are
-  JSON-derived (``windy-ios`` 1805/1807, ``android`` 77/77, ``web`` 47/47), so
+  JSON-derived (``acme-ios`` 1805/1807, ``android`` 77/77, ``web`` 47/47), so
   a gate on the whole call left the whole growth unswept for the sake of two
   rows.
 

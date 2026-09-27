@@ -1,7 +1,7 @@
 /**
  * Display rules for an event name that would otherwise paint nothing.
  *
- * windy-ios held exactly one event whose stored name was the empty string, and
+ * acme-ios held exactly one event whose stored name was the empty string, and
  * every surface rendered it as a zero-width anchor with no accessible name — the
  * one row a user would most want to clean up was the one row they could not
  * click, and a screen reader had nothing to announce (tripl-wkwv.5). Fixed once

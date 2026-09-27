@@ -188,7 +188,7 @@ class MetricSignalResponse(BaseModel):
     # Display name of the scope that fired — the event name, the event type's
     # display name, or the catalog metric's display name. Carried here so a
     # client can label the row from the signal alone: the AnomaliesPage used to
-    # download the whole event catalog (2641 rows / 1.7s on windy-ios) purely to
+    # download the whole event catalog (2641 rows / 1.7s on acme-ios) purely to
     # build an id -> name map, and rendered "Spike on Event d4c684dd" until it
     # landed, while the activity rail called the same incident by its real name
     # (tripl-y4wt). NULL means the name could not be resolved — the entity was

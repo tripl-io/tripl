@@ -67,7 +67,7 @@ const EVENT = {
       ],
     },
   ],
-  meta_values: [{ id: 'm1', meta_field_definition_id: 'mf-jira', value: 'WND-4563' }],
+  meta_values: [{ id: 'm1', meta_field_definition_id: 'mf-jira', value: 'PROJ-4563' }],
   created_at: '2026-09-01T00:00:00Z',
   updated_at: '2026-09-01T00:00:00Z',
 } as unknown as Event
@@ -103,9 +103,9 @@ describe('EventSpecCard (tripl-kjhi.8)', () => {
     // The documented values sit beside the template value, linked to the variable.
     expect(screen.getByRole('link', { name: '${property.how}' })).toHaveAttribute('href', '/p/demo/variables/var-how')
     expect(screen.getByText(/= tap, swipe/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'WND-4563' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'PROJ-4563' })).toHaveAttribute(
       'href',
-      'https://tracker.example.com/browse/WND-4563',
+      'https://tracker.example.com/browse/PROJ-4563',
     )
   })
 

@@ -185,7 +185,7 @@ def embed_search_documents(
 
 # How many (project, branch) pairs one sweep pass rebuilds.
 #
-# Deliberately small. A rebuild reads the whole branch — windy-ios carries eight
+# Deliberately small. A rebuild reads the whole branch — acme-ios carries eight
 # working branches at 3200-4100 documents each — so an unbounded sweep would turn
 # one builder bump into a stampede against the same database the API is serving
 # from. Two per pass against the schedule below drains a 10-branch instance
@@ -209,7 +209,7 @@ def reindex_stale_search_documents() -> dict[str, int]:
     it that way.
 
     That is not hypothetical. Eight days after the keywords fix shipped, measured
-    on production: all three main branches were correct, and eight windy-ios
+    on production: all three main branches were correct, and eight acme-ios
     working branches still held 7117 documents built by the previous generation,
     ranking them by text the fix had already removed.
 

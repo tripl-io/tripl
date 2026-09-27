@@ -222,16 +222,16 @@ def test_a_stored_base_in_row_order_diffs_equal_to_a_fresh_snapshot() -> None:
     stored = _event_row(
         meta_values=[
             _meta("area", "checkout"),
-            _meta("jira_keys", "WND-2"),
-            _meta("jira_keys", "WND-1"),
+            _meta("jira_keys", "PROJ-2"),
+            _meta("jira_keys", "PROJ-1"),
         ]
     )
     fresh = _copy(
         stored,
         meta_values=[
             _meta("area", "checkout"),
-            _meta("jira_keys", "WND-1"),
-            _meta("jira_keys", "WND-2"),
+            _meta("jira_keys", "PROJ-1"),
+            _meta("jira_keys", "PROJ-2"),
         ],
     )
     assert compute_plan_diff_entries(_payload(events=[stored]), _payload(events=[fresh])) == []
@@ -241,8 +241,8 @@ def test_a_stored_base_in_row_order_diffs_equal_to_a_fresh_snapshot() -> None:
         stored,
         meta_values=[
             _meta("area", "checkout"),
-            _meta("jira_keys", "WND-1"),
-            _meta("jira_keys", "WND-3"),
+            _meta("jira_keys", "PROJ-1"),
+            _meta("jira_keys", "PROJ-3"),
         ],
     )
     (entry,) = compute_plan_diff_entries(_payload(events=[stored]), _payload(events=[edited]))
@@ -251,13 +251,15 @@ def test_a_stored_base_in_row_order_diffs_equal_to_a_fresh_snapshot() -> None:
 
 def test_with_snapshot_defaults_orders_meta_values_without_touching_its_input() -> None:
     stored = _payload(
-        events=[_event_row(meta_values=[_meta("jira_keys", "WND-2"), _meta("jira_keys", "WND-1")])]
+        events=[
+            _event_row(meta_values=[_meta("jira_keys", "PROJ-2"), _meta("jira_keys", "PROJ-1")])
+        ]
     )
     upgraded = with_snapshot_defaults(stored)
 
-    assert [m["value"] for m in upgraded["events"][0]["meta_values"]] == ["WND-1", "WND-2"]
+    assert [m["value"] for m in upgraded["events"][0]["meta_values"]] == ["PROJ-1", "PROJ-2"]
     # The stored payload is left exactly as it was ...
-    assert [m["value"] for m in stored["events"][0]["meta_values"]] == ["WND-2", "WND-1"]
+    assert [m["value"] for m in stored["events"][0]["meta_values"]] == ["PROJ-2", "PROJ-1"]
     # ... and a payload already in order comes back as the very same object.
     assert with_snapshot_defaults(upgraded) is upgraded
 
@@ -344,7 +346,7 @@ async def test_snapshot_orders_a_fields_values_whatever_order_the_rows_arrive_in
         json={
             "meta_values": [
                 {"meta_field_definition_id": multi_id, "value": value}
-                for value in ("WND-2", "WND-1", "WND-3")
+                for value in ("PROJ-2", "PROJ-1", "PROJ-3")
             ]
         },
     )
@@ -361,7 +363,7 @@ async def test_snapshot_orders_a_fields_values_whatever_order_the_rows_arrive_in
             as_heap_ordered = await build_plan_snapshot(session, project_id)
     assert rewritten, "the hook must actually have reordered the load"
 
-    in_value_order = [("jira_keys", "WND-1"), ("jira_keys", "WND-2"), ("jira_keys", "WND-3")]
+    in_value_order = [("jira_keys", "PROJ-1"), ("jira_keys", "PROJ-2"), ("jira_keys", "PROJ-3")]
     assert _meta_values_of(as_heap_ordered, "purchase:success") == in_value_order
     assert _meta_values_of(as_indexed, "purchase:success") == in_value_order
     assert plan_snapshot_hash(as_heap_ordered) == plan_snapshot_hash(as_indexed)
@@ -384,7 +386,7 @@ async def test_an_approval_stays_fresh_when_the_rows_come_back_in_another_order(
         json={
             "meta_values": [
                 {"meta_field_definition_id": branch_field["id"], "value": value}
-                for value in ("WND-1", "WND-2")
+                for value in ("PROJ-1", "PROJ-2")
             ]
         },
     )

@@ -211,7 +211,7 @@ async def test_duplicate_branch_name_rejected(client: AsyncClient) -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["feature-x", "checkout/paywall-copy", "WND-4770", "v1.2_rc", "a" * 64, "  padded  "],
+    ["feature-x", "checkout/paywall-copy", "PROJ-4770", "v1.2_rc", "a" * 64, "  padded  "],
 )
 def test_branch_name_rule_accepts_ref_like_names(name: str) -> None:
     assert PlanBranchCreate(name=name).name == name.strip()

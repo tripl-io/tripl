@@ -4,7 +4,7 @@ import { branchNameProblem, suggestBranchName } from './branchMeta'
 describe('branchNameProblem (PL-5)', () => {
   it('accepts ref-like names, ticket keys included', () => {
     expect(branchNameProblem('checkout/paywall-copy', [])).toBeNull()
-    expect(branchNameProblem('WND-4770', [])).toBeNull()
+    expect(branchNameProblem('PROJ-4770', [])).toBeNull()
     expect(branchNameProblem('feature_v2.1', [])).toBeNull()
   })
 
@@ -35,7 +35,7 @@ describe('suggestBranchName', () => {
   })
 
   it('keeps a ticket key in upper case', () => {
-    expect(suggestBranchName('WND-4770 fix copy')).toBe('WND-4770-fix-copy')
+    expect(suggestBranchName('PROJ-4770 fix copy')).toBe('PROJ-4770-fix-copy')
   })
 
   it('offers nothing when the name is already usable or nothing is left', () => {

@@ -128,7 +128,7 @@ describe('stripLinkTemplate', () => {
 
 describe('metaFieldLinkExample', () => {
   it('shows what the template makes of an example key', () => {
-    expect(metaFieldLinkExample(TEMPLATE)).toBe('https://tracker.example.com/issues/WND-1234')
+    expect(metaFieldLinkExample(TEMPLATE)).toBe('https://tracker.example.com/issues/PROJ-1234')
   })
 
   it('has no example for a template with nowhere to put the key', () => {

@@ -588,7 +588,7 @@ async def test_events_metrics_charts_the_scan_that_owns_the_tab(client: AsyncCli
 
     Scoping the series to a single scan (tripl-jfm3.20) fixed cross-scan double
     counting, but it pinned EVERY tab to the project-wide default scan. On
-    windy-ios that silently emptied two tabs out of three: the "se" tab holds 366
+    acme-ios that silently emptied two tabs out of three: the "se" tab holds 366
     live events collected by "Snowplow Events (iOS)" (created 14:43), while
     ``_get_default_scan_config`` returns "Snowplow Pageviews (iOS)" (created
     15:12) — so the query asked the newest scan for rows it had never written and
@@ -673,7 +673,7 @@ async def test_default_scan_config_ignores_updated_at_and_breaks_ties_stably(
     """Default-scan resolution must not move when an unrelated scan config is
     edited, and must be deterministic when two configs share a timestamp
     (tripl-jfm3.21). Before the fix the resolver ordered by ``updated_at`` desc
-    with no tiebreak: two windy-ios configs carried byte-identical ``updated_at``
+    with no tiebreak: two acme-ios configs carried byte-identical ``updated_at``
     values, so a 32x swing in the headline volume hung on Postgres row order,
     and touching any config re-pointed the chart."""
     setup = await _setup_metrics_project(client, "metrics-tiebreak")
@@ -721,7 +721,7 @@ async def test_default_scan_config_ignores_updated_at_and_breaks_ties_stably(
 async def test_project_total_metrics_names_its_scan_config(client: AsyncClient) -> None:
     """The Overview volume card charts ONE scan config, so the response must
     name it — the card used to be labelled "project total" while plotting 2.4 %
-    of windy-ios's volume (tripl-jfm3.20)."""
+    of acme-ios's volume (tripl-jfm3.20)."""
     setup = await _setup_metrics_project(client, "metrics-total-name")
     await _seed_group_metrics(setup["project_id"], [], name="Snowplow Pageviews (iOS)")
 

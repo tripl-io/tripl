@@ -1016,7 +1016,7 @@ def _digest_member(
             expected_count=32048,
             absolute_delta=16645,
             percent_delta=51.9,
-            details_path=f"https://tripl.windyapp.co/p/digest/monitoring/event/{uuid.uuid4()}",
+            details_path=f"https://tripl.example.com/p/digest/monitoring/event/{uuid.uuid4()}",
         )
     )
     return delivery

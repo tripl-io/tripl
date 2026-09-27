@@ -464,7 +464,7 @@ export default function OverviewPage() {
       </Panel>
 
       {/* Volume — one scan config, named. Labelled "project total" until
-          tripl-jfm3.20, where it plotted 2.4 % of windy-ios's volume directly
+          tripl-jfm3.20, where it plotted 2.4 % of acme-ios's volume directly
           above a "Top events" row 12× larger. */}
       <Panel
         // The window is in the title because the card is capped at it; the

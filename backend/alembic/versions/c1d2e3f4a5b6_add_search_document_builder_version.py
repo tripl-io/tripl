@@ -6,7 +6,7 @@ rebuilds (tripl-uji9).
 
 Existing rows deliberately get 0 rather than the current version. They were
 written by an older generation and the whole point is that the sweep should see
-them: on the deployed database this is what makes the eight windy-ios working
+them: on the deployed database this is what makes the eight acme-ios working
 branches — 7117 documents still built by the pre-keywords-fix code — visible for
 repair. Backfilling them to the current version would declare the problem solved
 without touching a single document.

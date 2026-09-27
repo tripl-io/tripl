@@ -8,7 +8,7 @@ Create Date: 2026-09-03 10:00:00.000000
 looks the derived name up in a map keyed by it and inserts only on a miss, and
 ``create_event`` refuses a second row for it with a 409. Nothing in the schema
 backed either. ``ix_events_source_identity`` was a plain index, and production
-holds what a plain index permits: windy-web carries two pageview pairs
+holds what a plain index permits: acme-web carries two pageview pairs
 (35091aae/039c0792 and a1b96770/1c4be1a5) created 94 ms apart on 2026-06-15,
 one of each pair updated for months while its twin froze at creation. Which twin
 a scan updated was whatever row the database returned first, so volumes and

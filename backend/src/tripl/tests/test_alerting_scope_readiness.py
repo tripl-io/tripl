@@ -1,6 +1,6 @@
 """An enabled drift scope that nothing can feed says so (tripl-wkwv.1).
 
-Production shape this pins: every windy-ios scan config carried
+Production shape this pins: every acme-ios scan config carried
 ``distribution_drift_fields=[]`` and 0 of 1793 variables documented
 ``allowed_values``, while the only monitor had both drift scopes switched on.
 Both scopes were structurally unable to fire and no response said so.

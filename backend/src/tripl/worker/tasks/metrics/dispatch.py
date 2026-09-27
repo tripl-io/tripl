@@ -462,7 +462,7 @@ def _touch_correlation_state(
 # them" — so one oversized delivery is rebuilt and re-rejected on every
 # collection, forever.
 #
-# Sized off the 29 Telegram deliveries windy-ios has ever sent ("TG dev",
+# Sized off the 29 Telegram deliveries acme-ios has ever sent ("TG dev",
 # default templates, AI note attached): least squares over their
 # (matched_count, rendered chars) gave 400 chars per item on a 516-char base,
 # which crosses 4096 just under 9 items — and on the widest base observed (682,

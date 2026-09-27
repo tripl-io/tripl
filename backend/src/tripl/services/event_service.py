@@ -350,7 +350,7 @@ def _normalize_meta_values_against(
 
     A meta field with a ``link_template`` such as
     ``https://jira.example/browse/${value}`` renders its value into that
-    template, so the value should be ``WND-4770``. People paste the full URL
+    template, so the value should be ``PROJ-4770``. People paste the full URL
     from the browser — on production every branch-authored event held the
     whole address, and the rendered link was the template applied to a URL
     (tripl-kjhi.5). When the pasted text is exactly the template around some
@@ -442,7 +442,7 @@ def _meta_by_definition(pairs: Iterable[tuple[uuid.UUID, str]]) -> dict[uuid.UUI
 
     The log is keyed by field, so a multi-valued field would otherwise have its
     entries overwrite each other under one key and report the last one as the
-    whole change. "WND-4770, WND-5012" is what actually happened.
+    whole change. "PROJ-4770, PROJ-5012" is what actually happened.
     """
     grouped: dict[uuid.UUID, list[str]] = {}
     for definition_id, value in pairs:

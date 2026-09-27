@@ -194,7 +194,7 @@ async def test_signals_carry_the_resolved_scope_name(client: AsyncClient):
     """Each signal names its own scope, so a client needs no catalog to label it.
 
     Without ``scope_name`` the AnomaliesPage had to download the whole event
-    catalog (2641 rows / 1.7s on windy-ios) purely to build an id -> name map,
+    catalog (2641 rows / 1.7s on acme-ios) purely to build an id -> name map,
     and rendered "Spike on Event d4c684dd" until it landed — a different name for
     the same incident than the activity rail was showing (tripl-y4wt).
     """

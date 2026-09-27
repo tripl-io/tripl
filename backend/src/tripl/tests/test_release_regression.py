@@ -186,7 +186,7 @@ def test_latest_two_releases_chosen_by_semver_not_lexical() -> None:
 
 # --- comparability gate (tripl-9y4l) -----------------------------------------
 #
-# Proportions below are taken from the windy-ios 15.7.4 incident, where nine
+# Proportions below are taken from the acme-ios 15.7.4 incident, where nine
 # scopes were reported as regressions seven hours into a rollout while the app
 # was healthy: 66.0% of the new release's pageviews were onboarding screens
 # against 3.8% for the baseline.
@@ -234,7 +234,7 @@ def _mix(prev_mix: dict[str, int], new_mix: dict[str, int]):
 
 
 def test_a_rollout_still_full_of_fresh_installs_is_not_judged_at_all() -> None:
-    """The windy-ios 15.7.4 case: every steady-state screen looks halved."""
+    """The acme-ios 15.7.4 case: every steady-state screen looks halved."""
     report = _report(*_mix(_STEADY, _FRESH_INSTALLS))
 
     assert report.comparable is False
@@ -353,7 +353,7 @@ def _two_partitions(per_type: dict[str, tuple[int, int, int]]):
     return release_total, all_traffic, event_counts, type_counts
 
 
-# The windy-ios population change on a catalog fine enough to hide it: a rollout
+# The acme-ios population change on a catalog fine enough to hide it: a rollout
 # of fresh installs pours two thirds of its volume into onboarding, but that
 # volume is spread over 1000 events, so no single event is seen even 30 times in
 # the window and the event-scope statistic has nothing to stand on.
@@ -408,7 +408,7 @@ def test_the_sparser_partition_cannot_wave_through_the_row_the_denser_one_vetoed
 
     The event scope returns comparable here only because it measured nothing at
     all. Letting that verdict govern the type pass would persist a volume_drop
-    on the steady-state type of a healthy app — the windy-ios false alarm, one
+    on the steady-state type of a healthy app — the acme-ios false alarm, one
     partition up from where it was fixed.
     """
     release_total, all_traffic, event_counts, type_counts = _two_partitions(_FINE_CATALOG)
@@ -479,7 +479,7 @@ def test_an_event_that_went_completely_silent_survives_the_suppression() -> None
     """A different mix of users cannot manufacture a silent event, and that
     finding is too expensive to swallow — so `missing` rows are reported even
     when the composition-normalized ones are withheld. Every row in the
-    windy-ios false alarm was a `volume_drop`, so this costs nothing there.
+    acme-ios false alarm was a `volume_drop`, so this costs nothing there.
     """
     report = _report(*_mix(_STEADY, {**_FRESH_INSTALLS, "main": 0}))
 
@@ -502,7 +502,7 @@ def test_a_release_that_loses_most_of_its_volume_is_still_reported() -> None:
 
 def test_without_the_gate_this_scenario_is_the_incident_itself() -> None:
     """Pins what the gate is worth: the same inputs, bound relaxed, reproduce
-    the windy-ios failure — a fistful of healthy screens all reported as
+    the acme-ios failure — a fistful of healthy screens all reported as
     regressions at once. That also proves the suppression above is the gate's
     doing and not some other filter quietly swallowing the rows.
     """
@@ -577,7 +577,7 @@ def test_a_scope_far_below_a_percent_of_the_baseline_is_still_evidence() -> None
 
 
 def _lopsided(prev_sightings: int):
-    """A release out-trafficking its baseline 24x, as live windy-ios does.
+    """A release out-trafficking its baseline 24x, as live acme-ios does.
 
     Adjacent active releases there measured 35,380,595 against 1,475,687 events
     in the same window — the baseline decays out of the 14-day window while the

@@ -1915,7 +1915,7 @@ def _seed_telegram_length_case(
             # Zero-padded so no scope name is a prefix of another and the
             # "delivered exactly once" count below cannot match ":1" inside
             # ":10".
-            scope_name = f"windyapp_ios:map:layer_switch:precipitation_overlay:{index:03d}"
+            scope_name = f"acme_ios:map:layer_switch:precipitation_overlay:{index:03d}"
             scope_names.append(scope_name)
             session.add(
                 AlertDeliveryItem(
@@ -1931,10 +1931,10 @@ def _seed_telegram_length_case(
                     absolute_delta=16645,
                     percent_delta=51.9,
                     details_path=(
-                        f"https://tripl.windyapp.co/p/windy-ios/monitoring/event/{uuid.uuid4()}"
+                        f"https://tripl.example.com/p/acme-ios/monitoring/event/{uuid.uuid4()}"
                     ),
                     monitoring_path=(
-                        f"https://tripl.windyapp.co/p/windy-ios/events/detail/{uuid.uuid4()}"
+                        f"https://tripl.example.com/p/acme-ios/events/detail/{uuid.uuid4()}"
                     ),
                 )
             )
@@ -8717,7 +8717,7 @@ async def _seed_filterable_inbox(client: AsyncClient) -> dict[str, uuid.UUID]:
             now - timedelta(hours=2),
             "release_regression",
             -40.0,
-            "Windy 7.4 rollout",
+            "Acme 7.4 rollout",
         ),
     ]
     for group_id, created_at, scope_type, delta, scope_name in plan:

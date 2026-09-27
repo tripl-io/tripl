@@ -289,7 +289,7 @@ describe('MetaFieldsTab — link template (#244 AU-9)', () => {
     renderTab()
     openCreateWithLink('https://jira.example.com/{value}')
 
-    expect(screen.getByText('https://jira.example.com/WND-1234')).toBeInTheDocument()
+    expect(screen.getByText('https://jira.example.com/PROJ-1234')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>

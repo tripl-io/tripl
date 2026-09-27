@@ -1012,8 +1012,8 @@ describe('ProjectsPage', () => {
           jsonResponse([
             // The SMALLER queue is the most recently updated project, which is
             // exactly what the old single link followed.
-            project('Windy Web', 'windy-web', 1441, '2026-04-01T09:00:00Z'),
-            project('Windy Android', 'windy-android', 55, '2026-06-10T09:00:00Z'),
+            project('Acme Web', 'acme-web', 1441, '2026-04-01T09:00:00Z'),
+            project('Acme Android', 'acme-android', 55, '2026-06-10T09:00:00Z'),
           ]),
         )
       }
@@ -1027,7 +1027,7 @@ describe('ProjectsPage', () => {
 
     renderProjectsPage('owner')
 
-    expect(await screen.findByText('Windy Web')).toBeInTheDocument()
+    expect(await screen.findByText('Acme Web')).toBeInTheDocument()
 
     // The tile still totals the workspace...
     const reviewTile = screen.getByText('In review', { selector: 'dt' }).closest('dl')
@@ -1035,18 +1035,18 @@ describe('ProjectsPage', () => {
     expect(reviewTile).toHaveTextContent('1496')
     // ...and now says where those events actually are, biggest queue first,
     // instead of the bare "across 2 projects" that opened only one of them.
-    expect(screen.getByText('1441 in Windy Web · 55 in Windy Android')).toBeInTheDocument()
+    expect(screen.getByText('1441 in Acme Web · 55 in Acme Android')).toBeInTheDocument()
     expect(screen.queryByText('across 2 projects')).not.toBeInTheDocument()
 
     // Each card links to ITS OWN queue. The old tile link followed the most
-    // recently updated project (Windy Android, 55) and left the other 1441
+    // recently updated project (Acme Android, 55) and left the other 1441
     // unreachable from anywhere on the page.
     expect(
-      screen.getByRole('link', { name: 'In review in Windy Web: 1441 events' }),
-    ).toHaveAttribute('href', '/p/windy-web/events/review')
+      screen.getByRole('link', { name: 'In review in Acme Web: 1441 events' }),
+    ).toHaveAttribute('href', '/p/acme-web/events/review')
     expect(
-      screen.getByRole('link', { name: 'In review in Windy Android: 55 events' }),
-    ).toHaveAttribute('href', '/p/windy-android/events/review')
+      screen.getByRole('link', { name: 'In review in Acme Android: 55 events' }),
+    ).toHaveAttribute('href', '/p/acme-android/events/review')
   })
 
   it('leaves a failed project list to the shell, and does not call it an empty workspace', async () => {

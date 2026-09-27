@@ -99,7 +99,7 @@ function renderCard(destination: AlertDestination = makeDestination(), canWrite 
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <DestinationCard
-          slug="windy-ios"
+          slug="acme-ios"
           destination={current}
           canWrite={canWrite}
           onEditDestination={() => {}}
@@ -131,7 +131,7 @@ describe('DestinationCard test send', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send a test message through TG' }))
 
     expect(await screen.findByText(/Test message reached the channel at/)).toBeInTheDocument()
-    expect(test).toHaveBeenCalledWith('windy-ios', 'dest-1')
+    expect(test).toHaveBeenCalledWith('acme-ios', 'dest-1')
   })
 
   it('renders a channel refusal as the answer, not as a crash', async () => {
@@ -339,7 +339,7 @@ describe('DestinationCard delete (AL-25)', () => {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
           <DestinationCard
-            slug="windy-ios"
+            slug="acme-ios"
             destination={makeDestination()}
             canWrite
             onEditDestination={() => {}}

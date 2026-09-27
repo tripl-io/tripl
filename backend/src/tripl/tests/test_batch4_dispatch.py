@@ -152,7 +152,7 @@ GIVEN = "https://given.example"
 # GIVEN so "used the value it was given" and "read the value itself" cannot
 # both be true of the same URL.
 STALE = "https://stale.example"
-SLUG = "windy-ios"
+SLUG = "acme-ios"
 
 # Hour-aligned UTC bucket matching persisted values.
 _BUCKET = datetime(2026, 9, 14, 9, 0, tzinfo=UTC)
@@ -2266,7 +2266,7 @@ def test_the_migration_folds_buffered_metric_rows_and_sums_their_counts(
 # unconditional loop over ``config.id``, so ``_correlation_group_id`` hashed the
 # FIRING scan even for a scope that belongs to no scan.
 #
-# A project with three scans — ``windy-ios`` runs three — therefore minted THREE
+# A project with three scans — ``acme-ios`` runs three — therefore minted THREE
 # incident handles for one project-wide catalog metric. That is not cosmetic:
 # ``suppressed_group_ids`` is a set of these ids and is the entire mechanism
 # behind an Inbox acknowledgement or mute. Acknowledge the handle scan A

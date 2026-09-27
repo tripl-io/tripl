@@ -570,7 +570,7 @@ describe('VariablesTab', () => {
   })
 
   it('names a blank-named event in the override picker and its row actions (tripl-wkwv.5)', async () => {
-    // windy-ios holds exactly one event whose stored name is ''. A native
+    // acme-ios holds exactly one event whose stored name is ''. A native
     // <option> takes its accessible name from its text content, so that row was
     // a selectable option announced as nothing — indistinguishable from a
     // rendering glitch — and the two icon buttons on its existing override read

@@ -45,7 +45,7 @@ const LOADING_SKELETON_ROWS = 6
 // Matching spans every token the SCAN would resolve — display name, scan
 // identity and user-editable bindings — not just what the row leads with. On a
 // project whose variables were slugged by derive_display_name the raw path is
-// the only name a person knows: 576 of production's windy-ios rows render as
+// the only name a person knows: 576 of production's acme-ios rows render as
 // `${aalter}` over `property.Aalter`, so a search for "property" found none of
 // them.
 const matchesQuery = (variable: Variable, needle: string) =>
