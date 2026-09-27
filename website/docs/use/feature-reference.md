@@ -1852,7 +1852,21 @@ skipped and failed owners. Incident cards and the drilldown **Signal** card show
 (on a routed signal the button is on its incident card), which also reaches the
 owners of a signal no rule routed; it notifies at most 20 owners and skips an
 owner notified by hand in the last 10 minutes. See
-[Notifying owners](./alerting.md#owner-notifications). The **Delivery
+[Notifying owners](./alerting.md#owner-notifications). **Incident
+summary:** with AI on and outside demo projects, each incident card has a
+collapsed **Summary** (open by default on the monitoring page of a signal
+routed into an incident). It shows at most six sentences (what broke, cause,
+release, history, discussion), each citing numbered **Sources**. Sources come
+from up to 20 facts that tripl gathers itself, and every source links to its
+page when it has one. A cause sentence (or any sentence claiming a cause) that
+cites no attribution, release, past verdict, note or comment is dropped, and
+every other sentence may cite only the kinds of fact its part covers. If none is left, a fixed *The cause is unknown...*
+line is shown instead. The summary is cached per incident against a hash of
+its facts: reading it never calls the model, and a change to the facts marks
+it stale and generates it once again. Editors can **Regenerate** it. A failed
+generation keeps the previous summary. Sensitive field values and drift
+sample values are never sent to the model. See
+[The incident summary](./alerting.md#incident-summary). The **Delivery
 log** lists deliveries filterable by status (pending / sent / failed) with retry
 on failures, plus channel, destination, rule, and **scan**. That third section's
 `?section=` key is still `audit` — the label changed, the link did not, and it is
@@ -2805,8 +2819,9 @@ full-width empty column.
 Optional. Enable at Workspace settings › Instance › **AI** (route
 `/settings/instance/ai`) with a provider and API key; a status endpoint gates the
 AI UI. When enabled: **Suggest with AI** drafts an event description on the event
-form, and **Ask AI** answers questions in the command palette with linked
-sources. Search indexing (and optional embeddings) is rebuilt from Workspace
+form, **Ask AI** answers questions in the command palette with linked
+sources, and each alerting incident gets a cited
+[incident summary](./alerting.md#incident-summary) (never in a demo project). Search indexing (and optional embeddings) is rebuilt from Workspace
 settings › Project › **General** via the **Rebuild index** action, which reports
 documents indexed and whether embeddings were queued.
 

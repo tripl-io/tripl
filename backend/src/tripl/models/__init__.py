@@ -32,6 +32,7 @@ from tripl.models.event_type_relation import EventTypeRelation
 from tripl.models.fact_table import FactTable
 from tripl.models.field_definition import FieldDefinition
 from tripl.models.implementation_ticket import ImplementationTicket
+from tripl.models.incident_summary import IncidentSummary
 from tripl.models.invitation import Invitation
 from tripl.models.lifecycle_finding import LifecycleFinding
 from tripl.models.meta_field_definition import MetaFieldDefinition
@@ -107,6 +108,7 @@ __all__ = [
     "EventPhoto",
     "EventPhotoComment",
     "ImplementationTicket",
+    "IncidentSummary",
     "Invitation",
     "LifecycleFinding",
     "MetricAnomaly",
