@@ -424,6 +424,8 @@ async def reset_demo_project(
     # The purge cascades the memberships away with the old row; whoever could see
     # the demo before a reset can see it after.
     grants = await project_member_service.snapshot_grants(session, project.id)
+    # The purged row's id keys its cache entries (F20 PR3).
+    old_project_id = project.id
 
     try:
         await _purge_audit_trail(session, project)
@@ -468,7 +470,8 @@ async def reset_demo_project(
 
     await cache.delete_prefix(cache.prefix_projects())
     await cache.delete_prefix(cache.prefix_data_sources())
-    await project_service._invalidate_slug_caches(slug)
+    await project_service._invalidate_project_caches(old_project_id)
+    await project_service._forget_purged_project(old_project_id)
     return await project_service.get_project(session, slug)
 
 

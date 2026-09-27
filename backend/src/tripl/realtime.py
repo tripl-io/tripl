@@ -2,6 +2,7 @@
 
 A completed scan / metric collection / demo tick publishes a small named event to
 a per-project Redis channel; the SSE endpoint (``GET /projects/{slug}/events/stream``)
+resolves the slug to the project's id within the request's organization,
 subscribes to that channel and relays events to the browser, which invalidates the
 affected React-Query keys. This replaces most component-local polling; adaptive
 polling remains a resilient fallback.
@@ -16,6 +17,10 @@ Design choices mirror :mod:`tripl.cache`:
   stream.
 - **Publish after commit.** Callers publish only once the state change is
   committed, so a subscriber never sees an event for uncommitted state.
+- **Keyed by project id.** Channel, replay buffer, sequence and epoch keys are
+  built from the project's id, never its slug: a slug names a project only inside
+  its organization (F20), so two organizations' ``web`` projects never share a
+  stream.
 - **Bounded buffering + monotonic ids.** Each project channel keeps a capped
   ring buffer (``LPUSH`` + ``LTRIM``) keyed by a per-project ``INCR`` sequence so
   a reconnecting client can replay events it missed via the ``Last-Event-ID``
@@ -77,21 +82,37 @@ BUFFER_SIZE = 50
 _CHANNEL_PREFIX = "tripl:events:"
 
 
-def channel(slug: str) -> str:
+def channel(project_id: uuid.UUID) -> str:
     """Redis pub/sub channel for a project's event stream."""
-    return f"{_CHANNEL_PREFIX}{slug}"
+    return f"{_CHANNEL_PREFIX}{project_id}"
 
 
-def _buffer_key(slug: str) -> str:
-    return f"{_CHANNEL_PREFIX}{slug}:buffer"
+def _buffer_key(project_id: uuid.UUID) -> str:
+    return f"{channel(project_id)}:buffer"
 
 
-def _seq_key(slug: str) -> str:
-    return f"{_CHANNEL_PREFIX}{slug}:seq"
+def _seq_key(project_id: uuid.UUID) -> str:
+    return f"{channel(project_id)}:seq"
 
 
-def _epoch_key(slug: str) -> str:
-    return f"{_CHANNEL_PREFIX}{slug}:epoch"
+def _epoch_key(project_id: uuid.UUID) -> str:
+    return f"{channel(project_id)}:epoch"
+
+
+async def async_drop_project_keys(project_id: uuid.UUID) -> None:
+    """Delete a purged project's sequence, epoch and replay ring (async).
+
+    Called after a project row is gone for good (delete, demo reset): its id is
+    never reused, so nothing would ever read or overwrite these keys again.
+    No-op when Redis is off; never raises.
+    """
+    client = cache.get_async_client()
+    if client is None:
+        return
+    try:
+        await client.delete(_seq_key(project_id), _epoch_key(project_id), _buffer_key(project_id))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("realtime key cleanup %s failed: %s", project_id, exc)
 
 
 def backend_available() -> bool:
@@ -110,9 +131,13 @@ def _envelope(seq: int, event_type: str, slug: str, payload: dict[str, Any]) -> 
 # ── Publish (after-commit hooks) ─────────────────────────────────────────
 
 
-def publish_project_event(slug: str, event_type: str, payload: dict[str, Any]) -> None:
+def publish_project_event(
+    project_id: uuid.UUID, slug: str, event_type: str, payload: dict[str, Any]
+) -> None:
     """Publish an event to a project's channel (SYNC — Celery workers).
 
+    ``project_id`` keys the channel, ring and sequence; ``slug`` is only the
+    envelope's ``project_slug``.
     No-op when Redis is off. Never raises: a realtime failure must not fail the
     task that produced the (already-committed) state change.
     """
@@ -120,28 +145,30 @@ def publish_project_event(slug: str, event_type: str, payload: dict[str, Any]) -
     if client is None:
         return
     try:
-        seq = int(client.incr(_seq_key(slug)))
+        seq = int(client.incr(_seq_key(project_id)))
         raw = json.dumps(_envelope(seq, event_type, slug, payload), default=str)
-        client.lpush(_buffer_key(slug), raw)
-        client.ltrim(_buffer_key(slug), 0, BUFFER_SIZE - 1)
-        client.publish(channel(slug), raw)
+        client.lpush(_buffer_key(project_id), raw)
+        client.ltrim(_buffer_key(project_id), 0, BUFFER_SIZE - 1)
+        client.publish(channel(project_id), raw)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("realtime publish %s/%s failed: %s", slug, event_type, exc)
+        logger.warning("realtime publish %s/%s failed: %s", project_id, event_type, exc)
 
 
-async def async_publish_project_event(slug: str, event_type: str, payload: dict[str, Any]) -> None:
+async def async_publish_project_event(
+    project_id: uuid.UUID, slug: str, event_type: str, payload: dict[str, Any]
+) -> None:
     """Async variant of :func:`publish_project_event` (FastAPI request path)."""
     client = cache.get_async_client()
     if client is None:
         return
     try:
-        seq = int(await client.incr(_seq_key(slug)))
+        seq = int(await client.incr(_seq_key(project_id)))
         raw = json.dumps(_envelope(seq, event_type, slug, payload), default=str)
-        await client.lpush(_buffer_key(slug), raw)
-        await client.ltrim(_buffer_key(slug), 0, BUFFER_SIZE - 1)
-        await client.publish(channel(slug), raw)
+        await client.lpush(_buffer_key(project_id), raw)
+        await client.ltrim(_buffer_key(project_id), 0, BUFFER_SIZE - 1)
+        await client.publish(channel(project_id), raw)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("realtime async publish %s/%s failed: %s", slug, event_type, exc)
+        logger.warning("realtime async publish %s/%s failed: %s", project_id, event_type, exc)
 
 
 @dataclass(frozen=True)
@@ -180,7 +207,7 @@ def _decode(value: Any) -> str | None:
     return value.decode() if isinstance(value, bytes) else str(value)
 
 
-async def read_resume_point(slug: str, after_id: int | None) -> ResumePoint:
+async def read_resume_point(project_id: uuid.UUID, after_id: int | None) -> ResumePoint:
     """The sequence number, its epoch and the replay past ``after_id``, atomically.
 
     One ``MULTI``: the sequence and the ring are read at the same instant, so no
@@ -194,20 +221,22 @@ async def read_resume_point(slug: str, after_id: int | None) -> ResumePoint:
         return ResumePoint(seq=None, epoch=None, replay=[])
     try:
         async with client.pipeline(transaction=True) as pipe:
-            pipe.setnx(_epoch_key(slug), uuid.uuid4().hex)
-            pipe.get(_seq_key(slug))
-            pipe.get(_epoch_key(slug))
-            pipe.lrange(_buffer_key(slug), 0, BUFFER_SIZE - 1)
+            pipe.setnx(_epoch_key(project_id), uuid.uuid4().hex)
+            pipe.get(_seq_key(project_id))
+            pipe.get(_epoch_key(project_id))
+            pipe.lrange(_buffer_key(project_id), 0, BUFFER_SIZE - 1)
             _created, raw_seq, raw_epoch, raw_items = await pipe.execute()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("realtime resume read %s failed: %s", slug, exc)
+        logger.warning("realtime resume read %s failed: %s", project_id, exc)
         return ResumePoint(seq=None, epoch=None, replay=[])
     seq = int(raw_seq) if raw_seq is not None else 0
     replay = _parse_replay(raw_items or [], after_id) if after_id is not None else []
     return ResumePoint(seq=seq, epoch=_decode(raw_epoch), replay=replay)
 
 
-async def replay_buffered_events(slug: str, after_id: int | None) -> list[dict[str, Any]]:
+async def replay_buffered_events(
+    project_id: uuid.UUID, after_id: int | None
+) -> list[dict[str, Any]]:
     """Buffered events with ``id > after_id`` in ascending order (reconnect replay).
 
     Returns ``[]`` when Redis is off, no cursor was supplied, or nothing is
@@ -215,7 +244,7 @@ async def replay_buffered_events(slug: str, after_id: int | None) -> list[dict[s
     """
     if after_id is None:
         return []
-    return (await read_resume_point(slug, after_id)).replay
+    return (await read_resume_point(project_id, after_id)).replay
 
 
 def hello_payload(
@@ -241,7 +270,7 @@ def hello_payload(
 
 
 async def redis_message_iterator(
-    slug: str, *, poll_timeout: float = HEARTBEAT_SECONDS
+    project_id: uuid.UUID, *, poll_timeout: float = HEARTBEAT_SECONDS
 ) -> AsyncIterator[dict[str, Any] | None]:
     """Yield live envelope dicts for a project's channel, plus ``None`` heartbeats.
 
@@ -260,9 +289,9 @@ async def redis_message_iterator(
     pubsub = client.pubsub()
     try:
         try:
-            await pubsub.subscribe(channel(slug))
+            await pubsub.subscribe(channel(project_id))
         except RedisError as exc:
-            logger.warning("realtime subscribe %s failed: %s", slug, exc)
+            logger.warning("realtime subscribe %s failed: %s", project_id, exc)
             return
         while True:
             try:
@@ -270,7 +299,7 @@ async def redis_message_iterator(
                     ignore_subscribe_messages=True, timeout=poll_timeout
                 )
             except RedisError as exc:
-                logger.warning("realtime read %s failed: %s", slug, exc)
+                logger.warning("realtime read %s failed: %s", project_id, exc)
                 return
             if message is None:
                 yield None  # idle poll — surfaces as a heartbeat, keeps stream open
@@ -284,7 +313,7 @@ async def redis_message_iterator(
                 yield envelope
     finally:
         try:
-            await pubsub.unsubscribe(channel(slug))
+            await pubsub.unsubscribe(channel(project_id))
             await pubsub.aclose()  # type: ignore[no-untyped-call]
         except Exception:  # noqa: BLE001
             pass
@@ -292,7 +321,7 @@ async def redis_message_iterator(
 
 @asynccontextmanager
 async def subscribed_messages(
-    slug: str,
+    project_id: uuid.UUID,
 ) -> AsyncIterator[AsyncIterator[dict[str, Any] | None] | None]:
     """Subscribe before reading replay; yield None if Redis cannot be reached."""
     client = cache.get_async_pubsub_client()
@@ -302,9 +331,9 @@ async def subscribed_messages(
     pubsub = client.pubsub()
     try:
         try:
-            await pubsub.subscribe(channel(slug))
+            await pubsub.subscribe(channel(project_id))
         except RedisError as exc:
-            logger.warning("realtime subscribe %s failed: %s", slug, exc)
+            logger.warning("realtime subscribe %s failed: %s", project_id, exc)
             yield None
             return
 
@@ -315,7 +344,7 @@ async def subscribed_messages(
                         ignore_subscribe_messages=True, timeout=HEARTBEAT_SECONDS
                     )
                 except RedisError as exc:
-                    logger.warning("realtime read %s failed: %s", slug, exc)
+                    logger.warning("realtime read %s failed: %s", project_id, exc)
                     return
                 if message is None:
                     yield None
@@ -330,24 +359,30 @@ async def subscribed_messages(
         yield messages()
     finally:
         try:
-            await pubsub.unsubscribe(channel(slug))
+            await pubsub.unsubscribe(channel(project_id))
             await pubsub.aclose()  # type: ignore[no-untyped-call]
         except Exception:  # noqa: BLE001
-            logger.warning("realtime subscription cleanup failed for %s", slug, exc_info=True)
+            logger.warning("realtime subscription cleanup failed for %s", project_id, exc_info=True)
 
 
 async def project_response_stream(
     *,
+    project_id: uuid.UUID,
     slug: str,
     last_event_id: int | None,
     is_disconnected: Callable[[], Awaitable[bool]],
     max_messages: int | None,
 ) -> AsyncIterator[str]:
-    async with subscribed_messages(slug) as messages:
+    """The SSE body for one project: subscribe to its id channel, then greet.
+
+    ``project_id`` keys the channel and replay; ``slug`` is only what the
+    ``hello`` event reports, the name the client subscribed with.
+    """
+    async with subscribed_messages(project_id) as messages:
         # Read AFTER subscribing: every event past ``seq`` then reaches the client
         # live, by replay, or both (de-duplicated by id).
         resume = (
-            await read_resume_point(slug, last_event_id)
+            await read_resume_point(project_id, last_event_id)
             if messages is not None
             else ResumePoint(seq=None, epoch=None, replay=[])
         )

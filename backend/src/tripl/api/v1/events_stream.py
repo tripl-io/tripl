@@ -11,7 +11,8 @@ Anonymous callers get 401; a foreign project-scoped key gets the same 404 ("Proj
 not found") an unknown slug gets. The router's project-membership dependency then
 404s a caller who is not a member of the project — an instance owner reaches every
 project — before the stream opens, so a non-member cannot even learn the slug
-exists. The handler resolves the slug, 404-ing an unknown project.
+exists. The handler resolves the slug to the project's id within the request's
+organization, 404-ing an unknown project, and subscribes to that id's channel.
 
 Membership is checked again while the stream is open: a stream can live for hours,
 and a member removed from the project must stop receiving its events. Every
@@ -140,7 +141,11 @@ async def stream_project_events(
     # The response may live for hours; release the transaction and pooled
     # connection used by authentication and project lookup before streaming.
     await session.close()
+    # The channel is the project's id, resolved above within the request's
+    # organization, so a slug another organization also uses never reaches this
+    # project's stream (F20 PR3). The slug is only echoed in ``hello``.
     generator = realtime.project_response_stream(
+        project_id=project_id,
         slug=slug,
         last_event_id=last_event_id,
         is_disconnected=membership_guard(

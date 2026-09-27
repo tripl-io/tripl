@@ -25,6 +25,7 @@ from tripl.services.plan_branch_merge_service import (
     _three_way_count,
     _touched_event_names,
 )
+from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_plan_branches import (
     _approve_and_merge,
@@ -200,8 +201,8 @@ async def test_merge_drops_main_list_caches(
     resp = await client.post(f"/api/v1/projects/{slug}/branches/{branch_id}/merge")
     assert resp.status_code == 200, resp.text
     assert {
-        cache.prefix_event_types(slug),
-        cache.prefix_meta_fields(slug),
+        cache.prefix_event_types(await project_id_by_slug(slug)),
+        cache.prefix_meta_fields(await project_id_by_slug(slug)),
         cache.prefix_projects(),
     } <= set(dropped)
 

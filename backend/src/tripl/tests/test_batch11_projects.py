@@ -1,5 +1,6 @@
 """Regression coverage for project slug changes and slug-keyed cache eviction."""
 
+import uuid
 from unittest.mock import AsyncMock
 
 import pytest
@@ -56,6 +57,7 @@ async def test_delete_evicts_slug_keyed_caches(
     response = await client.delete(f"/api/v1/projects/{slug}")
     assert response.status_code == 204
     prefixes = [call.args[0] for call in delete_prefix.await_args_list]
-    assert cache.prefix_event_types(slug) in prefixes
-    assert cache.prefix_meta_fields(slug) in prefixes
-    assert cache.prefix_signals(slug) in prefixes
+    project_id = uuid.UUID(created.json()["id"])
+    assert cache.prefix_event_types(project_id) in prefixes
+    assert cache.prefix_meta_fields(project_id) in prefixes
+    assert cache.prefix_signals(project_id) in prefixes

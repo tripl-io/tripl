@@ -50,7 +50,7 @@ async def _refresh_main_search_index(
     )
     # The event type list carries each type's resolved ``event_name_format``
     # (tripl-kjhi.1), so a scan config edit changes that response too.
-    await cache.delete(cache.key_event_types_list(slug))
+    await cache.delete(cache.key_event_types_list(project_id))
 
 
 async def _verify_data_source(

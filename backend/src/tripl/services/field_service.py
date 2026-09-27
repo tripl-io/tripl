@@ -82,7 +82,7 @@ async def create_field(
         slug=slug,
     )
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(et.project_id))
     return field
 
 
@@ -123,7 +123,7 @@ async def bulk_create_fields(
             slug=slug,
         )
         if is_main:
-            await cache.delete_prefix(cache.prefix_event_types(slug))
+            await cache.delete_prefix(cache.prefix_event_types(et.project_id))
     return await list_fields(session, slug, event_type_id, branch_id)
 
 
@@ -170,7 +170,7 @@ async def update_field(
         slug=slug,
     )
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(et.project_id))
     return field
 
 
@@ -258,7 +258,7 @@ async def delete_field(
         slug=slug,
     )
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(et.project_id))
 
 
 async def reorder_fields(
@@ -281,5 +281,5 @@ async def reorder_fields(
             field.order = idx
     await session.commit()
     if is_main:
-        await cache.delete_prefix(cache.prefix_event_types(slug))
+        await cache.delete_prefix(cache.prefix_event_types(et.project_id))
     return await list_fields(session, slug, event_type_id, branch_id)

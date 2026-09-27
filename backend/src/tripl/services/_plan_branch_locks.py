@@ -57,8 +57,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.plan_branch import BranchKind, PlanBranch
-from tripl.models.project import Project
-from tripl.services.project_lookup import project_slug_clause
 
 __all__ = [
     "hold_branch_for_plan_write",
@@ -101,7 +99,7 @@ async def hold_branch_for_plan_write(
     return branch
 
 
-async def hold_main_plan_for_write(session: AsyncSession, slug: str) -> None:
+async def hold_main_plan_for_write(session: AsyncSession, project_id: uuid.UUID) -> None:
     """Hold the project's main branch row ``FOR SHARE`` for a write to main.
 
     The main-side half of tripl-0zpq.294: a main edit either commits before a
@@ -112,13 +110,15 @@ async def hold_main_plan_for_write(session: AsyncSession, slug: str) -> None:
     A no-op off PostgreSQL, where it would only cost a query per write. A
     project whose main row does not exist yet has no branch that could be
     merging into it, so there is nothing to wait for.
+
+    Keyed by the project's id, which the caller resolved within its
+    organization (F20 PR3): a slug is unique only inside an organization.
     """
     if not locks_rows(session):
         return
     await session.execute(
         select(PlanBranch.id)
-        .join(Project, Project.id == PlanBranch.project_id)
-        .where(project_slug_clause(slug), PlanBranch.kind == BranchKind.main.value)
+        .where(PlanBranch.project_id == project_id, PlanBranch.kind == BranchKind.main.value)
         .with_for_update(read=True, of=PlanBranch)
     )
 

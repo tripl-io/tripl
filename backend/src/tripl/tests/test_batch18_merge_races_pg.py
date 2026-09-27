@@ -43,6 +43,7 @@ from tripl.models.event_photo_comment import EventPhotoComment
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.user import User
 from tripl.services import _plan_branch_locks, event_comment_service, plan_branch_merge_service
+from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal, engine
 from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
 from tripl.tests.test_batch18_branches_a import _ask, _branch_track_id, _create_event
@@ -137,6 +138,9 @@ async def test_only_a_plan_write_on_main_holds_mains_row(
     event_id = await _event_id(client, slug, "purchase:success", None)
     held = _Calls(deps.hold_main_plan_for_write)
     monkeypatch.setattr(deps, "hold_main_plan_for_write", held)
+    # The dependency skips the lock off PostgreSQL; pretend rows lock here so
+    # the call is observable (the real helper still no-ops on SQLite).
+    monkeypatch.setattr(deps, "locks_rows", lambda _session: True)
 
     assert (await client.get(f"/api/v1/projects/{slug}/events")).status_code == 200
     await client.post(f"/api/v1/projects/{slug}/ai/describe-event", json={"event_id": event_id})
@@ -147,7 +151,8 @@ async def test_only_a_plan_write_on_main_holds_mains_row(
             f"/api/v1/projects/{slug}/events/{event_id}{query}", json={"description": query}
         )
         assert patched.status_code == 200, patched.text
-    assert [args[1] for args, _ in held.calls] == [slug, slug]
+    project_id = await project_id_by_slug(slug)
+    assert [args[1] for args, _ in held.calls] == [project_id, project_id]
 
 
 @pytest.mark.asyncio
@@ -237,7 +242,7 @@ async def test_the_helpers_lock_nothing_on_sqlite() -> None:
         async with TestSessionLocal() as session:
             await _plan_branch_locks.hold_branch_for_plan_write(session, uuid.uuid4())
             assert len(statements) == 1
-            await _plan_branch_locks.hold_main_plan_for_write(session, "any")
+            await _plan_branch_locks.hold_main_plan_for_write(session, uuid.uuid4())
             await _plan_branch_locks.lock_main_plan_for_merge(session, uuid.uuid4())
     finally:
         event.remove(engine.sync_engine, "before_cursor_execute", record)
@@ -273,7 +278,7 @@ async def test_the_helpers_emit_the_lock_modes_the_design_depends_on() -> None:
     fake = _PostgresShapedSession()
     session = cast(AsyncSession, fake)
     await _plan_branch_locks.hold_branch_for_plan_write(session, uuid.uuid4())
-    await _plan_branch_locks.hold_main_plan_for_write(session, "slug")
+    await _plan_branch_locks.hold_main_plan_for_write(session, uuid.uuid4())
     await _plan_branch_locks.lock_main_plan_for_merge(session, uuid.uuid4())
     rendered = [str(s.compile(dialect=postgresql.dialect())) for s in fake.statements]
     assert rendered[0].rstrip().endswith("FOR SHARE")

@@ -94,6 +94,7 @@ from tripl.services.demo.builders.alerts import (
 )
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.project_service import demo_data_source_name
+from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 # --- helpers ------------------------------------------------------------------
@@ -518,7 +519,7 @@ async def test_accepting_a_schema_drift_busts_the_cached_event_type_list(
     )
     assert applied.status_code == 200, applied.text
 
-    assert cache.prefix_event_types(slug) in dropped, dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) in dropped, dropped
 
     # Not vacuous: the accept really did change what that list serves.
     async with TestSessionLocal() as session:

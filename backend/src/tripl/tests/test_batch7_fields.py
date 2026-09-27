@@ -42,6 +42,7 @@ from sqlalchemy import select
 from tripl import cache
 from tripl.models.field_definition import FieldDefinition
 from tripl.models.schema_drift import SCHEMA_DRIFT_STATUS_OPEN, SchemaDrift
+from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -123,7 +124,7 @@ async def test_the_drift_door_busts_mains_event_type_cache_and_only_mains(
       ``schema_drift_service.apply_drift_action``. That condition is
       UNREACHABLE — ``event_types.branch_id`` has been NOT NULL since
       4e5f60718293 — so the bust never happens and
-      ``assert cache.prefix_event_types(slug) in dropped`` fails.
+      ``assert cache.prefix_event_types(project_id) in dropped`` fails.
     * Phase 2 reddens on deleting the ``branch is not None and branch.kind ==
       BranchKind.main.value`` guard and busting unconditionally, which is the
       obvious over-correction for phase 1: the branch accept would then drop
@@ -142,7 +143,7 @@ async def test_the_drift_door_busts_mains_event_type_cache_and_only_mains(
     assert applied.status_code == 200, applied.text
     # Not vacuous: the accept really did change what that list serves.
     assert "platform" in await _field_names(main_event_type_id)
-    assert cache.prefix_event_types(slug) in dropped, dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) in dropped, dropped
 
     # Phase 2: the same accept, on a working branch's own copy of the type.
     branch = await client.post(f"/api/v1/projects/{slug}/branches", json={"name": "feature"})
@@ -167,7 +168,7 @@ async def test_the_drift_door_busts_mains_event_type_cache_and_only_mains(
     # somewhere main's cached list does not reach.
     assert "app_version" in await _field_names(branch_event_type_id)
     assert "app_version" not in await _field_names(main_event_type_id)
-    assert cache.prefix_event_types(slug) not in dropped, dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) not in dropped, dropped
 
 
 # --- tripl-0zpq.246 -----------------------------------------------------------
@@ -300,7 +301,8 @@ async def test_every_field_write_on_main_busts_the_cached_event_type_list(
         dropped.clear()
         resp = await client.request(method, f"{url}{path}", **kwargs)
         assert resp.status_code in (200, 201, 204), f"{label}: {resp.status_code} {resp.text}"
-        assert cache.prefix_event_types(slug) in dropped, f"{label} left the list cache standing"
+        prefix = cache.prefix_event_types(await project_id_by_slug(slug))
+        assert prefix in dropped, f"{label} left the list cache standing"
         return None if resp.status_code == 204 else resp.json()
 
     field = await write("create", "POST", "", json=_new_field("platform"))
@@ -341,7 +343,7 @@ async def test_a_field_write_on_a_working_branch_leaves_mains_event_type_cache_a
     )
 
     assert created.status_code == 201, created.text
-    assert cache.prefix_event_types(slug) not in dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) not in dropped
 
 
 @pytest.mark.asyncio

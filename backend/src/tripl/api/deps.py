@@ -18,6 +18,7 @@ from tripl.services import api_key_service, project_access, project_service
 from tripl.services._plan_branch_locks import (
     hold_branch_for_plan_write,
     hold_main_plan_for_write,
+    locks_rows,
 )
 from tripl.services.auth_service import get_user_by_session_token
 from tripl.services.org_resolution import resolve_request_org
@@ -544,8 +545,15 @@ async def _hold_main_for_a_plan_write(request: Request, session: AsyncSession) -
     and so no main, to hold.
     """
     slug = request.path_params.get("slug")
-    if slug and _writes_the_plan(request):
-        await hold_main_plan_for_write(session, slug)
+    # ``locks_rows`` first: off PostgreSQL the lock is a no-op, so the id lookup
+    # would only cost a query per plan write.
+    if slug and _writes_the_plan(request) and locks_rows(session):
+        # The lock is keyed by the project's id within the request's
+        # organization (F20 PR3). An unknown slug has no main to hold; the
+        # route's own lookup answers its 404.
+        project_id = await session.scalar(select(Project.id).where(project_slug_clause(slug)))
+        if project_id is not None:
+            await hold_main_plan_for_write(session, project_id)
 
 
 async def get_branch_id_override(

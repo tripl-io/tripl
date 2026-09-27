@@ -274,7 +274,7 @@ async def apply_drift_action(
         # that changes.
         branch = await session.get(PlanBranch, event_type.branch_id)
         if branch is not None and branch.kind == BranchKind.main.value:
-            await cache.delete_prefix(cache.prefix_event_types(slug))
+            await cache.delete_prefix(cache.prefix_event_types(event_type.project_id))
     return SchemaDriftResponse.model_validate(drift)
 
 

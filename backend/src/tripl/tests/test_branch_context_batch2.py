@@ -41,6 +41,7 @@ from tripl.schemas.field_definition import (
 )
 from tripl.services import field_service
 from tripl.tests._members import add_member_by_slug
+from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_plan_branches import _approve_and_merge, _create_branch, _transition
 from tripl.tests.test_rbac import _register, _set_role, iter_api_routes
@@ -220,16 +221,26 @@ async def test_main_by_id_drops_every_cache_main_without_the_parameter_drops(
     caches serving pre-write data for up to 300 s.
     """
     dropped = _record_dropped_prefixes(monkeypatch)
-    await _project(client, "bctx-plain")
-    await _project(client, "bctx-byid")
+    plain_project = await _project(client, "bctx-plain")
+    byid_project = await _project(client, "bctx-byid")
     main_id = (await _main_branch(client, "bctx-byid"))["id"]
 
     plain = await _main_write_sequence(client, "bctx-plain", "", dropped)
     by_id = await _main_write_sequence(client, "bctx-byid", f"?branch={main_id}", dropped)
 
+    # Cache keys carry the project id (F20 PR3), so compare with each project's
+    # own id folded to one placeholder.
+    def _same_shape(
+        steps: list[tuple[str, list[str]]], project_id: uuid.UUID
+    ) -> list[tuple[str, list[str]]]:
+        return [
+            (name, [prefix.replace(str(project_id), "<project>") for prefix in prefixes])
+            for name, prefixes in steps
+        ]
+
     # Not vacuous: every step invalidates something on the plain path.
     assert all(prefixes for _, prefixes in plain), plain
-    assert by_id == plain
+    assert _same_shape(by_id, byid_project) == _same_shape(plain, plain_project)
 
 
 @pytest.mark.asyncio
@@ -350,7 +361,7 @@ async def test_every_field_write_on_main_by_id_drops_the_event_type_list(
     async with TestSessionLocal() as session:
         await write(session, slug, event_type_id, ids["main"], ids)
 
-    assert cache.prefix_event_types(slug) in dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) in dropped
 
 
 @pytest.mark.asyncio
@@ -376,7 +387,7 @@ async def test_a_field_write_on_a_working_branch_leaves_mains_list_alone(
             uuid.UUID(branch_id),
         )
 
-    assert cache.prefix_event_types(slug) not in dropped
+    assert cache.prefix_event_types(await project_id_by_slug(slug)) not in dropped
 
 
 # --- tripl-0zpq.145: a merged or closed branch takes no plan writes -------------

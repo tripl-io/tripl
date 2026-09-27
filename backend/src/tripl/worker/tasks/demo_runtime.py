@@ -291,7 +291,7 @@ def _advance_demo(session: Session, project_id: uuid.UUID, slug: str, now: datet
     project.demo_last_tick_at = now
     session.commit()
 
-    _emit_status(slug)
+    _emit_status(project_id, slug)
 
 
 def _acquire_project_xact_lock(session: Session, project_id: uuid.UUID) -> None:
@@ -800,7 +800,7 @@ def _prune_retention(
         )
 
 
-def _emit_status(slug: str) -> None:
+def _emit_status(project_id: uuid.UUID, slug: str) -> None:
     """Emit a project-scoped 'updated' signal for the tripl-2su6.8 live stream.
 
     Invalidates the project-scoped cache prefixes so the next read serves the
@@ -809,8 +809,10 @@ def _emit_status(slug: str) -> None:
     a no-op for both. Runs AFTER the tick's commit.
     """
     cache.sync_delete_prefix(cache.prefix_projects())
-    cache.sync_delete_prefix(f"{cache.prefix_signals()}{slug}:")
+    cache.sync_delete_prefix(cache.prefix_signals(project_id))
     realtime.publish_project_event(
-        slug, realtime.EVENT_METRIC_COLLECTION_UPDATED, {"source": "demo_runtime"}
+        project_id, slug, realtime.EVENT_METRIC_COLLECTION_UPDATED, {"source": "demo_runtime"}
     )
-    realtime.publish_project_event(slug, realtime.EVENT_SIGNALS_UPDATED, {"source": "demo_runtime"})
+    realtime.publish_project_event(
+        project_id, slug, realtime.EVENT_SIGNALS_UPDATED, {"source": "demo_runtime"}
+    )

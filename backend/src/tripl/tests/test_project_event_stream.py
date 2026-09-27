@@ -14,6 +14,7 @@ tripl-2su6.10.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import AsyncIterator
 
 import pytest
@@ -147,9 +148,12 @@ async def test_scoped_key_cannot_subscribe_to_foreign_project(client: AsyncClien
 @pytest.mark.asyncio
 async def test_publish_is_noop_without_redis() -> None:
     # Must not raise and must be a no-op (redis_url empty in tests).
-    realtime.publish_project_event("s", realtime.EVENT_SCAN_JOB_UPDATED, {"job_id": "1"})
-    await realtime.async_publish_project_event("s", realtime.EVENT_SIGNALS_UPDATED, {})
-    assert await realtime.replay_buffered_events("s", 5) == []
+    project_id = uuid.uuid4()
+    realtime.publish_project_event(
+        project_id, "s", realtime.EVENT_SCAN_JOB_UPDATED, {"job_id": "1"}
+    )
+    await realtime.async_publish_project_event(project_id, "s", realtime.EVENT_SIGNALS_UPDATED, {})
+    assert await realtime.replay_buffered_events(project_id, 5) == []
     assert realtime.backend_available() is False
 
 
@@ -268,7 +272,7 @@ async def test_redis_iterator_survives_idle_and_swallows_read_timeout(monkeypatc
     monkeypatch.setattr(
         realtime.cache, "get_async_pubsub_client", lambda: _FakePubSubClient(pubsub)
     )
-    items = [item async for item in realtime.redis_message_iterator("p")]
+    items = [item async for item in realtime.redis_message_iterator(uuid.uuid4())]
     assert items[0] is None
     assert any(isinstance(x, dict) and x.get("id") == 1 for x in items)
     # The read timeout did not escape — the comprehension completed.

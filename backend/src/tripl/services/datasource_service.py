@@ -34,7 +34,12 @@ from tripl.schemas.data_source import (
     parse_connection_settings,
 )
 from tripl.services.plan_branch_service import resolve_branch_id
+from tripl.services.project_lookup import owning_org_id
 from tripl.services.search_service import reindex_project_branch
+
+# Defensive cap on ``GET /data-sources``, per organization (it was one global
+# LIMIT before F20 PR3; with one organization the two are the same).
+_LIST_LIMIT_PER_ORG = 1000
 
 
 async def list_data_sources(
@@ -47,9 +52,13 @@ async def list_data_sources(
     source (``project_id`` NULL) is listed for everyone; a source bound to a
     project the caller is not a member of is left out entirely, since a
     non-member must not learn the project exists. The cached list is
-    instance-wide and filtered after the read, so one entry serves every user.
+    instance-wide and filtered after the read, so one entry serves every user of
+    an organization; the entry is keyed by the bound organization (F20 PR3) so
+    no two organizations share it. The defensive cap applies per organization,
+    so one organization's sources can never crowd another's out of the list.
     """
-    cached = await cache.get_json(cache.key_data_sources_list())
+    list_key = cache.key_data_sources_list(owning_org_id())
+    cached = await cache.get_json(list_key)
     if cached is not None:
         return await _with_usage(
             session,
@@ -60,13 +69,22 @@ async def list_data_sources(
             visible_project_ids=visible_project_ids,
         )
 
+    ranked = select(
+        DataSource.id,
+        func.row_number()
+        .over(partition_by=DataSource.organization_id, order_by=DataSource.created_at.desc())
+        .label("position"),
+    ).subquery()
     result = await session.execute(
-        select(DataSource).order_by(DataSource.created_at.desc()).limit(1000)
+        select(DataSource)
+        .join(ranked, ranked.c.id == DataSource.id)
+        .where(ranked.c.position <= _LIST_LIMIT_PER_ORG)
+        .order_by(DataSource.created_at.desc())
     )
     rows = result.scalars().all()
     responses = [_to_response(ds) for ds in rows]
     await cache.set_json(
-        cache.key_data_sources_list(),
+        list_key,
         [r.model_dump(mode="json") for r in responses],
         ttl_seconds=300,
     )
