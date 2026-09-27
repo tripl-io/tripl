@@ -6,6 +6,7 @@ import { planBranchesApi } from '@/api/planBranches'
 import { useBranchContext } from '@/hooks/useBranch'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
 import { useExpandedSignals } from '@/hooks/useExpandedSignals'
+import { useUnreadNotificationCount } from '@/hooks/useNotifications'
 import { lazyWithReload } from '@/lib/lazyWithReload'
 import { commandPaletteShortcutLabel } from '@/lib/platform'
 import {
@@ -222,6 +223,19 @@ export function BranchStrip({ slug }: { slug: string | undefined }) {
   )
 }
 
+/** "Alerts — 1 open incident, 3 unread notifications": both badges' counts. */
+function bellLabel(openIncidentCount: number, unreadCount: number): string {
+  const parts = [
+    openIncidentCount > 0
+      ? `${openIncidentCount} open ${openIncidentCount === 1 ? 'incident' : 'incidents'}`
+      : null,
+    unreadCount > 0
+      ? `${unreadCount} unread ${unreadCount === 1 ? 'notification' : 'notifications'}`
+      : null,
+  ].filter((part): part is string => part !== null)
+  return parts.length > 0 ? `Alerts — ${parts.join(', ')}` : 'Alerts'
+}
+
 // The popover body loads on first open (or on hover/focus of the bell): the
 // entry chunk carries only the bell and its badge (i9mt.19).
 const NotificationsPanel = lazyWithReload(loadNotificationsPanel)
@@ -230,6 +244,16 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
   const [open, setOpen] = useState(false)
   // True while the panel's retry confirmation is up; see onInteractOutside.
   const [confirming, setConfirming] = useState(false)
+  // The reader's own unread notifications (#259), polled every minute and on
+  // focus. A failure reads as none: the bell still shows the project's alerts.
+  const unreadCount = useUnreadNotificationCount().data ?? 0
+  // The tab the popover opens on, chosen as it opens: the reader's own news
+  // when there is some, else the signals it has always shown.
+  const [initialTab, setInitialTab] = useState<'notifications' | 'signals'>('signals')
+  const onOpenChange = (next: boolean) => {
+    if (next) setInitialTab(unreadCount > 0 ? 'notifications' : 'signals')
+    setOpen(next)
+  }
   // Expanded, then gated on the shared Significant threshold — the same set the
   // sidebar badge and the Overview headline report. The collapsed variant this
   // used to call queries only project_total/event_type, so a project whose
@@ -259,19 +283,15 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
   const isRefreshing = !isLoading && (signalsQuery.isFetching || deliveriesQuery.isFetching)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={
-            openIncidentCount > 0
-              ? `Alerts — ${openIncidentCount} open ${openIncidentCount === 1 ? 'incident' : 'incidents'}`
-              : 'Alerts'
-          }
+          aria-label={bellLabel(openIncidentCount, unreadCount)}
           onPointerEnter={preloadNotificationsPanel}
           onFocus={preloadNotificationsPanel}
           className="relative flex h-9 w-9 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-active)] sm:h-8 sm:w-8"
-          style={{ color: openIncidentCount > 0 ? 'var(--fg)' : 'var(--fg-muted)' }}
+          style={{ color: openIncidentCount > 0 || unreadCount > 0 ? 'var(--fg)' : 'var(--fg-muted)' }}
         >
           {isLoading && projectSlug ? (
             <Loader2
@@ -282,21 +302,30 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
           ) : (
             <Bell className="h-4 w-4" aria-hidden="true" />
           )}
-          {isRefreshing && projectSlug && openIncidentCount === 0 && (
+          {isRefreshing && projectSlug && openIncidentCount === 0 && unreadCount === 0 && (
             <span
               aria-hidden="true"
               data-testid="notifications-refreshing"
               className="absolute right-1.5 top-1.5 h-1 w-1 rounded-full bg-fg-tertiary"
             />
           )}
-          {openIncidentCount > 0 && (
+          {/* Open incidents keep the red badge; without any, the unread
+              notifications get a quiet one (#259). Both are in the label. */}
+          {openIncidentCount > 0 ? (
             <CountBadge
               count={openIncidentCount}
               max={9}
               urgent
               className="absolute -right-0.5 -top-0.5"
             />
-          )}
+          ) : unreadCount > 0 ? (
+            <CountBadge
+              count={unreadCount}
+              max={9}
+              className="absolute -right-0.5 -top-0.5 text-fg"
+              data-testid="notifications-unread-badge"
+            />
+          ) : null}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -322,6 +351,9 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
               projects={projects}
               openIncidentCount={openIncidentCount}
               onConfirmingChange={setConfirming}
+              unreadCount={unreadCount}
+              initialTab={initialTab}
+              onNavigate={() => setOpen(false)}
             />
           </Suspense>
         </ErrorBoundary>

@@ -51,10 +51,16 @@ from tripl.schemas.plan_branch import (
     PlanBranchResponse,
     PlanDiffRename,
 )
+from tripl.services import (
+    notification_announce,
+    notification_service,
+    subscription_service,
+)
 from tripl.services._event_reference_cleanup import drop_dangling_event_references
 from tripl.services._plan_branch_renames import snapshot_rename_pairs
 from tripl.services._plan_diff_housekeeping import mark_housekeeping, reviewable
 from tripl.services._plan_diff_warnings import attach_identity_warnings
+from tripl.services.mentions import excerpt
 from tripl.services.plan_revision_service import (
     build_plan_snapshot,
     compute_plan_diff_entries,
@@ -1061,6 +1067,18 @@ async def _copy_main_into_new_branch(
         source_branch_id=main_branch_id,
         target_branch_id=branch.id,
     )
+    await notification_announce.best_effort(
+        session,
+        "subscribe branch author",
+        lambda: subscription_service.subscribe(
+            session,
+            user_id=user_id,
+            project_id=project_id,
+            entity_type=subscription_service.BRANCH,
+            entity_id=branch.id,
+            reason="author",
+        ),
+    )
     await session.commit()
     return branch
 
@@ -1173,9 +1191,80 @@ async def transition_branch(
 
         await assign_owner_reviewers_for_branch(session, project_id=project_id, branch=branch)
 
+    # Best-effort in a savepoint: a failed notification never fails the step.
+    await notification_announce.best_effort(
+        session,
+        f"branch {action}",
+        lambda: _announce_transition(session, slug, branch, action=action, actor_id=user_id),
+    )
     await session.commit()
     await session.refresh(branch)
     return await _to_detail(session, branch)
+
+
+def _branch_url(slug: str, branch: PlanBranch) -> str:
+    return f"/p/{slug}/branches/{branch.id}"
+
+
+async def _reviewer_ids(session: AsyncSession, branch_id: uuid.UUID) -> set[uuid.UUID]:
+    rows = await session.scalars(
+        select(PlanBranchReviewer.user_id).where(PlanBranchReviewer.branch_id == branch_id)
+    )
+    return set(rows.all())
+
+
+async def _announce_transition(
+    session: AsyncSession,
+    slug: str,
+    branch: PlanBranch,
+    *,
+    action: str,
+    actor_id: uuid.UUID,
+) -> None:
+    """Review steps that reach people (#259): submit asks the reviewers; approve
+    tells the author, the reviewers and everyone watching the branch — the same
+    audience as ``branch_merged``. Other steps are quiet."""
+    if action not in ("submit", "approve"):
+        return
+    who = await notification_announce.actor_label(session, actor_id)
+    if action == "submit":
+        reviewers = await _reviewer_ids(session, branch.id)
+        for reviewer_id in reviewers:
+            await subscription_service.subscribe(
+                session,
+                user_id=reviewer_id,
+                project_id=branch.project_id,
+                entity_type=subscription_service.BRANCH,
+                entity_id=branch.id,
+                reason="reviewer",
+            )
+        await notification_service.notify(
+            session,
+            project_id=branch.project_id,
+            kind="branch_review_requested",
+            entity_type=subscription_service.BRANCH,
+            entity_id=branch.id,
+            title=f"{who} asked for your review of branch {branch.name}",
+            url=_branch_url(slug, branch),
+            actor_user_id=actor_id,
+            user_ids=reviewers,
+        )
+        return
+    await notification_service.notify(
+        session,
+        project_id=branch.project_id,
+        kind="branch_approved",
+        entity_type=subscription_service.BRANCH,
+        entity_id=branch.id,
+        title=f"{who} approved branch {branch.name}",
+        url=_branch_url(slug, branch),
+        actor_user_id=actor_id,
+        user_ids={
+            *(await _reviewer_ids(session, branch.id)),
+            *([branch.created_by] if branch.created_by is not None else []),
+        },
+        watchers_of=[(subscription_service.BRANCH, branch.id)],
+    )
 
 
 async def _resolve_user(session: AsyncSession, user_id: uuid.UUID) -> User:
@@ -1190,6 +1279,8 @@ async def add_reviewer(
     slug: str,
     branch_id: uuid.UUID,
     data: BranchReviewerCreate,
+    *,
+    actor_user_id: uuid.UUID | None = None,
 ) -> BranchReviewerResponse:
     project_id = await _resolve_project_id(session, slug)
     branch = await _get_branch(session, project_id, branch_id)
@@ -1209,6 +1300,33 @@ async def add_reviewer(
         return BranchReviewerResponse.model_validate(existing)
     reviewer = PlanBranchReviewer(branch_id=branch.id, user_id=data.user_id)
     session.add(reviewer)
+
+    async def announce_reviewer() -> None:
+        await subscription_service.subscribe(
+            session,
+            user_id=data.user_id,
+            project_id=project_id,
+            entity_type=subscription_service.BRANCH,
+            entity_id=branch.id,
+            reason="reviewer",
+        )
+        if branch.status in (BranchStatus.ready_for_review.value, BranchStatus.approved.value):
+            # Added after the branch went up for review: ask now, not on the next submit.
+            who = await notification_announce.actor_label(session, actor_user_id)
+            await notification_service.notify(
+                session,
+                project_id=project_id,
+                kind="branch_review_requested",
+                entity_type=subscription_service.BRANCH,
+                entity_id=branch.id,
+                title=f"{who} asked for your review of branch {branch.name}",
+                url=_branch_url(slug, branch),
+                actor_user_id=actor_user_id,
+                user_ids=[data.user_id],
+            )
+
+    # Best-effort in a savepoint: a failed notification never fails the add.
+    await notification_announce.best_effort(session, "add reviewer", announce_reviewer)
     await session.commit()
     await session.refresh(reviewer)
     return BranchReviewerResponse.model_validate(reviewer)
@@ -1271,9 +1389,61 @@ async def create_comment(
         body=data.body,
     )
     session.add(comment)
+    await session.flush()
+    await _announce_branch_comment(session, slug, branch, comment)
     await session.commit()
     await session.refresh(comment)
     return BranchCommentResponse.model_validate(comment)
+
+
+async def _announce_branch_comment(
+    session: AsyncSession, slug: str, branch: PlanBranch, comment: PlanBranchComment
+) -> None:
+    """Subscribe the commenter; @mentions first, then the branch's watchers (#259).
+
+    Same two-pass shape as an event comment: whoever the mention reached is
+    excluded from the ``comment`` / ``reply`` pass, so one comment is one row.
+    Each step is best-effort in a savepoint: it never fails the comment.
+    """
+
+    async def subscribe_commenter() -> None:
+        await subscription_service.subscribe(
+            session,
+            user_id=comment.user_id,
+            project_id=branch.project_id,
+            entity_type=subscription_service.BRANCH,
+            entity_id=branch.id,
+            reason="commenter",
+        )
+
+    async def notify_watchers() -> None:
+        who = await notification_announce.actor_label(session, comment.user_id)
+        common: notification_service.NotifyCommon = {
+            "project_id": branch.project_id,
+            "entity_type": subscription_service.BRANCH,
+            "entity_id": branch.id,
+            "url": _branch_url(slug, branch),
+            "body": excerpt(comment.body),
+            "actor_user_id": comment.user_id,
+        }
+        reached = await notification_announce.announce_mentions(
+            session,
+            body=comment.body,
+            title=f"{who} mentioned you on branch {branch.name}",
+            common=common,
+        )
+        is_reply = comment.parent_id is not None
+        await notification_service.notify(
+            session,
+            kind="reply" if is_reply else "comment",
+            title=f"{who} {'replied' if is_reply else 'commented'} on branch {branch.name}",
+            watchers_of=[(subscription_service.BRANCH, branch.id)],
+            exclude_user_ids=reached,
+            **common,
+        )
+
+    await notification_announce.best_effort(session, "subscribe commenter", subscribe_commenter)
+    await notification_announce.best_effort(session, "branch comment", notify_watchers)
 
 
 async def delete_comment(

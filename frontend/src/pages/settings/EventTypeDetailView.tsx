@@ -19,6 +19,7 @@ import { EntityNotFound, PageSkeleton, ReadOnlyDefinition, ReadOnlyNotice } from
 import { ErrorState } from '@/components/error-state'
 import type { EventType, EventTypeOwner } from '@/types'
 import { Button } from '@/components/ui/button'
+import { WatchButton } from '@/components/watch-button'
 import { Chip } from '@/components/primitives/chip'
 import { MiniStat, MiniStatStrip } from '@/components/primitives/mini-stat'
 import { PageContainer } from '@/components/primitives/page-container'
@@ -188,10 +189,17 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
         // No "Settings" button: it did exactly what the Settings tab beside
         // it does (AU-17).
         actions={
-          <Button variant="outline" size="sm" onClick={goEvents}>
-            <ExternalLink className="size-3.5" />
-            View events
-          </Button>
+          <>
+            {/* Watched on main only: an event type's branch copy is a draft
+                of the same type, and owners are kept on main (#259). */}
+            {branchId === null && (
+              <WatchButton slug={slug} entityType="event_type" entityId={et.id} size="sm" />
+            )}
+            <Button variant="outline" size="sm" onClick={goEvents}>
+              <ExternalLink className="size-3.5" />
+              View events
+            </Button>
+          </>
         }
       />
       {isError && (

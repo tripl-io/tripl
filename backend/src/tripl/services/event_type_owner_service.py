@@ -21,6 +21,7 @@ from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.schemas.event_type_owner import EventTypeOwnerResponse
+from tripl.services import subscription_service
 from tripl.services.project_access import member_role
 from tripl.services.project_lookup import get_project_id_by_slug
 from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
@@ -127,6 +128,15 @@ async def add_owner(
         granted_by=granted_by,
     )
     session.add(owner)
+    # An owner hears about their type's events: open questions, signals (#259).
+    await subscription_service.subscribe(
+        session,
+        user_id=user_id,
+        project_id=event_type.project_id,
+        entity_type=subscription_service.EVENT_TYPE,
+        entity_id=event_type_id,
+        reason="owner",
+    )
     await session.commit()
     await session.refresh(owner)
     return await _serialize(owner, user)
@@ -142,6 +152,13 @@ async def remove_owner(
     owner = await session.get(EventTypeOwner, owner_id)
     if owner is None or owner.event_type_id != event_type_id:
         raise HTTPException(status_code=404, detail="Owner not found")
+    await subscription_service.drop_reason(
+        session,
+        user_id=owner.user_id,
+        entity_type=subscription_service.EVENT_TYPE,
+        entity_id=event_type_id,
+        reason="owner",
+    )
     await session.delete(owner)
     await session.commit()
 

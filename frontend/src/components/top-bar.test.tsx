@@ -192,6 +192,8 @@ type NotificationsFetchOptions = {
   /** The project summary's open_incident_count — what the badge counts. */
   openIncidentCount?: number
   incidents?: unknown[]
+  /** The reader's own notifications (#259); none by default. */
+  notifications?: Array<{ id: string; read_at: string | null } & Record<string, unknown>>
   /** Any further route; return undefined to fall through to the throw. */
   extra?: (url: string, init?: RequestInit) => Response | undefined
 }
@@ -199,7 +201,7 @@ type NotificationsFetchOptions = {
 function mockNotificationsFetch(
   signals: unknown[],
   deliveries: unknown[],
-  { openIncidentCount = 0, incidents = [], extra }: NotificationsFetchOptions = {},
+  { openIncidentCount = 0, incidents = [], notifications = [], extra }: NotificationsFetchOptions = {},
 ) {
   const calls: string[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -215,6 +217,15 @@ function mockNotificationsFetch(
       return mockJsonResponse([
         { id: 'project-1', slug: 'demo', name: 'Demo', summary: { open_incident_count: openIncidentCount } },
       ])
+    }
+    if (url.endsWith('/api/v1/me/notifications/unread-count')) {
+      return mockJsonResponse({ unread: notifications.filter(n => !n.read_at).length })
+    }
+    if (url.includes('/api/v1/me/notifications?')) {
+      return mockJsonResponse({ items: notifications, next_cursor: null })
+    }
+    if (url.endsWith('/api/v1/me/notifications/read')) {
+      return mockJsonResponse({ updated: 1, unread: 0 })
     }
     if (url.endsWith(INBOX_URL)) {
       return mockJsonResponse({ items: incidents, total: Math.max(openIncidentCount, incidents.length) })
@@ -517,6 +528,10 @@ describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
       const url = String(input)
       calls.push(url)
       if (url.endsWith('/api/v1/projects')) return mockJsonResponse(projects)
+      // The caller's own notifications (#259) span every project, so the bell
+      // asks for them on a workspace route too.
+      if (url.endsWith('/api/v1/me/notifications/unread-count')) return mockJsonResponse({ unread: 0 })
+      if (url.includes('/api/v1/me/notifications?')) return mockJsonResponse({ items: [], next_cursor: null })
       throw new Error(`Unhandled fetch: ${url}`)
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -552,8 +567,11 @@ describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
     expect(rows[1]).toHaveAttribute('href', '/p/noisy/anomalies')
     expect(screen.getByRole('link', { name: 'All projects →' })).toHaveAttribute('href', '/workspace')
     expect(screen.queryByText(/Open a project/)).toBeNull()
-    // No per-project signal or delivery lists are fetched off a workspace route.
-    expect(calls.every((url) => url.endsWith('/api/v1/projects'))).toBe(true)
+    // No per-project signal or delivery lists are fetched off a workspace route;
+    // besides the project list, only the caller's own notifications are.
+    expect(
+      calls.filter((url) => !url.endsWith('/api/v1/projects') && !url.includes('/api/v1/me/notifications')),
+    ).toEqual([])
   })
 
   it('says so when no project needs attention', async () => {
@@ -693,5 +711,69 @@ describe('BranchStrip (#243 PL-1)', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Back to main' }))
     expect(setBranchId).toHaveBeenCalledWith(null)
+  })
+})
+
+describe('TopBar bell notifications tab (#259)', () => {
+  function mockNotification(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'n-1',
+      project_id: 'project-1',
+      project_slug: 'demo',
+      project_name: 'Demo',
+      kind: 'mention',
+      entity_type: 'event',
+      entity_id: 'event-1',
+      title: 'Ada mentioned you on checkout_started',
+      body: 'can you check the new field?',
+      url: '/p/demo/monitoring/event/event-1#event-discussion',
+      actor: { id: 'u-ada', name: 'Ada', email: 'ada@example.com' },
+      read_at: null,
+      created_at: new Date().toISOString(),
+      ...overrides,
+    }
+  }
+
+  it('badges unread notifications and opens on them when there are some', async () => {
+    const calls = mockNotificationsFetch([], [], {
+      notifications: [
+        mockNotification(),
+        mockNotification({ id: 'n-2', title: 'Grace changed checkout_started', read_at: '2026-09-01T00:00:00Z' }),
+      ],
+    })
+
+    renderTopBar()
+
+    const bell = await screen.findByRole('button', { name: 'Alerts — 1 unread notification' })
+    expect(screen.getByTestId('notifications-unread-badge')).toHaveTextContent('1')
+    fireEvent.click(bell)
+
+    expect(await screen.findByRole('tab', { name: /^Notifications\s*, 1 unread$/, selected: true })).toBeInTheDocument()
+    const row = await screen.findByRole('link', { name: /Ada mentioned you on checkout_started/ })
+    expect(row).toHaveAttribute('href', '/p/demo/monitoring/event/event-1#event-discussion')
+    expect(screen.getByText('1 unread')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark all read' }))
+    await waitFor(() => expect(calls.some(url => url.endsWith('/api/v1/me/notifications/read'))).toBe(true))
+  })
+
+  it('keeps the signals a click away on the second tab', async () => {
+    mockNotificationsFetch([mockSignal()], [], { notifications: [mockNotification()] })
+
+    renderTopBar()
+    fireEvent.click(await screen.findByRole('button', { name: /unread notification/ }))
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: /Signals/ }))
+
+    expect(await screen.findByText('Spike on Event type · Page View')).toBeInTheDocument()
+  })
+
+  it('opens on signals when nothing is unread', async () => {
+    mockNotificationsFetch([mockSignal()], [])
+
+    renderTopBar()
+    fireEvent.click(screen.getByRole('button', { name: 'Alerts' }))
+
+    expect(await screen.findByRole('tab', { name: /Signals/, selected: true })).toBeInTheDocument()
+    expect(screen.queryByTestId('notifications-unread-badge')).toBeNull()
   })
 })

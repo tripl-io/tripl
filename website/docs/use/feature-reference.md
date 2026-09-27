@@ -537,6 +537,32 @@ open on a thread that does not hold the question.
 The **photo** threads and the **branch review** threads have no resolution
 state; only the event discussion does.
 
+#### Mentions and muting
+
+Typing `@` in a comment box opens a list of the project's members; picking one
+inserts a mention, stored in the comment as `@[Name](user_id)` and shown as a
+name chip. The mentioned member is notified even when they do not watch the
+event. Plain `@name` text is not a mention and notifies nobody.
+
+Your first comment on an event subscribes you to it. The thread's **Mute**
+toggle keeps that subscription but stops it notifying you; the thread stays
+visible, and @mentions still reach you. See
+[Notifications & watching](./notifications.md).
+
+### Watch buttons {#watch}
+
+**Where:** a button in the event page's header, and a Watch button on the
+event type, metric and plan branch pages.
+
+**Watch** subscribes you to that entity by hand; **Unwatch** removes your
+subscription. When you have muted an event's thread, its header button reads
+**Muted** and offers **Unmute** and **Unwatch**. Watching an event type brings
+the signals, lifecycle findings and open questions on its events, not their
+ordinary comments; watch the event itself for those. You are also subscribed
+automatically as an event's author, an event type's owner, a commenter on an
+event, and a branch's author or reviewer. The rules for what then notifies you
+are in [Notifications & watching](./notifications.md).
+
 ### Event photos & specs
 
 **Where:** the **Photos & specs** panel on an event's **monitoring detail** page
@@ -1211,14 +1237,20 @@ with an ask-an-owner hint and is excluded from progress — a non-owner's checkl
 can still reach done without it. Dismissing it offers **Undo**, and the command
 palette's **Show getting started** row brings a dismissed checklist back.
 
-### Top-bar alerts bell
+### Top-bar bell {#top-bar-alerts-bell}
 
-The bell in the top bar is titled **Alerts**. Its badge counts open incidents,
-the same number as the sidebar's Alerting badge. The popover lists **Open
+The bell in the top bar opens a popover with two tabs.
+
+**Notifications** lists your own notifications across every project you are a
+member of, newest first, with the unread count on the tab and a **Mark all
+read** action. Each row links to what it is about (an event, a thread, a
+metric, a branch). What produces a notification and who receives it is
+described in [Notifications & watching](./notifications.md).
+
+**Signals** holds the project's alert state. It lists **Open
 incidents** first (each links to its Inbox card), then **Active signals**, then
 **Recent alert deliveries**; retrying a Jira or Linear delivery from it asks
-first. On **All projects** (the workspace pages) the badge counts every
-project's open incidents, and the popover lists **Projects needing attention**,
+first. On **All projects** (the workspace pages) the tab lists **Projects needing attention**,
 worst first ("Checkout app · 1 open incident · 3 signals"): a project with an
 open incident links to its Inbox, one with only signals to its Anomalies list.
 Its footer link, **All projects**, opens the project list. See
@@ -2531,6 +2563,23 @@ sessions. Password fields on the sign-in and invitation pages have a
 show-password toggle. See **[Security](../run/security.md)** for the token and delivery
 details.
 
+### Profile › Notifications {#profile-notifications}
+
+**Where:** account menu › **Profile** (route `/settings/profile`), section
+**Notifications**. Two settings for your own account:
+
+- **Email frequency**: **Off** (in the app only), **Instantly** (one email
+  per notification, sent within about a minute), **Daily digest** or
+  **Weekly digest**. Default **Daily digest**. A digest groups the
+  notifications that are still unread and have not been emailed.
+- **Email me when I am mentioned**: on by default. Controls email for
+  @mentions separately from the frequency.
+
+Email goes through the instance SMTP settings; without SMTP only in-app
+notifications work: no email is sent, the section says so, and notifications
+still appear under the bell. See
+[Notifications & watching](./notifications.md#email).
+
 ### Command palette (⌘K)
 
 Open with ⌘K / Ctrl+K (suppressed while you are typing in an input, textarea, or
@@ -2743,5 +2792,6 @@ dialect-correct SQL examples and troubleshooting.
 - [User Guide](./user-guide.md)
 - [Troubleshooting](./troubleshooting.md)
 - [Dependencies & impact](./dependencies-and-impact.md)
+- [Notifications & watching](./notifications.md)
 - [Agent / API Guide](../integrate/agent-api-guide.md)
 - [Configuration](../run/configuration.md)

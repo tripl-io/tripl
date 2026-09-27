@@ -1,5 +1,6 @@
 import { eventCommentsApi } from '@/api/eventComments'
 import { CommentThread } from '@/components/comment-thread'
+import { ThreadMuteToggle } from '@/components/watch-button'
 import { displayUser, useUsersById } from '@/hooks/useUsersById'
 import { eventCommentsKey } from '@/lib/queryKeys'
 
@@ -38,6 +39,9 @@ export function EventDiscussion({
       composerId="event-detail-discussion-body"
       initialBody={initialBody}
       className="flex flex-col rounded-card border bg-(--surface) p-4"
+      // @ offers the project's members; a mention notifies them (#259).
+      mentionSlug={slug}
+      headerAction={<ThreadMuteToggle slug={slug} eventId={eventId} />}
     />
   )
 }

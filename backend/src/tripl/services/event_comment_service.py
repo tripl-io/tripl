@@ -36,9 +36,15 @@ from tripl.models.event_photo_comment import (
 from tripl.models.event_type import EventType
 from tripl.models.user import User
 from tripl.schemas.event_photo import EventCommentActionRequest
+from tripl.services import (
+    notification_announce,
+    notification_service,
+    subscription_service,
+)
 from tripl.services._branch_counterparts import main_counterparts
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.event_photo_service import ensure_comment_deletable
+from tripl.services.mentions import excerpt
 from tripl.services.project_service import get_project_id_by_slug
 
 
@@ -165,9 +171,97 @@ async def create_comment(
         body=body.strip(),
     )
     session.add(comment)
+    await session.flush()
+    # Best-effort, each step in a savepoint of the comment's transaction: the
+    # subscription and the notifications land with the comment, and a failure
+    # in either is logged and rolled back alone — it never fails the comment.
+    await _announce_comment(session, slug, event_id, thread, comment)
     await session.commit()
     await session.refresh(comment)
     return comment
+
+
+async def _announce_comment(
+    session: AsyncSession,
+    slug: str,
+    event_id: uuid.UUID,
+    thread: EventThread,
+    comment: EventPhotoComment,
+) -> None:
+    """Subscribe the commenter, then tell whoever should hear about the comment.
+
+    Three passes through the one ``notify``, each excluding whoever an earlier
+    pass already reached, so nobody gets two rows for one comment:
+
+    1. ``mention`` — every @mentioned member, subscribed or not, mute ignored;
+    2. ``open_question`` (a new top-level thread only) — the event's author and
+       owner, plus the OWNERS of its event type (``watcher_reasons=('owner',)``:
+       someone who merely watches the type is not asked);
+    3. ``comment`` / ``reply`` — everyone else watching the event itself.
+       Watching an event TYPE does not bring its events' ordinary comments.
+
+    Subscriptions are read from every anchor of the discussion plus the row
+    the page was on, but kept under the discussion's home id, which is also
+    the entity the notification (and the mute) is about.
+    """
+    home = thread.home
+    actor_id = comment.user_id
+
+    async def subscribe_commenter() -> None:
+        await subscription_service.subscribe(
+            session,
+            user_id=actor_id,
+            project_id=home.project_id,
+            entity_type=subscription_service.EVENT,
+            entity_id=home.id,
+            reason="commenter",
+        )
+
+    async def notify_watchers() -> None:
+        who = await notification_announce.actor_label(session, actor_id)
+        event_label = home.name or home.title or "an event"
+        common: notification_service.NotifyCommon = {
+            "project_id": home.project_id,
+            "entity_type": subscription_service.EVENT,
+            "entity_id": home.id,
+            "url": f"/p/{slug}/events/detail/{home.id}",
+            "body": excerpt(comment.body),
+            "actor_user_id": actor_id,
+        }
+        event_refs = [
+            (subscription_service.EVENT, anchor) for anchor in {*thread.anchors, event_id}
+        ]
+        reached = await notification_announce.announce_mentions(
+            session,
+            body=comment.body,
+            title=f"{who} mentioned you on {event_label}",
+            common=common,
+        )
+        if comment.parent_id is None:
+            reached |= await notification_service.notify(
+                session,
+                kind="open_question",
+                title=f"{who} asked a question on {event_label}",
+                watchers_of=[(subscription_service.EVENT_TYPE, home.event_type_id)],
+                watcher_reasons=("owner",),
+                user_ids=await subscription_service.subscriber_ids(
+                    session, event_refs, reasons=("author", "owner")
+                ),
+                exclude_user_ids=reached,
+                **common,
+            )
+        is_reply = comment.parent_id is not None
+        await notification_service.notify(
+            session,
+            kind="reply" if is_reply else "comment",
+            title=f"{who} {'replied' if is_reply else 'commented'} on {event_label}",
+            watchers_of=event_refs,
+            exclude_user_ids=reached,
+            **common,
+        )
+
+    await notification_announce.best_effort(session, "subscribe commenter", subscribe_commenter)
+    await notification_announce.best_effort(session, "event comment", notify_watchers)
 
 
 async def delete_comment(

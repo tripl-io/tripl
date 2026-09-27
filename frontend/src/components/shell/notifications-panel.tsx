@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -28,10 +28,15 @@ import { formatSignalEffect, formatSignalEffectDetail, getMonitoringPath } from 
 import { selectSignificantSignals } from '@/lib/signalMagnitude'
 import { Dot } from '@/components/primitives/dot'
 import { Chip } from '@/components/primitives/chip'
+import { CountBadge } from '@/components/primitives/count-badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { AlertDelivery, AlertInboxGroup, MonitoringSignal, Project } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { alertDeliveriesKey, topbarDeliveriesKey, topbarInboxKey } from '@/lib/queryKeys'
 import { useTopbarDeliveries } from './notifications-queries'
+import { NotificationsInbox } from './notifications-inbox'
+
+export type BellTab = 'notifications' | 'signals'
 
 const SIGNAL_PREVIEW_LIMIT = 4
 const INCIDENT_PREVIEW_LIMIT = 4
@@ -53,6 +58,9 @@ export default function NotificationsPanel({
   projects,
   openIncidentCount,
   onConfirmingChange,
+  unreadCount = 0,
+  initialTab = 'signals',
+  onNavigate,
 }: {
   projectSlug?: string
   /** The shell's project list (summaries included); undefined while loading. */
@@ -60,6 +68,63 @@ export default function NotificationsPanel({
   /** The badge's count: the project's open incidents, or all projects' on the workspace. */
   openIncidentCount: number
   /** True while a retry confirmation is up, so the popover ignores focus leaving. */
+  onConfirmingChange: (confirming: boolean) => void
+  /** The reader's unread notifications, across their projects (#259). */
+  unreadCount?: number
+  /** The tab the popover opens on: read once, at mount. */
+  initialTab?: BellTab
+  /** Closes the popover when a notification row is followed. */
+  onNavigate?: () => void
+}) {
+  // Two tabs (#259): the reader's own notifications — comments, mentions,
+  // reviews on what they watch — and the project's signals and incidents,
+  // which is everything this popover held before.
+  const [tab, setTab] = useState<BellTab>(initialTab)
+  return (
+    <Tabs value={tab} onValueChange={next => setTab(next === 'notifications' ? 'notifications' : 'signals')}>
+      <div className="border-b px-2.5 pt-1.5 border-border-subtle">
+        <TabsList aria-label="Bell sections" size="sm">
+          <TabsTrigger value="notifications">
+            Notifications
+            {unreadCount > 0 && (
+              <>
+                <CountBadge count={unreadCount} max={99} className="ml-1.5" />
+                {/* The badge is aria-hidden; the tab's name carries the count. */}
+                <span className="sr-only">, {unreadCount} unread</span>
+              </>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="signals">
+            Signals
+            {openIncidentCount > 0 && <CountBadge count={openIncidentCount} max={9} urgent className="ml-1.5" />}
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="notifications" className="mt-0">
+        <NotificationsInbox unreadCount={unreadCount} onNavigate={onNavigate} />
+      </TabsContent>
+      <TabsContent value="signals" className="mt-0">
+        <AlertsPanel
+          projectSlug={projectSlug}
+          projects={projects}
+          openIncidentCount={openIncidentCount}
+          onConfirmingChange={onConfirmingChange}
+        />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+/** The Signals tab: open incidents, signals and deliveries (the bell before #259). */
+function AlertsPanel({
+  projectSlug,
+  projects,
+  openIncidentCount,
+  onConfirmingChange,
+}: {
+  projectSlug?: string
+  projects: Project[] | undefined
+  openIncidentCount: number
   onConfirmingChange: (confirming: boolean) => void
 }) {
   return (

@@ -45,6 +45,7 @@ from tripl.services.lifecycle_rules import (
 )
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
+from tripl.worker.tasks.notification_producers import produce_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,10 @@ class LifecycleSweepStats:
     reopened: int = 0
     resolved: int = 0
     open_by_kind: dict[str, int] = field(default_factory=dict)
+    # ``(project_id, event_id, kind)`` of every finding this run OPENED or
+    # REOPENED — what the "lifecycle finding opened" notification (#259) is
+    # about. Not part of ``as_dict``: the beat result stays a count summary.
+    opened_findings: list[tuple[uuid.UUID, uuid.UUID, str]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, int]:
         out = {
@@ -201,6 +206,7 @@ def compute_lifecycle_findings(session: Session, *, now: datetime) -> LifecycleS
             finding.resolved_at = None
             finding.first_seen_at = now
             stats.reopened += 1
+            stats.opened_findings.append((want.project_id, finding.event_id, finding.kind))
         else:
             stats.updated += 1
         finding.project_id = want.project_id
@@ -230,6 +236,7 @@ def compute_lifecycle_findings(session: Session, *, now: datetime) -> LifecycleS
             )
         )
         stats.opened += 1
+        stats.opened_findings.append((want.project_id, event_id, kind))
 
     for _event_id, kind in desired:
         stats.open_by_kind[kind] = stats.open_by_kind.get(kind, 0) + 1
@@ -268,6 +275,13 @@ def check_lifecycle_findings() -> dict[str, int]:
         session.rollback()
         logger.exception("Lifecycle sweep failed")
         raise
+    else:
+        # After the commit and best-effort: a notification failure never
+        # undoes (or fails) the sweep that found the condition.
+        try:
+            produce_notifications(session, "lifecycle", stats.opened_findings)
+        except Exception:
+            logger.exception("Lifecycle finding notifications failed")
     finally:
         session.close()
     result = stats.as_dict()

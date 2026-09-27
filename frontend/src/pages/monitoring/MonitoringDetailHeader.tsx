@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react'
 import { Chip } from '@/components/primitives/chip'
 import { PageHeader } from '@/components/primitives/page-header'
 import { Button } from '@/components/ui/button'
+import { WatchButton } from '@/components/watch-button'
 import { formatTimestamp } from '@/lib/datetime'
 import type { MonitoringScope } from '@/lib/monitoring'
 import { getAlertingPath } from '@/lib/navigation'
@@ -67,20 +68,29 @@ export function MonitoringDetailHeader({
   canWrite: boolean
 }) {
   const latestSignal = metrics?.latest_signal
+  // A catalog metric and an event type can be watched (#259); the other scopes
+  // (a scan total, a distribution) have nobody to notify about.
+  const watchType = scope === 'metric' ? 'metric' : scope === 'event_type' ? 'event_type' : null
+  const watch = watchType && slug && scopeId
+    ? <WatchButton slug={slug} entityType={watchType} entityId={scopeId} />
+    : null
   return (
     <PageHeader
       eyebrow={eyebrow}
       title={title}
       actions={
         scope === 'metric' && canWrite && slug ? (
-          <MetricHeaderActions
-            slug={slug}
-            scopeId={scopeId}
-            metricDefinition={metricDefinition}
-            editPath={metricEditPath}
-            collect={metricCollect}
-          />
-        ) : undefined
+          <>
+            {watch}
+            <MetricHeaderActions
+              slug={slug}
+              scopeId={scopeId}
+              metricDefinition={metricDefinition}
+              editPath={metricEditPath}
+              collect={metricCollect}
+            />
+          </>
+        ) : (watch ?? undefined)
       }
       titleAddon={
         <>

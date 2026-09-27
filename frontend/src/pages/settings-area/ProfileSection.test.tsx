@@ -1,6 +1,32 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import type { ReactElement } from 'react'
+import { fireEvent, render as rtlRender, screen, waitFor, within } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProfileSection from './ProfileSection'
+
+const { getPrefs, updatePrefs } = vi.hoisted(() => ({
+  getPrefs: vi.fn(),
+  updatePrefs: vi.fn(),
+}))
+
+vi.mock('@/api/notifications', () => ({
+  notificationsApi: { getPrefs, updatePrefs },
+}))
+
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
+beforeEach(() => {
+  getPrefs.mockReset().mockResolvedValue({ email_mode: 'daily', mentions_email: true, email_available: true })
+  updatePrefs.mockReset().mockImplementation(async (patch: object) => ({
+    email_mode: 'daily',
+    mentions_email: true,
+    email_available: true,
+    ...patch,
+  }))
+})
 
 vi.mock('@/components/auth-context', () => ({
   useAuth: () => ({
@@ -35,7 +61,8 @@ describe('Account · Profile', () => {
     // The shared role chip, the one Members shows too (ST-16).
     expect(screen.getByText('Owner')).toHaveAttribute('data-slot', 'chip')
     // Plain text, not a form of read-only fields (ST-23).
-    expect(screen.queryAllByRole('group')).toHaveLength(0)
+    const details = screen.getByRole('region', { name: 'Your details' })
+    expect(within(details).queryAllByRole('group')).toHaveLength(0)
   })
 
   /**
@@ -51,19 +78,35 @@ describe('Account · Profile', () => {
   })
 
   /**
-   * WS-37: the unbuilt preferences and notifications were first live controls
-   * that persisted nowhere (tripl-z9ot), then the same controls disabled. Now
-   * they are one "Coming later" card with nothing to click.
+   * WS-37: the unbuilt preferences were first live controls that persisted
+   * nowhere (tripl-z9ot), then the same controls disabled. Now they are one
+   * "Coming later" card with nothing to click.
    */
   it('names what is not built in one card without a single control', () => {
     render(<ProfileSection />)
 
-    expect(screen.getByText('Coming later')).toBeInTheDocument()
-    expect(screen.getByText('Personal notifications')).toBeInTheDocument()
-    expect(screen.queryAllByRole('button')).toHaveLength(0)
-    expect(screen.queryAllByRole('switch')).toHaveLength(0)
-    expect(screen.queryAllByRole('combobox')).toHaveLength(0)
-    expect(screen.queryAllByRole('textbox')).toHaveLength(0)
+    const later = screen.getByRole('region', { name: 'Coming later' })
+    expect(within(later).getByText('Display preferences')).toBeInTheDocument()
+    expect(within(later).queryAllByRole('button')).toHaveLength(0)
+    expect(within(later).queryAllByRole('switch')).toHaveLength(0)
+    expect(within(later).queryAllByRole('combobox')).toHaveLength(0)
+    expect(within(later).queryAllByRole('textbox')).toHaveLength(0)
     expect(screen.queryByText(/saved on this device/i)).toBeNull()
+  })
+
+  /** #259: personal notifications are built now — email frequency and mention emails. */
+  it('shows and saves the email frequency and the mention email switch', async () => {
+    render(<ProfileSection />)
+
+    const card = screen.getByRole('region', { name: 'Notifications' })
+    const daily = await within(card).findByRole('radio', { name: /Daily digest/ })
+    expect(daily).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(within(card).getByRole('radio', { name: /Weekly digest/ }))
+    await waitFor(() => expect(updatePrefs).toHaveBeenCalledWith({ email_mode: 'weekly' }))
+
+    await waitFor(() => expect(within(card).getByRole('switch')).toBeEnabled())
+    fireEvent.click(within(card).getByRole('switch'))
+    await waitFor(() => expect(updatePrefs).toHaveBeenCalledWith({ mentions_email: false }))
   })
 })

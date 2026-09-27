@@ -7,6 +7,10 @@ import { CommentThread, type ThreadComment } from './comment-thread'
 import { at } from '@/test/at'
 import { authAs } from '@/test/auth'
 
+const { listMembers, listUsers } = vi.hoisted(() => ({ listMembers: vi.fn(), listUsers: vi.fn() }))
+vi.mock('@/api/projectMembers', () => ({ projectMembersApi: { list: listMembers } }))
+vi.mock('@/api/users', () => ({ usersApi: { list: listUsers } }))
+
 function comment(overrides: Partial<ThreadComment> & { id: string }): ThreadComment {
   return {
     parent_id: null,
@@ -55,6 +59,8 @@ function renderThread(
 
 beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  listUsers.mockResolvedValue([])
+  listMembers.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -376,5 +382,117 @@ describe('CommentThread resolution', () => {
     await screen.findByText('a reply')
 
     expect(screen.getAllByRole('button', { name: 'resolve' })).toHaveLength(1)
+  })
+})
+
+describe('CommentThread mentions (#259)', () => {
+  const ADA = '11111111-2222-3333-4444-555555555555'
+  const GRACE = '22222222-3333-4444-5555-666666666666'
+  const LINUS = '33333333-4444-5555-6666-777777777777'
+
+  function renderMentionThread(rows: ThreadComment[]) {
+    return render(
+      createElement(
+        AuthContext.Provider,
+        { value: authAs('editor') },
+        createElement(CommentThread, {
+          queryKey: ['thread', 'mentions', rows.length],
+          list: () => Promise.resolve(rows),
+          create: vi.fn().mockResolvedValue({}),
+          remove: vi.fn(),
+          mentionSlug: 'demo',
+        }),
+      ),
+      { wrapper },
+    )
+  }
+
+  it('draws a stored mention as a chip, not as its token', async () => {
+    renderThread([comment({ id: 'c-1', body: `ask @[Ada Lovelace](${ADA}) about it` })])
+
+    const chip = await screen.findByText('@Ada Lovelace')
+    expect(chip).toHaveAttribute('data-slot', 'chip')
+    expect(chip).toHaveAttribute('data-mention-user-id', ADA)
+    expect(screen.queryByText(new RegExp(ADA.slice(0, 8)))).toBeNull()
+  })
+
+  it('offers project members after @ and inserts the token on pick', async () => {
+    listMembers.mockResolvedValue([
+      { user_id: ADA, name: 'Ada Lovelace', email: 'ada@example.com', role: 'editor', added_at: '2026-01-01T00:00:00Z' },
+    ])
+    const create = vi.fn().mockResolvedValue({})
+    render(
+      createElement(
+        AuthContext.Provider,
+        { value: authAs('editor') },
+        createElement(CommentThread, {
+          queryKey: ['thread', 'mentions'],
+          list: () => Promise.resolve([]),
+          create,
+          remove: vi.fn(),
+          mentionSlug: 'demo',
+        }),
+      ),
+      { wrapper },
+    )
+    await waitFor(() => expect(listMembers).toHaveBeenCalledWith('demo', expect.anything()))
+    const box = (await screen.findByLabelText('Write a comment')) as HTMLTextAreaElement
+
+    fireEvent.change(box, { target: { value: 'cc @ad', selectionStart: 6, selectionEnd: 6 } })
+    const option = await screen.findByRole('option', { name: /Ada Lovelace/ })
+    fireEvent.mouseDown(option)
+
+    expect(box.value).toBe(`cc @[Ada Lovelace](${ADA}) `)
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+    await waitFor(() => expect(create).toHaveBeenCalledWith(`cc @[Ada Lovelace](${ADA})`, null))
+  })
+
+  it('is an autocompleting textbox that owns its list and says how many members match', async () => {
+    listMembers.mockResolvedValue([
+      { user_id: ADA, name: 'Ada Lovelace', email: 'ada@example.com', role: 'editor', added_at: '2026-01-01T00:00:00Z' },
+    ])
+    renderMentionThread([])
+    await waitFor(() => expect(listMembers).toHaveBeenCalled())
+    // A <textarea> may carry no role (ARIA in HTML), so it stays a textbox.
+    const box = await screen.findByRole('textbox', { name: 'Write a comment' })
+    expect(box).toHaveAttribute('aria-haspopup', 'listbox')
+    expect(box).toHaveAttribute('aria-autocomplete', 'list')
+    expect(box.getAttribute('aria-controls')).toBeTruthy()
+    expect(box).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.change(box, { target: { value: '@ad', selectionStart: 3, selectionEnd: 3 } })
+    const option = await screen.findByRole('option', { name: /Ada Lovelace/ })
+    expect(box).toHaveAttribute('aria-activedescendant', option.id)
+    expect(screen.getByText('1 member')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('offers instance owners who hold no member row, once', async () => {
+    listMembers.mockResolvedValue([
+      { user_id: ADA, name: 'Ada Lovelace', email: 'ada@example.com', role: 'editor', added_at: '2026-01-01T00:00:00Z' },
+    ])
+    listUsers.mockResolvedValue([
+      { id: ADA, name: 'Ada Lovelace', email: 'ada@example.com', role: 'owner' },
+      { id: GRACE, name: 'Grace Hopper', email: 'grace@example.com', role: 'owner' },
+      { id: LINUS, name: 'Linus', email: 'linus@example.com', role: 'editor' },
+    ])
+    renderMentionThread([])
+    await waitFor(() => expect(listUsers).toHaveBeenCalled())
+    const box = (await screen.findByLabelText('Write a comment')) as HTMLTextAreaElement
+
+    fireEvent.change(box, { target: { value: '@', selectionStart: 1, selectionEnd: 1 } })
+    await screen.findByRole('option', { name: /Grace Hopper/ })
+    expect(screen.getAllByRole('option', { name: /Ada Lovelace/ })).toHaveLength(1)
+    expect(screen.queryByRole('option', { name: /Linus/ })).toBeNull()
+  })
+
+  it('draws a chip under the member\'s current name, with their email as its title', async () => {
+    listUsers.mockResolvedValue([
+      { id: ADA, name: 'Ada King', email: 'ada@example.com', role: 'editor' },
+    ])
+    renderMentionThread([comment({ id: 'c-1', body: `ask @[Ada Lovelace](${ADA}) and @[Gone](${GRACE})` })])
+
+    const chip = await screen.findByText('@Ada King')
+    expect(chip).toHaveAttribute('title', 'ada@example.com')
+    expect(screen.getByText('@Gone')).not.toHaveAttribute('title')
   })
 })

@@ -132,6 +132,8 @@ export function CommentsPanel({
           heading="Comments"
           emptyText="No comments yet."
           composerId="branch-comment-body"
+          // @ offers the project's members; a mention notifies them (#259).
+          mentionSlug={slug}
           className="flex flex-col gap-2 p-4"
         />
       </ScenarioCoachMark>

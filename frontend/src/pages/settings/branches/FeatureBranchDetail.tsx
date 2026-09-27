@@ -87,6 +87,7 @@ import {
   invalidateMainPlan,
 } from './branchQueryKeys'
 import { BranchReviewSummary, type ReviewerPickerIntent } from './BranchReviewers'
+import { WatchButton } from '@/components/watch-button'
 import { CommentsPanel, ImplementationTicketsPanel } from './BranchSidePanels'
 import { ChangeRow, HousekeepingFold } from './ChangeRow'
 import { ConflictsPanel } from './ConflictsPanel'
@@ -546,6 +547,8 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
             <Chip tone={STATUS_TONE[branch.status]} size="xs">
               {STATUS_LABEL[branch.status]}
             </Chip>
+            {/* Review requests, approvals, the merge and comments (#259). */}
+            <WatchButton slug={slug} entityType="branch" entityId={branch.id} size="sm" />
           </>
         }
       >

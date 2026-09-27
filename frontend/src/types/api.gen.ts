@@ -421,6 +421,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/notification-prefs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Notification Prefs */
+        get: operations["get_my_notification_prefs_api_v1_me_notification_prefs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update My Notification Prefs */
+        patch: operations["update_my_notification_prefs_api_v1_me_notification_prefs_patch"];
+        trace?: never;
+    };
+    "/api/v1/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List My Notifications */
+        get: operations["list_my_notifications_api_v1_me_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark My Notifications Read */
+        post: operations["mark_my_notifications_read_api_v1_me_notifications_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Unread Count */
+        get: operations["my_unread_count_api_v1_me_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -3594,6 +3663,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get My Subscription */
+        get: operations["get_my_subscription_api_v1_projects__slug__subscriptions__entity_type___entity_id__get"];
+        /** Watch Entity */
+        put: operations["watch_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__put"];
+        post?: never;
+        /** Unwatch Entity */
+        delete: operations["unwatch_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__delete"];
+        options?: never;
+        head?: never;
+        /** Mute Entity */
+        patch: operations["mute_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__patch"];
         trace?: never;
     };
     "/api/v1/projects/{slug}/tracker-config": {
@@ -8649,6 +8738,23 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** MarkReadRequest */
+        MarkReadRequest: {
+            /**
+             * All
+             * @default false
+             */
+            all: boolean;
+            /** Ids */
+            ids?: string[];
+        };
+        /** MarkReadResponse */
+        MarkReadResponse: {
+            /** Unread */
+            unread: number;
+            /** Updated */
+            updated: number;
+        };
         /**
          * MergeResolutionChoice
          * @enum {string}
@@ -9652,6 +9758,90 @@ export interface components {
             total: number;
             /** Warning Count */
             warning_count: number;
+        };
+        /** NotificationActor */
+        NotificationActor: {
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** NotificationPage */
+        NotificationPage: {
+            /** Items */
+            items: components["schemas"]["NotificationResponse"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** NotificationPrefsResponse */
+        NotificationPrefsResponse: {
+            /** Email Available */
+            email_available: boolean;
+            /**
+             * Email Mode
+             * @enum {string}
+             */
+            email_mode: "off" | "instant" | "daily" | "weekly";
+            /** Mentions Email */
+            mentions_email: boolean;
+        };
+        /** NotificationPrefsUpdate */
+        NotificationPrefsUpdate: {
+            /** Email Mode */
+            email_mode?: ("off" | "instant" | "daily" | "weekly") | null;
+            /** Mentions Email */
+            mentions_email?: boolean | null;
+        };
+        /** NotificationResponse */
+        NotificationResponse: {
+            actor: components["schemas"]["NotificationActor"] | null;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "event" | "event_type" | "metric" | "branch";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle";
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Project Name */
+            project_name: string;
+            /** Project Slug */
+            project_slug: string;
+            /** Read At */
+            read_at: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /**
          * NotifyOwnersResponse
@@ -12589,6 +12779,30 @@ export interface components {
             /** Photo Storage Backend */
             photo_storage_backend?: string | null;
         };
+        /** SubscriptionMuteRequest */
+        SubscriptionMuteRequest: {
+            /** Muted */
+            muted: boolean;
+        };
+        /** SubscriptionState */
+        SubscriptionState: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Entity Type
+             * @enum {string}
+             */
+            entity_type: "event" | "event_type" | "metric" | "branch";
+            /** Muted */
+            muted: boolean;
+            /** Reasons */
+            reasons: ("author" | "owner" | "commenter" | "reviewer" | "manual")[];
+            /** Watching */
+            watching: boolean;
+        };
         /**
          * SyntheticSettings
          * @description The synthetic (demo) warehouse is in-memory: it has nothing to configure.
@@ -12674,6 +12888,11 @@ export interface components {
             stddev: number;
             /** Z Score */
             z_score: number;
+        };
+        /** UnreadCountResponse */
+        UnreadCountResponse: {
+            /** Unread */
+            unread: number;
         };
         /**
          * UpdateBlocker
@@ -13911,6 +14130,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_notification_prefs_api_v1_me_notification_prefs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPrefsResponse"];
+                };
+            };
+        };
+    };
+    update_my_notification_prefs_api_v1_me_notification_prefs_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationPrefsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPrefsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_notifications_api_v1_me_notifications_get: {
+        parameters: {
+            query?: {
+                unread?: boolean;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_my_notifications_read_api_v1_me_notifications_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkReadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_unread_count_api_v1_me_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCountResponse"];
                 };
             };
         };
@@ -21151,6 +21509,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SourceFreshnessItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_subscription_api_v1_projects__slug__subscriptions__entity_type___entity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                entity_type: "event" | "event_type" | "metric" | "branch";
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    watch_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                entity_type: "event" | "event_type" | "metric" | "branch";
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unwatch_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                entity_type: "event" | "event_type" | "metric" | "branch";
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mute_entity_api_v1_projects__slug__subscriptions__entity_type___entity_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                entity_type: "event" | "event_type" | "metric" | "branch";
+                entity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionMuteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionState"];
                 };
             };
             /** @description Validation Error */

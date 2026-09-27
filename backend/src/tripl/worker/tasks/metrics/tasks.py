@@ -93,6 +93,7 @@ from tripl.worker.tasks.metrics.release_annotations import _sync_release_annotat
 from tripl.worker.tasks.metrics.signals import (
     _get_visible_signal_scope_keys,
 )
+from tripl.worker.tasks.notification_producers import produce_notifications
 from tripl.worker.utils.job_status import (
     TERMINAL_SCAN_JOB_STATUSES,
     closed_by_someone_else,
@@ -1428,6 +1429,18 @@ def collect_metrics(
 
         for delivery_id in delivery_ids:
             send_alert_delivery.delay(str(delivery_id))
+
+        # Tell the people watching what signalled (#259). Last, after the
+        # commit and the alert enqueue: the anomalies and their triage are
+        # settled, and nothing here can hold back a delivery. Best-effort — a
+        # failure is logged and never fails the completed collection. A replay
+        # re-scores a window the operator chose after the fact; nobody is
+        # notified about history.
+        if not is_replay:
+            try:
+                produce_notifications(session, "signals", config)
+            except Exception:
+                logger.exception("Signal notifications failed for scan config %s", scan_config_id)
 
         return result_summary
 

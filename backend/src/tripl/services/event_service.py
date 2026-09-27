@@ -52,7 +52,12 @@ from tripl.schemas.event import (
     EventReorder,
     EventUpdate,
 )
-from tripl.services._branch_counterparts import attach_main_last_seen, metrics_row_for
+from tripl.services import notification_announce, subscription_service
+from tripl.services._branch_counterparts import (
+    attach_main_last_seen,
+    main_counterparts,
+    metrics_row_for,
+)
 from tripl.services._branch_event_threads import rescue_branch_event_threads
 from tripl.services._event_reference_cleanup import drop_dangling_event_references
 from tripl.services.event_comment_service import (
@@ -1654,6 +1659,9 @@ async def create_event(
             new_value=event.name,
         )
     )
+    await _subscribe_authors_and_owners(
+        session, event.project_id, [(event, data.owner_id)], author_id=user_id
+    )
 
     # Rebuild the search index inside the SAME transaction as the write, then
     # commit once. A single commit keeps primary data and the search index
@@ -1681,6 +1689,44 @@ async def create_event(
     if is_main:
         await cache.delete_prefix(cache.prefix_projects())
     return event
+
+
+async def _subscribe_authors_and_owners(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    items: Sequence[tuple[Event, uuid.UUID | None]],
+    *,
+    author_id: uuid.UUID | None,
+) -> None:
+    """Auto-subscribe whoever authored each event, and its owner, to it (#259).
+
+    ``items`` pairs each created event with its ``owner_id``. Kept under the
+    discussion's home id (the main twin of a branch copy, one batched lookup
+    for all of them), the id the comment notifications are about. Best-effort
+    in a savepoint of the event's own transaction: a failure here is logged
+    and never fails the create.
+    """
+    if not items or (author_id is None and all(owner is None for _event, owner in items)):
+        return
+
+    async def subscribe_all() -> None:
+        await session.flush()
+        twins = await main_counterparts(
+            session, project_id=project_id, events=[event for event, _owner in items]
+        )
+        for event, owner_id in items:
+            home_id = twins.get(event.id, event).id
+            for user_id, reason in ((author_id, "author"), (owner_id, "owner")):
+                await subscription_service.subscribe(
+                    session,
+                    user_id=user_id,
+                    project_id=project_id,
+                    entity_type=subscription_service.EVENT,
+                    entity_id=home_id,
+                    reason=reason,
+                )
+
+    await notification_announce.best_effort(session, "subscribe event author", subscribe_all)
 
 
 async def update_event(
@@ -2371,6 +2417,12 @@ async def bulk_create_events(
             )
             for event in events
         ]
+    )
+    await _subscribe_authors_and_owners(
+        session,
+        project_id,
+        [(event, data.owner_id) for event, data in zip(events, events_data, strict=True)],
+        author_id=user_id,
     )
     await session.flush()
     _, ai_config = await _reindex_branch_documents(

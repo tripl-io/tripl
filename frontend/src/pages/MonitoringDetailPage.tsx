@@ -597,6 +597,7 @@ export default function MonitoringDetailPage() {
                 incidentId: latestSignal?.incident?.id ?? latestSignal?.incident_id ?? null,
               })
             : undefined}
+          slug={slug}
         />
       ) : (
         <MonitoringDetailHeader
