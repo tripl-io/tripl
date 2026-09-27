@@ -82,9 +82,12 @@ export function DuplicateHints({
               Looks like <span className="font-medium">{match.name}</span> (
               {formatDuplicateScore(match.score)})
               {' — '}
-              <Link to={duplicateEventPath(slug, match.event_id)} className={LINK_CLASS}>
+              <Link
+                to={duplicateEventPath(slug, match.event_id)}
+                className={LINK_CLASS}
+                aria-label={`Open ${match.name}`}
+              >
                 Open
-                <span className="sr-only"> {match.name}</span>
               </Link>
               {onMarkReplacement && !compact && (
                 <>

@@ -123,7 +123,7 @@ describe('EventBulkForm duplicate hints (F12, #265)', () => {
     fireEvent.click(
       await screen.findByRole('button', { name: 'Use suggested name' }, { timeout: 2000 }),
     )
-    expect(screen.getByLabelText('Events to create')).toHaveValue(
+    expect(screen.getByRole('textbox', { name: 'Events to create' })).toHaveValue(
       'signup_started\npaywall_screen_view\tPaywall shown',
     )
   })

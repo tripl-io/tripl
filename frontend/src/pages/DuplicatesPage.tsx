@@ -274,8 +274,8 @@ function ClusterPanel({
               <span className="tnum text-caption text-fg-tertiary">{volumeLabel(event.volume_7d)}</span>
               <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                 <Button asChild size="sm" variant="ghost">
-                  <Link to={duplicateEventPath(slug, event.id)} className="no-underline">
-                    Open<span className="sr-only"> {label}</span>
+                  <Link to={duplicateEventPath(slug, event.id)} className="no-underline" aria-label={`Open ${label}`}>
+                    Open
                   </Link>
                 </Button>
                 {canWrite && kept && !isKept && (
