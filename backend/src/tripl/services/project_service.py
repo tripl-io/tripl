@@ -35,6 +35,7 @@ from tripl.models.user import User
 from tripl.models.variable import Variable
 from tripl.schemas.project import (
     ProjectCreate,
+    ProjectCreateResponse,
     ProjectLatestScanJob,
     ProjectLatestSignal,
     ProjectResponse,
@@ -934,25 +935,39 @@ async def create_project(
     data: ProjectCreate,
     *,
     created_by: uuid.UUID | None = None,
-) -> ProjectResponse:
-    """Create a real (non-demo) project.
+) -> ProjectCreateResponse:
+    """Create a real (non-demo) project, optionally seeded from a template.
 
     ``created_by`` records who made it, mirroring demo provisioning. The API
     always passes it; it stays optional so scripts/fixtures can create a
     creator-less project (which is then owner-managed, see
     ``api.v1.projects._require_project_manager``).
+
+    ``data.template_id`` names a built-in template (F21, GH #274). It is resolved
+    BEFORE any write, so an unknown id is a 422 that inserts nothing. The
+    template's plan is seeded onto a draft branch in the SAME transaction as
+    the project, its main branch and the creator's membership, with one commit:
+    a seeding failure rolls the whole project back. Main stays empty, so the
+    main-scoped summary counters read 0 until the branch is merged.
     """
+    from tripl.services import project_template_service
+    from tripl.services.project_member_service import grant_membership
+
+    template = (
+        project_template_service.resolve_template(data.template_id)
+        if data.template_id is not None
+        else None
+    )
     existing = await session.execute(select(Project).where(Project.slug == data.slug))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Project with this slug already exists")
-    from tripl.services.project_member_service import grant_membership
 
-    project = Project(**data.model_dump(), created_by_user_id=created_by)
+    project = Project(**data.model_dump(exclude={"template_id"}), created_by_user_id=created_by)
     session.add(project)
     await session.flush()
     # Every project owns one main branch (the live plan); create it up front so
     # branch_id resolution on plan entities is a plain read thereafter.
-    await plan_branch_service.ensure_main_branch_id(session, project.id)
+    main_branch_id = await plan_branch_service.ensure_main_branch_id(session, project.id)
     # The creator is an editor member from the first commit: without the row a
     # non-owner creator could not even see the project they just made.
     if created_by is not None:
@@ -962,10 +977,22 @@ async def create_project(
             user_id=created_by,
             added_by_user_id=created_by,
         )
+    template_branch_id: uuid.UUID | None = None
+    if template is not None:
+        branch = await project_template_service.apply_template(
+            session,
+            project_id=project.id,
+            slug=project.slug,
+            main_branch_id=main_branch_id,
+            template=template,
+            created_by=created_by,
+        )
+        template_branch_id = branch.id
     await session.commit()
     await session.refresh(project)
     await cache.delete_prefix(cache.prefix_projects())
-    return await _serialize_project(session, project)
+    serialized = await _serialize_project(session, project)
+    return ProjectCreateResponse(**serialized.model_dump(), template_branch_id=template_branch_id)
 
 
 async def update_project(session: AsyncSession, slug: str, data: ProjectUpdate) -> ProjectResponse:

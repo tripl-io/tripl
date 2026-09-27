@@ -37,8 +37,11 @@ describe('WorkspaceWelcome', () => {
     expect(
       screen.getByText(new RegExp(`Builds a complete example in ${DEMO_PROVISION_ESTIMATE}`)),
     ).toBeInTheDocument()
+    // The create path mentions templates (F21): the same dialog offers them.
     expect(
-      screen.getByText('Start empty and connect your own warehouse.'),
+      screen.getByText(
+        'Start empty or from an industry template, then connect your own warehouse.',
+      ),
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /Generate demo project/i }))
@@ -82,7 +85,7 @@ describe('WorkspaceWelcome', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(
-      screen.queryByText('Start empty and connect your own warehouse.'),
+      screen.queryByText(/Start empty or from an industry template/),
     ).not.toBeInTheDocument()
   })
 

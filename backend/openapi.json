@@ -18178,6 +18178,19 @@
             "title": "Slug",
             "type": "string"
           },
+          "template_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          },
           "timezone": {
             "default": "UTC",
             "maxLength": 64,
@@ -18190,6 +18203,168 @@
           "slug"
         ],
         "title": "ProjectCreate",
+        "type": "object"
+      },
+      "ProjectCreateResponse": {
+        "description": "``POST /projects``: the project plus the template branch it opened, if any.\n\n``template_branch_id`` is the draft branch holding a template's starter plan\n(F21, GH #274); null when the project was created blank. Only the create\nroute returns it, so the shared ``ProjectResponse`` and the cached project\nlist stay untouched.",
+        "properties": {
+          "app_version_keep_releases": {
+            "default": 5,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "App Version Keep Releases",
+            "type": "integer"
+          },
+          "can_mutate": {
+            "default": false,
+            "title": "Can Mutate",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By User Id"
+          },
+          "demo_last_tick_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Last Tick At"
+          },
+          "demo_recipe_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Recipe Version"
+          },
+          "demo_seeded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Seeded At"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "generation_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Error"
+          },
+          "generation_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation Stage"
+          },
+          "generation_status": {
+            "$ref": "#/components/schemas/ProjectGenerationStatus",
+            "default": "ready"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_demo": {
+            "default": false,
+            "title": "Is Demo",
+            "type": "boolean"
+          },
+          "my_role": {
+            "default": "viewer",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ],
+            "title": "My Role",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ProjectSummary"
+          },
+          "template_branch_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Branch Id"
+          },
+          "timezone": {
+            "default": "UTC",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "description",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectCreateResponse",
         "type": "object"
       },
       "ProjectGenerationStatus": {
@@ -18804,6 +18979,208 @@
           }
         },
         "title": "ProjectSummary",
+        "type": "object"
+      },
+      "ProjectTemplateAlertSuggestionOut": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "needs": {
+            "const": "alert_destination",
+            "title": "Needs",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "needs"
+        ],
+        "title": "ProjectTemplateAlertSuggestionOut",
+        "type": "object"
+      },
+      "ProjectTemplateCounts": {
+        "properties": {
+          "alert_suggestions": {
+            "title": "Alert Suggestions",
+            "type": "integer"
+          },
+          "event_types": {
+            "title": "Event Types",
+            "type": "integer"
+          },
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "fields": {
+            "title": "Fields",
+            "type": "integer"
+          },
+          "metric_suggestions": {
+            "title": "Metric Suggestions",
+            "type": "integer"
+          },
+          "variables": {
+            "title": "Variables",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event_types",
+          "fields",
+          "events",
+          "variables",
+          "metric_suggestions",
+          "alert_suggestions"
+        ],
+        "title": "ProjectTemplateCounts",
+        "type": "object"
+      },
+      "ProjectTemplateMetricSuggestionOut": {
+        "properties": {
+          "composition": {
+            "anyOf": [
+              {
+                "enum": [
+                  "single",
+                  "ratio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Composition"
+          },
+          "denominator_event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator Event"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "event_composition",
+              "fact",
+              "sql"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "needs": {
+            "enum": [
+              "scan",
+              "data_source"
+            ],
+            "title": "Needs",
+            "type": "string"
+          },
+          "numerator_event": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numerator Event"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "description",
+          "kind",
+          "needs"
+        ],
+        "title": "ProjectTemplateMetricSuggestionOut",
+        "type": "object"
+      },
+      "ProjectTemplateSummary": {
+        "properties": {
+          "alert_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectTemplateAlertSuggestionOut"
+            },
+            "title": "Alert Suggestions",
+            "type": "array"
+          },
+          "branch_name": {
+            "title": "Branch Name",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ProjectTemplateCounts"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "event_type_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Event Type Names",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "metric_suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectTemplateMetricSuggestionOut"
+            },
+            "title": "Metric Suggestions",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "name",
+          "description",
+          "branch_name",
+          "counts",
+          "event_type_names",
+          "metric_suggestions",
+          "alert_suggestions"
+        ],
+        "title": "ProjectTemplateSummary",
         "type": "object"
       },
       "ProjectTrackerConfigResponse": {
@@ -27113,6 +27490,31 @@
         ]
       }
     },
+    "/api/v1/project-templates": {
+      "get": {
+        "operationId": "list_project_templates_api_v1_project_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectTemplateSummary"
+                  },
+                  "title": "Response List Project Templates Api V1 Project Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Project Templates",
+        "tags": [
+          "project-templates"
+        ]
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "operationId": "list_projects_api_v1_projects_get",
@@ -27154,7 +27556,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectResponse"
+                  "$ref": "#/components/schemas/ProjectCreateResponse"
                 }
               }
             },

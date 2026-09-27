@@ -21,6 +21,7 @@ from tripl.schemas.project import (
     DetectionResetPeriod,
     DriftResetCounts,
     ProjectCreate,
+    ProjectCreateResponse,
     ProjectResponse,
     ProjectUpdate,
     VariableRetirementCounts,
@@ -31,6 +32,7 @@ from tripl.services import (
     demo_service,
     detection_reset_service,
     project_service,
+    project_template_service,
     variable_retirement_service,
 )
 
@@ -167,12 +169,12 @@ async def list_projects(
 
 @router.post(
     "",
-    response_model=ProjectResponse,
+    response_model=ProjectCreateResponse,
     status_code=201,
 )
 async def create_project(
     session: SessionDep, request: Request, current_user: EditorUserDep, data: ProjectCreate
-) -> ProjectResponse:
+) -> ProjectCreateResponse:
     # Record the creator so the editor who made a project keeps control of it
     # (see _require_project_manager) without needing an owner for every rename.
     project = await project_service.create_project(session, data, created_by=current_user.id)
@@ -185,7 +187,24 @@ async def create_project(
         slug=project.slug,
         payload=data.model_dump(),
     )
-    return await _one_for_caller(session, request, current_user, project)
+    if project.template_branch_id is not None and data.template_id is not None:
+        # The template's draft branch is a branch a person opened, so it files
+        # the same row POST /branches does (F21, GH #274).
+        branch_name = project_template_service.resolve_template(data.template_id).branch_name
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="plan_branch.create",
+            target_type="plan_branch",
+            target_id=project.template_branch_id,
+            target_name=branch_name,
+            project_slug=project.slug,
+            payload={"name": branch_name, "template_id": data.template_id},
+        )
+    annotated = await _one_for_caller(session, request, current_user, project)
+    return ProjectCreateResponse.model_validate(
+        {**annotated.model_dump(), "template_branch_id": project.template_branch_id}
+    )
 
 
 @router.post(

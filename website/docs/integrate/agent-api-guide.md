@@ -141,6 +141,61 @@ One existence signal is unavoidable: slugs are unique across the instance, so
 `POST /api/v1/projects` or a rename to a slug that is already taken answers
 `409` even when the caller cannot see the project holding it.
 
+### Creating a project from a template {#project-templates}
+
+List the built-in [project templates](../use/project-templates.md) (any
+authenticated caller; a project-bound key gets `403` like on every
+instance-wide route):
+
+```http
+GET /api/v1/project-templates
+```
+
+Each item carries `id` (`ecommerce`, `subscriptions`, `mobile_games`,
+`b2b_saas`), `version`, `name`, `description`, `branch_name` (for example
+`template/ecommerce`), `counts` (`event_types`, `fields`, `events`,
+`variables`, `metric_suggestions`, `alert_suggestions`), `event_type_names`,
+and the informational `metric_suggestions` and `alert_suggestions`.
+Suggestions carry no id: nothing is ever created from them.
+
+A metric suggestion has `name`, `display_name`, `description`, `needs`
+(`scan` / `data_source`) and the metric-definition `kind` to create:
+
+| `kind` | `composition` | `numerator_event` / `denominator_event` | `needs` |
+| --- | --- | --- | --- |
+| `event_composition` | `single` (a count) or `ratio` | The plan event names; `denominator_event` only for `ratio` | `scan` |
+| `fact` | `null` | `null` (reads a fact table) | `data_source` |
+| `sql` | `null` | `null` (reads a SQL query) | `data_source` |
+
+An alert suggestion has `name`, `description` and `needs`
+(`alert_destination`).
+
+Create the project with the template's id (editor role, `write` key without
+`project_slug`):
+
+```http
+POST /api/v1/projects
+{"name": "Shop", "slug": "shop", "template_id": "ecommerce"}
+```
+
+The `201` response is the usual project plus `template_branch_id`, the draft
+working branch holding the template's event types, fields, variables and draft
+events. Pass it as `?branch=` to review or edit the plan, then submit, approve
+and merge it through the ordinary branch flow; main stays empty until then, so
+the project's summary counters read `0`. Without `template_id` the request is
+unchanged and `template_branch_id` is `null`.
+
+- An unknown `template_id` answers `422` `Unknown project template` before
+  anything is written; an empty string is a schema `422`.
+- The project, its main branch, the creator's membership and the template
+  branch are one transaction: a failure while seeding leaves no project behind.
+- The audit log gets `project.create` (its payload includes `template_id`) and
+  `plan_branch.create` for the template branch, with `name` and `template_id`
+  in the payload. The creator is the branch's author and is subscribed to it.
+- No metric definition, fact table, data source, scan config, alert
+  destination or alert rule is created; the branch description lists the
+  suggestions as a checklist instead.
+
 ## Project And Branch Context
 
 Most agent calls require a project slug in the path:

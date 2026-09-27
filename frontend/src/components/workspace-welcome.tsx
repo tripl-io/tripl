@@ -62,7 +62,7 @@ export function WorkspaceWelcome({
               New project
             </Button>
             <p className="m-0 max-w-[280px] text-caption text-fg-tertiary">
-              Start empty and connect your own warehouse.
+              Start empty or from an industry template, then connect your own warehouse.
             </p>
           </div>
         </div>

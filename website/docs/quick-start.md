@@ -131,6 +131,10 @@ point tripl at your warehouse. tripl only ever **reads** from it — it never
 writes, and it stores only the aggregated counts it needs, never your raw
 events.
 
+**New project** can also start from an industry template. Its starter plan
+opens as a draft branch to review and merge, and main stays empty until you do.
+See **[Project templates](./use/project-templates.md)**.
+
 1. Open **Settings → Data sources** (under the Workspace group). Data sources
    are workspace-wide and only **owners** can manage them.
 2. Add a connection and fill in the details for your warehouse:

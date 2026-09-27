@@ -115,6 +115,11 @@ whether to point it at your own data.
 
 See [The demo workspace](./demo-workspace.md).
 
+When you create your own project, you can start it from an industry template
+(e-commerce, subscriptions, mobile games or B2B SaaS). The template's starter
+plan opens as a draft branch for you to review, and your live plan stays empty
+until you merge it. See [Project templates](./project-templates.md).
+
 ## Where to go next
 
 - **[Concepts](./concepts.md)** — every idea in the product, in plain language.
