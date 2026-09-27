@@ -107,11 +107,12 @@ export function MentionComposer({
         onSelect={event => track(event.currentTarget.value, event.currentTarget.selectionStart)}
         onBlur={() => setMention(null)}
         onKeyDown={onKeyDown}
-        // A combobox whenever it offers members, like the template editor's
-        // variable field: the popup it owns is named even while closed.
-        role={candidates ? 'combobox' : undefined}
+        // A textbox with list autocomplete whenever it offers members. Not
+        // role="combobox": ARIA in HTML allows no role on a <textarea>
+        // (axe aria-allowed-role), and a textbox takes no aria-expanded — the
+        // status region below announces the list opening instead. The popup
+        // it owns is named even while closed.
         aria-haspopup={candidates ? 'listbox' : undefined}
-        aria-expanded={candidates ? open : undefined}
         aria-autocomplete={candidates ? 'list' : undefined}
         aria-controls={candidates ? listId : undefined}
         aria-activedescendant={open ? `${listId}-opt-${activeIndex}` : undefined}

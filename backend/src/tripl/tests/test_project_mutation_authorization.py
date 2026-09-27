@@ -29,6 +29,17 @@ from tripl.tests.test_rbac import READ_LIKE_MUTATING_PATHS, iter_api_routes
 
 PASSWORD = "Password123!"
 
+# Slug-scoped writes that change only the CALLER's own state, never the plan, so
+# any project member may make them — viewers included. Membership is still
+# enforced by the router-level ``require_project_membership`` gate (a non-member
+# gets 404), and ``test_rbac``'s write-gate audit still requires a write gate on
+# them, so a ``read``-scope API key is refused.
+MEMBER_PERSONAL_WRITE_PATHS = {
+    # Watch / Unwatch / Mute an entity (GH #259): a personal notification
+    # preference, and a viewer must be able to watch what they read.
+    "/api/v1/projects/{slug}/subscriptions/{entity_type}/{entity_id}",
+}
+
 
 def _new_client() -> AsyncClient:
     """A client with its own cookie jar, so several roles can act interleaved."""
@@ -151,7 +162,7 @@ def test_every_project_scoped_mutation_carries_a_project_gate() -> None:
         methods = (route.methods or set()) & {"POST", "PATCH", "PUT", "DELETE"}
         if not methods or "{slug}" not in path:
             continue
-        if path in READ_LIKE_MUTATING_PATHS:
+        if path in READ_LIKE_MUTATING_PATHS or path in MEMBER_PERSONAL_WRITE_PATHS:
             continue
         calls = {dependency.call for dependency in route.dependant.dependencies}
         if calls.isdisjoint(project_gates):

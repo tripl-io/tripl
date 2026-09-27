@@ -528,6 +528,10 @@ describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
       const url = String(input)
       calls.push(url)
       if (url.endsWith('/api/v1/projects')) return mockJsonResponse(projects)
+      // The caller's own notifications (#259) span every project, so the bell
+      // asks for them on a workspace route too.
+      if (url.endsWith('/api/v1/me/notifications/unread-count')) return mockJsonResponse({ unread: 0 })
+      if (url.includes('/api/v1/me/notifications?')) return mockJsonResponse({ items: [], next_cursor: null })
       throw new Error(`Unhandled fetch: ${url}`)
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -563,8 +567,11 @@ describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
     expect(rows[1]).toHaveAttribute('href', '/p/noisy/anomalies')
     expect(screen.getByRole('link', { name: 'All projects →' })).toHaveAttribute('href', '/workspace')
     expect(screen.queryByText(/Open a project/)).toBeNull()
-    // No per-project signal or delivery lists are fetched off a workspace route.
-    expect(calls.every((url) => url.endsWith('/api/v1/projects'))).toBe(true)
+    // No per-project signal or delivery lists are fetched off a workspace route;
+    // besides the project list, only the caller's own notifications are.
+    expect(
+      calls.filter((url) => !url.endsWith('/api/v1/projects') && !url.includes('/api/v1/me/notifications')),
+    ).toEqual([])
   })
 
   it('says so when no project needs attention', async () => {
@@ -729,7 +736,10 @@ describe('TopBar bell notifications tab (#259)', () => {
 
   it('badges unread notifications and opens on them when there are some', async () => {
     const calls = mockNotificationsFetch([], [], {
-      notifications: [mockNotification(), mockNotification({ id: 'n-2', read_at: '2026-09-01T00:00:00Z' })],
+      notifications: [
+        mockNotification(),
+        mockNotification({ id: 'n-2', title: 'Grace changed checkout_started', read_at: '2026-09-01T00:00:00Z' }),
+      ],
     })
 
     renderTopBar()

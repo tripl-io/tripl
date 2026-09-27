@@ -60,6 +60,7 @@ function renderThread(
 beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   listUsers.mockResolvedValue([])
+  listMembers.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -446,20 +447,22 @@ describe('CommentThread mentions (#259)', () => {
     await waitFor(() => expect(create).toHaveBeenCalledWith(`cc @[Ada Lovelace](${ADA})`, null))
   })
 
-  it('is a combobox that owns its list and says how many members match', async () => {
+  it('is an autocompleting textbox that owns its list and says how many members match', async () => {
     listMembers.mockResolvedValue([
       { user_id: ADA, name: 'Ada Lovelace', email: 'ada@example.com', role: 'editor', added_at: '2026-01-01T00:00:00Z' },
     ])
     renderMentionThread([])
     await waitFor(() => expect(listMembers).toHaveBeenCalled())
-    const box = await screen.findByRole('combobox', { name: 'Write a comment' })
+    // A <textarea> may carry no role (ARIA in HTML), so it stays a textbox.
+    const box = await screen.findByRole('textbox', { name: 'Write a comment' })
     expect(box).toHaveAttribute('aria-haspopup', 'listbox')
-    expect(box).toHaveAttribute('aria-expanded', 'false')
+    expect(box).toHaveAttribute('aria-autocomplete', 'list')
     expect(box.getAttribute('aria-controls')).toBeTruthy()
+    expect(box).not.toHaveAttribute('aria-activedescendant')
 
     fireEvent.change(box, { target: { value: '@ad', selectionStart: 3, selectionEnd: 3 } })
-    await screen.findByRole('option', { name: /Ada Lovelace/ })
-    expect(box).toHaveAttribute('aria-expanded', 'true')
+    const option = await screen.findByRole('option', { name: /Ada Lovelace/ })
+    expect(box).toHaveAttribute('aria-activedescendant', option.id)
     expect(screen.getByText('1 member')).toHaveAttribute('aria-live', 'polite')
   })
 
