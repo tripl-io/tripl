@@ -86,6 +86,10 @@ _OPENAPI_TAGS = [
         "name": "plan-validation",
         "description": "Check tracking calls or captured payloads against the plan (tripl check).",
     },
+    {
+        "name": "plan-export",
+        "description": "Export the plan as JSON Schema or as a model for tripl codegen.",
+    },
     {"name": "chart-annotations", "description": "Annotations overlaid on metric charts."},
     {"name": "anomaly-settings", "description": "Per-project anomaly detection settings."},
     {"name": "alerting", "description": "Alert rules and delivery destinations."},

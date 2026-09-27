@@ -91,6 +91,8 @@ build-backend = "hatchling.build"
 # package data already. Verified against a built wheel rather than assumed —
 # `uv build --wheel` then unzip, and both files are there (tripl-ey6j.3). They
 # are read through importlib.resources, which is why this matters at all.
+# The same holds for src/tripl_cli/codegen/templates/*.mustache, the built-in
+# `tripl codegen` templates (#262): package data by the same rule, read the same way.
 packages = ["src/tripl_cli"]
 
 [tool.pytest.ini_options]

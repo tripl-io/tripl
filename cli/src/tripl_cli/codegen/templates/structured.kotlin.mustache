@@ -1,0 +1,45 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+{{#has_imports}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{/has_imports}}
+
+/**
+ * Typed values for the `{{event_type.raw}}` event type ({{style}}): one enum per
+ * plan field, and the wrapper's own call with its arguments narrowed to them.
+ */
+object {{namespace}} {
+{{#enums}}
+    enum class {{name}}(val value: String) {
+{{#cases}}
+        {{ident}}({{literal}}){{sep}}
+{{/cases}}
+    }
+
+{{/enums}}
+{{#known}}
+    data class KnownEvent(
+        val identity: String,
+{{#fields}}
+        val {{ident}}: {{type}},
+{{/fields}}
+    )
+
+    /** Every planned combination, checked by the compiler against the enums above. */
+    val knownEvents: List<KnownEvent> = listOf(
+{{#events}}
+        KnownEvent({{args}}),
+{{/events}}
+    )
+
+{{/known}}
+    fun {{function.name}}({{function.signature}}) {
+        {{function.forward}}
+    }
+}

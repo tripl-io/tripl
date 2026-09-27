@@ -18,6 +18,7 @@ from tripl_cli.api import (
     data_sources,
     event_types,
     monitoring,
+    plan_export,
     plan_validation,
     projects,
     scans,
@@ -87,6 +88,7 @@ def _every_builder() -> list[ApiRequest]:
             "prod", label="Deployed", at=datetime(2026, 9, 25, tzinfo=UTC)
         ),
         plan_validation.validate("prod", [{"ref": "i0", "name": "signup"}]),
+        plan_export.export("prod", plan_export.FORMAT_JSONSCHEMA),
     ]
 
 

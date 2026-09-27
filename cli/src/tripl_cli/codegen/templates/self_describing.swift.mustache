@@ -1,0 +1,59 @@
+{{header}}
+
+/// A `{{event_type.raw}}` event ({{style}}): one type per schema, carrying exactly the
+/// values the plan leaves open. Send one with `{{namespace}}.{{function.name}}(_:)`.
+public protocol {{event_name}}: Sendable {
+    /// The event's identity, exactly as the plan spells it.
+    var name: String { get }
+    /// The schema URI the event is sent with.
+    var schema: String { get }
+    var data: [String: Any] { get }
+}
+
+public enum {{namespace}} {
+{{#enums}}
+    public enum {{name}}: String, CaseIterable, Sendable {
+{{#cases}}
+        case {{ident}} = {{literal}}
+{{/cases}}
+    }
+
+{{/enums}}
+{{#events}}
+    /// `{{identity}}`
+{{#deprecated}}
+    @available(*, deprecated, message: "Deprecated in the tracking plan.")
+{{/deprecated}}
+    public struct {{class_name}}: {{event_name}} {
+{{#props}}
+        public let {{ident}}: {{type}}
+{{/props}}
+
+        public init({{init_signature}}) {
+{{#props}}
+            self.{{ident}} = {{ident}}
+{{/props}}
+        }
+
+        public var name: String { {{name_expr}} }
+        public var schema: String { {{schema_expr}} }
+
+{{#has_puts}}
+        public var data: [String: Any] {
+            var properties: [String: Any] = [:]
+{{#puts}}
+            {{stmt}}
+{{/puts}}
+            return properties
+        }
+{{/has_puts}}
+{{^has_puts}}
+        public var data: [String: Any] { [:] }
+{{/has_puts}}
+    }
+
+{{/events}}
+    public static func {{function.name}}(_ event: some {{event_name}}) {
+        {{function.forward}}
+    }
+}

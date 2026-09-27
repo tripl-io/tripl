@@ -1,0 +1,33 @@
+{{header}}
+
+/// Typed values for the `{{event_type.raw}}` event type ({{style}}): one enum per
+/// plan field, and the wrapper's own call with its arguments narrowed to them.
+public enum {{namespace}} {
+{{#enums}}
+    public enum {{name}}: String, CaseIterable, Sendable {
+{{#cases}}
+        case {{ident}} = {{literal}}
+{{/cases}}
+    }
+
+{{/enums}}
+{{#known}}
+    public struct KnownEvent: Sendable {
+        public let identity: String
+{{#fields}}
+        public let {{ident}}: {{type}}
+{{/fields}}
+    }
+
+    /// Every planned combination, checked by the compiler against the enums above.
+    public static let knownEvents: [KnownEvent] = [
+{{#events}}
+        KnownEvent({{args}}),
+{{/events}}
+    ]
+
+{{/known}}
+    public static func {{function.name}}({{function.signature}}) {
+        {{function.forward}}
+    }
+}

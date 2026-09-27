@@ -1,0 +1,138 @@
+{{header}}
+
+/// The `{{event_type.raw}}` events ({{style}}): one case per planned event, carrying
+/// exactly the values the plan leaves open. Send one with `{{namespace}}.{{function.name}}(_:)`.
+public enum {{event_name}}: Sendable {
+{{#events}}
+    /// `{{identity}}`
+{{#deprecated}}
+    @available(*, deprecated, message: "Deprecated in the tracking plan.")
+{{/deprecated}}
+{{#has_props}}
+    case {{case}}({{class_name}})
+{{/has_props}}
+{{^has_props}}
+    case {{case}}
+{{/has_props}}
+{{/events}}
+{{#enums}}
+
+    public enum {{name}}: String, CaseIterable, Sendable {
+{{#cases}}
+        case {{ident}} = {{literal}}
+{{/cases}}
+    }
+{{/enums}}
+{{#events}}
+{{#has_props}}
+
+    public struct {{class_name}}: Sendable {
+{{#props}}
+        public let {{ident}}: {{type}}
+{{/props}}
+
+        public init({{init_signature}}) {
+{{#props}}
+            self.{{ident}} = {{ident}}
+{{/props}}
+        }
+
+        public var name: String { {{name_expr}} }
+
+{{#has_puts}}
+        public var properties: [String: Any] {
+            var properties: [String: Any] = [:]
+{{#puts}}
+            {{stmt}}
+{{/puts}}
+            return properties
+        }
+{{/has_puts}}
+{{^has_puts}}
+        public var properties: [String: Any] { [:] }
+{{/has_puts}}
+    }
+{{/has_props}}
+{{/events}}
+
+{{^has_deprecated}}
+    /// The event's name, exactly as the plan spells it.
+    public var name: String {
+        switch self {
+{{#events}}
+{{#has_props}}
+        case .{{case}}(let event): return event.name
+{{/has_props}}
+{{^has_props}}
+        case .{{case}}: return {{name_expr}}
+{{/has_props}}
+{{/events}}
+        }
+    }
+
+    public var properties: [String: Any] {
+        switch self {
+{{#events}}
+{{#has_props}}
+        case .{{case}}(let event): return event.properties
+{{/has_props}}
+{{^has_props}}
+        case .{{case}}: return {{properties_literal}}
+{{/has_props}}
+{{/events}}
+        }
+    }
+{{/has_deprecated}}
+{{#has_deprecated}}
+    /// The event's name, exactly as the plan spells it.
+    public var name: String { (self as any {{resolver}}).resolvedName }
+
+    public var properties: [String: Any] { (self as any {{resolver}}).resolvedProperties }
+{{/has_deprecated}}
+}
+{{#has_deprecated}}
+
+/// Resolves every case — deprecated ones included — without a deprecation warning at
+/// the switch: the switches live in deprecated members, reached through this protocol's
+/// non-deprecated requirements, so warnings-as-errors builds still compile.
+private protocol {{resolver}} {
+    var resolvedName: String { get }
+    var resolvedProperties: [String: Any] { get }
+}
+
+extension {{event_name}}: {{resolver}} {
+    @available(*, deprecated, message: "Internal: use `name`.")
+    fileprivate var resolvedName: String {
+        switch self {
+{{#events}}
+{{#has_props}}
+        case .{{case}}(let event): return event.name
+{{/has_props}}
+{{^has_props}}
+        case .{{case}}: return {{name_expr}}
+{{/has_props}}
+{{/events}}
+        }
+    }
+
+    @available(*, deprecated, message: "Internal: use `properties`.")
+    fileprivate var resolvedProperties: [String: Any] {
+        switch self {
+{{#events}}
+{{#has_props}}
+        case .{{case}}(let event): return event.properties
+{{/has_props}}
+{{^has_props}}
+        case .{{case}}: return {{properties_literal}}
+{{/has_props}}
+{{/events}}
+        }
+    }
+}
+{{/has_deprecated}}
+
+public enum {{namespace}} {
+    public static func {{function.name}}(_ event: {{event_name}}) {
+        {{function.forward}}
+    }
+}

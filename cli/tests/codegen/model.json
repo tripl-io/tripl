@@ -1,0 +1,93 @@
+{
+  "format": "codegen_model",
+  "revision": "9b1f0c52-5d0e-4d6a-8a31-2f6c0e7d4a42",
+  "branch": "main",
+  "branch_id": "0c6d2f8e-1b7a-4f3e-9d25-6a1e8b3c7f10",
+  "plan_hash": "5e0d4c3b2a19",
+  "event_types": [
+    {
+      "name": "se",
+      "display_name": "Structured event",
+      "name_rule": "{category}:{action}:{label}",
+      "fields": [
+        {"name": "value", "required": false, "type": "string", "values": null, "variable": null},
+        {"name": "label", "required": false, "type": "string", "values": null, "variable": null},
+        {"name": "category", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "action", "required": true, "type": "string", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "home:open:card", "name": "home:open:card", "status": "active",
+         "field_values": {"category": "home", "action": "open", "label": "card"}, "deprecated": false},
+        {"identity": "checkout:${checkout_step}:promo_sheet", "name": "checkout:${checkout_step}:promo_sheet",
+         "status": "active",
+         "field_values": {"category": "checkout", "action": "${checkout_step}", "label": "promo_sheet"},
+         "deprecated": false},
+        {"identity": "checkout:tap:${promo_id}", "name": "checkout:tap:${promo_id}", "status": "active",
+         "field_values": {"category": "checkout", "action": "tap", "label": "${promo_id}"}, "deprecated": false},
+        {"identity": "default:open:card", "name": "default:open:card", "status": "active",
+         "field_values": {"category": "default", "action": "open", "label": "card"}, "deprecated": true},
+        {"identity": "1st run:open:card", "name": "1st run:open:card", "status": "active",
+         "field_values": {"category": "1st run", "action": "open", "label": "card"}, "deprecated": false}
+      ]
+    },
+    {
+      "name": "screen",
+      "display_name": "Screen view",
+      "name_rule": "{type}",
+      "fields": [
+        {"name": "type", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "id", "required": false, "type": "string", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "HomeView", "name": "HomeView", "status": "active",
+         "field_values": {"type": "HomeView", "id": "home"}, "deprecated": false},
+        {"identity": "Checkout Start", "name": "Checkout Start", "status": "active",
+         "field_values": {"type": "Checkout Start", "id": "checkout:start"}, "deprecated": false}
+      ]
+    },
+    {
+      "name": "legacy",
+      "display_name": "Legacy flat events",
+      "name_rule": null,
+      "fields": [
+        {"name": "platform", "required": false, "type": "enum", "values": ["ios", "android"], "variable": null},
+        {"name": "mode", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "is_first", "required": false, "type": "boolean", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "trial_started", "name": "trial_started", "status": "active",
+         "field_values": {"mode": "trial"}, "deprecated": false},
+        {"identity": "Home Screen View", "name": "Home Screen View", "status": "active",
+         "field_values": {}, "deprecated": false},
+        {"identity": "promo_sheet_${sheet_id}_shown", "name": "promo_sheet_${sheet_id}_shown",
+         "status": "active", "field_values": {"mode": "promo_${sheet_id}"}, "deprecated": false},
+        {"identity": "checkout:start", "name": "checkout:start", "status": "active",
+         "field_values": {"mode": "checkout", "platform": "ios", "is_first": "true"}, "deprecated": true},
+        {"identity": "old_event", "name": "old_event", "status": "archived",
+         "field_values": {}, "deprecated": false}
+      ]
+    },
+    {
+      "name": "sd",
+      "display_name": "Self-describing",
+      "name_rule": null,
+      "fields": [
+        {"name": "sku", "required": true, "type": "string", "values": null, "variable": null},
+        {"name": "price", "required": false, "type": "number", "values": null, "variable": null}
+      ],
+      "events": [
+        {"identity": "iglu:com.example/checkout_started/jsonschema/1-0-0", "name": "checkout_started",
+         "status": "active", "field_values": {}, "deprecated": true},
+        {"identity": "iglu:com.example/checkout_started/jsonschema/2-0-0", "name": "checkout_started",
+         "status": "active", "field_values": {}, "deprecated": false},
+        {"identity": "iglu:com.example/promo_sheet_viewed/jsonschema/1-0-0", "name": "promo_sheet_viewed",
+         "status": "active", "field_values": {"sku": "none", "price": "4.5"}, "deprecated": false}
+      ]
+    }
+  ],
+  "variables": [
+    {"name": "checkout_step", "allowed_values": ["start", "confirm"]},
+    {"name": "promo_id", "allowed_values": []},
+    {"name": "sheet_id", "allowed_values": ["spring", "summer"], "tokens": ["sheet_id", "sheet"]}
+  ]
+}

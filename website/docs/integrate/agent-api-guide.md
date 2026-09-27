@@ -1453,6 +1453,160 @@ An `info` finding never changes an item's `status`.
 `field` names the plan field a finding is about, or is `null` for findings about
 the whole item. `message` is prose and may change. Select on `code`.
 
+## Plan export {#plan-export}
+
+Read the whole plan in a form built for generating or validating code. This is
+the endpoint behind [`tripl codegen`](./codegen.md) and
+[`tripl export`](../run/cli.md#tripl-export), and behind the **Export JSON
+Schema** button on the Plan history page.
+
+```http
+GET /api/v1/projects/{slug}/plan/export?format=jsonschema&branch=<branch_id>
+GET /api/v1/projects/{slug}/plan/export?format=codegen_model&branch=<branch_id>
+```
+
+It is a read and changes nothing. Any project member can call it, viewers
+included, and a `read` key is enough. Without `branch` it exports main. With
+`branch`, it exports that branch's plan, with the usual `400` / `404` for a
+malformed or foreign id. `format` defaults to `jsonschema`; an unknown format
+is a `422`.
+
+Both formats leave out **archived** events and include **deprecated** ones,
+flagged. Both carry the same header keys, so a generated file can say what it
+was generated from:
+
+| Key | Meaning |
+|-----|---------|
+| `format` | `jsonschema` or `codegen_model`, as requested. |
+| `revision` | The plan revision the export reflects: the latest revision for main, the base revision for a branch. `null` when no revision was ever taken. |
+| `branch` / `branch_id` | The branch the plan was read from, by name (`main` for main) and id. |
+| `plan_hash` | `sha256:…` over the exported content. It changes exactly when the export would, so a CI job can compare it instead of the whole body. |
+
+There is no timestamp: the same plan exports byte-identical.
+
+### `format=jsonschema` {#plan-export-jsonschema}
+
+One [JSON Schema](https://json-schema.org/draft/2020-12) document per event,
+keyed `<event_type>/<identity>`:
+
+```json
+{
+  "format": "jsonschema",
+  "revision": "3f9c2a1e-…",
+  "branch": "main",
+  "branch_id": "0b7d…",
+  "plan_hash": "sha256:9e41…",
+  "schemas": {
+    "se/checkout:tap:pay_button": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "checkout:tap:pay_button",
+      "type": "object",
+      "properties": {
+        "category": { "type": "string", "const": "checkout" },
+        "action": { "type": "string", "const": "tap" },
+        "label": { "type": "string", "const": "pay_button" },
+        "plan": { "type": "string", "enum": ["annual", "monthly"] },
+        "coupon": { "type": "string", "pattern": "^[A-Z0-9]{6,12}$" },
+        "cart_value": { "type": "number", "minimum": 0, "maximum": 100000 }
+      },
+      "required": ["category", "action", "label"],
+      "x-tripl": {
+        "event_type": "se",
+        "identity": "checkout:tap:pay_button",
+        "name": "checkout:tap:pay_button",
+        "status": "live"
+      }
+    },
+    "track/Home Screen View": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "Home Screen View",
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string", "enum": ["android", "ios"] },
+        "source": { "type": "string" }
+      },
+      "required": ["platform"],
+      "x-tripl": { "event_type": "track", "identity": "Home Screen View", "name": "Home Screen View", "status": "live" }
+    }
+  }
+}
+```
+
+Two events of one type with the same identity keep both schemas; the second is
+keyed `…#2`.
+
+How a field becomes a property:
+
+| Plan | Schema |
+|------|--------|
+| Field type | `string`, `enum` → `type: string`; `url` → `type: string, format: uri`; `number` → `type: number`; `boolean` → `type: boolean`; `json` → no `type` (anything). |
+| Required field | Listed in `required`. |
+| The event's value is a literal (`checkout`, `9.99`) | `const`, typed by the field type: a number field's `"9.99"` is the number `9.99`. |
+| The event's value is a whole `${variable}` | `enum` of the variable's allowed values (the event's own override list when it has one). No allowed values: no constraint. |
+| The event's value is a template (`item_${kind}`) on a string field | An anchored `pattern`, each hole an alternation of the allowed values, or `.*`. |
+| Enum field | `enum` of its options. |
+| Contract regex | `pattern`. Unanchored: the same partial match `tripl check` and the drift job apply. |
+| Contract min, max | `minimum`, `maximum`, on number fields only. |
+
+When the event's value and a contract both set the same keyword (for example a
+`${variable}` `enum` on an enum field), the contract's copy goes into `allOf`,
+so both hold. A field's
+display name and description become its `title` and `description`, an event's
+description becomes the schema's `description`, and a deprecated event has
+`"deprecated": true`. The `x-tripl` object is an annotation (event type,
+identity, name, status); a 2020-12 validator ignores it.
+
+### `format=codegen_model` {#plan-export-codegen-model}
+
+The plan as the code generator needs it: every event type with its name rule,
+fields and events, and the documented variables.
+
+```json
+{
+  "format": "codegen_model",
+  "revision": "3f9c2a1e-…",
+  "branch": "main",
+  "branch_id": "0b7d…",
+  "plan_hash": "sha256:51c0…",
+  "event_types": [
+    {
+      "name": "se",
+      "display_name": "Structured events",
+      "name_rule": "{category}:{action}:{label}",
+      "fields": [
+        { "name": "category", "required": true, "type": "string", "values": null, "variable": null },
+        { "name": "plan", "required": false, "type": "enum", "values": ["annual", "monthly"], "variable": null }
+      ],
+      "events": [
+        {
+          "identity": "promo_sheet:tap:${promo_slot}",
+          "name": "promo_sheet:tap:${promo_slot}",
+          "status": "live",
+          "field_values": { "category": "promo_sheet", "action": "tap", "label": "${promo_slot}" },
+          "deprecated": false,
+          "overrides": {}
+        }
+      ]
+    }
+  ],
+  "variables": [
+    { "name": "promo_slot", "allowed_values": ["cart", "home"], "tokens": ["promo_slot"] }
+  ]
+}
+```
+
+| Key | Meaning |
+|-----|---------|
+| `event_types[].name_rule` | The type's resolved event name format, or `null` for a type identified by a flat name. |
+| `fields[].type` | The plan field type: `string`, `number`, `boolean`, `json`, `enum` or `url`. |
+| `fields[].values` | The closed set of values the plan allows for the field across the type's events, or `null` when it is free. It is closed only for a string-like field that **every** exported event fills with a literal, a variable with allowed values, or a template whose holes all have them; an event that leaves the field unset makes it free. A free enum field falls back to its options. |
+| `fields[].variable` | The variable the field is bound to, or `null`. |
+| `events[].field_values` | Plan field to value. A `${token}` value is a variable placeholder; its values are in `variables`. |
+| `events[].deprecated` | `true` for a deprecated event. Archived events are not listed. |
+| `events[].overrides` | The event's own allowed values for a variable, keyed by every `${token}` spelling of it, values in plan order. For that event only they replace the variable's `allowed_values`; an empty list means the event accepts any value. `{}` when the event overrides nothing. |
+| `variables[].allowed_values` | The variable's documented values. |
+| `variables[].tokens` | Every `${token}` spelling that names the variable, so a stored `field_values` template can be mapped back to it. |
+
 ## Safe Agent Defaults
 
 - Use a project-scoped `read` key for retrieval agents.

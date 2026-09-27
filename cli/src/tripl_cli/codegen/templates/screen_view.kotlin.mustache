@@ -1,0 +1,45 @@
+{{header}}
+{{#kotlin_package}}
+
+package {{kotlin_package}}
+{{/kotlin_package}}
+{{#has_imports}}
+
+{{#imports}}
+{{line}}
+{{/imports}}
+{{/has_imports}}
+
+/**
+ * Typed screen views for the `{{event_type.raw}}` event type ({{style}}): the plan's
+ * screen types (and ids, where it has them), and the wrapper's call narrowed to them.
+ */
+object {{namespace}} {
+{{#enums}}
+    enum class {{name}}(val value: String) {
+{{#cases}}
+        {{ident}}({{literal}}){{sep}}
+{{/cases}}
+    }
+
+{{/enums}}
+{{#known}}
+    data class KnownEvent(
+        val identity: String,
+{{#fields}}
+        val {{ident}}: {{type}},
+{{/fields}}
+    )
+
+    /** Every planned screen view, checked by the compiler against the enums above. */
+    val knownEvents: List<KnownEvent> = listOf(
+{{#events}}
+        KnownEvent({{args}}),
+{{/events}}
+    )
+
+{{/known}}
+    fun {{function.name}}({{function.signature}}) {
+        {{function.forward}}
+    }
+}

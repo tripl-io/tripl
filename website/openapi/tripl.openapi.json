@@ -15567,6 +15567,91 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/plan/export": {
+      "get": {
+        "tags": [
+          "plan-export"
+        ],
+        "summary": "Export Plan",
+        "description": "The plan of main (or ``?branch=``) as a schema bundle or a codegen model.\n\nDeterministic: the same plan exports byte-identical, with the plan\nrevision, the branch and a content hash. Changes nothing.",
+        "operationId": "export_plan_api_v1_projects__slug__plan_export_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "jsonschema",
+                "codegen_model"
+              ],
+              "type": "string",
+              "description": "``jsonschema``: one JSON Schema (draft 2020-12) per event. ``codegen_model``: the plan shaped for ``tripl codegen``.",
+              "default": "jsonschema",
+              "title": "Format"
+            },
+            "description": "``jsonschema``: one JSON Schema (draft 2020-12) per event. ``codegen_model``: the plan shaped for ``tripl codegen``."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PlanExportJsonSchemaBundle"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlanExportCodegenModel"
+                    }
+                  ],
+                  "title": "Response Export Plan Api V1 Projects  Slug  Plan Export Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/reconciliation/shadow-events": {
       "get": {
         "tags": [
@@ -22496,6 +22581,189 @@
         "type": "object",
         "title": "ClickHouseSettings",
         "description": "ClickHouse has no extra connection settings.\n\nIts two knobs \u2014 ``timeout_seconds`` and ``json_path_discovery`` \u2014 are\nfirst-class columns on the data source, not connection settings."
+      },
+      "CodegenEvent": {
+        "properties": {
+          "identity": {
+            "type": "string",
+            "title": "Identity"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "field_values": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Field Values"
+          },
+          "overrides": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Overrides"
+          },
+          "deprecated": {
+            "type": "boolean",
+            "title": "Deprecated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "identity",
+          "name",
+          "status"
+        ],
+        "title": "CodegenEvent"
+      },
+      "CodegenEventType": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "name_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Rule"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenField"
+            },
+            "type": "array",
+            "title": "Fields"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CodegenEventType"
+      },
+      "CodegenField": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name",
+            "default": ""
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "variable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "CodegenField"
+      },
+      "CodegenVariable": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "allowed_values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Values"
+          },
+          "tokens": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CodegenVariable"
       },
       "ColumnSchema": {
         "properties": {
@@ -33100,6 +33368,112 @@
         "title": "PlanDiffRename",
         "description": "One removed entry and one added entry that are really a single renamed row.\n\nThe diff keys entities by NAME, so a rename splits into a removal of the old\nname and an addition of the new one. The merge does not see it that way: it\npairs the two by ``source_name`` and UPDATEs main's row in place, keeping the\nid and everything hanging off it. Stating the pairing here is what stops the\nUI having to re-derive it, which it cannot do correctly \u2014 the pairing also\ndepends on main, and the diff the UI holds compares the base with the branch\n(tripl-amnn).\n\n``removed_name`` and ``added_name`` are the two entries' ``name``, and\n``entity_type`` / ``parent`` are shared by both, so the pair addresses its\nhalves exactly the way ``BranchRevertRequest`` addresses a change."
       },
+      "PlanExportCodegenModel": {
+        "properties": {
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Branch Id"
+          },
+          "plan_hash": {
+            "type": "string",
+            "title": "Plan Hash"
+          },
+          "format": {
+            "type": "string",
+            "const": "codegen_model",
+            "title": "Format",
+            "default": "codegen_model"
+          },
+          "event_types": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenEventType"
+            },
+            "type": "array",
+            "title": "Event Types"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenVariable"
+            },
+            "type": "array",
+            "title": "Variables"
+          }
+        },
+        "type": "object",
+        "required": [
+          "branch",
+          "branch_id",
+          "plan_hash"
+        ],
+        "title": "PlanExportCodegenModel"
+      },
+      "PlanExportJsonSchemaBundle": {
+        "properties": {
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Branch Id"
+          },
+          "plan_hash": {
+            "type": "string",
+            "title": "Plan Hash"
+          },
+          "format": {
+            "type": "string",
+            "const": "jsonschema",
+            "title": "Format",
+            "default": "jsonschema"
+          },
+          "schemas": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Schemas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "branch",
+          "branch_id",
+          "plan_hash"
+        ],
+        "title": "PlanExportJsonSchemaBundle"
+      },
       "PlanFieldChange": {
         "properties": {
           "field": {
@@ -41546,6 +41920,10 @@
     {
       "name": "plan-validation",
       "description": "Check tracking calls or captured payloads against the plan (tripl check)."
+    },
+    {
+      "name": "plan-export",
+      "description": "Export the plan as JSON Schema or as a model for tripl codegen."
     },
     {
       "name": "chart-annotations",

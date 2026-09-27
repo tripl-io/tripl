@@ -74,6 +74,9 @@ tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy mar
 tripl check               # validate the tracking calls in this checkout against the plan
 tripl check --payloads events.ndjson   # validate captured events; a missing required field fails
 tripl check --format sarif > tripl.sarif   # SARIF 2.1.0 for code scanning
+tripl codegen             # typed tracking code (Swift, Kotlin, TypeScript) from the plan
+tripl codegen --check     # CI: exit 1 when the committed generated files are out of date
+tripl export --out plan-schemas   # one JSON Schema (2020-12) per event, plus the bundle
 tripl install --app-url https://tripl.example.com --version 1.5.0   # provision a stack and start it (HOST)
 tripl install --app-url https://tripl.example.com --dry-run   # print the plan, write nothing
 tripl upgrade --to 1.6.0  # move an installed stack to a new image tag (HOST)
@@ -137,6 +140,76 @@ required field IS an error; a value over the validator's size limits (name 500,
 event type 100, field value 2000 characters, 200 fields) is sent as unknown and
 flagged as an `oversize_value` warning on its line.
 `check` reads nothing but the plan: any member's key works, `tk_r_` included.
+
+`codegen` turns the plan into typed tracking code, from the same
+`.tripl/check.yml`. It generates **per event-type style, never a function per
+event**, and the generated code calls **your own wrapper** (the `transport`) —
+or, with none configured, the shared `TriplDestination` in
+`TriplTransport.swift` / `.kt` / `triplTransport.ts` that you implement once.
+It never imports an SDK.
+
+| `style` | What is generated |
+|---------|-------------------|
+| `structured` | an enum per plan field (its cases are the plan's values; a variable-backed value contributes its allowed values; free text stays `String`), your wrapper's call with its argument types narrowed — `log(category: Category, action: Action, label: String, properties:)` — and a compiler-checked `knownEvents` list |
+| `screen_view` | the same, with `ScreenType` / `ScreenId` enums |
+| `named` | one generic `track(event)`: Swift `enum LegacyEvent { case homeScreenView(HomeScreenView) … }` with `name` and `properties`; Kotlin a sealed interface of data classes/objects; TypeScript `track<K extends LegacyEventName>(name: K, props: LegacyEventProps[K])` |
+| `self_describing` | one data class per schema with its fields, sharing one `track` |
+
+```yaml
+codegen:
+  out: {swift: Sources/Tracking/Generated, kotlin: app/src/main/java/tracking, ts: web/src/tracking}
+  kotlin_package: com.example.tracking
+event_types:
+  se:
+    calls: [{function: "Analytics.shared.log", args: {category: category, action: action, label: label, properties: properties}}]
+    codegen:
+      style: structured              # default: from the preset, else structured when the type has a name rule
+      transport:
+        swift: "Analytics.shared.log"                  # reuses the `calls` entry's args mapping
+        ts: {function: "analytics.log", positional: [category, action, label, properties],
+             import: "import { analytics } from './analytics';"}
+      type_names: {namespace: AppEvents, category: EventCategory, function: log}
+      template: {swift: .tripl/templates/structured.swift.mustache}   # optional override
+  legacy:
+    calls: [{function: "Analytics.shared.logEvent", name_arg: 0, properties_arg: parameters}]
+    codegen: {style: named, languages: [swift, kotlin]}
+```
+
+A `transport` given as a bare function reuses the `args` / `positional` /
+`object_arg` mapping of the `calls` entry with the same `function`. Swift passes
+labelled arguments with their labels, Kotlin as named arguments (give
+`positional` for a Java wrapper), TypeScript positionally — or as one object
+literal with `object_arg`. `type_names` renames `namespace`, `event` (the named
+/ self-describing event type), `function`, and any field's enum by field name.
+
+An event's parameters are the fields it does not fix plus one per `${token}` in
+its name (`promo_sheet_${sheet_id}_shown` takes `sheetId`, typed by the
+variable's allowed values). Plan strings become identifiers by splitting on
+anything that is not a letter or digit and on camelCase: `Home Screen View` ->
+`homeScreenView` (`HOME_SCREEN_VIEW` for Kotlin enum entries), `checkout:start`
+-> `checkoutStart`; a leading digit gets `_` (`_1stRun`), a reserved word a
+trailing `_` (`default_`), a reserved type name `Value` (`TypeValue`), and a
+collision `2`, `3` in sorted order. The raw plan string is always what is sent.
+Deprecated events are marked (`@available(*, deprecated)`, `@Deprecated`,
+`@deprecated`); archived ones are not generated.
+
+A custom `template` uses the built-in one's context (copy it from
+`tripl_cli/codegen/templates/`): a Mustache subset — `{{name}}`, `{{a.b}}`,
+`{{#list}}…{{/list}}`, `{{^empty}}…{{/empty}}`, `{{! comment }}` — where every
+plan string arrives already quoted or escaped for the language, and an unknown
+`{{name}}` is an error rather than an empty string.
+
+Output is deterministic (sorted, no timestamps) with a `Generated by tripl
+codegen — do not edit` header naming the project, branch and the plan's
+content hash (not its revision, so a new revision that changes nothing is not
+drift), so it can be committed: `tripl codegen --check` writes nothing and exits
+1 when a file is missing, differs, or is stale (generated earlier, no longer
+produced — a normal run deletes those, and only files carrying the header for
+the same project, in a language the run writes into that directory). `--model FILE`
+generates from a saved `tripl export --format codegen_model` without an
+instance. `export` writes `bundle.json` and `<event type>/<identity>.schema.json`
+per event (file names sanitised to `[A-Za-z0-9._-]`), or prints the export to
+stdout without `--out`. Both read nothing but the plan: any member's key works.
 
 `drifts reopen` is the one whose prompt is worth reading: reopening clears the
 drift's `resolution_note`, `resolved_by` and `resolved_at`, and dismissing it
@@ -261,6 +334,8 @@ not moved).
 
 `check` uses 0, 1 and 2: 1 when any call site or event has an error (or, with
 `--strict`, a warning), and 2 for a bad check config or payload file.
+`codegen` uses them too: 1 for drift under `--check` (or a plan without a
+configured event type), 2 for a bad check config or template.
 | 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
 An unreachable instance therefore exits **3** out of `doctor`, not 1 — it

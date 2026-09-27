@@ -1,9 +1,10 @@
 import { useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, ChevronRight, GitBranch, GitMerge, Plus } from 'lucide-react'
+import { Bookmark, ChevronRight, Download, GitBranch, GitMerge, Plus } from 'lucide-react'
 
 import { planBranchesApi } from '@/api/planBranches'
+import { planExportApi } from '@/api/planExport'
 import { planRevisionsApi } from '@/api/planRevisions'
 import { Chip } from '@/components/primitives/chip'
 import { PageContainer } from '@/components/primitives/page-container'
@@ -24,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useActiveBranchId } from '@/hooks/useBranch'
 import { displayUser, useUsersById } from '@/hooks/useUsersById'
 import type {
   PlanDiff,
@@ -39,6 +41,7 @@ import { formatDateTime } from '@/lib/datetime'
 import { countOf } from '@/lib/plural'
 import { KIND_META } from './branches/branchMeta'
 import { PlanFieldChangeList } from './PlanFieldChangeList'
+import { downloadJson, planSchemaFilename } from './planSchemaDownload'
 import {
   planBranchesKey,
   planRevisionDiffKey,
@@ -156,6 +159,18 @@ export function HistoryTab({ slug }: { slug: string }) {
     },
   })
 
+  // The plan as JSON Schema, one schema per live event (GH #262, F09). It
+  // follows the branch picker like every other plan read, so a branch's
+  // pending events can be validated before it merges.
+  const activeBranchId = useActiveBranchId()
+  const exportMut = useMutation({
+    mutationFn: () => planExportApi.jsonSchema(slug, activeBranchId),
+    // The file is named after the branch the bundle says it was read from.
+    onSuccess: (bundle) => downloadJson(planSchemaFilename(slug, bundle.branch), bundle),
+    // Reported under the header, next to the button that failed.
+    meta: SILENT_ERROR_META,
+  })
+
   return (
     <PageContainer className="space-y-4">
       {/* The shared page header (DS-1 / PL-25), the same as Plan branches':
@@ -168,17 +183,35 @@ export function HistoryTab({ slug }: { slug: string }) {
         title="Plan history"
         description="Every merge, every branch opened and every snapshot you save. Select a revision to see what changed since the one before."
         actions={
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSnapshotOpen(true)}
-            disabled={createMut.isPending}
-          >
-            <Plus className="size-3.5" />
-            Snapshot now
-          </Button>
+          <>
+            {/* The schema bundle for validators and codegen outside tripl
+                (`tripl export --format jsonschema` writes the same). */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => exportMut.mutate()}
+              disabled={exportMut.isPending}
+            >
+              <Download className="size-3.5" />
+              {exportMut.isPending ? 'Exporting…' : 'Export JSON Schema'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSnapshotOpen(true)}
+              disabled={createMut.isPending}
+            >
+              <Plus className="size-3.5" />
+              Snapshot now
+            </Button>
+          </>
         }
       />
+      {exportMut.isError && (
+        <p role="alert" className="text-body-sm text-destructive">
+          Couldn't export the plan as JSON Schema: {getErrorMessage(exportMut.error)}
+        </p>
+      )}
 
       {/* 2:3, not 1:2. A revision's identity is its summary — product-generated
           ones read "Base snapshot for branch '<name>'" (~300px) — and at 1fr the
