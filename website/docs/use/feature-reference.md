@@ -949,7 +949,7 @@ since the branch was cut — carry a `housekeeping` reason in the diff response,
 are left out of the added/removed/changed counts (`summary.housekeeping` counts them), are
 folded into one line under the list, opened on request, and are not what the
 merge confirmation warns about. A branch named after a tracker
-ticket (`WND-4770`) links to it from the detail
+ticket (`APP-4770`) links to it from the detail
 header through the first meta field whose link template takes a key, and a new
 event opened in that branch has that meta field pre-filled with the key.
 Branch comments identify their author using the current project roster.

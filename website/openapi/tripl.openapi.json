@@ -15496,6 +15496,77 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/plan/validate": {
+      "post": {
+        "tags": [
+          "plan-validation"
+        ],
+        "summary": "Validate Plan",
+        "description": "One verdict per tracking call: known event, allowed values, contracts.\n\nUp to 5000 items per request. A ``null`` field value means \"set at runtime\"\nand is never an error. Changes nothing.",
+        "operationId": "validate_plan_api_v1_projects__slug__plan_validate_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanValidationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanValidationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/reconciliation/shadow-events": {
       "get": {
         "tags": [
@@ -33242,6 +33313,264 @@
         "title": "PlanRevisionSummary",
         "description": "List-view of a revision \u2014 payload omitted to keep responses small."
       },
+      "PlanValidationFinding": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "unknown_event_type",
+              "unknown_event",
+              "deprecated_event",
+              "unknown_field",
+              "missing_required_field",
+              "value_not_allowed",
+              "dynamic_value",
+              "too_dynamic"
+            ],
+            "title": "Code"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Severity"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "PlanValidationFinding"
+      },
+      "PlanValidationItemIn": {
+        "properties": {
+          "ref": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref"
+          },
+          "event_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Type"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "fields": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "propertyNames": {
+              "maxLength": 255,
+              "minLength": 1
+            },
+            "type": "object",
+            "maxProperties": 200,
+            "title": "Fields"
+          },
+          "properties": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "propertyNames": {
+                  "maxLength": 255,
+                  "minLength": 1
+                },
+                "type": "object",
+                "maxProperties": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "PlanValidationItemIn"
+      },
+      "PlanValidationItemResult": {
+        "properties": {
+          "ref": {
+            "type": "string",
+            "title": "Ref"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "warning",
+              "error"
+            ],
+            "title": "Status"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "identity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/PlanValidationFinding"
+            },
+            "type": "array",
+            "title": "Findings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ref",
+          "status"
+        ],
+        "title": "PlanValidationItemResult"
+      },
+      "PlanValidationRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlanValidationItemIn"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "title": "Items"
+          },
+          "strict": {
+            "type": "boolean",
+            "title": "Strict",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PlanValidationRequest"
+      },
+      "PlanValidationResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlanValidationItemResult"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PlanValidationSummary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "summary"
+        ],
+        "title": "PlanValidationResponse"
+      },
+      "PlanValidationSummary": {
+        "properties": {
+          "ok": {
+            "type": "integer",
+            "title": "Ok",
+            "default": 0
+          },
+          "warnings": {
+            "type": "integer",
+            "title": "Warnings",
+            "default": 0
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "PlanValidationSummary"
+      },
       "PlanValueChange": {
         "properties": {
           "key": {
@@ -41213,6 +41542,10 @@
     {
       "name": "plan-revisions",
       "description": "Committed plan revisions and history."
+    },
+    {
+      "name": "plan-validation",
+      "description": "Check tracking calls or captured payloads against the plan (tripl check)."
     },
     {
       "name": "chart-annotations",

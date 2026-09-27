@@ -107,6 +107,10 @@ READ_LIKE_MUTATING_PATHS = {
     # Read-like: dependents of a planned change set (GH #257); POST only to
     # carry the change list, and it refuses nothing.
     "/api/v1/projects/{slug}/impact",
+    # Read-like: validates a batch of tracking calls against the plan (GH #261,
+    # ``tripl check``); POST only to carry up to 5000 items, and it writes
+    # nothing. Ungated so a CI job's read-scope key and viewers can call it.
+    "/api/v1/projects/{slug}/plan/validate",
 }
 
 

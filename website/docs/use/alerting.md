@@ -1263,9 +1263,9 @@ volume over the rollout-overlap window — so the message writes it as
 `expected=715.7 (adoption-adjusted)` and spells the arithmetic out underneath:
 
 ```
-- Release regression spot:open:wind:: down, actual=345, expected=715.7 (adoption-adjusted), delta=370.7 (51.8%)
+- Release regression home:open:map:: down, actual=345, expected=715.7 (adoption-adjusted), delta=370.7 (51.8%)
   release: dropped in 15.7.5 vs 15.7.4 over the 51h rollout overlap; 715.7 is 15.7.4's share of this event at 15.7.5's own volume, so 51.8% is share-for-share
-  details: https://your-tripl/p/windy-ios/alerting/<delivery-id>?item=release_regression:<scope-ref>
+  details: https://your-tripl/p/shop-ios/alerting/<delivery-id>?item=release_regression:<scope-ref>
 ```
 
 This answers the obvious objection before you raise it: *"the release only just

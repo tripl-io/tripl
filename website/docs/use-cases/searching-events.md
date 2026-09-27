@@ -197,8 +197,8 @@ with an answer.
 
 Keyword matching is **stemmed**, in English and in Russian, so a query finds the
 other forms of the words you typed: `purchases` finds `purchase_completed`,
-`spots` finds the `spot` event, and `экрана спота` finds the event whose
-description is «Показ экрана спота». Both scripts work in the same project and
+`homes` finds the `home` event, and `главных экранов` finds the event whose
+description is «Показ главного экрана». Both scripts work in the same project and
 even in the same entity — an event named in `snake_case` with a Russian
 description is matched from either side.
 

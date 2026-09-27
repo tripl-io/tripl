@@ -71,6 +71,9 @@ tripl drifts list         # schema drifts; untriaged by default
 tripl drifts dismiss <drift-id> --project SLUG      # false_positive or snooze (WRITE)
 tripl drifts reopen <drift-id> --project SLUG       # back to open; drops the note (WRITE)
 tripl annotate "Deployed web 2026.09.25" --project SLUG --url URL   # deploy marker on monitoring charts (WRITE)
+tripl check               # validate the tracking calls in this checkout against the plan
+tripl check --payloads events.ndjson   # validate captured events; a missing required field fails
+tripl check --format sarif > tripl.sarif   # SARIF 2.1.0 for code scanning
 tripl install --app-url https://tripl.example.com --version 1.5.0   # provision a stack and start it (HOST)
 tripl install --app-url https://tripl.example.com --dry-run   # print the plan, write nothing
 tripl upgrade --to 1.6.0  # move an installed stack to a new image tag (HOST)
@@ -102,6 +105,38 @@ command name. The API de-duplicates the same `api` label within 24 hours (manual
 annotations are never de-duplicated) and answers
 200 with the existing marker; `annotate` says so and still exits 0, so a retried
 job is harmless.
+
+`check` validates code against the plan. `.tripl/check.yml` (found at or above
+the current directory, up to the repository root; `--check-config PATH`
+otherwise) names the project and, **per event type**, how its calls look — your
+own wrapper first, SDK presets as shorthands:
+
+```yaml
+project: my-app
+sources: ["Sources/**", "web/src/**"]
+enums: [{file: "Sources/**/Events.swift", languages: [swift]}]
+event_types:
+  se:
+    calls:
+      - function: "Analytics.shared.log"      # or `pattern:` (a regex)
+        args: {category: category, action: action, label: label, properties: properties}
+      - objc_selector: "trackWithCategory:action:label:"
+  page: {preset: snowplow_screen_view}
+  legacy: {calls: [{function: "Analytics.shared.logEvent", name_arg: 0}]}
+```
+
+Presets: `segment_track`, `amplitude_log_event`, `snowplow_structured`,
+`snowplow_screen_view`, `snowplow_self_describing`. Swift, Objective-C, Kotlin,
+Java and TypeScript/JavaScript are read; enum shorthand (`.home`) and qualified
+cases resolve through the enum files, interpolated names become plan variables
+(`"promo_sheet_\(id)_shown"` is `promo_sheet_${id}_shown`), Kotlin/Java
+`.name` / `name()` and Swift `.description` read an enum case's own name, and a
+value only known at runtime is sent as unknown, never as an error (`--strict`
+reports it). `--payloads` validates captured events instead, where a missing
+required field IS an error; a value over the validator's size limits (name 500,
+event type 100, field value 2000 characters, 200 fields) is sent as unknown and
+flagged as an `oversize_value` warning on its line.
+`check` reads nothing but the plan: any member's key works, `tk_r_` included.
 
 `drifts reopen` is the one whose prompt is worth reading: reopening clears the
 drift's `resolution_note`, `resolved_by` and `resolved_at`, and dismissing it
@@ -223,6 +258,9 @@ not moved).
 | 1 | The tool itself broke (doctor turns every API failure into a finding), or any other command could not complete a request — unreachable, or the API refused it. For `watch` this includes a key revoked mid-run. For `scans list` / `drifts list` it includes **any** failed read in the fan-out; for `scans run`, a job returned already `failed`; for `scans cancel` / `drifts dismiss` / `drifts reopen`, a declined prompt. |
 | 2 | Usage or configuration error. For `doctor` and `status` that is resolved before any socket opens; `watch` also refuses after reading the listings, when `--scan` matches nothing or more than 24 scan configs are selected. The `scans` / `drifts` verbs add a bare group, a missing or repeated `--project`, an unresolved or ambiguous `<scan>`, and a prompting write on a non-TTY without `--yes`; `annotate` adds a `--url` that is not http(s), an `--at` that is not RFC 3339, and half a scope. Either way **no JSON is emitted** and no write is sent. |
 | 3 | `doctor` only: at least one check failed, or `--strict` and at least one warning. Nothing else ever exits 3. |
+
+`check` uses 0, 1 and 2: 1 when any call site or event has an error (or, with
+`--strict`, a warning), and 2 for a bad check config or payload file.
 | 130 | Interrupted (SIGINT). For `watch` this is the **normal** ending — a run without `--duration` has no other way to stop. |
 
 An unreachable instance therefore exits **3** out of `doctor`, not 1 — it

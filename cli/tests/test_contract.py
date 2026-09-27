@@ -29,6 +29,7 @@ from tripl_cli.client import API_PREFIX
 from tripl_cli.diagnostics import checks, collect, scan_checks
 from tripl_cli.diagnostics.endpoints import (
     ANNOTATE_ENDPOINTS,
+    CHECK_ENDPOINTS,
     DOCTOR_ENDPOINTS,
     DRIFTS_ENDPOINTS,
     EVENTS_ENDPOINTS,
@@ -99,6 +100,7 @@ DECLARED = {
         ("events", EVENTS_ENDPOINTS),
         ("plan", PLAN_ENDPOINTS),
         ("annotate", ANNOTATE_ENDPOINTS),
+        ("check", CHECK_ENDPOINTS),
     )
     for section, endpoints in group_map.items()
 }
@@ -561,6 +563,67 @@ def test_the_declared_query_bounds_are_the_ones_the_routes_enforce(
         if actual != declared:
             wrong.append(f"{path}?{parameter} {key}: tripl_cli says {declared}, API says {actual}")
     assert not wrong, "the CLI's query bounds are not the route's:\n  " + "\n  ".join(wrong)
+
+
+def _bound(schema: dict[str, Any], key: str) -> Any:
+    """``key`` on ``schema`` or on its one non-null ``anyOf`` branch (an Optional field)."""
+    if key in schema:
+        return schema[key]
+    for branch in schema.get("anyOf", []):
+        if isinstance(branch, dict) and branch.get("type") != "null" and key in branch:
+            return branch[key]
+    return None
+
+
+def test_the_check_item_limits_are_the_ones_the_validate_route_enforces(
+    openapi: dict[str, Any],
+) -> None:
+    """``tripl check`` holds every item to the route's body limits before sending.
+
+    One oversize captured value would otherwise make the route reject the whole
+    batch with a 422; the CLI instead sends it as null and notes the line. That
+    is only right while the CLI's numbers ARE the route's, so they are read out
+    of the document (GH #261).
+    """
+    from tripl_cli.api import plan_validation
+
+    schemas = openapi["components"]["schemas"]
+    item = schemas["PlanValidationItemIn"]["properties"]
+    fields = item["fields"]
+    properties = item["properties"]
+    request = schemas["PlanValidationRequest"]["properties"]
+    value_limits = [
+        branch.get("maxLength")
+        for branch in fields["additionalProperties"].get("anyOf", [])
+        if isinstance(branch, dict) and branch.get("type") == "string"
+    ]
+    expected = {
+        "items maxItems": (plan_validation.MAX_ITEMS, _bound(request["items"], "maxItems")),
+        "name maxLength": (plan_validation.NAME_MAX_LENGTH, _bound(item["name"], "maxLength")),
+        "event_type maxLength": (
+            plan_validation.EVENT_TYPE_MAX_LENGTH,
+            _bound(item["event_type"], "maxLength"),
+        ),
+        "fields maxProperties": (plan_validation.MAX_FIELDS, _bound(fields, "maxProperties")),
+        "properties maxProperties": (
+            plan_validation.MAX_FIELDS,
+            _bound(properties, "maxProperties"),
+        ),
+        "field key maxLength": (
+            plan_validation.FIELD_KEY_MAX_LENGTH,
+            (_bound(fields, "propertyNames") or {}).get("maxLength"),
+        ),
+        "field value maxLength": (
+            plan_validation.FIELD_VALUE_MAX_LENGTH,
+            value_limits[0] if value_limits else None,
+        ),
+    }
+    wrong = [
+        f"{what}: tripl_cli says {declared}, API says {actual}"
+        for what, (declared, actual) in expected.items()
+        if declared != actual
+    ]
+    assert not wrong, "the CLI's check item limits are not the route's:\n  " + "\n  ".join(wrong)
 
 
 def test_the_events_list_builder_takes_every_filter_the_route_declares(

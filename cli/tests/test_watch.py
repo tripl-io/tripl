@@ -167,7 +167,7 @@ def test_a_signals_poll_that_500s_does_not_emit_cleared_lines_and_prints_degrade
 def test_a_transition_that_happened_during_a_blind_window_is_reported_on_recovery(
     tripl_api: FakeInstance, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A failed poll is a reporting DELAY, not a blind spot."""
+    """A failed poll is a reporting DELAY, not a coverage gap."""
     opened = make_signal()
     tripl_api.each(
         tripl_api.signals_url("prod"),
@@ -892,7 +892,7 @@ def test_a_full_job_window_of_entirely_new_rows_says_older_rows_may_be_hidden(
 
     A full window whose every row is new means the jobs that were there last poll
     are now off the end of it, so watch cannot know what it missed. Saying so is
-    doctor's scan_history_window_full precedent: state the blind spot rather than
+    doctor's scan_history_window_full precedent: state the coverage gap rather than
     let silence imply there was nothing to see.
     """
     tripl_api.each(

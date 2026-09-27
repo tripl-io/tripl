@@ -257,7 +257,7 @@ content sent to the configured provider.
 | `SEARCH_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model. |
 | `SEARCH_EMBEDDING_DIMENSIONS` | `1536` | Vector dimensions. |
 | `SEARCH_EMBEDDING_API_KEY` | `""` | Provider API key; falls back to `OPENAI_API_KEY` if empty. |
-| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Point it at a self-hosted provider to keep plan text inside your own infrastructure. Env-only, and changing it after indexing needs a re-index — see [AI and search](./ai-and-search.md). The resolved value is visible read-only under **Settings → Instance → AI**, with a source badge, so a value that never reached the container can be spotted from a browser instead of by diffing the compose file. |
+| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Point it at a self-hosted provider to keep plan text inside your own infrastructure. Env-only, and changing it after indexing needs a re-index — see [AI and search](./ai-and-search.md). The resolved value is visible read-only under **Settings → Instance → AI**, with a source badge, so a value that never reached the container can be noticed from a browser instead of by diffing the compose file. |
 | `OPENAI_API_KEY` | `""` | Shared OpenAI key used as fallback for search embeddings and AI features. |
 
 ### AI features (LLM descriptions, Q&A)
