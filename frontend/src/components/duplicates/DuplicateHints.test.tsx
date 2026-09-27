@@ -46,7 +46,7 @@ describe('DuplicateHints (F12, #265)', () => {
     const onMark = vi.fn()
     renderHints({ onMarkReplacement: onMark })
 
-    expect(screen.getByText(/Looks like/)).toHaveTextContent('Looks like Paywall View (94%) — Open Paywall View · Mark as replacement')
+    expect(screen.getByText(/Looks like/)).toHaveTextContent('Looks like Paywall View (94%) — Open · Mark as replacement')
     expect(screen.getByRole('link', { name: 'Open Paywall View' })).toHaveAttribute('href', '/p/demo/monitoring/event/ev-1')
     fireEvent.click(screen.getByRole('button', { name: 'Mark as replacement' }))
     expect(onMark).toHaveBeenCalledWith(result.duplicates[0])
