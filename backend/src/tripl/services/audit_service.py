@@ -5,10 +5,11 @@ import uuid
 from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.middleware.branch_context import current_branch
+from tripl.middleware.org_context import require_org_id
 from tripl.models.audit_log import AuditLog
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -17,6 +18,7 @@ from tripl.schemas.audit import (
     AuditEntryResponse,
     AuditListResponse,
 )
+from tripl.services.project_lookup import project_slug_clause
 
 # Fields that must never make it into the audit payload — credentials, hashes,
 # anything you would not want to read back from the audit UI in cleartext.
@@ -114,7 +116,7 @@ async def record(
     elif project_slug:
         row = (
             await session.execute(
-                select(Project.id, Project.slug).where(Project.slug == project_slug)
+                select(Project.id, Project.slug).where(project_slug_clause(project_slug))
             )
         ).one_or_none()
         if row is None:
@@ -177,11 +179,18 @@ async def list_entries(
         # project id because it is written after its subject is gone. Reaching
         # those from the UI needs the workspace-wide view, which is why
         # tripl-wkwv.17 ships with this.
-        owner_id = await session.scalar(select(Project.id).where(Project.slug == project_slug))
+        owner_id: uuid.UUID | None = await session.scalar(
+            select(Project.id).where(project_slug_clause(project_slug))
+        )
+        # The label fallback is fenced to the bound organization: a deleted
+        # project's slug names nothing outside it (critique #8).
         scope = (
             AuditLog.project_id == owner_id
             if owner_id is not None
-            else AuditLog.project_slug == project_slug
+            else and_(
+                AuditLog.organization_id == require_org_id(),
+                AuditLog.project_slug == project_slug,
+            )
         )
         base = base.where(scope)
         count_base = count_base.where(scope)

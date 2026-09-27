@@ -16,7 +16,7 @@ from tripl.api.deps import BranchIdDep, SessionDep
 from tripl.schemas.dependency import DependenciesResponse, ImpactRequest, ImpactResponse
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import dependency_service
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 router = APIRouter(prefix="/projects/{slug}", tags=["dependencies"])
 
@@ -49,7 +49,7 @@ async def get_dependencies(
         ref = dependency_service.parse_entity_ref(entity)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     return await dependency_service.dependencies_response(
         session,
         project_id=project_id,
@@ -72,7 +72,7 @@ async def post_impact(
     Always one hop: ``depth`` in the body is accepted for compatibility and
     ignored (use ``GET /dependencies?depth=2`` to walk further).
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     return await dependency_service.impact_response(
         session,
         project_id=project_id,

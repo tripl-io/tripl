@@ -22,8 +22,9 @@ reveal that the slug exists. It is unavoidable without per-user slug
 namespaces, and it only leaks the slug, never the project's contents.
 
 Editing inside a project takes an :data:`EDITING_ROLES` role. This module
-imports models only, never another service, so any service can import it at
-module level.
+imports models only, never another service — apart from
+:mod:`tripl.services.project_lookup`, itself models-only, for the org-scoped slug
+clause — so any service can import it at module level.
 """
 
 import uuid
@@ -38,7 +39,7 @@ from tripl.models.domain_enums import UserRole
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
-from tripl.services.project_lookup import PROJECT_NOT_FOUND
+from tripl.services.project_lookup import PROJECT_NOT_FOUND, project_slug_clause
 
 ProjectRole = Literal["owner", "editor", "viewer"]
 
@@ -164,12 +165,14 @@ async def member_role_by_slug(session: AsyncSession, user: User, slug: str) -> P
     project does not exist.
     """
     if is_instance_owner(user):
-        project_id = await session.scalar(select(Project.id).where(Project.slug == slug))
+        project_id: uuid.UUID | None = await session.scalar(
+            select(Project.id).where(project_slug_clause(slug))
+        )
         return OWNER if project_id is not None else None
     row_role = await session.scalar(
         select(ProjectMember.role)
         .join(Project, Project.id == ProjectMember.project_id)
-        .where(Project.slug == slug, ProjectMember.user_id == user.id)
+        .where(project_slug_clause(slug), ProjectMember.user_id == user.id)
     )
     return effective_role(user, row_role)
 

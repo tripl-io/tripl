@@ -58,11 +58,8 @@ from tripl.services.docs_paths import (
 
 
 async def _resolve_project(session: AsyncSession, slug: str) -> Project:
-    """The ONE project lookup of the docs catalog.
-
-    TODO(F20 PR2): ``return await project_lookup.resolve_project(session, slug)``.
-    """
-    return await project_lookup.get_project_by_slug(session, slug)
+    """The ONE project lookup of the docs catalog, scoped to the request's organization."""
+    return await project_lookup.resolve_project(session, slug)
 
 
 def _path(raw: str) -> str:

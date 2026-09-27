@@ -62,7 +62,7 @@ from tripl.schemas.alerting import (
     DestinationTestErrorKind,
 )
 from tripl.services._alerting_destinations import get_destination
-from tripl.services.project_lookup import get_project_by_slug as _get_project
+from tripl.services.project_lookup import resolve_project as _get_project
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,7 @@ from tripl.schemas.api_key import (
     ApiKeyCreateResponse,
     ApiKeyResponse,
 )
-from tripl.services import api_key_service, audit_service, project_service
+from tripl.services import api_key_service, audit_service, project_lookup
 from tripl.services.project_access import member_role
 from tripl.services.project_lookup import PROJECT_NOT_FOUND
 
@@ -47,7 +47,7 @@ async def create_api_key(
     # member of, which answers the same 404 so the slug is no oracle. (An
     # unbound key acts with its user's membership on every request.)
     project_id = (
-        await project_service.get_project_id_by_slug(session, data.project_slug)
+        await project_lookup.resolve_project_id(session, data.project_slug)
         if data.project_slug is not None
         else None
     )

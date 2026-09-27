@@ -18,7 +18,7 @@ from tripl.models.audit_log import AuditLog
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.domain_enums import ChartAnnotationSource
 from tripl.services.chart_annotation_service import find_duplicate_annotation
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.tests.conftest import TestSessionLocal
 
 
@@ -314,7 +314,7 @@ async def test_a_release_label_is_a_duplicate_at_any_age(client: AsyncClient) ->
     """Release markers are unique per project for good, not per 24h."""
     slug = await _project(client, "dedup-release")
     async with TestSessionLocal() as session:
-        project_id = await get_project_id_by_slug(session, slug)
+        project_id = await resolve_project_id(session, slug)
         session.add(
             ChartAnnotation(
                 project_id=project_id,

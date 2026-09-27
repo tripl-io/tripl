@@ -61,7 +61,7 @@ from tripl.services._branch_event_threads import rescue_branch_event_threads
 from tripl.services._event_reference_cleanup import drop_dangling_event_references
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.plan_revision_service import with_snapshot_defaults
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 from tripl.services.variable_service import rewrite_variable_token_references
 
 logger = logging.getLogger(__name__)
@@ -1356,7 +1356,7 @@ async def revert_change(
     Returns the branch's diff after the revert, so the caller renders the result
     without a second round-trip.
     """
-    project = await get_project_by_slug(session, slug, detail=f"Project '{slug}' not found")
+    project = await resolve_project(session, slug, detail=f"Project '{slug}' not found")
     branch = await _load_branch(session, project, branch_id)
     # Bound to a plain local BEFORE the first write, and ``branch_id`` used below
     # in place of ``branch.id`` for the same reason. A failed flush rolls back to

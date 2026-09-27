@@ -26,7 +26,7 @@ from tripl.schemas.alerting import (
 from tripl.services._alerting_scope_readiness import load_scope_readiness
 from tripl.services._monitor_state_intervals import load_monitor_state_intervals
 from tripl.services.monitoring_utils import firing_monitor_states, summarize_monitor_states
-from tripl.services.project_lookup import get_project_by_slug as _get_project
+from tripl.services.project_lookup import resolve_project as _get_project
 
 
 def is_rule_muted(rule: AlertRule, now: datetime) -> bool:

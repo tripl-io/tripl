@@ -46,7 +46,7 @@ from tripl.schemas.alerting import AlertInboxGroupResponse
 from tripl.services import alerting_service, anomaly_attribution_service, signal_triage_service
 from tripl.services._signal_verdict_read import VERDICT_ACTIONS, resolve_verdict
 from tripl.services.mentions import excerpt
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 from tripl.services.signal_triage_service import SignalKey, TriageIndex
 
 # Part of the hash: a change to how facts are phrased or to the prompt makes
@@ -671,7 +671,7 @@ async def gather_incident_facts(
     project.
     """
     group = await alerting_service.get_alert_inbox_group(session, slug, correlation_group_id)
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     scopes, first_bucket = await _load_scopes(session, project.id, correlation_group_id)
     first_bucket = first_bucket or as_utc(group.latest_bucket)
     latest_bucket = as_utc(group.latest_bucket)

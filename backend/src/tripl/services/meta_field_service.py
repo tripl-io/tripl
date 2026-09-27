@@ -16,7 +16,7 @@ from tripl.schemas.meta_field import (
     MetaFieldUsageResponse,
 )
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
 
@@ -29,7 +29,7 @@ async def list_meta_fields(
         if cached is not None:
             return [MetaFieldResponse.model_validate(item) for item in cached]
 
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(MetaFieldDefinition)
@@ -58,7 +58,7 @@ async def create_meta_field(
     branch_id: uuid.UUID | None = None,
 ) -> MetaFieldDefinition:
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     existing = await session.execute(
         select(MetaFieldDefinition).where(
@@ -87,7 +87,7 @@ async def update_meta_field(
     branch_id: uuid.UUID | None = None,
 ) -> MetaFieldDefinition:
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(MetaFieldDefinition).where(
@@ -129,7 +129,7 @@ async def delete_meta_field(
     branch_id: uuid.UUID | None = None,
 ) -> None:
     is_main = branch_id is None
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     result = await session.execute(
         select(MetaFieldDefinition).where(
@@ -159,7 +159,7 @@ async def get_meta_field_usage(
     The delete confirm names both before the cascade removes them (AU-37). An
     empty string is not a value anyone would miss, so it is not counted.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     exists = await session.scalar(
         select(MetaFieldDefinition.id).where(

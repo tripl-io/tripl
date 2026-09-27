@@ -51,6 +51,7 @@ _app_settings.apply_startup_service_overrides = lambda session=None: []
 from tripl.main import app  # noqa: E402
 
 _app_settings.apply_startup_service_overrides = _real_apply_startup_service_overrides
+from tripl.middleware.org_context import OrgRef, bind_org, reset_org  # noqa: E402
 from tripl.middleware.rate_limit import (  # noqa: E402
     login_rate_limiter,
     register_rate_limiter,
@@ -58,6 +59,7 @@ from tripl.middleware.rate_limit import (  # noqa: E402
 )
 from tripl.models import Base  # noqa: E402
 from tripl.models.data_source import TestStatus  # noqa: E402
+from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG  # noqa: E402
 
 # A model enum whose name starts with "Test"; test modules that import it made
 # pytest try to collect it and warn once per worker.
@@ -154,6 +156,40 @@ async def setup_db() -> AsyncGenerator[None]:
             await conn.run_sync(_empty_all_tables)
         else:
             _pristine_schema = await conn.run_sync(_build_schema)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "no_default_org: do not bind the default organization around the test "
+        "(for the org-context tests that assert what happens with none bound)",
+    )
+
+
+@pytest.fixture(autouse=True)
+async def _bind_default_org(request: pytest.FixtureRequest) -> AsyncGenerator[None]:
+    """Act in the default organization when a test calls a service directly.
+
+    Outside HTTP nothing resolves an organization, and a slug lookup without one
+    raises ``OrgContextMissing`` by design (F20 PR2). Every project a test makes
+    lives in the default organization, so tests that call ``*_service.x(session,
+    slug)`` act there. An HTTP request does not inherit this binding:
+    ``OrgPathRewriteMiddleware`` unbinds for the request and the auth dependency
+    resolves the organization as in production.
+
+    Async on purpose: pytest-asyncio propagates contextvars set in an async
+    fixture into the test, which a sync fixture's binding may not reach.
+    """
+    if request.node.get_closest_marker("no_default_org") is not None:
+        yield
+        return
+    token = bind_org(OrgRef(id=DEFAULT_ORG_ID, slug=DEFAULT_ORG_SLUG))
+    yield
+    try:
+        reset_org(token)
+    except ValueError:
+        # Teardown ran in a different Context than setup; unbind directly.
+        bind_org(None)
 
 
 @pytest.fixture(autouse=True)

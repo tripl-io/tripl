@@ -64,7 +64,7 @@ from tripl.services._signal_verdict_read import (
     record_prevails,
     resolve_verdict,
 )
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 # The scopes the signal lists surface. Drift, schema and release-regression
 # scopes never reach them, so a verdict on one could never be seen.
@@ -411,7 +411,7 @@ async def resolve_signal(
     session: AsyncSession, slug: str, scope: SignalTriageScope
 ) -> tuple[TriageTarget, alerting_service.SignalIncidentRef | None]:
     """The signal ``scope`` names (404 if none) and the incident it was routed into."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     scope_type = str(scope.scope_type)
     _validate_scope_shape(scope_type, scope.scan_config_id)
 
@@ -684,7 +684,7 @@ async def _delete_verdict(
     bucket: datetime | None,
 ) -> tuple[Project, SignalTriage | None]:
     """Remove one verdict. Idempotent: undoing something already undone is a no-op."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     scope = str(scope_type)
     _validate_scope_shape(scope, scan_config_id)
     key = scope_key(scan_config_id, scope, scope_ref)

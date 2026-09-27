@@ -26,7 +26,7 @@ from tripl.schemas.scan_config import (
 )
 from tripl.services._celery_dispatch import dispatch
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ async def _reject_duplicate_name(
 
 
 async def list_scan_configs(session: AsyncSession, slug: str) -> list[ScanConfig]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(ScanConfig)
         .where(ScanConfig.project_id == project_id)
@@ -120,7 +120,7 @@ async def list_scan_configs(session: AsyncSession, slug: str) -> list[ScanConfig
 
 
 async def get_scan_config(session: AsyncSession, slug: str, scan_id: uuid.UUID) -> ScanConfig:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(ScanConfig).where(ScanConfig.id == scan_id, ScanConfig.project_id == project_id)
     )
@@ -133,7 +133,7 @@ async def get_scan_config(session: AsyncSession, slug: str, scan_id: uuid.UUID) 
 async def create_scan_config(
     session: AsyncSession, slug: str, data: ScanConfigCreate
 ) -> ScanConfig:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     await _verify_data_source(session, data.data_source_id, project_id)
     await _verify_main_event_type(session, project_id, data.event_type_id)
     await _reject_duplicate_name(session, data.data_source_id, data.name)
@@ -253,7 +253,7 @@ async def trigger_preview(
     Preview queries the warehouse and can exceed the gateway timeout, so the
     work runs in the worker; the client polls ``get_preview_job`` for the result.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     await _verify_data_source(session, data.data_source_id, project_id)
 
     job = ScanPreviewJob(
@@ -288,7 +288,7 @@ async def get_preview_job(
     slug: str,
     job_id: uuid.UUID,
 ) -> ScanPreviewJob:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(ScanPreviewJob).where(
             ScanPreviewJob.id == job_id,
@@ -312,7 +312,7 @@ async def trigger_dry_run(
     slower than the preview that already needed a worker job — hence 202 + poll
     rather than an in-request answer.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
 
     if data.scan_config_id is not None:
         # Saved-config path. Scoping the config to the project is the check that
@@ -376,7 +376,7 @@ async def get_dry_run_job(
     slug: str,
     job_id: uuid.UUID,
 ) -> ScanDryRunJob:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(ScanDryRunJob).where(
             ScanDryRunJob.id == job_id,

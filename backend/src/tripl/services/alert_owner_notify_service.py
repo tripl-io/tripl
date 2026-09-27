@@ -57,7 +57,7 @@ from tripl.schemas.alert_owner import NotifyOwnersResponse
 from tripl.schemas.event_metric import SignalTriageScope
 from tripl.services import alert_owner_routing, app_settings_service
 from tripl.services.anomaly_attribution_service import _anomaly_in_project
-from tripl.services.project_lookup import get_project_by_slug
+from tripl.services.project_lookup import resolve_project
 
 # How many of an incident's newest items the email lists. An incident is one
 # scope over time, so the newest few say everything the owner needs.
@@ -245,7 +245,7 @@ async def notify_incident_owners(
     actor: User,
 ) -> ManualNotifyResult:
     """Email the owners of one inbox incident, now. Does not commit."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     items = list(
         (
             await session.execute(
@@ -311,7 +311,7 @@ async def notify_signal_owners(
     actor: User,
 ) -> ManualNotifyResult:
     """Email the owners of one signal no rule routed, now. Does not commit."""
-    project = await get_project_by_slug(session, slug)
+    project = await resolve_project(session, slug)
     conditions = [
         MetricAnomaly.scope_type == data.scope_type.value,
         MetricAnomaly.scope_ref == data.scope_ref,

@@ -15,7 +15,7 @@ from tripl.models.field_definition import FieldDefinition
 from tripl.schemas.ai import AiAskResponse, AiAskSource, AiDescribeResponse, AiFieldSuggestion
 from tripl.services import app_settings_service, llm_service, search_service
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ async def suggest_event_description(
     event_id: uuid.UUID,
     branch_id: uuid.UUID | None,
 ) -> AiDescribeResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
 
     event = await session.scalar(
@@ -169,7 +169,7 @@ async def suggest_event_type_descriptions(
     event_type_id: uuid.UUID,
     branch_id: uuid.UUID | None,
 ) -> AiDescribeResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
 
     event_type = await session.scalar(

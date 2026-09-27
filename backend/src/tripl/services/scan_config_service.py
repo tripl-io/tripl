@@ -27,7 +27,7 @@ from tripl.schemas.scan_config import (
 )
 from tripl.services import scan_service
 from tripl.services.monitoring_utils import scan_interval_to_timedelta
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.source_freshness import DEFAULT_SETTLING, compute_freshness
 
 
@@ -97,7 +97,7 @@ async def list_source_freshness(
     now: datetime | None = None,
 ) -> list[SourceFreshnessItem]:
     """Every scan config of the project with its freshness (Overview, source cards)."""
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     result = await session.execute(
         select(ScanConfig)
         .where(ScanConfig.project_id == project_id)

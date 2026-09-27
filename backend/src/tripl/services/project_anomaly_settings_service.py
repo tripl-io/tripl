@@ -15,7 +15,7 @@ from tripl.schemas.project_anomaly_settings import (
     ProjectAnomalySettingsUpdate,
     settling_window_conflict,
 )
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 
 async def _ensure_settings(
@@ -39,7 +39,7 @@ async def get_project_anomaly_settings(
     session: AsyncSession,
     slug: str,
 ) -> ProjectAnomalySettings:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     return await _ensure_settings(session, project_id)
 
 
@@ -99,7 +99,7 @@ async def update_project_anomaly_settings(
     slug: str,
     data: ProjectAnomalySettingsUpdate,
 ) -> ProjectAnomalySettings:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     settings = await _ensure_settings(session, project_id)
     patch = data.model_dump(exclude_unset=True, exclude_none=True)
     _reject_incoherent_timings(patch, settings)
@@ -121,7 +121,7 @@ async def list_anomaly_scope_overrides(
     the only way back to the project-wide sensitivity for a scope is to see the
     override and delete it.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     rows = (
         await session.execute(
             select(AnomalyScopeOverride, ScanConfig.name)
@@ -154,7 +154,7 @@ async def get_anomaly_scope_override(
     slug: str,
     override_id: uuid.UUID,
 ) -> AnomalyScopeOverride:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     override = await session.get(AnomalyScopeOverride, override_id)
     if override is None or override.project_id != project_id:
         raise HTTPException(status_code=404, detail="Anomaly scope override not found")

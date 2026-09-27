@@ -35,7 +35,7 @@ from tripl.services.lifecycle_rules import (
     prorated_window_volume,
 )
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 _RelatedEvent = aliased(Event)
 
@@ -71,7 +71,7 @@ async def list_findings(
     session: AsyncSession, slug: str, *, include_resolved: bool = False
 ) -> list[LifecycleFindingResponse]:
     """A project's findings: open ones first by default, newest episode first."""
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     stmt = _finding_query().where(LifecycleFinding.project_id == project_id)
     if not include_resolved:
         stmt = stmt.where(LifecycleFinding.resolved_at.is_(None))
@@ -185,7 +185,7 @@ async def event_migration(
     404 when the event does not exist in the project or names no successor.
     Volume is read off the main twins, where metrics land.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     resolved_branch = await resolve_branch_id(session, project_id, branch_id)
     event = await _event_in_project(
         session, project_id=project_id, event_id=event_id, branch_id=resolved_branch

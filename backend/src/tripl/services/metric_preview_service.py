@@ -80,7 +80,7 @@ from tripl.schemas.metric_definition import (
     MetricSeriesPreviewRequest,
 )
 from tripl.services.fact_table_service import get_fact_table
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 
 if TYPE_CHECKING:
     # Type-only: the worker package stays out of this module's import graph.
@@ -422,7 +422,7 @@ async def preview_sql_metric(
         _coerce_value,
     )
 
-    project_id = await get_project_id_by_slug(session, slug)  # 404 for an unknown project
+    project_id = await resolve_project_id(session, slug)  # 404 for an unknown project
     # Project-scoped, not a bare id lookup. This function OPENS A CONNECTION with
     # the selected data source's credential and runs the user's free-text SELECT
     # through it, so resolving the id without a project term let an editor in
@@ -948,7 +948,7 @@ async def preview_metric_series(
     the other previews do; an unknown project, fact table or data source is a
     404 and an event outside the project a 422, as on save.
     """
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     if isinstance(data, FactMetricDefinition):
         return await _preview_fact_series(session, slug, project_id, data)
     return await _preview_event_composition_series(session, project_id, data)

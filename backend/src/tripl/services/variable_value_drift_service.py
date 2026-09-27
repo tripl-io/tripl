@@ -24,7 +24,7 @@ from tripl.schemas.variable_value_drift import (
     VariableValueDriftListResponse,
     VariableValueDriftResponse,
 )
-from tripl.services.project_lookup import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.search_service import reindex_project_branch
 
 DRIFT_RETENTION_DAYS = 30
@@ -57,7 +57,7 @@ async def list_value_drifts(
     variable_id: uuid.UUID | None = None,
     event_id: uuid.UUID | None = None,
 ) -> VariableValueDriftListResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     cutoff = _retention_cutoff()
     query = (
         select(VariableValueDrift)
@@ -128,7 +128,7 @@ async def apply_drift_action(
     data: VariableValueDriftActionRequest,
     user: User,
 ) -> VariableValueDriftResponse:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     row = (
         await session.execute(
             select(VariableValueDrift, Variable)

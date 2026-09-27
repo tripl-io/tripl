@@ -58,6 +58,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.project import Project
+from tripl.services.project_lookup import project_slug_clause
 
 __all__ = [
     "hold_branch_for_plan_write",
@@ -117,7 +118,7 @@ async def hold_main_plan_for_write(session: AsyncSession, slug: str) -> None:
     await session.execute(
         select(PlanBranch.id)
         .join(Project, Project.id == PlanBranch.project_id)
-        .where(Project.slug == slug, PlanBranch.kind == BranchKind.main.value)
+        .where(project_slug_clause(slug), PlanBranch.kind == BranchKind.main.value)
         .with_for_update(read=True, of=PlanBranch)
     )
 

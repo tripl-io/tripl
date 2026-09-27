@@ -28,7 +28,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tripl.config import settings
+from tripl.middleware.org_context import OrgRef, bound_org
 from tripl.models import Base
+from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG
 from tripl.models.plan_branch import PlanBranch
 from tripl.services._search_documents import build_documents, embed_text_for
 from tripl.services.app_settings_service import env_ai_config
@@ -103,7 +105,10 @@ async def _collect_demo_embed_texts(session: AsyncSession) -> CollectedTexts:
     """
     from tripl.services import demo_service
 
-    project = await demo_service.create_demo_project(session, slug="demo-fixture-gen")
+    # A script has no request organization; the demo seed resolves its project
+    # by slug, so bind the default organization for that call (F20 PR2).
+    with bound_org(OrgRef(DEFAULT_ORG_ID, DEFAULT_ORG_SLUG)):
+        project = await demo_service.create_demo_project(session, slug="demo-fixture-gen")
     branches = list(
         (
             await session.execute(

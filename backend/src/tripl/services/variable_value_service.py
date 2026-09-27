@@ -15,7 +15,7 @@ from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue, VariableValueKind
 from tripl.schemas.variable import SUMMARY_EVENT_LIMIT, SUMMARY_VALUE_LIMIT, VariableEventRef
 from tripl.services.plan_branch_service import resolve_branch_id
-from tripl.services.project_service import get_project_id_by_slug
+from tripl.services.project_lookup import resolve_project_id
 from tripl.services.variable_value_drift_service import get_open_drift_counts
 
 
@@ -127,7 +127,7 @@ async def list_variable_values(
     variable_id: uuid.UUID,
     branch_id: uuid.UUID | None = None,
 ) -> list[VariableValue]:
-    project_id = await get_project_id_by_slug(session, slug)
+    project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variable = await session.scalar(
         select(Variable).where(

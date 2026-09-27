@@ -31,6 +31,7 @@ from tripl.services import (
     audit_service,
     demo_service,
     detection_reset_service,
+    project_lookup,
     project_service,
     project_template_service,
     variable_retirement_service,
@@ -255,7 +256,7 @@ async def reset_demo_project(
     # left a full re-seed one click away (tripl-2su6.16). Delete deliberately
     # stays ungated, so a workspace can never be stuck with a demo it can't remove.
     _require_demo_enabled()
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     if not project.is_demo:
         raise HTTPException(status_code=404, detail="Demo project not found")
     _require_demo_manager(current_user, project)
@@ -279,7 +280,7 @@ async def reset_demo_project(
 @router.delete("/demo/{slug}", status_code=204)
 async def delete_demo_project(session: SessionDep, current_user: EditorUserDep, slug: str) -> None:
     """Delete a demo and its owned synthetic warehouse. Creator or owner only."""
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     if not project.is_demo:
         raise HTTPException(status_code=404, detail="Demo project not found")
     _require_demo_manager(current_user, project)
@@ -318,7 +319,7 @@ async def update_project(
     slug: str,
     data: ProjectUpdate,
 ) -> ProjectResponse:
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     _require_project_manager(current_user, project)
     updated = await project_service.update_project(session, slug, data)
     # Named as it stands AFTER the edit, like every other update row, and filed
@@ -346,7 +347,7 @@ async def update_project(
 # order to say WHO deleted the project.
 @router.delete("/{slug}", status_code=204)
 async def delete_project(session: SessionDep, current_user: OwnerUserDep, slug: str) -> None:
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     # Read before the delete: afterwards this row is the only thing that knows
     # what the id pointed at.
     project_id, name = project.id, project.name
@@ -373,7 +374,7 @@ async def reset_anomalies(
     Destructive and irreversible. Derived monitoring signals disappear with the
     anomalies they are computed from. ``dry_run`` only counts (ST-39).
     """
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     counts = await detection_reset_service.reset_project_anomalies(
         session,
         project.id,
@@ -406,7 +407,7 @@ async def reset_drifts(
 
     Destructive and irreversible. ``dry_run`` only counts (ST-39).
     """
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     counts = await detection_reset_service.reset_project_drifts(
         session,
         project.id,
@@ -453,7 +454,7 @@ async def retire_unused_variables(
     returns the same counts the real pass would, broken down by why each
     surviving row was kept.
     """
-    project = await project_service.get_project_by_slug(session, slug)
+    project = await project_lookup.resolve_project(session, slug)
     counts = await variable_retirement_service.retire_unused_variables(
         session,
         project_id=project.id,
