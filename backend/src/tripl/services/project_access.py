@@ -27,10 +27,11 @@ catalog (F20 PR4: organization roles are the source of truth):
   ``users.role`` is never read.
 
 The one known exception: creating or re-slugging a project onto a slug that is
-already taken answers 409, member or not. Slugs are unique instance-wide and
-the create/rename path has to refuse the collision, so that response does
-reveal that the slug exists. It is unavoidable without per-user slug
-namespaces, and it only leaks the slug, never the project's contents.
+already taken in the same organization answers 409, member or not. Slugs are
+unique per organization (F20 PR5) and the create/rename path has to refuse the
+collision, so that response does reveal that the slug exists in that
+organization — never in another one, where the same slug is free. It only
+leaks the slug, never the project's contents.
 
 Editing inside a project takes an :data:`EDITING_ROLES` role. This module
 imports models only, never another service — apart from

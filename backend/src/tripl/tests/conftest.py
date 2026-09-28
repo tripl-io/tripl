@@ -66,13 +66,17 @@ from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG  # noqa: 
 TestStatus.__test__ = False  # type: ignore[attr-defined]
 from tripl.tests._default_org import (  # noqa: E402
     install_default_organization_seeding,
+    install_test_row_default_org,
     seed_default_organization,
 )
 from tripl.tests._sqlite import enable_sqlite_foreign_keys  # noqa: E402
 
 # Every schema built from the models — this one and each module's own engine —
-# starts with the default organization every project belongs to (F20 PR1).
+# starts with the default organization every project belongs to (F20 PR1), and a
+# row a test builds without an organization lands in it (F20 PR5: the models no
+# longer default it, so application code that forgets still fails).
 install_default_organization_seeding()
+install_test_row_default_org()
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

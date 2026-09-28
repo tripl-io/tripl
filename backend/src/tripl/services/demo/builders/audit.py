@@ -598,6 +598,10 @@ async def build_audit(session: AsyncSession, ctx: DemoContext) -> None:
                 # row carries neither, exactly as its real route records it.
                 project_id=project.id if entry.project_scoped else None,
                 project_slug=project.slug if entry.project_scoped else "",
+                # Every row, instance-scoped ones included, belongs to the
+                # demo's organization: left to the column default it would land
+                # in the default organization's feed (F20 PR5).
+                organization_id=project.organization_id,
                 # A branch on the ONE row the recipe really authored on the
                 # feature branch — the event edit — and on nothing else. Creating
                 # the branch is itself an action on main

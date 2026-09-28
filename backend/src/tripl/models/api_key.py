@@ -3,13 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
 from tripl.models.domain_enums import ApiKeyScope
 from tripl.models.enum_types import db_enum
-from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 
 
 class ApiKey(UUIDMixin, TimestampMixin, Base):
@@ -32,6 +31,20 @@ class ApiKey(UUIDMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "api_keys"
+    __table_args__ = (
+        # A project-bound key lives in its project's organization (F20 PR5).
+        # MATCH SIMPLE: an unbound key (NULL project_id) is not checked.
+        # Two FKs now point at ``projects`` (this and ``project_id``'s own), so
+        # ``join(Project)`` without an ON clause raises AmbiguousForeignKeysError:
+        # join with ``ApiKey.project_id == Project.id``, and give any future
+        # ``relationship()`` to Project ``foreign_keys=[project_id]``.
+        ForeignKeyConstraint(
+            ["project_id", "organization_id"],
+            ["projects.id", "projects.organization_id"],
+            name="fk_api_keys_project_organization",
+            ondelete="CASCADE",
+        ),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -39,13 +52,10 @@ class ApiKey(UUIDMixin, TimestampMixin, Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True, nullable=True
     )
-    # A project-bound key belongs to its project's organization.
-    # F20 PR1: the owning organization. Always the default one for now — the
-    # ORM default and the server default both name it (see models/organization).
+    # The owning organization; a project-bound key's is its project's (enforced
+    # by fk_api_keys_project_organization). No ORM or server default (F20 PR5).
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="RESTRICT"),
-        default=DEFAULT_ORG_ID,
-        server_default=default_org_server_default(),
         nullable=False,
         index=True,
     )

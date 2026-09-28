@@ -1,11 +1,14 @@
 """Organizations: the tenant boundary above projects (F20, GH #273).
 
 Every project, data source, API key and invitation belongs to exactly one
-organization, and today that is always the default one below: the migration
-puts every existing row and every existing user there, and the ORM default puts
-every new row there too. Since PR4 ``organization_members.role`` is the source
-of truth for every organization-level permission (``services.project_access``,
-``api.deps``); ``users.role`` is no longer read.
+organization. The PR1 migration put every existing row and every existing user
+in the default one below. Since PR5 there is no ORM or server default on those
+``organization_id`` columns: every write names its organization (the bound one,
+``middleware.org_context``) and a write that forgets fails on NOT NULL instead
+of landing in the default organization. Since PR4 ``organization_members.role``
+is the source of truth for every organization-level permission
+(``services.project_access``, ``api.deps``); ``users.role`` is no longer read.
+
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole
 from tripl.models.enum_types import db_enum
 
 #: The organization every pre-organization row was migrated into. A fixed,
-#: well-known id rather than a generated one, so the migration, the ORM default
+#: well-known id rather than a generated one, so the migration, the audit-log default
 #: and the test fixtures all name the same row without looking it up.
 DEFAULT_ORG_ID = uuid.UUID("00000000-0000-0000-0000-00000000d0f1")
 DEFAULT_ORG_SLUG = "default"
@@ -58,11 +61,12 @@ def _compile_default_org_id_pg(
 
 
 def default_org_server_default() -> _DefaultOrgIdLiteral:
-    """The DDL default for an ``organization_id`` column during the transition.
+    """The DDL default for ``audit_log.organization_id``.
 
-    Kept alongside the ORM default so a container still running the previous
-    release during a deploy — which knows nothing about organizations — can keep
-    inserting rows after the migration has made the column NOT NULL.
+    Only the audit log keeps it (its column is nullable anyway: platform-level
+    actions have no organization). Projects, data sources, API keys and
+    invitations lost theirs in F20 PR5, so a write that forgets its organization
+    fails instead of landing in the default one.
     """
     return _DefaultOrgIdLiteral()
 
