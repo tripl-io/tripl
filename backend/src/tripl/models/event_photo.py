@@ -56,10 +56,20 @@ class EventPhoto(UUIDMixin, TimestampMixin, Base):
     # orphan sweep follow the row, never the current setting. Branch twins copy
     # all four storage columns with the key.
     storage_org_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, default=None
+        ForeignKey(
+            "organizations.id",
+            ondelete="SET NULL",
+            name="fk_event_photos_storage_org_id_organizations",
+        ),
+        nullable=True,
+        default=None,
     )
     storage_config_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("photo_storage_configs.id", ondelete="RESTRICT"),
+        ForeignKey(
+            "photo_storage_configs.id",
+            ondelete="RESTRICT",
+            name="fk_event_photos_storage_config_id_photo_storage_configs",
+        ),
         nullable=True,
         default=None,
         index=True,
