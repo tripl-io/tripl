@@ -7,7 +7,7 @@ from fastapi.dependencies.models import Dependant
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import settings
+from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
 from tripl.middleware.org_context import (
@@ -510,6 +510,23 @@ async def require_platform_admin(request: Request, user: CurrentUserDep) -> User
     return user
 
 
+async def require_org_creator(request: Request, user: CurrentUserDep) -> User:
+    """Who may create an organization (``POST /orgs``). Never an API key.
+
+    Self-hosted: a platform admin only (owner decision 4). Hosted: any signed-in
+    browser session; the hosted email-verification gate in
+    :func:`get_current_user` has already refused unverified accounts.
+    """
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        return await require_platform_admin(request, user)
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="A browser session is required"
+        )
+    return user
+
+
 _LEGACY_SETTINGS_ORG_STATE_KEY = "legacy_settings_org_id"
 
 
@@ -684,6 +701,7 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
     get_owner_user: get_owner_user,
     get_key_reachable_owner_user: get_key_reachable_owner_user,
     require_platform_admin: lambda request, _session, user: require_platform_admin(request, user),
+    require_org_creator: lambda request, _session, user: require_org_creator(request, user),
     get_settings_admin_user: get_settings_admin_user,
     get_path_org_admin_user: get_path_org_admin_user,
     get_path_org_owner_user: get_path_org_owner_user,

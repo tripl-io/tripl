@@ -24,9 +24,9 @@ from tripl.api.deps import (
     get_path_org_admin_user,
     get_path_org_owner_user,
     get_settings_admin_user,
+    require_org_creator,
     require_platform_admin,
 )
-from tripl.api.v1.orgs import require_org_creator
 from tripl.main import app
 from tripl.tests._members import add_member_by_slug
 from tripl.tests.test_rbac import MIN_API_ROUTES, iter_api_routes
@@ -175,7 +175,7 @@ PLATFORM_SETTINGS_ROUTES = {
 # Routes only a platform admin reaches.
 PLATFORM_ADMIN_ROUTES = set(PLATFORM_SETTINGS_ROUTES)
 # Creating an organization: a platform admin self-hosted, any verified session
-# hosted (``orgs.require_org_creator``, F20 hosted sign-up).
+# hosted (``deps.require_org_creator``, F20 hosted sign-up).
 ORG_CREATOR_ROUTES = {"POST /api/v1/orgs"}
 
 # The organization management gates (F20 PR6): a membership of the ORGANIZATION

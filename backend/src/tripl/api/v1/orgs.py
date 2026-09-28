@@ -38,10 +38,8 @@ from tripl.api.deps import (
     PathOrgMemberUserDep,
     PathOrgOwnerUserDep,
     SessionDep,
-    require_platform_admin,
-    require_write_scope,
+    require_org_creator,
 )
-from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
 from tripl.models.user import User
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
@@ -84,16 +82,6 @@ async def list_orgs(
         current_user.id,
         only_org_id=getattr(request.state, "api_key_org_id", None),
     )
-
-
-async def require_org_creator(request: Request, user: CurrentUserDep) -> User:
-    """Who may ``POST /orgs``: see the module docstring. Never an API key."""
-    if settings.deployment_mode != DEPLOYMENT_HOSTED:
-        return await require_platform_admin(request, user)
-    require_write_scope(request)
-    if getattr(request.state, "api_key_scope", None) is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=BROWSER_SESSION_REQUIRED)
-    return user
 
 
 OrgCreatorDep = Annotated[User, Depends(require_org_creator)]
