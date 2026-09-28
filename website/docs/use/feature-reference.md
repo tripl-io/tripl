@@ -1929,7 +1929,7 @@ routing:** a rule with `notify_owners` on also emails, after its own delivery
 is sent, the owners of the matched items — event-type owners on `main` for event
 and event-type scopes and for other signals about an event or event type (drift,
 release regression, lifecycle), the metric's owner for a catalog metric, nobody
-for project total or source freshness. Owners who are not project members or
+for project total or source freshness. Owners who cannot see the project or
 have no email are neither notified nor listed; when email is unavailable (no
 SMTP or Default From, or a demo project) owners are recorded as skipped, never
 failing the delivery. One email goes out per rule delivery, so a digest batching

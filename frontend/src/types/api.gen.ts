@@ -629,10 +629,14 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Rename Org
-         * @description Rename the organization. Only the name: a ``slug`` in the body is a 422.
+         * Update Org
+         * @description Rename the organization and/or set its default project role.
+         *
+         *     The slug is permanent: a ``slug`` in the body is a 422, and so is a
+         *     ``default_project_role`` of ``owner``. Audited as ``org.update`` with the
+         *     changed fields before and after.
          */
-        patch: operations["rename_org_api_v1_orgs__org__patch"];
+        patch: operations["update_org_api_v1_orgs__org__patch"];
         trace?: never;
     };
     "/api/v1/orgs/{org}/groups": {
@@ -12450,6 +12454,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            default_project_role: components["schemas"]["ProjectMemberRole"];
             /**
              * Id
              * Format: uuid
@@ -12659,11 +12664,15 @@ export interface components {
         };
         /**
          * OrgUpdate
-         * @description A rename. ``extra="forbid"``: the slug is immutable, so sending one is a 422.
+         * @description A partial update: the name and/or the default project role.
+         *
+         *     ``extra="forbid"``: the slug is immutable, so sending one is a 422. At
+         *     least one field must be sent.
          */
         OrgUpdate: {
+            default_project_role?: components["schemas"]["ProjectMemberRole"] | null;
             /** Name */
-            name: string;
+            name?: string | null;
         };
         /**
          * OrganizationRole
@@ -12672,7 +12681,8 @@ export interface components {
          *     The source of truth for organization-level rights (F20 PR4). ``owner`` and
          *     ``admin`` administer the organization and are the implicit ``owner`` of
          *     every project in it; only an ``owner`` can make or unmake another owner.
-         *     ``member`` holds exactly the roles of their ``project_members`` rows.
+         *     ``member`` holds the role of their ``project_members`` row in a project,
+         *     or the organization's ``default_project_role`` where they hold none.
          * @enum {string}
          */
         OrganizationRole: "owner" | "admin" | "member";
@@ -13774,10 +13784,16 @@ export interface components {
          *     There is no per-project ``owner``: an owner or admin of the project's
          *     organization (:class:`OrganizationRole`) sees and manages every project of
          *     that organization without a membership row, as project role ``owner``. For
-         *     everyone else the row is authoritative (``services.project_access``).
+         *     everyone else the row is authoritative (``services.project_access``), and
+         *     a member without a row gets the organization's ``default_project_role``.
+         *
+         *     ``none`` is "no access": as a row it opts one organization member out of
+         *     one project (the project is a 404 for them, whatever the organization
+         *     default); as ``organizations.default_project_role`` it means members see
+         *     only the projects they hold a row in.
          * @enum {string}
          */
-        ProjectMemberRole: "editor" | "viewer";
+        ProjectMemberRole: "none" | "editor" | "viewer";
         /** ProjectMemberUpdate */
         ProjectMemberUpdate: {
             role: components["schemas"]["ProjectMemberRole"];
@@ -17833,7 +17849,7 @@ export interface operations {
             };
         };
     };
-    rename_org_api_v1_orgs__org__patch: {
+    update_org_api_v1_orgs__org__patch: {
         parameters: {
             query?: never;
             header?: never;

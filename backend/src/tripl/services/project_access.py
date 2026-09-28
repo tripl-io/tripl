@@ -11,11 +11,17 @@ catalog (F20 PR4: organization roles are the source of truth):
   organization, with no membership row. The organization is always joined from
   the project row, never taken from the caller, so an admin of one organization
   holds nothing in another (critique #4);
-* anyone else holds exactly the role of their ``project_members`` row
-  (``editor`` or ``viewer``). The row is authoritative: the old instance-role
-  cap is gone, and migration ``c9e1a3b5d7f9`` capped the rows of the former
+* anyone else with a ``project_members`` row holds exactly the role it says
+  (``editor`` or ``viewer``), and a ``none`` row is no access at all. The row is
+  authoritative, below the organization default as well as above it: a member
+  opted out with ``none``, or held to ``viewer`` under an ``editor`` default,
+  stays there. Migration ``c9e1a3b5d7f9`` capped the rows of the former
   instance viewers once;
-* no row means ``None``: the project does not exist for that user. Callers turn
+* an organization ``member`` with no row gets the organization's
+  ``default_project_role`` (``none``, ``viewer`` or ``editor``; F20). ``none``
+  — the default — keeps projects invisible to members without a row. Someone
+  who is not a member of the project's organization gets nothing from it;
+* no role means ``None``: the project does not exist for that user. Callers turn
   that into the same 404 an unknown slug gets, never a 403, so a non-member
   cannot even learn that the slug is taken. A project-bound API key hitting
   another project's slug gets that same 404 (``api.deps._enforce_project_scope``);
@@ -31,6 +37,11 @@ catalog (F20 PR4: organization roles are the source of truth):
   another organization is ``None`` for everyone, so an id taken from a resource
   (a photo, a comment, a reviewer) cannot reach across organizations.
   ``users.role`` is never read.
+
+Two helpers carry the rule, and every surface goes through one of them:
+:func:`effective_role` (Python, over the rows :func:`_role_rows` reads) and
+:func:`project_member_clause` (SQL, for the lists and fan-outs). They state the
+same four arms in the same order; change them together.
 
 The one known exception: creating or re-slugging a project onto a slug that is
 already taken in the same organization answers 409, member or not. Slugs are
@@ -57,7 +68,7 @@ from sqlalchemy.orm import QueryableAttribute, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from tripl.middleware.org_context import current_org_id, require_org_id, stepped_in
-from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
+from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.models.organization import Organization, OrganizationMember
 from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
@@ -121,19 +132,45 @@ async def is_org_owner(session: AsyncSession, user: User, org_id: uuid.UUID | No
     return await org_role_of(session, user.id, target) == OrganizationRole.owner
 
 
-def effective_role(org_role: str | None, membership_role: object | None) -> ProjectRole | None:
-    """The project role from the caller's org role and membership row.
+#: ``project_members.role`` / ``organizations.default_project_role`` for "no access".
+NO_ACCESS = ProjectMemberRole.none.value
+
+
+def _granted(role: object | None) -> ProjectRole | None:
+    """A ``project_member_role`` value as a project role; ``none``/``None`` is ``None``."""
+    if role is None:
+        return None
+    value = str(role)
+    if value == VIEWER:
+        return VIEWER
+    if value == EDITOR:
+        return EDITOR
+    return None
+
+
+def effective_role(
+    org_role: str | None, membership_role: object | None, default_role: object | None
+) -> ProjectRole | None:
+    """The project role from the caller's org role, membership row and org default.
 
     Pure. ``org_role`` MUST be the caller's role in the project's OWN
     organization (the callers here join it from the project row); ``None`` for
     a non-member. ``membership_role`` is the raw ``project_members.role`` (a
     ``ProjectMemberRole`` or its string value), ``None`` for no row.
+    ``default_role`` is that organization's ``default_project_role``.
+
+    In order: an org owner/admin is ``owner``; a row decides (``none`` is no
+    access, even under a wider default); an org member without a row gets the
+    default; anyone else gets nothing. :func:`project_member_clause` is the SQL
+    twin.
     """
     if is_org_admin_role(org_role):
         return OWNER
-    if membership_role is None:
+    if membership_role is not None:
+        return _granted(membership_role)
+    if org_role is None:
         return None
-    return VIEWER if str(membership_role) == VIEWER else EDITOR
+    return _granted(default_role)
 
 
 def _step_in_role(
@@ -150,14 +187,23 @@ def _step_in_role(
 
 
 def _role_rows(user_id: uuid.UUID) -> Select[Any]:
-    """``(project id, org role, membership role, project org id)`` per project, for one user.
+    """``(project id, org role, membership role, project org id, org default)`` per project.
 
-    The org role is joined from the PROJECT's organization, never from the
-    request, so an admin of another organization contributes nothing.
+    For one user. The org role and the default are joined from the PROJECT's
+    organization, never from the request, so an admin of another organization
+    contributes nothing. Feed ``row[1]``, ``row[2]``, ``row[4]`` to
+    :func:`effective_role`.
     """
     return (
-        select(Project.id, OrganizationMember.role, ProjectMember.role, Project.organization_id)
+        select(
+            Project.id,
+            OrganizationMember.role,
+            ProjectMember.role,
+            Project.organization_id,
+            Organization.default_project_role,
+        )
         .select_from(Project)
+        .join(Organization, Organization.id == Project.organization_id)
         .outerjoin(
             OrganizationMember,
             and_(
@@ -193,7 +239,7 @@ async def _member_role(
     row = (await session.execute(statement)).first()
     if row is None:
         return None
-    return _step_in_role(user_id, row[3], effective_role(row[1], row[2]))
+    return _step_in_role(user_id, row[3], effective_role(row[1], row[2], row[4]))
 
 
 async def member_role(
@@ -221,8 +267,10 @@ async def member_roles(
         return {}
     rows = await session.execute(_in_bound_org(_role_rows(user.id).where(Project.id.in_(ids))))
     roles: dict[uuid.UUID, ProjectRole] = {}
-    for project_id, org_role, row_role, project_org_id in rows.all():
-        role = _step_in_role(user.id, project_org_id, effective_role(org_role, row_role))
+    for project_id, org_role, row_role, project_org_id, default_role in rows.all():
+        role = _step_in_role(
+            user.id, project_org_id, effective_role(org_role, row_role, default_role)
+        )
         if role is not None:
             roles[project_id] = role
     return roles
@@ -245,23 +293,44 @@ def project_member_clause(
     user_id: _UuidOperand,
     project_id: _UuidOperand,
 ) -> ColumnElement[bool]:
-    """SQL: ``user_id`` holds a role in ``project_id``.
+    """SQL: ``user_id`` holds a role in ``project_id``; :func:`effective_role`'s twin.
 
-    A ``project_members`` row, OR an owner/admin membership of the organization
-    that owns the project. Built on aliases so the subqueries never correlate
-    with a ``project_members``/``projects`` table of the enclosing query; the
-    arguments may be columns of that query (for fan-out joins) or plain values.
+    An owner/admin membership of the organization that owns the project; OR a
+    ``project_members`` row other than ``none``; OR no row at all, a membership
+    of that organization, and an organization ``default_project_role`` other
+    than ``none``. Built on aliases so the subqueries never correlate with a
+    ``project_members``/``projects``/``organizations`` table of the enclosing
+    query; the arguments may be columns of that query (for fan-out joins) or
+    plain values.
     """
-    member = aliased(ProjectMember)
+    row = aliased(ProjectMember)
+    any_row = aliased(ProjectMember)
+    admin = aliased(OrganizationMember)
     org_member = aliased(OrganizationMember)
+    admin_project = aliased(Project)
     project = aliased(Project)
+    org = aliased(Organization)
     return or_(
-        exists().where(member.project_id == project_id, member.user_id == user_id),
         exists().where(
-            project.id == project_id,
-            org_member.organization_id == project.organization_id,
-            org_member.user_id == user_id,
-            org_member.role.in_(sorted(ORG_ADMIN_ROLES)),
+            admin_project.id == project_id,
+            admin.organization_id == admin_project.organization_id,
+            admin.user_id == user_id,
+            admin.role.in_(sorted(ORG_ADMIN_ROLES)),
+        ),
+        exists().where(
+            row.project_id == project_id,
+            row.user_id == user_id,
+            row.role != NO_ACCESS,
+        ),
+        and_(
+            ~exists().where(any_row.project_id == project_id, any_row.user_id == user_id),
+            exists().where(
+                project.id == project_id,
+                org.id == project.organization_id,
+                org.default_project_role != NO_ACCESS,
+                org_member.organization_id == project.organization_id,
+                org_member.user_id == user_id,
+            ),
         ),
     )
 
@@ -285,7 +354,9 @@ async def members_among(
     """The subset of ``user_ids`` that has a role in ``project_id``.
 
     :func:`member_role` for many users in one query: owners and admins of the
-    project's organization (no row needed) plus anyone holding a membership row.
+    project's organization (no row needed), anyone holding a membership row
+    other than ``none``, and the organization's members without a row when its
+    ``default_project_role`` grants access.
     A deleted user drops out. Used to ignore per-project grants (event type
     ownership, reviewer assignments) that outlived their holder's membership.
     """
@@ -326,7 +397,7 @@ async def member_role_by_slug(session: AsyncSession, user: User, slug: str) -> P
     row = (await session.execute(_role_rows(user.id).where(project_slug_clause(slug)))).first()
     if row is None:
         return None
-    return _step_in_role(user.id, row[3], effective_role(row[1], row[2]))
+    return _step_in_role(user.id, row[3], effective_role(row[1], row[2], row[4]))
 
 
 async def require_project_access(
@@ -363,7 +434,9 @@ async def still_member(
 
     Opens (and closes) its own short-lived session, so the stream holds no
     pooled connection between checks. The user row is re-read too: a deleted
-    user, or an org admin demoted to a member without a row, loses the stream.
+    user, an org admin demoted to a member without a row (under a ``none``
+    default), a member opted out with a ``none`` row, or a member whose access
+    came from a default that was since lowered to ``none``, loses the stream.
 
     A project that no longer exists ends the stream for everyone. A demo reset
     re-creates the project under the same slug with a new id, so a stream left
@@ -390,7 +463,7 @@ async def still_member(
         )
         if org_status is None:
             return False
-        if effective_role(row[1], row[2]) is not None:
+        if effective_role(row[1], row[2], row[4]) is not None:
             return str(org_status) == OrganizationStatus.active.value
         if not stepped_in(user.id, row[3]) or not user.is_platform_admin:
             return False

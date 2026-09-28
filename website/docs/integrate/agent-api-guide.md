@@ -72,8 +72,8 @@ answer as for a slug that does not exist, and always before any `403`.
 |---|---|---|
 | `GET /api/v1/orgs` | any account | Your organizations, with your role and the organization's `status` (`active` or `suspended`) in each. An API key lists only its own organization. |
 | `POST /api/v1/orgs` | self-hosted: platform admin; hosted: any account; browser session | `{"slug", "name"}`; the creator becomes the owner. `409` when the slug is taken, `422` for an invalid or reserved slug. |
-| `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `created_at`. |
-| `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"}` only. The slug is permanent; sending one is `422`. |
+| `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `default_project_role`, `created_at`. |
+| `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"?, "default_project_role"?}`: a rename, and/or the default access to projects (`none`, `viewer` or `editor`; `owner` is `422`), audited as `org.update` with before and after. The slug is permanent; sending one is `422`. |
 | `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
 | `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role; `limit` / `offset`. |
 | `PATCH /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | `{"role": "owner" \| "admin" \| "member"}`. Only an owner manages owners; the last owner cannot be demoted (`400`). |
@@ -189,17 +189,21 @@ If a Bearer token is invalid, expired, or revoked, the API returns `401`. If a v
 Project membership:
 
 - A key acts as the user who created it, so it reaches only the projects that
-  user is a **member** of (the key of an owner or admin of the organization
-  reaches every project of it). On any
+  user has **access** to (the key of an owner or admin of the organization
+  reaches every project of it). A member's access to a project is their
+  membership row there, or, without one, the organization's
+  `default_project_role` (`none`, `viewer` or `editor`); a row with role `none`
+  shuts them out whatever the default. On any
   other project every `/projects/{slug}/...` route answers `404`
   `Project not found`, the same answer as for a slug that does not exist, and the
   project is missing from `GET /api/v1/projects` and `GET /api/v1/activity`.
-- Creating a key with `project_slug` for a project the user is not a member of
+- Creating a key with `project_slug` for a project the user cannot see
   answers `404`.
-- Writing needs an **editor** membership. A viewer member's key gets `403` on
-  mutation routes, whatever its scope.
-- A new user is a member of no project. Ask the project's creator or an owner or
-  admin of the organization to add the account behind your key.
+- Writing needs **editor** access, by row or by the default. A viewer's key
+  gets `403` on mutation routes, whatever its scope.
+- Under the `none` default (every organization's until an owner or admin
+  changes it) a new user sees no project. Ask the project's creator or an owner
+  or admin of the organization to add the account behind your key.
 
 ### Account endpoints {#account-endpoints}
 
@@ -242,10 +246,14 @@ GET /api/v1/projects/{slug}/members
 ]
 ```
 
-`role` is the membership role, `editor` or `viewer`. The project response
+`role` is the membership role: `editor`, `viewer` or `none`. A `none` row
+("No access" in the app) opts an organization member out of a project the
+organization's `default_project_role` would otherwise give them; members
+without a row are not listed and hold the default. The project response
 (`GET /api/v1/projects/{slug}`) also carries `my_role` (`owner`, `editor` or
-`viewer`), the caller's effective role — `owner` for an owner or admin of the
-project's organization — and `can_mutate`.
+`viewer`, never `none`: without access the project is a `404`), the caller's
+effective role — `owner` for an owner or admin of the project's organization,
+else their row's role, else the organization's default — and `can_mutate`.
 
 Changing membership is limited to the organization's owners and admins and the
 project's creator, and needs a browser session: every API key, whatever its
@@ -261,11 +269,15 @@ PATCH  /api/v1/projects/{slug}/members/{user_id}  {"role": "editor"}
 DELETE /api/v1/projects/{slug}/members/{user_id}
 ```
 
+`role` is `editor`, `viewer` or `none`. A `none` row for an owner or admin of
+the organization answers `422`: they always see every project. Deleting a row
+returns its user to the organization's default access.
+
 Adding someone who is already a member answers `409`; an unknown user or
 membership answers `404`. When you add an event-type owner
 (`POST /api/v1/projects/{slug}/event-types/{event_type_id}/owners`) or a branch
 reviewer (`POST /api/v1/projects/{slug}/branches/{branch_id}/reviewers`), the
-user must be a member of the project, or the call answers `422`
+user must have access to the project, or the call answers `422`
 `User is not a member of this project`. Removing a member also removes their
 event-type ownerships and pending branch-reviewer assignments in that project,
 and closes a live-updates stream they have open within one heartbeat.
@@ -1002,9 +1014,10 @@ Owners of a matched item are the event type's owners on `main` (for an event,
 its type's owners; for an event type, its own; for any other scope about an
 event or event type — drift, release regression, lifecycle — that type's
 owners) plus, for a catalog metric, the metric's `owner_id`; project total and
-source freshness have none. Only current project members with an account
-email are emailed; an owner who is not a member or has no email is neither
-notified nor listed. Each owner gets one plain-text email per rule delivery,
+source freshness have none. Only owners who can currently see the project (a
+row, the organization's default access, or an owner or admin of the
+organization) and have an account email are emailed; an owner without access
+or without an email is neither notified nor listed. Each owner gets one plain-text email per rule delivery,
 sent after the rule's delivery is sent, through the instance SMTP settings. The
 email uses the default item lines (the digest's lines for a digest), not the
 rule's custom template. A digest that batches several rules sends one email
@@ -1916,8 +1929,9 @@ event's discussion, watch the event itself.
 
 A comment body mentions a member with `@[Name](user_id)`. Only that form
 notifies; plain `@name` text does not. Take the ids from
-[`GET /api/v1/projects/{slug}/members`](#project-members). A mentioned user who
-is not a member of the project is skipped. A mention notifies even when the
+[`GET /api/v1/projects/{slug}/members`](#project-members), or, for members who
+hold the organization's default access without a row, from the organization's
+member list. A mentioned user who cannot see the project is skipped. A mention notifies even when the
 mentioned user has muted the thread.
 
 ### Who is notified

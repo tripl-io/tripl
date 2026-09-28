@@ -1,5 +1,5 @@
 import { isOwner } from '@/lib/permissions'
-import type { ProjectMember, UserListItem } from '@/types'
+import type { DefaultProjectRole, ProjectMember, UserListItem } from '@/types'
 
 /** Someone who can be picked as a reviewer or an event-type owner in a project. */
 export interface ProjectCandidate {
@@ -9,30 +9,42 @@ export interface ProjectCandidate {
 }
 
 /**
- * Who a per-project picker (branch reviewers, event-type owners) may offer.
+ * Who a per-project picker (branch reviewers, event-type owners, @mentions)
+ * may offer: everyone who can see the project.
  *
- * The project's members, plus every owner and admin of the organization: they
- * see and write every project of it as project role `owner` without ever
- * holding a member row (tripl-vefw, F20 PR4), so the members list alone would
- * leave them out, and the server accepts them. Anyone else on the roster cannot
- * see the project, so is not offered.
+ * - The project's members with a granting row (`editor` / `viewer`). A
+ *   `'none'` row opts its member out of the project, whatever the default.
+ * - Every owner and admin of the organization: they see and write every
+ *   project of it without ever holding a member row (tripl-vefw, F20 PR4).
+ * - When the organization's default access (`defaultRole`, F20 PR15) is not
+ *   `'none'`, every other member of the roster without a row too: the default
+ *   gives them the project.
  *
- * De-duplicated by user id, members first in their own order, then the owners
- * and admins who are not already listed, in roster order.
+ * De-duplicated by user id, members first in their own order, then the roster
+ * in its order.
  */
 export function projectCandidates(
   members: readonly ProjectMember[] | null | undefined,
   users: readonly UserListItem[] | null | undefined,
+  defaultRole: DefaultProjectRole = 'none',
 ): ProjectCandidate[] {
   const seen = new Set<string>()
+  const optedOut = new Set<string>()
   const out: ProjectCandidate[] = []
   for (const m of members ?? []) {
+    if (m.role === 'none') {
+      optedOut.add(m.user_id)
+      continue
+    }
     if (seen.has(m.user_id)) continue
     seen.add(m.user_id)
     out.push({ user_id: m.user_id, name: m.name, email: m.email })
   }
   for (const u of users ?? []) {
-    if (!isOwner(u.role) || seen.has(u.id)) continue
+    if (seen.has(u.id)) continue
+    // An owner or admin always sees the project; anyone else only through the
+    // default, and not past a 'none' row of their own.
+    if (!isOwner(u.role) && (defaultRole === 'none' || optedOut.has(u.id))) continue
     seen.add(u.id)
     out.push({ user_id: u.id, name: u.name, email: u.email })
   }

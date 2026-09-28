@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint, true
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint, true
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.compiler import SQLCompiler
@@ -82,15 +82,29 @@ def default_organization_values() -> dict[str, Any]:
     }
 
 
+#: The values ``organizations.default_project_role`` may hold. The column shares
+#: the ``project_member_role`` type, which has no ``owner`` either; the CHECK
+#: states the rule where it is enforced (migration ``d2f4a6c8e0b1``).
+DEFAULT_PROJECT_ROLE_CHECK = "default_project_role IN ('none', 'viewer', 'editor')"
+
+
 class Organization(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "organizations"
+    __table_args__ = (
+        CheckConstraint(DEFAULT_PROJECT_ROLE_CHECK, name="ck_organizations_default_project_role"),
+    )
 
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
-    # Reserved for a later PR: the project role an organization member gets on a
-    # project they hold no membership row for. NULL means none (404, as today).
-    default_project_role: Mapped[str | None] = mapped_column(
-        db_enum(ProjectMemberRole, "project_member_role"), nullable=True, default=None
+    # The project role an organization member gets on a project they hold no
+    # ``project_members`` row in (F20): ``none`` (the project is a 404 for them),
+    # ``viewer`` or ``editor``; never ``owner``. Resolved in
+    # ``services.project_access``; an explicit row, ``none`` included, wins.
+    default_project_role: Mapped[str] = mapped_column(
+        db_enum(ProjectMemberRole, "project_member_role"),
+        default=ProjectMemberRole.none.value,
+        server_default=ProjectMemberRole.none.value,
+        nullable=False,
     )
     members_can_create_projects: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False

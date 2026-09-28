@@ -1,6 +1,6 @@
 import { api } from './client'
 import type { components } from '../types/api.gen'
-import type { Project, Role, UserListItem } from '../types'
+import type { DefaultProjectRole, Project, Role, UserListItem } from '../types'
 
 /**
  * The organization management API (F20 PR6, backend/src/tripl/api/v1/orgs.py).
@@ -11,8 +11,22 @@ import type { Project, Role, UserListItem } from '../types'
  * client sends to the active organization.
  */
 
-/** One organization, with the caller's role in it. */
-export type Org = components['schemas']['OrgResponse']
+/**
+ * One organization, with the caller's role in it and its default access to
+ * its projects (`default_project_role`, F20 PR15). The field is spelled out
+ * here until the generated types are regenerated from the backend.
+ */
+export type Org = components['schemas']['OrgResponse'] & {
+  default_project_role: DefaultProjectRole
+}
+/**
+ * `PATCH /orgs/{org}`: any subset of the name and the default project access
+ * (an owner or admin). The slug is immutable, so it is not a field.
+ */
+export interface OrgUpdate {
+  name?: string
+  default_project_role?: DefaultProjectRole
+}
 /** What removing a member took away with the membership. */
 export type OrgMemberRemoved = components['schemas']['OrgMemberRemoved']
 
@@ -26,8 +40,8 @@ export const orgsApi = {
   /** A platform admin only; the creator becomes the owner. The slug is permanent. */
   create: (data: { name: string; slug: string }) => api.post<Org>('/orgs', data),
   get: (org: string) => api.get<Org>(orgBase(org)),
-  /** Rename. Only the name: the slug cannot change. */
-  rename: (org: string, name: string) => api.patch<Org>(orgBase(org), { name }),
+  /** Rename, or change the default project access. The slug cannot change. */
+  update: (org: string, data: OrgUpdate) => api.patch<Org>(orgBase(org), data),
   /**
    * Start deleting the organization (202; a background job purges it). The
    * body repeats the slug as a typed confirmation. Refused for the default

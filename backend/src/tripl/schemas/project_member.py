@@ -8,6 +8,8 @@ from tripl.models.domain_enums import ProjectMemberRole
 
 class ProjectMemberCreate(BaseModel):
     user_id: uuid.UUID
+    #: ``none`` opts an organization member out of the project whatever the
+    #: organization's default project role; refused (422) for an org owner/admin.
     role: ProjectMemberRole = ProjectMemberRole.viewer
 
 

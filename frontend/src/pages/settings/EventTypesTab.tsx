@@ -61,6 +61,7 @@ import { TEXT_INPUT_CLASS } from '@/pages/events/eventFormLayout'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
 import { projectCandidates, type ProjectCandidate } from '@/lib/projectCandidates'
+import { useOrgDefaultProjectRole } from '@/hooks/useOrgDefaultProjectRole'
 import { ReadOnlyNotice } from '@/components/states'
 import {
   parseContract,
@@ -1342,6 +1343,9 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
   // project, and the server refuses them (tripl-vefw).
   const { data: members } = useQuery(projectMembersQueryOptions(slug))
   const { data: users } = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
+  // Members with no row can own event types too when the organization's
+  // default access gives them the project (F20 PR15).
+  const defaultProjectRole = useOrgDefaultProjectRole()
 
   // Both errors render in the card: an editor hitting the owner-only endpoint
   // used to get nothing at all (PLAN-42).
@@ -1382,7 +1386,7 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
   }
 
   const ownerUserIds = new Set(owners.map((o: EventTypeOwner) => o.user_id))
-  const availableUsers = projectCandidates(members, users).filter((m) => !ownerUserIds.has(m.user_id))
+  const availableUsers = projectCandidates(members, users, defaultProjectRole).filter((m) => !ownerUserIds.has(m.user_id))
   const ownerError = addMut.isError ? addMut.error : removeMut.isError ? removeMut.error : null
 
   return (

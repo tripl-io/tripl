@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import cast
 
@@ -28,7 +28,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.api_key import ApiKey
-from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
+from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
@@ -90,6 +90,8 @@ class ManagedOrg:
     role: OrganizationRole
     status: str
     created_at: datetime
+    #: The project role a member gets on a project they hold no row in.
+    default_project_role: str
     #: The caller reads it through a platform admin's read-only step-in (F20
     #: PR14), not a membership; ``role`` is then ``member``.
     step_in: bool = False
@@ -103,6 +105,7 @@ def org_response(org: ManagedOrg) -> OrgResponse:
         role=org.role,
         status=OrganizationStatus(org.status),
         is_default=org.id == DEFAULT_ORG_ID,
+        default_project_role=ProjectMemberRole(org.default_project_role),
         created_at=org.created_at,
         step_in=org.step_in,
     )
@@ -165,6 +168,7 @@ async def resolve_managed_org(
         role=OrganizationRole(str(role)),
         status=str(org.status),
         created_at=org.created_at,
+        default_project_role=str(org.default_project_role),
         step_in=step_in,
     )
 
@@ -202,6 +206,7 @@ async def list_my_orgs(
             role=OrganizationRole(str(role)),
             status=str(org.status),
             created_at=org.created_at,
+            default_project_role=str(org.default_project_role),
         )
         for org, role in rows
     ]
@@ -231,6 +236,7 @@ async def list_my_orgs(
                 role=OrganizationRole.member,
                 status=str(org.status),
                 created_at=org.created_at,
+                default_project_role=str(org.default_project_role),
                 step_in=True,
             )
             for org in stepped
@@ -266,20 +272,37 @@ async def create_org(session: AsyncSession, *, creator: User, slug: str, name: s
         role=OrganizationRole.owner,
         status=str(org.status),
         created_at=org.created_at,
+        default_project_role=str(org.default_project_role),
     )
 
 
-async def rename_org(session: AsyncSession, org: ManagedOrg, name: str) -> ManagedOrg:
-    """Change the display name. The slug never changes (owner decision 6). No commit."""
-    await session.execute(update(Organization).where(Organization.id == org.id).values(name=name))
-    await session.flush()
-    return ManagedOrg(
-        id=org.id,
-        slug=org.slug,
-        name=name,
-        role=org.role,
-        status=org.status,
-        created_at=org.created_at,
+async def update_org(
+    session: AsyncSession,
+    org: ManagedOrg,
+    *,
+    name: str | None = None,
+    default_project_role: ProjectMemberRole | None = None,
+) -> ManagedOrg:
+    """Change the display name and/or the default project role. No commit.
+
+    ``None`` leaves a field as it is. The slug never changes (owner decision 6).
+    A new default applies at once to every member without a row in a project:
+    their next request resolves it (``services.project_access``).
+    """
+    values: dict[str, str] = {}
+    if name is not None:
+        values["name"] = name
+    if default_project_role is not None:
+        values["default_project_role"] = default_project_role.value
+    if values:
+        await session.execute(
+            update(Organization).where(Organization.id == org.id).values(**values)
+        )
+        await session.flush()
+    return replace(
+        org,
+        name=values.get("name", org.name),
+        default_project_role=values.get("default_project_role", org.default_project_role),
     )
 
 

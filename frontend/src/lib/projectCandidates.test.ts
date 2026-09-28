@@ -4,11 +4,11 @@ import type { ProjectMember, UserListItem } from '@/types'
 
 import { projectCandidates } from './projectCandidates'
 
-const member = (user_id: string, name: string): ProjectMember => ({
+const member = (user_id: string, name: string, role: ProjectMember['role'] = 'editor'): ProjectMember => ({
   user_id,
   name,
   email: `${user_id}@x.io`,
-  role: 'editor',
+  role,
   added_at: '2026-01-01T00:00:00Z',
 })
 
@@ -38,5 +38,33 @@ describe('projectCandidates', () => {
     expect(projectCandidates(undefined, undefined)).toEqual([])
     expect(projectCandidates(undefined, [user('u-boss', 'owner')]).map((c) => c.user_id)).toEqual(['u-boss'])
     expect(projectCandidates([member('u-ada', 'Ada')], null).map((c) => c.user_id)).toEqual(['u-ada'])
+  })
+
+  // F20 PR15: the organization's default access to projects.
+  it('leaves out a member whose row says No access', () => {
+    const got = projectCandidates(
+      [member('u-ada', 'Ada'), member('u-linus', 'Linus', 'none')],
+      [user('u-ada', 'member'), user('u-linus', 'member')],
+    )
+    expect(got.map((c) => c.user_id)).toEqual(['u-ada'])
+  })
+
+  it('offers every member without a row when the default gives them the project', () => {
+    const roster = [
+      user('u-ada', 'member'),
+      user('u-linus', 'member'),
+      user('u-grace', 'member'),
+      user('u-boss', 'owner'),
+    ]
+    const members = [member('u-ada', 'Ada', 'viewer'), member('u-grace', 'Grace', 'none')]
+
+    for (const role of ['viewer', 'editor'] as const) {
+      expect(projectCandidates(members, roster, role).map((c) => c.user_id)).toEqual([
+        'u-ada',
+        'u-linus',
+        'u-boss',
+      ])
+    }
+    expect(projectCandidates(members, roster, 'none').map((c) => c.user_id)).toEqual(['u-ada', 'u-boss'])
   })
 })

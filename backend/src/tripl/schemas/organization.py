@@ -6,9 +6,9 @@ import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
+from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.schemas.project import RESERVED_PROJECT_SLUGS
 
 #: The shape of an organization slug: the same as a project slug's.
@@ -72,15 +72,31 @@ class OrgCreate(BaseModel):
 
 
 class OrgUpdate(BaseModel):
-    """A rename. ``extra="forbid"``: the slug is immutable, so sending one is a 422."""
+    """A partial update: the name and/or the default project role.
+
+    ``extra="forbid"``: the slug is immutable, so sending one is a 422. At
+    least one field must be sent.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1, max_length=255)
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    #: The project role an organization member gets on a project they hold no
+    #: membership row in: ``none`` (no access), ``viewer`` or ``editor``. Never
+    #: ``owner``: ``ProjectMemberRole`` has no such value, so it is a 422.
+    default_project_role: ProjectMemberRole | None = None
+
+    @model_validator(mode="after")
+    def _something_to_change(self) -> OrgUpdate:
+        if self.name is None and self.default_project_role is None:
+            raise ValueError("send name and/or default_project_role")
+        return self
 
     @field_validator("name")
     @classmethod
-    def _strip_name(cls, value: str) -> str:
+    def _strip_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         stripped = value.strip()
         if not stripped:
             raise ValueError("name must not be blank")
@@ -108,6 +124,8 @@ class OrgResponse(BaseModel):
     role: OrganizationRole
     status: OrganizationStatus
     is_default: bool
+    #: The project role a member gets on a project they hold no row in.
+    default_project_role: ProjectMemberRole
     created_at: datetime
     #: Listed because a platform admin has a live read-only step-in to it, not
     #: a membership (F20 PR14); ``role`` is then ``member``.

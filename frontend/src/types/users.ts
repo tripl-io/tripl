@@ -1,8 +1,9 @@
 /**
  * An ORGANIZATION role (F20 PR4): what `/auth/me`, the users API and
  * invitations speak. An owner and an admin hold every project of their
- * organization; a member holds exactly their project rows (`editor` /
- * `viewer`, see `ProjectMemberRole`). The instance-era owner/editor/viewer
+ * organization; a member holds the organization's default access to its
+ * projects (`default_project_role`), overridden per project by their rows
+ * (`editor` / `viewer` / `none`, see `ProjectMemberRole`). The instance-era owner/editor/viewer
  * vocabulary is gone; the API refuses it with 422.
  */
 export type Role = 'owner' | 'admin' | 'member'
