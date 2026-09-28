@@ -145,13 +145,39 @@ class DocRevision(UUIDMixin, Base):
     restored_from_number: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
 
 
+#: Every ``DocLink.kind`` (F22 plan links; F24 part 2 notes, mentions and the
+#: project's other entities). Mirrors ``schemas.docs.DocLinkKind``.
+DOC_LINK_KINDS: tuple[str, ...] = (
+    "event",
+    "event_type",
+    "field",
+    "doc",
+    "variable",
+    "metric",
+    "alert_rule",
+    "branch",
+    "scan",
+    "data_source",
+    "user",
+)
+DOC_LINK_KIND_CHECK = "kind IN ({})".format(", ".join(f"'{kind}'" for kind in DOC_LINK_KINDS))
+
+
 class DocLink(UUIDMixin, Base):
-    """A ``[[kind:name]]`` reference found in a note's body, by name."""
+    """A ``[[kind:target]]`` reference found in a note's body.
+
+    Plan entities (event, event type, field, variable, metric, branch, scan,
+    data source) are kept by NAME and resolved on read, so a rename shows up as
+    a broken link. A note (``doc``), an alert rule and a mentioned user are kept
+    by id (``target`` is the UUID's canonical text), so they survive renames and
+    moves. ``qualifier`` is a field's event type, or a note link's heading
+    anchor.
+    """
 
     __tablename__ = "doc_links"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('event', 'event_type', 'field')",
+            DOC_LINK_KIND_CHECK,
             name="ck_doc_links_kind",
         ),
         Index("ix_doc_links_target", "kind", "target"),

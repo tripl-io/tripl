@@ -10,6 +10,7 @@ import type {
   DocImportResult,
   DocLinkKind,
   DocLinkResolution,
+  DocLinkSuggestionsResponse,
   DocMoveRequest,
   DocMoveResponse,
   DocRevisionDetail,
@@ -126,11 +127,23 @@ export const docsApi = {
     signal?: AbortSignal,
   ) => api.get<DocBacklinksResponse>(docsPath(slug, `/backlinks${query(params)}`), signal),
 
-  /** Resolve `kind:target` refs (kind: event | event-type | field). ≤200. */
+  /** Resolve `kind:target` refs (kind as written: event, event-type, doc, alert-rule, …). ≤200. */
   links: (slug: string, refs: readonly string[], signal?: AbortSignal) =>
     refs.length === 0
       ? Promise.resolve<DocLinkResolution[]>([])
       : api.get<DocLinkResolution[]>(docsPath(slug, `/links?${linkRefQuery(refs)}`), signal),
+
+  /**
+   * The editor's `[[` / `@` picker (F24): notes the caller can read, plan
+   * entities, alert rules, branches, scans, data sources and organization
+   * members matching `q`, narrowed to one `kind` when given. Rate-limited
+   * per user (240 a minute, then 429).
+   */
+  linkSuggestions: (
+    slug: string,
+    params: { q: string; kind?: DocLinkKind | null; limit?: number },
+    signal?: AbortSignal,
+  ) => api.get<DocLinkSuggestionsResponse>(docsPath(slug, `/link-suggestions${query(params)}`), signal),
 
   /**
    * Sharing (F24, GH #308). Readable by anyone who can read the note; changed

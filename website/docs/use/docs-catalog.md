@@ -65,28 +65,81 @@ tripl stores every other key unchanged and does not check it, so
 export. Frontmatter that is not valid YAML, or that is not a mapping, is
 refused with a message that names the problem.
 
-## Links to the plan
+## Links and mentions {#links-and-mentions}
 
-A note can link to plan entities by name:
+A note links to other notes, to plan entities and to people with
+`[[kind:target]]`. Add `|label` to show your own text instead:
+`[[metric:signup_rate|the signup rate]]`.
 
-| Syntax | Links to |
-| --- | --- |
-| `[[event:purchase]]` | the event named `purchase` |
-| `[[event-type:checkout]]` | the event type named `checkout` |
-| `[[field:amount]]` | a field named `amount` on any event type |
-| `[[field:checkout/amount]]` | the field `amount` of event type `checkout` |
-| `[[event:purchase\|the purchase event]]` | the same link, shown as *the purchase event* |
+| Syntax | Links to | Written by |
+| --- | --- | --- |
+| `[[doc:<id>]]` | another note, shown with its current title | id |
+| `[[doc:<id>#heading-slug]]` | a heading in another note | id |
+| `[[event:purchase]]` | the event named `purchase` | name |
+| `[[event-type:checkout]]` | the event type named `checkout` | name |
+| `[[field:amount]]` | a field named `amount` on any event type | name |
+| `[[field:checkout/amount]]` | the field `amount` of event type `checkout` | name |
+| `[[variable:country]]` | the variable named `country` | name |
+| `[[metric:signup_rate]]` | the catalog metric named `signup_rate` | name |
+| `[[alert-rule:<id>]]` | an alert rule, shown with its current name | id |
+| `[[branch:feature_x]]` | the plan branch named `feature_x` | name |
+| `[[scan:nightly]]` | the scan config named `nightly` | name |
+| `[[data-source:warehouse]]` | a data source the project uses | name |
+| `[[user:<id>]]` | a person, shown as **@Name** (a mention) | id |
 
-Links resolve against the **main** plan every time a note is shown, so a link
-never points at an old copy. Links inside code blocks and inline code are
-plain text. When no entity has the name, the link is **broken**. The note
-shows a warning that lists the broken links, and a save reports them too, but
-it is still saved. When more than one event has the name, the link is
-**ambiguous** and opens the first one.
+You do not type ids. In the editor:
 
-On the main plan, the event and event-type pages show a **Notes** card that
-lists every note that links to them, from both roots. An event type's
-**Field notes** section lists the notes that link to its fields.
+- Type `[[` to open the link picker. It searches notes you can read, plan
+  entities, alert rules, branches, scans, data sources and people as you type.
+- Type a kind and a colon, such as `[[metric:`, to search only that kind.
+- Type `@` after a space or at the start of a line to mention a person.
+- Use the arrow keys to choose, **Enter** or **Tab** to insert, and **Esc** to
+  close the picker. The picker inserts the full link, id included.
+
+You can also type `[[doc:guides/setup.md]]` by hand. When you save, tripl
+changes it to the `[[doc:<id>]]` form if that path is a note you can read.
+Otherwise the link stays as you typed it and is broken. If a reader can read
+a note at that path, the warning names that note and asks them to save the note
+to link it by id.
+
+### Renames and moves
+
+Links by **id** (notes, alert rules and people) keep working when the target is
+renamed or moved, and always show the current title or name.
+
+Links by **name** (plan entities, branches, scans and data sources) resolve
+against the **main** plan every time a note is shown, so a link never points at
+an old copy. When the target is renamed, the link is **broken**. The note shows
+a warning that lists the broken links, with up to three current names that are
+close to the one written (for the first 20 broken links of a note). In the editor, click a name to relink every copy of
+the link. A save reports broken links, but the note is still saved. When more
+than one event has the name, the link is **ambiguous** and opens the first one.
+
+Links inside code blocks and inline code are plain text.
+
+### Notes you cannot see
+
+A link to a note you cannot read shows as **Unavailable note**. It does not
+show the note's title or path, and it looks the same as a link to a deleted
+note.
+
+### Mentions
+
+When you save a note with a new `[[user:<id>]]` mention, tripl sends that person
+a notification, but only if they are a member of the organization and of this
+project, and can read the note. A mention that was already in the note does not notify again. Imports
+never send notifications.
+
+### Back-links
+
+A note's page lists **Linked from**: the other notes that link to it, limited
+to notes you can read.
+
+On the main plan, entity pages show a **Notes** card that lists every note that
+links to the entity, from both roots. The card is on the event, event type,
+variable and metric pages. An event type's **Field notes** section lists the
+notes that link to its fields. The API returns back-links for every kind (see
+the [Agent API guide](../integrate/agent-api-guide.md#docs-catalog)).
 
 ## History
 

@@ -285,6 +285,25 @@ async def access_of(
     return {doc.id: access for doc, access in pairs}
 
 
+async def readers_among(
+    session: AsyncSession, doc_id: uuid.UUID, user_ids: Iterable[uuid.UUID]
+) -> set[uuid.UUID]:
+    """The users among ``user_ids`` the note's own rule lets read ``doc_id``.
+
+    :func:`visible_docs_clause` once per user (the clause is per reader); the
+    level (project membership) is the caller's to check. Used to decide who an
+    @mention in a note may notify (F24 part 2).
+    """
+    readers: set[uuid.UUID] = set()
+    for user_id in set(user_ids):
+        found = await session.scalar(
+            select(DocFile.id).where(DocFile.id == doc_id, visible_docs_clause(user_id))
+        )
+        if found is not None:
+            readers.add(user_id)
+    return readers
+
+
 async def hidden_doc_ids(
     session: AsyncSession, user_id: uuid.UUID | None, project_id: uuid.UUID
 ) -> list[uuid.UUID]:

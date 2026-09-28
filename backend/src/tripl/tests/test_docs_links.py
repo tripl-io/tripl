@@ -19,7 +19,7 @@ def test_links_are_extracted_outside_code_only() -> None:
         "```sql\n[[field:also_text]]\n```\n"
         "~~~\n[[field:still_text]]\n~~~\n"
         "Field [[field:checkout/amount]] and bare [[field:amount]].\n"
-        "Malformed [[metric:x]] and [[event:]] are ignored.\n"
+        "Malformed [[widget:x]] and [[event:]] are ignored.\n"
     )
     links = extract_links(body)
 
@@ -50,7 +50,7 @@ def test_parse_ref() -> None:
     assert parse_ref("event:purchase") == ("event", "purchase", None)
     assert parse_ref("event-type:checkout") == ("event_type", "checkout", None)
     assert parse_ref("field:checkout/amount") == ("field", "amount", "checkout")
-    for bad in ("purchase", "metric:x", "event:"):
+    for bad in ("purchase", "widget:x", "event:"):
         with pytest.raises(ValueError):
             parse_ref(bad)
 
@@ -93,12 +93,16 @@ async def test_links_resolve_against_the_main_plan(client: AsyncClient) -> None:
         "route_path": None,
         "entity_id": None,
         "candidates": 0,
+        "label": None,
+        "detail": None,
+        "reason": "not_found",
+        "suggestions": [],
     }
 
 
 async def test_malformed_ref_is_422(client: AsyncClient) -> None:
     await create_project(client, "badref")
-    resp = await client.get("/api/v1/projects/badref/docs/links", params={"ref": "metric:x"})
+    resp = await client.get("/api/v1/projects/badref/docs/links", params={"ref": "widget:x"})
     assert resp.status_code == 422
 
 

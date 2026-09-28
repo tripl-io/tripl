@@ -43,7 +43,7 @@ class Notification(UUIDMixin, Base):
     __table_args__ = (
         CheckConstraint(NOTIFICATION_KIND_CHECK, name="ck_notification_kind"),
         CheckConstraint(
-            "entity_type IN ('event', 'event_type', 'metric', 'branch')",
+            "entity_type IN ('event', 'event_type', 'metric', 'branch', 'doc')",
             name="ck_notification_entity_type",
         ),
         Index("ix_notification_user_read_created", "user_id", "read_at", "created_at"),

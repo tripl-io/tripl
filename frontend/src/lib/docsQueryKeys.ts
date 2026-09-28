@@ -38,5 +38,9 @@ export const docBacklinksKey = (
 export const docLinkResolutionKey = (slug: string, refs: readonly string[]) =>
   [...docsKey(slug), 'links', refs.join('\n')] as const
 
+/** The editor's `[[` / `@` picker rows for one (debounced) query. */
+export const docLinkSuggestionsKey = (slug: string, q: string, kind: DocLinkKind | null) =>
+  [...docsKey(slug), 'link-suggestions', kind, q] as const
+
 /** Full-text docs search (quick open's "In note text"). */
 export const docSearchKey = (slug: string, q: string) => [...docsKey(slug), 'search', q] as const

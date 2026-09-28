@@ -18,9 +18,19 @@ who a note or folder is shared with.
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, File, Query, Request, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 
 from tripl.api.deps import CurrentUserDep, EditorUserDep, SessionDep
+from tripl.middleware.rate_limit import doc_link_suggestions_rate_limiter, retry_after_for_key
 from tripl.models.user import User
 from tripl.schemas.docs import (
     DocBacklinksResponse,
@@ -32,6 +42,7 @@ from tripl.schemas.docs import (
     DocImportResult,
     DocLinkKind,
     DocLinkResolution,
+    DocLinkSuggestionsResponse,
     DocMoveRequest,
     DocMoveResponse,
     DocRestoreRequest,
@@ -47,6 +58,7 @@ from tripl.schemas.docs import (
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import docs_bundle, docs_revisions, docs_search, docs_service, docs_sharing
 from tripl.services.docs_access import DocCaller
+from tripl.services.docs_link_suggestions import MAX_SUGGESTIONS
 from tripl.services.docs_paths import MAX_ZIP_UPLOAD_BYTES, DocScope
 
 router = APIRouter(prefix="/projects/{slug}/docs", tags=["docs"])
@@ -268,6 +280,11 @@ async def doc_backlinks(
     name: Annotated[FreeTextFilter, Query(min_length=1, max_length=500)],
     qualifier: Annotated[FreeTextFilter | None, Query(max_length=500)] = None,
 ) -> DocBacklinksResponse:
+    """Notes linking to ``kind:name`` that the caller can see.
+
+    ``name`` is the entity's name, or its id for ``doc`` (the note's "Linked
+    from"), ``alert_rule`` and ``user``.
+    """
     return await docs_service.backlinks(
         session, slug, kind, name, qualifier or None, _caller(request, current_user)
     )
@@ -275,17 +292,58 @@ async def doc_backlinks(
 
 @router.get("/links", response_model=list[DocLinkResolution])
 async def resolve_doc_links(
+    request: Request,
     session: SessionDep,
     slug: str,
+    current_user: CurrentUserDep,
     ref: Annotated[
         list[str],
         Query(
             max_length=MAX_LINK_REFS,
-            description="kind:name, kind being event, event-type or field (repeatable).",
+            description=(
+                "kind:target (repeatable). kind is event, event-type, field, doc, "
+                "variable, metric, alert-rule, branch, scan, data-source or user; "
+                "doc, alert-rule and user take an id."
+            ),
         ),
     ],
 ) -> list[DocLinkResolution]:
-    return await docs_service.resolve_refs(session, slug, ref)
+    """Resolve references as the caller reads them (a note they cannot see is ``unavailable``)."""
+    return await docs_service.resolve_refs(session, slug, ref, _caller(request, current_user))
+
+
+@router.get("/link-suggestions", response_model=DocLinkSuggestionsResponse)
+async def doc_link_suggestions(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    current_user: CurrentUserDep,
+    # FreeTextFilter: a NUL is stripped before it can reach a Postgres parameter.
+    q: Annotated[FreeTextFilter, Query(max_length=200)] = "",
+    kind: Annotated[
+        DocLinkKind | None,
+        Query(description="Only this kind; the editor passes it once '[[kind:' is typed."),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=MAX_SUGGESTIONS)] = 10,
+) -> DocLinkSuggestionsResponse:
+    """The note editor's link and @mention picker.
+
+    Candidates the caller may link to: notes they can see, members of the
+    project's organization, and the project's plan entities, alert rules,
+    branches, scans and data sources. ``insert`` is the reference text to put
+    in the note. Rate-limited per user (``doc_link_suggestions_rate_limiter``).
+    """
+    retry_after = await retry_after_for_key(doc_link_suggestions_rate_limiter, str(current_user.id))
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests; please retry shortly.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    items = await docs_service.link_suggestions(
+        session, slug, _caller(request, current_user), q=q, kind=kind, limit=limit
+    )
+    return DocLinkSuggestionsResponse(items=items)
 
 
 @router.get(

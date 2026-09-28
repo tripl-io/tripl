@@ -23,7 +23,9 @@ vi.mock('@uiw/react-codemirror', () => ({
     onChange?: (next: string) => void
     'aria-label'?: string
   }) => <textarea aria-label={ariaLabel} value={value} onChange={e => onChange?.(e.target.value)} />,
-  EditorView: { lineWrapping: [] },
+  EditorView: { lineWrapping: [], updateListener: { of: () => [] } },
+  Prec: { highest: (extension: unknown) => extension },
+  keymap: { of: () => [] },
 }))
 vi.mock('@codemirror/lang-markdown', () => ({ markdown: () => [] }))
 vi.mock('@/api/docs', () => ({

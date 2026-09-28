@@ -38,6 +38,41 @@ describe('DocNotesSection (F22)', () => {
     vi.mocked(docsApi.backlinks).mockReset()
   })
 
+  it('serves the F24 kinds too: a metric card asks for metric backlinks', async () => {
+    vi.mocked(docsApi.backlinks).mockResolvedValue({
+      kind: 'metric',
+      name: 'signup_rate',
+      qualifier: null,
+      items: [
+        {
+          scope: 'project',
+          path: 'metrics/signup.md',
+          title: 'Signup rate explained',
+          description: '',
+          audience: 'both',
+          link_raw: '[[metric:signup_rate]]',
+        },
+      ],
+    })
+    renderWith(<DocNotesSection slug="demo" kind="metric" name="signup_rate" />)
+    expect(await screen.findByText('Signup rate explained')).toBeInTheDocument()
+    expect(screen.getByText('Docs that link to this metric')).toBeInTheDocument()
+    expect(docsApi.backlinks).toHaveBeenCalledWith(
+      'demo',
+      { kind: 'metric', name: 'signup_rate', qualifier: null },
+      expect.anything(),
+    )
+  })
+
+  it('offers a variable note pre-filled with the variable link', async () => {
+    vi.mocked(docsApi.backlinks).mockResolvedValue({ kind: 'variable', name: 'country', qualifier: null, items: [] })
+    renderWith(<DocNotesSection slug="demo" kind="variable" name="country" />)
+    expect(await screen.findByText(/No notes link to this variable yet/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'New note about this' }).getAttribute('href')).toContain(
+      encodeURIComponent('[[variable:country]]'),
+    )
+  })
+
   it('lists the notes that link here, organization notes marked', async () => {
     vi.mocked(docsApi.backlinks).mockResolvedValue(
       response([

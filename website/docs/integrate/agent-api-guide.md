@@ -2335,6 +2335,7 @@ GET    /api/v1/projects/{slug}/docs/revisions?scope=project&path=guides/warehous
 GET    /api/v1/projects/{slug}/docs/revisions/{revision_id}
 GET    /api/v1/projects/{slug}/docs/backlinks?kind=field&name=amount&qualifier=checkout
 GET    /api/v1/projects/{slug}/docs/links?ref=event:purchase&ref=field:checkout/amount
+GET    /api/v1/projects/{slug}/docs/link-suggestions?q=signup&kind=metric&limit=8
 GET    /api/v1/projects/{slug}/docs/export?scope=project&format=json
 PUT    /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
 DELETE /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
@@ -2365,9 +2366,71 @@ note's `scope`, `path`, `title`, `description`, `tags`, `audience`,
 `my_permission` and `shared`), the project and
 organization, and the `limits`. `GET /docs/file` adds `id`, the raw `content`
 (frontmatter included), the `body` without frontmatter, `extra_frontmatter`
-(the keys tripl does not interpret), and `links`. Each link has a `status` of
-`resolved`, `ambiguous` or `broken`, plus the in-app `route_path` of its
-target on the main plan. A missing note is `404` with `"Doc not found"`.
+(the keys tripl does not interpret), `links` and `linked_from`. Each link has
+a `status` of `resolved`, `ambiguous`, `broken` or `unavailable`, plus the
+in-app `route_path` of its target on the main plan. A link that does not
+resolve may have a `reason`: `not_found`, `invalid_id`, `path_form` (a
+`[[doc:path]]` that was not saved as an id) or `not_a_member` (a mention of
+someone outside the organization). A broken link by name also has
+`suggestions`, up to three current names close to the one written. Only the
+first 20 broken links of one response get suggestions; the others have an
+empty list.
+`linked_from` lists the notes that link to this one (`scope`, `path`,
+`title`), limited to notes the caller can read. A missing note is `404` with
+`"Doc not found"`.
+
+### Link syntax {#docs-link-syntax}
+
+| Kind | Syntax | Resolved by |
+| --- | --- | --- |
+| `doc` | `[[doc:<id>]]`, `[[doc:<id>#heading-slug\|label]]` | note id; shown with the note's current title |
+| `event` | `[[event:NAME]]` | name, on the main plan |
+| `event_type` | `[[event-type:NAME]]` | name, on the main plan |
+| `field` | `[[field:NAME]]`, `[[field:EVENT_TYPE/NAME]]` | name, on the main plan |
+| `variable` | `[[variable:NAME]]` | name, on the main plan |
+| `metric` | `[[metric:NAME]]` | catalog metric name |
+| `alert_rule` | `[[alert-rule:<id>]]` | rule id; shown with the rule's current name |
+| `branch` | `[[branch:NAME]]` | plan branch name |
+| `scan` | `[[scan:NAME]]` | scan config name |
+| `data_source` | `[[data-source:NAME]]` | name of a data source the project uses |
+| `user` | `[[user:<id>]]` | user id; a mention, shown as `@Name` |
+
+Any link takes an optional `|label`. Links by id survive renames and moves.
+A link by name breaks when the target is renamed; relink it to one of the
+`suggestions`. A `PUT` turns a hand-written `[[doc:path/to/note.md]]` into the
+id form when the path is a note the caller can read. A `[[doc:path]]` that is
+still in the note comes back `broken` with the reason `path_form`. If the
+caller can read a note at that path, `suggestions` holds its id and `label`
+its title: save the note to link it by id. A `[[doc:<id>]]` link to a note
+the caller cannot read comes back `unavailable`, with no reason, title, path
+or route. A link to a deleted note gets exactly the same answer, so a link
+never shows whether a hidden note exists. Saving a note with a new
+`[[user:<id>]]` notifies that person once, if they are an organization member
+who can read the note and is a member of this project. Imports never notify.
+
+`GET /docs/backlinks?kind=&name=` works for every kind: pass the name for a
+by-name kind and the id for `doc`, `alert_rule` and `user`.
+
+### Link suggestions {#docs-link-suggestions}
+
+`GET /docs/link-suggestions?q=&kind=&limit=` is what the editor's `[[` and `@`
+pickers call. `q` is the typed text, `kind` (optional) narrows to one kind
+from the table above, and `limit` caps the rows. The answer is
+`{"items": [...]}`, and each item has:
+
+- `kind`: one of the kinds above.
+- `id`: the target's id (always present).
+- `label`: the name to show.
+- `detail`: a second line, such as a path or an email address, or `""` when
+  there is none.
+- `insert`: the canonical link to write into the note, such as
+  `[[metric:signup_rate]]` or `[[user:<id>]]`.
+
+Plan entities come from the plan search. Notes are limited to the ones the
+caller can read, people to members of the organization, and alert rules,
+branches, scans and data sources to the project. The route allows 240
+requests per minute for each user and answers `429` with a `Retry-After`
+header after that.
 
 To write, send the whole content:
 

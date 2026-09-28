@@ -7743,7 +7743,15 @@
             "enum": [
               "event",
               "event_type",
-              "field"
+              "field",
+              "doc",
+              "variable",
+              "metric",
+              "alert_rule",
+              "branch",
+              "scan",
+              "data_source",
+              "user"
             ],
             "title": "Kind",
             "type": "string"
@@ -7912,6 +7920,14 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "linked_from": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DocBacklinkItem"
+            },
+            "title": "Linked From",
+            "type": "array"
           },
           "links": {
             "default": [],
@@ -8198,6 +8214,17 @@
             "title": "Candidates",
             "type": "integer"
           },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
           "entity_id": {
             "anyOf": [
               {
@@ -8214,10 +8241,29 @@
             "enum": [
               "event",
               "event_type",
-              "field"
+              "field",
+              "doc",
+              "variable",
+              "metric",
+              "alert_rule",
+              "branch",
+              "scan",
+              "data_source",
+              "user"
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
           },
           "qualifier": {
             "anyOf": [
@@ -8234,6 +8280,23 @@
             "title": "Raw",
             "type": "string"
           },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_found",
+                  "invalid_id",
+                  "path_form",
+                  "not_a_member"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
           "route_path": {
             "anyOf": [
               {
@@ -8249,10 +8312,19 @@
             "enum": [
               "resolved",
               "ambiguous",
-              "broken"
+              "broken",
+              "unavailable"
             ],
             "title": "Status",
             "type": "string"
+          },
+          "suggestions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Suggestions",
+            "type": "array"
           },
           "target": {
             "title": "Target",
@@ -8266,6 +8338,70 @@
           "status"
         ],
         "title": "DocLinkResolution",
+        "type": "object"
+      },
+      "DocLinkSuggestion": {
+        "description": "One autocomplete candidate of ``GET /docs/link-suggestions``.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "insert": {
+            "title": "Insert",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "event",
+              "event_type",
+              "field",
+              "doc",
+              "variable",
+              "metric",
+              "alert_rule",
+              "branch",
+              "scan",
+              "data_source",
+              "user"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "insert"
+        ],
+        "title": "DocLinkSuggestion",
+        "type": "object"
+      },
+      "DocLinkSuggestionsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocLinkSuggestion"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DocLinkSuggestionsResponse",
         "type": "object"
       },
       "DocMoveRequest": {
@@ -9096,6 +9232,14 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "linked_from": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DocBacklinkItem"
+            },
+            "title": "Linked From",
+            "type": "array"
           },
           "links": {
             "default": [],
@@ -18460,7 +18604,8 @@
               "event",
               "event_type",
               "metric",
-              "branch"
+              "branch",
+              "doc"
             ],
             "title": "Entity Type",
             "type": "string"
@@ -40125,6 +40270,7 @@
     },
     "/api/v1/projects/{slug}/docs/backlinks": {
       "get": {
+        "description": "Notes linking to ``kind:name`` that the caller can see.\n\n``name`` is the entity's name, or its id for ``doc`` (the note's \"Linked\nfrom\"), ``alert_rule`` and ``user``.",
         "operationId": "doc_backlinks_api_v1_projects__slug__docs_backlinks_get",
         "parameters": [
           {
@@ -40144,7 +40290,15 @@
               "enum": [
                 "event",
                 "event_type",
-                "field"
+                "field",
+                "doc",
+                "variable",
+                "metric",
+                "alert_rule",
+                "branch",
+                "scan",
+                "data_source",
+                "user"
               ],
               "title": "Kind",
               "type": "string"
@@ -41050,8 +41204,106 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/docs/link-suggestions": {
+      "get": {
+        "description": "The note editor's link and @mention picker.\n\nCandidates the caller may link to: notes they can see, members of the\nproject's organization, and the project's plan entities, alert rules,\nbranches, scans and data sources. ``insert`` is the reference text to put\nin the note. Rate-limited per user (``doc_link_suggestions_rate_limiter``).",
+        "operationId": "doc_link_suggestions_api_v1_projects__slug__docs_link_suggestions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this kind; the editor passes it once '[[kind:' is typed.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "event",
+                    "event_type",
+                    "field",
+                    "doc",
+                    "variable",
+                    "metric",
+                    "alert_rule",
+                    "branch",
+                    "scan",
+                    "data_source",
+                    "user"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this kind; the editor passes it once '[[kind:' is typed.",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocLinkSuggestionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Doc Link Suggestions",
+        "tags": [
+          "docs"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/docs/links": {
       "get": {
+        "description": "Resolve references as the caller reads them (a note they cannot see is ``unavailable``).",
         "operationId": "resolve_doc_links_api_v1_projects__slug__docs_links_get",
         "parameters": [
           {
@@ -41064,12 +41316,12 @@
             }
           },
           {
-            "description": "kind:name, kind being event, event-type or field (repeatable).",
+            "description": "kind:target (repeatable). kind is event, event-type, field, doc, variable, metric, alert-rule, branch, scan, data-source or user; doc, alert-rule and user take an id.",
             "in": "query",
             "name": "ref",
             "required": true,
             "schema": {
-              "description": "kind:name, kind being event, event-type or field (repeatable).",
+              "description": "kind:target (repeatable). kind is event, event-type, field, doc, variable, metric, alert-rule, branch, scan, data-source or user; doc, alert-rule and user take an id.",
               "items": {
                 "type": "string"
               },

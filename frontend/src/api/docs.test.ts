@@ -31,6 +31,17 @@ afterEach(() => {
 })
 
 describe('docsApi JSON requests', () => {
+  it('asks for link suggestions with the query, the kind and the limit (F24)', async () => {
+    const spy = stubFetch(() => jsonResponse({ items: [] }))
+    await docsApi.linkSuggestions('demo', { q: 'sign', kind: 'metric', limit: 8 })
+    await docsApi.linkSuggestions('demo', { q: '', kind: null })
+    const first = call(spy, 0)
+    expect(first.url.pathname).toBe('/api/v1/projects/demo/docs/link-suggestions')
+    expect(Object.fromEntries(first.url.searchParams)).toEqual({ q: 'sign', kind: 'metric', limit: '8' })
+    // No kind: the parameter is left out, not sent empty.
+    expect(Object.fromEntries(call(spy, 1).url.searchParams)).toEqual({ q: '' })
+  })
+
   it('reads the tree with the caller\'s signal', async () => {
     const spy = stubFetch(jsonResponse({ project_docs: [] }))
     const controller = new AbortController()

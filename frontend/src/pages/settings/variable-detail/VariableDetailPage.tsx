@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/primitives/page-header'
 import { Panel } from '@/components/settings/kit'
 import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
+import { DocNotesSection } from '@/components/docs/DocNotesSection'
 import { usePageTitle } from '@/components/shell-chrome-context'
 import { EntityNotFound, PageSkeleton, ReadOnlyNotice } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -282,6 +283,9 @@ function VariableDetailBody({
             )}
           </form>
           <UsedBySection slug={slug} entity={{ kind: 'variable', id: variable.id }} branchId={branchId} />
+          {/* Docs-catalog notes that link here by name (F24). Links resolve
+              against main, so the card is for the main plan only. */}
+          {branchId === null && <DocNotesSection slug={slug} kind="variable" name={variable.name} />}
         </TabsContent>
 
         <TabsContent value="drift" className="max-w-[880px]">

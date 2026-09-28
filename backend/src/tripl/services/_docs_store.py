@@ -28,6 +28,7 @@ from tripl.models.search_document import SearchDocument
 from tripl.models.user import User
 from tripl.schemas.docs import (
     DocAudience,
+    DocBacklinkItem,
     DocFileResponse,
     DocLinkResolution,
     DocSummary,
@@ -265,10 +266,13 @@ async def file_response(
     access: DocAccess | None = None,
     permission: DocPermission = "view",
     break_glass: bool = False,
+    viewer_id: uuid.UUID | None = None,
 ) -> DocFileResponse:
+    """The note as ``viewer_id`` reads it: links to notes they cannot see say so."""
     parsed = safe_parse(doc)
     names = await user_names(session, [doc.created_by, doc.updated_by])
     links: list[DocLinkResolution] = []
+    linked_from: list[DocBacklinkItem] = []
     if resolve:
         refs: list[docs_links.LinkRef] = []
         seen: set[tuple[str, str, str | None]] = set()
@@ -277,7 +281,11 @@ async def file_response(
             if key not in seen:
                 seen.add(key)
                 refs.append(docs_links.LinkRef(link.kind, link.target, link.qualifier))
-        links = await docs_links.resolve_links(session, project, refs)
+        links = await docs_links.resolve_links(session, project, refs, user_id=viewer_id)
+        # "Linked from": the notes linking here by id, as this reader may see them.
+        linked_from = await docs_links.backlinks(
+            session, project, "doc", str(doc.id), user_id=viewer_id
+        )
     return DocFileResponse(
         **summary(doc, names, access, permission).model_dump(),
         id=doc.id,
@@ -285,6 +293,7 @@ async def file_response(
         body=parsed.body,
         extra_frontmatter=parsed.extra,
         links=links,
+        linked_from=linked_from,
         created_at=doc.created_at,
         created_by_name=names.get(doc.created_by) if doc.created_by else None,
         break_glass=break_glass,

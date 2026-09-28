@@ -266,6 +266,17 @@ audit_export_rate_limiter = _limiter_for(
 )
 
 
+# The note editor's ``[[`` / ``@`` link picker (F24 part 2): keyed on the signed-in
+# USER (a debounced picker fires a few requests per second while someone types),
+# so colleagues behind one NAT never share a quota. Generous for typing, and a
+# ceiling on a script hammering the membership-gated lookups behind it.
+DOC_LINK_SUGGESTIONS_RATE_LIMIT_PER_MINUTE = 240
+
+doc_link_suggestions_rate_limiter = _limiter_for(
+    DOC_LINK_SUGGESTIONS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="doc_link_suggestions"
+)
+
+
 # SCIM provisioning (F20): keyed on the SCIM TOKEN, not the client address, so
 # an identity provider's egress pool (many addresses, one tenant) draws on one
 # quota and two tenants behind one NAT never starve each other. Generous: a

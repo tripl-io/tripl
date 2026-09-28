@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,11 +26,27 @@ vi.mock('@uiw/react-codemirror', () => ({
 }))
 vi.mock('@codemirror/lang-markdown', () => ({ markdown: () => [] }))
 
+// The picker's CodeMirror half is replaced: the test drives the bridge the
+// editor hands it, the way the real extension would on typing and keys.
+const pickerBridge = vi.hoisted(() => ({ get: null as null | (() => LinkPickerBridge) }))
+vi.mock('./docLinkEditorExtension', async importOriginal => ({
+  LinkPickerBridgeBox: (await importOriginal<typeof import('./docLinkEditorExtension')>())
+    .LinkPickerBridgeBox,
+  docLinkPickerExtension: (box: { get: () => LinkPickerBridge }) => {
+    pickerBridge.get = () => box.get()
+    return []
+  },
+  insertPick: vi.fn(),
+  measureTrigger: vi.fn(),
+}))
+
 vi.mock('@/api/docs', () => ({
-  docsApi: { write: vi.fn(), read: vi.fn(), links: vi.fn() },
+  docsApi: { write: vi.fn(), read: vi.fn(), links: vi.fn(), linkSuggestions: vi.fn() },
 }))
 
 import { docsApi } from '@/api/docs'
+import type { LinkTrigger } from '@/lib/docLinkTrigger'
+import type { LinkPickerBridge } from './docLinkEditorExtension'
 
 function doc(overrides: Partial<DocFileResponse> = {}): DocFileResponse {
   return {
@@ -241,5 +257,135 @@ describe('DocEditor (F22)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Overwrite with mine' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Doc not found')
     expect(docsApi.write).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('DocEditor links and mentions (F24)', () => {
+  const fakeView = {} as Parameters<LinkPickerBridge['onTrigger']>[1]
+
+  function openPicker(trigger: LinkTrigger) {
+    act(() => {
+      pickerBridge.get?.().onTrigger(trigger, fakeView)
+    })
+  }
+
+  function press(key: string): boolean {
+    let used = false
+    act(() => {
+      used = pickerBridge.get?.().onKey(key) ?? false
+    })
+    return used
+  }
+
+  beforeEach(() => {
+    vi.mocked(docsApi.links).mockReset()
+    vi.mocked(docsApi.links).mockResolvedValue([])
+    vi.mocked(docsApi.linkSuggestions).mockReset()
+    vi.mocked(docsApi.linkSuggestions).mockResolvedValue({
+      items: [
+        { kind: 'metric', id: 'm-1', label: 'signup_rate', detail: 'Signup rate', insert: '[[metric:signup_rate]]' },
+        { kind: 'metric', id: 'm-2', label: 'signup_count', detail: '', insert: '[[metric:signup_count]]' },
+      ],
+    })
+  })
+
+  it('opens the picker on [[kind:, narrows the request and inserts the picked reference', async () => {
+    renderEditor()
+    type('See [[metric:sig]]')
+    openPicker({ mode: 'link', from: 4, to: 16, kind: 'metric', query: 'sig' })
+
+    const listbox = await screen.findByRole('listbox', { name: 'Link to a metric' })
+    await waitFor(() => expect(within(listbox).getAllByRole('option')).toHaveLength(2))
+    // Debounced: the typed query goes out once typing pauses.
+    await waitFor(() =>
+      expect(docsApi.linkSuggestions).toHaveBeenLastCalledWith(
+        'demo',
+        { q: 'sig', kind: 'metric', limit: 8 },
+        expect.anything(),
+      ),
+    )
+    expect(within(listbox).getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true')
+
+    expect(press('ArrowDown')).toBe(true)
+    expect(within(listbox).getAllByRole('option')[1]).toHaveAttribute('aria-selected', 'true')
+    expect(press('Enter')).toBe(true)
+
+    // The auto-closed `]]` after the cursor is swallowed, not doubled.
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('See [[metric:signup_count]]')
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('picks with the mouse too', async () => {
+    renderEditor()
+    type('[[sig')
+    openPicker({ mode: 'link', from: 0, to: 5, kind: null, query: 'sig' })
+    fireEvent.mouseDown(await screen.findByRole('option', { name: /signup_rate/ }))
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('[[metric:signup_rate]]')
+  })
+
+  it('closes on Escape and stays closed for the same [[', async () => {
+    renderEditor()
+    type('[[sig')
+    openPicker({ mode: 'link', from: 0, to: 5, kind: null, query: 'sig' })
+    await screen.findByRole('listbox')
+    expect(press('Escape')).toBe(true)
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    openPicker({ mode: 'link', from: 0, to: 6, kind: null, query: 'sign' })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    // Keys go back to the editor while it is closed.
+    expect(press('Enter')).toBe(false)
+  })
+
+  it('never offers the previous query rows while the narrowed query loads', async () => {
+    vi.mocked(docsApi.linkSuggestions).mockResolvedValue({
+      items: [{ kind: 'doc', id: 'n-1', label: 'Setup guide', detail: 'guides/setup.md', insert: '[[doc:n-1]]' }],
+    })
+    renderEditor()
+    type('[[set')
+    openPicker({ mode: 'link', from: 0, to: 5, kind: null, query: 'set' })
+    await screen.findByRole('option', { name: /Setup guide/ })
+
+    // The metric lookup never answers: the note row must not stay pickable.
+    vi.mocked(docsApi.linkSuggestions).mockReturnValue(new Promise(() => {}))
+    type('[[metric:rev')
+    openPicker({ mode: 'link', from: 0, to: 12, kind: 'metric', query: 'rev' })
+    expect(screen.queryByRole('option', { name: /Setup guide/ })).toBeNull()
+    expect(press('Enter')).toBe(false)
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('[[metric:rev')
+  })
+
+  it('opens the people picker on @ and inserts a user mention', async () => {
+    vi.mocked(docsApi.linkSuggestions).mockResolvedValue({
+      items: [{ kind: 'user', id: 'u-1', label: 'Ada Example', detail: 'ada@example.com', insert: '[[user:u-1]]' }],
+    })
+    renderEditor()
+    type('Thanks @ad')
+    openPicker({ mode: 'mention', from: 7, to: 10, kind: 'user', query: 'ad' })
+    const option = await screen.findByRole('option', { name: /@Ada Example/ })
+    expect(screen.getByRole('listbox', { name: 'Mention a person' })).toBeInTheDocument()
+    expect(option).toHaveTextContent('ada@example.com')
+    press('Tab')
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('Thanks [[user:u-1]]')
+  })
+
+  it('re-points a broken link at a suggested name from the banner', async () => {
+    vi.mocked(docsApi.links).mockResolvedValue([
+      {
+        kind: 'metric',
+        target: 'signup_rte',
+        qualifier: null,
+        raw: '[[metric:signup_rte]]',
+        status: 'broken',
+        route_path: null,
+        entity_id: null,
+        candidates: 0,
+        suggestions: ['signup_rate'],
+      },
+    ])
+    renderEditor()
+    type('Rate: [[metric:signup_rte|the rate]]')
+    fireEvent.click(await screen.findByRole('button', { name: 'Relink [[metric:signup_rte]] to signup_rate' }))
+    expect(screen.getByLabelText('Markdown source')).toHaveValue('Rate: [[metric:signup_rate|the rate]]')
   })
 })

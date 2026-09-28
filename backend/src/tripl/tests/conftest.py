@@ -55,6 +55,7 @@ from tripl.middleware.org_context import OrgRef, bind_org, reset_org  # noqa: E4
 from tripl.middleware.rate_limit import (  # noqa: E402
     audit_export_rate_limiter,
     audit_webhook_probe_rate_limiter,
+    doc_link_suggestions_rate_limiter,
     login_rate_limiter,
     register_rate_limiter,
     scim_auth_failure_rate_limiter,
@@ -216,6 +217,7 @@ def _reset_rate_limiters() -> None:
     scim_auth_failure_rate_limiter.reset()
     audit_webhook_probe_rate_limiter.reset()
     audit_export_rate_limiter.reset()
+    doc_link_suggestions_rate_limiter.reset()
 
 
 async def override_get_session() -> AsyncGenerator[AsyncSession]:
