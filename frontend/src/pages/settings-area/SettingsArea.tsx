@@ -19,6 +19,7 @@ import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettings
 import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
 import { ORG_SSO_PATH } from './org-settings/orgSsoModel'
 import { ORG_SCIM_PATH } from './org-settings/orgScimModel'
+import { ORG_AUDIT_WEBHOOK_PATH } from './org-settings/auditExportModel'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -37,6 +38,7 @@ const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
 const OrgSsoSection = lazyWithReload(() => import('./OrgSsoSection'))
 const OrgScimSection = lazyWithReload(() => import('./OrgScimSection'))
+const OrgAuditWebhookSection = lazyWithReload(() => import('./OrgAuditWebhookSection'))
 // The platform console (F20): its own chunks, fetched by platform admins alone.
 const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
 const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
@@ -244,6 +246,7 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   ORG_TRACKERS_PATH,
   ORG_SSO_PATH,
   ORG_SCIM_PATH,
+  ORG_AUDIT_WEBHOOK_PATH,
 ])
 
 function renderSection({
@@ -291,11 +294,30 @@ function renderSection({
   }
   if (section === ORG_SSO_PATH) {
     // How the organization signs in (F20): its owners alone, not its admins.
-    return isOrgOwner ? <OrgSsoSection /> : <OrgOwnerOnly section={section} />
+    return isOrgOwner ? (
+      <OrgSsoSection />
+    ) : (
+      <OrgOwnerOnly section={section} reason="single sign-on: it decides how everyone in the organization signs in" />
+    )
+  }
+  if (section === ORG_AUDIT_WEBHOOK_PATH) {
+    // Where the organization's audit trail is sent (F20): its owners alone.
+    return isOrgOwner ? (
+      <OrgAuditWebhookSection />
+    ) : (
+      <OrgOwnerOnly section={section} reason="the audit webhook: it sends the organization's whole audit trail elsewhere" />
+    )
   }
   if (section === ORG_SCIM_PATH) {
     // Who the identity provider may add and remove (F20): owners alone too.
-    return isOrgOwner ? <OrgScimSection /> : <OrgOwnerOnly section={section} />
+    return isOrgOwner ? (
+      <OrgScimSection />
+    ) : (
+      <OrgOwnerOnly
+        section={section}
+        reason="provisioning: it decides who your identity provider adds to and removes from the organization"
+      />
+    )
   }
   // One route serves every organization section; an unknown one is not a
   // project section to guess at.
@@ -450,9 +472,10 @@ function PlatformOnly({ section }: { section: string }) {
 
 /**
  * A section only an organization OWNER may open (not an admin), opened by
- * anyone else: single sign-on (F20).
+ * anyone else: single sign-on and the audit webhook (F20). `reason` names the
+ * section and why it is an owner's.
  */
-function OrgOwnerOnly({ section }: { section: string }) {
+function OrgOwnerOnly({ section, reason }: { section: string; reason: string }) {
   return (
     <div>
       <StateHeader section={section} />
@@ -463,9 +486,7 @@ function OrgOwnerOnly({ section }: { section: string }) {
           </Link>
         }
       >
-        {section === ORG_SCIM_PATH
-          ? 'Only an organization owner can view or change provisioning: it decides who your identity provider adds to and removes from the organization. Ask an owner.'
-          : 'Only an organization owner can view or change single sign-on: it decides how everyone in the organization signs in. Ask an owner.'}
+        Only an organization owner can view or change {reason}. Ask an owner.
       </ReadOnlyNotice>
     </div>
   )

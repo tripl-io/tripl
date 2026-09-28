@@ -896,6 +896,7 @@ def _body(method: str, path: str, w: World) -> Any:
         },
         f"{API}/orgs/{{org}}/sso/domains": {"domain": "alpha.example.com"},
         f"{API}/orgs/{{org}}/scim/config": {"admin_group_id": None},
+        f"{API}/audit/webhook": {"url": "https://hooks.example.com/probe", "enabled": True},
     }
     return table.get(path, {})
 
@@ -1135,6 +1136,11 @@ LIST_READS: list[tuple[str, dict[str, str] | None]] = [
     ("/users/invitations", None),
     ("/audit", None),
     ("/audit/actions", None),
+    # The export (owner/admin) and the webhook's deliveries (owner): B's rows only.
+    ("/audit/export", None),
+    ("/audit/export", {"format": "json"}),
+    ("/audit/webhook", None),
+    ("/audit/webhook/deliveries", None),
     ("/activity", None),
     (f"/activity/projects/{SLUG}", None),
     ("/me/api-keys", None),

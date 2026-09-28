@@ -247,6 +247,24 @@ sso_probe_rate_limiter = _limiter_for(
     SSO_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso_probe"
 )
 
+# An owner's audit-webhook test sends a request to the URL they typed, and a
+# save resolves its host (hosted): the same small bucket size as the SSO
+# probe, its own key, so neither turns tripl into an outbound request cannon
+# nor ties up the API's worker threads (F20).
+AUDIT_WEBHOOK_PROBE_RATE_LIMIT_PER_MINUTE = 10
+
+audit_webhook_probe_rate_limiter = _limiter_for(
+    AUDIT_WEBHOOK_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="audit_webhook_probe"
+)
+
+# An audit export streams up to a year of rows and holds a database connection
+# per page it reads: a few per minute is plenty for a person or a SIEM pull.
+AUDIT_EXPORT_RATE_LIMIT_PER_MINUTE = 5
+
+audit_export_rate_limiter = _limiter_for(
+    AUDIT_EXPORT_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="audit_export"
+)
+
 
 # SCIM provisioning (F20): keyed on the SCIM TOKEN, not the client address, so
 # an identity provider's egress pool (many addresses, one tenant) draws on one

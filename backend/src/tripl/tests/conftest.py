@@ -53,6 +53,8 @@ from tripl.main import app  # noqa: E402
 _app_settings.apply_startup_service_overrides = _real_apply_startup_service_overrides
 from tripl.middleware.org_context import OrgRef, bind_org, reset_org  # noqa: E402
 from tripl.middleware.rate_limit import (  # noqa: E402
+    audit_export_rate_limiter,
+    audit_webhook_probe_rate_limiter,
     login_rate_limiter,
     register_rate_limiter,
     scim_auth_failure_rate_limiter,
@@ -212,6 +214,8 @@ def _reset_rate_limiters() -> None:
     sso_probe_rate_limiter.reset()
     scim_rate_limiter.reset()
     scim_auth_failure_rate_limiter.reset()
+    audit_webhook_probe_rate_limiter.reset()
+    audit_export_rate_limiter.reset()
 
 
 async def override_get_session() -> AsyncGenerator[AsyncSession]:

@@ -18,6 +18,7 @@ from tripl.schemas.audit import (
     AuditEntryResponse,
     AuditListResponse,
 )
+from tripl.services import audit_webhook_outbox
 from tripl.services.project_lookup import owning_org_id, project_slug_clause
 
 # Fields that must never make it into the audit payload — credentials, hashes,
@@ -170,6 +171,10 @@ async def record(
         # (the default organization) fill it in; ``NULL`` is written as such.
         entry.organization_id = null()
     session.add(entry)
+    if org_id is not None:
+        # The organization's audit webhook, in this very transaction: the row
+        # is delivered if and only if it commits (audit_webhook_outbox).
+        await audit_webhook_outbox.enqueue(session, entry, org_id)
     if commit:
         await session.commit()
     return entry

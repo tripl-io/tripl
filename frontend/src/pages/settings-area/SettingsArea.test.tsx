@@ -10,6 +10,7 @@ import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
 import { scimApi } from '@/api/scim'
 import { ssoApi } from '@/api/sso'
+import { auditWebhookApi } from '@/api/auditExport'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
 
@@ -406,6 +407,19 @@ describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
     expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change provisioning/)
     expect(tokens).not.toHaveBeenCalled()
     expect(config).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Audit webhook from an organization admin: it is an owner\'s alone (F20)', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const get = vi.spyOn(auditWebhookApi, 'get')
+    const owner = ownerAuthValue()
+    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
+
+    renderArea('organization/audit-webhook', '', admin)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Audit webhook' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change the audit webhook/)
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {

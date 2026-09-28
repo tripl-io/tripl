@@ -11,6 +11,7 @@ from tripl.models.anomaly_scope_override import AnomalyScopeOverride
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import AppSetting
 from tripl.models.audit_log import AuditLog
+from tripl.models.audit_webhook import AuditWebhookOutbox, OrgAuditWebhook
 from tripl.models.base import Base
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
@@ -105,6 +106,7 @@ __all__ = [
     "ApiKey",
     "AppSetting",
     "AuditLog",
+    "AuditWebhookOutbox",
     "ChartAnnotation",
     "CoverageMetric",
     "Project",
@@ -142,6 +144,7 @@ __all__ = [
     "OrgScimToken",
     "ScimGroupLink",
     "ScimUserLink",
+    "OrgAuditWebhook",
     "OrgSsoConfig",
     "OrgSsoDomain",
     "SsoLinkTicket",

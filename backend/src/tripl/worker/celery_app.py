@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import beat_init, setup_logging, worker_init, worker_process_init
@@ -217,6 +219,16 @@ celery_app.conf.beat_schedule = {
         # run harmless.
         "schedule": crontab(minute="*"),
     },
+    "deliver-audit-webhooks": {
+        "task": "tripl.worker.tasks.audit_webhook.deliver_audit_webhooks",
+        # Every 30 seconds (F20): the one entry off the crontab grid. An audit
+        # webhook feeds a SIEM, where a minute of lag is visible, and the tick
+        # is one indexed read of due outbox rows when nothing is queued. Not a
+        # wall-clock time anyone typed, so no boundary to align to. A tick not
+        # started within its interval is dropped; the next one covers it.
+        "schedule": timedelta(seconds=30),
+        "options": {"expires": 30},
+    },
     "send-notification-digest-daily": {
         "task": "tripl.worker.tasks.notification_email.send_notification_digest",
         "schedule": crontab(hour=7, minute=0),
@@ -269,6 +281,7 @@ import tripl.worker.tasks.alert_digest_send  # noqa: F401, E402
 import tripl.worker.tasks.alert_flush  # noqa: F401, E402
 import tripl.worker.tasks.alert_owner_notify  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
+import tripl.worker.tasks.audit_webhook  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.health  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402
