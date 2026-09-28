@@ -2343,6 +2343,10 @@ POST   /api/v1/projects/{slug}/docs/move
 POST   /api/v1/projects/{slug}/docs/revisions/{revision_id}/restore
 POST   /api/v1/projects/{slug}/docs/import?scope=project&mode=merge&dry_run=true
 POST   /api/v1/projects/{slug}/docs/import/zip?scope=project&mode=merge&dry_run=true&keep_root=false
+GET    /api/v1/projects/{slug}/docs/file/sharing?scope=project&path=guides/warehouse.md
+PUT    /api/v1/projects/{slug}/docs/file/sharing?scope=project&path=guides/warehouse.md
+GET    /api/v1/projects/{slug}/docs/folder/sharing?scope=project&path=guides/
+PUT    /api/v1/projects/{slug}/docs/folder/sharing?scope=project&path=guides/
 ```
 
 Reads (every `GET`) are open to any project member, including viewers and
@@ -2357,7 +2361,8 @@ owner or admin in a browser session: every API key gets `403`. Two writers racin
 
 `GET /docs` returns the tree: `project_docs` and `organization_docs` (each
 note's `scope`, `path`, `title`, `description`, `tags`, `audience`,
-`revision`, `size_bytes`, `updated_at`, `updated_by_name`), the project and
+`revision`, `size_bytes`, `updated_at`, `updated_by_name`, `visibility`,
+`my_permission` and `shared`), the project and
 organization, and the `limits`. `GET /docs/file` adds `id`, the raw `content`
 (frontmatter included), the `body` without frontmatter, `extra_frontmatter`
 (the keys tripl does not interpret), and `links`. Each link has a `status` of
@@ -2390,10 +2395,78 @@ link. A broken link does not block the save.
 - Content over 256 KiB is `413`. A bad path, invalid frontmatter, or a root
   that already holds 5000 notes is `422`, with the reason in `detail`.
 
+### Note sharing {#docs-sharing}
+
+A note is readable by everyone at its level (`visibility: "level"`, the
+default), by its author and the people and groups it is shared with
+(`"restricted"`), or by its author only (`"private"`). See
+[Sharing](../use/docs-catalog.md#sharing). The rules apply to every docs
+route, and to API keys as to their user:
+
+- A note the caller cannot read is left out of `GET /docs`, search, backlinks,
+  revisions and the export, and is not counted anywhere. Reading it by path is
+  `404` `"Doc not found"`, the same answer as for a missing note.
+- An organization owner or admin can read such a note by path
+  (`GET /docs/file`, `GET /docs/revisions`, `GET /docs/file/sharing`). The
+  answer is `200` with `"break_glass": true` on the note, each read is audited
+  as `doc.break_glass_read`, the note is still missing from every list, and
+  it stays read-only for them unless it is shared with them for editing.
+- A hidden note still holds its path: a create, move or import (also a dry
+  run) onto that path is `409` `"A doc already exists at ..."` (or `"the path
+  is taken"` in an import report), and the per-scope note limit counts hidden
+  notes. None of these names the note or shows its content.
+- Each note in a response carries `visibility`, `my_permission` (`"view"` or
+  `"edit"`: what the caller may do with it) and `shared` (whether it has any
+  share). A `PUT /docs/file` on a note whose `my_permission` is `"view"` is
+  `403`.
+
+`GET /docs/file/sharing` returns the note's setting:
+
+```json
+{
+  "visibility": "restricted",
+  "inherited": false,
+  "inherited_from": null,
+  "shares": [
+    {"principal_type": "user", "principal_id": "<user id>", "name": "Alice Example", "permission": "edit"},
+    {"principal_type": "group", "principal_id": "<group id>", "name": "Analysts", "permission": "view"}
+  ]
+}
+```
+
+`inherited: true` means the note follows the nearest folder setting above it,
+named by `inherited_from` (`null` when no folder sets one). `PUT` takes the
+same body without the `name` fields. Send `inherited: true` to follow the
+folder again. Groups are organization groups. A share to someone outside the
+project (or organization) grants nothing. Only the note's author (while the
+level lets them write) or an organization owner or admin may change a note's
+sharing (`403` otherwise); an `edit` share lets a caller edit the note, not
+re-share it. Each change is audited as `doc.share_update`, with the setting
+before and after.
+
+`GET` and `PUT /docs/folder/sharing?path=<folder>` read and set a folder's
+setting, which the notes under it that follow their folder use. For a folder
+of project notes, `PUT` is allowed to an organization owner or admin, or to a
+project editor when every note that follows the folder is their own or still
+has `visibility: "level"`; for organization notes, to an organization owner
+or admin. A folder's `"private"` means each note's own author, not the caller
+who set it.
+
+Frontmatter never carries visibility. An import ignores it, so imported notes
+get the default or their folder's setting, and an export does not write it.
+
 `POST /docs/move` takes `{"scope", "from_path", "to_path", "folder"}`. With
 `"folder": true` both paths are folder prefixes and every note under
 `from_path` moves. The move is all or nothing: if any target path is taken,
-the answer is `409` and names them. `DELETE /docs/folder` returns
+the answer is `409` and names them. A move never changes who can read a
+note behind its author's back: a single note that follows its folder takes
+its new folder's setting only when the caller is its author or an
+organization owner or admin (audited as `doc.share_update` with
+`"via_move": true`). Otherwise, and for every folder move, a moved note whose
+access would change keeps its old setting as its own
+(`inherited: false`), and the `doc.move` audit row lists it under
+`access_kept`. A folder move carries its folder settings only onto a target
+folder that holds no other notes and has no setting. `DELETE /docs/folder` returns
 `{"deleted": [...]}` and is `404` for a folder with no notes.
 
 `GET /docs/revisions` lists revisions newest first. `GET

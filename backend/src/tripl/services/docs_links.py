@@ -30,6 +30,7 @@ from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
 from tripl.models.project import Project
 from tripl.schemas.docs import DocAudience, DocBacklinkItem, DocLinkKind, DocLinkResolution
+from tripl.services.docs_access import visible_docs_clause
 from tripl.services.docs_paths import MAX_LINKS_PER_FILE, DocScope
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_links import project_org_slugs, project_url
@@ -296,8 +297,13 @@ async def backlinks(
     kind: DocLinkKind,
     name: str,
     qualifier: str | None = None,
+    *,
+    user_id: uuid.UUID | None,
 ) -> list[DocBacklinkItem]:
     """Notes in this project or its organization that link to ``kind:name``.
+
+    Only the notes ``user_id`` can see (F24, ``docs_access.visible_docs_clause``);
+    ``None`` sees ``level`` notes only.
 
     A qualified field (``checkout/amount``) also matches unqualified links to the
     same field name, since those may mean it; an unqualified query matches every
@@ -315,6 +321,7 @@ async def backlinks(
                 DocFile.project_id == project.id,
                 DocFile.organization_id == project.organization_id,
             ),
+            visible_docs_clause(user_id),
         )
         .order_by(DocFile.organization_id.is_not(None), func.lower(DocFile.path))
     )

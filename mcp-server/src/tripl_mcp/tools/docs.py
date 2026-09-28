@@ -11,6 +11,14 @@ replace a whole folder at once. Both stay with a human, in the app or in
 ``tripl docs push``, which asks first. ``write_doc`` is a single-note create or
 replace, with an optimistic lock (``base_revision``) so an agent cannot silently
 overwrite an edit it never read.
+
+Every tool sees exactly what the key's user sees (F24): a note that is private,
+or shared only with other people or groups, is absent from lists and searches
+and answers 404 when read, and ``my_permission`` says whether the user may edit
+a note it does see. One exception: a key of an organization owner or admin may
+still read such a note directly by path — an audited break-glass read, flagged
+``break_glass: true`` in the answer, never listed and never editable. Sharing
+is changed in the app, not here.
 """
 
 from __future__ import annotations
@@ -134,7 +142,9 @@ def register(mcp: FastMCP) -> None:
             "description, tags, audience and revision, but no content. 'audience' keeps "
             "notes written for that reader; a note marked 'both' matches 'human' and "
             "'agent'. Notes hold context the plan does not: warehouse gotchas, query "
-            "recipes, conventions. Requires a tk_r_ or tk_w_ tripl API key."
+            "recipes, conventions. Only notes the key's user may see are listed "
+            "(visibility: private, restricted or level); 'my_permission' says whether "
+            "they may edit one. Requires a tk_r_ or tk_w_ tripl API key."
         ),
     )(list_docs)
     mcp.tool(
@@ -147,6 +157,10 @@ def register(mcp: FastMCP) -> None:
             "'extra_frontmatter' for any other keys, the current 'revision', and "
             "'links': every [[event:NAME]], [[event-type:NAME]] and [[field:NAME]] in "
             "the note with its status on the main plan (resolved, ambiguous or broken). "
+            "A note hidden from the key's user answers 404, except for an "
+            "organization owner or admin: they may still read it, the read is "
+            "recorded in the audit log, and the answer carries break_glass=true "
+            "(do not treat such a note as shared with the user; it stays read-only). "
             "Requires a tk_r_ or tk_w_ tripl API key."
         ),
     )(read_doc)
@@ -159,7 +173,8 @@ def register(mcp: FastMCP) -> None:
             "confidence in [0,1]; read the note with read_doc before relying on it. "
             "Not paged: 'truncated' says ranked hits were dropped, so raise 'limit' "
             "(at most 50). search_plan with types=['doc'] finds the same notes "
-            "alongside plan entities. Requires a tk_r_ or tk_w_ tripl API key."
+            "alongside plan entities. Notes hidden from the key's user are never "
+            "matched or counted. Requires a tk_r_ or tk_w_ tripl API key."
         ),
     )(search_docs)
     mcp.tool(

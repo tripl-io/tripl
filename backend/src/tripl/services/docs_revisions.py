@@ -3,6 +3,10 @@
 Every revision holds the note's full content; the diff against the previous
 revision is computed on read. A deleted note's revisions go with it (CASCADE),
 so history is only ever browsed, and restored, within a live note.
+
+History is the note's content, so it follows the note's visibility (F24): a
+hidden note's revisions are 404 (an organization owner/admin's break-glass read
+is audited), and a restore is an edit.
 """
 
 from __future__ import annotations
@@ -27,7 +31,12 @@ from tripl.schemas.docs import (
 )
 from tripl.services import _docs_store as store
 from tripl.services import audit_service
-from tripl.services.docs_access import DocCaller, require_doc_writer
+from tripl.services.docs_access import (
+    DocCaller,
+    require_doc_writer,
+    require_editable,
+    require_readable,
+)
 from tripl.services.docs_frontmatter import DocContentError, parse_frontmatter
 from tripl.services.docs_paths import DocScope, content_bytes
 from tripl.services.docs_service import (
@@ -55,10 +64,11 @@ def _revision_summary(revision: DocRevision, names: dict[uuid.UUID, str]) -> Doc
 
 
 async def list_revisions(
-    session: AsyncSession, slug: str, scope: DocScope, path: str
+    session: AsyncSession, slug: str, scope: DocScope, path: str, caller: DocCaller
 ) -> DocRevisionListResponse:
     project = await _resolve_project(session, slug)
     doc = await store.get_doc(session, project, scope, _path(path))
+    await require_readable(session, caller, project, doc, what="revisions")
     revisions = list(
         await session.scalars(
             select(DocRevision)
@@ -91,10 +101,15 @@ async def _visible_revision(
 
 
 async def get_revision(
-    session: AsyncSession, slug: str, revision_id: uuid.UUID
+    session: AsyncSession, slug: str, revision_id: uuid.UUID, caller: DocCaller
 ) -> DocRevisionDetail:
     project = await _resolve_project(session, slug)
-    revision, _doc = await _visible_revision(session, project, revision_id)
+    revision, doc = await _visible_revision(session, project, revision_id)
+    try:
+        await require_readable(session, caller, project, doc, what=f"revision {revision.number}")
+    except HTTPException as exc:
+        # The same 404 an unknown revision id gets.
+        raise HTTPException(status_code=404, detail="Revision not found") from exc
     previous: DocRevision | None = await session.scalar(
         select(DocRevision)
         .where(
@@ -139,9 +154,15 @@ async def restore_revision(
     revision, doc = await _visible_revision(session, project, revision_id)
     scope = store.scope_of(doc)
     await require_doc_writer(session, caller, scope, project.organization_id)
+    try:
+        await require_editable(session, caller, project, doc)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            raise HTTPException(status_code=404, detail="Revision not found") from exc
+        raise
     user = caller.user
     if doc.content == revision.content:
-        return await _write_response(session, project, doc, created=False, changed=False)
+        return await _write_response(session, project, doc, caller, created=False, changed=False)
     try:
         parsed = parse_frontmatter(revision.content, doc.path)
     except DocContentError as exc:
@@ -178,4 +199,4 @@ async def restore_revision(
     except IntegrityError as exc:
         await session.rollback()
         raise store.concurrent_write() from exc
-    return await _write_response(session, project, doc, created=False, changed=True)
+    return await _write_response(session, project, doc, caller, created=False, changed=True)

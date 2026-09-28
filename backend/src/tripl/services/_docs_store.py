@@ -34,6 +34,7 @@ from tripl.schemas.docs import (
 )
 from tripl.services import docs_links
 from tripl.services._celery_dispatch import dispatch
+from tripl.services.docs_access import DocAccess, DocPermission
 from tripl.services.docs_frontmatter import DocContentError, ParsedDoc, parse_frontmatter
 from tripl.services.docs_paths import (
     DocPathError,
@@ -129,6 +130,8 @@ def new_doc(project: Project, scope: DocScope, path: str) -> DocFile:
         path=path,
         path_key=path_key(path),
         revision=0,
+        visibility="level",
+        visibility_inherited=True,
     )
 
 
@@ -229,7 +232,13 @@ def safe_parse(doc: DocFile) -> ParsedDoc:
         )
 
 
-def summary(doc: DocFile, names: dict[uuid.UUID, str]) -> DocSummary:
+def summary(
+    doc: DocFile,
+    names: dict[uuid.UUID, str],
+    access: DocAccess | None = None,
+    permission: DocPermission = "view",
+) -> DocSummary:
+    """A note as the tree lists it; ``access`` is the caller's (F24)."""
     return DocSummary(
         scope=scope_of(doc),
         path=doc.path,
@@ -241,11 +250,21 @@ def summary(doc: DocFile, names: dict[uuid.UUID, str]) -> DocSummary:
         size_bytes=doc.size_bytes,
         updated_at=doc.updated_at,
         updated_by_name=names.get(doc.updated_by) if doc.updated_by else None,
+        visibility=access.visibility if access is not None else "level",
+        my_permission=permission,
+        shared=access.shared if access is not None else False,
     )
 
 
 async def file_response(
-    session: AsyncSession, project: Project, doc: DocFile, *, resolve: bool = True
+    session: AsyncSession,
+    project: Project,
+    doc: DocFile,
+    *,
+    resolve: bool = True,
+    access: DocAccess | None = None,
+    permission: DocPermission = "view",
+    break_glass: bool = False,
 ) -> DocFileResponse:
     parsed = safe_parse(doc)
     names = await user_names(session, [doc.created_by, doc.updated_by])
@@ -260,7 +279,7 @@ async def file_response(
                 refs.append(docs_links.LinkRef(link.kind, link.target, link.qualifier))
         links = await docs_links.resolve_links(session, project, refs)
     return DocFileResponse(
-        **summary(doc, names).model_dump(),
+        **summary(doc, names, access, permission).model_dump(),
         id=doc.id,
         content=doc.content,
         body=parsed.body,
@@ -268,6 +287,7 @@ async def file_response(
         links=links,
         created_at=doc.created_at,
         created_by_name=names.get(doc.created_by) if doc.created_by else None,
+        break_glass=break_glass,
     )
 
 

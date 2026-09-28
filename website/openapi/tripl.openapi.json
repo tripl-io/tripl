@@ -14833,6 +14833,306 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/docs/file/sharing": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Read Doc Sharing",
+        "description": "Who the note is shared with. 404 for a note the caller cannot see.",
+        "operationId": "read_doc_sharing_api_v1_projects__slug__docs_file_sharing_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocSharingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Update Doc Sharing",
+        "description": "Change the note's visibility and shares: its author, or an org owner/admin.",
+        "operationId": "update_doc_sharing_api_v1_projects__slug__docs_file_sharing_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocSharingUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocSharingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/folder/sharing": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Read Folder Sharing",
+        "description": "A folder's setting, inherited by the notes under it that do not override it.",
+        "operationId": "read_folder_sharing_api_v1_projects__slug__docs_folder_sharing_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "A folder prefix.",
+              "title": "Path"
+            },
+            "description": "A folder prefix."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocSharingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Update Folder Sharing",
+        "description": "Set (or, with ``inherited: true``, clear) a folder's visibility and shares.",
+        "operationId": "update_folder_sharing_api_v1_projects__slug__docs_folder_sharing_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "A folder prefix.",
+              "title": "Path"
+            },
+            "description": "A folder prefix."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocSharingUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocSharingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/docs/folder": {
       "delete": {
         "tags": [
@@ -29420,6 +29720,30 @@
             ],
             "title": "Updated By Name"
           },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted",
+              "level"
+            ],
+            "title": "Visibility",
+            "default": "level"
+          },
+          "my_permission": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "My Permission",
+            "default": "view"
+          },
+          "shared": {
+            "type": "boolean",
+            "title": "Shared",
+            "default": false
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -29462,6 +29786,11 @@
               }
             ],
             "title": "Created By Name"
+          },
+          "break_glass": {
+            "type": "boolean",
+            "title": "Break Glass",
+            "default": false
           }
         },
         "type": "object",
@@ -30124,6 +30453,168 @@
         ],
         "title": "DocSearchResponse"
       },
+      "DocShareInput": {
+        "properties": {
+          "principal_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "title": "Principal Type"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Principal Id"
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "Permission",
+            "default": "view"
+          }
+        },
+        "type": "object",
+        "required": [
+          "principal_type",
+          "principal_id"
+        ],
+        "title": "DocShareInput"
+      },
+      "DocShareItem": {
+        "properties": {
+          "principal_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "title": "Principal Type"
+          },
+          "principal_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Principal Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "permission": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "Permission",
+            "default": "view"
+          }
+        },
+        "type": "object",
+        "required": [
+          "principal_type",
+          "principal_id"
+        ],
+        "title": "DocShareItem"
+      },
+      "DocSharingResponse": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted",
+              "level"
+            ],
+            "title": "Visibility"
+          },
+          "inherited": {
+            "type": "boolean",
+            "title": "Inherited"
+          },
+          "inherited_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inherited From"
+          },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/DocShareItem"
+            },
+            "type": "array",
+            "title": "Shares",
+            "default": []
+          },
+          "can_manage": {
+            "type": "boolean",
+            "title": "Can Manage",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "visibility",
+          "inherited"
+        ],
+        "title": "DocSharingResponse",
+        "description": "A note's or a folder's sharing.\n\n``inherited`` is true when it follows the nearest folder setting above it,\nnamed by ``inherited_from`` (``None`` when no folder has one and the default,\n``level``, applies). ``visibility`` and ``shares`` are then the folder's."
+      },
+      "DocSharingUpdate": {
+        "properties": {
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted",
+              "level"
+            ],
+            "title": "Visibility",
+            "default": "level"
+          },
+          "inherited": {
+            "type": "boolean",
+            "title": "Inherited",
+            "default": false
+          },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/DocShareInput"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Shares",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "DocSharingUpdate",
+        "description": "``inherited: true`` drops the note's (or folder's) own setting and shares."
+      },
       "DocSummary": {
         "properties": {
           "scope": {
@@ -30188,6 +30679,30 @@
               }
             ],
             "title": "Updated By Name"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted",
+              "level"
+            ],
+            "title": "Visibility",
+            "default": "level"
+          },
+          "my_permission": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "My Permission",
+            "default": "view"
+          },
+          "shared": {
+            "type": "boolean",
+            "title": "Shared",
+            "default": false
           }
         },
         "type": "object",
@@ -30381,6 +30896,30 @@
             ],
             "title": "Updated By Name"
           },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "restricted",
+              "level"
+            ],
+            "title": "Visibility",
+            "default": "level"
+          },
+          "my_permission": {
+            "type": "string",
+            "enum": [
+              "view",
+              "edit"
+            ],
+            "title": "My Permission",
+            "default": "view"
+          },
+          "shared": {
+            "type": "boolean",
+            "title": "Shared",
+            "default": false
+          },
           "id": {
             "type": "string",
             "format": "uuid",
@@ -30423,6 +30962,11 @@
               }
             ],
             "title": "Created By Name"
+          },
+          "break_glass": {
+            "type": "boolean",
+            "title": "Break Glass",
+            "default": false
           },
           "created": {
             "type": "boolean",

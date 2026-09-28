@@ -181,6 +181,10 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "doc.folder_delete",
             "doc.restore",
             "doc.import",
+            # F24: a note's or folder's sharing changed (before/after, no
+            # content), and an org owner/admin read a note hidden from them.
+            "doc.share_update",
+            "doc.break_glass_read",
         ),
     ),
     (

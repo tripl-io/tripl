@@ -2917,6 +2917,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/docs/file/sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Doc Sharing
+         * @description Who the note is shared with. 404 for a note the caller cannot see.
+         */
+        get: operations["read_doc_sharing_api_v1_projects__slug__docs_file_sharing_get"];
+        /**
+         * Update Doc Sharing
+         * @description Change the note's visibility and shares: its author, or an org owner/admin.
+         */
+        put: operations["update_doc_sharing_api_v1_projects__slug__docs_file_sharing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/docs/folder": {
         parameters: {
             query?: never;
@@ -2929,6 +2953,30 @@ export interface paths {
         post?: never;
         /** Delete Doc Folder */
         delete: operations["delete_doc_folder_api_v1_projects__slug__docs_folder_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/folder/sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Folder Sharing
+         * @description A folder's setting, inherited by the notes under it that do not override it.
+         */
+        get: operations["read_folder_sharing_api_v1_projects__slug__docs_folder_sharing_get"];
+        /**
+         * Update Folder Sharing
+         * @description Set (or, with ``inherited: true``, clear) a folder's visibility and shares.
+         */
+        put: operations["update_folder_sharing_api_v1_projects__slug__docs_folder_sharing_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -8756,6 +8804,11 @@ export interface components {
             audience: "human" | "agent" | "both";
             /** Body */
             body: string;
+            /**
+             * Break Glass
+             * @default false
+             */
+            break_glass: boolean;
             /** Content */
             content: string;
             /**
@@ -8787,6 +8840,12 @@ export interface components {
              * @default []
              */
             links: components["schemas"]["DocLinkResolution"][];
+            /**
+             * My Permission
+             * @default view
+             * @enum {string}
+             */
+            my_permission: "view" | "edit";
             /** Path */
             path: string;
             /** Revision */
@@ -8796,6 +8855,11 @@ export interface components {
              * @enum {string}
              */
             scope: "project" | "organization";
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Size Bytes */
             size_bytes: number;
             /**
@@ -8812,6 +8876,12 @@ export interface components {
             updated_at: string;
             /** Updated By Name */
             updated_by_name?: string | null;
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
         };
         /** DocFolderDeleteResponse */
         DocFolderDeleteResponse: {
@@ -9108,6 +9178,107 @@ export interface components {
              */
             truncated: boolean;
         };
+        /** DocShareInput */
+        DocShareInput: {
+            /**
+             * Permission
+             * @default view
+             * @enum {string}
+             */
+            permission: "view" | "edit";
+            /**
+             * Principal Id
+             * Format: uuid
+             */
+            principal_id: string;
+            /**
+             * Principal Type
+             * @enum {string}
+             */
+            principal_type: "user" | "group";
+        };
+        /** DocShareItem */
+        DocShareItem: {
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Permission
+             * @default view
+             * @enum {string}
+             */
+            permission: "view" | "edit";
+            /**
+             * Principal Id
+             * Format: uuid
+             */
+            principal_id: string;
+            /**
+             * Principal Type
+             * @enum {string}
+             */
+            principal_type: "user" | "group";
+        };
+        /**
+         * DocSharingResponse
+         * @description A note's or a folder's sharing.
+         *
+         *     ``inherited`` is true when it follows the nearest folder setting above it,
+         *     named by ``inherited_from`` (``None`` when no folder has one and the default,
+         *     ``level``, applies). ``visibility`` and ``shares`` are then the folder's.
+         */
+        DocSharingResponse: {
+            /**
+             * Can Manage
+             * @default false
+             */
+            can_manage: boolean;
+            /** Inherited */
+            inherited: boolean;
+            /** Inherited From */
+            inherited_from?: string | null;
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["DocShareItem"][];
+            /**
+             * Visibility
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
+        };
+        /**
+         * DocSharingUpdate
+         * @description ``inherited: true`` drops the note's (or folder's) own setting and shares.
+         */
+        DocSharingUpdate: {
+            /**
+             * Inherited
+             * @default false
+             */
+            inherited: boolean;
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["DocShareInput"][];
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
+        };
         /** DocSummary */
         DocSummary: {
             /**
@@ -9121,6 +9292,12 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * My Permission
+             * @default view
+             * @enum {string}
+             */
+            my_permission: "view" | "edit";
             /** Path */
             path: string;
             /** Revision */
@@ -9130,6 +9307,11 @@ export interface components {
              * @enum {string}
              */
             scope: "project" | "organization";
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Size Bytes */
             size_bytes: number;
             /**
@@ -9146,6 +9328,12 @@ export interface components {
             updated_at: string;
             /** Updated By Name */
             updated_by_name?: string | null;
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
         };
         /** DocTreeOrganization */
         DocTreeOrganization: {
@@ -9203,6 +9391,11 @@ export interface components {
             audience: "human" | "agent" | "both";
             /** Body */
             body: string;
+            /**
+             * Break Glass
+             * @default false
+             */
+            break_glass: boolean;
             /** Changed */
             changed: boolean;
             /** Content */
@@ -9238,6 +9431,12 @@ export interface components {
              * @default []
              */
             links: components["schemas"]["DocLinkResolution"][];
+            /**
+             * My Permission
+             * @default view
+             * @enum {string}
+             */
+            my_permission: "view" | "edit";
             /** Path */
             path: string;
             /** Revision */
@@ -9247,6 +9446,11 @@ export interface components {
              * @enum {string}
              */
             scope: "project" | "organization";
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Size Bytes */
             size_bytes: number;
             /**
@@ -9263,6 +9467,12 @@ export interface components {
             updated_at: string;
             /** Updated By Name */
             updated_by_name?: string | null;
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
             /**
              * Warnings
              * @default []
@@ -23461,6 +23671,82 @@ export interface operations {
             };
         };
     };
+    read_doc_sharing_api_v1_projects__slug__docs_file_sharing_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_doc_sharing_api_v1_projects__slug__docs_file_sharing_put: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocSharingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_doc_folder_api_v1_projects__slug__docs_folder_delete: {
         parameters: {
             query: {
@@ -23484,6 +23770,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocFolderDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_folder_sharing_api_v1_projects__slug__docs_folder_sharing_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description A folder prefix. */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_folder_sharing_api_v1_projects__slug__docs_folder_sharing_put: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description A folder prefix. */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocSharingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
                 };
             };
             /** @description Validation Error */

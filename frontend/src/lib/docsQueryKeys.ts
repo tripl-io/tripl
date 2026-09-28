@@ -17,6 +17,10 @@ export const docsTreeKey = (slug: string) => [...docsKey(slug), 'tree'] as const
 export const docFileKey = (slug: string, scope: DocScope, path: string) =>
   [...docsKey(slug), 'file', scope, path] as const
 
+/** A note's (`target: 'file'`) or folder's sharing (F24). */
+export const docSharingKey = (slug: string, target: 'file' | 'folder', scope: DocScope, path: string) =>
+  [...docsKey(slug), 'sharing', target, scope, path] as const
+
 export const docRevisionsKey = (slug: string, scope: DocScope, path: string) =>
   [...docsKey(slug), 'revisions', scope, path] as const
 

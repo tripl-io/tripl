@@ -22,6 +22,9 @@ function doc(overrides: Partial<DocFileResponse> = {}): DocFileResponse {
     size_bytes: 20,
     updated_at: '2026-09-01T00:00:00Z',
     updated_by_name: null,
+    visibility: 'level',
+    my_permission: 'edit',
+    shared: false,
     content: '# Setup\n',
     body: 'Body text\n',
     extra_frontmatter: {},
@@ -124,5 +127,55 @@ describe('BrokenLinksBanner', () => {
     expect(screen.getByText('link 19')).toBeInTheDocument()
     expect(screen.queryByText('link 20')).toBeNull()
     expect(screen.getByText('…and 3 more')).toBeInTheDocument()
+  })
+})
+
+describe('DocView sharing (F24)', () => {
+  it('says nothing for a note everyone in the project reads', () => {
+    renderView(doc())
+    expect(screen.queryByText(/Only the author/)).toBeNull()
+    expect(screen.queryByText(/Shared with specific people/)).toBeNull()
+    expect(screen.queryByText('View only')).toBeNull()
+  })
+
+  it('marks a private note and a shared view-only note', () => {
+    renderView(doc({ visibility: 'private' }))
+    expect(screen.getByText('Only the author')).toBeInTheDocument()
+  })
+
+  it('marks a note shared with the reader to view only', () => {
+    renderView(doc({ visibility: 'restricted', shared: true, my_permission: 'view' }), false)
+    expect(screen.getByText('Shared with specific people · view only')).toBeInTheDocument()
+  })
+
+  it('tells an org admin that a break-glass read was audited', () => {
+    renderView(doc({ visibility: 'private', my_permission: 'view', break_glass: true }), false)
+    expect(screen.getByText('This note is not shared with you')).toBeInTheDocument()
+    expect(screen.getByText(/recorded in the audit log/)).toBeInTheDocument()
+  })
+
+  it('shows no break-glass notice on an ordinary read', () => {
+    renderView(doc())
+    expect(screen.queryByText('This note is not shared with you')).not.toBeInTheDocument()
+  })
+
+  it('opens the Share dialog', () => {
+    const onShare = vi.fn()
+    render(
+      <MemoryRouter>
+        <DocView
+          slug="demo"
+          doc={doc()}
+          canEdit={false}
+          onEdit={vi.fn()}
+          onHistory={vi.fn()}
+          onMove={vi.fn()}
+          onDelete={vi.fn()}
+          onShare={onShare}
+        />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    expect(onShare).toHaveBeenCalled()
   })
 })

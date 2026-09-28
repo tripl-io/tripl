@@ -9,7 +9,10 @@ import {
   FolderOpen,
   FolderPen,
   FolderX,
+  Lock,
   Search,
+  Share2,
+  Users,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { IconButton } from '@/components/ui/icon-button'
@@ -21,6 +24,8 @@ export interface FolderActions {
   onNewInFolder: (scope: DocScope, prefix: string) => void
   onMoveFolder: (scope: DocScope, prefix: string) => void
   onDeleteFolder: (scope: DocScope, prefix: string, count: number) => void
+  /** Who can read the folder's notes (F24); absent hides the menu item. */
+  onShareFolder?: (scope: DocScope, prefix: string) => void
   /**
    * Whether the viewer may change notes of `scope`: project notes follow the
    * project's write gate, organization notes need an organization owner or admin.
@@ -230,6 +235,11 @@ function FolderList({
                   <IconButton label={`Rename or move ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onMoveFolder(scope, sub.path)}>
                     <FolderPen />
                   </IconButton>
+                  {actions.onShareFolder && (
+                    <IconButton label={`Share ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onShareFolder?.(scope, sub.path)}>
+                      <Share2 />
+                    </IconButton>
+                  )}
                   <IconButton label={`Delete ${sub.path}`} size="icon-xs" variant="ghost" onClick={() => actions.onDeleteFolder(scope, sub.path, sub.count)}>
                     <FolderX />
                   </IconButton>
@@ -260,6 +270,7 @@ function FolderList({
               to={docRoute(slug, scope, file.path)}
               aria-current={selected ? 'page' : undefined}
               title={file.path}
+              aria-label={`${file.doc.title || file.name}${visibilitySuffix(file.doc)}`}
               className={cn(
                 'flex min-w-0 items-center gap-1.5 rounded-control py-1 pr-1 text-body-sm hover:bg-surface-hover',
                 selected ? 'bg-surface-active font-medium text-fg' : 'text-fg-secondary',
@@ -268,10 +279,40 @@ function FolderList({
             >
               <FileText className="size-3.5 shrink-0 text-fg-tertiary" aria-hidden />
               <span className="truncate">{file.doc.title || file.name}</span>
+              <VisibilityIcon doc={file.doc} />
             </Link>
           </li>
         )
       })}
     </ul>
   )
+}
+
+/**
+ * What the row's icon says, for its accessible name. The link carries it as an
+ * aria-label: an sr-only span inside the link would lose the separating space.
+ */
+function visibilitySuffix(doc: DocSummary): string {
+  if (doc.visibility === 'private') return ' (only the author)'
+  if (doc.visibility === 'restricted') return ' (shared with specific people)'
+  return ''
+}
+
+/** Lock for an author-only note, people for a shared one; nothing for the default. */
+function VisibilityIcon({ doc }: { doc: DocSummary }) {
+  if (doc.visibility === 'private') {
+    return (
+      <span className="ml-auto shrink-0 text-fg-tertiary" title="Only the author">
+        <Lock className="size-3" aria-hidden />
+      </span>
+    )
+  }
+  if (doc.visibility === 'restricted') {
+    return (
+      <span className="ml-auto shrink-0 text-fg-tertiary" title="Shared with specific people">
+        <Users className="size-3" aria-hidden />
+      </span>
+    )
+  }
+  return null
 }

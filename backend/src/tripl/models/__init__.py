@@ -18,6 +18,7 @@ from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.doc_file import DocFile, DocLink, DocRevision
+from tripl.models.doc_share import DocFolderSetting, DocFolderShare, DocShare
 from tripl.models.duplicate_dismissal import DuplicateDismissal
 from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.event import Event
@@ -177,6 +178,9 @@ __all__ = [
     "DocFile",
     "DocLink",
     "DocRevision",
+    "DocShare",
+    "DocFolderSetting",
+    "DocFolderShare",
     "DuplicateDismissal",
     "ScanConfig",
     "ScanDryRunJob",

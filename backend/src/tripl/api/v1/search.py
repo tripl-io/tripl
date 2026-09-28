@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
+from tripl.api.deps import BranchIdDep, CurrentUserDep, EditorUserDep, SessionDep
 from tripl.schemas.search import SearchEntityType, SearchReindexResponse, SearchResponse
 from tripl.services import search_service
 
@@ -16,6 +16,7 @@ async def search_project(
     session: SessionDep,
     slug: str,
     branch_id: BranchIdDep,
+    current_user: CurrentUserDep,
     q: Annotated[str, Query(min_length=1, max_length=500)],
     types: Annotated[list[SearchEntityType] | None, Query()] = None,
     include_archived: bool = False,
@@ -52,6 +53,8 @@ async def search_project(
         limit=limit,
         semantic=semantic,
         group_variants=group_variants,
+        # Docs catalog notes hidden from the caller never reach the answer (F24).
+        viewer=current_user,
     )
 
 

@@ -38,6 +38,7 @@ from tripl.models.user import User
 from tripl.schemas.organization import ORG_SLUG_PATTERN, OrgResponse
 from tripl.services import (
     auth_service,
+    docs_folders,
     invitation_service,
     org_group_service,
     org_sso_service,
@@ -413,6 +414,9 @@ async def _remove_member_locked(
         session, org_id, invited_by_user_id=user_id, email=target.email
     )
     groups = await org_group_service.drop_user_from_org_groups(session, org_id, user_id)
+    # Notes and folders shared with them there (F24): unreachable once they
+    # leave, and not waiting for them to come back.
+    await docs_folders.drop_user_shares_in_org(session, org_id, user_id)
     # Their IdP identity no longer signs them in here, and signing in through
     # the provider again does not re-add them until they accept a new
     # invitation (an SSO membership block).

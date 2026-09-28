@@ -7,7 +7,12 @@ MCP prompt concern, not a transport one (tripl-ey6j.1).
 
 from __future__ import annotations
 
-from tripl_mcp.tools._common import summarize_collection, with_mutation_warnings
+from tripl_mcp.tools._common import (
+    DOC_READ_FIELDS,
+    summarize_collection,
+    trim,
+    with_mutation_warnings,
+)
 
 
 def test_mutation_warnings_are_hoisted() -> None:
@@ -53,3 +58,13 @@ def test_a_bare_array_and_a_non_page_object_are_still_told_apart() -> None:
     assert summarize_collection([1, 2, 3], sample_size=2) == {"total": 3, "sample": [1, 2]}
     assert summarize_collection({"status": "ok"}) == {"data": {"status": "ok"}}
     assert summarize_collection({"items": [], "total": 0}) == {"total": 0, "sample": []}
+
+
+def test_a_break_glass_read_keeps_its_flag_for_the_agent() -> None:
+    """An org admin's key may read a hidden note (audited); the agent must be told (F24)."""
+    note = {"path": "diary.md", "content": "# Diary\n", "break_glass": True, "body": "x", "id": "d"}
+
+    trimmed = trim(note, DOC_READ_FIELDS)
+
+    assert trimmed["break_glass"] is True
+    assert "body" not in trimmed

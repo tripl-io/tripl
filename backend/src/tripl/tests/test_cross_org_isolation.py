@@ -229,6 +229,9 @@ UNSEEDED_PARAMS: dict[str, str] = {
 #: 2xx for B's owner.
 QUERY_NAMES_AN_A_ROW: tuple[str, ...] = (
     "/docs/file",
+    # A's note does not exist in B: 404. (Folder sharing answers 200 to B's
+    # owner — an org owner/admin sees any folder path — so it needs no entry.)
+    "/docs/file/sharing",
     "/docs/revisions",
     "/distribution-drifts",
 )
@@ -808,9 +811,9 @@ def _control_url(path: str) -> str:
 
 def _query(path: str, w: World) -> dict[str, str] | None:
     """Required query parameters, naming A's rows where they can."""
-    if path.endswith("/docs/file") or path.endswith("/docs/revisions"):
+    if path.endswith(("/docs/file", "/docs/revisions", "/docs/file/sharing")):
         return {"scope": "project", "path": w.a.doc_path}
-    if path.endswith("/docs/folder"):
+    if path.endswith(("/docs/folder", "/docs/folder/sharing")):
         return {"scope": "project", "path": MARKER}
     if path.endswith("/docs/export"):
         return {"scope": "organization"}

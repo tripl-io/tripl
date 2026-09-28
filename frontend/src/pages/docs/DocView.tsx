@@ -1,5 +1,5 @@
 import { toast } from 'sonner'
-import { AlertTriangle, Copy, FolderInput, History, Pencil, Trash2 } from 'lucide-react'
+import { AlertTriangle, Copy, FolderInput, History, Lock, Pencil, Share2, Trash2, Users } from 'lucide-react'
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -25,6 +25,7 @@ export function DocView({
   onHistory,
   onMove,
   onDelete,
+  onShare,
 }: {
   slug: string
   doc: DocFileResponse
@@ -33,6 +34,8 @@ export function DocView({
   onHistory: () => void
   onMove: () => void
   onDelete: () => void
+  /** Opens the Share dialog (F24); anyone who reads the note sees who else can. */
+  onShare?: () => void
 }) {
   const { copy } = useCopyToClipboard()
   const unresolved = doc.links.filter(link => link.status !== 'resolved')
@@ -63,6 +66,12 @@ export function DocView({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            {onShare && (
+              <Button variant="outline" size="sm" onClick={onShare}>
+                <Share2 aria-hidden />
+                Share
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={onHistory}>
               <History aria-hidden />
               History
@@ -87,6 +96,7 @@ export function DocView({
           <Chip size="xs" variant="outline">
             {doc.scope === 'organization' ? 'Organization note' : 'Project note'}
           </Chip>
+          <VisibilityChip doc={doc} />
           <Chip size="xs" tone={doc.audience === 'agent' ? 'info' : doc.audience === 'human' ? 'accent' : 'neutral'}>
             {AUDIENCE_LABEL[doc.audience]}
           </Chip>
@@ -103,6 +113,8 @@ export function DocView({
         {doc.description && <p className="m-0 text-body text-fg-secondary">{doc.description}</p>}
       </header>
 
+      {doc.break_glass && <BreakGlassBanner />}
+
       {unresolved.length > 0 && <BrokenLinksBanner items={unresolved.map(describeUnresolved)} />}
 
       <DocMarkdown body={doc.body} slug={slug} scope={doc.scope} path={doc.path} resolutions={doc.links} />
@@ -118,6 +130,49 @@ export function DocView({
         </details>
       )}
     </article>
+  )
+}
+
+/**
+ * Who can read the note (F24): nothing for the default (everyone in the
+ * project or organization), a lock for the author only, people for shared.
+ */
+export function VisibilityChip({ doc }: { doc: Pick<DocFileResponse, 'visibility' | 'shared' | 'my_permission'> }) {
+  const readOnly = doc.my_permission === 'view' ? ' · view only' : ''
+  if (doc.visibility === 'private') {
+    return (
+      <Chip size="xs" tone="warning" icon={<Lock className="size-3" aria-hidden />}>
+        Only the author{readOnly}
+      </Chip>
+    )
+  }
+  if (doc.visibility === 'restricted') {
+    return (
+      <Chip size="xs" tone="info" icon={<Users className="size-3" aria-hidden />}>
+        Shared with specific people{readOnly}
+      </Chip>
+    )
+  }
+  return readOnly ? (
+    <Chip size="xs" variant="outline">
+      View only
+    </Chip>
+  ) : null
+}
+
+/** An org owner/admin reading a note that is not shared with them (F24). */
+export function BreakGlassBanner() {
+  return (
+    <div role="status" className="rounded-control border border-warning bg-warning-soft px-3 py-2 text-body-sm">
+      <p className="m-0 flex items-center gap-1.5 font-medium text-warning">
+        <Lock className="size-3.5" aria-hidden />
+        This note is not shared with you
+      </p>
+      <p className="m-0 mt-1 text-fg-secondary">
+        You can read it because you are an organization owner or admin. This read was recorded in the audit
+        log, and you cannot edit the note unless it is shared with you for editing.
+      </p>
+    </div>
   )
 }
 

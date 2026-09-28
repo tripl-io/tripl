@@ -16,6 +16,8 @@ import type {
   DocRevisionListResponse,
   DocScope,
   DocSearchResponse,
+  DocSharing,
+  DocSharingUpdate,
   DocTreeResponse,
   DocWriteRequest,
   DocWriteResponse,
@@ -129,6 +131,24 @@ export const docsApi = {
     refs.length === 0
       ? Promise.resolve<DocLinkResolution[]>([])
       : api.get<DocLinkResolution[]>(docsPath(slug, `/links?${linkRefQuery(refs)}`), signal),
+
+  /**
+   * Sharing (F24, GH #308). Readable by anyone who can read the note; changed
+   * by its author or an organization owner or admin (audited). A note the
+   * caller cannot read answers 404, like the note itself.
+   */
+  fileSharing: (slug: string, scope: DocScope, path: string, signal?: AbortSignal) =>
+    api.get<DocSharing>(docsPath(slug, `/file/sharing${query({ scope, path })}`), signal),
+
+  updateFileSharing: (slug: string, scope: DocScope, path: string, body: DocSharingUpdate) =>
+    api.put<DocSharing>(docsPath(slug, `/file/sharing${query({ scope, path })}`), body),
+
+  /** A folder setting: every note under `prefix` that inherits follows it. */
+  folderSharing: (slug: string, scope: DocScope, prefix: string, signal?: AbortSignal) =>
+    api.get<DocSharing>(docsPath(slug, `/folder/sharing${query({ scope, path: prefix })}`), signal),
+
+  updateFolderSharing: (slug: string, scope: DocScope, prefix: string, body: DocSharingUpdate) =>
+    api.put<DocSharing>(docsPath(slug, `/folder/sharing${query({ scope, path: prefix })}`), body),
 
   exportJson: (slug: string, scope: DocScope) =>
     api.get<DocBundle>(docsPath(slug, `/export${query({ scope, format: 'json' })}`)),
