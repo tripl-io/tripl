@@ -249,8 +249,8 @@ reachable instance.
   owner of the default organization **and** the platform admin.
   A fresh (or reset) deploy is therefore always claimable; every *later* signup
   is subject to the policy.
-- **Adding a teammate to a closed instance:** invite them. **Settings → Members
-  → Invite a member** takes an email and an organization role and returns a
+- **Adding a teammate to a closed instance:** invite them. **Settings → Organization
+  → Invitations** takes an email and an organization role and returns a
   single-use link.
   Nothing about the instance-wide policy changes, so there is no window during
   which strangers can sign up. See [Invitations](#invitations) below.
@@ -274,7 +274,7 @@ a substitute: it slows signups, it never closes them.
 ### Invitations
 
 An org owner or admin can add one named person without touching the
-instance-wide policy. **Settings → Members → Invite a member** takes an email and
+instance-wide policy. **Settings → Organization → Invitations → Invite a member** takes an email and
 an organization role (`owner`, `admin` or `member`, default `member`) and returns
 a single-use link into the organization the request acts in.
 
@@ -289,7 +289,7 @@ a single-use link into the organization the request acts in.
 | Existing accounts | An address that already has an account can be invited into an organization it is not yet in. Accepting while signed in adds the membership, and only when the signed-in account's email equals the invitation's (case-insensitive); any other account gets `403` and the link stays unused. Email addresses are not yet verified at sign-up, so on a hosted instance this rule tightens to *verified* addresses before hosted sign-up opens. |
 | Storage | Only a keyed HMAC digest of the token is stored, like session and reset tokens — a leaked `invitations` table is useless without `SECRET_KEY`. |
 | Rejection | Unknown, expired and already-used links return one identical error, so a rejected redemption never reveals which it hit. |
-| Revoking | **Settings → Members** lists the organization's pending invitations; revoking one kills its link immediately. An invitation into another organization answers `404`. |
+| Revoking | **Settings → Organization → Invitations** lists the organization's pending invitations; revoking one kills its link immediately. An invitation into another organization answers `404`. |
 
 Endpoints: `POST`/`GET` `/api/v1/users/invitations`, `DELETE
 /api/v1/users/invitations/{id}` (all org owner/admin-only), plus the unauthenticated
@@ -612,7 +612,7 @@ Operations:
 - [ ] Rate limiting left enabled (`RATE_LIMIT_ENABLED=true`); add a proxy-tier limit if you run multiple workers/replicas.
 - [ ] `/metrics` (if enabled) and any admin surfaces restricted to an internal network.
 - [ ] First-run account created promptly so self-registration cannot grab the default organization's `owner` and the platform admin.
-- [ ] **`REGISTRATION_MODE` decided deliberately. The default is `open`** — anyone who can reach the instance can create an account, read the member roster, and create projects of their own (existing projects stay hidden until someone adds them). Set `REGISTRATION_MODE=disabled` (or Registration → **Disabled** in **Settings → Instance → Security & access**) once your team has accounts. Closing it is not a dead end: an org owner or admin adds people from **Settings → Members → Invite**, so you never need to reopen self-registration to onboard someone.
+- [ ] **`REGISTRATION_MODE` decided deliberately. The default is `open`** — anyone who can reach the instance can create an account, read the member roster, and create projects of their own (existing projects stay hidden until someone adds them). Set `REGISTRATION_MODE=disabled` (or Registration → **Disabled** in **Settings → Instance → Security & access**) once your team has accounts. Closing it is not a dead end: an org owner or admin adds people from **Settings → Organization → Invitations**, so you never need to reopen self-registration to onboard someone.
 - [ ] Database and broker on a private network; `ENCRYPTION_KEY` and `SECRET_KEY` not committed to the repo or image.
 
 For symptom-level help (login loops, blocked CORS, 429s), see [Troubleshooting & FAQ](../use/troubleshooting.md).

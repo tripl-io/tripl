@@ -2,6 +2,7 @@ import { Info } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { termAnchor } from '@/lib/glossary'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * A small info icon beside a term a PM may not know ("Coverage",
@@ -28,7 +29,7 @@ export function TermHint({
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            to={`/p/${slug}/concepts#${termAnchor(term)}`}
+            to={projectPath(currentOrgSlug(), slug, `/concepts#${termAnchor(term)}`)}
             aria-label={`What is ${term}? Open in Concepts`}
             className="inline-flex items-center rounded-sm text-fg-tertiary transition-colors hover:text-fg focus-visible:text-fg"
           >

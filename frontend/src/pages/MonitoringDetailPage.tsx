@@ -38,7 +38,7 @@ import {
 import { formatMetricValue, metricAxisFormatter } from '@/lib/metricFormat'
 import { aggregateMetricPoints, clampGranularityToRange, type MetricsGranularity } from '@/lib/metrics'
 import { resolveDetailScope } from '@/lib/monitoring'
-import { getAlertingPath } from '@/lib/navigation'
+import { currentOrgSlug, getAlertingPath, projectPath } from '@/lib/navigation'
 import { useCanWriteProject } from '@/lib/permissions'
 import {
   eventCommentsKey,
@@ -129,7 +129,7 @@ export default function MonitoringDetailPage() {
   const branchLink = useBranchLinkProps()
   const scopeId = id ?? eventId ?? ''
   // Reused by the header Edit button and the metric-scope Breakdowns empty state.
-  const metricEditPath = `/p/${slug}/metrics/${scopeId}/edit`
+  const metricEditPath = projectPath(currentOrgSlug(), slug, `/metrics/${scopeId}/edit`)
   // Catalog metrics measure values (ratios, averages), not event volumes, so the
   // primary chart/tab reads "Value" for the metric scope and "Volume" elsewhere.
   const volumeLabel = scope === 'metric' ? 'Value' : 'Volume'
@@ -473,16 +473,16 @@ export default function MonitoringDetailPage() {
   const attributionValueHref: AttributionValueHref | undefined = availableTabs.includes('breakdowns')
     ? (column, value) => `${location.pathname}${breakdownValueSearch(location.search, column, value)}`
     : undefined
-  const scanSettingsHref = slug && scanConfigId ? `/p/${slug}/scans/${scanConfigId}` : null
+  const scanSettingsHref = slug && scanConfigId ? projectPath(currentOrgSlug(), slug, `/scans/${scanConfigId}`) : null
   // A missing entity is not a failure to retry (SH-33): a deleted event or
   // metric, or a stale link, says so and offers the way back to its list.
   const notFound = scope === 'metric'
-    ? { title: 'Metric not found', back: { to: `/p/${slug}/metrics`, label: 'Back to Metrics' } }
+    ? { title: 'Metric not found', back: { to: projectPath(currentOrgSlug(), slug, '/metrics'), label: 'Back to Metrics' } }
     : scope === 'event'
-      ? { title: 'Event not found', back: { to: `/p/${slug}/events`, label: 'Back to Events' } }
+      ? { title: 'Event not found', back: { to: projectPath(currentOrgSlug(), slug, '/events'), label: 'Back to Events' } }
       : scope === 'event_type'
-        ? { title: 'Event type not found', back: { to: `/p/${slug}/anomalies`, label: 'Back to Anomalies' } }
-        : { title: 'Scan not found', back: { to: `/p/${slug}/anomalies`, label: 'Back to Anomalies' } }
+        ? { title: 'Event type not found', back: { to: projectPath(currentOrgSlug(), slug, '/anomalies'), label: 'Back to Anomalies' } }
+        : { title: 'Scan not found', back: { to: projectPath(currentOrgSlug(), slug, '/anomalies'), label: 'Back to Anomalies' } }
   const entityNoun = scope === 'metric'
     ? 'metric'
     : scope === 'event' ? 'event' : scope === 'event_type' ? 'event type' : 'scan total'
@@ -559,14 +559,14 @@ export default function MonitoringDetailPage() {
         <EntityBranchBanner
           slug={slug}
           rowBranchId={event.branch_id}
-          path={`/p/${slug}/monitoring/event/${event.id}`}
+          path={projectPath(currentOrgSlug(), slug, `/monitoring/event/${event.id}`)}
           // Not this id on main: it is the branch row's, which main would
           // render again under a mismatch warning (EVT-42). The main twin's
           // page when the server names one, else the events list on main.
           mainPath={
             event.main_event_id
-              ? `/p/${slug}/monitoring/event/${event.main_event_id}`
-              : `/p/${slug}/events`
+              ? projectPath(currentOrgSlug(), slug, `/monitoring/event/${event.main_event_id}`)
+              : projectPath(currentOrgSlug(), slug, '/events')
           }
         />
       )}
@@ -579,7 +579,7 @@ export default function MonitoringDetailPage() {
           // leave the editor relying on context alone (tripl-h2sx.2).
           onEdit={canWrite ? () => {
             const link = branchLink(
-              `/p/${slug}/events/${event.event_type?.name ?? 'all'}/${event.id}/edit`,
+              projectPath(currentOrgSlug(), slug, `/events/${event.event_type?.name ?? 'all'}/${event.id}/edit`),
               event.branch_id ?? branchId,
             )
             link.onClick()

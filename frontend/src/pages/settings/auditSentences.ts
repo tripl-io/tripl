@@ -8,6 +8,7 @@ import type { ChipTone } from '@/components/primitives/chip'
 import { formatDate } from '@/lib/datetime'
 import { APP_LOCALE } from '@/lib/format'
 import type { AuditEntry } from '@/types'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Tone by what the verb DOES, matched on its suffix rather than as an exact word.
@@ -153,7 +154,7 @@ export function actionOptionLabels(actions: readonly string[]): Map<string, stri
  * deletion: the thing is gone. */
 export function targetPath(entry: AuditEntry): string | null {
   if (!entry.project_slug || !entry.target_id || entry.action.endsWith('delete')) return null
-  const base = `/p/${entry.project_slug}`
+  const base = projectPath(currentOrgSlug(), entry.project_slug)
   switch (entry.target_type) {
     case 'event':
       return `${base}/events/all/${entry.target_id}`

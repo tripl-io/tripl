@@ -1,5 +1,6 @@
 import {
   Activity,
+  Building2,
   Archive,
   Cpu,
   Database,
@@ -13,13 +14,15 @@ import {
   Sparkles,
   User,
   UserCog,
+  UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react'
+import { stripOrgPrefix } from '@/lib/activeOrg'
 
 /**
  * Navigation model for the full-takeover Settings area. Two top-level contexts
- * (Project / Workspace). Everything functional lives in the app sidebar now;
+ * (Project / Organization). Everything functional lives in the app sidebar now;
  * this holds only genuine configuration. Recreated from the design mockup
  * (design/tripl/project/settings-kit.jsx — SETTINGS_NAV).
  */
@@ -111,16 +114,36 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
 
 export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
   {
-    label: 'Workspace',
-    sub: 'Workspace',
-    desc: 'Shared across everyone in the workspace',
+    // "Organization", not "Workspace" (F20 PR7): everything here belongs to
+    // the organization the app acts in, and differs from one to the next.
+    label: 'Organization',
+    sub: 'Organization',
+    desc: 'Shared across everyone in the organization',
     items: [
+      // The organization's General page, labelled "Details" in the rail: the
+      // Project group already has a "General", and two items with one label
+      // read as the same page in the rail and in both palettes.
+      {
+        id: 'org-general',
+        label: 'Details',
+        icon: Building2,
+        path: 'organization/general',
+        keywords: ['general', 'organization', 'org', 'name', 'rename', 'slug', 'delete organization', 'create organization'],
+      },
       {
         id: 'members',
         label: 'Members',
         icon: Users,
         path: 'members',
-        keywords: ['users', 'people', 'roles', 'invite', 'team'],
+        keywords: ['users', 'people', 'roles', 'team', 'remove member', 'transfer ownership'],
+      },
+      {
+        id: 'invitations',
+        label: 'Invitations',
+        icon: UserPlus,
+        path: 'invitations',
+        ownerOnly: true,
+        keywords: ['invite', 'invitation', 'add member', 'revoke'],
       },
       {
         id: 'sources',
@@ -302,7 +325,7 @@ export function sectionLabel(path: string): string | undefined {
  * link promising "project" that lands there was the LIVE-34 mismatch (ST-4).
  */
 export function backToLabel(backHref: string, projectName?: string): string {
-  if (backHref === '/workspace') return 'Back to workspace'
+  if (stripOrgPrefix(backHref) === '/workspace') return 'Back to workspace'
   return projectName ? `Back to ${projectName}` : 'Back to project'
 }
 

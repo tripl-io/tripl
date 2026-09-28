@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Chip } from '@/components/primitives/chip'
 import { SCard, SHeader } from '@/components/settings/kit'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * The guardrails this page will hold once they exist. Naming conventions,
@@ -57,7 +58,7 @@ export default function PlanRulesSection({ slug }: { slug?: string } = {}) {
         Approvals for plan changes already work: they are set in{' '}
         {slug ? (
           <Link
-            to={`/p/${slug}/branches`}
+            to={projectPath(currentOrgSlug(), slug, '/branches')}
             className="font-medium underline underline-offset-2 text-accent"
           >
             Plan branches › Merge policy

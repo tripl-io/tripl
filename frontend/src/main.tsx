@@ -21,6 +21,11 @@ import { ErrorBoundary } from './components/error-boundary.tsx'
 import { TooltipProvider } from './components/ui/tooltip.tsx'
 import { surfaceMutationError, surfaceQueryError } from './lib/errorFeedback.ts'
 import { shouldRetryQuery } from './lib/queryRetry.ts'
+import { migrateLegacyOrgStorage } from './lib/activeOrg.ts'
+
+// Once per browser: per-project state saved before organizations existed moves
+// under the default organization, where those projects live (F20 PR7).
+migrateLegacyOrgStorage()
 
 const queryClient = new QueryClient({
   // Backstop so a failure nobody renders still surfaces a message. A query or

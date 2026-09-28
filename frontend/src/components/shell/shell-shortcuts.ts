@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { MAIN_CONTENT_ID } from '@/components/landmarks'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Keyboard shortcuts for the shell (JR-21): `?` opens the shortcut sheet, `c`
@@ -94,7 +95,7 @@ export function useShellShortcuts({ onOpenHelp }: { onOpenHelp: () => void }): v
         const target = GO_TO_SHORTCUTS.find((shortcut) => shortcut.key === event.key)
         if (target) {
           event.preventDefault()
-          void navigate(`/p/${slug}/${target.path}`)
+          void navigate(projectPath(currentOrgSlug(), slug, `/${target.path}`))
           return
         }
       }

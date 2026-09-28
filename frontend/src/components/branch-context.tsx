@@ -7,6 +7,7 @@ import { planBranchesKey } from '@/lib/queryKeys'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
 import type { PlanBranchSummary } from '@/types'
 import { BranchContext, type SetBranchOptions } from './branch-context-internal'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const STORAGE_PREFIX = 'tripl-branch:'
 const BRANCH_PARAM = 'branch'
@@ -15,7 +16,7 @@ const BRANCHES_REFRESH_MS = 60_000
 function readStored(slug: string | null): string | null {
   if (!slug || typeof window === 'undefined') return null
   try {
-    const raw = window.localStorage.getItem(`${STORAGE_PREFIX}${slug}`)
+    const raw = window.localStorage.getItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`))
     return raw && raw.length > 0 ? raw : null
   } catch {
     return null
@@ -26,9 +27,9 @@ function writeStored(slug: string, value: string | null) {
   if (typeof window === 'undefined') return
   try {
     if (value) {
-      window.localStorage.setItem(`${STORAGE_PREFIX}${slug}`, value)
+      window.localStorage.setItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`), value)
     } else {
-      window.localStorage.removeItem(`${STORAGE_PREFIX}${slug}`)
+      window.localStorage.removeItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`))
     }
   } catch {
     /* ignore */

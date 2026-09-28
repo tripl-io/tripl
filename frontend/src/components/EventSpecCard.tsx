@@ -11,6 +11,7 @@ import { resolveMetaFieldHref } from '@/lib/metaFields'
 import { buildExamplePayload, buildSpecMarkdown, specIdentity, type SpecRow } from '@/lib/eventSpec'
 import { nameFormatBaseColumns } from '@/pages/events/utils'
 import type { Event, EventType, MetaFieldDefinition } from '@/types'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const CARD = 'overflow-hidden rounded-card border'
 const CARD_STYLE = { background: 'var(--surface)', borderColor: 'var(--border)' } as const
@@ -230,7 +231,7 @@ export function EventSpecCard({
                     ) : (
                       <ul className="space-y-1">
                         {row.contexts.map(context => {
-                          const link = branchLink(`/p/${slug}/variables/${context.variable_id}`, branchId)
+                          const link = branchLink(projectPath(currentOrgSlug(), slug, `/variables/${context.variable_id}`), branchId)
                           return (
                             <li key={context.id}>
                               <Link to={link.to} onClick={link.onClick} className="mono underline underline-offset-2">

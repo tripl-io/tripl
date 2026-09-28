@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { NotFoundState } from '@/components/not-found-state'
 import { TrifoldMark } from '@/components/states/brand-mark'
-import { projectHomePath } from '@/lib/navigation'
+import { projectHomePath, workspacePath } from '@/lib/navigation'
 import type { Project } from '@/types'
 
 const PROJECT_SHORTLIST = 5
@@ -20,7 +20,7 @@ export function ProjectNotFound({ slug, projects }: { slug: string; projects: Pr
   return (
     <div className="flex w-full max-w-lg flex-col items-center">
       <Link
-        to="/workspace"
+        to={workspacePath()}
         aria-label="Tripl — home"
         className="flex items-center gap-2 rounded-control px-1 py-1 no-underline"
       >

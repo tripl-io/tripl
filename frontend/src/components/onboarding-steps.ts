@@ -9,6 +9,7 @@
 
 import type { ProjectSummary } from '@/types'
 import { hasExecutedScanJob } from '@/components/onboarding-utils'
+import { currentOrgSlug, projectPath, settingsPath, stripOrgPrefix } from '@/lib/navigation'
 
 export type OnboardingStepId = 'source' | 'scan' | 'review' | 'metric' | 'alert'
 
@@ -75,7 +76,7 @@ export function onboardingStepHref(
 ): string {
   const params = new URLSearchParams({ [ONBOARDING_STEP_PARAM]: step })
   if (position) params.set(ONBOARDING_POSITION_PARAM, `${position.number}-of-${position.total}`)
-  if (!path.startsWith(`/p/${slug}/`)) params.set(ONBOARDING_PROJECT_PARAM, slug)
+  if (!path.startsWith(projectPath(currentOrgSlug(), slug, '/'))) params.set(ONBOARDING_PROJECT_PARAM, slug)
   return `${path}?${params.toString()}`
 }
 
@@ -101,7 +102,7 @@ export function parseOnboardingReturn(pathname: string, search: string): Onboard
   const params = new URLSearchParams(search)
   const step = params.get(ONBOARDING_STEP_PARAM)
   if (!isStepId(step)) return null
-  const slug = params.get(ONBOARDING_PROJECT_PARAM) ?? /^\/p\/([^/]+)/.exec(pathname)?.[1] ?? null
+  const slug = params.get(ONBOARDING_PROJECT_PARAM) ?? /^\/p\/([^/]+)/.exec(stripOrgPrefix(pathname))?.[1] ?? null
   if (!slug) return null
   const position = parsePosition(params.get(ONBOARDING_POSITION_PARAM)) ?? {
     number: ONBOARDING_STEP_ORDER.indexOf(step) + 1,
@@ -137,14 +138,14 @@ export function buildOnboardingSteps(
   sourceCount: number,
   metricCount?: number,
 ): OnboardingStep[] {
-  const base = `/p/${slug}`
+  const base = projectPath(currentOrgSlug(), slug)
   const metrics = knownMetricCount(summary, metricCount)
   const steps: OnboardingStep[] = [
     {
       id: 'source',
       title: ONBOARDING_STEP_TITLES.source,
       hint: 'Point tripl at the warehouse or database that holds your events.',
-      href: '/settings/data-sources',
+      href: settingsPath('/settings/data-sources'),
       // `sourceCount` is already the count of REAL (non-synthetic) sources — a
       // demo's synthetic warehouse is excluded by the caller (countRealSources).
       done: sourceCount > 0,

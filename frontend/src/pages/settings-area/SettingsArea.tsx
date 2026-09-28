@@ -3,7 +3,7 @@ import { lazyWithReload } from '@/lib/lazyWithReload'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { projectsQueryOptions } from '@/lib/queryKeys'
-import { projectHomePath } from '@/lib/navigation'
+import { projectHomePath, workspacePath } from '@/lib/navigation'
 import { OnboardingReturnBar } from '@/components/onboarding-return-bar'
 import { useAuth } from '@/components/auth-context'
 import { ErrorState } from '@/components/error-state'
@@ -14,11 +14,14 @@ import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
 import { isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
 const ProjectMembersSection = lazyWithReload(() => import('./ProjectMembersSection'))
 const MembersSection = lazyWithReload(() => import('./MembersSection'))
+const OrganizationGeneralSection = lazyWithReload(() => import('./OrganizationGeneralSection'))
+const InvitationsSection = lazyWithReload(() => import('./InvitationsSection'))
 const DataSourcesSection = lazyWithReload(() => import('./DataSourcesSection'))
 const ApiKeysSection = lazyWithReload(() => import('./ApiKeysSection'))
 const ProfileSection = lazyWithReload(() => import('./ProfileSection'))
@@ -54,7 +57,7 @@ function useSettingsSlug(pickedSlug: string | null): string | undefined {
   if (pickedSlug) return pickedSlug
   let last: string | null = null
   try {
-    last = localStorage.getItem(LAST_SLUG_STORAGE_KEY)
+    last = localStorage.getItem(orgStorageKey(LAST_SLUG_STORAGE_KEY))
   } catch {
     /* ignore */
   }
@@ -106,7 +109,7 @@ export default function SettingsArea({ section }: { section: string }) {
   // app does.
   const pickProject = (picked: string) => {
     try {
-      localStorage.setItem(LAST_SLUG_STORAGE_KEY, picked)
+      localStorage.setItem(orgStorageKey(LAST_SLUG_STORAGE_KEY), picked)
     } catch {
       /* ignore */
     }
@@ -142,7 +145,7 @@ export default function SettingsArea({ section }: { section: string }) {
   // The project's front door, Overview, where the Get-started checklist lives:
   // a newcomer sent to Data sources by step 2 came back to an empty Events
   // table instead (#250 JR-1 / JR-3).
-  const backHref = slug ? projectHomePath(slug) : '/workspace'
+  const backHref = slug ? projectHomePath(slug) : workspacePath()
 
   return (
     <SettingsLayout
@@ -200,7 +203,9 @@ function isProjectScopedSection(section: string): boolean {
 }
 
 const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
+  'organization/general',
   'members',
+  'invitations',
   'data-sources',
   'api-keys',
   'profile',
@@ -230,7 +235,9 @@ function renderSection({
   projectsError: unknown
   onRetryProjects: () => void
 }) {
+  if (section === 'organization/general') return <OrganizationGeneralSection />
   if (section === 'members') return <MembersSection />
+  if (section === 'invitations') return <InvitationsSection />
   if (section === 'data-sources') return <DataSourcesSection />
   if (section === 'api-keys') return <ApiKeysSection />
   if (section === 'profile') return <ProfileSection />
@@ -315,7 +322,7 @@ function NoProjectSelected({
         description="Project settings change one specific project's tracking plan, and there is no project on this workspace yet."
       >
         <p className="m-0 px-4 py-[15px] text-body text-fg-tertiary">
-          <Link to="/workspace" className="underline">
+          <Link to={workspacePath()} className="underline">
             Create one in the workspace
           </Link>{' '}
           and these settings open with it.

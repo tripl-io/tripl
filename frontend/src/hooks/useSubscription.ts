@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { subscriptionsApi } from '@/api/notifications'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { projectSubscriptionsKey, subscriptionKey } from '@/lib/queryKeys'
+import { keySegment, projectSubscriptionsKey, subscriptionKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { SubscriptionEntityType, SubscriptionState } from '@/types'
 
@@ -52,7 +52,8 @@ export function useSubscription(
     qc.setQueryData(key, next)
     void qc.invalidateQueries({
       queryKey: projectSubscriptionsKey(slug),
-      predicate: query => query.queryKey[2] !== entityType || query.queryKey[3] !== entityId,
+      predicate: query =>
+        keySegment(query.queryKey, 2) !== entityType || keySegment(query.queryKey, 3) !== entityId,
     })
   }
 

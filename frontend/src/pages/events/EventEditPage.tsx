@@ -31,6 +31,7 @@ import { rememberCreatedEvents } from './createdEventsHandoff'
 import { DraftDiscussionNote } from './DraftDiscussionNote'
 import { EventForm } from './EventFormView'
 import { EventHealthCard } from './EventHealthCard'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
 const EMPTY_META_FIELDS: MetaFieldDefinition[] = []
@@ -51,7 +52,7 @@ export default function EventEditPage() {
   const branchLink = useBranchLinkProps()
   const canWrite = useCanWriteProject()
   const isNew = !eventId
-  const listPath = !tab || tab === 'all' ? `/p/${slug}/events` : `/p/${slug}/events/${tab}`
+  const listPath = !tab || tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
 
   // Reviewing a branch and fixing three of its events used to cost three round
   // trips through Settings > Branches, because closing the editor always landed
@@ -89,7 +90,7 @@ export default function EventEditPage() {
       // worse failure — pressing Create again makes a second one — so land them
       // on the event, carrying what they wrote into its own composer. `replace`
       // keeps Back meaning what it meant before the save.
-      navigate(`/p/${slug}/events/${tab ?? 'all'}/${created.id}/edit${location.search}`, {
+      navigate(projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${created.id}/edit${location.search}`), {
         replace: true,
         state: {
           commentDraft: body,
@@ -147,7 +148,7 @@ export default function EventEditPage() {
     return (
       <Navigate
         replace
-        to={isNew ? `${listPath}${location.search}` : `/p/${slug}/monitoring/event/${eventId}${location.search}`}
+        to={isNew ? `${listPath}${location.search}` : projectPath(currentOrgSlug(), slug, `/monitoring/event/${eventId}${location.search}`)}
       />
     )
   }
@@ -220,7 +221,7 @@ export default function EventEditPage() {
     : !!eventId && !!rowBranch && !!mainBranch && rowBranchId !== (branchId ?? mainBranch.id)
   const rowIsMain = rowBranch?.kind === 'main'
   const switchLink = rowBranch
-    ? branchLink(`/p/${slug}/events/${tab ?? 'all'}/${eventId}/edit`, rowIsMain ? null : rowBranch.id)
+    ? branchLink(projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventId}/edit`), rowIsMain ? null : rowBranch.id)
     : null
   const activeBranchName = branchId ? branches?.find(b => b.id === branchId)?.name : undefined
 
@@ -232,7 +233,7 @@ export default function EventEditPage() {
       toast.success(`Added ${created.name} to branch ${activeBranchName}`, {
         action: {
           label: 'View changes',
-          onClick: () => navigate(`/p/${slug}/branches/${branchId}`),
+          onClick: () => navigate(projectPath(currentOrgSlug(), slug, `/branches/${branchId}`)),
         },
       })
       return
@@ -240,7 +241,7 @@ export default function EventEditPage() {
     toast.success(`Created ${created.name}`, {
       action: {
         label: 'Open',
-        onClick: () => navigate(branchLink(`/p/${slug}/monitoring/event/${created.id}`, branchId).to),
+        onClick: () => navigate(branchLink(projectPath(currentOrgSlug(), slug, `/monitoring/event/${created.id}`), branchId).to),
       },
     })
   }
@@ -304,16 +305,16 @@ export default function EventEditPage() {
             <EntityBranchBanner
               slug={slug}
               rowBranchId={eventQuery.data?.branch_id}
-              path={`/p/${slug}/events/${tab ?? 'all'}/${eventId}/edit`}
+              path={projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventId}/edit`)}
               // Not this page's id on main: it is the branch row's, which main
               // would render again under a mismatch warning (EVT-42). The main
               // twin's page when the server names one, else the list on main.
               mainPath={
                 eventQuery.data?.main_event_id
-                  ? `/p/${slug}/events/${tab ?? 'all'}/${eventQuery.data.main_event_id}/edit`
+                  ? projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventQuery.data.main_event_id}/edit`)
                   : !tab || tab === 'all'
-                    ? `/p/${slug}/events`
-                    : `/p/${slug}/events/${tab}`
+                    ? projectPath(currentOrgSlug(), slug, '/events')
+                    : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
               }
             />
           ) : undefined

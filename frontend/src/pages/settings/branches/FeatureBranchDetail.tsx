@@ -93,6 +93,7 @@ import { ChangeRow, HousekeepingFold } from './ChangeRow'
 import { ConflictsPanel } from './ConflictsPanel'
 import { BranchImpactPanel } from './BranchImpactPanel'
 import { UpdateFromMainDialog } from './UpdateFromMainDialog'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 type Confirm = ReturnType<typeof useConfirm>['confirm']
 
@@ -128,7 +129,7 @@ export function BranchDetail({
       <EntityNotFound
         title="Branch not found"
         description="This branch no longer exists: it may have been deleted."
-        back={{ to: `/p/${slug}/branches`, label: 'Back to main' }}
+        back={{ to: projectPath(currentOrgSlug(), slug, '/branches'), label: 'Back to main' }}
         className="rounded-card border border-border bg-surface"
       />
     )
@@ -286,7 +287,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       toast.success(`Branch “${branch.name}” deleted`)
       // Leave the deleted id's URL before the list refetches, so the pane
       // does not flash "Branch not found" for a branch the user just removed.
-      navigate(`/p/${slug}/branches`)
+      navigate(projectPath(currentOrgSlug(), slug, '/branches'))
       qc.removeQueries({ queryKey: planBranchDetailKey(slug, branch.id) })
       qc.removeQueries({ queryKey: planBranchDiffKey(slug, branch.id) })
       return qc.invalidateQueries({ queryKey: planBranchesKey(slug) })
@@ -584,7 +585,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
                   </Chip>
                 ) : null}
                 <Button asChild variant="outline" size="sm" className="max-sm:flex-1">
-                  <Link {...branchLink(`/p/${slug}/events`, branch.id)}>
+                  <Link {...branchLink(projectPath(currentOrgSlug(), slug, '/events'), branch.id)}>
                     <GitCompare className="size-3.5" aria-hidden="true" />
                     {onThisBranch ? 'Go to events' : canWrite ? 'Work on this branch' : 'View events on this branch'}
                   </Link>
@@ -592,7 +593,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
                 {canWrite && (
                   <Button asChild variant="ghost" size="sm" className="max-sm:flex-1">
                     <Link
-                      {...branchLink(`/p/${slug}/events/all/new`, branch.id)}
+                      {...branchLink(projectPath(currentOrgSlug(), slug, '/events/all/new'), branch.id)}
                       aria-label="New event on this branch"
                     >
                       <Plus className="size-3.5" aria-hidden="true" />
@@ -1092,7 +1093,7 @@ function MainBranchPane({
             <li>
               Last merged:{' '}
               <Link
-                to={`/p/${slug}/branches/${lastMerged.id}`}
+                to={projectPath(currentOrgSlug(), slug, `/branches/${lastMerged.id}`)}
                 className="mono hover:underline text-fg"
               >
                 {lastMerged.name}
@@ -1106,7 +1107,7 @@ function MainBranchPane({
           </li>
         </ul>
         <Link
-          to={`/p/${slug}/history`}
+          to={projectPath(currentOrgSlug(), slug, '/history')}
           className="inline-flex w-fit items-center gap-1 text-caption font-medium hover:underline text-accent"
         >
           <History className="size-3" aria-hidden="true" />

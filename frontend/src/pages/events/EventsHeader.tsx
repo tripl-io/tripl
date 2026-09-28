@@ -18,6 +18,7 @@ import type { EventType, MonitoringSignal } from '@/types'
 
 import { EventDriftBadge } from './EventDriftBadge'
 import { EVENT_VIEWS, eventsPageTitle } from './eventsViews'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** One event type with open schema drift, as the header shows it. */
 export type EventTypeDrift = {
@@ -132,7 +133,7 @@ function EventViewTabs({
       {EVENT_VIEWS.map(view => (
         <Link
           key={view.tab}
-          to={view.tab === 'all' ? `/p/${slug}/events` : `/p/${slug}/events/${view.tab}`}
+          to={view.tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${view.tab}`)}
           aria-current={!activeType && activeTab === view.tab ? 'page' : undefined}
           className={item}
         >
@@ -215,7 +216,7 @@ export function EventsHeader({
   ) : slug ? (
     // The queue this number counts is one click away (EV-23).
     <Link
-      to={`/p/${slug}/events/review`}
+      to={projectPath(currentOrgSlug(), slug, '/events/review')}
       className="underline-offset-4 hover:underline"
     >
       {formatNumber(inReviewCount)}

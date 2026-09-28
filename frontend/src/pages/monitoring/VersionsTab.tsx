@@ -30,6 +30,7 @@ import {
 } from './chartSeries'
 import { ChartCardHeader, MetricsRangeControls } from './MetricsRangeControls'
 import { SeriesSwatch } from './SeriesSwatch'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export interface VersionsTabProps {
   slug: string
@@ -193,7 +194,7 @@ export function VersionsTab({
             }
             action={scope !== 'metric' && scanConfigId ? (
               <Button asChild variant="outline" size="sm">
-                <Link to={`/p/${slug}/scans/${scanConfigId}`}>Open scan settings</Link>
+                <Link to={projectPath(currentOrgSlug(), slug, `/scans/${scanConfigId}`)}>Open scan settings</Link>
               </Button>
             ) : undefined}
           />

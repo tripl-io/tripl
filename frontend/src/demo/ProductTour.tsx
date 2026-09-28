@@ -53,6 +53,8 @@ import {
 import { setTourDock, useTourDock } from './tourDock'
 import { buildMetricBuildingBlocks, buildTourSteps, type TourStep } from './tourSteps'
 import { setWelcomeDismissed, useWelcomeDismissed } from './welcomeDismissal'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const STORAGE_PREFIX = TOUR_STORAGE_PREFIX
 
@@ -60,7 +62,7 @@ const STORAGE_PREFIX = TOUR_STORAGE_PREFIX
 function readStoredStep(slug: string, stepCount: number): number {
   if (typeof window === 'undefined') return 0
   try {
-    const raw = window.localStorage.getItem(`${STORAGE_PREFIX}${slug}`)
+    const raw = window.localStorage.getItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`))
     if (raw === null) return 0
     const parsed = Number.parseInt(raw, 10)
     if (!Number.isInteger(parsed) || parsed < 0 || parsed >= stepCount) return 0
@@ -73,7 +75,7 @@ function readStoredStep(slug: string, stepCount: number): number {
 function writeStoredStep(slug: string, step: number): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(`${STORAGE_PREFIX}${slug}`, String(step))
+    window.localStorage.setItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`), String(step))
   } catch {
     /* ignore — a tour that cannot remember its place still works */
   }
@@ -120,7 +122,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
   // Another tab (or the other copy of the tour on the Overview) moving the
   // stored step: follow it rather than writing a stale position back (DEMO-16).
   useEffect(() => {
-    const key = `${STORAGE_PREFIX}${slug}`
+    const key = orgStorageKey(`${STORAGE_PREFIX}${slug}`)
     const onStorage = (event: StorageEvent) => {
       if (event.key === key || event.key === null) setIndexState(readStoredStep(slug, steps.length))
     }
@@ -183,7 +185,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
   const showWelcome = () => {
     setWelcomeDismissed(slug, false)
     onOpenChange(false)
-    navigate(`/p/${slug}/overview`)
+    navigate(projectPath(currentOrgSlug(), slug, '/overview'))
   }
 
   const surfaces = indexEntries(steps)

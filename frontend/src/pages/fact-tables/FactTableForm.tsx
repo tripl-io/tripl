@@ -64,6 +64,7 @@ import {
   focusField,
   type FieldErrors,
 } from '@/lib/fieldErrors'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 
 /** The inline "Could not preview columns" block; a failed save-time preview focuses it. */
@@ -1061,7 +1062,7 @@ export default function FactTableEditPage() {
   const navigate = useNavigate()
   const isNew = !factTableId
 
-  const goBack = () => navigate(`/p/${slug}/metrics/fact-tables`)
+  const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/metrics/fact-tables'))
 
   const dataSourcesQuery = useQuery({
     queryKey: dataSourcesKey(),
@@ -1074,7 +1075,7 @@ export default function FactTableEditPage() {
   })
 
   // "New fact table" has nothing for a viewer to read (#237 MT-28).
-  if (!canWrite && isNew && slug) return <Navigate to={`/p/${slug}/metrics/fact-tables`} replace />
+  if (!canWrite && isNew && slug) return <Navigate to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables')} replace />
 
   // A deleted or unknown fact table is "not found" with the way back; only a
   // real failure keeps the retry (#237 SH-33).
@@ -1093,7 +1094,7 @@ export default function FactTableEditPage() {
           }}
           notFound={{
             title: 'Fact table not found',
-            back: { to: `/p/${slug}/metrics/fact-tables`, label: 'Back to fact tables' },
+            back: { to: projectPath(currentOrgSlug(), slug, '/metrics/fact-tables'), label: 'Back to fact tables' },
           }}
         />
       </PageContainer>

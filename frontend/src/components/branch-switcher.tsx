@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import type { PlanBranchSummary } from '@/types'
 import { planBranchesKey } from '@/lib/queryKeys'
 import { STATUS_LABEL, STATUS_TONE } from '@/lib/branchStatus'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export function BranchSwitcher({ slug, compact = false }: { slug: string; compact?: boolean }) {
   const { branchId, setBranchId } = useBranchContext()
@@ -62,7 +63,7 @@ export function BranchSwitcher({ slug, compact = false }: { slug: string; compac
   // (PL-13 / JR-11). Managing the list is its own item.
   const goToBranches = (create: boolean) => {
     setOpen(false)
-    navigate(`/p/${slug}/branches${create ? '?new=1' : ''}`)
+    navigate(projectPath(currentOrgSlug(), slug, `/branches${create ? '?new=1' : ''}`))
   }
 
   return (

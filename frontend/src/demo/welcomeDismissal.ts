@@ -10,13 +10,14 @@
 
 import { useSyncExternalStore } from 'react'
 import { WELCOME_DISMISS_PREFIX } from './demoLocalState'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const DISMISS_PREFIX = WELCOME_DISMISS_PREFIX
 
 const listeners = new Set<() => void>()
 
 function dismissKey(slug: string): string {
-  return `${DISMISS_PREFIX}${slug}`
+  return orgStorageKey(`${DISMISS_PREFIX}${slug}`)
 }
 
 export function readWelcomeDismissed(slug: string): boolean {

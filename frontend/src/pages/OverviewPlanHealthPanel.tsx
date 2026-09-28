@@ -24,6 +24,7 @@ import {
 } from '@/lib/health'
 import { projectHealthKey } from '@/lib/queryKeys'
 import type { ProjectHealthResponse } from '@/types/health'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * The Overview's "Plan health" card (F15, #268): the main plan's mean score,
@@ -48,7 +49,7 @@ export function OverviewPlanHealthPanel({
   const data: ProjectHealthResponse | undefined = query.data
   // Health sort exists on main only: the link switches there, like the worst list.
   const branchLink = useBranchLinkProps()
-  const sortLink = branchLink(`/p/${slug}/events?sort=health`, null)
+  const sortLink = branchLink(projectPath(currentOrgSlug(), slug, '/events?sort=health'), null)
 
   return (
     <Panel

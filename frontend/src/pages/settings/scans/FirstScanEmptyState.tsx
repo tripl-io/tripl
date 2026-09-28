@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { settingsPath } from '@/lib/activeOrg'
 import { Database, Plus, ScanSearch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/empty-state'
@@ -90,7 +91,7 @@ export function FirstScanEmptyState({
                 button they cannot use. */}
             {isOwner && (
               <Button asChild size="lg">
-                <Link to="/settings/data-sources">
+                <Link to={settingsPath('/settings/data-sources')}>
                   <Plus className="size-4" aria-hidden="true" />
                   Add connection
                 </Link>

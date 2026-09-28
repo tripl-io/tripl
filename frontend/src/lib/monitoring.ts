@@ -2,6 +2,7 @@ import type { MetricScopeType } from '@/types'
 import { APP_LOCALE } from '@/lib/format'
 import { ratioDelta } from '@/lib/percentDelta'
 import { relativeEffect, signalMagnitudeWord } from '@/lib/signalMagnitude'
+import { currentOrgSlug, projectPath } from '@/lib/activeOrg'
 
 // The subset of scopes that map to a monitoring detail route / API scope.
 // `metric` is the catalog-metric drilldown (its series/versions/breakdowns
@@ -15,7 +16,7 @@ export type MonitoringScope = 'project_total' | 'event_type' | 'event' | 'metric
  * get a dedicated helper instead of overloading {@link getMonitoringPath}.
  */
 export function getMetricMonitoringPath(slug: string, metricId: string): string {
-  return `/p/${slug}/monitoring/metric/${metricId}`
+  return projectPath(currentOrgSlug(), slug, `/monitoring/metric/${metricId}`)
 }
 
 /** Scopes `getMonitoringPath` can route; the rest have no detail page. */
@@ -77,7 +78,7 @@ export function getScopeMonitoringPath(
       scope_ref: scope.scope_ref,
     })
   }
-  if (scope.event_id) return `/p/${slug}/monitoring/event/${scope.event_id}`
+  if (scope.event_id) return projectPath(currentOrgSlug(), slug, `/monitoring/event/${scope.event_id}`)
   return null
 }
 
@@ -161,7 +162,7 @@ export function getScopeNavigationTarget(
   // out of it is how /monitoring/event/{event_type_id} — a valid-looking link to
   // a page that does not exist — got emitted (tripl-oxkt.21).
   if (scope.event_id) {
-    return { path: `/p/${slug}/monitoring/event/${scope.event_id}`, scope: 'event' }
+    return { path: projectPath(currentOrgSlug(), slug, `/monitoring/event/${scope.event_id}`), scope: 'event' }
   }
   // No event, but the ref may still be an id a page is mounted on. Gated on the
   // scope type rather than on the ref's shape, because "is this a uuid?" is the
@@ -183,11 +184,11 @@ export function getMonitoringPath(
 ) {
   switch (signal.scope_type) {
     case 'project_total':
-      return `/p/${slug}/monitoring/project-total/${signal.scope_ref}`
+      return projectPath(currentOrgSlug(), slug, `/monitoring/project-total/${signal.scope_ref}`)
     case 'event_type':
-      return `/p/${slug}/monitoring/event-type/${signal.scope_ref}`
+      return projectPath(currentOrgSlug(), slug, `/monitoring/event-type/${signal.scope_ref}`)
     case 'event':
-      return `/p/${slug}/monitoring/event/${signal.scope_ref}`
+      return projectPath(currentOrgSlug(), slug, `/monitoring/event/${signal.scope_ref}`)
     case 'metric':
       // Catalog-metric anomalies carry scope_ref = metric_definition_id.
       return getMetricMonitoringPath(slug, signal.scope_ref)

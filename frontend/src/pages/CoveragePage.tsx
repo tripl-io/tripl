@@ -23,6 +23,7 @@ import { coverageTone } from '@/lib/statusLexicon'
 import { EventName } from '@/components/event-name'
 import type { DeadEvent } from '@/api/reconciliation'
 import { deadEventsKey, projectKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // Window for "is this event still emitting data". Shared with Reconciliation's
 // Dead events panel — the "Triage in Reconciliation" link below hands off to
@@ -52,7 +53,7 @@ const NOT_IMPLEMENTED_STATUSES = ['draft', 'in_review', 'ready_for_dev', 'deprec
 function notImplementedEventsPath(slug: string): string {
   const params = new URLSearchParams()
   for (const status of NOT_IMPLEMENTED_STATUSES) params.append('status', status)
-  return `/p/${slug}/events?${params}`
+  return projectPath(currentOrgSlug(), slug, `/events?${params}`)
 }
 
 export default function CoveragePage() {
@@ -99,7 +100,7 @@ export default function CoveragePage() {
         actions={
           slug ? (
             <Button asChild variant="outline" size="sm">
-              <Link to={`/p/${slug}/reconciliation`} className="no-underline">
+              <Link to={projectPath(currentOrgSlug(), slug, '/reconciliation')} className="no-underline">
                 <ArrowRight aria-hidden="true" />
                 Reconciliation
               </Link>
@@ -176,7 +177,7 @@ export default function CoveragePage() {
             action={
               slug ? (
                 <Button asChild size="sm">
-                  <Link to={`/p/${slug}/events`} className="no-underline">
+                  <Link to={projectPath(currentOrgSlug(), slug, '/events')} className="no-underline">
                     Go to events
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
@@ -200,7 +201,7 @@ export default function CoveragePage() {
           right={
             slug && deadItems.length > 0 ? (
               <Link
-                to={`/p/${slug}/reconciliation`}
+                to={projectPath(currentOrgSlug(), slug, '/reconciliation')}
                 className="flex items-center gap-1 text-caption no-underline hover:underline text-fg-secondary"
               >
                 Triage in Reconciliation

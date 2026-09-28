@@ -73,6 +73,7 @@ import { describedByIds, SFieldHintContext, useSFieldHintId } from './sFieldCont
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { AggregateHealthPopover } from '@/components/health/health-averages'
 import { useEventTypesHealth } from './useEventTypesHealth'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const FIELD_TYPES = ['string', 'number', 'boolean', 'json', 'enum', 'url']
 
@@ -289,7 +290,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
                             its cell semantics, so a screen reader still reads the
                             column headers (PLAN-39). */}
                         <Link
-                          to={`/p/${slug}/event-types/${et.id}`}
+                          to={projectPath(currentOrgSlug(), slug, `/event-types/${et.id}`)}
                           className="text-body font-semibold hover:underline text-fg"
                         >
                           {et.display_name}
@@ -434,7 +435,7 @@ function CreateEventTypeView({ slug, branchId, onDone }: CreateEventTypeViewProp
       qc.invalidateQueries({ queryKey: projectKey(slug) })
       // A type is useful once it has fields, so it opens where they are
       // added rather than back on the list (AU-36).
-      if (created?.id) navigate(`/p/${slug}/event-types/${created.id}?tab=settings`)
+      if (created?.id) navigate(projectPath(currentOrgSlug(), slug, `/event-types/${created.id}?tab=settings`))
       else onDone()
     },
   })

@@ -34,6 +34,7 @@ import {
   factTablesKey,
   metricGeneratedSqlForMetricKey,
 } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** Names are best-effort; when a lookup misses we fall back to a short id. */
 const SHORT_ID_LENGTH = 8
@@ -383,7 +384,7 @@ function FactOperandBlock({
         <span className="text-fg-tertiary"> from </span>
         {operand.factTableId ? (
           <Link
-            to={`/p/${slug}/metrics/fact-tables/${operand.factTableId}/edit`}
+            to={projectPath(currentOrgSlug(), slug, `/metrics/fact-tables/${operand.factTableId}/edit`)}
             className="underline decoration-fg-tertiary/50 underline-offset-2 hover:decoration-current"
           >
             {factTableName(operand.factTableId)}
@@ -534,7 +535,7 @@ function MetricSchedule({ slug, definition }: { slug: string; definition: Metric
   if (definition.status === 'active' && !definition.interval && canEdit) {
     return (
       <Link
-        to={`/p/${slug}/metrics/${definition.id}/edit`}
+        to={projectPath(currentOrgSlug(), slug, `/metrics/${definition.id}/edit`)}
         className="text-body-sm underline decoration-fg-tertiary/50 underline-offset-2 hover:decoration-current"
       >
         Set a schedule

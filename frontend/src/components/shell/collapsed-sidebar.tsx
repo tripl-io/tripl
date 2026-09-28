@@ -11,6 +11,7 @@ import { commandPaletteShortcutLabel } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import type { Project } from '@/types'
 import { AccountMenuContent } from './account-menu'
+import { OrgSwitcherSlot } from './org-switcher-slot'
 import { ProjectSwitcher } from './project-switcher'
 import {
   ACTIVE_MARKER_CLASS,
@@ -20,6 +21,7 @@ import {
   navLinkStyle,
   projectSettingsHref,
 } from './sidebar-style'
+import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
 
 /** An icon-only rail entry with its name in a visible tooltip (SHELL-23). */
 function RailTip({ label, children }: { label: string; children: ReactElement }) {
@@ -117,13 +119,14 @@ export function CollapsedSidebar({
       >
         <RailTip label="Tripl — home">
           <Link
-            to="/workspace"
+            to={workspacePath()}
             aria-label="Tripl — home"
             className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-md no-underline transition-colors hover:bg-sidebar-hover"
           >
             <TrifoldMark size={22} />
           </Link>
         </RailTip>
+        <OrgSwitcherSlot compact />
         <ProjectSwitcher
           compact
           activeProject={activeProject}
@@ -179,7 +182,7 @@ export function CollapsedSidebar({
                 active={false}
               />
               <RailLink
-                to={`/p/${slug}/concepts`}
+                to={projectPath(currentOrgSlug(), slug, '/concepts')}
                 label="Concepts"
                 icon={BookOpen}
                 active={conceptsActive}

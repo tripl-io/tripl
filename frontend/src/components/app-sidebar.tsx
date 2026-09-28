@@ -23,6 +23,7 @@ import {
 import { Kbd } from '@/components/primitives/kbd'
 import { AccountMenuContent } from '@/components/shell/account-menu'
 import { CollapsedSidebar } from '@/components/shell/collapsed-sidebar'
+import { OrgSwitcherSlot } from '@/components/shell/org-switcher-slot'
 import { ProjectSwitcher } from '@/components/shell/project-switcher'
 import { EmptyNav, NavGroupSection } from '@/components/shell/sidebar-nav'
 import {
@@ -37,48 +38,52 @@ import { initialsOf } from '@/components/ui/initials'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { TrifoldMark } from '@/components/states/brand-mark'
 import { useActiveBranchId } from '@/hooks/useBranch'
-import { buildNavGroups, switchProjectPath, type NavGroup } from '@/lib/navigation'
+import { buildNavGroups, currentOrgSlug, type NavGroup, projectPath, settingsPath, stripOrgPrefix, switchProjectPath, workspacePath } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
 import { commandPaletteShortcutLabel } from '@/lib/platform'
 import type { Project } from '@/types'
 import { eventTypesKey, projectsQueryOptions } from '@/lib/queryKeys'
 import { canWrite, isOwner as isOwnerRole } from '@/lib/permissions'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const SIDEBAR_STORAGE_KEY = 'tripl-sidebar-collapsed'
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
 /**
- * Workspace-scoped nav shown on global routes (no `:slug` in the URL, e.g.
+ * Workspace-scoped nav shown on global routes (built per render: its links
+ * carry the active organization) (no `:slug` in the URL, e.g.
  * `/workspace` or `/settings`). It replaces the per-project Plan/Observe/Govern
  * groups so the multi-project dashboard is not decorated with the last visited
  * project's counts and event-type tree. Reuses the same NavGroup/NavItem shape
  * so it renders through NavGroupSection / CollapsedSidebar unchanged.
  */
-const WORKSPACE_NAV_GROUP: NavGroup = {
+function workspaceNavGroup(): NavGroup {
+  return {
   label: 'Workspace',
   items: [
     {
       id: 'all-projects',
       label: 'All projects',
       icon: LayoutDashboard,
-      href: '/workspace',
-      match: (p) => p === '/workspace' || p === '/',
+      href: workspacePath(),
+      match: (p) => stripOrgPrefix(p) === '/workspace' || p === '/',
     },
     {
       id: 'data-sources',
       label: 'Data sources',
       icon: Database,
-      href: '/settings/data-sources',
+      href: settingsPath('/settings/data-sources'),
       match: (p) => p.startsWith('/settings/data-sources'),
     },
     {
       id: 'workspace-settings',
       label: 'Settings',
       icon: Settings,
-      href: '/settings',
+      href: settingsPath('/settings'),
       match: (p) => p.startsWith('/settings') && !p.startsWith('/settings/data-sources'),
     },
   ],
+  }
 }
 
 function useSidebarCollapsed() {
@@ -111,7 +116,7 @@ function usePersistLastSlug(slug: string | undefined): void {
   useEffect(() => {
     if (!slug) return
     try {
-      localStorage.setItem(LAST_SLUG_STORAGE_KEY, slug)
+      localStorage.setItem(orgStorageKey(LAST_SLUG_STORAGE_KEY), slug)
     } catch {
       /* ignore */
     }
@@ -195,7 +200,7 @@ export function AppSidebar({
           .filter((item) => !item.ownerOnly || isOwner)
           .map((item) => (onBranch && group.label === 'Plan' ? { ...item, count: undefined } : item)),
       }))
-    : [WORKSPACE_NAV_GROUP]
+    : [workspaceNavGroup()]
   const eventTypesQuery = useQuery({
     queryKey: eventTypesKey(slug, branchId),
     queryFn: () => eventTypesApi.list(slug!, branchId),
@@ -205,7 +210,7 @@ export function AppSidebar({
   const currentPath = location.pathname
   const userInitials = initialsOf(auth.user?.name ?? auth.user?.email)
   const userLabel = auth.user?.name ?? auth.user?.email ?? 'Signed in'
-  const conceptsActive = !!slug && currentPath === `/p/${slug}/concepts`
+  const conceptsActive = !!slug && currentPath === projectPath(currentOrgSlug(), slug, '/concepts')
   // Switching project keeps the surface being compared when the new project
   // has it, and otherwise lands on the project's one home (SHELL-44).
   const pickProject = (picked: Project) =>
@@ -247,7 +252,7 @@ export function AppSidebar({
           in the project chip) and links back to the workspace overview. */}
       <div className="flex items-center gap-1 px-3 pt-2.5 pb-1.5">
         <Link
-          to="/workspace"
+          to={workspacePath()}
           title="Tripl — home"
           aria-label="Tripl — home"
           className="flex flex-1 items-center gap-2 rounded-md px-1 py-1 no-underline transition-colors hover:bg-sidebar-hover"
@@ -282,6 +287,12 @@ export function AppSidebar({
             <ChevronLeft className="size-4" aria-hidden="true" />
           </button>
         )}
+      </div>
+
+      {/* Organization switcher — above the project switcher, since projects
+          belong to an organization. Renders nothing for someone in one. */}
+      <div className="px-3 pb-1 empty:hidden">
+        <OrgSwitcherSlot />
       </div>
 
       {/* Project switcher — no service mark; just a monogram, so it reads as
@@ -371,7 +382,7 @@ export function AppSidebar({
               <span className="flex-1 truncate text-left">Project settings</span>
             </Link>
             <Link
-              to={`/p/${slug}/concepts`}
+              to={projectPath(currentOrgSlug(), slug, '/concepts')}
               aria-current={conceptsActive ? 'page' : undefined}
               className={navLinkClass(conceptsActive, 'px-1.5 text-body-sm')}
               style={navLinkStyle(conceptsActive)}

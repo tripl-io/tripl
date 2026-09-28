@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { eventPhotosApi } from '@/api/eventPhotos'
+import { eventPhotosApi, photoFileUrl } from '@/api/eventPhotos'
 import type { EventPhoto } from '@/types'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -425,7 +425,7 @@ function PhotoTile({
           </div>
         ) : (
           <img
-            src={photo.url}
+            src={photoFileUrl(photo.url)}
             alt=""
             className="aspect-square w-full object-cover"
             loading="lazy"
@@ -485,7 +485,7 @@ function PhotoViewer({
           />
         ) : (
           <img
-            src={photo.url}
+            src={photoFileUrl(photo.url)}
             alt={photo.original_filename || 'Photo'}
             className="max-h-[75vh] w-full object-contain"
           />

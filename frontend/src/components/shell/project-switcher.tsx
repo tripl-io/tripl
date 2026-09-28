@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { Project } from '@/types'
 import { ICON_BUTTON_CLASS } from './sidebar-style'
+import { workspacePath } from '@/lib/navigation'
 
 /** Above this many projects the switcher gets a filter field (#238 SH-15). */
 const PROJECT_FILTER_THRESHOLD = 6
@@ -183,7 +184,7 @@ export function ProjectSwitcher({
         {canCreateProject && (
           <DropdownMenuItem asChild>
             <Link
-              to="/workspace?new=1"
+              to={`${workspacePath()}?new=1`}
               className="flex items-center gap-2 text-body-sm no-underline text-fg"
             >
               <Plus className="size-3.5 shrink-0 text-fg-tertiary" aria-hidden="true" />
@@ -193,7 +194,7 @@ export function ProjectSwitcher({
         )}
         <DropdownMenuItem asChild>
           <Link
-            to="/workspace"
+            to={workspacePath()}
             className="flex items-center gap-2 text-body-sm no-underline text-fg"
           >
             <LayoutDashboard

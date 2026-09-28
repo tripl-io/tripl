@@ -66,6 +66,7 @@ import { unappliedChartFilters } from './events/utils'
 import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
 import { usersKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 interface EventsPageProps {
   /** Lock the page to a single event type (by name), decoupling it from the
@@ -104,7 +105,7 @@ export default function EventsPage(props: EventsPageProps = {}) {
     // shared branch-diff link into a main-plan edit — which then renders a
     // normal form and 404s at Save, because the read is lenient and the write
     // is not. useEventsRouteState.openEvent already preserves them on the way in.
-    return <Navigate to={`/p/${slug}/events/${activeTab}/${eventId}/edit${search}`} replace />
+    return <Navigate to={projectPath(currentOrgSlug(), slug, `/events/${activeTab}/${eventId}/edit${search}`)} replace />
   }
   return <EventsListPage {...props} />
 }
@@ -675,7 +676,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   // /events/:tab/:eventId/edit) match — '/events/new' would otherwise resolve to
   // the /events/:tab list route with tab='new'. tab='all' is handled everywhere.
   // The query string travels too, for the `?branch=` reason given above.
-  const eventsBase = `/p/${slug}/events/${activeTab}`
+  const eventsBase = projectPath(currentOrgSlug(), slug, `/events/${activeTab}`)
   if (slug && showForm) {
     return <Navigate to={`${eventsBase}/new${locationSearch}`} replace />
   }
@@ -694,7 +695,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
         action={
           embedded ? undefined : (
             <Button asChild size="sm" variant="outline">
-              <Link to={`/p/${slug}/events${locationSearch}`}>Show all events</Link>
+              <Link to={projectPath(currentOrgSlug(), slug, `/events${locationSearch}`)}>Show all events</Link>
             </Button>
           )
         }
@@ -771,7 +772,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
                       </Button>
                     )}
                     <Button asChild size="sm" variant="outline">
-                      <Link to={`/p/${slug}/scans`}>
+                      <Link to={projectPath(currentOrgSlug(), slug, '/scans')}>
                         <Radar />
                         Import from a scan
                       </Link>

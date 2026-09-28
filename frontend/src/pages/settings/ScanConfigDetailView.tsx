@@ -33,6 +33,7 @@ import { dataSourcesKey, eventTypesKey, scanActivityKey, scanJobsKey, scansKey }
 import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { usePageTitle } from '@/components/shell-chrome-context'
+import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
 
 type DetailTab = 'overview' | 'configuration'
 
@@ -120,7 +121,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
     },
   })
 
-  const goBack = () => navigate(`/p/${slug}/scans`)
+  const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/scans'))
 
   // Loading the config list errored — surface it with a retry instead of a
   // blank screen (tripl-2su6.9).
@@ -145,7 +146,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
     return (
       <EntityNotFound
         title="Scan not found"
-        back={{ to: `/p/${slug}/scans`, label: 'Back to Scans' }}
+        back={{ to: projectPath(currentOrgSlug(), slug, '/scans'), label: 'Back to Scans' }}
       />
     )
   }
@@ -197,7 +198,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
               Reads from{' '}
               {dataSource && isOwner ? (
                 <Link
-                  to={`/settings/data-sources/${dataSource.id}`}
+                  to={settingsPath(`/settings/data-sources/${dataSource.id}`)}
                   className="underline decoration-fg-tertiary/50 underline-offset-2 hover:decoration-current text-fg-secondary"
                 >
                   {dataSource.name}

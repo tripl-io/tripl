@@ -31,7 +31,7 @@ import {
   ShellChromeContext,
 } from '@/components/shell-chrome-context'
 import { ProjectEventStreamProvider } from '@/realtime/ProjectEventStreamProvider'
-import { projectHomePath, resolveNavLocation } from '@/lib/navigation'
+import { currentOrgSlug, projectHomePath, projectPath, resolveNavLocation, stripOrgPrefix } from '@/lib/navigation'
 import { navCrumb, type Crumb } from '@/components/shell/crumbs'
 import { useShellShortcuts } from '@/components/shell/shell-shortcuts'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -167,7 +167,9 @@ const WORKSPACE_TITLE = 'All projects'
 // area label matches the page's own eyebrow (ConceptsPage `PageHead`).
 const CONCEPTS_AREA = 'Help & reference'
 
-function resolveCrumbs(pathname: string, slug?: string, projectName?: string): Crumbs {
+function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string): Crumbs {
+  // `/o/{org}/p/…` reads as `/p/…`, and `/o/{org}` as the workspace (F20 PR7).
+  const pathname = stripOrgPrefix(fullPathname)
   if (WORKSPACE_PATHS.includes(pathname)) return { crumbs: [], title: WORKSPACE_TITLE }
   if (pathname.startsWith('/settings') || pathname.startsWith('/data-sources')) {
     return { crumbs: [], title: 'Settings' }
@@ -232,7 +234,7 @@ function resolveCrumbs(pathname: string, slug?: string, projectName?: string): C
   // metric", "Metrics › Fact tables › Edit fact table" (#246 MT-31).
   const metricsSub = /^\/p\/[^/]+\/metrics\/(.+)$/.exec(pathname)?.[1]
   const factTables: Crumb = slug
-    ? { label: 'Fact tables', to: `/p/${slug}/metrics/fact-tables` }
+    ? { label: 'Fact tables', to: projectPath(currentOrgSlug(), slug, '/metrics/fact-tables') }
     : { label: 'Fact tables' }
   if (metricsSub === 'new') {
     return { crumbs: withProject('Observe', nav('Metrics')), title: 'New metric' }

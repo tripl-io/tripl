@@ -24,6 +24,7 @@ import { useDemoScenario, useDemoScenarioActions } from './demoScenarioContext'
 import { ProductTour } from './ProductTour'
 import type { ChapterListEntry } from './scenarioModel'
 import { setWelcomeDismissed, useWelcomeDismissed } from './welcomeDismissal'
+import { workspacePath } from '@/lib/navigation'
 
 export function DemoWelcomePanel({ project }: { project: Project }) {
   const [tourOpen, setTourOpen] = useState(false)
@@ -98,7 +99,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
             where "New project — start empty and connect your own warehouse"
             lives. */}
         <Button asChild size="xs" variant="ghost">
-          <Link to="/workspace">Create a real project</Link>
+          <Link to={workspacePath()}>Create a real project</Link>
         </Button>
         {/* A 36px target (DEMO-25), pulled into the row's padding so the row
             stays one line high. */}

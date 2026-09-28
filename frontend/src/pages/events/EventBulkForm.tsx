@@ -43,6 +43,7 @@ import { normalizeTag } from './eventFormValues'
 import { rememberCreatedEvents } from './createdEventsHandoff'
 import { useCanWriteProject } from '@/lib/permissions'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
 
@@ -137,7 +138,7 @@ export default function EventBulkForm() {
   // The query string comes along: it is the list's filters and the `?branch=`
   // EventsPage carries into this page on purpose, and dropping it returned the
   // reader to an unfiltered list on main (EVT-38).
-  const listPath = !tab || tab === 'all' ? `/p/${slug}/events` : `/p/${slug}/events/${tab}`
+  const listPath = !tab || tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
   const goBack = () => {
     navigate(`${listPath}${location.search}`)
   }
@@ -481,10 +482,10 @@ export default function EventBulkForm() {
             </p>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm">
-                <Link to={`/p/${slug}/events/${tab ?? 'all'}/new${location.search}`}>Add one at a time</Link>
+                <Link to={projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/new${location.search}`)}>Add one at a time</Link>
               </Button>
               <Button asChild size="sm" variant="outline">
-                <Link to={`/p/${slug}/event-types/${selectedEt.id}`}>
+                <Link to={projectPath(currentOrgSlug(), slug, `/event-types/${selectedEt.id}`)}>
                   Edit {selectedEt.display_name} fields
                 </Link>
               </Button>

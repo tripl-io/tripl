@@ -2,10 +2,7 @@ import { Suspense } from 'react'
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { PageSkeleton, type PageSkeletonVariant } from '@/components/states'
 import { lazyWithReload } from '@/lib/lazyWithReload'
-import {
-  legacySettingsRedirectPath,
-  type ProjectSurfaceMovedFromSettings,
-} from '@/lib/navigation'
+import { currentOrgSlug, legacySettingsRedirectPath, projectPath, settingsPath, type ProjectSurfaceMovedFromSettings } from '@/lib/navigation'
 
 // Each surface is its own chunk. They are separate sidebar destinations and
 // only one renders at a time, but importing them statically put all nine —
@@ -129,17 +126,17 @@ export default function ProjectSettingsPage({
     // Bare /p/:slug/settings and the old general config tab both belong to the
     // full-takeover Settings area now, as do the plan rules.
     if (!urlTab || urlTab === 'general') {
-      return <Navigate to={`/settings/project/general?project=${encodeURIComponent(slug)}`} replace />
+      return <Navigate to={settingsPath(`/settings/project/general?project=${encodeURIComponent(slug)}`)} replace />
     }
     if (urlTab === 'plan-rules') {
-      return <Navigate to={`/settings/project/plan-rules?project=${encodeURIComponent(slug)}`} replace />
+      return <Navigate to={settingsPath(`/settings/project/plan-rules?project=${encodeURIComponent(slug)}`)} replace />
     }
     if (urlTab === 'members') {
-      return <Navigate to={`/settings/project/members?project=${encodeURIComponent(slug)}`} replace />
+      return <Navigate to={settingsPath(`/settings/project/members?project=${encodeURIComponent(slug)}`)} replace />
     }
     const moved = legacySettingsRedirectPath(slug, urlTab, itemId, location.search, location.hash)
     if (moved) return <Navigate to={moved} replace />
-    if (urlTab !== 'monitoring') return <Navigate to={`/p/${slug}/events`} replace />
+    if (urlTab !== 'monitoring') return <Navigate to={projectPath(currentOrgSlug(), slug, '/events')} replace />
     tab = urlTab
   }
 

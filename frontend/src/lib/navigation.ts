@@ -20,6 +20,20 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ActivityItemType, ProjectSummary } from '@/types'
+import { currentOrgSlug, projectPath, stripOrgPrefix, withActiveOrg } from '@/lib/activeOrg'
+
+// The project/organization address builders live with the active organization
+// (lib/activeOrg.ts, which the API client and query keys also read); every
+// link builder imports them from here.
+export {
+  currentOrgSlug,
+  orgHomePath,
+  projectPath,
+  settingsPath,
+  stripOrgPrefix,
+  withActiveOrg,
+  workspacePath,
+} from '@/lib/activeOrg'
 
 /**
  * Shared navigation model for the job-based information architecture
@@ -68,6 +82,9 @@ export function formatCount(n: number): string {
  * Settings rather than as a top-level "Connect" nav group.
  */
 export function buildNavGroups(slug: string, summary: ProjectSummary | undefined): NavGroup[] {
+  // Built against the org-less address, then moved under the active
+  // organization below: hrefs get the `/o/{org}` prefix and `match` reads a
+  // pathname with it taken off, so an item is active on either address.
   const base = `/p/${slug}`
   // `firing_monitor_count` is deliberately NOT read here any more. It badged the
   // standalone Monitors item, and with that item merged into Alerting
@@ -81,7 +98,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
   const openSignals = summary?.monitoring_signal_count ?? 0
   const openIncidents = summary?.open_incident_count ?? 0
 
-  return [
+  const groups: NavGroup[] = [
     {
       label: 'Plan',
       items: [
@@ -310,6 +327,15 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
       ],
     },
   ]
+  const org = currentOrgSlug()
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({
+      ...item,
+      href: projectPath(org, slug, item.href.slice(base.length)),
+      match: (path: string) => item.match(stripOrgPrefix(path)),
+    })),
+  }))
 }
 
 /**
@@ -338,7 +364,7 @@ const NAV_SUBSURFACE_LEAVES: Record<string, string> = {
  * project had two front doors (SHELL-44).
  */
 export function projectHomePath(slug: string): string {
-  return `/p/${slug}/overview`
+  return projectPath(currentOrgSlug(), slug, '/overview')
 }
 
 /**
@@ -391,8 +417,8 @@ export function legacySettingsRedirectPath(
   // Only surfaces with a `/:itemId` route keep the id; the rest ignored it under
   // `/settings/<tab>/<id>` too, and appending it now would land on NotFound.
   const path = itemId && SURFACES_WITH_ITEM_ROUTES.has(tab)
-    ? `/p/${slug}/${tab}/${itemId}`
-    : `/p/${slug}/${tab}`
+    ? projectPath(currentOrgSlug(), slug, `/${tab}/${itemId}`)
+    : projectPath(currentOrgSlug(), slug, `/${tab}`)
   return `${path}${search}${hash}`
 }
 
@@ -427,14 +453,15 @@ export function switchProjectPath(
   const home = projectHomePath(toSlug)
   if (!fromSlug) return home
   const base = `/p/${fromSlug}`
-  if (currentPath !== base && !currentPath.startsWith(`${base}/`)) return home
-  const [surface, sub] = currentPath.slice(base.length).split('/').filter(Boolean)
+  const path = stripOrgPrefix(currentPath)
+  if (path !== base && !path.startsWith(`${base}/`)) return home
+  const [surface, sub] = path.slice(base.length).split('/').filter(Boolean)
   if (!surface) return home
   if (surface === 'settings' && sub) {
-    return isSurfaceMovedFromSettings(sub) ? `/p/${toSlug}/${sub}` : `/p/${toSlug}/settings/${sub}`
+    return isSurfaceMovedFromSettings(sub) ? projectPath(currentOrgSlug(), toSlug, `/${sub}`) : projectPath(currentOrgSlug(), toSlug, `/settings/${sub}`)
   }
-  if (surface === 'metrics' && sub === 'fact-tables') return `/p/${toSlug}/metrics/fact-tables`
-  return PORTABLE_SURFACES.has(surface) ? `/p/${toSlug}/${surface}` : home
+  if (surface === 'metrics' && sub === 'fact-tables') return projectPath(currentOrgSlug(), toSlug, '/metrics/fact-tables')
+  return PORTABLE_SURFACES.has(surface) ? projectPath(currentOrgSlug(), toSlug, `/${surface}`) : home
 }
 
 /**
@@ -452,10 +479,11 @@ export function resolveNavLocation(
   pathname: string,
 ): { area: string; label: string; leaf?: string } | null {
   const base = `/p/${slug}`
+  const path = stripOrgPrefix(pathname)
   for (const group of buildNavGroups(slug, undefined)) {
     for (const item of group.items) {
-      if (!item.match(pathname)) continue
-      const leaf = NAV_SUBSURFACE_LEAVES[pathname.slice(base.length)]
+      if (!item.match(path)) continue
+      const leaf = NAV_SUBSURFACE_LEAVES[path.slice(base.length)]
       return { area: group.label, label: item.label, ...(leaf ? { leaf } : {}) }
     }
   }
@@ -493,7 +521,7 @@ export interface AlertingPathAnchors {
  * page: it reads both through `useSearchParams`, which decodes.
  */
 export function getAlertingPath(slug: string, anchors: AlertingPathAnchors = {}): string {
-  const base = `/p/${slug}/alerting`
+  const base = projectPath(currentOrgSlug(), slug, '/alerting')
   const path = anchors.deliveryId ? `${base}/${anchors.deliveryId}` : base
   const params = new URLSearchParams()
   if (anchors.itemAnchor) params.set(ALERT_ITEM_PARAM, anchors.itemAnchor)
@@ -537,9 +565,11 @@ export interface ActivityTargetInput {
  * keeps the path the backend sent: guessing is how this defect started.
  */
 export function resolveActivityTargetPath(item: ActivityTargetInput): string | null {
-  if (item.type !== 'alert') return item.target_path
-  if (!item.id.startsWith(ACTIVITY_ALERT_DELIVERY_PREFIX)) return item.target_path
+  // The server writes org-less `/p/…` paths; they open in the active organization.
+  const serverPath = item.target_path === null ? null : withActiveOrg(item.target_path)
+  if (item.type !== 'alert') return serverPath
+  if (!item.id.startsWith(ACTIVITY_ALERT_DELIVERY_PREFIX)) return serverPath
   const deliveryId = item.id.slice(ACTIVITY_ALERT_DELIVERY_PREFIX.length)
-  if (!deliveryId) return item.target_path
+  if (!deliveryId) return serverPath
   return getAlertingPath(item.project_slug, { deliveryId })
 }

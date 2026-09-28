@@ -1,3 +1,4 @@
+import { orgRoot } from '@/lib/activeOrg'
 import type { DocLinkKind, DocScope } from '@/types/docs'
 
 /**
@@ -9,7 +10,7 @@ import type { DocLinkKind, DocScope } from '@/types/docs'
  * Kept beside queryKeys.ts rather than in it so the event page's Notes card
  * does not import the whole key module's API clients just for these.
  */
-export const docsKey = (slug: string) => ['docs', slug] as const
+export const docsKey = (slug: string) => [...orgRoot(), 'docs', slug] as const
 
 export const docsTreeKey = (slug: string) => [...docsKey(slug), 'tree'] as const
 

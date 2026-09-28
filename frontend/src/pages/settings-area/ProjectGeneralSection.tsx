@@ -60,6 +60,8 @@ import {
   DangerRetireVariablesRow,
   DangerRow,
 } from './ProjectDangerRows'
+import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_APP_VERSION_KEEP_RELEASES = 100
@@ -232,7 +234,7 @@ function ProjectGeneralBody({
         // below, or the refresh asks the server for it and gets a 404.
         qc.removeQueries({ queryKey: projectKey(slug) })
         try {
-          localStorage.setItem('tripl-last-project-slug', project.slug)
+          localStorage.setItem(orgStorageKey('tripl-last-project-slug'), project.slug)
         } catch {
           /* ignore */
         }
@@ -437,13 +439,13 @@ function ProjectGeneralBody({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/p/${slug}/event-types`)}
+              onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/event-types'))}
             >
               {/* Named for what it opens: event types, meta fields, alerting…
                   "Project operations" described none of them (#238 ST-5). */}
               Tracking plan &amp; alerting
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate(`/p/${slug}/events`)}>
+            <Button variant="outline" size="sm" onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/events'))}>
               View project
             </Button>
           </>
@@ -459,7 +461,7 @@ function ProjectGeneralBody({
           error={projectQuery.error}
           title="Could not load this project"
           onRetry={() => void projectQuery.refetch()}
-          notFound={{ title: 'Project not found', back: { to: '/workspace', label: 'Back to all projects' } }}
+          notFound={{ title: 'Project not found', back: { to: workspacePath(), label: 'Back to all projects' } }}
         />
       )}
 

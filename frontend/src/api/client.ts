@@ -1,3 +1,4 @@
+import { currentOrgSlug } from '@/lib/activeOrg'
 import { uid } from '@/lib/uid'
 
 const BASE = '/api/v1'
@@ -67,7 +68,38 @@ function isFieldErrorArray(detail: unknown): detail is ApiFieldError[] {
   )
 }
 
+/**
+ * The first path segments the server serves inside an organization (F20 PR7).
+ * Mirrors `ORG_REWRITE_PREFIXES` in backend/src/tripl/middleware/org_context.py
+ * minus `settings`, whose per-organization routes come later: a request to
+ * `/projects/web/events` goes out as `/orgs/{org}/projects/web/events`.
+ * `/orgs/*`, `/auth/*`, `/settings/*` and everything else pass through.
+ */
+export const ORG_SCOPED_PREFIXES: readonly string[] = [
+  'projects',
+  'data-sources',
+  'users',
+  'audit',
+  'activity',
+  'me',
+]
+
+/**
+ * `path` addressed inside organization `org`, when its first segment is one
+ * {@link ORG_SCOPED_PREFIXES} names. With no organization the path is left as
+ * it is and the server acts in the default one, as before organizations.
+ */
+export function orgScopedPath(path: string, org: string | null = currentOrgSlug()): string {
+  if (!org) return path
+  const segment = /^\/([^/?#]+)/.exec(path)?.[1]
+  if (!segment || !ORG_SCOPED_PREFIXES.includes(segment)) return path
+  return `/orgs/${encodeURIComponent(org)}${path}`
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Only the URL is rewritten: the 401 check below keys off the caller's path
+  // (`/auth/…` never raises the re-auth prompt).
+  const url = `${BASE}${orgScopedPath(path)}`
   let res: Response
   const headers = new Headers(init?.headers)
 
@@ -81,7 +113,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(url, {
       ...init,
       credentials: 'include',
       headers,
@@ -148,7 +180,13 @@ export const api = {
     request<T>(path, { method: 'PUT', body: JSON.stringify(data) }),
   patch: <T>(path: string, data: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(data) }),
-  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  // A body on DELETE is rare, and only for a typed confirmation
+  // (`DELETE /orgs/{org}` takes `{ confirm_slug }`).
+  del: <T>(path: string, data?: unknown) =>
+    request<T>(path, {
+      method: 'DELETE',
+      ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+    }),
 }
 
 /** Append `?branch=<id>` (or `&branch=<id>`) to a path. No-op when branchId is null/undefined. */

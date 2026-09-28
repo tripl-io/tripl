@@ -69,6 +69,7 @@ import { describeDeletionImpact } from './deletionImpact'
 import { RuleEditorDialog } from './RuleEditorDialog'
 import { RuleReplayDialog } from './RuleReplayDialog'
 import { monitorsSummaryKey, projectAnomalySettingsKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** A rule carrying the destination it hangs off, as the page flattens it. */
 export interface RuleWithDestination extends AlertRule {
@@ -486,7 +487,7 @@ export function MonitorsSection({
         >
           <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
           <span className="min-w-0 flex-1">{DETECTION_OFF_MESSAGE}</span>
-          <Link to={`/p/${slug}/settings/monitoring`} className="underline underline-offset-2">
+          <Link to={projectPath(currentOrgSlug(), slug, '/settings/monitoring')} className="underline underline-offset-2">
             Detection settings
           </Link>
         </p>
@@ -800,7 +801,7 @@ function RuleRow({
           {/* The detail page is the rule's fired history — the one thing
               neither this row nor its expansion can carry. */}
           <Link
-            to={`/p/${slug}/monitors/${rule.id}`}
+            to={projectPath(currentOrgSlug(), slug, `/monitors/${rule.id}`)}
             className="min-w-0 break-words text-body-sm font-medium no-underline hover:underline text-fg"
           >
             {rule.name}

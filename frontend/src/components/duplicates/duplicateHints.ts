@@ -1,5 +1,6 @@
 import type { DuplicateCheckResult, DuplicateMatch, NameLintIssue } from '@/types'
 import { countOf } from '@/lib/plural'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** "94%": a score as the warning reads it. Floored, so 0.879 never reads as
  *  the 88% threshold it did not reach. */
@@ -65,5 +66,5 @@ export function lintIssues(result: DuplicateCheckResult | undefined): NameLintIs
 
 /** The event's page, where every "Open" in this feature leads. */
 export function duplicateEventPath(slug: string, eventId: string): string {
-  return `/p/${slug}/monitoring/event/${eventId}`
+  return projectPath(currentOrgSlug(), slug, `/monitoring/event/${eventId}`)
 }
