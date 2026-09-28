@@ -1,9 +1,9 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ssoApi, type SsoConfig, type SsoConfigUpdate } from '@/api/sso'
+import { ssoApi, type SamlMetadataImport, type SsoConfig, type SsoConfigUpdate, type SsoProtocol } from '@/api/sso'
 import { useActiveOrg } from '@/components/active-org-context'
 import { ErrorState } from '@/components/error-state'
-import { Field, InfoRow, SCard, SHeader, SettingsSaveBar, TextInput, ToggleRow } from '@/components/settings/kit'
+import { InfoRow, RadioCards, SCard, SHeader, SettingsSaveBar, ToggleRow } from '@/components/settings/kit'
 import { useUnsavedChanges } from '@/components/settings/unsaved-changes'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -12,27 +12,44 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { orgSsoDomainsKey, orgSsoKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import { OrgSsoDomainsCard } from './org-settings/OrgSsoDomainsCard'
+import { OrgSsoSamlCard } from './org-settings/OrgSsoSamlCard'
+import { SsoTextInput } from './org-settings/SsoTextInput'
 import {
   ORG_SSO_PATH,
   buildSsoUpdate,
   changedSsoFields,
+  draftProtocol,
   enableBlockedReason,
+  firstSaveMessage,
   firstSaveMissing,
   providerConfigured,
-  ssoDisplayValue,
+  savedProtocol,
   ssoDraftInvalid,
-  ssoFieldError,
   ssoRedirectUri,
   type SsoDraft,
   type SsoTextField,
 } from './org-settings/orgSsoModel'
 
+const PROTOCOL_OPTIONS = [
+  {
+    value: 'oidc',
+    label: 'OpenID Connect',
+    description: 'Okta, Microsoft Entra ID, Google, Keycloak and most modern IdPs.',
+  },
+  {
+    value: 'saml',
+    label: 'SAML 2.0',
+    description: 'For IdPs or policies that only offer SAML. Signed assertions, no encryption.',
+  },
+] as const
+
 const UNSAVED_MESSAGE =
   'Single sign-on settings you edited here have not been saved. Leaving this page drops them.'
 
 /**
- * Organization › Single sign-on (F20): the organization's OpenID Connect
- * provider, the email domains it signs in, and whether it is on and required.
+ * Organization › Single sign-on (F20): the organization's identity provider
+ * (OpenID Connect or SAML 2.0), the email domains it signs in, and whether it
+ * is on and required.
  * Organization OWNERS only; the area shows everyone else a notice.
  */
 export default function OrgSsoSection() {
@@ -41,7 +58,7 @@ export default function OrgSsoSection() {
     <div>
       <SHeader
         title="Single sign-on"
-        description="Let people sign in through your identity provider (OpenID Connect), and optionally require it for everyone in this organization."
+        description="Let people sign in through your identity provider (OpenID Connect or SAML 2.0), and optionally require it for everyone in this organization."
       />
       {slug ? (
         <OrgSsoForm key={slug} org={slug} />
@@ -118,11 +135,17 @@ function OrgSsoForm({ org }: { org: string }) {
 
   const domains = domainsQuery.data
   const blocked = enableBlockedReason(config, domains)
-  const fieldProps = {
-    config,
-    draft,
-    setValue: (field: SsoTextField, value: string) => setDraft((current) => ({ ...current, [field]: value })),
+  const protocol = draftProtocol(config, draft)
+  const setValue = (field: SsoTextField, value: string) => setDraft((current) => ({ ...current, [field]: value }))
+  const fieldProps = { config, draft, setValue }
+  const setProtocol = (next: SsoProtocol) => {
+    testMut.reset()
+    setDraft((current) => ({ ...current, protocol: next }))
   }
+  const onImported = (values: SamlMetadataImport) =>
+    setDraft((current) => ({ ...current, protocol: 'saml', ...values }))
+  const firstSave = firstSaveMissing(config, draft)
+  const testable = savedProtocol(config) === 'saml' ? Boolean(config.saml_idp_entity_id) : Boolean(config.issuer)
 
   // A switch saves the whole saved configuration with the one flag changed;
   // unsaved edits to the provider fields stay in the draft.
@@ -195,55 +218,74 @@ function OrgSsoForm({ org }: { org: string }) {
         note="The provider settings apply from the next sign-in."
         error={saveMut.isError ? getErrorMessage(saveMut.error) : undefined}
         dirty={dirty}
-        invalid={ssoDraftInvalid(draft) || firstSaveMissing(config, draft)}
-        invalidMessage={
-          firstSaveMissing(config, draft)
-            ? 'Enter the issuer URL and client ID to save.'
-            : undefined
-        }
+        invalid={ssoDraftInvalid(draft, protocol) || firstSave}
+        invalidMessage={firstSave ? firstSaveMessage(config, draft) : undefined}
         pending={saveMut.isPending}
         onDiscard={() => setDraft({})}
         onSave={() => saveMut.mutate(buildSsoUpdate(config, draft))}
       />
 
       <SCard
-        title="Identity provider"
-        description="Register tripl as a web application (authorization code flow) at your OpenID Connect provider, then copy its issuer URL, client ID and client secret here."
+        title="Protocol"
+        description={
+          config.enabled && protocol !== savedProtocol(config)
+            ? 'Switching applies from the next sign-in. Identities linked through the other protocol do not carry over: people with an existing account are asked to confirm the link again.'
+            : 'How tripl talks to your identity provider. The settings of the other protocol are kept.'
+        }
       >
-        <InfoRow label="Redirect URI" value={ssoRedirectUri(window.location.origin, org, config.redirect_uri)} />
-        <SsoTextInput
-          {...fieldProps}
-          field="issuer"
-          label="Issuer URL"
-          placeholder="e.g. https://idp.example.com"
-          hint="https only, and it must be a public address. tripl reads its discovery document at /.well-known/openid-configuration."
-        />
-        <SsoTextInput {...fieldProps} field="client_id" label="Client ID" placeholder="e.g. tripl" />
-        <SsoTextInput
-          {...fieldProps}
-          field="client_secret"
-          label="Client secret"
-          secret
-          placeholder={config.client_secret_configured ? 'Configured — leave blank to keep' : 'Not configured'}
-          hint={config.client_secret_configured ? 'Stored encrypted and never shown again; type a new one to replace it.' : undefined}
-        />
-        <SsoTextInput
-          {...fieldProps}
-          field="scopes"
-          label="Scopes"
-          hint="Space-separated. openid and email are needed; the provider must also send email_verified."
-          last
-        />
+        <div className="px-4 py-3">
+          <RadioCards
+            groupLabel="Single sign-on protocol"
+            columns={2}
+            value={protocol}
+            onChange={(next) => setProtocol(next === 'saml' ? 'saml' : 'oidc')}
+            options={PROTOCOL_OPTIONS}
+          />
+        </div>
       </SCard>
+
+      {protocol === 'saml' ? (
+        <OrgSsoSamlCard org={org} config={config} draft={draft} setValue={setValue} onImported={onImported} />
+      ) : (
+        <SCard
+          title="Identity provider"
+          description="Register tripl as a web application (authorization code flow) at your OpenID Connect provider, then copy its issuer URL, client ID and client secret here."
+        >
+          <InfoRow label="Redirect URI" value={ssoRedirectUri(window.location.origin, org, config.redirect_uri)} />
+          <SsoTextInput
+            {...fieldProps}
+            field="issuer"
+            label="Issuer URL"
+            placeholder="e.g. https://idp.example.com"
+            hint="https only, and it must be a public address. tripl reads its discovery document at /.well-known/openid-configuration."
+          />
+          <SsoTextInput {...fieldProps} field="client_id" label="Client ID" placeholder="e.g. tripl" />
+          <SsoTextInput
+            {...fieldProps}
+            field="client_secret"
+            label="Client secret"
+            secret
+            placeholder={config.client_secret_configured ? 'Configured — leave blank to keep' : 'Not configured'}
+            hint={config.client_secret_configured ? 'Stored encrypted and never shown again; type a new one to replace it.' : undefined}
+          />
+          <SsoTextInput
+            {...fieldProps}
+            field="scopes"
+            label="Scopes"
+            hint="Space-separated. openid and email are needed; the provider must also send email_verified."
+            last
+          />
+        </SCard>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
           variant="outline"
-          disabled={testMut.isPending || dirty || !config.issuer}
+          disabled={testMut.isPending || dirty || !testable}
           onClick={() => testMut.mutate()}
         >
-          {testMut.isPending ? 'Testing…' : 'Test connection'}
+          {testMut.isPending ? 'Testing…' : protocol === 'saml' ? 'Check settings' : 'Test connection'}
         </Button>
         {dirty && <span className="text-body-sm text-fg-tertiary">Save first to test the saved settings.</span>}
         {testMut.isSuccess && (
@@ -297,49 +339,5 @@ function OrgSsoForm({ org }: { org: string }) {
       </SCard>
       {dialog}
     </div>
-  )
-}
-
-function SsoTextInput({
-  config,
-  draft,
-  setValue,
-  field,
-  label,
-  placeholder,
-  hint,
-  secret,
-  last,
-}: {
-  config: SsoConfig
-  draft: SsoDraft
-  setValue: (field: SsoTextField, value: string) => void
-  field: SsoTextField
-  label: string
-  placeholder?: string
-  hint?: string
-  secret?: boolean
-  last?: boolean
-}) {
-  const errorId = useId()
-  const error = ssoFieldError(field, draft)
-  return (
-    <Field label={label} hint={hint} last={last}>
-      <TextInput
-        type={secret ? 'password' : 'text'}
-        autoComplete="off"
-        value={ssoDisplayValue(config, draft, field)}
-        onChange={(next) => setValue(field, next)}
-        placeholder={placeholder}
-        mono={!secret}
-        aria-invalid={error !== null}
-        aria-describedby={error ? errorId : undefined}
-      />
-      {error && (
-        <p id={errorId} className="mt-1 text-caption text-danger">
-          {error}
-        </p>
-      )}
-    </Field>
   )
 }

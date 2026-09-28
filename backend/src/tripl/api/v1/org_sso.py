@@ -5,12 +5,20 @@ Every route is for an OWNER of the path's organization, from a browser session
 stranger 404. Owners only, reads included: the settings decide who can sign in
 to the organization at all.
 
-* ``GET/PUT /sso`` — the provider settings; the client secret is write-only
-  (``client_secret_configured``). Turning "SSO required" on revokes the
-  organization's API keys not minted from its SSO session (owners' included);
-  the count is in the answer and the audit row.
-* ``POST /sso/test`` — fetch the discovery document and check it (the
-  ``sso_probe`` rate-limit bucket, as domain verification).
+* ``GET/PUT /sso`` — the provider settings, OIDC or SAML 2.0 (``protocol``);
+  the client secret is write-only (``client_secret_configured``); the SAML
+  certificates are public and come back with their fingerprints and expiry,
+  with the values to register at a SAML provider (entity id, ACS URL).
+  Turning "SSO required" on revokes the organization's API keys not minted
+  from its SSO session (owners' included); the count is in the answer and the
+  audit row.
+* ``POST /sso/test`` — OIDC: fetch the discovery document and check it (the
+  ``sso_probe`` rate-limit bucket, as domain verification). SAML: check the
+  saved SSO URL is https and the certificates parse and have not expired
+  (nothing is fetched).
+* ``POST /sso/saml/metadata-import`` — read a pasted IdP metadata document
+  (entity id, HTTP-Redirect SSO URL, signing certificates) to fill the form
+  with. Paste only: tripl fetches no metadata URL; nothing is saved.
 * ``GET/POST /sso/domains``, ``DELETE /sso/domains/{domain_id}``,
   ``POST /sso/domains/{domain_id}/verify`` — the email domains, proven by DNS.
 
@@ -27,6 +35,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from tripl.api.deps import ManagedOrgDep, PathOrgOwnerUserDep, SessionDep
 from tripl.api.v1.auth_sso import app_base_url
 from tripl.middleware.rate_limit import enforce, sso_probe_rate_limiter
+from tripl.models.org_sso import PROTOCOL_SAML
 from tripl.schemas.org_sso import (
     OrgSsoConfigResponse,
     OrgSsoConfigSaved,
@@ -34,8 +43,10 @@ from tripl.schemas.org_sso import (
     OrgSsoDomainCreate,
     OrgSsoDomainResponse,
     OrgSsoTestResult,
+    SamlMetadataImport,
+    SamlMetadataImportResult,
 )
-from tripl.services import audit_service, org_sso_service, sso_http
+from tripl.services import audit_service, org_sso_service, saml_xml, sso_http
 from tripl.services.sso_http import IdpError
 
 router = APIRouter(prefix="/orgs/{org}/sso", tags=["organizations"])
@@ -72,11 +83,14 @@ async def put_sso(
         target_name=org.slug,
         payload={
             "changed": saved.changed,
+            "protocol": saved.config.protocol,
             "issuer": saved.config.issuer,
             "client_id": saved.config.client_id,
+            "saml_idp_entity_id": saved.config.saml_idp_entity_id,
             "enabled": saved.config.enabled,
             "sso_required": saved.config.sso_required,
             "revoked_api_keys": saved.revoked_api_keys,
+            "unlinked_identities": saved.unlinked_identities,
         },
         organization_id=org.id,
     )
@@ -108,17 +122,26 @@ _TEST_MESSAGES = {
 async def probe_sso(
     session: SessionDep, current_user: PathOrgOwnerUserDep, org: ManagedOrgDep
 ) -> OrgSsoTestResult:
-    """Fetch the configured issuer's discovery document and check it. Changes nothing.
+    """Check the saved provider settings. Changes nothing.
 
-    ``ok`` false with a code when the issuer is unreachable, private (hosted),
-    names another issuer, or lacks an https endpoint. On a small rate-limit
-    bucket of its own (it makes tripl call out).
+    OIDC: fetch the configured issuer's discovery document; ``ok`` false with a
+    code when the issuer is unreachable, private (hosted), names another
+    issuer, or lacks an https endpoint. SAML: the SSO URL is https and every
+    certificate parses and is unexpired (``saml_insecure_url``,
+    ``saml_bad_certificate``, ``saml_certificate_expired``); nothing is
+    fetched. On a small rate-limit bucket of its own (OIDC makes tripl call out).
     """
     del current_user
     config = await org_sso_service.get_config(session, org.id)
     if config is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Single sign-on is not configured"
+        )
+    if config.protocol == PROTOCOL_SAML:
+        return _probe_saml(config.saml_idp_sso_url, config.saml_idp_certs)
+    if not config.issuer:
+        return OrgSsoTestResult(
+            ok=False, error_code="idp_insecure_url", message=_TEST_MESSAGES["idp_insecure_url"]
         )
     try:
         discovery = await asyncio.to_thread(sso_http.fetch_discovery, config.issuer)
@@ -136,6 +159,59 @@ async def probe_sso(
         token_endpoint=discovery.token_endpoint,
         jwks_uri=discovery.jwks_uri,
         token_endpoint_auth_method=method,
+    )
+
+
+def _probe_saml(sso_url: str | None, certs_pem: str | None) -> OrgSsoTestResult:
+    if not sso_url or not saml_xml.check_https_url(sso_url):
+        return OrgSsoTestResult(
+            ok=False,
+            error_code="saml_insecure_url",
+            message="The identity provider's sign-in URL must be an https URL.",
+        )
+    certificates = org_sso_service.describe_certs(certs_pem)
+    if not certificates:
+        return OrgSsoTestResult(
+            ok=False,
+            error_code="saml_bad_certificate",
+            message="The identity provider's certificate could not be read.",
+        )
+    if any(cert.expired for cert in certificates):
+        return OrgSsoTestResult(
+            ok=False,
+            error_code="saml_certificate_expired",
+            message="A certificate of the identity provider has expired.",
+            saml_cert_info=certificates,
+        )
+    return OrgSsoTestResult(
+        ok=True,
+        message="The SAML settings are usable.",
+        saml_cert_info=certificates,
+    )
+
+
+@router.post("/saml/metadata-import", response_model=SamlMetadataImportResult)
+async def import_saml_metadata(
+    data: SamlMetadataImport, current_user: PathOrgOwnerUserDep, org: ManagedOrgDep
+) -> SamlMetadataImportResult:
+    """Read a pasted IdP metadata document; 422 naming what is wrong with it.
+
+    The hardened parser of ``saml_xml`` (no DOCTYPE, entities or network);
+    nothing it names is fetched and nothing is saved: the answer fills the
+    form, and the owner saves it with ``PUT /sso``.
+    """
+    del current_user, org
+    try:
+        metadata = saml_xml.parse_idp_metadata(data.xml.encode("utf-8"))
+    except saml_xml.SamlXmlError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from None
+    return SamlMetadataImportResult(
+        saml_idp_entity_id=metadata.entity_id,
+        saml_idp_sso_url=metadata.sso_url,
+        saml_idp_certs=saml_xml.certs_pem(metadata.certs),
+        saml_cert_info=[org_sso_service.cert_info_response(c) for c in metadata.certs],
     )
 
 

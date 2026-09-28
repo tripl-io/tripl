@@ -471,6 +471,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/sso/{org_slug}/saml/acs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Saml Acs
+         * @description The SAML provider's HTTP-POST back; lands like the OIDC callback (303s).
+         *
+         *     Unauthenticated; authorized by the single-use state in ``RelayState``,
+         *     bound to this browser by the ``tripl_saml_state`` cookie, and by the
+         *     signed assertion answering that state's AuthnRequest. IdP-initiated
+         *     (unsolicited) responses are refused: they carry no state.
+         */
+        post: operations["saml_acs_api_v1_auth_sso__org_slug__saml_acs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/saml/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saml Metadata
+         * @description tripl's SAML SP metadata for the organization (unsigned; public by nature).
+         *
+         *     Assertions must be signed (``WantAssertionsSigned``); tripl's AuthnRequests
+         *     are not (it holds no SP key). 404 unless the organization is configured
+         *     for SAML.
+         */
+        get: operations["saml_metadata_api_v1_auth_sso__org_slug__saml_metadata_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/sso/{org_slug}/start": {
         parameters: {
             query?: never;
@@ -1238,6 +1287,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orgs/{org}/sso/saml/metadata-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Saml Metadata
+         * @description Read a pasted IdP metadata document; 422 naming what is wrong with it.
+         *
+         *     The hardened parser of ``saml_xml`` (no DOCTYPE, entities or network);
+         *     nothing it names is fetched and nothing is saved: the answer fills the
+         *     form, and the owner saves it with ``PUT /sso``.
+         */
+        post: operations["import_saml_metadata_api_v1_orgs__org__sso_saml_metadata_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orgs/{org}/sso/test": {
         parameters: {
             query?: never;
@@ -1249,11 +1322,14 @@ export interface paths {
         put?: never;
         /**
          * Probe Sso
-         * @description Fetch the configured issuer's discovery document and check it. Changes nothing.
+         * @description Check the saved provider settings. Changes nothing.
          *
-         *     ``ok`` false with a code when the issuer is unreachable, private (hosted),
-         *     names another issuer, or lacks an https endpoint. On a small rate-limit
-         *     bucket of its own (it makes tripl call out).
+         *     OIDC: fetch the configured issuer's discovery document; ``ok`` false with a
+         *     code when the issuer is unreachable, private (hosted), names another
+         *     issuer, or lacks an https endpoint. SAML: the SSO URL is https and every
+         *     certificate parses and is unexpired (``saml_insecure_url``,
+         *     ``saml_bad_certificate``, ``saml_certificate_expired``); nothing is
+         *     fetched. On a small rate-limit bucket of its own (OIDC makes tripl call out).
          */
         post: operations["probe_sso_api_v1_orgs__org__sso_test_post"];
         delete?: never;
@@ -7620,6 +7696,13 @@ export interface components {
              */
             file: string;
         };
+        /** Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post */
+        Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post: {
+            /** Relaystate */
+            RelayState?: string | null;
+            /** Samlresponse */
+            SAMLResponse?: string | null;
+        };
         /** Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post */
         Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post: {
             /** File */
@@ -13181,8 +13264,31 @@ export interface components {
             issuer: string;
             /** Login Url */
             login_url: string;
+            /**
+             * Protocol
+             * @enum {string}
+             */
+            protocol: "oidc" | "saml";
             /** Redirect Uri */
             redirect_uri: string;
+            /** Saml Acs Url */
+            saml_acs_url: string;
+            /** Saml Cert Info */
+            saml_cert_info: components["schemas"]["SamlCertificateInfo"][];
+            /** Saml Email Attribute */
+            saml_email_attribute: string | null;
+            /** Saml Idp Certs */
+            saml_idp_certs: string;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id: string;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url: string;
+            /** Saml Metadata Url */
+            saml_metadata_url: string;
+            /** Saml Name Id Format */
+            saml_name_id_format: string;
+            /** Saml Sp Entity Id */
+            saml_sp_entity_id: string;
             /** Scopes */
             scopes: string;
             /** Sso Required */
@@ -13202,6 +13308,11 @@ export interface components {
             issuer: string;
             /** Login Url */
             login_url: string;
+            /**
+             * Protocol
+             * @enum {string}
+             */
+            protocol: "oidc" | "saml";
             /** Redirect Uri */
             redirect_uri: string;
             /**
@@ -13209,6 +13320,24 @@ export interface components {
              * @default 0
              */
             revoked_api_keys: number;
+            /** Saml Acs Url */
+            saml_acs_url: string;
+            /** Saml Cert Info */
+            saml_cert_info: components["schemas"]["SamlCertificateInfo"][];
+            /** Saml Email Attribute */
+            saml_email_attribute: string | null;
+            /** Saml Idp Certs */
+            saml_idp_certs: string;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id: string;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url: string;
+            /** Saml Metadata Url */
+            saml_metadata_url: string;
+            /** Saml Name Id Format */
+            saml_name_id_format: string;
+            /** Saml Sp Entity Id */
+            saml_sp_entity_id: string;
             /** Scopes */
             scopes: string;
             /** Sso Required */
@@ -13216,11 +13345,18 @@ export interface components {
         };
         /**
          * OrgSsoConfigUpdate
-         * @description ``PUT /orgs/{org}/sso``. ``client_secret`` omitted or null keeps the stored one.
+         * @description ``PUT /orgs/{org}/sso``.
+         *
+         *     ``protocol`` picks the provider's kind. Its own fields are required (OIDC:
+         *     ``issuer``, ``client_id``; SAML: ``saml_idp_entity_id``,
+         *     ``saml_idp_sso_url``, ``saml_idp_certs``); the other protocol's fields are
+         *     saved only when given non-null, and kept as stored when omitted or null,
+         *     so switching back loses nothing. ``client_secret`` omitted or null keeps
+         *     the stored one; ``scopes`` null is the default set.
          */
         OrgSsoConfigUpdate: {
             /** Client Id */
-            client_id: string;
+            client_id?: string | null;
             /** Client Secret */
             client_secret?: string | null;
             /**
@@ -13229,12 +13365,31 @@ export interface components {
              */
             enabled: boolean;
             /** Issuer */
-            issuer: string;
+            issuer?: string | null;
+            /**
+             * Protocol
+             * @default oidc
+             * @enum {string}
+             */
+            protocol: "oidc" | "saml";
+            /** Saml Email Attribute */
+            saml_email_attribute?: string | null;
+            /** Saml Idp Certs */
+            saml_idp_certs?: string | null;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id?: string | null;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url?: string | null;
+            /**
+             * Saml Name Id Format
+             * @default urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+             */
+            saml_name_id_format: string;
             /**
              * Scopes
              * @default openid email profile
              */
-            scopes: string;
+            scopes: string | null;
             /**
              * Sso Required
              * @default false
@@ -13281,6 +13436,8 @@ export interface components {
             message: string;
             /** Ok */
             ok: boolean;
+            /** Saml Cert Info */
+            saml_cert_info?: components["schemas"]["SamlCertificateInfo"][] | null;
             /** Token Endpoint */
             token_endpoint?: string | null;
             /** Token Endpoint Auth Method */
@@ -15095,6 +15252,47 @@ export interface components {
             metrics_row_limit_default?: number | null;
             /** Scan Row Limit Default */
             scan_row_limit_default?: number | null;
+        };
+        /** SamlCertificateInfo */
+        SamlCertificateInfo: {
+            /** Expired */
+            expired: boolean;
+            /** Fingerprint Sha256 */
+            fingerprint_sha256: string;
+            /**
+             * Not After
+             * Format: date-time
+             */
+            not_after: string;
+            /**
+             * Not Before
+             * Format: date-time
+             */
+            not_before: string;
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * SamlMetadataImport
+         * @description ``POST /orgs/{org}/sso/saml/metadata-import``: the IdP's metadata XML, pasted.
+         */
+        SamlMetadataImport: {
+            /** Xml */
+            xml: string;
+        };
+        /**
+         * SamlMetadataImportResult
+         * @description What the metadata says, to fill the form with; nothing is saved.
+         */
+        SamlMetadataImportResult: {
+            /** Saml Cert Info */
+            saml_cert_info: components["schemas"]["SamlCertificateInfo"][];
+            /** Saml Idp Certs */
+            saml_idp_certs: string;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id: string;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url: string;
         };
         /**
          * ScanActivityItem
@@ -18238,6 +18436,70 @@ export interface operations {
             };
         };
     };
+    saml_acs_api_v1_auth_sso__org_slug__saml_acs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saml_metadata_api_v1_auth_sso__org_slug__saml_metadata_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/samlmetadata+xml": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_api_v1_auth_sso__org_slug__start_get: {
         parameters: {
             query?: {
@@ -19805,6 +20067,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgSsoDomainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_saml_metadata_api_v1_orgs__org__sso_saml_metadata_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SamlMetadataImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SamlMetadataImportResult"];
                 };
             };
             /** @description Validation Error */

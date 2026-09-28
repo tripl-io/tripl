@@ -1,12 +1,17 @@
 """Signing in through an organization's identity provider (F20, GH #273).
 
-The flow (``api.v1.auth_sso``):
+The flow (``api.v1.auth_sso``), OIDC or SAML 2.0 by the organization's
+``protocol``:
 
-1. ``start`` stores a single-use login state (``state`` digest, nonce, PKCE
-   verifier, where to land) and sends the browser to the provider.
-2. ``callback`` consumes that state, exchanges the code, verifies the id_token
-   (``sso_tokens``) and requires a verified email in one of the organization's
-   DNS-verified domains. Then:
+1. ``start`` stores a single-use login state (``state`` digest, where to land;
+   OIDC: nonce and PKCE verifier; SAML: the AuthnRequest ID) and sends the
+   browser to the provider (SAML: the HTTP-Redirect binding, ``RelayState``
+   carrying the state).
+2. ``callback`` (OIDC) consumes that state, exchanges the code and verifies the
+   id_token (``sso_tokens``); the SAML ACS (``saml_login_service``) consumes it
+   and verifies the posted response (``saml_response``). Both then hand the
+   verified ``(issuer, subject, email)`` to :func:`complete_sign_in`, which
+   requires the email in one of the organization's DNS-verified domains and:
 
    * the identity ``(issuer, sub, organization)`` is linked: that user signs in;
    * no account has the address: one is created (verified, never a platform
@@ -54,6 +59,8 @@ from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
 from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.org_sso import (
+    PROTOCOL_OIDC,
+    PROTOCOL_SAML,
     OrgSsoConfig,
     OrgSsoDomain,
     SsoLinkTicket,
@@ -69,6 +76,8 @@ from tripl.services import (
     auth_service,
     email_verification_service,
     org_sso_service,
+    saml_response,
+    saml_xml,
     sso_http,
     sso_tokens,
 )
@@ -95,6 +104,11 @@ ERR_DOMAIN = "email_domain_not_allowed"
 ERR_FAILED = "sso_failed"
 ERR_REMOVED = "membership_removed"
 ERR_RATE_LIMITED = "rate_limited"
+ERR_SAML = saml_response.ERR_INVALID
+ERR_SAML_SIGNATURE = saml_response.ERR_SIGNATURE
+ERR_SAML_UNSOLICITED = saml_response.ERR_UNSOLICITED
+ERR_SAML_REPLAY = "saml_replay"
+ERR_ENCRYPTED = saml_response.ERR_ENCRYPTED
 # Not sent to ``/auth``: answers of the link routes.
 ERR_LINK = "invalid_link"
 ERR_LINK_SIGN_IN = "link_sign_in_required"
@@ -149,7 +163,7 @@ class SsoOrg:
     config: OrgSsoConfig
 
 
-async def _enabled_org(session: AsyncSession, org_slug: str) -> SsoOrg:
+async def enabled_org(session: AsyncSession, org_slug: str) -> SsoOrg:
     """An active organization with SSO enabled, else ``sso_unavailable``."""
     row = (
         await session.execute(
@@ -197,13 +211,65 @@ class StartedLogin:
     authorization_url: str
     #: The raw ``state``; the route also binds it to the browser in a cookie.
     state: str
+    protocol: str = PROTOCOL_OIDC
+
+
+async def _purge_states(session: AsyncSession, now: datetime) -> None:
+    """Housekeeping: states nobody came back for."""
+    await session.execute(
+        delete(SsoLoginState)
+        .where(SsoLoginState.expires_at < now - STATE_TTL)
+        .execution_options(synchronize_session=False)
+    )
+
+
+async def _start_saml(
+    session: AsyncSession, org: SsoOrg, *, next_path: str | None, app_base_url: str
+) -> StartedLogin:
+    """An unsigned AuthnRequest on the HTTP-Redirect binding; ``RelayState`` is the state."""
+    config = org.config
+    if not config.saml_idp_sso_url or not saml_xml.check_https_url(config.saml_idp_sso_url):
+        raise SsoFlowError(ERR_UNAVAILABLE)
+    now = datetime.now(UTC)
+    await _purge_states(session, now)
+    state = secrets.token_urlsafe(_TOKEN_BYTES)
+    request_id = saml_xml.new_request_id()
+    session.add(
+        SsoLoginState(
+            organization_id=org.id,
+            state_hash=_digest(state),
+            nonce="",
+            code_verifier="",
+            request_id=request_id,
+            next_path=safe_next(next_path),
+            expires_at=now + STATE_TTL,
+        )
+    )
+    await session.commit()
+    request_xml = saml_xml.authn_request(
+        request_id=request_id,
+        issue_instant=now,
+        destination=config.saml_idp_sso_url,
+        acs_url=org_sso_service.saml_acs_url(app_base_url, org.slug),
+        sp_entity_id=org_sso_service.saml_sp_entity_id(app_base_url, org.slug),
+        name_id_format=config.saml_name_id_format,
+    )
+    return StartedLogin(
+        authorization_url=saml_xml.authn_request_url(config.saml_idp_sso_url, request_xml, state),
+        state=state,
+        protocol=PROTOCOL_SAML,
+    )
 
 
 async def start(
     session: AsyncSession, *, org_slug: str, next_path: str | None, app_base_url: str
 ) -> StartedLogin:
-    """Store a login state and build the provider's authorization URL. Commits."""
-    org = await _enabled_org(session, org_slug)
+    """Store a login state and build the provider's sign-in URL. Commits."""
+    org = await enabled_org(session, org_slug)
+    if org.config.protocol == PROTOCOL_SAML:
+        return await _start_saml(session, org, next_path=next_path, app_base_url=app_base_url)
+    if not org.config.issuer or not org.config.client_id:
+        raise SsoFlowError(ERR_UNAVAILABLE)
     try:
         discovery = await asyncio.to_thread(sso_http.fetch_discovery, org.config.issuer)
     except IdpError as exc:
@@ -211,12 +277,7 @@ async def start(
         raise SsoFlowError(ERR_IDP) from None
 
     now = datetime.now(UTC)
-    # Housekeeping: states nobody came back for.
-    await session.execute(
-        delete(SsoLoginState)
-        .where(SsoLoginState.expires_at < now - STATE_TTL)
-        .execution_options(synchronize_session=False)
-    )
+    await _purge_states(session, now)
     state = secrets.token_urlsafe(_TOKEN_BYTES)
     nonce = secrets.token_urlsafe(_TOKEN_BYTES)
     verifier = secrets.token_urlsafe(_VERIFIER_BYTES)
@@ -264,7 +325,21 @@ class NeedsLink:
     ticket: str
 
 
-async def _consume_state(session: AsyncSession, org: SsoOrg, raw_state: str) -> SsoLoginState:
+@dataclass(frozen=True)
+class VerifiedIdentity:
+    """Who the provider vouched for, whatever the protocol.
+
+    ``issuer``: the OIDC issuer or the SAML IdP entity id; ``subject``: the
+    ``sub`` claim or the NameID.
+    """
+
+    issuer: str
+    subject: str
+    email: str
+    name: str | None
+
+
+async def consume_state(session: AsyncSession, org: SsoOrg, raw_state: str) -> SsoLoginState:
     """Mark the state used (single use, even when the rest fails). Commits."""
     now = datetime.now(UTC)
     row = cast(
@@ -301,10 +376,11 @@ def _authenticate(
     nonce: str,
 ) -> IdTokenClaims:
     """Discovery, code exchange, JWKS and id_token checks. Blocking."""
-    discovery = sso_http.fetch_discovery(config.issuer)
+    issuer, client_id = config.issuer or "", config.client_id or ""
+    discovery = sso_http.fetch_discovery(issuer)
     id_token = sso_tokens.exchange_code(
         discovery,
-        client_id=config.client_id,
+        client_id=client_id,
         client_secret=client_secret,
         code=code,
         redirect_uri=redirect_uri,
@@ -312,7 +388,7 @@ def _authenticate(
     )
     keys = sso_http.fetch_jwks(discovery)
     return sso_tokens.verify_id_token(
-        id_token, keys=keys, issuer=config.issuer, client_id=config.client_id, nonce=nonce
+        id_token, keys=keys, issuer=issuer, client_id=client_id, nonce=nonce
     )
 
 
@@ -346,7 +422,8 @@ async def _sign_in(
         target_id=user.id,
         target_name=user.email,
         payload={
-            "issuer": org.config.issuer,
+            "protocol": org.config.protocol,
+            "issuer": org_sso_service.idp_issuer(org.config),
             **({} if joined is None else {"joined_organization": joined}),
             **({} if reclaimed is None else {"reclaimed_unverified_account": reclaimed}),
         },
@@ -356,7 +433,7 @@ async def _sign_in(
     return SignedIn(user=user, session_token=token, next_path=next_path)
 
 
-async def _linked_user(session: AsyncSession, org: SsoOrg, claims: IdTokenClaims) -> User | None:
+async def _linked_user(session: AsyncSession, org: SsoOrg, claims: VerifiedIdentity) -> User | None:
     """The user the identity is linked to, while they are still a member."""
     identity = cast(
         UserSsoIdentity | None,
@@ -390,7 +467,7 @@ async def _unusable_password_hash() -> str:
     return await asyncio.to_thread(hash_password, secrets.token_urlsafe(_TOKEN_BYTES))
 
 
-async def _provision(session: AsyncSession, org: SsoOrg, claims: IdTokenClaims) -> User:
+async def _provision(session: AsyncSession, org: SsoOrg, claims: VerifiedIdentity) -> User:
     """A new account for ``claims``: verified, a plain member, linked. Flushes."""
     user = User(
         email=claims.email,
@@ -417,7 +494,7 @@ async def _provision(session: AsyncSession, org: SsoOrg, claims: IdTokenClaims) 
 
 
 async def _issue_link_ticket(
-    session: AsyncSession, org: SsoOrg, user: User, claims: IdTokenClaims, next_path: str
+    session: AsyncSession, org: SsoOrg, user: User, claims: VerifiedIdentity, next_path: str
 ) -> NeedsLink:
     now = datetime.now(UTC)
     await session.execute(
@@ -450,11 +527,16 @@ async def callback(
     idp_error: str | None,
     app_base_url: str,
 ) -> SignedIn | NeedsLink:
-    """Finish a sign-in; see the module docstring for the three outcomes."""
-    org = await _enabled_org(session, org_slug)
+    """Finish an OIDC sign-in; see the module docstring for the outcomes."""
+    org = await enabled_org(session, org_slug)
+    if org.config.protocol != PROTOCOL_OIDC:
+        raise SsoFlowError(ERR_UNAVAILABLE)
     if not raw_state:
         raise SsoFlowError(ERR_STATE)
-    state = await _consume_state(session, org, raw_state)
+    state = await consume_state(session, org, raw_state)
+    if state.request_id is not None:
+        # A SAML sign-in's state: it ends at the ACS, never here.
+        raise SsoFlowError(ERR_STATE)
     if idp_error:
         raise SsoFlowError(ERR_DENIED)
     if not code:
@@ -474,29 +556,43 @@ async def callback(
         raise SsoFlowError(_flow_code(exc)) from None
     if not claims.email_verified:
         raise SsoFlowError(ERR_EMAIL_UNVERIFIED)
-    domain = claims.email.rsplit("@", 1)[-1]
-    if "@" not in claims.email or domain not in await org_sso_service.verified_domains(
-        session, org.id
-    ):
+    identity = VerifiedIdentity(
+        issuer=claims.issuer, subject=claims.subject, email=claims.email, name=claims.name
+    )
+    return await complete_sign_in(session, org, identity, next_path=state.next_path)
+
+
+async def complete_sign_in(
+    session: AsyncSession, org: SsoOrg, identity: VerifiedIdentity, *, next_path: str
+) -> SignedIn | NeedsLink:
+    """What a verified provider sign-in leads to, the same for OIDC and SAML.
+
+    The provider vouched for ``identity.email`` (OIDC: ``email_verified``;
+    SAML: the signed assertion). It must be in one of the organization's
+    DNS-verified domains. Then the linked user signs in, a new account is
+    provisioned (JIT), or an existing account gets a link ticket to confirm;
+    see the module docstring.
+    """
+    email = identity.email
+    domain = email.rsplit("@", 1)[-1]
+    if "@" not in email or domain not in await org_sso_service.verified_domains(session, org.id):
         raise SsoFlowError(ERR_DOMAIN)
 
     try:
-        linked = await _linked_user(session, org, claims)
+        linked = await _linked_user(session, org, identity)
         if linked is not None:
             return await _sign_in(
-                session, org, linked, action="user.sso_login", next_path=state.next_path
+                session, org, linked, action="user.sso_login", next_path=next_path
             )
-        existing = cast(
-            User | None, await session.scalar(select(User).where(User.email == claims.email))
-        )
+        existing = cast(User | None, await session.scalar(select(User).where(User.email == email)))
         if existing is None:
-            user = await _provision(session, org, claims)
+            user = await _provision(session, org, identity)
             return await _sign_in(
-                session, org, user, action="user.sso_provision", next_path=state.next_path
+                session, org, user, action="user.sso_provision", next_path=next_path
             )
         if await _rejoin_blocked(session, org.id, existing.id):
             raise SsoFlowError(ERR_REMOVED)
-        return await _issue_link_ticket(session, org, existing, claims, state.next_path)
+        return await _issue_link_ticket(session, org, existing, identity, next_path)
     except IntegrityError:
         # A concurrent sign-in created the account or the link first.
         await session.rollback()
@@ -626,10 +722,10 @@ async def confirm_link(
     if org_slug is None:
         raise SsoFlowError(ERR_LINK)
     try:
-        org = await _enabled_org(session, org_slug)
+        org = await enabled_org(session, org_slug)
     except SsoFlowError:
         raise SsoFlowError(ERR_UNAVAILABLE) from None
-    if org.config.issuer != row.issuer:
+    if org_sso_service.idp_issuer(org.config) != row.issuer:
         # The provider changed after the ticket was issued.
         raise SsoFlowError(ERR_LINK)
     user = await session.get(User, row.user_id)

@@ -31,7 +31,7 @@ Both default to an empty string, and in a non-debug deploy an empty value (or, f
 - **Warehouse/data-source passwords** — `datasource_service.py` stores `password_encrypted`; the value is decrypted when the connection is used.
 - **Alert-destination secrets** — `_alerting_destinations.py` encrypts the secret on write; the alert worker decrypts it at send time.
 - **Instance-settings secrets** — `app_settings_service.py` encrypts the fields `ai_api_key`, `search_embedding_api_key`, and `smtp_password` when they are set through the admin settings UI.
-- **Single sign-on** — an organization's OpenID Connect client secret (`org_sso_configs.client_secret_encrypted`) and each sign-in attempt's PKCE code verifier are encrypted with the operator key.
+- **Single sign-on** — an organization's OpenID Connect client secret (`org_sso_configs.client_secret_encrypted`) and each sign-in attempt's PKCE code verifier are encrypted with the operator key. SAML 2.0 has no secret: the IdP certificates it stores are public.
 
 Behavior of the Fernet layer:
 
@@ -155,8 +155,9 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `POST /api/v1/auth/verify-email/request` | Own verification limiter (fixed, not configurable) | 10 / hour |
 | `POST /api/v1/auth/verify-email/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `GET /api/v1/auth/sso/discover` | Shared status limiter | 30 / minute |
-| `GET /api/v1/auth/sso/{org}/start` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
-| `GET /api/v1/auth/sso/{org}/callback` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
+| `GET /api/v1/auth/sso/{org}/start` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
+| `GET /api/v1/auth/sso/{org}/callback` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
+| `POST /api/v1/auth/sso/{org}/saml/acs` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
 | `GET /api/v1/auth/sso/link` | Shared status limiter | 30 / minute |
 | `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `/scim/v2/{org}/*` | Own SCIM limiter, keyed per token (not per address) | 600 / minute |
@@ -355,6 +356,27 @@ The controls that matter for security:
 | Requiring SSO | With **Require single sign-on**, a session that did not sign in through the organization's provider gets `403 This organization requires single sign-on` inside it. Organization owners' browser sessions are exempt (break-glass), as is a platform admin's read-only step-in. Turning it on revokes **every** organization API key that was not created from a single sign-on session of the organization, owners' included, and such keys are refused with `403`; new keys need such a session, for owners too. |
 | Removing a member | Also deletes their single sign-on identities for the organization, and signing in through the provider again does not re-add them until they accept a new invitation. |
 | Rate limits | Start and callback share their own bucket (20 a minute per address), apart from password sign-in; an empty bucket redirects to `/auth?sso_error=rate_limited`. Confirming a link is on the login bucket. |
+
+### Single sign-on (SAML 2.0)
+
+An organization can use SAML 2.0 instead of OpenID Connect (see
+[Set up SAML 2.0](../administer/admin-guide.md#saml)). Configuration, domains,
+account resolution (new, existing and unverified accounts), sessions, requiring
+SSO, removing a member and rate limits are exactly as in the table above; what
+differs is how the IdP's answer is verified. XML signatures are checked with
+`signxml` over `lxml` (no `xmlsec1`), and every check fails closed with a
+generic `sso_error` code.
+
+| Property | Behaviour |
+|---|---|
+| Trust | The IdP's signing certificates are configured by the owner (pasted, or read from pasted metadata; tripl never fetches metadata, so there is no outbound request). Several can be configured for key rotation. They are public and stored as they are; there is no SP key, and tripl's authentication requests are unsigned. A new certificate is checked (it parses, has not expired) when it is saved or when SAML is switched on; a stored one that has expired since does not block other changes, such as turning SSO off. |
+| Trust anchor change | Switching the protocol, changing the IdP entity ID, or saving a certificate set that keeps none of the saved certificates deletes the organization's linked identities and pending link tickets of the old provider (the count is in the `org.sso.update` audit entry). Linked members then confirm the link again from their own session, so an owner who points SAML at a key they hold cannot sign in as an already-linked member. |
+| Request binding | Each sign-in stores a random request ID on the single-use, 10-minute login state (the state's digest, as for OpenID Connect). The state goes to the IdP as `RelayState` and is bound to the browser by a cookie scoped to `/api/v1/auth/sso/`, `HttpOnly`, `Secure`, `SameSite=None` (the IdP's POST back is cross-site, so a `Lax` cookie would not be sent). A browser keeps a `Secure` cookie only over https (or on `localhost`), so SAML sign-in needs tripl served over https. The response's `InResponseTo` must equal the stored request ID; IdP-initiated (unsolicited) responses are refused (`saml_unsolicited`). |
+| Parsing | The posted response is capped in size before decoding, and parsed with entity resolution, DTD loading and network access off and huge trees refused. Any `DOCTYPE` is refused, which rules out entity expansion (billion laughs) and external entities (XXE). |
+| Signature | The **assertion** itself must carry a valid enveloped signature by one of the configured certificates; a signature over the response alone is not enough. RSA and ECDSA with SHA-256 or stronger only; SHA-1 is refused. Every later check reads the element the signature verification returned, never the posted document, so a signed assertion moved elsewhere and an unsigned one put in its place (XML signature wrapping) are refused. Exactly one assertion is accepted; encrypted assertions are not supported and are refused (`encrypted_assertion_unsupported`). |
+| Assertion checks | Issuer = the configured IdP entity ID; the response's `Destination`, when present, and the bearer subject confirmation's `Recipient` = tripl's ACS URL; `InResponseTo` on both = the stored request ID; `NotBefore` / `NotOnOrAfter` of the conditions and the subject confirmation, with 120 seconds of clock skew; the audience restriction names tripl's entity ID; the status is `Success`. |
+| Replay | Each accepted assertion ID is stored per organization until it expires; the same assertion a second time is refused (`saml_replay`), and the login state is single use as well. |
+| Email and identity | The email comes from the configured attribute, or from the NameID only when its format is `emailAddress` (a persistent or unspecified NameID is never taken as an email: `email_missing`). It must be at one of the organization's verified domains. The identity is the pair (`saml:` + IdP entity ID, NameID); the prefix means an identity linked over OpenID Connect is never matched by SAML, even with an entity ID equal to the OIDC issuer, and the reverse. The entity ID is at most 507 characters. |
 
 ### Provisioning (SCIM 2.0)
 

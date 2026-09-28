@@ -39,6 +39,11 @@ describe('single sign-on client helpers (F20)', () => {
       'membership_removed',
       'rate_limited',
       'sso_failed',
+      'saml_invalid',
+      'saml_signature_invalid',
+      'saml_replay',
+      'saml_unsolicited',
+      'encrypted_assertion_unsupported',
     ]) {
       expect(ssoErrorMessage(code)).not.toMatch(/did not complete\. Try again, or sign in another way/)
     }

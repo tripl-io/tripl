@@ -5282,6 +5282,34 @@
         "title": "Body_import_docs_zip_api_v1_projects__slug__docs_import_zip_post",
         "type": "object"
       },
+      "Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post": {
+        "properties": {
+          "RelayState": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relaystate"
+          },
+          "SAMLResponse": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Samlresponse"
+          }
+        },
+        "title": "Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post",
+        "type": "object"
+      },
       "Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post": {
         "properties": {
           "file": {
@@ -19716,8 +19744,62 @@
             "title": "Login Url",
             "type": "string"
           },
+          "protocol": {
+            "enum": [
+              "oidc",
+              "saml"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          },
           "redirect_uri": {
             "title": "Redirect Uri",
+            "type": "string"
+          },
+          "saml_acs_url": {
+            "title": "Saml Acs Url",
+            "type": "string"
+          },
+          "saml_cert_info": {
+            "items": {
+              "$ref": "#/components/schemas/SamlCertificateInfo"
+            },
+            "title": "Saml Cert Info",
+            "type": "array"
+          },
+          "saml_email_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Email Attribute"
+          },
+          "saml_idp_certs": {
+            "title": "Saml Idp Certs",
+            "type": "string"
+          },
+          "saml_idp_entity_id": {
+            "title": "Saml Idp Entity Id",
+            "type": "string"
+          },
+          "saml_idp_sso_url": {
+            "title": "Saml Idp Sso Url",
+            "type": "string"
+          },
+          "saml_metadata_url": {
+            "title": "Saml Metadata Url",
+            "type": "string"
+          },
+          "saml_name_id_format": {
+            "title": "Saml Name Id Format",
+            "type": "string"
+          },
+          "saml_sp_entity_id": {
+            "title": "Saml Sp Entity Id",
             "type": "string"
           },
           "scopes": {
@@ -19731,6 +19813,7 @@
         },
         "required": [
           "configured",
+          "protocol",
           "issuer",
           "client_id",
           "client_secret_configured",
@@ -19738,7 +19821,16 @@
           "enabled",
           "sso_required",
           "redirect_uri",
-          "login_url"
+          "login_url",
+          "saml_idp_entity_id",
+          "saml_idp_sso_url",
+          "saml_idp_certs",
+          "saml_cert_info",
+          "saml_name_id_format",
+          "saml_email_attribute",
+          "saml_sp_entity_id",
+          "saml_acs_url",
+          "saml_metadata_url"
         ],
         "title": "OrgSsoConfigResponse",
         "type": "object"
@@ -19769,6 +19861,14 @@
             "title": "Login Url",
             "type": "string"
           },
+          "protocol": {
+            "enum": [
+              "oidc",
+              "saml"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          },
           "redirect_uri": {
             "title": "Redirect Uri",
             "type": "string"
@@ -19777,6 +19877,52 @@
             "default": 0,
             "title": "Revoked Api Keys",
             "type": "integer"
+          },
+          "saml_acs_url": {
+            "title": "Saml Acs Url",
+            "type": "string"
+          },
+          "saml_cert_info": {
+            "items": {
+              "$ref": "#/components/schemas/SamlCertificateInfo"
+            },
+            "title": "Saml Cert Info",
+            "type": "array"
+          },
+          "saml_email_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Email Attribute"
+          },
+          "saml_idp_certs": {
+            "title": "Saml Idp Certs",
+            "type": "string"
+          },
+          "saml_idp_entity_id": {
+            "title": "Saml Idp Entity Id",
+            "type": "string"
+          },
+          "saml_idp_sso_url": {
+            "title": "Saml Idp Sso Url",
+            "type": "string"
+          },
+          "saml_metadata_url": {
+            "title": "Saml Metadata Url",
+            "type": "string"
+          },
+          "saml_name_id_format": {
+            "title": "Saml Name Id Format",
+            "type": "string"
+          },
+          "saml_sp_entity_id": {
+            "title": "Saml Sp Entity Id",
+            "type": "string"
           },
           "scopes": {
             "title": "Scopes",
@@ -19789,6 +19935,7 @@
         },
         "required": [
           "configured",
+          "protocol",
           "issuer",
           "client_id",
           "client_secret_configured",
@@ -19796,20 +19943,36 @@
           "enabled",
           "sso_required",
           "redirect_uri",
-          "login_url"
+          "login_url",
+          "saml_idp_entity_id",
+          "saml_idp_sso_url",
+          "saml_idp_certs",
+          "saml_cert_info",
+          "saml_name_id_format",
+          "saml_email_attribute",
+          "saml_sp_entity_id",
+          "saml_acs_url",
+          "saml_metadata_url"
         ],
         "title": "OrgSsoConfigSaved",
         "type": "object"
       },
       "OrgSsoConfigUpdate": {
         "additionalProperties": false,
-        "description": "``PUT /orgs/{org}/sso``. ``client_secret`` omitted or null keeps the stored one.",
+        "description": "``PUT /orgs/{org}/sso``.\n\n``protocol`` picks the provider's kind. Its own fields are required (OIDC:\n``issuer``, ``client_id``; SAML: ``saml_idp_entity_id``,\n``saml_idp_sso_url``, ``saml_idp_certs``); the other protocol's fields are\nsaved only when given non-null, and kept as stored when omitted or null,\nso switching back loses nothing. ``client_secret`` omitted or null keeps\nthe stored one; ``scopes`` null is the default set.",
         "properties": {
           "client_id": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Client Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
           },
           "client_secret": {
             "anyOf": [
@@ -19829,16 +19992,96 @@
             "type": "boolean"
           },
           "issuer": {
-            "maxLength": 512,
-            "minLength": 1,
-            "title": "Issuer",
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "protocol": {
+            "default": "oidc",
+            "enum": [
+              "oidc",
+              "saml"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          },
+          "saml_email_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Email Attribute"
+          },
+          "saml_idp_certs": {
+            "anyOf": [
+              {
+                "maxLength": 65536,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Idp Certs"
+          },
+          "saml_idp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 507,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Idp Entity Id"
+          },
+          "saml_idp_sso_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Idp Sso Url"
+          },
+          "saml_name_id_format": {
+            "default": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+            "maxLength": 255,
+            "title": "Saml Name Id Format",
             "type": "string"
           },
           "scopes": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "default": "openid email profile",
-            "maxLength": 512,
-            "title": "Scopes",
-            "type": "string"
+            "title": "Scopes"
           },
           "sso_required": {
             "default": false,
@@ -19846,10 +20089,6 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "issuer",
-          "client_id"
-        ],
         "title": "OrgSsoConfigUpdate",
         "type": "object"
       },
@@ -19964,6 +20203,20 @@
           "ok": {
             "title": "Ok",
             "type": "boolean"
+          },
+          "saml_cert_info": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SamlCertificateInfo"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saml Cert Info"
           },
           "token_endpoint": {
             "anyOf": [
@@ -24319,6 +24572,90 @@
           }
         },
         "title": "RuntimeSettingsUpdate",
+        "type": "object"
+      },
+      "SamlCertificateInfo": {
+        "properties": {
+          "expired": {
+            "title": "Expired",
+            "type": "boolean"
+          },
+          "fingerprint_sha256": {
+            "title": "Fingerprint Sha256",
+            "type": "string"
+          },
+          "not_after": {
+            "format": "date-time",
+            "title": "Not After",
+            "type": "string"
+          },
+          "not_before": {
+            "format": "date-time",
+            "title": "Not Before",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint_sha256",
+          "subject",
+          "not_before",
+          "not_after",
+          "expired"
+        ],
+        "title": "SamlCertificateInfo",
+        "type": "object"
+      },
+      "SamlMetadataImport": {
+        "additionalProperties": false,
+        "description": "``POST /orgs/{org}/sso/saml/metadata-import``: the IdP's metadata XML, pasted.",
+        "properties": {
+          "xml": {
+            "maxLength": 262144,
+            "minLength": 1,
+            "title": "Xml",
+            "type": "string"
+          }
+        },
+        "required": [
+          "xml"
+        ],
+        "title": "SamlMetadataImport",
+        "type": "object"
+      },
+      "SamlMetadataImportResult": {
+        "description": "What the metadata says, to fill the form with; nothing is saved.",
+        "properties": {
+          "saml_cert_info": {
+            "items": {
+              "$ref": "#/components/schemas/SamlCertificateInfo"
+            },
+            "title": "Saml Cert Info",
+            "type": "array"
+          },
+          "saml_idp_certs": {
+            "title": "Saml Idp Certs",
+            "type": "string"
+          },
+          "saml_idp_entity_id": {
+            "title": "Saml Idp Entity Id",
+            "type": "string"
+          },
+          "saml_idp_sso_url": {
+            "title": "Saml Idp Sso Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "saml_idp_entity_id",
+          "saml_idp_sso_url",
+          "saml_idp_certs",
+          "saml_cert_info"
+        ],
+        "title": "SamlMetadataImportResult",
         "type": "object"
       },
       "ScanActivityItem": {
@@ -31796,6 +32133,90 @@
         ]
       }
     },
+    "/api/v1/auth/sso/{org_slug}/saml/acs": {
+      "post": {
+        "description": "The SAML provider's HTTP-POST back; lands like the OIDC callback (303s).\n\nUnauthenticated; authorized by the single-use state in ``RelayState``,\nbound to this browser by the ``tripl_saml_state`` cookie, and by the\nsigned assertion answering that state's AuthnRequest. IdP-initiated\n(unsolicited) responses are refused: they carry no state.",
+        "operationId": "saml_acs_api_v1_auth_sso__org_slug__saml_acs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_slug",
+            "required": true,
+            "schema": {
+              "title": "Org Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saml Acs",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sso/{org_slug}/saml/metadata": {
+      "get": {
+        "description": "tripl's SAML SP metadata for the organization (unsigned; public by nature).\n\nAssertions must be signed (``WantAssertionsSigned``); tripl's AuthnRequests\nare not (it holds no SP key). 404 unless the organization is configured\nfor SAML.",
+        "operationId": "saml_metadata_api_v1_auth_sso__org_slug__saml_metadata_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_slug",
+            "required": true,
+            "schema": {
+              "title": "Org Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/samlmetadata+xml": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saml Metadata",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/sso/{org_slug}/start": {
       "get": {
         "description": "Send the browser to the organization's identity provider.",
@@ -33845,9 +34266,51 @@
         ]
       }
     },
+    "/api/v1/orgs/{org}/sso/saml/metadata-import": {
+      "post": {
+        "description": "Read a pasted IdP metadata document; 422 naming what is wrong with it.\n\nThe hardened parser of ``saml_xml`` (no DOCTYPE, entities or network);\nnothing it names is fetched and nothing is saved: the answer fills the\nform, and the owner saves it with ``PUT /sso``.",
+        "operationId": "import_saml_metadata_api_v1_orgs__org__sso_saml_metadata_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SamlMetadataImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamlMetadataImportResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Saml Metadata",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
     "/api/v1/orgs/{org}/sso/test": {
       "post": {
-        "description": "Fetch the configured issuer's discovery document and check it. Changes nothing.\n\n``ok`` false with a code when the issuer is unreachable, private (hosted),\nnames another issuer, or lacks an https endpoint. On a small rate-limit\nbucket of its own (it makes tripl call out).",
+        "description": "Check the saved provider settings. Changes nothing.\n\nOIDC: fetch the configured issuer's discovery document; ``ok`` false with a\ncode when the issuer is unreachable, private (hosted), names another\nissuer, or lacks an https endpoint. SAML: the SSO URL is https and every\ncertificate parses and is unexpired (``saml_insecure_url``,\n``saml_bad_certificate``, ``saml_certificate_expired``); nothing is\nfetched. On a small rate-limit bucket of its own (OIDC makes tripl call out).",
         "operationId": "probe_sso_api_v1_orgs__org__sso_test_post",
         "responses": {
           "200": {

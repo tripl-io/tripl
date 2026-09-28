@@ -170,11 +170,17 @@ cannot be changed in **Settings → Instance**.
 | `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. Only accounts that already exist when an organization upgrade runs are flagged, so create them first and set the list before upgrading. Signing up, accepting an invitation or completing a password reset with a listed address **never** grants it. Through the list, the only way is the emailed verification link: when an account with a listed address confirms that link while signed in as itself, it becomes a platform admin at that moment, so the grant follows proof of both the mailbox and the account. Removing an email revokes nothing; revoke in the [platform console](../administer/admin-guide.md#platform-users) or with [`tripl-admin`](#tripl-admin). An operator who cannot receive mail on a listed address can grant the flag with `tripl-admin` instead. |
 | `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or search-embedding settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Disabled by operator policy**) until it sets its own relay, AI endpoint or embedding endpoint and key. With `none`, an organization without its own embedding endpoint has semantic search off; lexical search still works. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (email verification, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. |
 
-Single sign-on (OpenID Connect) has no environment variables: each
+Single sign-on (OpenID Connect or SAML 2.0) has no environment variables: each
 organization's owners configure it in the app (see
-[Single sign-on](../administer/admin-guide.md#single-sign-on)). Its client
-secret is encrypted with `ENCRYPTION_KEY`, and on a hosted instance its
-identity-provider URLs must resolve to public addresses.
+[Single sign-on](../administer/admin-guide.md#single-sign-on)). An OpenID
+Connect client secret is encrypted with `ENCRYPTION_KEY`, and on a hosted
+instance its identity-provider URLs must resolve to public addresses. SAML
+makes no outbound requests; its service-provider entity ID and ACS URL are
+built from `APP_BASE_URL`, so changing that address means updating them at
+every organization's IdP. SAML sign-in needs `APP_BASE_URL` to be an `https`
+address (`http://localhost` excepted): its state cookie is `Secure` and
+`SameSite=None`, which browsers drop over plain http, so every SAML sign-in
+would fail with `invalid_state`.
 
 ### Managing platform admins: `tripl-admin` {#tripl-admin}
 
