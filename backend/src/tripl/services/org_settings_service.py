@@ -1,4 +1,4 @@
-"""An organization's own settings: the view, the write and its checks (F20 PR9, PR10).
+"""An organization's own settings: the view, the write and its checks (F20 PR9-PR11).
 
 Resolution itself lives in :mod:`tripl.services.app_settings_service`
 (``resolve_for_org`` and the ``get_*_config`` getters); this module is the
@@ -14,7 +14,9 @@ organization-facing surface over it:
   model must answer with vectors the index can store (F20 PR10: a test
   embedding of ``search_embedding_dimensions`` values, else 422). A save that
   moves an organization's embedding identity enqueues a reindex of that
-  organization's projects only.
+  organization's projects only. Its own photo storage (F20 PR11) must be a
+  GCS bucket with a service-account JSON of its own (on a self-hosted instance
+  the local backend too), and its content types a subset of the operator's.
 
 On a self-hosted instance the default organization is an alias of the operator
 scope (critique #17), so its writes land in the operator document and its
@@ -28,7 +30,9 @@ traffic, so writing them still needs a platform admin
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -36,22 +40,32 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.alerting_validation import reject_private_host
-from tripl.config import settings
-from tripl.services import app_settings_service, embedding_service
+from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.services import app_settings_service, embedding_service, org_storage_csp
 from tripl.services._celery_dispatch import dispatch
 from tripl.services._org_settings_merge import (
     CEILING_FIELDS,
     CREDENTIAL_GROUPS,
     EMBEDDING_GROUP,
     GROUP_SWITCHES,
+    STORAGE_GROUP,
+    split_list,
 )
 from tripl.services.app_settings_service import (
     EMBEDDING_FIELDS,
     ORG_FIELDS,
+    STORAGE_ORG_FIELDS,
     ResolvedSettings,
+)
+from tripl.storage.photo_storage import (
+    GOOGLE_TOKEN_URI,
+    GOOGLE_UNIVERSE_DOMAIN,
+    UnsafeServiceAccount,
+    pinned_service_account_info,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +76,7 @@ ORG_SECTIONS: dict[str, tuple[str, ...]] = {
     "email": app_settings_service.EMAIL_FIELDS,
     "ai": app_settings_service.AI_CHAT_FIELDS,
     "search": EMBEDDING_FIELDS,
+    "storage": STORAGE_ORG_FIELDS,
 }
 
 
@@ -76,6 +91,32 @@ CREDENTIAL_FIELDS: frozenset[str] = frozenset(
         *GROUP_SWITCHES.values(),
     }
 )
+
+#: What only a platform admin may write in the OPERATOR scope, reached through
+#: a self-hosted default organization: the credential groups (storage among
+#: them, F20 PR11: the operator's bucket holds every inheriting organization's
+#: photos) and the operator's photo ceilings — the upload size cap is the
+#: request-body limit of every organization, and the content-type list is the
+#: allow-list every organization's own list is narrowed to.
+OPERATOR_ALIAS_PLATFORM_FIELDS: frozenset[str] = CREDENTIAL_FIELDS | {
+    "photo_max_size_mb",
+    "photo_allowed_mime",
+}
+
+#: The service-account JSON is an organization's own; the operator's GCS
+#: credentials are a server path or the server's identity (critique #12).
+OPERATOR_GCS_CREDENTIALS_READ_ONLY = (
+    "The operator's GCS credentials are set by GCS_PHOTO_CREDENTIALS_PATH (or the "
+    "server's identity), not in settings."
+)
+HOSTED_LOCAL_STORAGE_REFUSED = (
+    "Organizations on a hosted instance store photos in a GCS bucket of their own "
+    "or use the platform's storage; the local backend is the server's disk."
+)
+
+#: GCS bucket naming (cloud.google.com/storage/docs/buckets#naming), loosely.
+_BUCKET_NAME = re.compile(r"^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$")
+_REQUIRED_CREDENTIAL_KEYS: tuple[str, ...] = ("type", "client_email", "private_key")
 
 #: The Celery task a change of an organization's embedding identity enqueues.
 ORG_REINDEX_TASK = "tripl.worker.tasks.search.reindex_org_search_documents"
@@ -94,7 +135,13 @@ PLATFORM_ADMIN_REQUIRED = "Platform admin required"
 #: INHERITS the group: some providers use a key id as the SMTP username, and the
 #: embedding endpoint is the operator's infrastructure (the legacy view has
 #: always withheld it from organization admins).
-_REDACTED_INHERITED_FIELDS: tuple[str, ...] = ("smtp_username", "search_embedding_base_url")
+_REDACTED_INHERITED_FIELDS: tuple[str, ...] = (
+    "smtp_username",
+    "search_embedding_base_url",
+    # The operator's bucket (F20 PR11): an organization is told it uses the
+    # platform's storage, not where that is.
+    "gcs_photo_bucket",
+)
 
 
 def require_operator_credential_writer(
@@ -107,7 +154,7 @@ def require_operator_credential_writer(
     operator's limits and prompts, but not the relay that carries every user's
     password-reset mail nor the endpoint other organizations' AI text goes to.
     """
-    if not is_platform_admin and not CREDENTIAL_FIELDS.isdisjoint(changes):
+    if not is_platform_admin and not OPERATOR_ALIAS_PLATFORM_FIELDS.isdisjoint(changes):
         raise HTTPException(status_code=403, detail=PLATFORM_ADMIN_REQUIRED)
 
 
@@ -169,6 +216,15 @@ def _section_values(values: Mapping[str, Any]) -> dict[str, Any]:
             "search_embedding_api_key_configured": bool(values["search_embedding_api_key"]),
             "search_embedding_dimensions": settings.search_embedding_dimensions,
         },
+        "storage": {
+            "photo_storage_backend": values["photo_storage_backend"],
+            "photo_max_size_mb": values["photo_max_size_mb"],
+            "photo_allowed_mime": values["photo_allowed_mime"],
+            "gcs_photo_bucket": values["gcs_photo_bucket"],
+            "gcs_photo_credentials_configured": bool(values["gcs_photo_credentials_json"]),
+            "gcs_photo_public": values["gcs_photo_public"],
+            "gcs_photo_signed_url_ttl_seconds": values["gcs_photo_signed_url_ttl_seconds"],
+        },
     }
 
 
@@ -222,6 +278,10 @@ async def org_settings_payload(
         **_section_values(own_values),
         "inherited": _section_values(inherited_values),
         "ceilings": {field: view.operator.values[field] for field in CEILING_FIELDS},
+        "storage_limits": {
+            "operator_allowed_mime": split_list(view.operator.values["photo_allowed_mime"]),
+            "local_backend_allowed": local_backend_allowed(resolved.org_scope),
+        },
         "overridden_fields": [f for f in resolved.overridden_fields if f in ORG_FIELDS],
         "sources": sources,
     }
@@ -261,6 +321,131 @@ def _check_ceilings(changes: Mapping[str, Any], operator: ResolvedSettings) -> N
             )
 
 
+def local_backend_allowed(scope: uuid.UUID | None) -> bool:
+    """Whether this scope may keep photos on the server's disk.
+
+    The operator scope may (its own server); an organization only on a
+    self-hosted instance (design section 4): on a hosted one the disk is the
+    operator's, shared by tenants, and outside any organization's control.
+    """
+    return scope is None or settings.deployment_mode != DEPLOYMENT_HOSTED
+
+
+def touches_storage(changes: Mapping[str, Any]) -> bool:
+    return not frozenset(STORAGE_ORG_FIELDS).isdisjoint(changes)
+
+
+def _check_service_account(raw: str) -> None:
+    """422 unless ``raw`` is a service-account key the GCS client can load.
+
+    Parsed and loaded offline (no network): the message never echoes the key.
+    """
+    try:
+        info = json.loads(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail="GCS credentials must be a service-account JSON key file."
+        ) from exc
+    if not isinstance(info, dict) or any(not info.get(k) for k in _REQUIRED_CREDENTIAL_KEYS):
+        raise HTTPException(
+            status_code=422,
+            detail="GCS credentials must be a service-account JSON key "
+            "(with type, client_email and private_key).",
+        )
+    if info.get("type") != "service_account":
+        raise HTTPException(
+            status_code=422, detail="GCS credentials must be a service-account key."
+        )
+    # google-auth POSTs to the key's token_uri on every refresh: an
+    # organization's key may only name Google's (critique #14, the egress rule
+    # every other organization-controlled endpoint follows).
+    if info.get("token_uri") not in (None, "", GOOGLE_TOKEN_URI):
+        raise HTTPException(
+            status_code=422,
+            detail=f"The service-account key's token_uri must be {GOOGLE_TOKEN_URI}.",
+        )
+    try:
+        pinned = pinned_service_account_info(info)
+    except UnsafeServiceAccount as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"The service-account key's universe_domain must be {GOOGLE_UNIVERSE_DOMAIN}.",
+        ) from exc
+    try:
+        from google.oauth2 import service_account
+
+        service_account.Credentials.from_service_account_info(pinned)  # type: ignore[no-untyped-call]
+    except ImportError:  # pragma: no cover - google-cloud-storage is a dependency
+        return
+    except Exception as exc:  # noqa: BLE001 - never echo the key back
+        raise HTTPException(
+            status_code=422, detail="The GCS service-account key could not be loaded."
+        ) from exc
+
+
+def _check_allowed_mime(changes: Mapping[str, Any], operator: ResolvedSettings) -> None:
+    """An organization's content types must all be on the operator's allow-list."""
+    if changes.get("photo_allowed_mime") is None:
+        return
+    wanted = split_list(changes["photo_allowed_mime"])
+    if not wanted:
+        raise HTTPException(
+            status_code=422, detail="List at least one content type, or clear the field."
+        )
+    allowed = set(split_list(operator.values["photo_allowed_mime"]))
+    refused = [item for item in wanted if item not in allowed]
+    if refused:
+        raise HTTPException(
+            status_code=422,
+            detail="Not allowed by the operator: "
+            + ", ".join(refused)
+            + ". Allowed: "
+            + ", ".join(sorted(allowed)),
+        )
+
+
+async def _check_storage(
+    session: AsyncSession, scope: uuid.UUID, changes: Mapping[str, Any]
+) -> None:
+    """The storage an organization would run with after this save must be usable.
+
+    Its own storage group is a GCS bucket with a service-account JSON of its
+    own — never the server's credentials — or, self-hosted only, the local
+    backend. A save that leaves the group inherited is not checked here.
+    """
+    prospective = app_settings_service.apply_org_override_changes(
+        await app_settings_service.get_org_overrides(session, scope), changes
+    )
+    if not any(field in prospective for field in STORAGE_GROUP):
+        return
+    if changes.get("gcs_photo_credentials_json"):
+        _check_service_account(str(changes["gcs_photo_credentials_json"]))
+    resolved = app_settings_service.resolve_settings(
+        await app_settings_service.get_service_overrides(session), prospective, org_scope=scope
+    )
+    values = resolved.values
+    backend = str(values["photo_storage_backend"]).lower().strip()
+    if backend == "local":
+        if not local_backend_allowed(scope):
+            raise HTTPException(status_code=422, detail=HOSTED_LOCAL_STORAGE_REFUSED)
+        return
+    if backend != "gcs":
+        raise HTTPException(
+            status_code=422, detail="Photo storage backend must be 'gcs' or 'local'."
+        )
+    bucket = str(values["gcs_photo_bucket"]).strip()
+    if not _BUCKET_NAME.fullmatch(bucket):
+        raise HTTPException(
+            status_code=422, detail="Set this organization's GCS bucket (a valid bucket name)."
+        )
+    if not values["gcs_photo_credentials_json"]:
+        raise HTTPException(
+            status_code=422,
+            detail="A GCS bucket of this organization's needs its own service-account JSON: "
+            "the platform's credentials are never used on it.",
+        )
+
+
 async def validate_org_changes(
     session: AsyncSession, scope: uuid.UUID, changes: Mapping[str, Any]
 ) -> None:
@@ -275,6 +460,9 @@ async def validate_org_changes(
         await app_settings_service.get_service_overrides(session), None
     )
     _check_ceilings(changes, operator)
+    _check_allowed_mime(changes, operator)
+    if touches_storage(changes):
+        await _check_storage(session, scope, changes)
     try:
         await asyncio.to_thread(_check_public_hosts, changes)
     except ValueError as exc:
@@ -384,13 +572,33 @@ async def write_org_changes(
     if scope is None:
         if "search_embedding_base_url" in changes:
             raise HTTPException(status_code=422, detail=OPERATOR_EMBEDDING_URL_READ_ONLY)
+        if "gcs_photo_credentials_json" in changes:
+            raise HTTPException(status_code=422, detail=OPERATOR_GCS_CREDENTIALS_READ_ONLY)
         require_operator_credential_writer(changes, is_platform_admin=is_platform_admin)
         await app_settings_service.update_service_overrides(session, changes)
     else:
         await validate_org_changes(session, scope, changes)
         await app_settings_service.update_org_overrides(session, scope, changes)
     await reindex_if_embeddings_moved(session, org_id, before)
+    if scope is not None and touches_storage(changes):
+        await note_storage_for_csp(session, org_id)
     return scope
+
+
+async def note_storage_for_csp(session: AsyncSession, org_id: uuid.UUID) -> None:
+    """Tell this process's CSP whether the organization's photos now come from GCS."""
+    from tripl.models.organization import Organization
+    from tripl.services.photo_storage_service import policy_for_org
+
+    slug = await session.scalar(select(Organization.slug).where(Organization.id == org_id))
+    policy = await policy_for_org(session, org_id)
+    backend = policy.storage.backend if policy.storage.owner_org_id is not None else ""
+    org_storage_csp.note_org_backend(
+        org_id,
+        str(slug or ""),
+        backend,
+        has_gcs_photos=await org_storage_csp.org_has_gcs_photos(session, org_id),
+    )
 
 
 def audit_scope_payload(changed: list[str], scope: uuid.UUID | None) -> dict[str, Any]:

@@ -3,7 +3,8 @@
 Two scopes (F20 PR9). The OPERATOR scope (``organization_id IS NULL``) stores
 explicit overrides of the env-based defaults from :class:`tripl.config.Settings`
 for every editable field. An ORGANIZATION scope stores that organization's own
-values of the :data:`ORG_FIELDS` (mail, AI chat, search embeddings, row limits).
+values of the :data:`ORG_FIELDS` (mail, AI chat, search embeddings, row limits,
+photo storage).
 Resolution:
 
 * operator view: operator override -> env;
@@ -170,8 +171,10 @@ EDITABLE_FIELDS = frozenset(
 #: Every field a resolution reports a value and a source for: the editable ones
 #: and the operator's env-only embedding endpoint, which an organization may
 #: still set for itself (F20 PR10).
-REPORTED_FIELDS = EDITABLE_FIELDS | {"search_embedding_base_url"}
-SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key", "smtp_password"})
+REPORTED_FIELDS = EDITABLE_FIELDS | {"search_embedding_base_url", "gcs_photo_credentials_json"}
+SECRET_FIELDS = frozenset(
+    {"ai_api_key", "search_embedding_api_key", "smtp_password", "gcs_photo_credentials_json"}
+)
 AI_SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key"})
 
 # The chat half of the AI section.
@@ -202,8 +205,28 @@ EMBEDDING_FIELDS: tuple[str, ...] = (
     "search_embedding_api_key",
 )
 
-# What an ORGANIZATION may set for itself (F20 PR9/PR10, owner decision 4): mail,
-# AI chat, search embeddings and the scan/metrics row-limit defaults. Resolution
+# An organization's photo storage (F20 PR11). The operator's storage section
+# minus its two server paths (``photo_local_dir``, ``gcs_photo_credentials_path``:
+# letting an organization name a file on the server would let it read the
+# operator's credential file or write anywhere, critique #12), plus the one
+# field only an organization has: the service-account JSON its own bucket is
+# written with, a secret stored encrypted and never returned.
+# ``photo_max_size_mb`` is capped by the operator's (it is the request-body
+# ceiling ``BodyLimitMiddleware`` enforces before any organization is known)
+# and ``photo_allowed_mime`` is narrowed to the operator's allow-list.
+STORAGE_ORG_FIELDS: tuple[str, ...] = (
+    "photo_storage_backend",
+    "photo_max_size_mb",
+    "photo_allowed_mime",
+    "gcs_photo_bucket",
+    "gcs_photo_credentials_json",
+    "gcs_photo_public",
+    "gcs_photo_signed_url_ttl_seconds",
+)
+
+# What an ORGANIZATION may set for itself (F20 PR9-PR11, owner decision 4): mail,
+# AI chat, search embeddings, photo storage and the scan/metrics row-limit
+# defaults. Resolution
 # for an organization is org override -> operator override -> env (see
 # ``resolve_settings``), with the credential-group, ceiling and fallback-policy
 # rules of
@@ -215,14 +238,17 @@ ORG_FIELDS: frozenset[str] = frozenset(
         *EMAIL_FIELDS,
         *AI_CHAT_FIELDS,
         *EMBEDDING_FIELDS,
+        *STORAGE_ORG_FIELDS,
     }
 )
 
 # The fields only a PLATFORM admin may change: tripl's own infrastructure. The
 # public URL, every security and observability knob (including who may register
-# at all), storage (server filesystem paths, critique 12, and the photo size cap,
-# which is the process request-body limit, critique 15; per-org storage is
-# PR11). Everything editable that an organization may not set for itself.
+# at all) and the two storage server paths (critique 12). Everything editable
+# that an organization may not set for itself. The operator's own storage
+# values (its bucket, its ceilings) are still written only by a platform admin:
+# see ``org_settings_service.OPERATOR_ALIAS_PLATFORM_FIELDS`` and the legacy
+# ``/settings`` storage section, which is always the operator's.
 OPERATOR_FIELDS: frozenset[str] = EDITABLE_FIELDS - ORG_FIELDS
 
 
@@ -366,6 +392,9 @@ def env_service_values() -> dict[str, Any]:
         # Env-only for the operator (READ_ONLY_ENV_FIELDS), an organization field
         # all the same: its value here is what an organization inherits.
         "search_embedding_base_url": settings.search_embedding_base_url,
+        # Organization-only (F20 PR11): the operator's GCS credentials are
+        # GCS_PHOTO_CREDENTIALS_PATH or the server's ambient identity.
+        "gcs_photo_credentials_json": "",
     }
     # Last, and unconditionally: a startup-applied override is still an override,
     # and ``build_service_values`` writes it back over this a moment later. What
@@ -1231,6 +1260,8 @@ _DERIVED_DEFAULTS: dict[str, Any] = {
         if Settings.model_fields["smtp_use_tls"].get_default()
         else SMTP_SECURITY_NONE
     ),
+    # Not a ``Settings`` field at all: nothing but an organization delivers it.
+    "gcs_photo_credentials_json": "",
 }
 
 

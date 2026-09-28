@@ -42,7 +42,7 @@ Access is decided by two roles and one flag:
 - the **platform admin** flag (`users.is_platform_admin`): the operator of the
   instance, separate from both.
 
-| Who | Projects they see | Edit plan content | Manage project members | Data sources, scan SQL, audit log, delete projects | Members, roles & invitations | Organization settings (row limits, MIME types, AI model and prompts) | Operator settings (security, observability, email, storage, AI endpoint, system) |
+| Who | Projects they see | Edit plan content | Manage project members | Data sources, scan SQL, audit log, delete projects | Members, roles & invitations | Organization settings (row limits, photo storage and MIME types, AI model and prompts) | Operator settings (security, observability, email, storage, AI endpoint, system) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Org owner** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, including other owners | Yes (default org) | No, unless also platform admin |
 | **Org admin** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, except making or unmaking an owner | Yes (default org) | No, unless also platform admin |
@@ -389,6 +389,18 @@ The organization's own settings are in **Settings → Organization**:
   projects; other organizations are not touched. With
   `ORG_SETTINGS_OPERATOR_FALLBACK=none` and no endpoint of its own, semantic
   search is off for the organization and search is lexical.
+- **Photos** — where the organization's event photos go, and what it takes:
+  the backend, its own GCS bucket, a service-account JSON key pasted into the
+  page (write-only: once saved the page only shows **Configured**), public URLs
+  and the signed-URL lifetime — one group, so an own bucket is never written
+  with the platform's credentials — plus the upload size cap and the allowed
+  content types. The cap cannot exceed the platform's and the content types can
+  only be a subset of the platform's list. Without storage of its own the
+  organization uses the platform's (the badges say **Operator** or **Env**, and
+  the bucket name is not shown). On a hosted instance an organization cannot
+  pick the local backend. A new bucket or key applies to the next upload;
+  photos already stored keep being read with the bucket and key they were
+  written with, so keep the old bucket readable until you have copied them.
 - **Trackers** — Jira and Linear defaults for the organization's projects: the
   Jira site (https, public), account e-mail, API token and default project key;
   a Linear API key and default team. A project's own **Tracker** settings
@@ -396,14 +408,17 @@ The organization's own settings are in **Settings → Organization**:
   itself. A project that sets its own Jira site, account or token uses none of
   the organization's three. Tokens are write-only.
 
-The operator's own settings — public URL, security, observability, storage,
-and the operator's defaults for every organization field (including the
+The operator's own settings — public URL, security, observability, the storage
+server paths (local directory, GCS credentials file), and the operator's
+defaults for every organization field (the platform's photo storage, size cap
+and content types among them) (including the
 embedding switch, provider, model and key; the embedding base URL and
 dimensions are env-only) — are under **Settings → Platform**, for platform
 admins only. On a self-hosted instance the default organization's Email, AI,
 Search and Limits are the same values as the platform's; its owners and admins
 can change the limits, timeouts and prompts there, and only a platform admin its
-SMTP relay, AI endpoint and embeddings. Tracker defaults have no operator layer:
+SMTP relay, AI endpoint, embeddings and storage (which stay the platform's
+settings and take effect on the next restart). Tracker defaults have no operator layer:
 every organization, the default one included, sets its own.
 
 ### The organization API
@@ -491,7 +506,13 @@ organization lists all behave as if it never existed. A background job then
 removes everything it owned — each project with its plan, scans, alerting and
 photos (including the stored image files), the data sources, API keys,
 invitations, organization notes, settings and memberships — and finally the
-organization itself. The slug is free again once the job finishes.
+organization itself. Before that last step it deletes every file left under
+the organization's `orgs/{organization id}/events/` prefix, in the platform's
+store and in the organization's own bucket. If one of them cannot be deleted
+(the store is unreachable, or the bucket's key no longer grants access), the
+organization stays in the deleting state and the job runs again later (see
+below), so no stored file is left behind with nothing pointing at it. The slug
+is free again once the job finishes.
 
 If the job cannot be queued (the message broker is down), the request answers
 `503` and the organization is active again. Its audit log shows the
@@ -648,8 +669,8 @@ The fields split in two:
 
 | Class | Fields | Who may change them |
 | --- | --- | --- |
-| **Organization** | Runtime row-limit defaults, Storage allowed MIME types, and AI enabled, model, timeout, output limit, the three system prompts and the search-embeddings switch | Settings admins |
-| **Operator** | Runtime public URL (`app_base_url`), every **Security & access** field (registration mode included), every **Observability** field, every **Email** (SMTP) field, every **Storage** field but the MIME allow-list, the AI base URL and API key, the embedding provider, model and API key, and the **System** section | Platform admin only |
+| **Organization** | Runtime row-limit defaults, and AI enabled, model, timeout, output limit, the three system prompts and the search-embeddings switch | Settings admins |
+| **Operator** | Runtime public URL (`app_base_url`), every **Security & access** field (registration mode included), every **Observability** field, every **Email** (SMTP) field, every **Storage** field (this page's Storage section is always the platform's own store; an organization's own storage is under **Settings → Organization → Photos**), the AI base URL and API key, the embedding provider, model and API key, and the **System** section | Platform admin only |
 
 Until each organization has its own values, one value of each field serves
 every organization, so a field that routes another organization's data is
@@ -664,7 +685,8 @@ Storage and AI are shown to them disabled. A write that touches any operator
 field is refused whole (`403 Platform admin required`). The `system` block of
 `GET /api/v1/settings` is `null` for them. The photo and row limits
 (`/settings/photo-limits`, `/settings/row-limits`) stay readable by every
-signed-in user.
+signed-in user; they answer with the caller's organization's values, and
+`/orgs/{org}/settings/photo-limits` names the organization.
 
 ### How overrides work
 
@@ -900,6 +922,12 @@ or **Google Cloud Storage**).
   blank falls back to Application Default Credentials), Signed URL TTL
   (`gcs_photo_signed_url_ttl_seconds`, default 3600). Credentials that cannot
   sign URLs serve photos through the authenticated API endpoint instead.
+
+These are the platform's own store and ceilings: organizations without storage
+of their own use it (their files under `orgs/{organization id}/`), the size cap
+is every organization's maximum, and the MIME list is the most any organization
+may allow. An organization's own bucket is set under **Settings → Organization
+→ Photos**.
 
 A branch merge that removes an uploaded screenshot from main deletes its file
 once no attachment row on any branch uses it. A file stored under a backend

@@ -257,7 +257,11 @@ async def test_every_signed_in_user_can_read_the_photo_limit(
     for reader in (client, editor_client):
         resp = await reader.get("/api/v1/settings/photo-limits")
         assert resp.status_code == 200, resp.text
-        assert resp.json() == {"photo_max_size_mb": 25}
+        # With the content types the upload takes (F20 PR11).
+        assert resp.json() == {
+            "photo_max_size_mb": 25,
+            "photo_allowed_mime": ["image/jpeg", "image/png", "image/gif", "image/webp"],
+        }
 
     # The rest of /settings stays owner-only.
     assert (await editor_client.get("/api/v1/settings")).status_code == 403

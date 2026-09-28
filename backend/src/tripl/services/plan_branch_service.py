@@ -774,6 +774,8 @@ async def deep_copy_plan_to_branch(
                     external_url=ph.external_url,
                     storage_backend=ph.storage_backend,
                     storage_key=ph.storage_key,
+                    storage_org_id=ph.storage_org_id,
+                    storage_config_id=ph.storage_config_id,
                     sort_order=ph.sort_order,
                 )
             )

@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -461,6 +461,11 @@ class _FakeStorage:
 
     async def delete(self, key: str) -> None:
         self.deleted.append(key)
+
+    def list_objects(self, prefix: str) -> Iterator[Any]:
+        # The purge's last pass lists the organization's prefix: nothing left.
+        del prefix
+        return iter(())
 
 
 async def _seed_acme(people: People, acme: uuid.UUID) -> dict[str, str]:

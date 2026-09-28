@@ -44,8 +44,26 @@ class EventPhoto(UUIDMixin, TimestampMixin, Base):
         db_enum(EventPhotoStorageBackend, "event_photo_storage_backend"), nullable=True
     )
     # Relative key under the configured storage root. Same shape for both
-    # backends, e.g. "events/<event_id>/<photo_id>.jpg".
+    # backends: "orgs/<org_id>/events/<event_id>/<photo_id>.jpg" since F20 PR11,
+    # "events/<event_id>/<photo_id>.jpg" before.
     storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Which organization's upload wrote the blob and with which storage (F20
+    # PR11). ``storage_org_id`` is the organization whose ``orgs/{id}/`` key
+    # prefix the blob lives under (NULL: written before PR11, legacy
+    # ``events/...`` key). ``storage_config_id`` is the version of that
+    # organization's OWN storage the blob was written with; NULL means the
+    # operator's store named by ``storage_backend``. Reads, deletes and the
+    # orphan sweep follow the row, never the current setting. Branch twins copy
+    # all four storage columns with the key.
+    storage_org_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, default=None
+    )
+    storage_config_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("photo_storage_configs.id", ondelete="RESTRICT"),
+        nullable=True,
+        default=None,
+        index=True,
+    )
 
     sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 

@@ -9,20 +9,28 @@ Two backends are supported:
   V4 signed URL (or the bucket's public URL when ``gcs_photo_public`` is
   ``True``) from :meth:`public_url` so the client can stream images directly.
 
-The driver is selected from ``settings.photo_storage_backend`` and cached
-per-process. All IO is offloaded to a worker thread because the GCS client
-is synchronous and local writes block the event loop too.
+The OPERATOR's driver is selected from ``settings.photo_storage_backend`` and
+cached per process under its backend name (:func:`storage_for`). An
+organization with storage of its own (F20 PR11) gets a driver built from a
+:class:`StorageConfig` — its bucket, flags and service-account JSON — cached
+per ``(organization, config fingerprint)`` (:func:`driver_for_config`). All IO
+is offloaded to a worker thread because the GCS client is synchronous and local
+writes block the event loop too.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
+import json
+import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from tripl.config import settings
 
@@ -144,6 +152,7 @@ class GCSPhotoStorage(PhotoStorage):
         *,
         bucket_name: str,
         credentials_path: str = "",
+        credentials_info: dict[str, Any] | None = None,
         public: bool = False,
         signed_url_ttl_seconds: int = 3600,
     ) -> None:
@@ -153,7 +162,11 @@ class GCSPhotoStorage(PhotoStorage):
         # is active. Keeps the local-only path import-light.
         from google.cloud import storage as gcs
 
-        if credentials_path:
+        if credentials_info is not None:
+            # An organization's own bucket (F20 PR11): its own service account,
+            # never the server's credential file or ambient identity.
+            client = gcs.Client.from_service_account_info(credentials_info)
+        elif credentials_path:
             client = gcs.Client.from_service_account_json(credentials_path)
         else:
             client = gcs.Client()
@@ -273,7 +286,7 @@ def storage_for(backend: str) -> PhotoStorage:
             signed_url_ttl_seconds=settings.gcs_photo_signed_url_ttl_seconds,
         )
     elif name == "local":
-        built = LocalPhotoStorage(settings.photo_local_dir or str(Path.cwd() / "var" / "photos"))
+        built = LocalPhotoStorage(default_local_dir())
     else:
         raise UnknownPhotoBackend(
             f"Unknown photo storage backend {backend!r} (expected 'local' or 'gcs')"
@@ -301,5 +314,145 @@ def get_photo_storage() -> PhotoStorage:
         ) from exc
 
 
+def default_local_dir() -> str:
+    return settings.photo_local_dir or str(Path.cwd() / "var" / "photos")
+
+
+@dataclass(frozen=True)
+class StorageConfig:
+    """Everything a photo driver is built from, for one scope (F20 PR11).
+
+    ``owner_org_id`` ``None`` is the OPERATOR's storage (``settings``, applied
+    at startup; its driver is :func:`storage_for`'s). Otherwise it is the
+    organization whose OWN storage this is: a GCS bucket written with
+    ``credentials_json`` (never the operator's file or ambient identity), or on
+    a self-hosted instance the operator's local directory. The server paths
+    are the operator's in either case and never come from an organization.
+    """
+
+    owner_org_id: uuid.UUID | None
+    backend: str
+    bucket: str = ""
+    public: bool = False
+    signed_url_ttl_seconds: int = 3600
+    #: An organization's service-account JSON (decrypted); "" for the operator.
+    credentials_json: str = ""
+
+    def fingerprint(self) -> str:
+        """A digest of every value the driver is built from: one per version."""
+        material = json.dumps(
+            {
+                "backend": self.backend,
+                "bucket": self.bucket,
+                "public": self.public,
+                "ttl": self.signed_url_ttl_seconds,
+                "credentials": self.credentials_json,
+            },
+            sort_keys=True,
+        )
+        return hashlib.sha256(material.encode()).hexdigest()
+
+    def store_identity(self) -> tuple[str, str]:
+        """Which physical store the blobs are in: a bucket or the local root.
+
+        Two configurations of the same bucket (say, before and after turning
+        public URLs on) write into one store, and the orphan sweep has to see
+        them as one: a key written under either is referenced in both.
+        """
+        if self.backend == "gcs":
+            return ("gcs", self.bucket)
+        return ("local", str(Path(default_local_dir()).resolve()))
+
+
+def operator_storage_config() -> StorageConfig:
+    """The operator's storage as this process runs it (startup-applied settings)."""
+    return StorageConfig(
+        owner_org_id=None,
+        backend=settings.photo_storage_backend.lower().strip(),
+        bucket=settings.gcs_photo_bucket,
+        public=settings.gcs_photo_public,
+        signed_url_ttl_seconds=settings.gcs_photo_signed_url_ttl_seconds,
+    )
+
+
+#: The only OAuth token endpoint an organization's service account is exchanged
+#: at. google-auth POSTs a signed JWT to the key file's ``token_uri`` on every
+#: token refresh, so a value taken from an organization's JSON would let a
+#: tenant point the server at any host (an internal one included).
+GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token"
+#: The only universe an organization's bucket may live in: another one moves
+#: every storage and token request to ``*.{universe_domain}``.
+GOOGLE_UNIVERSE_DOMAIN = "googleapis.com"
+
+
+class UnsafeServiceAccount(ValueError):
+    """A service-account key names a universe other than Google's public one."""
+
+
+def pinned_service_account_info(info: Mapping[str, Any]) -> dict[str, Any]:
+    """A copy of an organization's service-account key that only talks to Google.
+
+    ``token_uri`` is overwritten with :data:`GOOGLE_TOKEN_URI` whatever the key
+    said, and a ``universe_domain`` other than :data:`GOOGLE_UNIVERSE_DOMAIN`
+    raises :class:`UnsafeServiceAccount`. Applied when the key is saved and
+    again every time a driver is built, so a key stored before the check
+    existed cannot reach another host either.
+    """
+    universe = info.get("universe_domain")
+    if universe not in (None, "", GOOGLE_UNIVERSE_DOMAIN):
+        raise UnsafeServiceAccount(
+            f"service-account universe_domain must be {GOOGLE_UNIVERSE_DOMAIN!r}"
+        )
+    pinned = {key: value for key, value in info.items() if key != "universe_domain"}
+    pinned["token_uri"] = GOOGLE_TOKEN_URI
+    return pinned
+
+
+class MissingStorageCredentials(RuntimeError):
+    """An organization's GCS storage has no service-account JSON of its own."""
+
+
+_BY_CONFIG: dict[tuple[uuid.UUID, str], PhotoStorage] = {}
+
+
+def driver_for_config(config: StorageConfig) -> PhotoStorage:
+    """The driver of ``config``, built once per ``(organization, fingerprint)``.
+
+    The operator's configuration goes through :func:`storage_for` (one driver
+    per backend name, built from ``settings``). An organization's GCS storage
+    is built with ITS service-account JSON only: an organization bucket with no
+    JSON raises :class:`MissingStorageCredentials` rather than fall back to the
+    server's credential file or ambient identity, which are the operator's.
+    """
+    if config.owner_org_id is None:
+        return storage_for(config.backend)
+    cache_key = (config.owner_org_id, config.fingerprint())
+    cached = _BY_CONFIG.get(cache_key)
+    if cached is not None:
+        return cached
+    name = config.backend.lower().strip()
+    if name == "gcs":
+        if not config.credentials_json:
+            raise MissingStorageCredentials(
+                f"Organization {config.owner_org_id} storage names a GCS bucket without "
+                "service-account credentials of its own"
+            )
+        built: PhotoStorage = GCSPhotoStorage(
+            bucket_name=config.bucket,
+            credentials_info=pinned_service_account_info(json.loads(config.credentials_json)),
+            public=config.public,
+            signed_url_ttl_seconds=config.signed_url_ttl_seconds,
+        )
+    elif name == "local":
+        built = LocalPhotoStorage(default_local_dir())
+    else:
+        raise UnknownPhotoBackend(
+            f"Unknown photo storage backend {config.backend!r} (expected 'local' or 'gcs')"
+        )
+    _BY_CONFIG[cache_key] = built
+    return built
+
+
 def reset_photo_storage() -> None:
     _BY_NAME.clear()
+    _BY_CONFIG.clear()

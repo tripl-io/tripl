@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { orgSettingsApi } from '@/api/orgSettings'
 import { useActiveOrg } from '@/components/active-org-context'
@@ -12,8 +12,10 @@ import {
   authStatusKey,
   commandPaletteSearchRootKey,
   orgSettingsKey,
+  photoLimitsKey,
   rowLimitDefaultsKey,
 } from '@/lib/queryKeys'
+import { lazyWithReload } from '@/lib/lazyWithReload'
 import { getErrorMessage } from '@/lib/utils'
 import { OrgAiFields } from './org-settings/OrgAiFields'
 import { OrgEmailFields } from './org-settings/OrgEmailFields'
@@ -35,10 +37,14 @@ import {
   type OrgSection,
 } from './org-settings/orgSettingsModel'
 
+// Its own chunk (F20 PR11): only the Storage page needs it.
+const OrgStorageFields = lazyWithReload(() => import('./org-settings/OrgStorageFields'))
+
 const DESCRIPTIONS: Record<OrgSection, string> = {
   email: "The mail relay this organization's alerts, digests and notifications go out through.",
   ai: "The AI provider this organization's explanations, suggestions and assistant use.",
   search: "The embedding model semantic search uses for this organization's events and plans.",
+  storage: "Where this organization's event photos are stored, and what an upload may be.",
   limits: 'Row caps for the scans and metrics runs of this organization.',
 }
 
@@ -47,8 +53,11 @@ const UNSAVED_MESSAGE =
 
 const ORG_PATHS: ReadonlySet<string> = new Set(Object.values(ORG_SECTION_PATHS))
 
-/** What the organization loses while the operator shares nothing with it. */
-const FALLBACK_NONE_NOTES: Record<Exclude<OrgSection, 'limits'>, string> = {
+/**
+ * What the organization loses while the operator shares nothing with it.
+ * Storage is always shared: an organization without its own uses the platform's.
+ */
+const FALLBACK_NONE_NOTES: Record<Exclude<OrgSection, 'limits' | 'storage'>, string> = {
   email: 'The operator shares no mail relay with organizations: until this organization sets its own, its email is off.',
   ai: 'The operator shares no AI provider with organizations: until this organization sets its own, its AI is off.',
   search:
@@ -56,7 +65,7 @@ const FALLBACK_NONE_NOTES: Record<Exclude<OrgSection, 'limits'>, string> = {
 }
 
 /**
- * Organization › Email, AI, Search and Limits (F20 PR9, PR10): the organization's own
+ * Organization › Email, AI, Search, Storage and Limits (F20 PR9-PR11): the organization's own
  * values, each shown with where it comes from (the organization, the
  * operator, the environment) and what it would inherit without its own.
  * Owners and admins of the organization only (the area gates the route).
@@ -97,6 +106,7 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
       // A self-hosted default organization's relay IS the account relay.
       if (target === 'email') void qc.invalidateQueries({ queryKey: authStatusKey() })
       if (target === 'limits') void qc.invalidateQueries({ queryKey: rowLimitDefaultsKey() })
+      if (target === 'storage') void qc.invalidateQueries({ queryKey: photoLimitsKey() })
       // A new vector space re-embeds this organization's projects: results
       // cached from the old one are stale.
       if (target === 'search') {
@@ -112,7 +122,7 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
     registerUnsaved(
       dirtyKey
         ? {
-            // Moving between Email, AI, Search and Limits keeps this component, and so
+            // Moving between Email, AI, Search, Storage and Limits keeps this component, and so
             // the drafts; anything else unmounts it.
             keptBy: path => ORG_PATHS.has(path),
             message: UNSAVED_MESSAGE,
@@ -159,6 +169,7 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
         </p>
       ) : (
         section !== 'limits' &&
+        section !== 'storage' &&
         settings.operator_fallback === 'none' && (
           <p role="note" className="m-0 text-body-sm text-fg-tertiary">
             {FALLBACK_NONE_NOTES[section]}
@@ -204,6 +215,11 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
       )}
       {section === 'search' && (
         <OrgSearchFields {...fieldProps} setDraft={setDraft} saving={saveMut.isPending} />
+      )}
+      {section === 'storage' && (
+        <Suspense fallback={<SectionSkeleton variant="form" label="Loading storage…" />}>
+          <OrgStorageFields {...fieldProps} setDraft={setDraft} saving={saveMut.isPending} />
+        </Suspense>
       )}
       {section === 'limits' && <OrgLimitFields {...fieldProps} />}
     </div>

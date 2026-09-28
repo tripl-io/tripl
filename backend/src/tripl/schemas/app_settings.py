@@ -368,9 +368,10 @@ class SettingsTestResponse(BaseModel):
 # ── organization settings (F20 PR9) ─────────────────────────────────────────
 #
 # What an organization owner/admin may set for their own organization: mail, AI
-# chat, search embeddings (PR10) and the row-limit defaults. The update models
-# forbid unknown keys, so a body carrying an operator field (security, storage,
-# embedding dimensions, the public URL...) is a 422, never silently dropped.
+# chat, search embeddings (PR10), photo storage (PR11) and the row-limit
+# defaults. The update models forbid unknown keys, so a body carrying an
+# operator field (security, the storage server paths, embedding dimensions, the
+# public URL...) is a 422, never silently dropped.
 
 OrgSettingsScope = Literal["organization", "operator"]
 OperatorFallback = Literal["all", "none"]
@@ -475,11 +476,67 @@ class OrgSearchSettingsUpdate(BaseModel):
         return _check_embedding_base_url_format(value)
 
 
+PhotoStorageBackend = Literal["local", "gcs"]
+
+
+class OrgStorageSettings(BaseModel):
+    """An organization's photo storage (F20 PR11). No server paths: the local
+    directory and the operator's credential file are the operator's alone."""
+
+    photo_storage_backend: str
+    #: The organization's upload cap, never above the operator's (``ceilings``).
+    photo_max_size_mb: int
+    #: Comma-separated content types, never wider than the operator's list.
+    photo_allowed_mime: str
+    #: Blank while the organization uses the platform's storage.
+    gcs_photo_bucket: str
+    #: Whether the organization's own service-account JSON is stored (write-only).
+    gcs_photo_credentials_configured: bool
+    gcs_photo_public: bool
+    gcs_photo_signed_url_ttl_seconds: int
+
+
+class OrgStorageSettingsUpdate(BaseModel):
+    """Backend, bucket, credential JSON, public URLs and URL lifetime are ONE
+    group: setting any of them makes the organization's photos go to its own
+    storage, and the platform's credentials are never used on its bucket.
+    ``gcs_photo_credentials_json`` is the service-account key file's content:
+    stored encrypted, never returned; ``null`` or an empty string clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    photo_storage_backend: PhotoStorageBackend | None = None
+    photo_max_size_mb: int | None = Field(default=None, ge=1)
+    photo_allowed_mime: str | None = Field(default=None, max_length=2000)
+    gcs_photo_bucket: str | None = Field(default=None, max_length=222)
+    gcs_photo_credentials_json: str | None = Field(default=None, max_length=65536)
+    gcs_photo_public: bool | None = None
+    gcs_photo_signed_url_ttl_seconds: int | None = Field(default=None, ge=60, le=604800)
+
+    @field_validator("gcs_photo_bucket")
+    @classmethod
+    def _blank_bucket_clears(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+
+class OrgStorageLimits(BaseModel):
+    """What the operator allows an organization's storage (F20 PR11)."""
+
+    #: The operator's allow-list: an organization's list may only narrow it.
+    operator_allowed_mime: list[str]
+    #: False on a hosted instance: the server's disk is not an organization's.
+    local_backend_allowed: bool
+
+
 class OrgSettingsValues(BaseModel):
     limits: OrgLimitSettings
     email: EmailSettings
     ai: OrgAiSettings
     search: OrgSearchSettings
+    storage: OrgStorageSettings
 
 
 class OrgSettingsCeilings(BaseModel):
@@ -489,6 +546,7 @@ class OrgSettingsCeilings(BaseModel):
     metrics_row_limit_default: int
     ai_timeout_seconds: int
     ai_max_output_tokens: int
+    photo_max_size_mb: int
 
 
 class OrgSettingsResponse(OrgSettingsValues):
@@ -501,8 +559,9 @@ class OrgSettingsResponse(OrgSettingsValues):
     #: own: the operator's (fallback "all") or disabled groups (fallback "none").
     inherited: OrgSettingsValues
     ceilings: OrgSettingsCeilings
+    storage_limits: OrgStorageLimits
     overridden_fields: list[str]
-    #: Keyed ``limits.<field>``, ``email.<field>``, ``ai.<field>``, ``search.<field>``.
+    #: Keyed ``<section>.<field>`` for limits, email, ai, search and storage.
     sources: dict[str, SettingSource]
 
 
@@ -513,6 +572,7 @@ class OrgSettingsUpdate(BaseModel):
     email: OrgEmailSettingsUpdate | None = None
     ai: OrgAiSettingsUpdate | None = None
     search: OrgSearchSettingsUpdate | None = None
+    storage: OrgStorageSettingsUpdate | None = None
 
 
 # ── organization tracker defaults (F20 PR12) ────────────────────────────────

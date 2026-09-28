@@ -663,6 +663,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orgs/{org}/settings/photo-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Org Photo Limits
+         * @description The organization's photo upload limits (F20 PR11), readable by every member.
+         */
+        get: operations["get_org_photo_limits_api_v1_orgs__org__settings_photo_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orgs/{org}/settings/row-limits": {
         parameters: {
             query?: never;
@@ -4752,12 +4772,13 @@ export interface paths {
         };
         /**
          * Get Photo Limits
-         * @description The photo upload limit, readable by every signed-in user.
+         * @description The photo upload limits, readable by every signed-in user.
          *
-         *     The rest of this router is for settings admins; this one value is not, because it is
-         *     an editor's upload it refuses and the browser should say so before the
-         *     upload rather than after (EVT-28). The router's own dependency still
-         *     requires a session.
+         *     The rest of this router is for settings admins; these values are not, because it is
+         *     an editor's upload they refuse and the browser should say so before the
+         *     upload rather than after (EVT-28). The caller's organization's limits
+         *     (F20 PR11), resolved like the rest of the legacy route; the operator's when
+         *     it resolves none. ``/orgs/{org}/settings/photo-limits`` names one.
          */
         get: operations["get_photo_limits_api_v1_settings_photo_limits_get"];
         put?: never;
@@ -12012,6 +12033,8 @@ export interface components {
             ai_timeout_seconds: number;
             /** Metrics Row Limit Default */
             metrics_row_limit_default: number;
+            /** Photo Max Size Mb */
+            photo_max_size_mb: number;
             /** Scan Row Limit Default */
             scan_row_limit_default: number;
         };
@@ -12041,6 +12064,8 @@ export interface components {
             sources: {
                 [key: string]: "env" | "override" | "default" | "org" | "disabled";
             };
+            storage: components["schemas"]["OrgStorageSettings"];
+            storage_limits: components["schemas"]["OrgStorageLimits"];
         };
         /** OrgSettingsUpdate */
         OrgSettingsUpdate: {
@@ -12048,6 +12073,7 @@ export interface components {
             email?: components["schemas"]["OrgEmailSettingsUpdate"] | null;
             limits?: components["schemas"]["OrgLimitSettingsUpdate"] | null;
             search?: components["schemas"]["OrgSearchSettingsUpdate"] | null;
+            storage?: components["schemas"]["OrgStorageSettingsUpdate"] | null;
         };
         /** OrgSettingsValues */
         OrgSettingsValues: {
@@ -12055,6 +12081,62 @@ export interface components {
             email: components["schemas"]["EmailSettings"];
             limits: components["schemas"]["OrgLimitSettings"];
             search: components["schemas"]["OrgSearchSettings"];
+            storage: components["schemas"]["OrgStorageSettings"];
+        };
+        /**
+         * OrgStorageLimits
+         * @description What the operator allows an organization's storage (F20 PR11).
+         */
+        OrgStorageLimits: {
+            /** Local Backend Allowed */
+            local_backend_allowed: boolean;
+            /** Operator Allowed Mime */
+            operator_allowed_mime: string[];
+        };
+        /**
+         * OrgStorageSettings
+         * @description An organization's photo storage (F20 PR11). No server paths: the local
+         *     directory and the operator's credential file are the operator's alone.
+         */
+        OrgStorageSettings: {
+            /** Gcs Photo Bucket */
+            gcs_photo_bucket: string;
+            /** Gcs Photo Credentials Configured */
+            gcs_photo_credentials_configured: boolean;
+            /** Gcs Photo Public */
+            gcs_photo_public: boolean;
+            /** Gcs Photo Signed Url Ttl Seconds */
+            gcs_photo_signed_url_ttl_seconds: number;
+            /** Photo Allowed Mime */
+            photo_allowed_mime: string;
+            /** Photo Max Size Mb */
+            photo_max_size_mb: number;
+            /** Photo Storage Backend */
+            photo_storage_backend: string;
+        };
+        /**
+         * OrgStorageSettingsUpdate
+         * @description Backend, bucket, credential JSON, public URLs and URL lifetime are ONE
+         *     group: setting any of them makes the organization's photos go to its own
+         *     storage, and the platform's credentials are never used on its bucket.
+         *     ``gcs_photo_credentials_json`` is the service-account key file's content:
+         *     stored encrypted, never returned; ``null`` or an empty string clears it.
+         */
+        OrgStorageSettingsUpdate: {
+            /** Gcs Photo Bucket */
+            gcs_photo_bucket?: string | null;
+            /** Gcs Photo Credentials Json */
+            gcs_photo_credentials_json?: string | null;
+            /** Gcs Photo Public */
+            gcs_photo_public?: boolean | null;
+            /** Gcs Photo Signed Url Ttl Seconds */
+            gcs_photo_signed_url_ttl_seconds?: number | null;
+            /** Photo Allowed Mime */
+            photo_allowed_mime?: string | null;
+            /** Photo Max Size Mb */
+            photo_max_size_mb?: number | null;
+            /** Photo Storage Backend */
+            photo_storage_backend?: ("local" | "gcs") | null;
         };
         /** OrgTrackerDefaultsResponse */
         OrgTrackerDefaultsResponse: {
@@ -12162,9 +12244,13 @@ export interface components {
          * @description What the upload endpoint will take, for the browser to say so up front.
          *
          *     ``photo_max_size_mb`` is an owner setting; every signed-in user may read it,
-         *     because an editor's upload is what it refuses (EVT-28).
+         *     because an editor's upload is what it refuses (EVT-28). Both values are the
+         *     organization's (F20 PR11): its own cap, never above the operator's, and its
+         *     allow-list, never wider than the operator's.
          */
         PhotoLimitsResponse: {
+            /** Photo Allowed Mime */
+            photo_allowed_mime: string[];
             /** Photo Max Size Mb */
             photo_max_size_mb: number;
         };
@@ -17283,6 +17369,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_photo_limits_api_v1_orgs__org__settings_photo_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoLimitsResponse"];
                 };
             };
         };
