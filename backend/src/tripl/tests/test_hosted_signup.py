@@ -359,7 +359,12 @@ async def test_accepting_while_signed_in_needs_a_verified_address(
     assert (await confirm(joiner, token_from(mail[-1]))).status_code == 204
     accepted = await joiner.post(f"{API}/auth/invitations/{token}/accept", json={})
     assert accepted.status_code == 200, accepted.text
-    assert {"slug": "host-co", "name": "Some Org", "role": "member"} in accepted.json()["orgs"]
+    assert {
+        "slug": "host-co",
+        "name": "Some Org",
+        "role": "member",
+        "status": "active",
+    } in accepted.json()["orgs"]
 
 
 async def test_a_new_account_from_an_invitation_starts_unverified_and_gets_a_link(
