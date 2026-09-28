@@ -91,8 +91,8 @@ How roles are assigned:
 "owner" | "admin" | "member"}`, and writes the organization role in the request's
 organization. The instance-era values are refused with `422`; the old `owner`
 maps to `owner`, and `editor` and `viewer` both map to `member` — what a member
-may do in a project is their project role. `users.role`, the old instance role,
-is no longer read by anything and will be dropped.
+may do in a project is their project role. The old instance role no longer
+exists.
 
 :::note Claiming a brand-new instance
 [`tripl install`](../run/cli.md#tripl-install) provisions and starts a stack, but
@@ -295,6 +295,9 @@ A few things follow from this:
 - **Upgrading to organizations** capped every former instance viewer's project
   memberships at `viewer`, and made every former instance owner an owner of the
   default organization.
+- **Upgrading past the instance-role removal** drops the old instance role
+  (`users.role`, `invitations.role`). Nothing read it any more; a pending
+  invitation that named no organization role becomes a `member` invitation.
 - **Upgrading from a version without project access** kept everyone's access:
   every existing editor and viewer became a member of every existing non-demo
   project with the same role, and each existing demo kept only its creator.

@@ -10,7 +10,7 @@ import tripl.worker.tasks.metrics.metric_collect as mc
 from tripl.api.deps import get_current_user
 from tripl.core.adapters.measure_validator import SqlDialect
 from tripl.main import app
-from tripl.models.domain_enums import AnomalyDirection, MetricScopeType, UserRole
+from tripl.models.domain_enums import AnomalyDirection, MetricScopeType
 from tripl.models.fact_table import FactTable
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
@@ -1714,7 +1714,7 @@ class TestCollectNow:
         dispatch_recorder: dict[str, _DispatchRecorder],
     ):
         # A persisted viewer MEMBER: a non-member would get 404, not 403.
-        viewer = await persisted_member_user(uuid.UUID(project["id"]), role=UserRole.viewer.value)
+        viewer = await persisted_member_user(uuid.UUID(project["id"]), role="viewer")
 
         async def _viewer() -> User:
             return viewer
@@ -2679,7 +2679,7 @@ class TestPreview:
         _patch_preview_adapter(monkeypatch, adapter)
 
         # A persisted viewer MEMBER: a non-member would get 404, not 403.
-        viewer = await persisted_member_user(uuid.UUID(project["id"]), role=UserRole.viewer.value)
+        viewer = await persisted_member_user(uuid.UUID(project["id"]), role="viewer")
 
         async def _viewer() -> User:
             return viewer
@@ -3015,7 +3015,7 @@ class TestFactPreview:
         _patch_preview_adapter(monkeypatch, adapter)
 
         # A persisted viewer MEMBER: a non-member would get 404, not 403.
-        viewer = await persisted_member_user(uuid.UUID(project["id"]), role=UserRole.viewer.value)
+        viewer = await persisted_member_user(uuid.UUID(project["id"]), role="viewer")
 
         async def _viewer() -> User:
             return viewer

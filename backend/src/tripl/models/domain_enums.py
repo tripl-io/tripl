@@ -319,19 +319,6 @@ class ProjectGenerationStatus(enum.StrEnum):
     failed = "failed"
 
 
-class UserRole(enum.StrEnum):
-    """The legacy instance role (``users.role``, ``invitations.role``).
-
-    Not read by any permission check since F20 PR4: organization roles
-    (:class:`OrganizationRole`) and project roles replaced it. The columns stay
-    until a cleanup PR drops them.
-    """
-
-    owner = "owner"
-    editor = "editor"
-    viewer = "viewer"
-
-
 class OrganizationRole(enum.StrEnum):
     """A user's role in one organization (``organization_members.role``).
 

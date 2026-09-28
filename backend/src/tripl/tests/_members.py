@@ -8,8 +8,8 @@ else does not depend on that surface.
 
 Owners and admins of a project's organization (``organization_members``) see
 every project of it and need no row; the creator of a project made through
-``project_service.create_project`` is already an editor member. ``users.role``
-is not read by anything any more (F20 PR4).
+``project_service.create_project`` is already an editor member. There is no
+instance role: the organization and project roles are the only ones.
 """
 
 import uuid
@@ -17,7 +17,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole, UserRole
+from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole
 from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
@@ -133,7 +133,7 @@ async def remove_member_by_slug(slug: str, email: str) -> None:
 async def persisted_member_user(
     project_id: uuid.UUID,
     *,
-    role: str = UserRole.viewer.value,
+    role: str = "viewer",
     member_role: str | None = None,
     email: str | None = None,
 ) -> User:
@@ -144,7 +144,8 @@ async def persisted_member_user(
     ``organization_members``, so an unsaved ``User(id=uuid4())`` is a non-member
     and every slug route 404s for it.
 
-    ``role`` keeps the instance-era vocabulary the suites were written in and
+    ``role`` keeps the instance-era vocabulary the suites were written in (plain
+    strings; the instance role itself is gone) and
     is mapped by :func:`org_role_for_legacy`: ``owner`` (or ``admin``) is an
     organization owner (admin), ``editor`` / ``viewer`` an organization member.
     ``member_role`` (the project row) defaults to ``role`` for editor/viewer and
@@ -154,7 +155,9 @@ async def persisted_member_user(
 
     org_role = org_role_for_legacy(role)
     resolved_member_role = member_role or (
-        role if role in (UserRole.editor.value, UserRole.viewer.value) else UserRole.editor.value
+        role
+        if role in (ProjectMemberRole.editor.value, ProjectMemberRole.viewer.value)
+        else ProjectMemberRole.editor.value
     )
     async with TestSessionLocal() as session:
         user = User(

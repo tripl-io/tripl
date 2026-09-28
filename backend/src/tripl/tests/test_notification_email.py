@@ -105,7 +105,7 @@ class World:
 
 
 def _user(session: Session, email: str, name: str) -> uuid.UUID:
-    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x", role="editor")
+    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x")
     session.add(user)
     session.flush()
     return user.id

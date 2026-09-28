@@ -2,7 +2,7 @@
 
 The users API manages the members of the request's organization, with their
 ORGANIZATION role (``organization_members.role``: owner | admin | member).
-``users.role`` is neither read nor written here.
+There is no instance-wide role.
 
 Role changes carry invariants the router is the wrong place to hold: an
 organization's owner set must never empty, and only an owner may create or

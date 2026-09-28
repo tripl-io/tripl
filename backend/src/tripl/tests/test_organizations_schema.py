@@ -1,7 +1,8 @@
 """F20 PR1: the organization schema, its backfill, and the settings scope.
 
 The backfill is driven through the migration's own ``backfill_organizations``
-on a SQLite schema built from the models (foreign keys enforced), the way
+on a SQLite schema built from the models as they stood before the legacy role
+was dropped (``_legacy_role_schema``; foreign keys enforced), the way
 ``test_alembic_revisions`` drives other data migrations; the PostgreSQL round
 trip of the whole revision lives in ``test_organizations_migration_pg``.
 """
@@ -21,7 +22,6 @@ from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from tripl.models import Base
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
 from tripl.models.audit_log import AuditLog
@@ -37,6 +37,11 @@ from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.services import app_settings_service
+from tripl.tests._legacy_role_schema import (
+    create_legacy_role_schema,
+    set_invitation_roles,
+    set_user_role,
+)
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_alembic_revisions import _load_migration
@@ -53,7 +58,7 @@ def migration() -> ModuleType:
 def engine() -> Iterator[Engine]:
     engine = create_engine("sqlite://")
     enable_sqlite_foreign_keys(engine)
-    Base.metadata.create_all(engine)
+    create_legacy_role_schema(engine)
     try:
         yield engine
     finally:
@@ -61,9 +66,10 @@ def engine() -> Iterator[Engine]:
 
 
 def _user(session: Session, email: str, role: str) -> uuid.UUID:
-    user = User(email=email, name=email, password_hash="x", role=role)
+    user = User(email=email, name=email, password_hash="x")
     session.add(user)
     session.flush()
+    set_user_role(session, user.id, role)
     return user.id
 
 
@@ -257,15 +263,14 @@ def test_rows_without_an_org_and_project_bound_keys_are_assigned(
                 action="x", target_type="project", project_slug="elsewhere", organization_id=None
             )
         )
-        session.add(
-            Invitation(
-                email="new@example.com",
-                role="viewer",
-                token_hash="c" * 64,
-                expires_at=datetime.now(UTC) + timedelta(days=1),
-            )
+        invitation = Invitation(
+            email="new@example.com",
+            token_hash="c" * 64,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
         )
+        session.add(invitation)
         session.flush()
+        set_invitation_roles(session, invitation.id, "viewer", org_role=None)
         unbound_id = unbound.id
 
     # Written as an old container would have: the key never named an org, so it

@@ -438,8 +438,9 @@ The **first** registered user becomes its `owner` and the platform admin, so the
 instance always has someone who can manage roles and operate it; every later
 self-registration joins as `member` — and is refused entirely unless
 registration is `open` (see [Self-service registration](#self-service-registration)).
-The legacy instance role (`users.role`) is no longer read anywhere; a guard test
-(`tests/test_user_role_readers_guard.py`) fails the build on a new reader.
+There is no instance-wide role: the old one (`users.role`) has been dropped, and
+a guard test (`tests/test_legacy_instance_role_removed.py`) fails the build if
+it comes back.
 
 | Who | Can do |
 | --- | --- |

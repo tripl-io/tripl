@@ -3,12 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum as SAEnum
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
-from tripl.models.domain_enums import OrganizationRole, UserRole
+from tripl.models.domain_enums import OrganizationRole
 from tripl.models.enum_types import db_enum
 
 
@@ -40,14 +39,11 @@ class Invitation(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "invitations"
 
     email: Mapped[str] = mapped_column(String(320), index=True)
-    role: Mapped[UserRole] = mapped_column(
-        SAEnum(UserRole, name="user_role", create_type=False),
-        default=UserRole.editor,
-    )
-    # Reserved for a later PR: the organization role the invitee will join with.
-    # ``role`` above is still the one redemption applies.
-    org_role: Mapped[str | None] = mapped_column(
-        db_enum(OrganizationRole, "organization_member_role"), nullable=True, default=None
+    # The organization role the invitee joins with.
+    org_role: Mapped[str] = mapped_column(
+        db_enum(OrganizationRole, "organization_member_role"),
+        nullable=False,
+        default=OrganizationRole.member.value,
     )
     # The organization the invitee joins. No ORM or server default (F20 PR5).
     organization_id: Mapped[uuid.UUID] = mapped_column(

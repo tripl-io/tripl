@@ -2,7 +2,7 @@
 
 Every route here works on ``organization_members`` of the bound organization:
 the roster, organization roles (owner | admin | member) and invitations into
-that organization. ``users.role`` is neither read nor written.
+that organization. There is no instance-wide role.
 
 * ``GET /users`` — any member of the organization; a non-member gets 403.
 * invitations and ``PATCH /users/{id}`` — an owner or admin of the organization

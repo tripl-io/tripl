@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from tripl.config import settings
 from tripl.models import Base
+from tripl.tests._legacy_role_schema import drop_legacy_role_schema
 from tripl.tests.test_alembic_revisions import _load_migration
 from tripl.tests.test_alert_digest_concurrency_pg import _PG_URL, _engine_or_skip
 
@@ -41,6 +42,7 @@ MIGRATION = "b8d0f2a4c6e8_organizations_schema_and_default_org.py"
 # an ``organization_id`` foreign key that would block dropping ``organizations``.
 # A new revision that depends on the organization schema belongs here.
 LATER_MIGRATIONS: tuple[str, ...] = (
+    "a2c4e6f8b0d3_drop_legacy_instance_role.py",
     "f8a0c2e4b6d9_audit_webhooks.py",
     "f5b7d9e1a3c4_org_scim.py",
     "e3a5c7d9f1b2_org_oidc_sso.py",
@@ -70,12 +72,13 @@ _ORG_COLUMNS = {
 @pytest.fixture
 def pg_engine() -> Iterator[Engine]:
     engine = _engine_or_skip()
-    Base.metadata.drop_all(engine)
+    drop_legacy_role_schema(engine)
     Base.metadata.create_all(engine)
     try:
         yield engine
     finally:
-        Base.metadata.drop_all(engine)
+        # The downgrades put ``user_role`` back; the model metadata no longer knows it.
+        drop_legacy_role_schema(engine)
         engine.dispose()
 
 

@@ -47,13 +47,13 @@ def _is_project_manager(
     """Project role ``owner`` in this project, or the user who created it.
 
     Project role ``owner`` means an owner or admin of the project's OWN
-    organization (:mod:`tripl.services.project_access`); ``users.role`` is not
-    read. Narrower than editing the project's contents (an ``editor`` member
-    may do that): renaming and re-slugging a project, resetting or deleting a
-    demo, and managing its members stay with its creator and the organization's
-    owners and admins. Deleting a real (non-demo) project is narrower still: it
-    is org owner/admin only (``OwnerUserDep`` on ``DELETE /projects/{slug}``),
-    so a creator cannot delete one. A non-member never reaches this check; the
+    organization (:mod:`tripl.services.project_access`). Narrower than editing
+    the project's contents (an ``editor`` member may do that): renaming and
+    re-slugging a project, resetting or deleting a demo, and managing its
+    members stay with its creator and the organization's owners and admins.
+    Deleting a real (non-demo) project is narrower still: it is org
+    owner/admin only (``OwnerUserDep`` on ``DELETE /projects/{slug}``), so a
+    creator cannot delete one. A non-member never reaches this check; the
     membership gate has already answered 404.
     """
     return project_role == project_access.OWNER or project.created_by_user_id == user.id

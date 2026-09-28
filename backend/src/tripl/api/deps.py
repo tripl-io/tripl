@@ -563,8 +563,8 @@ async def _owner_gate(
     checks, only on whether a Bearer token is admitted at all.
 
     "Owner" means owner OR admin of the request's bound organization
-    (``organization_members``); ``users.role`` is not read. With a ``slug`` in
-    the path the caller must also hold project role ``owner`` in that project.
+    (``organization_members``). With a ``slug`` in the path the caller must
+    also hold project role ``owner`` in that project.
     That role only comes from owner/admin of the PROJECT's own organization,
     and the slug is resolved inside the bound organization, so the path
     project's organization is the request's: this is what keeps

@@ -398,7 +398,6 @@ def test_notify_owners_worker_uses_the_projects_organization_relay(
             email="owner.alpha@example.com",
             name="Owner Alpha",
             password_hash="x",
-            role="editor",
         )
         event_type = EventType(
             id=uuid.uuid4(), project_id=project.id, name="page", display_name="Page"
@@ -497,14 +496,12 @@ async def test_manual_notify_owners_uses_the_projects_organization_relay(
             email="manual.owner@example.com",
             name="Manual Owner",
             password_hash="x",
-            role="editor",
         )
         actor = User(
             id=uuid.uuid4(),
             email="manual.actor@example.com",
             name="Manual Actor",
             password_hash="x",
-            role="editor",
         )
         session.add_all([project, owner, actor])
         await session.commit()

@@ -105,8 +105,9 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   organization; `services/project_access.py` turns them into one project role
   (org owner or admin of the project's own organization = `owner` in every
   project of it; a member = their row; no row = `404`). `users.is_platform_admin`
-  grants the operator settings and nothing else. `users.role` is not read (a
-  guard test enforces it). Owner-gated routes (`deps.get_owner_user`) take an
+  grants the operator settings and nothing else. There is no instance-wide role
+  (the old `users.role` is dropped; a guard test keeps it out). Owner-gated
+  routes (`deps.get_owner_user`) take an
   org owner or admin in an interactive session and are not reachable with an
   API key. One enumerated exception carries a separate gate
   (`deps.get_key_reachable_owner_user`): the
@@ -386,7 +387,8 @@ and **changes no behaviour**:
 Later stages resolve the request's organization (`/api/v1/orgs/{org}/...`
 paths, the API key's own organization) and key caches by project id. Since the
 roles stage, permission checks read `organization_members` and
-`project_members`, never `users.role`: its migration re-ran the backfill, filled
+`project_members` (the old instance role, `users.role`, was dropped by a later
+migration): the roles stage's migration re-ran the backfill, filled
 `invitations.org_role`, and capped the project rows of former instance viewers
 at `viewer`. Registration, invitation acceptance and `PATCH /users/{id}` write
 organization roles; the first account of a self-hosted instance is the default

@@ -223,7 +223,6 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
     The advisory lock closes the TOCTOU window: taken before the empty-table
     check and held until this registration's commit, so a concurrent first
     registration waits and then observes this user — exactly one owner.
-    ``users.role`` is not written: nothing reads it any more.
     """
     email = normalize_email(data.email)
 

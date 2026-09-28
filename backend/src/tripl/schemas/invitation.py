@@ -33,7 +33,7 @@ class InvitationResponse(BaseModel):
     id: uuid.UUID
     email: str
     # The organization role the invitee joins with, read from
-    # ``invitations.org_role`` (the legacy ``invitations.role`` is not read).
+    # ``invitations.org_role``.
     role: OrganizationRole = Field(validation_alias="org_role")
     invited_by_user_id: uuid.UUID | None
     expires_at: datetime

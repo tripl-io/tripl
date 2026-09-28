@@ -20,7 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.api.deps import get_current_user
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
-from tripl.models.domain_enums import UserRole
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
@@ -806,7 +805,7 @@ async def test_gates(client: AsyncClient) -> None:
     assert (await client.post(_url(slug, uuid.uuid4()), json={})).status_code == 404
 
     # A persisted viewer MEMBER: a non-member would get 404, not 403.
-    viewer = await persisted_member_user(project_id, role=UserRole.viewer.value)
+    viewer = await persisted_member_user(project_id, role="viewer")
 
     async def _viewer() -> User:
         return viewer
