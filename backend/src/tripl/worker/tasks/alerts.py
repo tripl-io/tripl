@@ -529,8 +529,13 @@ def _resolve_email_context(
     session: Session,
     destination: AlertDestination,
 ) -> tuple[app_settings_service.EmailConfig, list[str], str]:
-    """SMTP config, recipients and From: for one email destination, or raise."""
-    email_config = app_settings_service.get_email_config_sync(session)
+    """SMTP config, recipients and From: for one email destination, or raise.
+
+    The relay is the destination's project's ORGANIZATION's (F20 PR9).
+    """
+    email_config = app_settings_service.get_email_config_for_project_sync(
+        session, destination.project_id
+    )
     if not email_config.smtp_host:
         raise ValueError(
             "Email destination is configured but SMTP is not — set SMTP_HOST "

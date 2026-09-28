@@ -45,6 +45,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from tripl.middleware.org_context import require_org_id
 from tripl.models.notification import Notification, NotificationKind
+from tripl.models.organization import OrganizationMember
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.models.user_notification_prefs import (
@@ -373,8 +374,25 @@ async def mark_read(session: AsyncSession, user: User, data: MarkReadRequest) ->
 # ── delivery preferences ────────────────────────────────────────────────────
 
 
-async def _email_available(session: AsyncSession) -> bool:
-    return app_settings_service.email_can_send(await app_settings_service.get_email_config(session))
+async def _email_available(session: AsyncSession, user: User) -> bool:
+    """Whether ANY organization the user belongs to can send them mail.
+
+    The preferences are per user and apply to every organization, while each
+    organization mails through its own relay (F20 PR9, the digest groups by
+    user and organization) — so the card's "email unavailable" notice holds
+    only when none of them can. A boolean only: nothing about any relay leaks.
+    """
+    org_ids = (
+        await session.scalars(
+            select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user.id)
+        )
+    ).all()
+    for org_id in org_ids:
+        if app_settings_service.email_can_send(
+            await app_settings_service.get_email_config(session, org_id=org_id)
+        ):
+            return True
+    return False
 
 
 async def get_prefs(session: AsyncSession, user: User) -> NotificationPrefsResponse:
@@ -382,7 +400,7 @@ async def get_prefs(session: AsyncSession, user: User) -> NotificationPrefsRespo
     return NotificationPrefsResponse(
         email_mode=row.email_mode if row is not None else DEFAULT_EMAIL_MODE,
         mentions_email=row.mentions_email if row is not None else DEFAULT_MENTIONS_EMAIL,
-        email_available=await _email_available(session),
+        email_available=await _email_available(session, user),
     )
 
 

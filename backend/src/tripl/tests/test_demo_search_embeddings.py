@@ -509,7 +509,7 @@ async def test_postgres_search_serves_lexical_results_when_the_embed_leg_raises(
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", failing_embed)
-    monkeypatch.setattr(app_settings_service, "get_ai_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         results, semantic_used = await _search_query.postgres_search(

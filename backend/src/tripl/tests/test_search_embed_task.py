@@ -119,7 +119,7 @@ def test_task_retries_on_batch_failure_and_keeps_docs_pending(
     )
     monkeypatch.setattr(
         search_tasks.app_settings_service,
-        "get_ai_config_sync",
+        "get_embedding_config_sync",
         lambda session=None: enabled_config,
     )
     monkeypatch.setattr(search_tasks, "embed_texts", lambda texts, *, config: [])
@@ -150,7 +150,7 @@ def test_stranded_chaser_requeues_one_embed_task_per_pending_branch(
     )
     monkeypatch.setattr(
         search_tasks.app_settings_service,
-        "get_ai_config_sync",
+        "get_embedding_config_sync",
         lambda session=None: enabled_config,
     )
     fake_task = MagicMock()
@@ -171,7 +171,7 @@ def test_stranded_chaser_noop_when_embeddings_disabled(
     disabled_config = replace(env_ai_config(), search_embeddings_enabled=False)
     monkeypatch.setattr(
         search_tasks.app_settings_service,
-        "get_ai_config_sync",
+        "get_embedding_config_sync",
         lambda session=None: disabled_config,
     )
     fake_task = MagicMock()

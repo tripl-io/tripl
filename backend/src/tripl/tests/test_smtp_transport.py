@@ -32,6 +32,7 @@ from tripl.config import (
     settings,
 )
 from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
+from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.schemas.app_settings import SmtpSecurity
 from tripl.services.app_settings_service import EmailConfig
 from tripl.tests.test_alembic_revisions import _load_migration
@@ -396,6 +397,7 @@ def test_the_alert_destination_test_send_accepts_a_display_name_sender(
         linear_team_id=None,
         linear_state_id=None,
         linear_label_ids=None,
+        organization_id=DEFAULT_ORG_ID,
     )
 
     _alerting_test_send._send_email(target)

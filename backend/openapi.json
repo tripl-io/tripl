@@ -348,7 +348,9 @@
               "enum": [
                 "env",
                 "override",
-                "default"
+                "default",
+                "org",
+                "disabled"
               ],
               "type": "string"
             },
@@ -5702,6 +5704,94 @@
           "data_type"
         ],
         "title": "ColumnSchema",
+        "type": "object"
+      },
+      "CombinedSettingsResponse": {
+        "description": "The legacy ``/settings`` view (F20 PR9).\n\nThe operator's infrastructure sections are ``None`` for everyone but a\nplatform admin: an organization admin reading its own organization's\nvalues has no business with the operator's server paths, buckets,\ntelemetry endpoint or security policy. ``/platform/settings`` answers\n:class:`ServiceSettingsResponse` with every section filled in.",
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/AiSettings"
+          },
+          "email": {
+            "$ref": "#/components/schemas/EmailSettings"
+          },
+          "observability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservabilitySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overridden_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Overridden Fields",
+            "type": "array"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/RuntimeSettings"
+          },
+          "security": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SecuritySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "additionalProperties": {
+              "enum": [
+                "env",
+                "override",
+                "default",
+                "org",
+                "disabled"
+              ],
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StorageSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "system": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SystemSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "runtime",
+          "security",
+          "storage",
+          "observability",
+          "email",
+          "ai",
+          "system",
+          "overridden_fields",
+          "sources"
+        ],
+        "title": "CombinedSettingsResponse",
         "type": "object"
       },
       "ComponentAverage": {
@@ -17930,6 +18020,171 @@
         "title": "ObservabilitySettingsUpdate",
         "type": "object"
       },
+      "OrgAiSettings": {
+        "properties": {
+          "ai_api_key_configured": {
+            "title": "Ai Api Key Configured",
+            "type": "boolean"
+          },
+          "ai_base_url": {
+            "title": "Ai Base Url",
+            "type": "string"
+          },
+          "ai_enabled": {
+            "title": "Ai Enabled",
+            "type": "boolean"
+          },
+          "ai_max_output_tokens": {
+            "title": "Ai Max Output Tokens",
+            "type": "integer"
+          },
+          "ai_model": {
+            "title": "Ai Model",
+            "type": "string"
+          },
+          "ai_timeout_seconds": {
+            "title": "Ai Timeout Seconds",
+            "type": "integer"
+          },
+          "alert_explanation_system_prompt": {
+            "title": "Alert Explanation System Prompt",
+            "type": "string"
+          },
+          "ask_system_prompt": {
+            "title": "Ask System Prompt",
+            "type": "string"
+          },
+          "describe_system_prompt": {
+            "title": "Describe System Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ai_enabled",
+          "ai_base_url",
+          "ai_model",
+          "ai_api_key_configured",
+          "ai_timeout_seconds",
+          "ai_max_output_tokens",
+          "describe_system_prompt",
+          "ask_system_prompt",
+          "alert_explanation_system_prompt"
+        ],
+        "title": "OrgAiSettings",
+        "type": "object"
+      },
+      "OrgAiSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "ai_api_key": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Api Key"
+          },
+          "ai_base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Base Url"
+          },
+          "ai_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Enabled"
+          },
+          "ai_max_output_tokens": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Max Output Tokens"
+          },
+          "ai_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Model"
+          },
+          "ai_timeout_seconds": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Timeout Seconds"
+          },
+          "alert_explanation_system_prompt": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Explanation System Prompt"
+          },
+          "ask_system_prompt": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask System Prompt"
+          },
+          "describe_system_prompt": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Describe System Prompt"
+          }
+        },
+        "title": "OrgAiSettingsUpdate",
+        "type": "object"
+      },
       "OrgCreate": {
         "additionalProperties": false,
         "description": "A new organization. The slug is permanent (owner decision 6).",
@@ -17969,6 +18224,136 @@
           "confirm_slug"
         ],
         "title": "OrgDeleteRequest",
+        "type": "object"
+      },
+      "OrgEmailSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "smtp_from_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp From Address"
+          },
+          "smtp_host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Host"
+          },
+          "smtp_password": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Password"
+          },
+          "smtp_port": {
+            "anyOf": [
+              {
+                "maximum": 65535.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Port"
+          },
+          "smtp_security": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "starttls",
+                  "implicit_tls"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Security"
+          },
+          "smtp_username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Smtp Username"
+          }
+        },
+        "title": "OrgEmailSettingsUpdate",
+        "type": "object"
+      },
+      "OrgLimitSettings": {
+        "properties": {
+          "metrics_row_limit_default": {
+            "title": "Metrics Row Limit Default",
+            "type": "integer"
+          },
+          "scan_row_limit_default": {
+            "title": "Scan Row Limit Default",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scan_row_limit_default",
+          "metrics_row_limit_default"
+        ],
+        "title": "OrgLimitSettings",
+        "type": "object"
+      },
+      "OrgLimitSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics_row_limit_default": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metrics Row Limit Default"
+          },
+          "scan_row_limit_default": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Row Limit Default"
+          }
+        },
+        "title": "OrgLimitSettingsUpdate",
         "type": "object"
       },
       "OrgMemberRemoved": {
@@ -18066,6 +18451,166 @@
           "created_at"
         ],
         "title": "OrgResponse",
+        "type": "object"
+      },
+      "OrgSettingsCeilings": {
+        "description": "The operator's maxima: an organization's value above one is clamped to it.",
+        "properties": {
+          "ai_max_output_tokens": {
+            "title": "Ai Max Output Tokens",
+            "type": "integer"
+          },
+          "ai_timeout_seconds": {
+            "title": "Ai Timeout Seconds",
+            "type": "integer"
+          },
+          "metrics_row_limit_default": {
+            "title": "Metrics Row Limit Default",
+            "type": "integer"
+          },
+          "scan_row_limit_default": {
+            "title": "Scan Row Limit Default",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scan_row_limit_default",
+          "metrics_row_limit_default",
+          "ai_timeout_seconds",
+          "ai_max_output_tokens"
+        ],
+        "title": "OrgSettingsCeilings",
+        "type": "object"
+      },
+      "OrgSettingsResponse": {
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/OrgAiSettings"
+          },
+          "ceilings": {
+            "$ref": "#/components/schemas/OrgSettingsCeilings"
+          },
+          "email": {
+            "$ref": "#/components/schemas/EmailSettings"
+          },
+          "inherited": {
+            "$ref": "#/components/schemas/OrgSettingsValues"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/OrgLimitSettings"
+          },
+          "operator_fallback": {
+            "enum": [
+              "all",
+              "none"
+            ],
+            "title": "Operator Fallback",
+            "type": "string"
+          },
+          "organization": {
+            "title": "Organization",
+            "type": "string"
+          },
+          "overridden_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Overridden Fields",
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "organization",
+              "operator"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "enum": [
+                "env",
+                "override",
+                "default",
+                "org",
+                "disabled"
+              ],
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "object"
+          }
+        },
+        "required": [
+          "limits",
+          "email",
+          "ai",
+          "organization",
+          "scope",
+          "operator_fallback",
+          "inherited",
+          "ceilings",
+          "overridden_fields",
+          "sources"
+        ],
+        "title": "OrgSettingsResponse",
+        "type": "object"
+      },
+      "OrgSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "ai": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgAiSettingsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "email": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgEmailSettingsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limits": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgLimitSettingsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "OrgSettingsUpdate",
+        "type": "object"
+      },
+      "OrgSettingsValues": {
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/OrgAiSettings"
+          },
+          "email": {
+            "$ref": "#/components/schemas/EmailSettings"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/OrgLimitSettings"
+          }
+        },
+        "required": [
+          "limits",
+          "email",
+          "ai"
+        ],
+        "title": "OrgSettingsValues",
         "type": "object"
       },
       "OrgTransferOwnership": {
@@ -24792,7 +25337,9 @@
               "enum": [
                 "env",
                 "override",
-                "default"
+                "default",
+                "org",
+                "disabled"
               ],
               "type": "string"
             },
@@ -29523,6 +30070,212 @@
         ]
       }
     },
+    "/api/v1/orgs/{org}/settings": {
+      "get": {
+        "operationId": "get_org_settings_api_v1_orgs__org__settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Org Settings",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_org_settings_api_v1_orgs__org__settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Org Settings",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "put": {
+        "description": "Identical to PATCH: a sparse override map, unset fields left untouched.",
+        "operationId": "put_org_settings_api_v1_orgs__org__settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Org Settings",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/settings/ai/test": {
+      "post": {
+        "description": "Probe the AI provider THIS organization would use, with its saved values.",
+        "operationId": "test_org_ai_settings_api_v1_orgs__org__settings_ai_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSettingsTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Org Ai Settings",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/settings/email/test": {
+      "post": {
+        "description": "Send one probe through THIS organization's relay; always 200.",
+        "operationId": "test_org_email_settings_api_v1_orgs__org__settings_email_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSettingsTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Org Email Settings",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/settings/row-limits": {
+      "get": {
+        "description": "The organization's effective row caps, readable by every member.",
+        "operationId": "get_org_row_limits_api_v1_orgs__org__settings_row_limits_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RowLimitDefaultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Org Row Limits",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
     "/api/v1/orgs/{org}/transfer-ownership": {
       "post": {
         "description": "Make another member an owner and step the caller down to admin.",
@@ -29562,6 +30315,150 @@
         "summary": "Transfer Ownership",
         "tags": [
           "organizations"
+        ]
+      }
+    },
+    "/api/v1/platform/settings": {
+      "get": {
+        "operationId": "get_platform_settings_api_v1_platform_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Platform Settings",
+        "tags": [
+          "platform"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_platform_settings_api_v1_platform_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceSettingsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Platform Settings",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/settings/ai/test": {
+      "post": {
+        "description": "Probe the operator's AI provider (what organizations inherit).",
+        "operationId": "test_platform_ai_settings_api_v1_platform_settings_ai_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiSettingsTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Platform Ai Settings",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/platform/settings/email/test": {
+      "post": {
+        "description": "Send one probe through the operator's relay: the one account mail uses.",
+        "operationId": "test_platform_email_settings_api_v1_platform_settings_email_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSettingsTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsTestResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Platform Email Settings",
+        "tags": [
+          "platform"
         ]
       }
     },
@@ -46545,7 +47442,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ServiceSettingsResponse"
+                  "$ref": "#/components/schemas/CombinedSettingsResponse"
                 }
               }
             },
@@ -46574,7 +47471,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ServiceSettingsResponse"
+                  "$ref": "#/components/schemas/CombinedSettingsResponse"
                 }
               }
             },
@@ -46614,7 +47511,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ServiceSettingsResponse"
+                  "$ref": "#/components/schemas/CombinedSettingsResponse"
                 }
               }
             },
@@ -46723,7 +47620,7 @@
     },
     "/api/v1/settings/email/test": {
       "post": {
-        "description": "Send one probe message with the saved SMTP settings and report what happened.\n\nAlways 200: a relay refusing us is the answer the caller asked for, not a\nserver fault \u2014 the same reasoning the alert-destination test states. The\nerror text is passed through verbatim because a useful SMTP diagnostic is\nthe server's own words (\"535 authentication failed\", a connection timeout);\nsmtplib carries the relay's response in there, never the credential we sent.",
+        "description": "Send one probe message with the saved SMTP settings and report what happened.\n\nAlways 200: a relay refusing us is the answer the caller asked for, not a\nserver fault \u2014 the same reasoning the alert-destination test states.",
         "operationId": "test_email_settings_api_v1_settings_email_test_post",
         "requestBody": {
           "content": {
@@ -46787,7 +47684,7 @@
     },
     "/api/v1/settings/row-limits": {
       "get": {
-        "description": "The instance row caps a scan falls back to, readable by every signed-in user.\n\nAdmin-only like the rest of this router would hide the real numbers from the\neditors who fill in a scan's Limits, so the form hard-coded the shipped\ndefaults instead (B15). Two integers, nothing about the connection.",
+        "description": "The instance row caps a scan falls back to, readable by every signed-in user.\n\nAdmin-only like the rest of this router would hide the real numbers from the\neditors who fill in a scan's Limits, so the form hard-coded the shipped\ndefaults instead (B15). Two integers, nothing about the connection.\n\nThe caller's organization's caps (F20 PR9), resolved like the rest of the\nlegacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.",
         "operationId": "get_row_limit_defaults_api_v1_settings_row_limits_get",
         "responses": {
           "200": {

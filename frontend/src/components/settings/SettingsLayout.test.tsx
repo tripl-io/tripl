@@ -8,8 +8,8 @@ import { WORKSPACE_GROUPS } from './nav'
 import { useUnsavedChanges } from './unsaved-changes'
 import type { Project } from '@/types'
 
-// Mock the auth context so the layout renders as an owner (Instance group is
-// owner-only) without pulling in the real provider/network.
+// Mock the auth context so the layout renders as an owner and platform admin
+// (the Platform group is the platform admin's) without pulling in the real provider/network.
 vi.mock('@/components/auth-context', () => ({
   useAuth: () => ({
     user: {
@@ -151,9 +151,9 @@ describe('SettingsLayout signposting', () => {
 
     expect(screen.getByText('Shared across everyone in the organization')).toBeInTheDocument()
     expect(screen.getByText('Settings just for you')).toBeInTheDocument()
-    // "(owner only)" once, in the sub-label, not again in the description (ST-7).
+    // Who a group is for once, in the sub-label, not again in the description (ST-7).
     expect(screen.getByText('Server-wide settings')).toBeInTheDocument()
-    expect(screen.getByText('Owner only')).toBeInTheDocument()
+    expect(screen.getByText('Platform admin')).toBeInTheDocument()
   })
 })
 
@@ -223,16 +223,17 @@ describe('SettingsLayout project switcher (ST-6)', () => {
 })
 
 describe('SettingsLayout nav accessibility', () => {
-  it('gives the icon-led AI instance nav link an accessible name', () => {
+  it('gives the icon-led AI nav links accessible names, the organization\'s and the platform\'s apart', () => {
     renderSettings('instance/ai')
 
-    expect(screen.getByRole('link', { name: 'AI' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'AI' })).toHaveAttribute('href', '/settings/organization/ai')
+    expect(screen.getByRole('link', { name: 'AI & search' })).toHaveAttribute('href', '/settings/instance/ai')
   })
 
-  it('every Instance settings nav entry is a real link with an accessible name', () => {
+  it('every Platform settings nav entry is a real link with an accessible name', () => {
     renderSettings('instance/runtime')
 
-    const instance = WORKSPACE_GROUPS.find((group) => group.label === 'Instance')
+    const instance = WORKSPACE_GROUPS.find((group) => group.label === 'Platform')
     expect(instance).toBeDefined()
 
     for (const item of instance!.items) {
@@ -553,7 +554,7 @@ describe('SettingsLayout unsaved-changes guard', () => {
 
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
     const palette = await screen.findByRole('dialog')
-    fireEvent.click(within(palette).getByText('Email'))
+    fireEvent.click(within(palette).getByText('Mail relay'))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(screen.queryByRole('alertdialog')).toBeNull()
@@ -568,11 +569,11 @@ describe('SettingsLayout unsaved-changes guard', () => {
   })
 
   it('stays silent when the destination keeps the draft', () => {
-    // AI → Email keeps ServiceSettingsPage mounted, so a prompt here would be
-    // a false alarm on every section switch (tripl-l8v2).
+    // AI → Mail relay keeps ServiceSettingsPage mounted, so a prompt here would
+    // be a false alarm on every section switch (tripl-l8v2).
     renderWithDraft()
 
-    fireEvent.click(screen.getByRole('link', { name: 'Email' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Mail relay' }))
 
     expect(screen.queryByRole('alertdialog')).toBeNull()
   })

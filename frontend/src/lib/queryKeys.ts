@@ -274,6 +274,15 @@ export const projectsQueryOptions = () =>
 export const orgsKey = () => ['orgs'] as const
 /** One organization, rooted at THAT organization. */
 export const orgKey = (org: string) => [org, 'org'] as const
+/** One organization's own settings (mail, AI, row limits), rooted at THAT organization. */
+export const orgSettingsKey = (org: string) => [org, 'orgSettings'] as const
+/**
+ * Every cached query whose data inherits the platform (operator) settings, in any organization:
+ * an organization's settings view (its inherited values and ceilings) and the row caps the scan
+ * form quotes. A platform save refreshes them all.
+ */
+export const inheritsPlatformSettings = (queryKey: readonly unknown[]): boolean =>
+  queryKey.includes('orgSettings') || queryKey.includes('rowLimitDefaults')
 /**
  * One organization's projects, named explicitly rather than by the active
  * organization: the `/p/{slug}` redirect asks every organization the user

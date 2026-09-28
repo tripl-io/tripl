@@ -601,6 +601,88 @@ export interface paths {
         patch: operations["update_member_role_api_v1_orgs__org__members__user_id__patch"];
         trace?: never;
     };
+    "/api/v1/orgs/{org}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Org Settings */
+        get: operations["get_org_settings_api_v1_orgs__org__settings_get"];
+        /**
+         * Put Org Settings
+         * @description Identical to PATCH: a sparse override map, unset fields left untouched.
+         */
+        put: operations["put_org_settings_api_v1_orgs__org__settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Org Settings */
+        patch: operations["patch_org_settings_api_v1_orgs__org__settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Org Ai Settings
+         * @description Probe the AI provider THIS organization would use, with its saved values.
+         */
+        post: operations["test_org_ai_settings_api_v1_orgs__org__settings_ai_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Org Email Settings
+         * @description Send one probe through THIS organization's relay; always 200.
+         */
+        post: operations["test_org_email_settings_api_v1_orgs__org__settings_email_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/row-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Org Row Limits
+         * @description The organization's effective row caps, readable by every member.
+         */
+        get: operations["get_org_row_limits_api_v1_orgs__org__settings_row_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orgs/{org}/transfer-ownership": {
         parameters: {
             query?: never;
@@ -615,6 +697,64 @@ export interface paths {
          * @description Make another member an owner and step the caller down to admin.
          */
         post: operations["transfer_ownership_api_v1_orgs__org__transfer_ownership_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Platform Settings */
+        get: operations["get_platform_settings_api_v1_platform_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Platform Settings */
+        patch: operations["patch_platform_settings_api_v1_platform_settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/platform/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Platform Ai Settings
+         * @description Probe the operator's AI provider (what organizations inherit).
+         */
+        post: operations["test_platform_ai_settings_api_v1_platform_settings_ai_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/settings/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Platform Email Settings
+         * @description Send one probe through the operator's relay: the one account mail uses.
+         */
+        post: operations["test_platform_email_settings_api_v1_platform_settings_email_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4570,10 +4710,7 @@ export interface paths {
          * @description Send one probe message with the saved SMTP settings and report what happened.
          *
          *     Always 200: a relay refusing us is the answer the caller asked for, not a
-         *     server fault — the same reasoning the alert-destination test states. The
-         *     error text is passed through verbatim because a useful SMTP diagnostic is
-         *     the server's own words ("535 authentication failed", a connection timeout);
-         *     smtplib carries the relay's response in there, never the credential we sent.
+         *     server fault — the same reasoning the alert-destination test states.
          */
         post: operations["test_email_settings_api_v1_settings_email_test_post"];
         delete?: never;
@@ -4621,6 +4758,9 @@ export interface paths {
          *     Admin-only like the rest of this router would hide the real numbers from the
          *     editors who fill in a scan's Limits, so the form hard-coded the shipped
          *     defaults instead (B15). Two integers, nothing about the connection.
+         *
+         *     The caller's organization's caps (F20 PR9), resolved like the rest of the
+         *     legacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.
          */
         get: operations["get_row_limit_defaults_api_v1_settings_row_limits_get"];
         put?: never;
@@ -4892,7 +5032,7 @@ export interface components {
             overridden_fields: string[];
             /** Sources */
             sources: {
-                [key: string]: "env" | "override" | "default";
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
             };
         };
         /** AiSettingsTestRequest */
@@ -6917,6 +7057,31 @@ export interface components {
             data_type: string;
             /** Name */
             name: string;
+        };
+        /**
+         * CombinedSettingsResponse
+         * @description The legacy ``/settings`` view (F20 PR9).
+         *
+         *     The operator's infrastructure sections are ``None`` for everyone but a
+         *     platform admin: an organization admin reading its own organization's
+         *     values has no business with the operator's server paths, buckets,
+         *     telemetry endpoint or security policy. ``/platform/settings`` answers
+         *     :class:`ServiceSettingsResponse` with every section filled in.
+         */
+        CombinedSettingsResponse: {
+            ai: components["schemas"]["AiSettings"];
+            email: components["schemas"]["EmailSettings"];
+            observability: components["schemas"]["ObservabilitySettings"] | null;
+            /** Overridden Fields */
+            overridden_fields: string[];
+            runtime: components["schemas"]["RuntimeSettings"];
+            security: components["schemas"]["SecuritySettings"] | null;
+            /** Sources */
+            sources: {
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
+            };
+            storage: components["schemas"]["StorageSettings"] | null;
+            system: components["schemas"]["SystemSettings"] | null;
         };
         /**
          * ComponentAverage
@@ -11598,6 +11763,48 @@ export interface components {
             /** Request Id Header */
             request_id_header?: string | null;
         };
+        /** OrgAiSettings */
+        OrgAiSettings: {
+            /** Ai Api Key Configured */
+            ai_api_key_configured: boolean;
+            /** Ai Base Url */
+            ai_base_url: string;
+            /** Ai Enabled */
+            ai_enabled: boolean;
+            /** Ai Max Output Tokens */
+            ai_max_output_tokens: number;
+            /** Ai Model */
+            ai_model: string;
+            /** Ai Timeout Seconds */
+            ai_timeout_seconds: number;
+            /** Alert Explanation System Prompt */
+            alert_explanation_system_prompt: string;
+            /** Ask System Prompt */
+            ask_system_prompt: string;
+            /** Describe System Prompt */
+            describe_system_prompt: string;
+        };
+        /** OrgAiSettingsUpdate */
+        OrgAiSettingsUpdate: {
+            /** Ai Api Key */
+            ai_api_key?: string | null;
+            /** Ai Base Url */
+            ai_base_url?: string | null;
+            /** Ai Enabled */
+            ai_enabled?: boolean | null;
+            /** Ai Max Output Tokens */
+            ai_max_output_tokens?: number | null;
+            /** Ai Model */
+            ai_model?: string | null;
+            /** Ai Timeout Seconds */
+            ai_timeout_seconds?: number | null;
+            /** Alert Explanation System Prompt */
+            alert_explanation_system_prompt?: string | null;
+            /** Ask System Prompt */
+            ask_system_prompt?: string | null;
+            /** Describe System Prompt */
+            describe_system_prompt?: string | null;
+        };
         /**
          * OrgCreate
          * @description A new organization. The slug is permanent (owner decision 6).
@@ -11615,6 +11822,35 @@ export interface components {
         OrgDeleteRequest: {
             /** Confirm Slug */
             confirm_slug: string;
+        };
+        /** OrgEmailSettingsUpdate */
+        OrgEmailSettingsUpdate: {
+            /** Smtp From Address */
+            smtp_from_address?: string | null;
+            /** Smtp Host */
+            smtp_host?: string | null;
+            /** Smtp Password */
+            smtp_password?: string | null;
+            /** Smtp Port */
+            smtp_port?: number | null;
+            /** Smtp Security */
+            smtp_security?: ("none" | "starttls" | "implicit_tls") | null;
+            /** Smtp Username */
+            smtp_username?: string | null;
+        };
+        /** OrgLimitSettings */
+        OrgLimitSettings: {
+            /** Metrics Row Limit Default */
+            metrics_row_limit_default: number;
+            /** Scan Row Limit Default */
+            scan_row_limit_default: number;
+        };
+        /** OrgLimitSettingsUpdate */
+        OrgLimitSettingsUpdate: {
+            /** Metrics Row Limit Default */
+            metrics_row_limit_default?: number | null;
+            /** Scan Row Limit Default */
+            scan_row_limit_default?: number | null;
         };
         /**
          * OrgMemberRemoved
@@ -11667,6 +11903,58 @@ export interface components {
             /** Slug */
             slug: string;
             status: components["schemas"]["OrganizationStatus"];
+        };
+        /**
+         * OrgSettingsCeilings
+         * @description The operator's maxima: an organization's value above one is clamped to it.
+         */
+        OrgSettingsCeilings: {
+            /** Ai Max Output Tokens */
+            ai_max_output_tokens: number;
+            /** Ai Timeout Seconds */
+            ai_timeout_seconds: number;
+            /** Metrics Row Limit Default */
+            metrics_row_limit_default: number;
+            /** Scan Row Limit Default */
+            scan_row_limit_default: number;
+        };
+        /** OrgSettingsResponse */
+        OrgSettingsResponse: {
+            ai: components["schemas"]["OrgAiSettings"];
+            ceilings: components["schemas"]["OrgSettingsCeilings"];
+            email: components["schemas"]["EmailSettings"];
+            inherited: components["schemas"]["OrgSettingsValues"];
+            limits: components["schemas"]["OrgLimitSettings"];
+            /**
+             * Operator Fallback
+             * @enum {string}
+             */
+            operator_fallback: "all" | "none";
+            /** Organization */
+            organization: string;
+            /** Overridden Fields */
+            overridden_fields: string[];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "organization" | "operator";
+            /** Sources */
+            sources: {
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
+            };
+        };
+        /** OrgSettingsUpdate */
+        OrgSettingsUpdate: {
+            ai?: components["schemas"]["OrgAiSettingsUpdate"] | null;
+            email?: components["schemas"]["OrgEmailSettingsUpdate"] | null;
+            limits?: components["schemas"]["OrgLimitSettingsUpdate"] | null;
+        };
+        /** OrgSettingsValues */
+        OrgSettingsValues: {
+            ai: components["schemas"]["OrgAiSettings"];
+            email: components["schemas"]["EmailSettings"];
+            limits: components["schemas"]["OrgLimitSettings"];
         };
         /**
          * OrgTransferOwnership
@@ -14320,7 +14608,7 @@ export interface components {
             security: components["schemas"]["SecuritySettings"];
             /** Sources */
             sources: {
-                [key: string]: "env" | "override" | "default";
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
             };
             storage: components["schemas"]["StorageSettings"];
             system: components["schemas"]["SystemSettings"] | null;
@@ -16726,6 +17014,178 @@ export interface operations {
             };
         };
     };
+    get_org_settings_api_v1_orgs__org__settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+        };
+    };
+    put_org_settings_api_v1_orgs__org__settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_org_settings_api_v1_orgs__org__settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_org_ai_settings_api_v1_orgs__org__settings_ai_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_org_email_settings_api_v1_orgs__org__settings_email_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_row_limits_api_v1_orgs__org__settings_row_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowLimitDefaultsResponse"];
+                };
+            };
+        };
+    };
     transfer_ownership_api_v1_orgs__org__transfer_ownership_post: {
         parameters: {
             query?: never;
@@ -16746,6 +17206,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_platform_settings_api_v1_platform_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                };
+            };
+        };
+    };
+    patch_platform_settings_api_v1_platform_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_platform_ai_settings_api_v1_platform_settings_ai_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_platform_email_settings_api_v1_platform_settings_email_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25658,7 +26237,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                    "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
         };
@@ -25682,7 +26261,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                    "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25715,7 +26294,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                    "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
             /** @description Validation Error */

@@ -146,7 +146,9 @@ async def test_unknown_org_is_401_for_an_anonymous_caller(anon_client: AsyncClie
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/orgs/default/settings",
+        # Not rewritten to the legacy ``/settings/runtime`` (which does not
+        # exist either): ``settings`` is not a rewrite prefix.
+        "/api/v1/orgs/default/settings/runtime",
         "/api/v1/orgs/default/project-templates",
         "/api/v1/orgs/default/auth/me",
     ],
@@ -155,6 +157,16 @@ async def test_non_allow_listed_org_paths_reach_no_route(client: AsyncClient, pa
     resp = await client.get(path)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Not Found"
+
+
+async def test_org_settings_are_real_routes_not_the_legacy_view(client: AsyncClient) -> None:
+    """``/orgs/{org}/settings`` is the organization's own settings (F20 PR9,
+    critique #10): served by its own route, never rewritten to ``/settings``."""
+    assert rewrite_org_path("/api/v1/orgs/default/settings") is None
+    resp = await client.get("/api/v1/orgs/default/settings")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["organization"] == "default"
+    assert "security" not in resp.json()
 
 
 async def test_the_organization_routes_are_real_and_never_rewritten(client: AsyncClient) -> None:

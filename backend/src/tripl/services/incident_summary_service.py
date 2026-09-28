@@ -86,7 +86,7 @@ SYSTEM_PROMPT = (
 async def _disabled_reason(
     session: AsyncSession, project: Project
 ) -> tuple[IncidentSummaryDisabledReason | None, AiConfig]:
-    config = await app_settings_service.get_ai_config(session)
+    config = await app_settings_service.get_ai_config(session, org_id=project.organization_id)
     if project.is_demo:
         return "demo", config
     if not llm_service.is_enabled(config):

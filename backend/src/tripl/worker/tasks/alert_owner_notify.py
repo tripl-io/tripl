@@ -291,7 +291,9 @@ def _notify_owners(session: Session, delivery_id: uuid.UUID) -> dict[str, object
     if project.is_demo:
         skip_reason = alert_owner_routing.DEMO_PROJECT_SKIPPED
     else:
-        email_config = app_settings_service.get_email_config_sync(session)
+        email_config = app_settings_service.get_email_config_sync(
+            session, org_id=project.organization_id
+        )
         try:
             from_address = alert_owner_routing.owner_email_sender(email_config)
         except alert_owner_routing.OwnerEmailUnavailable as exc:

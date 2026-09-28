@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react'
 import { lazyWithReload } from '@/lib/lazyWithReload'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { projectsQueryOptions } from '@/lib/queryKeys'
 import { projectHomePath, workspacePath } from '@/lib/navigation'
@@ -15,6 +15,7 @@ import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
 import { isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
 import { orgStorageKey } from '@/lib/activeOrg'
+import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -28,6 +29,7 @@ const ProfileSection = lazyWithReload(() => import('./ProfileSection'))
 const SecuritySection = lazyWithReload(() => import('./SecuritySection'))
 const InstanceSection = lazyWithReload(() => import('./InstanceSection'))
 const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSection'))
+const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
@@ -210,6 +212,7 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   'api-keys',
   'profile',
   'security',
+  ...Object.values(ORG_SECTION_PATHS),
 ])
 
 function renderSection({
@@ -242,6 +245,15 @@ function renderSection({
   if (section === 'api-keys') return <ApiKeysSection />
   if (section === 'profile') return <ProfileSection />
   if (section === 'security') return <SecuritySection />
+  const orgSection = orgSectionForPath(section)
+  if (orgSection) {
+    // The organization's own mail, AI and limits: its owners and admins. The
+    // platform flag grants nothing inside an organization.
+    return isOwner ? <OrgSettingsSection section={orgSection} /> : <OwnerOnly section={section} />
+  }
+  // One route serves every organization section; an unknown one is not a
+  // project section to guess at.
+  if (section.startsWith('organization/')) return <Navigate to="/settings/organization/general" replace />
   if (section.startsWith('instance/')) {
     // Audit is the one Instance section that is not a settings form, so it does
     // not go through InstanceSection — that component's whole job is to frame a
@@ -250,10 +262,9 @@ function renderSection({
     if (section === 'instance/audit') {
       return isOwner ? <WorkspaceAuditSection /> : <OwnerOnly section={section} />
     }
-    // The settings sections are also a platform admin's, who may hold no role
-    // in any organization; ServiceSettingsPage keeps the operator-only
-    // sections from an org admin.
-    if (!isOwner && !platformAdmin) return <OwnerOnly section={section} />
+    // Every other instance/* section is the Platform console (F20 PR9): the
+    // operator's, whatever the caller's organization role.
+    if (!platformAdmin) return <PlatformOnly section={section} />
     return <InstanceSection section={section.slice('instance/'.length)} />
   }
   // Everything below is project-scoped. Never guess which project that is.
@@ -358,7 +369,29 @@ function NoProjectSelected({
 }
 
 /**
- * An Instance section opened by a non-owner (a shared link, a bookmark). The
+ * A Platform section opened by anyone but a platform admin: the rail hides the
+ * group from them, so the page names itself and says whose it is.
+ */
+function PlatformOnly({ section }: { section: string }) {
+  return (
+    <div>
+      <StateHeader section={section} />
+      <ReadOnlyNotice
+        action={
+          <Link to="/settings/profile" className="text-body-sm font-medium text-accent no-underline hover:underline">
+            Go to Profile
+          </Link>
+        }
+      >
+        Platform admin is required to view or change platform settings: they configure the server
+        itself and the defaults every organization inherits.
+      </ReadOnlyNotice>
+    </div>
+  )
+}
+
+/**
+ * An owner-only section opened by a non-owner (a shared link, a bookmark). The
  * rail hides the Instance group from them, so the page has to say where they
  * are itself: the section's title, the one read-only notice, and a way out
  * (#237 ST-17 / ST-36).
@@ -374,8 +407,8 @@ function OwnerOnly({ section }: { section: string }) {
           </Link>
         }
       >
-        Owner role is required to view or change instance-level settings. Ask an owner, or go to
-        Profile.
+        Owner role is required to view or change organization-level settings. Ask an owner, or go
+        to Profile.
       </ReadOnlyNotice>
     </div>
   )

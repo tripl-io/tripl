@@ -19,7 +19,6 @@ from tripl.middleware.org_context import (
     require_org_id,
 )
 from tripl.models.domain_enums import OrganizationRole
-from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -82,6 +81,8 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
 _ORG_FREE_PATH_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth/",
     "/api/v1/settings",
+    # The operator console (F20 PR9): instance-wide, no organization.
+    "/api/v1/platform",
     "/api/v1/project-templates",
     # The organization management API (F20 PR6): ``GET/POST /orgs`` act in no
     # organization, and ``/orgs/{org}/...`` resolves the organization its path
@@ -468,18 +469,53 @@ async def require_platform_admin(request: Request, user: CurrentUserDep) -> User
     return user
 
 
-async def is_settings_admin(session: AsyncSession, user: User) -> bool:
-    """Whether ``user`` may manage the organization-scoped instance settings.
+_LEGACY_SETTINGS_ORG_STATE_KEY = "legacy_settings_org_id"
 
-    A platform admin, or an owner/admin of the default organization. Until
-    per-organization settings exist (PR9) the instance-scope values are exactly
-    what the default organization inherits, so no other organization's admin may
-    overwrite them.
+
+async def legacy_settings_org_id(
+    request: Request, session: AsyncSession, user: User
+) -> uuid.UUID | None:
+    """The organization the legacy ``/settings`` acts in for its org fields (F20 PR9).
+
+    ``/settings`` is org-free (no organization is bound for it), so it resolves
+    one itself, with the legacy-path rule: the default organization on a
+    self-hosted instance, the user's only organization on a hosted one (an API
+    key: its own), and ``None`` when a hosted user has none or several — never
+    a fallback. Cached on the request.
+    """
+    cached = getattr(request.state, _LEGACY_SETTINGS_ORG_STATE_KEY, _ORG_ROLE_UNSET)
+    if cached is not _ORG_ROLE_UNSET:
+        return cast(uuid.UUID | None, cached)
+    org_id: uuid.UUID | None
+    try:
+        org = await resolve_request_org(
+            session,
+            user=user,
+            key_org_id=getattr(request.state, "api_key_org_id", None),
+            path_org_slug=None,
+        )
+    except HTTPException:
+        org_id = None
+    else:
+        org_id = org.id
+    setattr(request.state, _LEGACY_SETTINGS_ORG_STATE_KEY, org_id)
+    return org_id
+
+
+async def is_settings_admin(request: Request, session: AsyncSession, user: User) -> bool:
+    """Whether ``user`` may use the legacy combined ``/settings``.
+
+    A platform admin, or an owner/admin of the organization the legacy route
+    acts in (:func:`legacy_settings_org_id`): the default organization when
+    self-hosted, the user's only organization when hosted.
     """
     if user.is_platform_admin:
         return True
+    org_id = await legacy_settings_org_id(request, session, user)
+    if org_id is None:
+        return False
     return project_access.is_org_admin_role(
-        await project_access.org_role_of(session, user.id, DEFAULT_ORG_ID)
+        await project_access.org_role_of(session, user.id, org_id)
     )
 
 
@@ -489,7 +525,8 @@ async def get_settings_admin_user(
     """The gate of ``/settings``: :func:`is_settings_admin`, session only.
 
     Operator fields inside a settings write additionally need
-    :func:`require_platform_admin`'s check, applied by the route to the payload.
+    :func:`require_platform_admin`'s check, and organization fields an admin
+    role in the resolved organization; the route applies both to the payload.
     """
     require_write_scope(request)
     if getattr(request.state, "api_key_scope", None) is not None:
@@ -497,7 +534,7 @@ async def get_settings_admin_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Owner session required",
         )
-    if not await is_settings_admin(session, user):
+    if not await is_settings_admin(request, session, user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
     return user
 

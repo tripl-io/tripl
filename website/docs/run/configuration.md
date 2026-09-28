@@ -168,7 +168,70 @@ cannot be changed in **Settings → Instance**.
 | --- | --- | --- | --- |
 | `DEPLOYMENT_MODE` | `self_hosted` | No | `self_hosted` is one team's instance. `hosted` is a multi-tenant service. It is read when the database is migrated to decide who becomes a **platform admin** (the operator of the whole instance). When the value is `self_hosted`, every owner of the default organization becomes a platform admin, and so does the first account of an empty instance. When the value is `hosted`, only existing accounts whose address is in `PLATFORM_ADMIN_EMAILS` do. It also decides which organization a request acts in when its URL does not name one (no `/api/v1/orgs/{org}/` prefix): `self_hosted` always acts in the default organization; `hosted` acts in the user's only organization and answers 400 `Organization required` when the user belongs to none or to several (such a user names the organization in the URL). Everything else hosted mode changes arrives in later releases. Any other value refuses to start. The platform-admin grant runs during the upgrades that add organizations (the organization schema, and again with organization roles). It only adds the flag and never revokes it. Changing the value between upgrades changes nothing until the next such upgrade, and there is no platform-admin management yet. |
 | `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. Only accounts that already exist when an organization upgrade runs are flagged, so create them first and set the list before upgrading. Signing up (or accepting an invitation) with a listed address does **not** grant it, because nothing proves the person owns the address. Removing an email revokes nothing. |
-| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or embeddings settings. `all` means it uses the operator's settings; `none` means those features are off for it. Account mail (sign-up, password reset, invitations) always uses the operator's SMTP. It is stored now and **takes effect in a later release**, when organizations can hold their own settings. |
+| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI or SMTP settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Disabled by operator policy**) until it sets its own relay or AI endpoint and key. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (sign-up, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. Embeddings are still operator-only (see [Operator and organization settings](#operator-and-organization-settings)). |
+
+### Operator and organization settings
+
+Every setting editable in the UI is either the **operator's** (tripl's own
+infrastructure, one value for the whole instance) or an **organization's** (each
+organization may set its own value). An organization resolves each of its fields
+as **its own value → the operator's value → the environment variable → the
+built-in default**, subject to three rules:
+
+- **A secret travels with its endpoint.** The AI endpoint, key and model form
+  one group, and the SMTP host, port, security, username, password and From:
+  address form another. An organization that sets any field of a group owns the
+  whole group: fields it left empty take the built-in default (a secret is
+  empty), never the operator's. Pointing `ai_base_url` or `smtp_host` at your
+  own server therefore never sends the operator's key or password there.
+- **Operator ceilings.** An organization's `scan_row_limit_default`,
+  `metrics_row_limit_default`, `ai_timeout_seconds` and `ai_max_output_tokens`
+  may lower the operator's value, never raise it: a higher value is refused on
+  save (`422`) and clamped at use if the operator later lowers theirs.
+- **Public hosts only, for organizations.** An organization's `ai_base_url`
+  and `smtp_host` must not be (or resolve to) a private, loopback or link-local
+  address, in either deployment mode. The check runs on save (`422`) and again
+  right before each request, so a name re-pointed at an internal address later
+  is refused too (the feature is off for that call). An AI endpoint that
+  answers with a redirect is refused rather than followed. The operator's own
+  values — which on a `self_hosted` instance are also the default
+  organization's — may point at private hosts such as a local model server or
+  relay.
+
+If an organization's settings cannot be read, background jobs (alerts, digests,
+notification email, AI explanations) run with AI and email off for that
+organization; a request fails rather than falling back to the operator's keys.
+
+| Setting | Scope | Where it is edited |
+| --- | --- | --- |
+| Public URL (`APP_BASE_URL`) | Operator | **Settings → Platform** |
+| Security & access (CORS, cookies, headers, rate limits, `REGISTRATION_MODE`) | Operator | **Settings → Platform** |
+| Observability (request id, logging, metrics, tracing) | Operator | **Settings → Platform** |
+| Photo storage (all 8 fields, incl. `PHOTO_MAX_SIZE_MB` and the MIME allow-list) | Operator (per-organization storage comes later) | **Settings → Platform** |
+| Search embeddings (switch, provider, model, key; base URL and dimensions env-only) | Operator (per-organization embeddings come later) | **Settings → Platform** |
+| Database, broker, Redis, `ENCRYPTION_KEY`, `SECRET_KEY` (the "system" block) | Operator, env-only | read-only in **Settings → Platform** |
+| Email / SMTP (6 fields) | Organization | **Settings → Organization → Email** |
+| AI chat: switch, base URL, model, key, timeout, output tokens, the three prompts | Organization | **Settings → Organization → AI** |
+| `SCAN_ROW_LIMIT_DEFAULT`, `METRICS_ROW_LIMIT_DEFAULT` | Organization (capped by the operator) | **Settings → Organization → Limits** |
+
+The operator's values of the organization fields are the defaults every
+organization inherits (with `ORG_SETTINGS_OPERATOR_FALLBACK=all`), and the
+operator's SMTP is the relay account mail always uses; the platform admin sets
+them under **Settings → Platform**. On a `self_hosted` instance the default
+organization **is** the operator scope: what its owners and admins set under
+**Settings → Organization** is the instance's value. Its limits, timeouts and
+prompts are theirs to change; its SMTP relay and AI endpoint (the whole group,
+key and password included) take a platform admin (`403 Platform admin
+required`), because password-reset and invitation mail go through that relay
+and, with `ORG_SETTINGS_OPERATOR_FALLBACK=all`, every other organization
+inherits both. The API is `GET/PATCH/PUT /api/v1/orgs/{org}/settings` (with
+`POST .../ai/test` and `.../email/test`) for an organization's owners and admins,
+and `GET/PATCH /api/v1/platform/settings` (with the same two probes) for a
+platform admin. The older `/api/v1/settings` still answers with the combined
+view: operator fields as the operator has them and organization fields as the
+caller's organization runs with them. For anyone but a platform admin its
+`security`, `storage`, `observability` and `system` blocks are `null` and the
+embedding base URL is blank.
 
 ### Rate limiting
 
@@ -279,6 +342,10 @@ content sent to the configured provider.
 Disabled by default because plan content (event names, descriptions, field
 names) is sent to the configured provider when enabled.
 
+These are the operator's values; each organization may set its own under
+**Settings → Organization → AI** (see
+[Operator and organization settings](#operator-and-organization-settings)).
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `AI_ENABLED` | `false` | Master toggle for LLM-powered features. |
@@ -294,6 +361,10 @@ Leaving `SMTP_HOST` blank disables email destinations: creating them still
 works, but sends fail with a friendly error pointing at this config. The worker
 reads these at send time, so changes take effect without re-creating
 destinations.
+
+These are the operator's relay: account mail (sign-up, password reset,
+invitations) always uses it, and organizations inherit it unless they set their
+own under **Settings → Organization → Email**.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -374,6 +445,9 @@ command — copy the objects across yourself before retiring a backend.
 | --- | --- | --- |
 | `SCAN_ROW_LIMIT_DEFAULT` | `50000` | Default row cap for scan/replay when no scan-config override is set. |
 | `METRICS_ROW_LIMIT_DEFAULT` | `100000` | Default row cap for metrics queries when no override is set. |
+
+An organization may lower either cap for its own scans under **Settings →
+Organization → Limits**; these values are its ceiling.
 
 ### Operational history retention
 

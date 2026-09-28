@@ -169,7 +169,9 @@ async def _send_all(
     if project.is_demo:
         skip_reason = alert_owner_routing.DEMO_PROJECT_SKIPPED
     elif any(contact.user_id not in recent for contact in owners):
-        email_config = await app_settings_service.get_email_config(session)
+        email_config = await app_settings_service.get_email_config(
+            session, org_id=project.organization_id
+        )
         try:
             from_address = alert_owner_routing.owner_email_sender(email_config)
         except alert_owner_routing.OwnerEmailUnavailable as exc:

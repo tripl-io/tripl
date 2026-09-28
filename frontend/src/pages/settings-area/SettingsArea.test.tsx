@@ -353,10 +353,23 @@ describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
     const owner = ownerAuthValue()
     const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'member' } }
 
-    renderArea('instance/email', '', member)
+    renderArea('organization/email', '', member)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Email' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
+    expect(screen.getByRole('link', { name: 'Go to Profile' })).toHaveAttribute(
+      'href',
+      '/settings/profile',
+    )
+  })
+
+  it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+
+    renderArea('instance/email')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Mail relay' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Platform admin is required/)
     expect(screen.getByRole('link', { name: 'Go to Profile' })).toHaveAttribute(
       'href',
       '/settings/profile',
