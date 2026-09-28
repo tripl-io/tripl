@@ -20,7 +20,7 @@ Each variable has:
 
 - a stable, lower-case **name** used by `${name}` placeholders;
 - a **type** (`string`, `number`, `boolean`, `date`, `datetime`, `json`, or an
-  array type);
+  array type), optionally refined by a **JSON Schema** fragment;
 - a human-readable **description**;
 - optional **documented values** — the global list the team expects;
 - optional **bindings** — warehouse columns or dotted JSON paths such as
@@ -47,6 +47,63 @@ unchanged; only newly added bindings must be a column or dotted path.
 
 A scan skips, and reports in the run details, any variable token longer than
 100 characters, such as a JSON key typed by a user.
+
+### Refine the type with JSON Schema
+
+The type is the coarse kind. The optional `json_schema` field says more, in
+JSON Schema terms. For example, a number can be narrowed to an integer, and a
+string can get a format. An array can declare its item type, and a `json`
+variable can describe the keys it carries.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "total": { "type": "number", "minimum": 0 },
+    "coupon": { "type": "string", "enum": ["SPRING", "VIP"] }
+  },
+  "required": ["total"]
+}
+```
+
+A nested object is one variable with a sub-schema, not a set of dotted
+variables.
+
+**Supported keywords.**
+
+- Every node: `type` (one of `string`, `number`, `integer`, `boolean`, `array`,
+  `object`) and `description`.
+- `string`: `format`, `pattern`, `minLength` and `maxLength`.
+- `number` and `integer`: `minimum`, `maximum`, `exclusiveMinimum`,
+  `exclusiveMaximum` and `multipleOf`.
+- `array`: `items`, `minItems`, `maxItems` and `uniqueItems`.
+- `object`: `properties`, `required` and `additionalProperties` (a boolean).
+
+**What is refused.** Anything else is refused by name: `$ref`, combinators,
+and a list of types. The same goes for an `enum` at the top level, because
+documented values already hold that list. An `enum` inside a nested property is
+fine.
+
+**The schema must agree with the type.**
+
+| Type | Schema |
+|---|---|
+| `string` | `string`. Date formats are refused: use the `date` or `datetime` type. |
+| `number` | `number` or `integer` |
+| `boolean` | `boolean` |
+| `date` | `string` with `format: date` |
+| `datetime` | `string` with `format: date-time` |
+| `json` | `object` or `array` |
+| `string_array` | `array` with `items` of type `string` |
+| `number_array` | `array` with `items` of type `number` or `integer` |
+
+**When the pair disagrees.**
+
+- A change to either half that would break agreement is refused. Send both
+  halves in one request, or set `json_schema` to `null` to clear it.
+- A bulk type change is refused as a whole if any selected variable has a
+  schema the new type contradicts.
+- Scans do not write schemas yet.
 
 ### A binding and a `${token}` are not the same thing
 
@@ -471,8 +528,9 @@ Select variables in the table to change their type or description, add
 documented values, or delete several at once. Bulk operations apply a uniform
 patch to the selection; they do not replace bindings or per-event overrides.
 
-Variables, bindings, documented values, overrides, exclusions, and drift-related
-plan changes are branch-aware. The merge dialog warns when a branch would delete
+Variables, bindings, schemas, documented values, overrides, exclusions, and
+drift-related plan changes are branch-aware. A merge or a revert treats the type
+and the schema as one value, so they never end up taken from different sides. The merge dialog warns when a branch would delete
 a variable that still exists on `main`, so reviewers can catch a destructive
 change before it lands.
 

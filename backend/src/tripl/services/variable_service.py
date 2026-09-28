@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 from sqlalchemy.sql.elements import ColumnElement
 
+from tripl.core.property_schema import PropertySchemaError, check_schema_matches_type
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
@@ -327,6 +328,17 @@ async def update_variable(
             exclude_variable_id=var.id,
             name=renamed_to,
         )
+    # The two halves of the type are judged together, whichever one the patch
+    # touches: a type change against the stored schema is as wrong as a schema
+    # against the stored type.
+    if "variable_type" in update_data or "json_schema" in update_data:
+        try:
+            check_schema_matches_type(
+                update_data.get("variable_type", var.variable_type),
+                update_data.get("json_schema", var.json_schema),
+            )
+        except PropertySchemaError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
     if "name" in update_data and update_data["name"] != var.name:
         if not _STRICT_NAME_PATTERN.match(update_data["name"]):
             raise HTTPException(
@@ -487,6 +499,21 @@ async def bulk_update_variables(
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variables = await _load_variables_by_ids(session, project_id, branch_id, data.variable_ids)
+    if data.variable_type is not None:
+        # All or nothing: a bulk type change never leaves some rows retyped and
+        # the rest refused, and never drops a schema a person wrote.
+        mismatched = []
+        for variable in variables:
+            try:
+                check_schema_matches_type(data.variable_type, variable.json_schema)
+            except PropertySchemaError:
+                mismatched.append(variable.name)
+        if mismatched:
+            raise HTTPException(
+                status_code=422,
+                detail=f"variable_type {data.variable_type.value} does not match the json_schema"
+                f" of: {', '.join(sorted(mismatched))}. Change or clear their schemas first.",
+            )
     for variable in variables:
         if data.variable_type is not None:
             variable.variable_type = data.variable_type

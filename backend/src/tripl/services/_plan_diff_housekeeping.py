@@ -84,6 +84,7 @@ def _is_unused_scan_variable(before: dict[str, Any] | None) -> bool:
         and not before.get("allowed_values")
         and not before.get("event_value_overrides")
         and not before.get("excluded_from_scans")
+        and not before.get("json_schema")
         and _bindings_are_the_scans(before)
         and _name_is_the_scans(before)
     )

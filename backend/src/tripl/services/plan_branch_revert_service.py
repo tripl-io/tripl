@@ -30,6 +30,7 @@ says so instead of guessing.
 
 from __future__ import annotations
 
+import copy
 import logging
 import uuid
 from datetime import datetime
@@ -97,6 +98,7 @@ _PLAIN_ATTRS: dict[str, tuple[str, ...]] = {
         "allowed_values",
         "bindings",
         "excluded_from_scans",
+        "json_schema",
     ),
     "meta_field": (
         "field_type",
@@ -1099,6 +1101,7 @@ async def _recreate_entity(
             description=base_item.get("description") or "",
             allowed_values=list(base_item.get("allowed_values") or []),
             bindings=list(base_item.get("bindings") or []),
+            json_schema=copy.deepcopy(base_item.get("json_schema")),
             excluded_from_scans=base_item.get("excluded_from_scans", False),
         )
         session.add(variable)
@@ -1183,6 +1186,14 @@ async def _restore_field(
     data: BranchRevertRequest,
     field: str,
 ) -> None:
+    if data.entity_type == "variable" and field in ("variable_type", "json_schema"):
+        # One type in two columns: writing either half writes both, since the
+        # snapshot's pair agreed and a mixed pair need not. "Update from main"
+        # reaches this through ``variable_type``, the key its three-way
+        # comparison folds the schema into.
+        entity.variable_type = _required(base_item, "variable_type")
+        entity.json_schema = copy.deepcopy(base_item.get("json_schema"))
+        return
     if field in _PLAIN_ATTRS[data.entity_type]:
         value = base_item.get(field)
         # Copy JSON list columns so the entity never aliases the snapshot payload.
@@ -1569,7 +1580,8 @@ _SNAPSHOT_WRITE_ARMS: dict[str, frozenset[str]] = {
     "event": frozenset(
         {"sunset_at", "owner_id", "superseded_by", "field_values", "meta_values", "tags"}
     ),
-    "variable": frozenset({"event_value_overrides"}),
+    # ``variable_type`` carries ``json_schema`` with it (``_restore_field``).
+    "variable": frozenset({"event_value_overrides", "variable_type"}),
 }
 
 

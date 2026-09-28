@@ -193,6 +193,7 @@ def test_a_variable_with_nothing_pointing_at_it_is_retirable() -> None:
         ({"allowed_values": ["a"]}, KeptReason.DOCUMENTED),
         ({"description": "mine now"}, KeptReason.USER_EDITED),
         ({"bindings": ["property.Adana", "extra"]}, KeptReason.USER_EDITED),
+        ({"json_schema": {"type": "string", "format": "email"}}, KeptReason.USER_EDITED),
     ],
 )
 def test_anything_a_human_touched_is_kept_and_says_why(

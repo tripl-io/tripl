@@ -8,6 +8,7 @@ entity's natural identifier (so deleted-and-recreated rows still align).
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import uuid
@@ -219,6 +220,7 @@ _VARIABLE_CHANGE_KEYS = (
     "allowed_values",
     "bindings",
     "excluded_from_scans",
+    "json_schema",
     "event_value_overrides",
 )
 _META_FIELD_CHANGE_KEYS = (
@@ -426,6 +428,7 @@ async def build_plan_snapshot(
             "allowed_values": list(v.allowed_values or []),
             "bindings": list(v.bindings or []),
             "excluded_from_scans": v.excluded_from_scans,
+            "json_schema": copy.deepcopy(v.json_schema),
             "event_value_overrides": overrides_by_variable.get(v.id, []),
         }
         for v in variables_rows
