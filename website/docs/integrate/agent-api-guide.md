@@ -111,7 +111,29 @@ that organization; any other key is `403`.
 A group id of another organization answers `404 Group not found`, like an id
 that does not exist. Every group change is audited (`org.group.create`,
 `org.group.update`, `org.group.delete`, `org.group.member_add`,
-`org.group.member_remove`).
+`org.group.member_remove`). A group carries `managed_by_scim`: `true` when the
+organization's identity provider created it, or has written to it, over SCIM.
+Renaming, deleting or changing the members of such a group here answers `409`;
+its description stays editable.
+
+SCIM provisioning (see [the admin guide](../administer/admin-guide.md#scim)) is
+set up by the organization's **owners** only, from a browser session; an admin,
+a member or any API key gets `403`:
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs/{org}/scim/tokens` | owner, browser session | The SCIM tokens, revoked ones included: `id`, `prefix`, `created_at`, `created_by_email`, `last_used_at`, `revoked_at`. The token itself is never returned here. |
+| `POST /api/v1/orgs/{org}/scim/tokens` | owner, browser session | Creates a token: `{"id", "prefix", "token", "created_at"}`. `token` (starting `tripl_scim_`) is shown only in this response. Audited as `org.scim.token_create`. |
+| `DELETE /api/v1/orgs/{org}/scim/tokens/{id}` | owner, browser session | Revokes the token; the identity provider's next request with it is refused. Audited as `org.scim.token_revoke`. |
+| `GET /api/v1/orgs/{org}/scim/config` | owner, browser session | `{"base_url", "admin_group_id", "admin_group_name", "active_tokens"}`: the SCIM base URL to give the identity provider, the group whose members are made admins (`null` for none), and how many unrevoked tokens there are. |
+| `PUT /api/v1/orgs/{org}/scim/config` | owner, browser session | `{"admin_group_id": "<group id>" \| null}`. The group must belong to the organization. |
+
+The SCIM 2.0 protocol itself is served at `/scim/v2/{org}` (outside
+`/api/v1`) for the identity provider: `ServiceProviderConfig`, `ResourceTypes`,
+`Schemas`, `Users` and `Groups`. It takes only
+`Authorization: Bearer tripl_scim_…` of that organization; sessions and API
+keys are refused there, and a SCIM token works nowhere else. Agents and
+scripts should use the `/api/v1` routes above instead.
 
 API keys never manage an organization: every write above answers `403` to a
 key, whatever its scope. Invitations into an organization are

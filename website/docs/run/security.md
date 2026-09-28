@@ -159,6 +159,8 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `GET /api/v1/auth/sso/{org}/callback` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `GET /api/v1/auth/sso/link` | Shared status limiter | 30 / minute |
 | `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
+| `/scim/v2/{org}/*` | Own SCIM limiter, keyed per token (not per address) | 600 / minute |
+| `/scim/v2/{org}/*`, failed authentication | Own limiter, keyed per client address; only `401` answers draw on it, then `429` | 30 / minute |
 
 The verification-link request has a bucket of its own, so resending a link does
 not use up the login or sign-up quota, and a signed-in caller cannot turn the
@@ -353,6 +355,27 @@ The controls that matter for security:
 | Requiring SSO | With **Require single sign-on**, a session that did not sign in through the organization's provider gets `403 This organization requires single sign-on` inside it. Organization owners' browser sessions are exempt (break-glass), as is a platform admin's read-only step-in. Turning it on revokes **every** organization API key that was not created from a single sign-on session of the organization, owners' included, and such keys are refused with `403`; new keys need such a session, for owners too. |
 | Removing a member | Also deletes their single sign-on identities for the organization, and signing in through the provider again does not re-add them until they accept a new invitation. |
 | Rate limits | Start and callback share their own bucket (20 a minute per address), apart from password sign-in; an empty bucket redirects to `/auth?sso_error=rate_limited`. Confirming a link is on the login bucket. |
+
+### Provisioning (SCIM 2.0)
+
+An organization owner can let the organization's identity provider create,
+update and deactivate its members and groups over SCIM (see
+[Provisioning](../administer/admin-guide.md#scim)). The controls that matter
+for security:
+
+| Property | Behaviour |
+|---|---|
+| Endpoint | `/scim/v2/{org}`, outside `/api/v1`. It accepts only a SCIM bearer token of that organization: browser sessions (and so CSRF-able requests) and API keys are refused, and a token of another organization gets `404`. A suspended or deleting organization answers `403`/`404` in SCIM's error format. |
+| Tokens | Created and revoked by organization **owners** only, from a browser session (`/api/v1/orgs/{org}/scim/tokens`). A token starts with `tripl_scim_`, is shown once, and is stored only as a keyed HMAC digest, like session tokens; a prefix is kept for display. Revoked tokens are refused at once. A token works only while its creator is an owner of the organization: removing, deactivating or demoting that owner, or their transferring ownership, revokes their tokens (audited with `reason: "creator_no_longer_owner"`), and a token whose creator is no longer an owner is refused in any case. Creation and revocation are audited (`org.scim.token_create`, `org.scim.token_revoke`). |
+| New accounts | Created only for an address at one of the organization's **verified** single sign-on domains; any other address is refused (`400 invalidValue`). The address is marked verified, the password is a scrypt hash of a random secret (unusable, so sign-in is through single sign-on), and the account is never a platform admin. |
+| Existing accounts | Linked only when the address is at a verified domain of the organization, or the account is already a member; any other existing account gets the same `400 invalidValue` as an unknown address, so a token is no oracle for which addresses have accounts and cannot pull a stranger into an organization. A linked account's password and name are not changed on linking, **except** that an account at a verified domain whose address nobody ever confirmed (an unverified hosted sign-up) is taken over as by a verified SSO sign-in: its password is replaced with an unusable one, its sessions and pending reset/verification links are deleted, **all its API keys are revoked**, and its address is marked verified. Later `displayName`/`name.*` updates change the account's name only for an address at a verified domain. `userName` never changes (`400 mutability`). |
+| Visibility | The IdP sees only accounts that are members of the organization or that it provisioned and later deactivated; another organization's users are never listed and answer `404` by id. |
+| Deactivation | `active: false` or `DELETE` removes the organization membership with everything [removing a member](../administer/admin-guide.md#members-and-roles) takes away (organization API keys revoked, project access, group memberships and single sign-on identities dropped). The account is kept. The last owner cannot be deactivated (`409`). A member an owner or admin removed by hand cannot be re-activated or re-created by the IdP (`409 mutability`) until they accept a new invitation; a `PUT` without `active` never re-activates. |
+| Roles | SCIM never grants owner. The optional admin group mapping promotes the group's members to admin and demotes people removed from it to member; owners are never changed by it. |
+| Managed groups | A group the IdP created, or any group the IdP has written to (it sees every group of the organization and matches by name, so a hand-made group with the same name is adopted on its first SCIM write), is managed by SCIM: renaming it, deleting it or changing its members through the groups API gets `409`; only its description stays editable. |
+| Audit | Every SCIM write is recorded in the organization's audit log with no acting user and `via: "scim"` plus the token prefix. |
+| Rate limits | Each token has its own bucket (600 requests a minute). Failed authentications (`401`) draw on a bucket per client address (30 a minute), then answer `429`. |
+| Input limits | `startIndex` is capped at 10⁹; a body nested more than 32 levels deep, or too deeply to parse, is `400 invalidSyntax`; unknown endpoints, unsupported methods and oversized bodies answer in SCIM's error format. |
 
 ### Passwords
 

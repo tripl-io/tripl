@@ -20279,6 +20279,149 @@
         }
       }
     },
+    "/api/v1/orgs/{org}/scim/tokens": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "List Scim Tokens",
+        "operationId": "list_scim_tokens_api_v1_orgs__org__scim_tokens_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrgScimTokenResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Scim Tokens Api V1 Orgs  Org  Scim Tokens Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Create Scim Token",
+        "description": "A new token. The answer carries it in ``token``; it is not shown again.",
+        "operationId": "create_scim_token_api_v1_orgs__org__scim_tokens_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgScimTokenCreated"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/scim/tokens/{token_id}": {
+      "delete": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Revoke Scim Token",
+        "description": "Revoke a token at once. Revoking a revoked one is a no-op (204, no audit row).",
+        "operationId": "revoke_scim_token_api_v1_orgs__org__scim_tokens__token_id__delete",
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Token Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/scim/config": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Get Scim Config",
+        "operationId": "get_scim_config_api_v1_orgs__org__scim_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgScimConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Put Scim Config",
+        "description": "Map a group to organization role ``admin`` (null unmaps); applied at once.\n\n404 for a group this organization does not have.",
+        "operationId": "put_scim_config_api_v1_orgs__org__scim_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgScimConfigUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgScimConfigResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/platform/settings": {
       "get": {
         "tags": [
@@ -39339,6 +39482,11 @@
             "type": "integer",
             "title": "Member Count"
           },
+          "managed_by_scim": {
+            "type": "boolean",
+            "title": "Managed By Scim",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -39434,6 +39582,11 @@
           "member_count": {
             "type": "integer",
             "title": "Member Count"
+          },
+          "managed_by_scim": {
+            "type": "boolean",
+            "title": "Managed By Scim",
+            "default": false
           },
           "created_at": {
             "type": "string",
@@ -39782,6 +39935,203 @@
         ],
         "title": "OrgResponse",
         "description": "One organization, with the caller's role in it."
+      },
+      "OrgScimConfigResponse": {
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "title": "Base Url"
+          },
+          "admin_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Group Id"
+          },
+          "admin_group_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Group Name"
+          },
+          "active_tokens": {
+            "type": "integer",
+            "title": "Active Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_url",
+          "admin_group_id",
+          "admin_group_name",
+          "active_tokens"
+        ],
+        "title": "OrgScimConfigResponse",
+        "description": "The organization's SCIM endpoint and settings."
+      },
+      "OrgScimConfigUpdate": {
+        "properties": {
+          "admin_group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Group Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "OrgScimConfigUpdate",
+        "description": "``PUT /scim/config``. ``admin_group_id`` null removes the mapping."
+      },
+      "OrgScimTokenCreated": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "prefix",
+          "created_at",
+          "created_by_email",
+          "last_used_at",
+          "revoked_at",
+          "token"
+        ],
+        "title": "OrgScimTokenCreated",
+        "description": "``POST /scim/tokens``: the raw token, shown exactly once."
+      },
+      "OrgScimTokenResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "prefix": {
+            "type": "string",
+            "title": "Prefix"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Email"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "prefix",
+          "created_at",
+          "created_by_email",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "title": "OrgScimTokenResponse",
+        "description": "One SCIM token of the organization. The secret is never returned again."
       },
       "OrgSearchSettings": {
         "properties": {

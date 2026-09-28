@@ -8,7 +8,8 @@ group memberships with their organization membership.
 
 Groups are managed by the organization's owners and admins. Note sharing (F24),
 event-type ownership and alert routing will read them through
-``org_group_service.group_member_ids``; SCIM group sync attaches in the SCIM PR.
+``org_group_service.group_member_ids``. A group the organization's SCIM
+provisioning manages (``managed_by_scim``) is edited by the identity provider only.
 """
 
 from __future__ import annotations
@@ -16,7 +17,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    false,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
@@ -45,6 +56,12 @@ class OrganizationGroup(UUIDMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(GROUP_NAME_MAX_LENGTH))
     description: Mapped[str] = mapped_column(
         String(GROUP_DESCRIPTION_MAX_LENGTH), default="", server_default=""
+    )
+    # Created or taken over by the organization's SCIM provisioning (F20): its
+    # name and members are the identity provider's, and only SCIM changes them
+    # (``org_group_service`` refuses manual edits with 409).
+    managed_by_scim: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
     )
 
 

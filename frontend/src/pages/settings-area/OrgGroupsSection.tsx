@@ -12,6 +12,7 @@ import {
 import { orgsApi } from '@/api/orgs'
 import { useActiveOrg } from '@/components/active-org-context'
 import { ErrorState } from '@/components/error-state'
+import { Chip } from '@/components/primitives/chip'
 import { Field, NativeSelect, SCard, SHeader, TextArea, TextInput } from '@/components/settings/kit'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -103,7 +104,10 @@ function OrgGroups({ org }: { org: string }) {
             style={{ borderBottom: index === groups.length - 1 ? 'none' : '1px solid var(--border-subtle)' }}
           >
             <div className="min-w-0 flex-1">
-              <div className="truncate text-body font-medium">{group.name}</div>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-body font-medium">{group.name}</span>
+                {group.managed_by_scim && <ScimBadge />}
+              </div>
               {group.description && (
                 <div className="truncate text-body-sm text-fg-tertiary">{group.description}</div>
               )}
@@ -121,7 +125,8 @@ function OrgGroups({ org }: { org: string }) {
             >
               {canManage ? 'Manage' : 'View'}
             </Button>
-            {canManage && (
+            {/* A SCIM-managed group is deleted in the identity provider: the API answers 409. */}
+            {canManage && !group.managed_by_scim && (
               <Button
                 type="button"
                 size="sm"
@@ -210,15 +215,43 @@ function GroupDetailCard({ org, groupId, canManage }: { org: string; groupId: st
     )
   }
   const group = detailQuery.data
+  // A group managed by the identity provider changes only through SCIM: the API
+  // refuses a manual rename, delete or member edit (409), so the page offers
+  // none of them. Its description stays editable here.
+  const managed = group.managed_by_scim
   return (
     <>
-      {canManage && <EditGroupCard org={org} group={group} />}
-      <GroupMembersCard org={org} group={group} canManage={canManage} />
+      {canManage && managed && (
+        <ReadOnlyNotice className="mb-5">
+          {group.name} is managed by SCIM. Change its name and members, or delete it, in your identity
+          provider. Its description stays editable here.
+        </ReadOnlyNotice>
+      )}
+      {canManage && <EditGroupCard org={org} group={group} nameLocked={managed} />}
+      <GroupMembersCard org={org} group={group} canManage={canManage && !managed} />
     </>
   )
 }
 
-function EditGroupCard({ org, group }: { org: string; group: OrgGroupDetail }) {
+/** Marks a group the identity provider created and keeps in sync over SCIM. */
+function ScimBadge() {
+  return (
+    <Chip tone="info" className="shrink-0" title="Kept in sync by your identity provider; changes only through SCIM">
+      Managed by SCIM
+    </Chip>
+  )
+}
+
+function EditGroupCard({
+  org,
+  group,
+  nameLocked,
+}: {
+  org: string
+  group: OrgGroupDetail
+  /** A SCIM-managed group: its name is the identity provider's, only the description is editable. */
+  nameLocked: boolean
+}) {
   const qc = useQueryClient()
   const [name, setName] = useState(group.name)
   const [description, setDescription] = useState(group.description)
@@ -268,7 +301,14 @@ function EditGroupCard({ org, group }: { org: string; group: OrgGroupDetail }) {
         }}
       >
         <Field label="Name" htmlFor="edit-group-name">
-          <TextInput id="edit-group-name" value={name} onChange={setName} aria-required />
+          <TextInput
+            id="edit-group-name"
+            value={name}
+            onChange={setName}
+            aria-required
+            disabled={nameLocked}
+            readOnly={nameLocked}
+          />
         </Field>
         <Field label="Description" htmlFor="edit-group-description" last>
           <TextArea id="edit-group-description" value={description} onChange={setDescription} rows={2} />

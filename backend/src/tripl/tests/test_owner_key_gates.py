@@ -226,6 +226,12 @@ PATH_ORG_OWNER_ROUTES = {
     "POST /api/v1/orgs/{org}/sso/domains",
     "DELETE /api/v1/orgs/{org}/sso/domains/{domain_id}",
     "POST /api/v1/orgs/{org}/sso/domains/{domain_id}/verify",
+    # SCIM provisioning (F20): its tokens and admin-group mapping, owners only.
+    "GET /api/v1/orgs/{org}/scim/tokens",
+    "POST /api/v1/orgs/{org}/scim/tokens",
+    "DELETE /api/v1/orgs/{org}/scim/tokens/{token_id}",
+    "GET /api/v1/orgs/{org}/scim/config",
+    "PUT /api/v1/orgs/{org}/scim/config",
 }
 
 

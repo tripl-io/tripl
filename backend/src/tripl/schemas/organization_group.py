@@ -91,6 +91,9 @@ class OrgGroupResponse(BaseModel):
     name: str
     description: str
     member_count: int
+    #: Managed by the organization's SCIM provisioning (F20): its name and
+    #: members change through the identity provider only.
+    managed_by_scim: bool = False
     created_at: datetime
     updated_at: datetime
 

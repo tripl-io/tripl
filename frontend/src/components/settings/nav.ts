@@ -10,6 +10,7 @@ import {
   Ticket,
   Lock,
   Mail,
+  RefreshCw,
   ScrollText,
   Search,
   Server,
@@ -223,6 +224,16 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         // (F20): only an owner changes how the organization signs in.
         ownerOnly: true,
         keywords: ['sso', 'oidc', 'openid', 'identity provider', 'domain verification'],
+      },
+      {
+        id: 'org-scim',
+        label: 'Provisioning',
+        icon: RefreshCw,
+        path: 'organization/scim',
+        // Like single sign-on: listed for owners and admins, the page itself
+        // is an owner's (F20). It decides who is in the organization.
+        ownerOnly: true,
+        keywords: ['scim', 'okta', 'azure', 'entra', 'deprovision', 'user sync'],
       },
       {
         id: 'org-limits',

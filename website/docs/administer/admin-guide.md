@@ -642,8 +642,10 @@ becomes a member loses their pending `owner` and `admin` ones.
 A group is a named set of an organization's members, such as *Analysts* or
 *On-call*. Groups are the organization's own: another organization never sees
 them. Sharing notes with a group, and routing event-type ownership and alerts
-to one, build on them in later releases; syncing groups from an identity
-provider (SCIM) comes with SCIM provisioning.
+to one, build on them in later releases. Groups can also be pushed by your
+identity provider over [SCIM](#scim); those are marked **Managed by SCIM**:
+their name and members change, and they are deleted, only through it. Their
+description stays editable here.
 
 Open **Settings › Organization › Groups**. Every member of the organization can
 see the groups and who is in each. Owners and admins can also:
@@ -733,7 +735,8 @@ rename as `org.rename`),
 `org.group.member_remove`, and for invitations
 `user.invite`, `user.invite_revoke` and `user.invite_accept`, and for
 [single sign-on](#single-sign-on) `org.sso.*`, `user.sso_login`,
-`user.sso_provision` and `user.sso_link`. They appear under
+`user.sso_provision` and `user.sso_link`, and for [SCIM provisioning](#scim)
+`org.scim.*` plus the changes SCIM makes (marked `via: "scim"`). They appear under
 **Organization** and **Workspace** in the Audit tab's action filter.
 
 The [platform console](#platform-console)'s six actions have a filter group of
@@ -901,6 +904,171 @@ Every change is recorded in the organization's audit log, without secrets:
 `user.sso_login`, `user.sso_provision` (a new account) and `user.sso_link` (an
 existing account linked after confirmation; `reclaimed_unverified_account` says
 whether it was an unverified account taken over) for sign-ins.
+
+## Provisioning (SCIM 2.0) {#scim}
+
+An organization can let its identity provider (IdP) manage who belongs to it
+over **SCIM 2.0**: the IdP creates members, updates their names, deactivates
+them when they leave, and pushes groups. A member's email address cannot be
+changed over SCIM (see [below](#scim-usernames)). SCIM is set up per
+organization under **Settings → Organization → Provisioning**, and only an
+organization **owner** can see or change it (an admin gets a notice; the API
+answers `403`). It pairs with [single sign-on](#single-sign-on): people SCIM
+creates have no usable password and sign in through the IdP.
+
+### Set it up
+
+1. Verify at least one email domain under
+   [single sign-on](#verify-your-email-domains). SCIM creates new accounts only
+   at the organization's verified domains.
+2. Open **Settings → Organization → Provisioning** and copy the **Base URL**:
+   `<your tripl address>/scim/v2/<organization slug>`.
+3. Click **Create token**. The token (it starts with `tripl_scim_`) is shown
+   **once**: copy it into the IdP straight away. tripl keeps only a hash of it
+   and lists it afterwards by its first characters, with when it was created
+   and last used. Revoke a token there when it leaks or the IdP app is removed;
+   the IdP's next request with it is refused. An organization can have several
+   tokens, for example one per IdP app or while rotating.
+4. Configure the IdP:
+   - **Okta**: in the app's **Provisioning** tab, turn on SCIM provisioning;
+     SCIM connector base URL = the base URL, unique identifier field for users
+     = `userName`, supported provisioning actions **Push New Users**, **Push
+     Profile Updates** and **Push Groups**, authentication mode **HTTP
+     Header**, and paste the token as the Bearer token. Then turn on **Create
+     Users**, **Update User Attributes** and **Deactivate Users** under **To
+     App**.
+   - **Microsoft Entra ID (Azure AD)**: in the enterprise application, open
+     **Provisioning**, set the mode to **Automatic**, Tenant URL = the base URL
+     and Secret Token = the token, then **Test Connection**. Map `userName` to
+     the user's email address (usually `userPrincipalName` or `mail`).
+   - **Any other SCIM 2.0 client**: send `Authorization: Bearer <token>` with
+     `Content-Type: application/scim+json` (or `application/json`) to the base
+     URL. `GET /ServiceProviderConfig`, `/ResourceTypes` and `/Schemas`
+     describe what is supported.
+5. Assign people and groups to the app in the IdP.
+
+A token works only for its own organization, and only on the SCIM endpoints:
+signed-in sessions and API keys are refused there. A suspended organization's
+SCIM endpoint answers `403`.
+
+### What is supported
+
+| Resource | Operations | Attributes |
+|---|---|---|
+| Users | list, read, create, replace (`PUT`), update (`PATCH`), delete | `userName` (the email address, lowercased; cannot change), `name.givenName`, `name.familyName`, `name.formatted`, `displayName`, `externalId`, `active`; `emails` is returned as a copy of `userName`, and values sent in it are ignored |
+| Groups | list, read, create, replace, update, delete | `displayName`, `members`, `externalId` |
+
+Lists support `startIndex`/`count` paging (at most 200 per page). Users can be
+filtered with `userName eq "…"` and `externalId eq "…"`. `PATCH` accepts the
+shapes Okta and Entra ID send, including an operation without a `path`,
+`active` as the string `"False"`, and removing a group member by the path
+`members[value eq "<id>"]`. Bulk requests, sorting, ETags and password changes
+are not supported. Errors follow SCIM's error format (RFC 7644 §3.12), for
+unknown endpoints (`404`) and oversized bodies (`413`) too. A `PUT` that leaves
+out `active` does not change whether the user is active; a `POST` that leaves it
+out creates an active user.
+
+#### Email addresses cannot change {#scim-usernames}
+
+A user's `userName` is their tripl account's email address, which the account
+keeps across every organization it belongs to. SCIM cannot change it: a `PUT`
+or `PATCH` with a different `userName` answers `400` (`mutability`). To move
+someone to a new address, provision the new address as a new user and
+deactivate the old one. **Entra ID** sends such a change when a user's UPN (or
+whichever attribute you mapped to `userName`) changes; that update then fails
+in the provisioning log until the user is re-provisioned under the new address.
+
+A user's SCIM `id` is their tripl account id. The IdP sees only accounts that
+belong to this organization, or that it provisioned and later deactivated;
+another organization's members are never visible.
+
+### Which accounts SCIM creates or links
+
+- **A new address at a verified domain**: tripl creates the account, marks the
+  address verified and adds it to the organization as a **member**. It has no
+  usable password; the person signs in through single sign-on. A SCIM account
+  is never a platform admin.
+- **Any address at any other domain**: refused (`400 invalidValue`, *email
+  domain not verified for this organization*), whether an account exists for
+  it or not, so SCIM cannot be used to find out which addresses have tripl
+  accounts. The one exception is someone who is **already a member** of the
+  organization: they are linked as they are.
+- **An address at a verified domain that already has an account**: the
+  account is linked and added to the organization as a member. Its password is
+  not changed, and neither is its name on creation. But if nobody ever
+  confirmed that address (an unverified hosted sign-up), tripl treats the
+  account as a squatter's and **takes it over**, as a verified single sign-on
+  sign-in does: its password is replaced with an unusable one, all its sessions
+  and pending reset and verification links end, **all its API keys are
+  revoked**, and the address is marked verified.
+
+Later name updates (`displayName`, `name.*` in a `PUT` or `PATCH`) change the
+account's name only for an address at one of the organization's verified
+domains; for any other address they are only echoed back to the IdP.
+
+Provisioning someone also lifts the block that keeps a
+[removed member](#members-and-identities) from coming back through single
+sign-on — except for someone an owner or admin removed by hand (below).
+
+#### People removed by hand
+
+When an owner or admin removes a member in tripl, the IdP cannot undo it. SCIM
+shows the user as inactive, and a request to activate them (or to create them
+again) answers `409` (`mutability`) until they accept a new invitation. Once
+they are back, the IdP manages them as before.
+
+### Deactivation {#scim-deprovisioning}
+
+When the IdP deactivates a user (`active: false`) or deletes them, tripl
+removes them from the organization exactly as [removing a
+member](#members-and-roles) does: their API keys for the organization are
+revoked, their project access and group memberships are dropped, and their
+single sign-on identities for the organization are deleted. The account itself
+is **kept** (it may belong to other organizations), and so is the SCIM link,
+marked inactive: the IdP can still read the user (`active: false`), including
+after a `DELETE`. Reactivating the user, or a `POST` for them after a `DELETE`,
+adds them back as a **member** under the same `id`.
+
+The organization's last **owner** cannot be deactivated: SCIM answers `409`
+(`mutability`) and nothing changes. Transfer ownership first.
+
+### Groups from the IdP
+
+Groups the IdP pushes appear under **Settings › Organization ›
+[Groups](#groups)** with a **Managed by SCIM** badge. Their name and members
+change, and they are deleted, only through SCIM: the page offers no rename,
+member edit or delete for them, and the API answers `409` to each. Only their
+description stays editable in tripl. Only organization members can be in them.
+
+The IdP sees **every** group of the organization, including ones created in
+tripl, and IdPs match groups by name. The first time the IdP writes to a group
+(for example, pushes a group whose name matches one you created by hand), that
+group becomes managed by SCIM from then on. Rename a hand-made group first if
+you want to keep it out of the IdP's hands.
+
+### Admin group
+
+Under **Admin group** on the Provisioning page, an owner can pick one of the
+organization's groups (usually one the IdP pushes). Its members become
+organization **admins**; someone removed from it goes back to **member**. The
+roles are recomputed on every change to the group's members. Owners are never
+promoted or demoted by it, and no group maps to owner. Choose **No admin
+group** to turn the mapping off.
+
+### Provisioning audit
+
+Creating and revoking tokens is recorded as `org.scim.token_create` and
+`org.scim.token_revoke`. Every change SCIM makes (accounts created or linked,
+memberships, deactivation, groups and roles) is recorded in the organization's
+audit log with no acting user and `via: "scim"` plus the prefix of the token
+that made it. SCIM requests are rate-limited per token, and failed
+authentications per client address.
+
+A token belongs to the owner who created it. When that person stops being an
+owner (removed, deactivated, demoted, or after transferring ownership), their
+tokens are revoked at once and recorded as `org.scim.token_revoke` with
+`reason: "creator_no_longer_owner"`. Create a new token as a remaining owner and
+update the IdP.
 
 ## Platform console
 

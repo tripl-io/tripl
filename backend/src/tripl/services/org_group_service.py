@@ -11,12 +11,19 @@ raises plain exceptions:
 * :class:`NotAnOrgMemberError` — the user to add is not a member of the
   organization (or does not exist).
 * :class:`AlreadyInGroupError` / :class:`NotInGroupError` — member add/remove.
+* :class:`GroupManagedByScimError` — a manual rename, delete or member change of
+  a group the organization's SCIM provisioning manages (``managed_by_scim``):
+  the identity provider owns it, and a manual edit would be undone at its next
+  sync. Its description stays editable. SCIM passes ``via_scim=True``.
 
 Nothing here commits: the route commits once, with its audit row.
 
+Every member add/remove and group deletion runs the SCIM admin-group mapping
+(:func:`tripl.services.scim_role_sync.on_group_change`), whoever makes it.
+
 Reuse: :func:`group_member_ids` resolves groups to the users in them, for note
-sharing (F24), event-type owners and alert routing. SCIM group sync attaches in
-the SCIM PR and will write through :func:`add_member` / :func:`remove_member`.
+sharing (F24), event-type owners and alert routing. SCIM group sync
+(``scim_group_service``) writes through :func:`add_member` / :func:`remove_member`.
 """
 
 from __future__ import annotations
@@ -38,7 +45,7 @@ from tripl.schemas.organization_group import (
     OrgGroupMemberResponse,
     OrgGroupResponse,
 )
-from tripl.services import auth_service
+from tripl.services import auth_service, scim_role_sync
 
 _UNIQUE_VIOLATION_SQLSTATE = "23505"
 _FOREIGN_KEY_VIOLATION_SQLSTATE = "23503"
@@ -62,6 +69,15 @@ class AlreadyInGroupError(Exception):
 
 class NotInGroupError(LookupError):
     """The user is not in the group."""
+
+
+class GroupManagedByScimError(Exception):
+    """The group is managed by SCIM provisioning; only SCIM changes its name or members."""
+
+
+def _refuse_manual_edit(group: OrganizationGroup, via_scim: bool) -> None:
+    if group.managed_by_scim and not via_scim:
+        raise GroupManagedByScimError(group.id)
 
 
 async def get_group(
@@ -112,6 +128,7 @@ def _response(group: OrganizationGroup, member_count: int) -> OrgGroupResponse:
         name=group.name,
         description=group.description,
         member_count=member_count,
+        managed_by_scim=bool(group.managed_by_scim),
         created_at=group.created_at,
         updated_at=group.updated_at,
     )
@@ -228,10 +245,15 @@ async def update_group(
     *,
     name: str | None,
     description: str | None,
+    via_scim: bool = False,
 ) -> dict[str, dict[str, str]]:
-    """Apply a rename and/or new description; returns ``{field: {old, new}}`` of what changed."""
+    """Apply a rename and/or new description; returns ``{field: {old, new}}`` of what changed.
+
+    A SCIM-managed group is renamed by SCIM only (:class:`GroupManagedByScimError`).
+    """
     changes: dict[str, dict[str, str]] = {}
     if name is not None and name != group.name:
+        _refuse_manual_edit(group, via_scim)
         if await _name_taken(session, group.organization_id, name, except_id=group.id):
             raise GroupNameTakenError(name)
         changes["name"] = {"old": group.name, "new": name}
@@ -247,10 +269,26 @@ async def update_group(
     return changes
 
 
-async def delete_group(session: AsyncSession, group: OrganizationGroup) -> int:
-    """Delete the group and its memberships; returns how many members it had."""
-    members = await session.scalar(
-        select(func.count()).where(OrganizationGroupMember.group_id == group.id)
+async def delete_group(
+    session: AsyncSession, group: OrganizationGroup, *, via_scim: bool = False
+) -> int:
+    """Delete the group and its memberships; returns how many members it had.
+
+    The members of the SCIM admin group lose the ``admin`` role it gave them.
+    """
+    _refuse_manual_edit(group, via_scim)
+    member_ids = list(
+        (
+            await session.scalars(
+                select(OrganizationGroupMember.user_id).where(
+                    OrganizationGroupMember.group_id == group.id
+                )
+            )
+        ).all()
+    )
+    members = len(member_ids)
+    await scim_role_sync.on_group_change(
+        session, group.organization_id, group.id, removed=member_ids
     )
     await session.execute(
         delete(OrganizationGroupMember).where(OrganizationGroupMember.group_id == group.id)
@@ -260,8 +298,17 @@ async def delete_group(session: AsyncSession, group: OrganizationGroup) -> int:
     return int(members or 0)
 
 
-async def add_member(session: AsyncSession, group: OrganizationGroup, user_id: uuid.UUID) -> User:
+async def add_member(
+    session: AsyncSession,
+    group: OrganizationGroup,
+    user_id: uuid.UUID,
+    *,
+    via_scim: bool = False,
+) -> User:
     """Put ``user_id`` in the group; they must be a member of the group's organization.
+
+    Refused for a SCIM-managed group unless ``via_scim``; joining the SCIM
+    admin group promotes a plain member to ``admin``.
 
     Takes the organization's owner-set lock first, the one
     ``org_service.remove_member`` holds while it drops the user's group rows and
@@ -274,6 +321,7 @@ async def add_member(session: AsyncSession, group: OrganizationGroup, user_id: u
     (:class:`GroupNotFoundError`) or the user's account was
     (:class:`NotAnOrgMemberError`).
     """
+    _refuse_manual_edit(group, via_scim)
     await auth_service.acquire_owner_set_xact_lock(session, group.organization_id)
     user: User | None = await session.scalar(
         select(User)
@@ -305,13 +353,23 @@ async def add_member(session: AsyncSession, group: OrganizationGroup, user_id: u
         if still_there is None:
             raise GroupNotFoundError(group.id) from None
         raise NotAnOrgMemberError(user_id) from None
+    await scim_role_sync.on_group_change(session, group.organization_id, group.id, added=[user_id])
     return user
 
 
 async def remove_member(
-    session: AsyncSession, group: OrganizationGroup, user_id: uuid.UUID
+    session: AsyncSession,
+    group: OrganizationGroup,
+    user_id: uuid.UUID,
+    *,
+    via_scim: bool = False,
 ) -> User:
-    """Take ``user_id`` out of the group."""
+    """Take ``user_id`` out of the group.
+
+    Refused for a SCIM-managed group unless ``via_scim``; leaving the SCIM
+    admin group demotes an ``admin`` to ``member`` (owners keep their role).
+    """
+    _refuse_manual_edit(group, via_scim)
     row = (
         await session.execute(
             select(OrganizationGroupMember, User)
@@ -327,6 +385,9 @@ async def remove_member(
     membership, user = cast(tuple[OrganizationGroupMember, User], tuple(row))
     await session.delete(membership)
     await session.flush()
+    await scim_role_sync.on_group_change(
+        session, group.organization_id, group.id, removed=[user_id]
+    )
     return user
 
 

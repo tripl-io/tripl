@@ -36,6 +36,7 @@ from tripl.api.v1.metrics import router as metrics_router
 from tripl.api.v1.metrics_catalog import router as metrics_catalog_router
 from tripl.api.v1.notifications import router as notifications_router
 from tripl.api.v1.org_groups import router as org_groups_router
+from tripl.api.v1.org_scim import router as org_scim_router
 from tripl.api.v1.org_settings import router as org_settings_router
 from tripl.api.v1.org_sso import router as org_sso_router
 from tripl.api.v1.orgs import router as orgs_router
@@ -125,6 +126,9 @@ router.include_router(org_settings_router, dependencies=protected_dependencies)
 router.include_router(org_groups_router, dependencies=protected_dependencies)
 # An organization's single sign-on settings (F20): owners of that organization.
 router.include_router(org_sso_router, dependencies=protected_dependencies)
+# Its SCIM tokens and admin-group mapping (F20): owners of that organization.
+# The SCIM protocol itself is ``tripl.api.scim``, mounted on the app.
+router.include_router(org_scim_router, dependencies=protected_dependencies)
 router.include_router(platform_settings_router, dependencies=protected_dependencies)
 # The platform console (F20 PR14): organizations, users, read-only step-ins.
 router.include_router(platform_console_router, dependencies=protected_dependencies)

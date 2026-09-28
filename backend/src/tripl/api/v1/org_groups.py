@@ -11,8 +11,10 @@ of another organization answers 404 like an unknown one.
   the organization, from a browser session. A member added must be a member of
   the organization (404 otherwise).
 
-Every change is audited as ``org.group.*``. SCIM group sync attaches in the
-SCIM PR; consumers (F24 note sharing, event-type owners, alert routing) read
+Every change is audited as ``org.group.*``. A group managed by the
+organization's SCIM provisioning (``managed_by_scim``) answers 409 to a rename,
+a delete and a member change here: the identity provider owns it. Its
+description stays editable. Consumers (F24 note sharing, event-type owners, alert routing) read
 groups through ``org_group_service.group_member_ids``.
 """
 
@@ -43,6 +45,13 @@ router = APIRouter(prefix="/orgs/{org}/groups", tags=["organizations"])
 
 GROUP_NOT_FOUND = "Group not found"
 MEMBER_NOT_FOUND = "Member not found"
+
+
+MANAGED_BY_SCIM = "This group is managed by SCIM provisioning; change it in the identity provider"
+
+
+def _managed() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=MANAGED_BY_SCIM)
 
 
 def _name_taken(name: str) -> HTTPException:
@@ -120,6 +129,8 @@ async def update_group(
         )
     except org_group_service.GroupNameTakenError:
         raise _name_taken(data.name or "") from None
+    except org_group_service.GroupManagedByScimError:
+        raise _managed() from None
     detail = await org_group_service.group_detail(session, group)
     if changes:
         await audit_service.record(
@@ -143,7 +154,10 @@ async def delete_group(
 ) -> Response:
     group = await _group(session, org, group_id)
     name = group.name
-    members = await org_group_service.delete_group(session, group)
+    try:
+        members = await org_group_service.delete_group(session, group)
+    except org_group_service.GroupManagedByScimError:
+        raise _managed() from None
     await audit_service.record(
         session,
         user=current_user,
@@ -182,6 +196,8 @@ async def add_group_member(
         ) from None
     except org_group_service.GroupNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GROUP_NOT_FOUND) from None
+    except org_group_service.GroupManagedByScimError:
+        raise _managed() from None
     detail = await org_group_service.group_detail(session, group)
     added = next(m for m in detail.members if m.user_id == user.id)
     await audit_service.record(
@@ -211,6 +227,8 @@ async def remove_group_member(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=MEMBER_NOT_FOUND
         ) from None
+    except org_group_service.GroupManagedByScimError:
+        raise _managed() from None
     await audit_service.record(
         session,
         user=current_user,

@@ -6,8 +6,14 @@ import type { components } from '../types/api.gen'
  * of an organization's members. Any member reads them; owners and admins
  * manage them. `/orgs/...` paths are never rewritten by the client.
  */
-export type OrgGroup = components['schemas']['OrgGroupResponse']
-export type OrgGroupDetail = components['schemas']['OrgGroupDetail']
+/**
+ * `managed_by_scim` (F20 SCIM): the group was created by the organization's
+ * identity provider over SCIM, and only SCIM changes its name and members (the
+ * API answers 409 otherwise). Spelled out here until the generated types are
+ * regenerated from the backend.
+ */
+export type OrgGroup = components['schemas']['OrgGroupResponse'] & { managed_by_scim: boolean }
+export type OrgGroupDetail = components['schemas']['OrgGroupDetail'] & { managed_by_scim: boolean }
 export type OrgGroupMember = components['schemas']['OrgGroupMemberResponse']
 
 function base(org: string): string {

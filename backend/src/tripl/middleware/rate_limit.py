@@ -248,6 +248,39 @@ sso_probe_rate_limiter = _limiter_for(
 )
 
 
+# SCIM provisioning (F20): keyed on the SCIM TOKEN, not the client address, so
+# an identity provider's egress pool (many addresses, one tenant) draws on one
+# quota and two tenants behind one NAT never starve each other. Generous: a
+# first sync of a large directory is a burst of hundreds of requests.
+SCIM_RATE_LIMIT_PER_MINUTE = 600
+
+scim_rate_limiter = _limiter_for(SCIM_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="scim")
+
+# Failed SCIM authentication (401s), keyed on the client ADDRESS: only failures
+# draw on it, so identity providers sharing egress addresses are never limited
+# for their valid tokens, while a caller spraying bogus tokens soon gets 429s.
+SCIM_AUTH_FAILURE_RATE_LIMIT_PER_MINUTE = 30
+
+scim_auth_failure_rate_limiter = _limiter_for(
+    SCIM_AUTH_FAILURE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="scim_auth_failure"
+)
+
+
+async def retry_after_for_key(limiter: TokenBucketLimiter, key: str) -> int | None:
+    """Take a token from ``limiter``'s bucket for ``key``; seconds to wait when it is empty.
+
+    For callers keyed on something other than the client address (a SCIM
+    token). ``None`` when the token was taken or limiting is off.
+    """
+    if not settings.rate_limit_enabled or not limiter.enabled:
+        return None
+    try:
+        await limiter.acquire_shared(f"{limiter.name}:{key}")
+    except RateLimitExceeded as exc:
+        return max(1, int(exc.retry_after_seconds + 0.999))
+    return None
+
+
 async def allow(limiter: TokenBucketLimiter, request: Request) -> bool:
     """Take a token for ``request``; ``False`` when the bucket is empty.
 
