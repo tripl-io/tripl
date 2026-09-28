@@ -7,9 +7,15 @@ from contextlib import asynccontextmanager
 
 from brotli_asgi import BrotliMiddleware
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from tripl.config import settings
 from tripl.services.app_settings_service import apply_startup_service_overrides
@@ -22,6 +28,7 @@ from tripl.services.app_settings_service import apply_startup_service_overrides
 apply_startup_service_overrides()
 
 from tripl.api.deps import SsoRequiredError  # noqa: E402
+from tripl.api.scim import router as scim_router  # noqa: E402
 from tripl.api.v1.router import router as v1_router  # noqa: E402
 from tripl.database import engine  # noqa: E402
 from tripl.logging_config import configure_logging  # noqa: E402
@@ -35,6 +42,12 @@ from tripl.middleware.org_path_rewrite import OrgPathRewriteMiddleware  # noqa: 
 from tripl.middleware.request_id import bound_request_id, request_id_from_scope  # noqa: E402
 from tripl.middleware.security_headers import build_security_headers  # noqa: E402
 from tripl.observability.metrics import render_metrics  # noqa: E402
+from tripl.services.scim_errors import (  # noqa: E402
+    INVALID_SYNTAX,
+    SCIM_PATH_PREFIX,
+    ScimError,
+    error_response,
+)
 
 # Configure logging now (after overrides are applied) so every log line — including
 # those emitted while building the app and importing routers, before the async
@@ -189,6 +202,10 @@ app.add_middleware(
 )
 
 app.include_router(v1_router)
+# SCIM 2.0 provisioning (F20): ``/scim/v2/{org}``, beside ``/api/v1`` rather than
+# under it — identity providers expect a SCIM base URL of their own, and none of
+# the API's session gates apply (``tripl.api.scim``). Before the SPA below.
+app.include_router(scim_router)
 
 
 # Serve the built SPA from this same process when enabled — a single-container
@@ -212,6 +229,34 @@ async def sso_required_handler(request: Request, exc: SsoRequiredError) -> JSONR
         status_code=exc.status_code,
         content={"detail": exc.detail, "sso_start": exc.sso_start},
     )
+
+
+@app.exception_handler(ScimError)
+async def scim_error_handler(request: Request, exc: ScimError) -> Response:
+    """A SCIM request's error, in the RFC 7644 §3.12 error format."""
+    return error_response(exc)
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException) -> Response:
+    """FastAPI's own answer, except under ``/scim/v2/``: there, the SCIM error format.
+
+    Covers what the router itself raises for a SCIM path (a method the path
+    does not serve) and any ``HTTPException`` a shared dependency raises.
+    """
+    if request.url.path.startswith(SCIM_PATH_PREFIX):
+        return error_response(
+            ScimError(exc.status_code, str(exc.detail), headers=dict(exc.headers or {}))
+        )
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> Response:
+    """FastAPI's 422, except under ``/scim/v2/``: a SCIM 400 ``invalidSyntax``."""
+    if request.url.path.startswith(SCIM_PATH_PREFIX):
+        return error_response(ScimError(400, "The request is not valid", scim_type=INVALID_SYNTAX))
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.exception_handler(Exception)

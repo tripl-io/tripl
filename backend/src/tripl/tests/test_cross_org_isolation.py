@@ -105,6 +105,15 @@ _PLATFORM_CONSOLE_REASON = (
     "test_platform_console.py and test_platform_step_in.py pin who reaches it"
 )
 
+_SCIM_REASON = (
+    "the SCIM 2.0 service provider (F20): outside /api/v1 and authenticated by a "
+    "SCIM token of the organization the path names ONLY (sessions and API keys "
+    "are 401, so the session/key matrix cannot drive it); a token of another "
+    "organization is 404 and another organization's users and groups are "
+    "invisible, which test_scim.py and test_scim_groups.py pin"
+)
+_SCIM = "/scim/v2/{org}"
+
 #: Every route that is NOT per organization, with the reason. Keyed by path: a
 #: path's methods share the reason.
 PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
@@ -161,6 +170,19 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/platform/step-ins": _PLATFORM_CONSOLE_REASON,
     f"{API}/platform/step-ins/{{step_in_id}}/end": _PLATFORM_CONSOLE_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
+    f"{_SCIM}/ServiceProviderConfig": _SCIM_REASON,
+    f"{_SCIM}/ResourceTypes": _SCIM_REASON,
+    f"{_SCIM}/ResourceTypes/{{name}}": _SCIM_REASON,
+    f"{_SCIM}/Schemas": _SCIM_REASON,
+    f"{_SCIM}/Schemas/{{schema_id}}": _SCIM_REASON,
+    f"{_SCIM}/Users": _SCIM_REASON,
+    f"{_SCIM}/Users/{{user_id}}": _SCIM_REASON,
+    f"{_SCIM}/Groups": _SCIM_REASON,
+    f"{_SCIM}/Groups/{{group_id}}": _SCIM_REASON,
+    f"{_SCIM}/{{rest:path}}": (
+        "the SCIM catch-all: every unsupported path under the SCIM base URL answers a "
+        "SCIM 404 without reading anything"
+    ),
     f"{API}/orgs": (
         "the caller's own organizations (an API key: its own one) and creating a new "
         "one (a platform admin self-hosted, any verified session hosted); names no "
@@ -189,6 +211,7 @@ UNSEEDED_PARAMS: dict[str, str] = {
     "override_id": "anomaly scope overrides are written by the detector",
     "resolution_id": "conflict resolutions need a conflicting branch merge",
     "domain_id": "SSO domains are owner-only rows the seed does not claim",
+    "token_id": "SCIM tokens are owner-only rows the seed does not mint",
 }
 
 #: Id-less legacy GETs whose REQUIRED query names one of A's rows (see
@@ -872,6 +895,7 @@ def _body(method: str, path: str, w: World) -> Any:
             "client_secret": "probe",
         },
         f"{API}/orgs/{{org}}/sso/domains": {"domain": "alpha.example.com"},
+        f"{API}/orgs/{{org}}/scim/config": {"admin_group_id": None},
     }
     return table.get(path, {})
 

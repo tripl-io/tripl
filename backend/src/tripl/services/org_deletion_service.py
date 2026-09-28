@@ -46,11 +46,19 @@ from tripl.models.doc_file import DocFile
 from tripl.models.domain_enums import EventPhotoKind, OrganizationStatus
 from tripl.models.event_photo import EventPhoto
 from tripl.models.invitation import Invitation
+from tripl.models.org_scim import OrgScimConfig, OrgScimToken
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services import audit_service, org_group_service, org_sso_service, project_service
+from tripl.services import (
+    audit_service,
+    org_group_service,
+    org_sso_service,
+    project_service,
+    scim_group_service,
+    scim_user_service,
+)
 from tripl.services.event_photo_service import BlobRef
 from tripl.services.photo_storage_service import (
     driver_for_blob,
@@ -214,6 +222,11 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
     await session.execute(delete(Invitation).where(Invitation.organization_id == org_id))
     await session.execute(delete(DocFile).where(DocFile.organization_id == org_id))
     await session.execute(delete(AppSetting).where(AppSetting.organization_id == org_id))
+    # SCIM first: its config and group links reference the groups.
+    await scim_group_service.delete_org_scim_groups(session, org_id)
+    await scim_user_service.delete_org_scim_users(session, org_id)
+    await session.execute(delete(OrgScimConfig).where(OrgScimConfig.organization_id == org_id))
+    await session.execute(delete(OrgScimToken).where(OrgScimToken.organization_id == org_id))
     await org_group_service.delete_org_groups(session, org_id)
     await org_sso_service.delete_org_sso(session, org_id)
     await session.execute(

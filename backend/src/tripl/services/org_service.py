@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
+from tripl.models.org_scim import ScimUserLink
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
@@ -41,6 +42,7 @@ from tripl.services import (
     org_group_service,
     org_sso_service,
     project_member_service,
+    scim_token_service,
     user_service,
 )
 from tripl.services.org_resolution import ORG_IS_VISIBLE, active_step_in_id
@@ -81,6 +83,8 @@ class RemovedMember:
     group_memberships: int
     #: The user's single sign-on identities in the organization (F20).
     sso_identities: int = 0
+    #: Live SCIM tokens the user created, revoked because they are no longer an owner.
+    scim_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -338,6 +342,30 @@ async def remove_member(
     actor_role = await user_service.org_role_under_lock(session, org_id, actor_id)
     if actor_role not in (OrganizationRole.owner.value, OrganizationRole.admin.value):
         raise user_service.OwnerManagementError
+    return await _remove_member_locked(session, org_id, user_id, actor_role=actor_role)
+
+
+async def deprovision_member(
+    session: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID
+) -> RemovedMember:
+    """:func:`remove_member` for the organization's SCIM provisioning, which has no actor.
+
+    The same removal, everything that came with the membership included; the
+    only rule it keeps is the owner-set one: the last owner cannot be
+    deprovisioned (:class:`user_service.LastOwnerError`). Does NOT commit.
+    """
+    await auth_service.acquire_owner_set_xact_lock(session, org_id)
+    return await _remove_member_locked(session, org_id, user_id, actor_role=None)
+
+
+async def _remove_member_locked(
+    session: AsyncSession,
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    actor_role: str | None,
+) -> RemovedMember:
+    """The removal itself, under the owner-set lock. ``actor_role`` None: SCIM, no actor."""
     row = (
         await session.execute(
             select(OrganizationMember, User)
@@ -354,7 +382,7 @@ async def remove_member(
     old_role = str(membership.role)
     owner = OrganizationRole.owner.value
     if old_role == owner:
-        if actor_role != owner:
+        if actor_role is not None and actor_role != owner:
             raise user_service.OwnerManagementError
         if not await _has_another_owner(session, org_id, user_id):
             raise user_service.LastOwnerError
@@ -380,6 +408,7 @@ async def remove_member(
         await project_member_service.drop_grants_in_projects(session, project_ids, user_id)
 
     revoked = await _revoke_org_keys(session, org_id, user_id)
+    scim_tokens = await scim_token_service.revoke_tokens_created_by(session, org_id, user_id)
     invitations = await invitation_service.drop_pending_invitations(
         session, org_id, invited_by_user_id=user_id, email=target.email
     )
@@ -388,6 +417,16 @@ async def remove_member(
     # the provider again does not re-add them until they accept a new
     # invitation (an SSO membership block).
     identities = await org_sso_service.drop_identities(session, org_id, user_id)
+    if actor_role is not None:
+        # A removal by an owner or admin is not the IdP's to undo: SCIM shows the
+        # user inactive and refuses to re-activate them until they are back in
+        # through an invitation (``scim_user_service``).
+        await session.execute(
+            update(ScimUserLink)
+            .where(ScimUserLink.organization_id == org_id, ScimUserLink.user_id == user_id)
+            .values(active=False, removed_outside_scim=True)
+            .execution_options(synchronize_session=False)
+        )
     await session.delete(membership)
     await session.flush()
     return RemovedMember(
@@ -398,6 +437,7 @@ async def remove_member(
         invitations=invitations,
         group_memberships=groups,
         sso_identities=identities,
+        scim_tokens=scim_tokens,
     )
 
 
@@ -443,6 +483,8 @@ async def transfer_ownership(
     await invitation_service.drop_pending_invitations(
         session, org_id, invited_by_user_id=actor_id, above_role=OrganizationRole.admin
     )
+    # The step-down ends the actor's ownership, and with it their SCIM tokens.
+    await scim_token_service.revoke_tokens_created_by(session, org_id, actor_id)
     await session.flush()
     return target, old_role
 

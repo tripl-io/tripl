@@ -263,6 +263,28 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        # F20: SCIM 2.0 provisioning. The owner's token and mapping changes
+        # (``org.scim.token_*``, ``org.scim.config_update``) carry the owner;
+        # everything the identity provider does through a token carries no
+        # user and ``{"via": "scim", "token_prefix": ...}`` in the payload. A
+        # role the admin-group mapping changes is ``org.member_role_update``
+        # (under Organization) with ``"via": "scim_admin_group"``.
+        "Provisioning (SCIM)",
+        (
+            "org.scim.token_create",
+            "org.scim.token_revoke",
+            "org.scim.config_update",
+            "org.scim.user_provision",
+            "org.scim.user_link",
+            "org.scim.user_update",
+            "org.scim.user_deactivate",
+            "org.scim.user_reactivate",
+            "org.scim.group_create",
+            "org.scim.group_update",
+            "org.scim.group_delete",
+        ),
+    ),
+    (
         # F20 PR14: the platform console. Suspension and step-ins are filed in
         # the TARGET organization, so its owners read them in their own feed;
         # platform-admin grants have no organization (platform scope).

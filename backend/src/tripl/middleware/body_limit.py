@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from tripl.config import settings
+from tripl.services.scim_errors import SCIM_PATH_PREFIX, ScimError, error_response
 
 _PHOTO_UPLOAD = re.compile(r"^/api/v1/projects/[^/]+/events/[^/]+/photos/?$")
 _MIB = 1024 * 1024
@@ -69,6 +70,9 @@ class BodyLimitMiddleware:
 
     @staticmethod
     async def _reject(scope: Scope, receive: Receive, send: Send) -> None:
-        await JSONResponse({"detail": "Request body too large"}, status_code=413)(
-            scope, receive, send
-        )
+        detail = "Request body too large"
+        if str(scope["path"]).startswith(SCIM_PATH_PREFIX):
+            # A SCIM client reads every error in the RFC 7644 §3.12 format.
+            await error_response(ScimError(413, detail))(scope, receive, send)
+            return
+        await JSONResponse({"detail": detail}, status_code=413)(scope, receive, send)

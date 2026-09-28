@@ -854,6 +854,70 @@ export interface paths {
         patch: operations["update_member_role_api_v1_orgs__org__members__user_id__patch"];
         trace?: never;
     };
+    "/api/v1/orgs/{org}/scim/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Scim Config */
+        get: operations["get_scim_config_api_v1_orgs__org__scim_config_get"];
+        /**
+         * Put Scim Config
+         * @description Map a group to organization role ``admin`` (null unmaps); applied at once.
+         *
+         *     404 for a group this organization does not have.
+         */
+        put: operations["put_scim_config_api_v1_orgs__org__scim_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/scim/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Scim Tokens */
+        get: operations["list_scim_tokens_api_v1_orgs__org__scim_tokens_get"];
+        put?: never;
+        /**
+         * Create Scim Token
+         * @description A new token. The answer carries it in ``token``; it is not shown again.
+         */
+        post: operations["create_scim_token_api_v1_orgs__org__scim_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/scim/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Scim Token
+         * @description Revoke a token at once. Revoking a revoked one is a no-op (204, no audit row).
+         */
+        delete: operations["revoke_scim_token_api_v1_orgs__org__scim_tokens__token_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orgs/{org}/settings": {
         parameters: {
             query?: never;
@@ -12492,6 +12556,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Managed By Scim
+             * @default false
+             */
+            managed_by_scim: boolean;
             /** Member Count */
             member_count: number;
             /** Members */
@@ -12549,6 +12618,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Managed By Scim
+             * @default false
+             */
+            managed_by_scim: boolean;
             /** Member Count */
             member_count: number;
             /** Name */
@@ -12683,6 +12757,78 @@ export interface components {
              * @default false
              */
             step_in: boolean;
+        };
+        /**
+         * OrgScimConfigResponse
+         * @description The organization's SCIM endpoint and settings.
+         */
+        OrgScimConfigResponse: {
+            /** Active Tokens */
+            active_tokens: number;
+            /** Admin Group Id */
+            admin_group_id: string | null;
+            /** Admin Group Name */
+            admin_group_name: string | null;
+            /** Base Url */
+            base_url: string;
+        };
+        /**
+         * OrgScimConfigUpdate
+         * @description ``PUT /scim/config``. ``admin_group_id`` null removes the mapping.
+         */
+        OrgScimConfigUpdate: {
+            /** Admin Group Id */
+            admin_group_id?: string | null;
+        };
+        /**
+         * OrgScimTokenCreated
+         * @description ``POST /scim/tokens``: the raw token, shown exactly once.
+         */
+        OrgScimTokenCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Prefix */
+            prefix: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Token */
+            token: string;
+        };
+        /**
+         * OrgScimTokenResponse
+         * @description One SCIM token of the organization. The secret is never returned again.
+         */
+        OrgScimTokenResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Prefix */
+            prefix: string;
+            /** Revoked At */
+            revoked_at: string | null;
         };
         /**
          * OrgSearchSettings
@@ -18710,6 +18856,128 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserListItem"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scim_config_api_v1_orgs__org__scim_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimConfigResponse"];
+                };
+            };
+        };
+    };
+    put_scim_config_api_v1_orgs__org__scim_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgScimConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_scim_tokens_api_v1_orgs__org__scim_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimTokenResponse"][];
+                };
+            };
+        };
+    };
+    create_scim_token_api_v1_orgs__org__scim_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimTokenCreated"];
+                };
+            };
+        };
+    };
+    revoke_scim_token_api_v1_orgs__org__scim_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

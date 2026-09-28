@@ -46,6 +46,7 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.notification import Notification
+from tripl.models.org_scim import OrgScimConfig, OrgScimToken, ScimGroupLink, ScimUserLink
 from tripl.models.org_sso import (
     OrgSsoConfig,
     OrgSsoDomain,
@@ -137,6 +138,10 @@ __all__ = [
     "Organization",
     "OrganizationGroup",
     "OrganizationGroupMember",
+    "OrgScimConfig",
+    "OrgScimToken",
+    "ScimGroupLink",
+    "ScimUserLink",
     "OrgSsoConfig",
     "OrgSsoDomain",
     "SsoLinkTicket",

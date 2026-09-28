@@ -24,7 +24,14 @@ function auth(role: Role): AuthContextValue {
 }
 
 function group(overrides: Partial<OrgGroup> & { id: string; name: string }): OrgGroup {
-  return { description: '', member_count: 0, created_at: STAMP, updated_at: STAMP, ...overrides }
+  return {
+    description: '',
+    member_count: 0,
+    created_at: STAMP,
+    updated_at: STAMP,
+    managed_by_scim: false,
+    ...overrides,
+  }
 }
 
 function detail(base: OrgGroup, members: OrgGroupDetail['members'] = []): OrgGroupDetail {
@@ -146,6 +153,45 @@ describe('Organization › Groups', () => {
     expect(screen.queryByRole('button', { name: /Remove Alice/ })).toBeNull()
     expect(screen.queryByLabelText('Organization member to add')).toBeNull()
     expect(members).not.toHaveBeenCalled()
+  })
+
+  it('marks a SCIM-managed group and offers no manual rename or member edit', async () => {
+    const managed = group({ id: 'g1', name: 'Analysts', member_count: 1, managed_by_scim: true })
+    const { get, members } = renderSection('owner', [managed])
+    get.mockResolvedValue(detail(managed, [ALICE]))
+
+    expect(await screen.findByText('Managed by SCIM')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Analysts' }))
+
+    expect(await screen.findByText('alice@example.com')).toBeInTheDocument()
+    expect(screen.getByText(/is managed by SCIM\. Change its name and members, or delete it, in your identity provider/)).toBeInTheDocument()
+    expect(await screen.findByDisplayValue('Analysts')).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Remove Alice/ })).toBeNull()
+    expect(screen.queryByLabelText('Organization member to add')).toBeNull()
+    expect(members).not.toHaveBeenCalled()
+  })
+
+  it('offers no Delete for a SCIM-managed group (the API refuses it with 409)', async () => {
+    const managed = group({ id: 'g1', name: 'Analysts', managed_by_scim: true })
+    renderSection('owner', [managed])
+    expect(await screen.findByText('Managed by SCIM')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete Analysts' })).toBeNull()
+  })
+
+  it("keeps a SCIM-managed group's description editable", async () => {
+    const managed = group({ id: 'g1', name: 'Analysts', description: 'Data people', managed_by_scim: true })
+    const { get } = renderSection('owner', [managed])
+    get.mockResolvedValue(detail(managed, [ALICE]))
+    const update = vi
+      .spyOn(orgGroupsApi, 'update')
+      .mockResolvedValue(detail({ ...managed, description: 'Analytics team' }, [ALICE]))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Analysts' }))
+    const description = await screen.findByDisplayValue('Data people')
+    fireEvent.change(description, { target: { value: 'Analytics team' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith('acme', 'g1', { description: 'Analytics team' }))
   })
 
   it('says so when there are no groups', async () => {

@@ -18,6 +18,7 @@ import { orgStorageKey } from '@/lib/activeOrg'
 import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
 import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
 import { ORG_SSO_PATH } from './org-settings/orgSsoModel'
+import { ORG_SCIM_PATH } from './org-settings/orgScimModel'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -35,6 +36,7 @@ const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
 const OrgSsoSection = lazyWithReload(() => import('./OrgSsoSection'))
+const OrgScimSection = lazyWithReload(() => import('./OrgScimSection'))
 // The platform console (F20): its own chunks, fetched by platform admins alone.
 const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
 const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
@@ -241,6 +243,7 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   ...Object.values(ORG_SECTION_PATHS),
   ORG_TRACKERS_PATH,
   ORG_SSO_PATH,
+  ORG_SCIM_PATH,
 ])
 
 function renderSection({
@@ -289,6 +292,10 @@ function renderSection({
   if (section === ORG_SSO_PATH) {
     // How the organization signs in (F20): its owners alone, not its admins.
     return isOrgOwner ? <OrgSsoSection /> : <OrgOwnerOnly section={section} />
+  }
+  if (section === ORG_SCIM_PATH) {
+    // Who the identity provider may add and remove (F20): owners alone too.
+    return isOrgOwner ? <OrgScimSection /> : <OrgOwnerOnly section={section} />
   }
   // One route serves every organization section; an unknown one is not a
   // project section to guess at.
@@ -456,8 +463,9 @@ function OrgOwnerOnly({ section }: { section: string }) {
           </Link>
         }
       >
-        Only an organization owner can view or change single sign-on: it decides how everyone in
-        the organization signs in. Ask an owner.
+        {section === ORG_SCIM_PATH
+          ? 'Only an organization owner can view or change provisioning: it decides who your identity provider adds to and removes from the organization. Ask an owner.'
+          : 'Only an organization owner can view or change single sign-on: it decides how everyone in the organization signs in. Ask an owner.'}
       </ReadOnlyNotice>
     </div>
   )

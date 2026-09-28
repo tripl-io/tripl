@@ -555,6 +555,19 @@ async def _reclaim(session: AsyncSession, user: User, now: datetime) -> None:
     )
 
 
+async def reclaim_if_unclaimed(session: AsyncSession, user: User) -> bool:
+    """Take ``user`` over clean if nobody ever proved the address (:func:`_unclaimed`).
+
+    For SCIM provisioning (F20), which vouches for an address in one of the
+    organization's verified domains the way a provider-verified sign-in does.
+    Returns whether it did. No commit.
+    """
+    if not _unclaimed(user):
+        return False
+    await _reclaim(session, user, datetime.now(UTC))
+    return True
+
+
 async def _live_ticket(session: AsyncSession, raw_ticket: str) -> SsoLinkTicket:
     row = cast(
         SsoLinkTicket | None,

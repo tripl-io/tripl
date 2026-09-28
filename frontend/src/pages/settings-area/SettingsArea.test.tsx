@@ -8,6 +8,7 @@ import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
+import { scimApi } from '@/api/scim'
 import { ssoApi } from '@/api/sso'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
@@ -390,6 +391,21 @@ describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Single sign-on' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner/)
     expect(get).not.toHaveBeenCalled()
+  })
+
+  it("keeps Provisioning (SCIM) from an organization admin: it is an owner's alone (F20)", async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const tokens = vi.spyOn(scimApi, 'listTokens')
+    const config = vi.spyOn(scimApi, 'getConfig')
+    const owner = ownerAuthValue()
+    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
+
+    renderArea('organization/scim', '', admin)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Provisioning' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change provisioning/)
+    expect(tokens).not.toHaveBeenCalled()
+    expect(config).not.toHaveBeenCalled()
   })
 
   it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {
