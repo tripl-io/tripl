@@ -233,7 +233,7 @@ def test_the_backfill_creates_the_default_org_when_it_is_missing(
         assert org is not None
         assert org.slug == DEFAULT_ORG_SLUG
         assert org.members_can_create_projects is True
-        assert org.default_project_role is None
+        assert org.default_project_role == "none"
 
 
 def test_rows_without_an_org_and_project_bound_keys_are_assigned(

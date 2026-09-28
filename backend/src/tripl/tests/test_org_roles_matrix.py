@@ -1,7 +1,8 @@
 """Organization roles are the source of truth (F20 PR4, GH #273).
 
 * the role matrix: org ``owner`` / ``admin`` / ``member`` x project row
-  (none / ``viewer`` / ``editor``);
+  (no row / ``none`` / ``viewer`` / ``editor``), under a ``none`` default
+  (``test_org_default_project_role`` covers the other defaults);
 * a platform admin gets the operator settings and nothing inside any org;
 * an org admin gets the org-scoped settings but not the operator fields;
 * a role in org A buys nothing in org B, including through an id taken from a
@@ -131,14 +132,15 @@ async def _create_project(client: AsyncClient, slug: str, prefix: str = "/api/v1
 _MATRIX = [
     (org_role, row)
     for org_role in ("owner", "admin", "member")
-    for row in (None, "viewer", "editor")
+    for row in (None, "none", "viewer", "editor")
 ]
 
 
 def _expected_project_role(org_role: str, row: str | None) -> str | None:
+    """Under the default organization's ``none`` default: no row is no access."""
     if org_role in ("owner", "admin"):
         return "owner"
-    return row
+    return None if row == "none" else row
 
 
 @pytest.mark.asyncio
@@ -185,13 +187,18 @@ async def test_org_role_by_project_row_matrix(
 
 @pytest.mark.asyncio
 async def test_effective_role_is_pure_and_ignores_rows_for_org_admins() -> None:
-    assert project_access.effective_role("owner", None) == "owner"
-    assert project_access.effective_role("admin", "viewer") == "owner"
-    assert project_access.effective_role("member", "editor") == "editor"
-    assert project_access.effective_role("member", "viewer") == "viewer"
-    assert project_access.effective_role("member", None) is None
-    assert project_access.effective_role(None, "editor") == "editor"
-    assert project_access.effective_role(None, None) is None
+    assert project_access.effective_role("owner", None, "none") == "owner"
+    assert project_access.effective_role("admin", "viewer", "none") == "owner"
+    assert project_access.effective_role("admin", "none", "none") == "owner"
+    assert project_access.effective_role("member", "editor", "none") == "editor"
+    assert project_access.effective_role("member", "viewer", "editor") == "viewer"
+    assert project_access.effective_role("member", "none", "editor") is None
+    assert project_access.effective_role("member", None, "none") is None
+    assert project_access.effective_role("member", None, "viewer") == "viewer"
+    assert project_access.effective_role("member", None, "editor") == "editor"
+    assert project_access.effective_role(None, "editor", "none") == "editor"
+    assert project_access.effective_role(None, None, "editor") is None
+    assert project_access.effective_role(None, None, "none") is None
     assert project_access.is_org_admin_role("admin")
     assert not project_access.is_org_admin_role("member")
     assert not project_access.is_org_admin_role(None)

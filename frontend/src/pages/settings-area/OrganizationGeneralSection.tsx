@@ -6,7 +6,7 @@ import { orgsApi } from '@/api/orgs'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { useActiveOrg } from '@/components/active-org-context'
 import { ErrorState } from '@/components/error-state'
-import { Field, InfoRow, SCard, SHeader, TextInput } from '@/components/settings/kit'
+import { Field, InfoRow, NativeSelect, SCard, SHeader, TextInput } from '@/components/settings/kit'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/hooks/useConfirm'
@@ -14,19 +14,30 @@ import { orgHomePath } from '@/lib/activeOrg'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanCreateOrg } from '@/lib/deploymentMode'
 import { useIsOrgOwner, useIsOwner } from '@/lib/permissions'
-import { orgKey, orgsKey } from '@/lib/queryKeys'
+import { orgKey, orgRootKey, orgsKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
+import { PROJECT_ROLE_OPTIONS, type DefaultProjectRole } from '@/types'
 import { DangerRow } from './ProjectDangerRows'
 
 /** The organization slug's shape: the backend's `ORG_SLUG_PATTERN`. */
 const ORG_SLUG_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const CREATE_FORM_ID = 'create-organization-form'
 const RENAME_FORM_ID = 'rename-organization-form'
+const PROJECT_ACCESS_FORM_ID = 'organization-project-access-form'
+
+/** What each default means, under the select. */
+const DEFAULT_ACCESS_HINTS: Readonly<Record<DefaultProjectRole, string>> = {
+  none: 'Projects are invite-only: a member sees a project once someone adds them in its Access settings.',
+  viewer: 'Every member can open every project and read it. Writing needs an Editor role on the project.',
+  editor: 'Every member can open and change every project.',
+}
 
 /**
  * Organization › Details, its General page (F20 PR7): the organization's name (an owner or admin
  * renames it), its slug (read-only: it is in every address, `/o/{slug}/…`, and
- * links already sent must keep working), "Create organization" (a platform
+ * links already sent must keep working), its default access to projects (F20
+ * PR15: what a member gets on a project with no row of theirs; an owner or
+ * admin sets it), "Create organization" (a platform
  * admin's, or anyone's in hosted mode), and the danger zone, where an owner deletes it. The default
  * organization cannot be deleted, so its danger zone is not drawn.
  */
@@ -60,7 +71,7 @@ function OrganizationCards({ org }: { org: string }) {
 
   const renameMut = useMutation({
     meta: SILENT_ERROR_META,
-    mutationFn: (next: string) => orgsApi.rename(org, next),
+    mutationFn: (next: string) => orgsApi.update(org, { name: next }),
     onSuccess: (renamed) => {
       qc.setQueryData(orgKey(org), renamed)
       setDraft(null)
@@ -160,6 +171,8 @@ function OrganizationCards({ org }: { org: string }) {
         </form>
       </SCard>
 
+      <ProjectAccessCard org={current.slug} current={current.default_project_role} canEdit={canRename} />
+
       {isOrgOwner && !current.is_default && (
         <SCard title="Danger zone" tone="danger">
           <DangerRow
@@ -175,6 +188,104 @@ function OrganizationCards({ org }: { org: string }) {
         </SCard>
       )}
     </>
+  )
+}
+
+/**
+ * Default access to projects (F20 PR15): what a member of the organization gets
+ * on a project where they have no row. An owner or admin changes it; everyone
+ * else reads it. Owners and admins see every project whatever it says, and a
+ * project's own rows (Project › Access) override it, "No access" included.
+ */
+function ProjectAccessCard({
+  org,
+  current,
+  canEdit,
+}: {
+  org: string
+  current: DefaultProjectRole
+  canEdit: boolean
+}) {
+  const qc = useQueryClient()
+  const [draft, setDraft] = useState<DefaultProjectRole | null>(null)
+  const value = draft ?? current
+  const dirty = value !== current
+
+  const saveMut = useMutation({
+    meta: SILENT_ERROR_META,
+    mutationFn: (next: DefaultProjectRole) => orgsApi.update(org, { default_project_role: next }),
+    onSuccess: (updated) => {
+      qc.setQueryData(orgKey(org), updated)
+      setDraft(null)
+      // Which projects a member sees, and what they may do in them, follow it.
+      void qc.invalidateQueries({ queryKey: orgRootKey(org) })
+    },
+  })
+
+  const label = PROJECT_ROLE_OPTIONS.find((option) => option.value === value)?.label ?? value
+
+  return (
+    <SCard
+      title="Default access to projects"
+      description="What a member of this organization gets on a project they have not been added to. Owners and admins always see every project, and a project's Access settings can give someone more, less, or no access."
+      footer={
+        canEdit ? (
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
+            {saveMut.isError && (
+              <p role="alert" className="m-0 mr-auto text-body-sm text-destructive">
+                {getErrorMessage(saveMut.error)}
+              </p>
+            )}
+            {saveMut.isSuccess && !dirty && (
+              <p role="status" className="m-0 mr-auto text-body-sm text-success">Saved</p>
+            )}
+            <Button
+              type="submit"
+              form={PROJECT_ACCESS_FORM_ID}
+              size="sm"
+              aria-label="Save default access"
+              disabled={!dirty || saveMut.isPending}
+            >
+              {saveMut.isPending ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      {canEdit ? (
+        <form
+          id={PROJECT_ACCESS_FORM_ID}
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (dirty && !saveMut.isPending) saveMut.mutate(value)
+          }}
+        >
+          <Field
+            label="Default access"
+            htmlFor="org-default-project-role"
+            hint={DEFAULT_ACCESS_HINTS[value]}
+            last
+          >
+            <NativeSelect
+              id="org-default-project-role"
+              value={value}
+              onChange={(next) => {
+                saveMut.reset()
+                setDraft(next as DefaultProjectRole)
+              }}
+              options={PROJECT_ROLE_OPTIONS}
+              width="fill"
+            />
+          </Field>
+        </form>
+      ) : (
+        <>
+          <InfoRow label="Default access" value={label} mono={false} />
+          <p className="m-0 px-4 pb-3 text-caption text-fg-tertiary">{DEFAULT_ACCESS_HINTS[value]}</p>
+        </>
+      )}
+    </SCard>
   )
 }
 

@@ -338,7 +338,8 @@ class OrganizationRole(enum.StrEnum):
     The source of truth for organization-level rights (F20 PR4). ``owner`` and
     ``admin`` administer the organization and are the implicit ``owner`` of
     every project in it; only an ``owner`` can make or unmake another owner.
-    ``member`` holds exactly the roles of their ``project_members`` rows.
+    ``member`` holds the role of their ``project_members`` row in a project,
+    or the organization's ``default_project_role`` where they hold none.
     """
 
     owner = "owner"
@@ -377,8 +378,15 @@ class ProjectMemberRole(enum.StrEnum):
     There is no per-project ``owner``: an owner or admin of the project's
     organization (:class:`OrganizationRole`) sees and manages every project of
     that organization without a membership row, as project role ``owner``. For
-    everyone else the row is authoritative (``services.project_access``).
+    everyone else the row is authoritative (``services.project_access``), and
+    a member without a row gets the organization's ``default_project_role``.
+
+    ``none`` is "no access": as a row it opts one organization member out of
+    one project (the project is a 404 for them, whatever the organization
+    default); as ``organizations.default_project_role`` it means members see
+    only the projects they hold a row in.
     """
 
+    none = "none"
     editor = "editor"
     viewer = "viewer"

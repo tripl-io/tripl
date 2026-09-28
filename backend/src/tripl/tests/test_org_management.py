@@ -202,9 +202,9 @@ async def test_members_read_admins_rename_and_the_slug_is_immutable(
     assert (await people["carol"].get(ACME_URL)).status_code == 404
     assert (await people["carol"].patch(ACME_URL, json={"name": "x"})).status_code == 404
 
-    [entry] = await _audit("org.rename")
+    [entry] = await _audit("org.update")
     assert entry.organization_id == acme
-    assert entry.payload == {"old_name": "Acme", "new_name": "Acme Inc"}
+    assert entry.payload == {"before": {"name": "Acme"}, "after": {"name": "Acme Inc"}}
 
 
 async def test_members_list_is_the_organization_roster(people: People, acme: uuid.UUID) -> None:

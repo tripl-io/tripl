@@ -18962,9 +18962,9 @@
         "tags": [
           "organizations"
         ],
-        "summary": "Rename Org",
-        "description": "Rename the organization. Only the name: a ``slug`` in the body is a 422.",
-        "operationId": "rename_org_api_v1_orgs__org__patch",
+        "summary": "Update Org",
+        "description": "Rename the organization and/or set its default project role.\n\nThe slug is permanent: a ``slug`` in the body is a 422, and so is a\n``default_project_role`` of ``owner``. Audited as ``org.update`` with the\nchanged fields before and after.",
+        "operationId": "update_org_api_v1_orgs__org__patch",
         "requestBody": {
           "content": {
             "application/json": {
@@ -39256,6 +39256,9 @@
             "type": "boolean",
             "title": "Is Default"
           },
+          "default_project_role": {
+            "$ref": "#/components/schemas/ProjectMemberRole"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -39275,6 +39278,7 @@
           "role",
           "status",
           "is_default",
+          "default_project_role",
           "created_at"
         ],
         "title": "OrgResponse",
@@ -39847,19 +39851,33 @@
       "OrgUpdate": {
         "properties": {
           "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Name"
+          },
+          "default_project_role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectMemberRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "name"
-        ],
         "title": "OrgUpdate",
-        "description": "A rename. ``extra=\"forbid\"``: the slug is immutable, so sending one is a 422."
+        "description": "A partial update: the name and/or the default project role.\n\n``extra=\"forbid\"``: the slug is immutable, so sending one is a 422. At\nleast one field must be sent."
       },
       "OrganizationRole": {
         "type": "string",
@@ -39869,7 +39887,7 @@
           "member"
         ],
         "title": "OrganizationRole",
-        "description": "A user's role in one organization (``organization_members.role``).\n\nThe source of truth for organization-level rights (F20 PR4). ``owner`` and\n``admin`` administer the organization and are the implicit ``owner`` of\nevery project in it; only an ``owner`` can make or unmake another owner.\n``member`` holds exactly the roles of their ``project_members`` rows."
+        "description": "A user's role in one organization (``organization_members.role``).\n\nThe source of truth for organization-level rights (F20 PR4). ``owner`` and\n``admin`` administer the organization and are the implicit ``owner`` of\nevery project in it; only an ``owner`` can make or unmake another owner.\n``member`` holds the role of their ``project_members`` row in a project,\nor the organization's ``default_project_role`` where they hold none."
       },
       "OrganizationStatus": {
         "type": "string",
@@ -42536,11 +42554,12 @@
       "ProjectMemberRole": {
         "type": "string",
         "enum": [
+          "none",
           "editor",
           "viewer"
         ],
         "title": "ProjectMemberRole",
-        "description": "A user's role inside one project (``project_members.role``).\n\nThere is no per-project ``owner``: an owner or admin of the project's\norganization (:class:`OrganizationRole`) sees and manages every project of\nthat organization without a membership row, as project role ``owner``. For\neveryone else the row is authoritative (``services.project_access``)."
+        "description": "A user's role inside one project (``project_members.role``).\n\nThere is no per-project ``owner``: an owner or admin of the project's\norganization (:class:`OrganizationRole`) sees and manages every project of\nthat organization without a membership row, as project role ``owner``. For\neveryone else the row is authoritative (``services.project_access``), and\na member without a row gets the organization's ``default_project_role``.\n\n``none`` is \"no access\": as a row it opts one organization member out of\none project (the project is a 404 for them, whatever the organization\ndefault); as ``organizations.default_project_role`` it means members see\nonly the projects they hold a row in."
       },
       "ProjectMemberUpdate": {
         "properties": {

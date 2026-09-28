@@ -798,7 +798,7 @@ export function RuleEditorDialog({
                 AI explanation appends an LLM summary to each alert (needs AI enabled on the server).
               </p>
               <p id="rule-owners-hint" className="m-0 text-caption text-fg-subtle">
-                Owners of each affected event type, and of a catalog metric, get one email per delivery with the items they own, in addition to this destination. Owners who are not project members or have no email are skipped; needs email (SMTP) configured on the server.
+                Owners of each affected event type, and of a catalog metric, get one email per delivery with the items they own, in addition to this destination. Owners who cannot see the project (or have no email) are skipped; needs email (SMTP) configured on the server.
               </p>
             </section>
 

@@ -15,9 +15,9 @@ organization, a non-member, an API key of another organization — gets the same
   creator becomes the owner. Hosted sign-up (``POST /auth/register``) creates
   the account's first organization the same way.
 * ``GET /orgs/{org}`` and ``GET /orgs/{org}/members`` — any member.
-* ``PATCH /orgs/{org}`` (name only; the slug is permanent), member role change
-  and removal — an owner or admin. Owners are managed by owners only, and the
-  last owner can be neither demoted nor removed.
+* ``PATCH /orgs/{org}`` (the name and the default project role; the slug is
+  permanent), member role change and removal — an owner or admin. Owners are
+  managed by owners only, and the last owner can be neither demoted nor removed.
 * ``DELETE /orgs/{org}`` and ``POST /orgs/{org}/transfer-ownership`` — an owner.
 
 Invitations into an organization stay where they were: ``/orgs/{org}/users/
@@ -128,24 +128,40 @@ async def get_org(current_user: PathOrgMemberUserDep, org: ManagedOrgDep) -> Org
 
 
 @router.patch("/{org}", response_model=OrgResponse)
-async def rename_org(
+async def update_org(
     session: SessionDep,
     data: OrgUpdate,
     current_user: PathOrgAdminUserDep,
     org: ManagedOrgDep,
 ) -> OrgResponse:
-    """Rename the organization. Only the name: a ``slug`` in the body is a 422."""
-    renamed = await org_service.rename_org(session, org, data.name)
-    await audit_service.record(
-        session,
-        user=current_user,
-        action="org.rename",
-        target_type="organization",
-        target_id=org.id,
-        target_name=org.slug,
-        payload={"old_name": org.name, "new_name": renamed.name},
+    """Rename the organization and/or set its default project role.
+
+    The slug is permanent: a ``slug`` in the body is a 422, and so is a
+    ``default_project_role`` of ``owner``. Audited as ``org.update`` with the
+    changed fields before and after.
+    """
+    updated = await org_service.update_org(
+        session, org, name=data.name, default_project_role=data.default_project_role
     )
-    return org_service.org_response(renamed)
+    before: dict[str, str] = {}
+    after: dict[str, str] = {}
+    for field in ("name", "default_project_role"):
+        old, new = getattr(org, field), getattr(updated, field)
+        if old != new:
+            before[field], after[field] = old, new
+    if after:
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="org.update",
+            target_type="organization",
+            target_id=org.id,
+            target_name=org.slug,
+            payload={"before": before, "after": after},
+        )
+    else:
+        await session.commit()
+    return org_service.org_response(updated)
 
 
 @router.delete("/{org}", response_model=OrgResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -209,6 +225,7 @@ async def delete_org(
             role=org.role,
             status=OrganizationStatus.deleting.value,
             created_at=org.created_at,
+            default_project_role=org.default_project_role,
         )
     )
 

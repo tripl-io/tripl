@@ -230,6 +230,9 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "Organization",
         (
             "org.create",
+            "org.update",
+            # Written by ``PATCH /orgs/{org}`` before it became ``org.update``
+            # (default project role); older entries carry it.
             "org.rename",
             "org.delete_request",
             "org.delete_cancel",

@@ -37,8 +37,11 @@ Access is decided by two roles and one flag:
 - the **organization role** (`organization_members.role`): `owner`, `admin` or
   `member`. A self-hosted instance has one organization, the default one, and
   every account belongs to it;
-- the **project role** of a member (`project_members.role`): `editor` or
-  `viewer`, per project;
+- the **project role** of a member: the organization's **default access to
+  projects** (`organizations.default_project_role`: `none`, `viewer` or
+  `editor`), overridden per project by a membership row
+  (`project_members.role`: `editor`, `viewer` or `none`); see
+  [Default access to projects](#default-access-to-projects);
 - the **platform admin** flag (`users.is_platform_admin`): the operator of the
   instance, separate from both.
 
@@ -46,9 +49,9 @@ Access is decided by two roles and one flag:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Org owner** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, including other owners | Yes (default org) | No, unless also platform admin |
 | **Org admin** | Every project of the org (as project `owner`) | Every project | Every project | Yes | Yes, except making or unmaking an owner | Yes (default org) | No, unless also platform admin |
-| **Member, project `editor`** | That project | That project | Projects they created | No | No | No | No |
-| **Member, project `viewer`** | That project | No | No | No | No | No | No |
-| **Member, no project row** | — (`404`) | No | No | No | No | No | No |
+| **Member, project `editor`** (row, or the default) | That project | That project | Projects they created | No | No | No | No |
+| **Member, project `viewer`** (row, or the default) | That project | No | No | No | No | No | No |
+| **Member, `none`** (a `none` row, or no row under a `none` default) | — (`404`) | No | No | No | No | No | No |
 | **Platform admin** (flag only) | None from the flag; read-only during a [step-in](#read-only-step-in) | No | No | No | No | Yes | Yes |
 
 An owner and an admin differ only on owners: an admin can do everything an owner
@@ -71,11 +74,13 @@ How roles are assigned:
 - **The first user to register becomes the owner of the default organization
   and the platform admin.** This guarantees every instance has someone who can
   manage roles and operate it. Every later registration joins the default
-  organization as a **`member`** with no project, until someone adds them to
-  one.
+  organization as a **`member`**, with the organization's default access to
+  its projects — no project at all under the default `none`, until someone
+  adds them to one.
 - An invitation carries an organization role; the invitee joins at it.
 - A `viewer` is a **project** role now: add someone to a project as a viewer in
-  **Settings → Project → Access**. Upgrading moved every former instance viewer
+  **Settings → Project → Access**, or make it the organization's
+  [default access](#default-access-to-projects). Upgrading moved every former instance viewer
   to `member` and capped each of their project memberships at `viewer`, so
   nobody gained write access in the upgrade.
 - Only an **owner or admin** changes organization roles. The API refuses to
@@ -109,14 +114,53 @@ already passed authentication still finishes with the old role. To end
 someone's sessions, have them log out or remove them from the organization.
 :::
 
+### Default access to projects {#default-access-to-projects}
+
+Every organization has a **default access to projects**: what a `member` gets
+on a project where they have no membership row. Set it in **Settings →
+Organization → Details → Default access to projects** (an owner or admin), or
+with `PATCH /api/v1/orgs/{org}` and `{"default_project_role": "none" |
+"viewer" | "editor"}`. It is never `owner`; that value is refused with `422`.
+The change is recorded in the audit log as `org.update`, with the value before
+and after.
+
+| Default | A member with no row in a project |
+| --- | --- |
+| `none` (the default for every organization) | Does not see it (`404`). Projects are invite-only. |
+| `viewer` | Opens and reads it; writing answers `403`. |
+| `editor` | Opens and changes it, like an `editor` member. |
+
+A project's own rows override the default for that project, in both
+directions, and a row wins even when it gives less:
+
+- `editor` or `viewer`: that role, whatever the default. A `viewer` row under an
+  `editor` default keeps that person read-only in that project.
+- `none` (**No access** in **Settings → Project → Access**): the project is
+  hidden from that person (`404`, missing from the project list, no
+  notifications, no live updates), even when the default would give it.
+  Removing the row returns them to the default.
+
+Owners and admins of the organization see and manage every project whatever the
+default says, so a `none` row for one of them is refused with `422`. The same
+effective access decides who is notified about a project (mentions, alert
+owners, notification emails), who can be picked as a reviewer or event-type
+owner, and who keeps a live-updates stream open: changing the default or a row
+applies to all of these checks at once. A stricter default does not delete
+anything, though: event-type ownerships and branch-reviewer seats held by
+members who lose access stay stored (and reviewer seats stay listed on the
+branch), but they no longer count for merge gating or notifications, and they
+apply again if access comes back. A platform admin's
+[read-only step-in](#read-only-step-in) is unaffected.
+
 ### How permissions are enforced
 
 The backend gates endpoints with role/scope dependencies, not just UI hiding:
 
-- **Project membership** is checked before anything else on every project
-  route: a non-member receives `404 Project not found`, and a viewer member who
-  tries to change something receives `403 Editor access to this project is
-  required`.
+- **Project access** is checked before anything else on every project
+  route: someone without access (no row under a `none` default, or a `none`
+  row) receives `404 Project not found`, and a viewer — by row or by the
+  default — who tries to change something receives `403 Editor access to this
+  project is required`.
 - **Organization membership** is required to create a project or a write-scoped
   API key, and to read the member roster (`403 Organization membership
   required`).
@@ -148,18 +192,21 @@ The backend gates endpoints with role/scope dependencies, not just UI hiding:
 
 ## Project access
 
-Each project has its own member list. A user who is not a member of a project
-does not see it at all: it is missing from the project list, the activity feed
-and data-source listings, and every page and API route under it answers
-`404 Project not found`. Owners and admins of the organization see every
-project of it and need no membership.
+Each project has its own member list, on top of the organization's
+[default access to projects](#default-access-to-projects). A user without
+access to a project does not see it at all: it is missing from the project
+list, the activity feed and data-source listings, and every page and API route
+under it answers `404 Project not found`. Owners and admins of the organization
+see every project of it and need no membership.
 
 | Project role | What it allows |
 | --- | --- |
 | **Editor** | Read the project and edit its tracking plan, catalog and alerting. |
 | **Viewer** | Read the project. |
+| **No access** (`none`) | Nothing: the project is hidden, whatever the organization's default. |
 
-The membership row is authoritative: nothing caps it from outside.
+A membership row is authoritative: it overrides the default in both
+directions, and nothing caps it from outside.
 
 **Settings → Project → Access** lists the project's members. The organization's
 owners and admins, and the person who created the project, can, as long as the
@@ -167,11 +214,18 @@ creator still holds an editing role:
 
 - **add a member**: pick someone from the organization and a role (a user who
   is not a member of the project's organization is refused with `422`);
-- **change a member's role** between Editor and Viewer;
-- **remove a member**, who then no longer sees the project. Removal also drops
-  their event-type ownerships and pending branch-reviewer assignments in that
-  project, and closes any live-updates stream they have open within one
-  heartbeat.
+- **add a member at No access** to keep one person out of a project the
+  default would give them (not an owner or admin of the organization: `422`);
+- **change a member's role** between Editor, Viewer and No access (taking
+  someone to Viewer or No access asks first);
+- **remove a member**, who then falls back to the organization's default access
+  (no project under the `none` default). Losing access by removal or a `none`
+  row also drops their event-type ownerships and pending branch-reviewer
+  assignments in that project. A stricter
+  [default](#default-access-to-projects) drops nothing: those grants stay stored
+  and reviewer seats stay listed, but they are ignored for merge gating and
+  notifications while the member cannot see the project. Any loss of access
+  closes a live-updates stream they have open within one heartbeat.
 
 The creator's rights last only while they can edit: a creator who was switched
 to a `viewer` member gets `403` on member changes, rename and reset, and a
@@ -188,12 +242,15 @@ A few things follow from this:
 - **Whoever creates a project is an editor member of it**, and can manage its
   access. The same goes for a demo workspace, which starts with its creator as
   the only member; resetting a demo keeps its members.
-- **New accounts see no projects.** Someone who registers or accepts an
-  invitation has to be added to each project they need.
-- **Event-type owners and branch reviewers must be members** of the project
+- **New accounts get the default.** Under the `none` default, someone who
+  registers or accepts an invitation sees no project until they are added to
+  each one they need; under `viewer` or `editor` they see every project except
+  those with a `none` row for them.
+- **Event-type owners and branch reviewers must have access** to the project
   (`422 User is not a member of this project` otherwise).
-- **API keys act as their user.** A key reaches the projects its user is a member
-  of, and a key bound to one project can only be created by a member of it. A
+- **API keys act as their user.** A key reaches the projects its user has access
+  to, and a key bound to one project can only be created by someone with access
+  to it. A
   project-bound key used on another project gets `404 Project not found`, the
   same as an unknown slug.
 - **Taken slugs still answer `409`, within the organization.** Creating a
@@ -366,7 +423,10 @@ workspace. With a single organization the switcher is not shown.
 The organization's own settings are in **Settings → Organization**:
 
 - **Details** — the name, which owners and admins can change; the slug, shown
-  read-only because it cannot change; **Create organization** (for a platform
+  read-only because it cannot change; **Default access to projects** (No
+  access, Viewer or Editor: what a member gets on a project they were not
+  added to, set by an owner or admin, read-only for everyone else, see
+  [Default access to projects](#default-access-to-projects)); **Create organization** (for a platform
   admin on a self-hosted instance, for anyone on a hosted one); and the **Danger zone**, where an owner deletes the organization after
   typing its slug. The default organization has no danger zone: it cannot be
   deleted.
@@ -544,8 +604,11 @@ reports `has_users: true`, so it does not reveal whether the instance is empty.
 ### Rename an organization
 
 Owners and admins can change the **name** (`PATCH /api/v1/orgs/{org}` with
-`{"name": "..."}`). The slug cannot be changed; a request that sends one is
-refused with `422`.
+`{"name": "..."}`) and the
+[default access to projects](#default-access-to-projects)
+(`{"default_project_role": "none" | "viewer" | "editor"}`), in one request or
+separately. The slug cannot be changed; a request that sends one is refused
+with `422`.
 
 ### Members and roles
 
@@ -657,7 +720,10 @@ direct database query.
 
 ### Audit
 
-Every organization action is audited: `org.create`, `org.rename`,
+Every organization action is audited: `org.create`, `org.update` (a rename
+and/or the [default access to projects](#default-access-to-projects), with the
+changed fields before and after; entries written before this release record a
+rename as `org.rename`),
 `org.delete_request`, `org.delete_cancel`, `org.delete_complete`,
 `org.member_role_update`,
 `org.member_remove`, `org.transfer_ownership`, for groups `org.group.create`,

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ActiveOrgProvider } from '@/components/active-org-provider'
 import { AuthContext } from '@/components/auth-context'
 import { authAs } from '@/test/auth'
-import type { OrgMembership, Role } from '@/types'
+import type { DefaultProjectRole, OrgMembership, Role } from '@/types'
 import UsersPage from '@/pages/UsersPage'
 import InvitationsSection from './InvitationsSection'
 import OrganizationGeneralSection from './OrganizationGeneralSection'
@@ -28,7 +28,12 @@ const MEMBERS = [
   { id: 'mb-1', email: 'mb@example.com', name: 'Mo', role: 'member', created_at: '2026-01-03T00:00:00Z' },
 ]
 
-function orgResponse(slug: string, role: Role, name = 'Acme') {
+function orgResponse(
+  slug: string,
+  role: Role,
+  name = 'Acme',
+  defaultProjectRole: DefaultProjectRole = 'none',
+) {
   return {
     id: `org-${slug}`,
     slug,
@@ -36,22 +41,28 @@ function orgResponse(slug: string, role: Role, name = 'Acme') {
     role,
     status: 'active',
     is_default: slug === 'default',
+    default_project_role: defaultProjectRole,
     created_at: '2026-01-01T00:00:00Z',
   }
 }
 
 function mockApi(org = 'acme', role: Role = 'owner') {
   const calls: Call[] = []
+  // The server's copy: a PATCH lands in it, so the refetch after a save reads it back.
+  let stored = { name: 'Acme', default_project_role: 'none' as DefaultProjectRole }
   vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = init?.body ? String(init.body) : undefined
     calls.push({ method, url, body })
     const base = `/api/v1/orgs/${org}`
-    if (url === base && method === 'GET') return Promise.resolve(jsonResponse(orgResponse(org, role)))
+    if (url === base && method === 'GET') {
+      return Promise.resolve(jsonResponse(orgResponse(org, role, stored.name, stored.default_project_role)))
+    }
     if (url === base && method === 'PATCH') {
-      const { name } = JSON.parse(body ?? '{}') as { name: string }
-      return Promise.resolve(jsonResponse(orgResponse(org, role, name)))
+      const patch = JSON.parse(body ?? '{}') as { name?: string; default_project_role?: DefaultProjectRole }
+      stored = { ...stored, ...patch }
+      return Promise.resolve(jsonResponse(orgResponse(org, role, stored.name, stored.default_project_role)))
     }
     if (url === base && method === 'DELETE') {
       return Promise.resolve(jsonResponse({ ...orgResponse(org, role), status: 'deleting' }, 202))
@@ -203,6 +214,53 @@ describe('Organization › Details', () => {
     renderSection(<OrganizationGeneralSection />, { role: 'member' })
     expect(await screen.findByText('Acme')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+  })
+
+  it('sets the default access to projects, with what it means (F20 PR15)', async () => {
+    const calls = mockApi()
+    renderSection(<OrganizationGeneralSection />)
+
+    const select = await screen.findByLabelText('Default access')
+    expect(select).toHaveValue('none')
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'No access',
+      'Viewer',
+      'Editor',
+    ])
+    expect(screen.getByText(/Projects are invite-only/)).toBeInTheDocument()
+    const save = screen.getByRole('button', { name: 'Save default access' })
+    expect(save).toBeDisabled()
+
+    fireEvent.change(select, { target: { value: 'viewer' } })
+    expect(screen.getByText(/Every member can open every project and read it/)).toBeInTheDocument()
+    fireEvent.click(save)
+
+    await waitFor(() => {
+      expect(calls.find((c) => c.method === 'PATCH')).toEqual(
+        expect.objectContaining({
+          url: '/api/v1/orgs/acme',
+          body: JSON.stringify({ default_project_role: 'viewer' }),
+        }),
+      )
+    })
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(screen.getByLabelText('Default access')).toHaveValue('viewer')
+  })
+
+  it('lets an admin set the default access, and shows a member it read-only', async () => {
+    mockApi('acme', 'admin')
+    const { unmount } = renderSection(<OrganizationGeneralSection />, { role: 'admin' })
+    expect(await screen.findByLabelText('Default access')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save default access' })).toBeInTheDocument()
+    unmount()
+    vi.restoreAllMocks()
+
+    mockApi('acme', 'member')
+    renderSection(<OrganizationGeneralSection />, { role: 'member' })
+    expect(await screen.findByText('Default access')).toBeInTheDocument()
+    expect(screen.getByText('No access')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Default access')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save default access' })).toBeNull()
   })
 
   it('lets a platform admin create an organization and opens it', async () => {

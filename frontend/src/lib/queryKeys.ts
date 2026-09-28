@@ -285,6 +285,8 @@ export const platformOrgsKey = (params: { q?: string; status?: string; limit?: n
 export const platformOrgKey = (slug: string) => [...platformConsoleKey(), 'org', slug] as const
 export const platformUsersKey = (params: { q?: string; limit?: number; offset?: number }) =>
   [...platformConsoleKey(), 'users', params] as const
+/** Every cached query of one organization: the root its own keys all start with. */
+export const orgRootKey = (org: string) => [org] as const
 /** One organization, rooted at THAT organization. */
 export const orgKey = (org: string) => [org, 'org'] as const
 /** One organization's own settings (mail, AI, row limits), rooted at THAT organization. */
