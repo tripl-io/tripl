@@ -752,16 +752,19 @@ Suspension and a platform admin's [read-only step-in](#read-only-step-in) are
 recorded in the organization's own log; the two grant actions belong to no
 organization (see [Users](#platform-users)).
 
-## Single sign-on (OIDC) {#single-sign-on}
+## Single sign-on (OIDC and SAML) {#single-sign-on}
 
 An organization can let its people sign in through its own identity provider
-(IdP) over **OpenID Connect**, and can require it. Single sign-on is set up per
+(IdP) over **OpenID Connect** or **SAML 2.0**, and can require it. Pick the
+protocol under **Protocol** on the settings page; an organization uses one at a
+time, and the other protocol's saved settings are kept for switching back.
+Prefer OpenID Connect when your IdP offers both. Single sign-on is set up per
 organization, under **Settings → Organization → Single sign-on**, and only an
 organization **owner** can see or change it (an admin gets a notice; the API
 answers `403`). It needs a browser session: an API key cannot read or change
 it. No environment variable is involved.
 
-### Set up the identity provider
+### Set up the identity provider (OpenID Connect) {#set-up-the-identity-provider}
 
 In your IdP, register tripl as a **web application** that uses the
 authorization code flow (any standards-compliant OpenID Connect provider
@@ -794,6 +797,122 @@ and domain verification share a small rate limit (10 a minute).
 API: `GET` and `PUT /api/v1/orgs/{org}/sso` (the response carries
 `client_secret_configured`, never the secret) and `POST /api/v1/orgs/{org}/sso/test`.
 
+### Set up SAML 2.0 {#saml}
+
+Choose **SAML 2.0** under **Protocol**. The page shows three values to give
+your IdP (`{org}` is the organization's slug):
+
+| Value | Address |
+|---|---|
+| **Entity ID** (also called audience, SP entity ID or Identifier) | `{APP_BASE_URL}/api/v1/auth/sso/{org}/saml/metadata` |
+| **ACS URL** (Assertion Consumer Service, Reply URL; HTTP-POST binding) | `{APP_BASE_URL}/api/v1/auth/sso/{org}/saml/acs` |
+| **Metadata URL** (tripl's service-provider metadata, for IdPs that can read it) | `{APP_BASE_URL}/api/v1/auth/sso/{org}/saml/metadata` |
+
+Configure the application at the IdP so that:
+
+- **The NameID is the user's email address** (format `emailAddress`), or the
+  email is sent in an attribute whose name you enter under **Email attribute**.
+  Without an email attribute, a NameID in any other format (persistent,
+  unspecified) is refused (`email_missing`), even if it looks like an address.
+- **Assertions are signed**, with RSA or ECDSA and SHA-256 or stronger. A
+  response signed only on the outside, or signed with SHA-1, is refused.
+- **Assertions are not encrypted.** tripl does not support encrypted
+  assertions and refuses them (`encrypted_assertion_unsupported`).
+- Sign-in starts from tripl. **IdP-initiated sign-in** (clicking the app tile
+  in the IdP's portal) is not supported: such a response is refused
+  (`saml_unsolicited`). Point the IdP's app tile at tripl's sign-in page
+  instead, where **Sign in with SSO** starts the sign-in.
+
+tripl does not sign its authentication requests and has no service-provider
+key or certificate; leave request signing off at the IdP.
+
+**SAML needs tripl served over https** (`APP_BASE_URL` starting with
+`https://`; `http://localhost` works for local trials). The IdP posts its
+answer back cross-site, and the browser only sends the sign-in cookie that
+proves the answer belongs to it when that cookie is `Secure`, which a browser
+keeps only over https. On a plain-http address every SAML sign-in fails with
+`invalid_state`.
+
+Then fill in the IdP's values. The simplest way is to download the IdP's
+**metadata XML**, paste it under **Import IdP metadata** and press
+**Import**: tripl reads the entity ID, the HTTP-Redirect single sign-on URL
+and the signing certificates from it and fills the fields in. Nothing is saved
+until you press **Save changes**, and tripl never fetches a metadata URL; it
+reads only what you paste. Or type them in:
+
+| Field | Value |
+|---|---|
+| **IdP entity ID** | The IdP's issuer, exactly as it appears in its assertions (at most 507 characters). |
+| **SSO URL** | The IdP's single sign-on URL for the HTTP-Redirect binding. `https` only. |
+| **Signing certificates** | The IdP's signing certificate in PEM form (`-----BEGIN CERTIFICATE-----` ... `-----END CERTIFICATE-----`). Paste several, one after another, while the IdP rotates its key: an assertion signed with any of them is accepted. Remove the old one once the IdP has switched. |
+| **NameID format** | `Email address` by default. Choose another only together with an **Email attribute**. |
+| **Email attribute** | Optional. The attribute carrying the email, when the NameID is not an email address (for example `email`, or `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` for Microsoft Entra ID). |
+
+After saving, the page lists each certificate with its SHA-256 fingerprint and
+expiry date, and flags one that has expired or expires within 30 days. A
+certificate is public, so it is shown in full; compare the fingerprint with
+the one your IdP shows. **Check settings** checks the saved settings: the
+certificates parse and have not expired and the SSO URL uses `https`. It does
+not contact the IdP.
+
+A certificate is checked for expiry when you add it (or switch to SAML), not
+on every save, so a certificate that expired since does not stop you from
+turning single sign-on off or changing other settings. Changing the **IdP
+entity ID**, switching the **Protocol**, or saving certificates that keep none
+of the saved ones counts as a new identity provider: every member's link to
+the old one is removed, and each member confirms the link again (signed in to
+their tripl account) at their next SSO sign-in. Rotate keys by adding the new
+certificate next to the old one first, so the links survive.
+
+The IdP's address is taken as its email: the IdP is trusted to have verified
+it, as it is the IdP's own directory. It must still be at one of the
+organization's [verified domains](#verify-your-email-domains).
+
+#### Okta
+
+1. **Applications → Create App Integration → SAML 2.0**.
+2. **Single sign-on URL** = the ACS URL (keep **Use this for Recipient URL and
+   Destination URL** checked); **Audience URI (SP Entity ID)** = the entity ID.
+3. **Name ID format** = `EmailAddress`, **Application username** = `Email`.
+4. Leave **Assertion Encryption** set to `Unencrypted`; the response and the
+   assertion signatures use `RSA-SHA256` by default, keep that.
+5. After saving, open **Sign On → View SAML setup instructions** (or the
+   **Metadata URL**), copy the metadata XML and import it in tripl.
+
+#### Microsoft Entra ID
+
+1. **Enterprise applications → New application → Create your own
+   application → Integrate any other application you don't find in the
+   gallery**, then **Single sign-on → SAML**.
+2. **Basic SAML Configuration**: **Identifier (Entity ID)** = the entity ID,
+   **Reply URL (Assertion Consumer Service URL)** = the ACS URL. Leave **Sign on
+   URL** and **Relay State** empty.
+3. **Attributes & Claims**: set **Unique User Identifier (Name ID)** to
+   `user.mail` with the `Email address` format, or keep the default and enter
+   `http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress` as the
+   **Email attribute** in tripl.
+4. **SAML Certificates**: set **Signing Option** to **Sign SAML assertion** (or
+   **Sign SAML response and assertion**) and the algorithm to `SHA-256`. Leave
+   token encryption off.
+5. Download **Federation Metadata XML** and import it in tripl.
+
+#### Google Workspace
+
+1. In the Admin console, **Apps → Web and mobile apps → Add app → Add custom
+   SAML app**.
+2. On **Google Identity Provider details**, download the metadata (or copy the
+   SSO URL, entity ID and certificate) and import it in tripl.
+3. **Service provider details**: **ACS URL** = the ACS URL, **Entity ID** = the
+   entity ID, **Name ID format** = `EMAIL`, **Name ID** =
+   `Basic Information > Primary email`. Leave **Signed response** unchecked: Google signs the
+   assertion either way.
+4. Turn the app **ON** for the organizational units whose people should sign in.
+
+API: the same `GET` and `PUT /api/v1/orgs/{org}/sso` with `protocol: "saml"`
+and the `saml_*` fields, `POST /api/v1/orgs/{org}/sso/saml/metadata-import`
+and `POST /api/v1/orgs/{org}/sso/test`. See the
+[agent API guide](../integrate/agent-api-guide.md) for the fields.
+
 ### Verify your email domains
 
 Single sign-on accepts only addresses at the organization's **verified**
@@ -817,17 +936,31 @@ API: `GET`/`POST /api/v1/orgs/{org}/sso/domains`,
 
 ### Turn it on
 
-**Enable single sign-on** is available once the issuer, client ID and client
-secret are saved and at least one domain is verified (the API refuses it
-otherwise). From then on, the sign-in page's **Sign in with SSO** asks for the
-work email, finds the organization whose verified domain it is, and sends the
-browser to the IdP. The redirect carries a single-use `state`, a `nonce` and a
-PKCE (S256) challenge, and comes back within ten minutes or not at all.
+**Enable single sign-on** is available once the provider is saved (for
+OpenID Connect the issuer, client ID and client secret; for SAML the IdP
+entity ID, SSO URL and a certificate) and at least one domain is verified (the
+API refuses it otherwise). From then on, the sign-in page's **Sign in with
+SSO** asks for the work email, finds the organization whose verified domain it
+is, and sends the browser to the IdP. It comes back within ten minutes or not
+at all.
 
-When the IdP sends the user back, tripl checks the ID token: its signature
-against the IdP's published keys (RS256 or ES256), issuer, audience (the
-client ID), expiry, and nonce. The email must be verified by the IdP and belong
-to one of the organization's verified domains. Then:
+- **OpenID Connect**: the redirect carries a single-use `state`, a `nonce` and
+  a PKCE (S256) challenge. When the IdP sends the user back, tripl checks the
+  ID token: its signature against the IdP's published keys (RS256 or ES256),
+  issuer, audience (the client ID), expiry, and nonce. The email must be
+  verified by the IdP.
+- **SAML 2.0**: the redirect carries an authentication request with a random
+  ID, and a single-use state bound to this browser. The IdP posts its response
+  to the ACS URL, and tripl checks, failing closed: the assertion's signature
+  against the configured certificates (SHA-256 or stronger); exactly one
+  assertion, unencrypted; the issuer (the IdP entity ID); the response's
+  destination and the subject confirmation's recipient (the ACS URL); that it
+  answers this very request (`InResponseTo`); the audience (tripl's entity
+  ID); the validity window (two minutes of clock skew); a success status; and
+  that the assertion was not used before. Everything is read from the signed
+  assertion only.
+
+The email must belong to one of the organization's verified domains. Then:
 
 - **A known identity** (the same IdP subject was linked to an account before)
   signs that account in.
@@ -859,15 +992,26 @@ to one of the organization's verified domains. Then:
 
 A failed sign-in comes back to the sign-in page with a short reason (the
 attempt expired, the IdP refused, the address is missing or not verified, the
-domain is not the organization's, the token did not verify, the account was
-removed from the organization, too many attempts, or single sign-on is off).
+domain is not the organization's, the token or SAML response did not verify,
+the SAML assertion was encrypted, replayed or not requested by tripl, the
+account was removed from the organization, too many attempts, or single
+sign-on is off).
 The IdP's own error text is never shown. Sign-in through the IdP has its own
 rate limit (20 requests a minute per address, two per sign-in), separate from
 password sign-in.
 
 A session opened this way is marked as a single sign-on session for that
-organization. Signing in with a password still works where single sign-on is
-not required.
+organization, whichever protocol it used. Signing in with a password still
+works where single sign-on is not required.
+
+**Switching the protocol** takes effect from the next sign-in. An identity is
+recorded per IdP (the OpenID Connect issuer and subject, or the SAML IdP
+entity ID and NameID), so identities linked through the other protocol do not
+carry over: someone with an existing account goes through the
+[link confirmation](#turn-it-on) once more. An account that single sign-on
+created has no password, so its owner first sets one with **Forgot your
+password?** to confirm the link. Switch while few people depend on it, or
+expect those confirmations.
 
 ### Require single sign-on {#sso-required}
 

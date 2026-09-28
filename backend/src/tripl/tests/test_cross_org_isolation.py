@@ -145,6 +145,15 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
         "SSO sign-in (F20): the identity provider's redirect back, authorized by a "
         "single-use state bound to the browser; test_org_sso.py pins the flow"
     ),
+    f"{API}/auth/sso/{{org_slug}}/saml/acs": (
+        "SAML sign-in (F20): the identity provider's HTTP-POST back, authorized by a "
+        "single-use state bound to the browser and a signed assertion answering its "
+        "AuthnRequest; test_org_saml.py pins the flow"
+    ),
+    f"{API}/auth/sso/{{org_slug}}/saml/metadata": (
+        "SAML SP metadata (F20): unauthenticated and public by nature (tripl's entity "
+        "id and ACS URL for the organization's slug); reads no tenant data"
+    ),
     f"{API}/auth/sso/link": (
         "SSO account link (F20): addressed by its secret single-use ticket; confirming "
         "also needs a session of the ticket's account (checked in the handler)"
@@ -895,6 +904,7 @@ def _body(method: str, path: str, w: World) -> Any:
             "client_secret": "probe",
         },
         f"{API}/orgs/{{org}}/sso/domains": {"domain": "alpha.example.com"},
+        f"{API}/orgs/{{org}}/sso/saml/metadata-import": {"xml": "<probe/>"},
         f"{API}/orgs/{{org}}/scim/config": {"admin_group_id": None},
         f"{API}/audit/webhook": {"url": "https://hooks.example.com/probe", "enabled": True},
     }

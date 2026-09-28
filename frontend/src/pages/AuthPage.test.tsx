@@ -486,6 +486,9 @@ describe('AuthPage single sign-on (F20)', () => {
     ['invalid_token', /could not be verified/],
     ['rate_limited', /Too many sign-in attempts/],
     ['membership_removed', /removed from this organization/],
+    ['saml_signature_invalid', /not signed with a certificate this organization trusts/],
+    ['saml_unsolicited', /started from your identity provider are not supported/],
+    ['encrypted_assertion_unsupported', /turn assertion encryption off/],
   ])('words the backend code %s specifically', (code, text) => {
     renderAuth(`/auth?sso_error=${code}`)
 

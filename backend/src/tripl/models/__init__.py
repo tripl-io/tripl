@@ -51,6 +51,7 @@ from tripl.models.org_scim import OrgScimConfig, OrgScimToken, ScimGroupLink, Sc
 from tripl.models.org_sso import (
     OrgSsoConfig,
     OrgSsoDomain,
+    SamlAssertionId,
     SsoLinkTicket,
     SsoLoginState,
     SsoMembershipBlock,
@@ -146,6 +147,7 @@ __all__ = [
     "ScimUserLink",
     "OrgAuditWebhook",
     "OrgSsoConfig",
+    "SamlAssertionId",
     "OrgSsoDomain",
     "SsoLinkTicket",
     "SsoLoginState",

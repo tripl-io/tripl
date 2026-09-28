@@ -134,6 +134,11 @@ READ_LIKE_MUTATING_PATHS = {
     # account (checked in the handler; an unverified hosted sign-up is taken
     # over clean instead). No organization role to gate on. On the login bucket.
     "/api/v1/auth/sso/link",
+    # The SAML ACS (F20): the identity provider's cross-site form POST back, no
+    # session and no role to gate on. Authorized by the single-use state in
+    # RelayState (bound to the browser by a cookie) and the signed assertion
+    # answering that state's AuthnRequest; on the sso bucket.
+    "/api/v1/auth/sso/{org_slug}/saml/acs",
     "/api/v1/projects/{slug}/events/window-metrics",
     "/api/v1/projects/{slug}/anomalies/signals/query",
     # Read-like: row sparklines for a batch of signals; POST only to carry it.

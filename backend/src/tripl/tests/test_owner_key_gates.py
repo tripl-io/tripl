@@ -224,6 +224,7 @@ PATH_ORG_OWNER_ROUTES = {
     "GET /api/v1/orgs/{org}/sso",
     "PUT /api/v1/orgs/{org}/sso",
     "POST /api/v1/orgs/{org}/sso/test",
+    "POST /api/v1/orgs/{org}/sso/saml/metadata-import",
     "GET /api/v1/orgs/{org}/sso/domains",
     "POST /api/v1/orgs/{org}/sso/domains",
     "DELETE /api/v1/orgs/{org}/sso/domains/{domain_id}",

@@ -2,7 +2,7 @@ import { api } from './client'
 import type { AuthUser } from '@/types'
 
 /**
- * Per-organization single sign-on over OpenID Connect (F20,
+ * Per-organization single sign-on over OpenID Connect or SAML 2.0 (F20,
  * backend/src/tripl/api/v1/org_sso.py and the `/auth/sso/*` routes).
  *
  * Hand-written rather than read from `api.gen.ts`: the configuration and the
@@ -28,20 +28,57 @@ export interface SsoDomain {
   txt_record_value?: string
 }
 
-/** An organization's OpenID Connect provider. The client secret is write-only. */
+/** How an organization's identity provider signs people in. */
+export type SsoProtocol = 'oidc' | 'saml'
+
+/** The SAML NameID format tripl asks for unless the owner picks another. */
+export const SAML_NAME_ID_EMAIL = 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'
+
+/** One saved IdP signing certificate, as the server read it. */
+export interface SamlCertInfo {
+  /** SHA-256 over the DER bytes, as the server spells it (hex, colon-separated or not). */
+  fingerprint_sha256: string
+  /** ISO timestamp of the certificate's expiry. */
+  not_after: string
+  /** The certificate's subject, e.g. `CN=idp.example.com`. */
+  subject: string
+}
+
+/**
+ * An organization's identity provider. The OIDC client secret is write-only;
+ * SAML certificates are public and come back in full.
+ */
 export interface SsoConfig {
   /** Whether a provider has been saved at all. */
   configured?: boolean
-  issuer: string
-  client_id: string
+  /** Absent from an older server: OpenID Connect. */
+  protocol?: SsoProtocol
+  // OpenID Connect. Empty or null while the organization uses SAML.
+  issuer: string | null
+  client_id: string | null
   /** Whether a client secret is stored; the secret itself is never returned. */
   client_secret_configured: boolean
-  scopes: string
+  scopes: string | null
+  // SAML 2.0. Null while the organization uses OpenID Connect.
+  saml_idp_entity_id?: string | null
+  /** The IdP's HTTP-Redirect single sign-on URL (https). */
+  saml_idp_sso_url?: string | null
+  /** One or more PEM certificates, several while the IdP rotates its key. */
+  saml_idp_certs?: string | null
+  saml_name_id_format?: string | null
+  /** The attribute carrying the email; blank means the NameID is the email. */
+  saml_email_attribute?: string | null
+  /** What to register at a SAML IdP, built from `APP_BASE_URL` (read-only). */
+  saml_sp_entity_id?: string | null
+  saml_acs_url?: string | null
+  saml_metadata_url?: string | null
+  /** The saved certificates, parsed (read-only). */
+  saml_cert_info?: SamlCertInfo[] | null
   enabled: boolean
   sso_required: boolean
   /** The claimed domains, when the server includes them; the page also lists them itself. */
   domains?: SsoDomain[]
-  /** What to register at the identity provider, built from `APP_BASE_URL`. */
+  /** What to register at an OpenID Connect provider, built from `APP_BASE_URL`. */
   redirect_uri?: string
   /** Where members start signing in. */
   login_url?: string
@@ -50,20 +87,38 @@ export interface SsoConfig {
 }
 
 /**
- * A save: the whole configuration. `client_secret` is sent only when the
- * owner typed a new one; left out, the stored one is kept (there is no way to
- * read it back).
+ * A save: the whole configuration, both protocols' fields (the one not in use
+ * keeps its saved values, `null` where it has none). `client_secret` is sent
+ * only when the owner typed a new one; left out, the stored one is kept
+ * (there is no way to read it back).
  */
 export interface SsoConfigUpdate {
-  issuer: string
-  client_id: string
+  protocol: SsoProtocol
+  issuer: string | null
+  client_id: string | null
   client_secret?: string
-  scopes: string
+  scopes: string | null
+  saml_idp_entity_id: string | null
+  saml_idp_sso_url: string | null
+  saml_idp_certs: string | null
+  saml_name_id_format: string
+  saml_email_attribute: string | null
   enabled: boolean
   sso_required: boolean
 }
 
-/** The discovery probe: whether the issuer answers and names itself. */
+/** What pasted IdP metadata named: the values to fill in, not yet saved. */
+export interface SamlMetadataImport {
+  saml_idp_entity_id: string
+  saml_idp_sso_url: string
+  saml_idp_certs: string
+}
+
+/**
+ * The configuration check: for OpenID Connect, whether the issuer answers and
+ * names itself; for SAML, whether the certificates parse and are current and
+ * the SSO URL is https.
+ */
 export interface SsoTestResponse {
   ok: boolean
   message: string
@@ -163,6 +218,9 @@ export const ssoApi = {
   get: (org: string) => api.get<SsoConfig>(base(org)),
   update: (org: string, data: SsoConfigUpdate) => api.put<SsoConfig>(base(org), data),
   test: (org: string) => api.post<SsoTestResponse>(`${base(org)}/test`),
+  /** Reads pasted IdP metadata XML; nothing is fetched and nothing is saved. */
+  importSamlMetadata: (org: string, xml: string) =>
+    api.post<SamlMetadataImport>(`${base(org)}/saml/metadata-import`, { xml }),
   listDomains: (org: string) => api.get<SsoDomain[]>(`${base(org)}/domains`),
   addDomain: (org: string, domain: string) =>
     api.post<SsoDomain>(`${base(org)}/domains`, { domain }),
@@ -200,6 +258,11 @@ export type SsoErrorCode =
   | 'membership_removed'
   | 'rate_limited'
   | 'sso_failed'
+  | 'saml_invalid'
+  | 'saml_signature_invalid'
+  | 'saml_replay'
+  | 'saml_unsolicited'
+  | 'encrypted_assertion_unsupported'
 
 const SSO_ERROR_MESSAGES: Record<SsoErrorCode, string> = {
   sso_unavailable: 'Single sign-on is not turned on for this organization.',
@@ -220,6 +283,15 @@ const SSO_ERROR_MESSAGES: Record<SsoErrorCode, string> = {
     'You were removed from this organization. Ask an administrator to invite you again.',
   rate_limited: 'Too many sign-in attempts. Wait a minute, then try again.',
   sso_failed: 'Single sign-on could not finish. Try again.',
+  saml_invalid:
+    'The sign-in answer from your identity provider was not valid for this organization. Try again, or ask your administrator to check the single sign-on setup.',
+  saml_signature_invalid:
+    'The sign-in answer from your identity provider was not signed with a certificate this organization trusts. Ask your administrator to check the single sign-on setup.',
+  saml_replay: 'That sign-in answer was already used. Start signing in again.',
+  saml_unsolicited:
+    'Sign-ins started from your identity provider are not supported. Start from the tripl sign-in page with Sign in with SSO.',
+  encrypted_assertion_unsupported:
+    'Your identity provider encrypted its sign-in answer, which tripl does not support. Ask your administrator to turn assertion encryption off.',
 }
 
 /** Words for a `sso_error` code; an unknown code still says the sign-in failed. */

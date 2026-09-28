@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/client'
-import { ssoApi, type SsoConfig, type SsoDomain } from '@/api/sso'
+import { SAML_NAME_ID_EMAIL, ssoApi, type SsoConfig, type SsoDomain } from '@/api/sso'
 import { ActiveOrgContext } from '@/components/active-org-context'
 import OrgSsoSection from './OrgSsoSection'
 
@@ -78,10 +78,16 @@ describe('Organization › Single sign-on', () => {
 
     await waitFor(() =>
       expect(update).toHaveBeenCalledWith('acme', {
+        protocol: 'oidc',
         issuer: 'https://idp.example.com',
         client_id: 'tripl-web',
         client_secret: 'n3w-secret',
         scopes: 'openid email profile',
+        saml_idp_entity_id: null,
+        saml_idp_sso_url: null,
+        saml_idp_certs: null,
+        saml_name_id_format: SAML_NAME_ID_EMAIL,
+        saml_email_attribute: null,
         enabled: false,
         sso_required: false,
       }),
@@ -211,5 +217,146 @@ describe('Organization › Single sign-on', () => {
       expect(update).toHaveBeenCalledWith('acme', expect.objectContaining({ enabled: true, sso_required: true })),
     )
     expect(await screen.findByText(/3 API keys were revoked/)).toBeInTheDocument()
+  })
+})
+
+const CERT = '-----BEGIN CERTIFICATE-----\nMIIBszCCAVmgAwIBAgIUQ2VydA==\n-----END CERTIFICATE-----'
+
+function samlConfig(overrides: Partial<SsoConfig> = {}): SsoConfig {
+  return config({
+    protocol: 'saml',
+    issuer: null,
+    client_id: null,
+    client_secret_configured: false,
+    scopes: null,
+    saml_idp_entity_id: 'https://idp.example.com/saml',
+    saml_idp_sso_url: 'https://idp.example.com/sso/saml',
+    saml_idp_certs: CERT,
+    saml_name_id_format: SAML_NAME_ID_EMAIL,
+    saml_email_attribute: null,
+    saml_sp_entity_id: 'https://tripl.example.com/api/v1/auth/sso/acme/saml/metadata',
+    saml_acs_url: 'https://tripl.example.com/api/v1/auth/sso/acme/saml/acs',
+    saml_metadata_url: 'https://tripl.example.com/api/v1/auth/sso/acme/saml/metadata',
+    saml_cert_info: [
+      { fingerprint_sha256: 'ab01cd', not_after: '2099-01-01T00:00:00Z', subject: 'CN=idp.example.com' },
+      { fingerprint_sha256: 'ef02ab', not_after: '2000-01-01T00:00:00Z', subject: 'CN=old.example.com' },
+    ],
+    ...overrides,
+  })
+}
+
+describe('Organization › Single sign-on › SAML 2.0', () => {
+  it('shows what to register at the IdP and the saved certificates with their expiry', async () => {
+    renderSection(samlConfig())
+
+    expect(await screen.findByDisplayValue('https://idp.example.com/saml')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /SAML 2\.0/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getAllByText('https://tripl.example.com/api/v1/auth/sso/acme/saml/metadata')).toHaveLength(2)
+    expect(screen.getByText('https://tripl.example.com/api/v1/auth/sso/acme/saml/acs')).toBeInTheDocument()
+    expect(screen.getByText('SHA-256 AB:01:CD')).toBeInTheDocument()
+    expect(screen.getByText('CN=old.example.com')).toBeInTheDocument()
+    expect(screen.getByText(/^Expired/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Client secret')).not.toBeInTheDocument()
+  })
+
+  it('switches the protocol and saves the SAML fields, keeping the OpenID Connect ones', async () => {
+    const { update } = renderSection()
+    await screen.findByDisplayValue('https://idp.example.com')
+
+    fireEvent.click(screen.getByRole('radio', { name: /SAML 2\.0/ }))
+    expect(screen.getByText('Enter the IdP entity ID, SSO URL and signing certificate to save.')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('IdP entity ID'), { target: { value: 'https://idp.example.com/saml' } })
+    fireEvent.change(screen.getByLabelText('SSO URL'), { target: { value: 'https://idp.example.com/sso/saml' } })
+    fireEvent.change(screen.getByLabelText('Signing certificates'), { target: { value: CERT } })
+    fireEvent.change(screen.getByLabelText('Email attribute'), { target: { value: 'email' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('acme', {
+        protocol: 'saml',
+        issuer: 'https://idp.example.com',
+        client_id: 'tripl',
+        scopes: 'openid email profile',
+        saml_idp_entity_id: 'https://idp.example.com/saml',
+        saml_idp_sso_url: 'https://idp.example.com/sso/saml',
+        saml_idp_certs: CERT,
+        saml_name_id_format: SAML_NAME_ID_EMAIL,
+        saml_email_attribute: 'email',
+        enabled: false,
+        sso_required: false,
+      }),
+    )
+  })
+
+  it('refuses an SSO URL that is not https and a certificate that is not PEM', async () => {
+    const { update } = renderSection(samlConfig())
+    await screen.findByDisplayValue('https://idp.example.com/saml')
+
+    fireEvent.change(screen.getByLabelText('SSO URL'), { target: { value: 'http://idp.example.com/sso' } })
+    fireEvent.change(screen.getByLabelText('Signing certificates'), { target: { value: 'MIIBszCCAVmg' } })
+
+    expect(screen.getByText('The SSO URL must use https.')).toBeInTheDocument()
+    expect(screen.getByText(/Paste the certificate in PEM form/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Save changes/ })).toBeDisabled()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('fills the IdP values from pasted metadata without saving them', async () => {
+    const { update } = renderSection(config({ configured: false, issuer: '', client_id: '', client_secret_configured: false }), [])
+    const imported = vi.spyOn(ssoApi, 'importSamlMetadata').mockResolvedValue({
+      saml_idp_entity_id: 'https://idp.example.com/meta',
+      saml_idp_sso_url: 'https://idp.example.com/sso/redirect',
+      saml_idp_certs: CERT,
+    })
+    await screen.findByLabelText('Issuer URL')
+
+    fireEvent.click(screen.getByRole('radio', { name: /SAML 2\.0/ }))
+    fireEvent.change(screen.getByLabelText('Metadata XML'), {
+      target: { value: '<EntityDescriptor entityID="https://idp.example.com/meta"/>' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+
+    await waitFor(() =>
+      expect(imported).toHaveBeenCalledWith('acme', '<EntityDescriptor entityID="https://idp.example.com/meta"/>'),
+    )
+    expect(await screen.findByDisplayValue('https://idp.example.com/meta')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('https://idp.example.com/sso/redirect')).toBeInTheDocument()
+    expect(screen.getByText(/Review the values below, then save/)).toBeInTheDocument()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('says why metadata could not be read', async () => {
+    renderSection(samlConfig())
+    vi.spyOn(ssoApi, 'importSamlMetadata').mockRejectedValue(
+      new ApiError('The metadata has no HTTP-Redirect single sign-on location', 422),
+    )
+    await screen.findByDisplayValue('https://idp.example.com/saml')
+
+    fireEvent.change(screen.getByLabelText('Metadata XML'), { target: { value: '<EntityDescriptor/>' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+
+    expect(await screen.findByText(/no HTTP-Redirect single sign-on location/)).toBeInTheDocument()
+  })
+
+  it('checks the saved SAML settings', async () => {
+    renderSection(samlConfig())
+    const test = vi.spyOn(ssoApi, 'test').mockResolvedValue({ ok: true, message: 'The certificates are valid.' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Check settings' }))
+
+    await waitFor(() => expect(test).toHaveBeenCalledWith('acme'))
+    expect(await screen.findByText('The certificates are valid.')).toBeInTheDocument()
+  })
+
+  it('turns SAML single sign-on on without a client secret', async () => {
+    const { update } = renderSection(samlConfig(), [verifiedDomain])
+    await screen.findByDisplayValue('https://idp.example.com/saml')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Enable single sign-on' }))
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('acme', expect.objectContaining({ protocol: 'saml', enabled: true })),
+    )
   })
 })

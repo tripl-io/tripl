@@ -5,11 +5,16 @@ Unauthenticated by nature, like the rest of ``/auth``. See
 
 * ``GET /discover?email=`` — which organizations sign this address in (the
   status bucket).
-* ``GET /{org}/start?next=`` — 302 to the provider. ``next`` is kept only when
-  it is a same-origin path.
-* ``GET /{org}/callback`` — the provider's redirect back. 302 to ``next``
+* ``GET /{org}/start?next=`` — 302 to the provider (OIDC authorization URL, or
+  the SAML HTTP-Redirect binding). ``next`` is kept only when it is a
+  same-origin path.
+* ``GET /{org}/callback`` — the OIDC provider's redirect back. 302 to ``next``
   signed in, to ``/sso/link?ticket=`` when an existing account must confirm
   the link first, or to ``/auth?sso_error=<code>``.
+* ``POST /{org}/saml/acs`` — the SAML provider's HTTP-POST (form fields
+  ``SAMLResponse``, ``RelayState``); the same three outcomes, as 303s.
+* ``GET /{org}/saml/metadata`` — tripl's SP metadata for an organization
+  configured for SAML (its URL is also tripl's entity id); 404 otherwise.
 * ``GET /link?ticket=`` — what a link ticket would link, and whether this
   browser must sign in to the account first (the status bucket).
 * ``POST /link`` — confirm it from a session of the account: links, joins,
@@ -21,7 +26,12 @@ password-login one) and answer an empty bucket with
 
 The ``state`` is also bound to the browser that started the sign-in (an
 HttpOnly cookie compared at the callback), so a callback URL carried to another
-browser signs nobody in there.
+browser signs nobody in there. The SAML ACS is a cross-site form POST, which
+a ``SameSite=Lax`` cookie does not accompany: a SAML start sets its own cookie,
+``tripl_saml_state``, ``SameSite=None; Secure; HttpOnly`` and limited to this
+router's path — so SAML sign-in needs https (browsers treat ``localhost`` as
+secure). There is no CSRF middleware to exempt the ACS from: the app's CSRF
+defence is the ``SameSite=Lax`` session cookie, and the ACS acts on no session.
 """
 
 from __future__ import annotations
@@ -30,7 +40,7 @@ import hmac
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +55,7 @@ from tripl.middleware.rate_limit import (
     sso_rate_limiter,
     status_rate_limiter,
 )
+from tripl.models.org_sso import PROTOCOL_SAML
 from tripl.models.user import User
 from tripl.schemas.org_sso import (
     SsoDiscoverOrg,
@@ -54,13 +65,21 @@ from tripl.schemas.org_sso import (
     SsoLinkResult,
 )
 from tripl.schemas.text_filters import FreeTextFilter
-from tripl.services import app_settings_service, auth_service, org_sso_service, sso_login_service
-from tripl.services.sso_login_service import NeedsLink, SsoFlowError
+from tripl.services import (
+    app_settings_service,
+    auth_service,
+    org_sso_service,
+    saml_login_service,
+    sso_login_service,
+)
+from tripl.services.sso_login_service import NeedsLink, SignedIn, SsoFlowError
 
 router = APIRouter(prefix="/auth/sso", tags=["auth"])
 
 STATE_COOKIE = "tripl_sso_state"
+SAML_STATE_COOKIE = "tripl_saml_state"
 _STATE_COOKIE_PATH = "/api/v1/auth/sso"
+_MAX_STATE = 512
 _LINK_INVALID = "This link is invalid or has expired."
 _LINK_SIGN_IN = "Sign in to this account first, then confirm the link."
 _LINK_REMOVED = (
@@ -88,12 +107,12 @@ async def app_base_url(session: AsyncSession, request: Request) -> str:
     return (configured or str(request.base_url)).rstrip("/")
 
 
-def _to_app(base: str, path: str) -> RedirectResponse:
-    return RedirectResponse(f"{base}{path}", status_code=status.HTTP_302_FOUND)
-
-
-def _error_redirect(base: str, code: str) -> RedirectResponse:
-    response = _to_app(base, "/auth?" + urlencode({"sso_error": code}))
+def _error_redirect(
+    base: str, code: str, *, status_code: int = status.HTTP_302_FOUND
+) -> RedirectResponse:
+    response = RedirectResponse(
+        f"{base}/auth?" + urlencode({"sso_error": code}), status_code=status_code
+    )
     _clear_state_cookie(response)
     return response
 
@@ -106,6 +125,33 @@ def _clear_state_cookie(response: Response) -> None:
         secure=settings.session_cookie_secure,
         path=_STATE_COOKIE_PATH,
     )
+    response.delete_cookie(
+        key=SAML_STATE_COOKIE,
+        httponly=True,
+        samesite="none",
+        secure=True,
+        path=_STATE_COOKIE_PATH,
+    )
+
+
+def _state_bound(request: Request, cookie: str, state: str | None) -> bool:
+    bound = request.cookies.get(cookie)
+    if state is not None and len(state) > _MAX_STATE:
+        return False
+    return bool(state and bound and hmac.compare_digest(bound.encode(), state.encode()))
+
+
+def _outcome_redirect(
+    base: str, outcome: SignedIn | NeedsLink, *, status_code: int
+) -> RedirectResponse:
+    if isinstance(outcome, NeedsLink):
+        target = "/sso/link?" + urlencode({"ticket": outcome.ticket})
+        response = RedirectResponse(f"{base}{target}", status_code=status_code)
+    else:
+        response = RedirectResponse(f"{base}{outcome.next_path}", status_code=status_code)
+        _set_session_cookie(response, outcome.session_token)
+    _clear_state_cookie(response)
+    return response
 
 
 @router.get(
@@ -227,15 +273,28 @@ async def start(
     except SsoFlowError as exc:
         return _error_redirect(base, exc.code)
     response = RedirectResponse(started.authorization_url, status_code=status.HTTP_302_FOUND)
-    response.set_cookie(
-        key=STATE_COOKIE,
-        value=started.state,
-        httponly=True,
-        max_age=int(sso_login_service.STATE_TTL.total_seconds()),
-        samesite="lax",
-        secure=settings.session_cookie_secure,
-        path=_STATE_COOKIE_PATH,
-    )
+    max_age = int(sso_login_service.STATE_TTL.total_seconds())
+    if started.protocol == PROTOCOL_SAML:
+        # The ACS is a cross-site POST: only a SameSite=None cookie comes with it.
+        response.set_cookie(
+            key=SAML_STATE_COOKIE,
+            value=started.state,
+            httponly=True,
+            max_age=max_age,
+            samesite="none",
+            secure=True,
+            path=_STATE_COOKIE_PATH,
+        )
+    else:
+        response.set_cookie(
+            key=STATE_COOKIE,
+            value=started.state,
+            httponly=True,
+            max_age=max_age,
+            samesite="lax",
+            secure=settings.session_cookie_secure,
+            path=_STATE_COOKIE_PATH,
+        )
     return response
 
 
@@ -256,8 +315,7 @@ async def callback(
     base = await app_base_url(session, request)
     if not await allow(sso_rate_limiter, request):
         return _error_redirect(base, sso_login_service.ERR_RATE_LIMITED)
-    bound = request.cookies.get(STATE_COOKIE)
-    if not state or not bound or not hmac.compare_digest(bound.encode(), state.encode()):
+    if not _state_bound(request, STATE_COOKIE, state):
         return _error_redirect(base, sso_login_service.ERR_STATE)
     try:
         outcome = await sso_login_service.callback(
@@ -270,10 +328,67 @@ async def callback(
         )
     except SsoFlowError as exc:
         return _error_redirect(base, exc.code)
-    if isinstance(outcome, NeedsLink):
-        response = _to_app(base, "/sso/link?" + urlencode({"ticket": outcome.ticket}))
-    else:
-        response = _to_app(base, outcome.next_path)
-        _set_session_cookie(response, outcome.session_token)
-    _clear_state_cookie(response)
-    return response
+    return _outcome_redirect(base, outcome, status_code=status.HTTP_302_FOUND)
+
+
+@router.post(
+    "/{org_slug}/saml/acs",
+    response_class=RedirectResponse,
+    status_code=status.HTTP_303_SEE_OTHER,
+)
+async def saml_acs(
+    request: Request,
+    session: SessionDep,
+    org_slug: str,
+    # No max_length: an oversized field must end in the sso_error redirect,
+    # not a JSON 422 (the body-size middleware bounds it; the service caps it).
+    saml_response: Annotated[FreeTextFilter | None, Form(alias="SAMLResponse")] = None,
+    relay_state: Annotated[FreeTextFilter | None, Form(alias="RelayState")] = None,
+) -> RedirectResponse:
+    """The SAML provider's HTTP-POST back; lands like the OIDC callback (303s).
+
+    Unauthenticated; authorized by the single-use state in ``RelayState``,
+    bound to this browser by the ``tripl_saml_state`` cookie, and by the
+    signed assertion answering that state's AuthnRequest. IdP-initiated
+    (unsolicited) responses are refused: they carry no state.
+    """
+    base = await app_base_url(session, request)
+    see_other = status.HTTP_303_SEE_OTHER
+    if not await allow(sso_rate_limiter, request):
+        return _error_redirect(base, sso_login_service.ERR_RATE_LIMITED, status_code=see_other)
+    if not relay_state:
+        # IdP-initiated: no sign-in of this browser to answer.
+        return _error_redirect(base, sso_login_service.ERR_SAML_UNSOLICITED, status_code=see_other)
+    if not _state_bound(request, SAML_STATE_COOKIE, relay_state):
+        return _error_redirect(base, sso_login_service.ERR_STATE, status_code=see_other)
+    try:
+        outcome = await saml_login_service.acs(
+            session,
+            org_slug=org_slug,
+            saml_response_b64=saml_response,
+            relay_state=relay_state,
+            app_base_url=base,
+        )
+    except SsoFlowError as exc:
+        return _error_redirect(base, exc.code, status_code=see_other)
+    return _outcome_redirect(base, outcome, status_code=see_other)
+
+
+@router.get(
+    "/{org_slug}/saml/metadata",
+    response_class=Response,
+    dependencies=[Depends(enforce(status_rate_limiter))],
+    responses={200: {"content": {"application/samlmetadata+xml": {}}}},
+)
+async def saml_metadata(request: Request, session: SessionDep, org_slug: str) -> Response:
+    """tripl's SAML SP metadata for the organization (unsigned; public by nature).
+
+    Assertions must be signed (``WantAssertionsSigned``); tripl's AuthnRequests
+    are not (it holds no SP key). 404 unless the organization is configured
+    for SAML.
+    """
+    base = await app_base_url(session, request)
+    document = await saml_login_service.sp_metadata(session, org_slug=org_slug, app_base_url=base)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return Response(content=document, media_type="application/samlmetadata+xml")
