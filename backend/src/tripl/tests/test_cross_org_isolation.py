@@ -117,6 +117,10 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/settings/ai/test": _SETTINGS_REASON,
     f"{API}/settings/email/test": _SETTINGS_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
+    f"{API}/orgs": (
+        "the caller's own organizations (an API key: its own one) and, for a platform "
+        "admin, creating a new one; names no organization in the path"
+    ),
 }
 
 #: Legacy-path routes the matrix does not drive, with the reason. Their
@@ -173,6 +177,7 @@ KNOWN_PARAMS = frozenset(
         "field_id",
         "invitation_id",
         "key_id",
+        "org",
         "meta_field_id",
         "metric_id",
         "owner_id",
@@ -211,6 +216,15 @@ def _matrix_routes() -> list[tuple[str, str]]:
 def _org_rewritable(path: str) -> bool:
     head = path.removeprefix(f"{API}/").split("/", 1)[0]
     return path.startswith(f"{API}/") and head in ORG_REWRITE_PREFIXES
+
+
+def _org_addressed(path: str) -> bool:
+    """A real ``/orgs/{org}/...`` route (F20 PR6): the organization IS the path.
+
+    It has no legacy form; the org-qualified matrix drives it with ``{org}`` set
+    to A, where it must 404 for B's actors like every other route.
+    """
+    return path == f"{API}/orgs/{{org}}" or path.startswith(f"{API}/orgs/{{org}}/")
 
 
 # ── the two organizations ───────────────────────────────────────────────────
@@ -670,6 +684,8 @@ def _a_value(name: str, path: str, w: World) -> str:
     ids = w.a.ids
     if name == "slug":
         return SLUG
+    if name == "org":
+        return ORG_A
     if name == "comment_id":
         if "/branches/" in path:
             return ids["branch_comment_id"]
@@ -789,6 +805,9 @@ def _body(method: str, path: str, w: World) -> Any:
         f"{p}/subscriptions/{{entity_type}}/{{entity_id}}": (
             {"muted": True} if method == "PATCH" else {}
         ),
+        f"{API}/orgs/{{org}}": {"name": "probe"} if method == "PATCH" else {"confirm_slug": ORG_A},
+        f"{API}/orgs/{{org}}/members/{{user_id}}": {"role": "member"},
+        f"{API}/orgs/{{org}}/transfer-ownership": {"user_id": w.a.member_id},
     }
     return table.get(path, {})
 
@@ -839,7 +858,7 @@ def test_every_route_is_matrixed_or_allowlisted() -> None:
     for method, path in _matrix_routes():
         # A per-organization route must have an org-qualified form; otherwise it
         # belongs in the allowlist, with a reason.
-        if not _org_rewritable(path):
+        if not (_org_rewritable(path) or _org_addressed(path)):
             unreachable.append(f"{method} {path}")
         unknown_params.extend(
             f"{{{name}}} in {method} {path}"
@@ -847,7 +866,7 @@ def test_every_route_is_matrixed_or_allowlisted() -> None:
             if name not in KNOWN_PARAMS
         )
     assert unreachable == [], (
-        "routes outside ORG_REWRITE_PREFIXES that are not allowlisted in "
+        "routes outside ORG_REWRITE_PREFIXES and /orgs/{org} that are not allowlisted in "
         f"PUBLIC_OR_INSTANCE_WIDE: {unreachable}"
     )
     assert unknown_params == [], (
@@ -868,7 +887,8 @@ async def test_org_qualified_routes_of_org_a_answer_404_to_org_b(
     actor = next(a for a in world.b_actors(with_bridge=False) if a.name == actor_name)
     failures: list[str] = []
     for method, path in _matrix_routes():
-        url = _to_org(_a_url(path, world), ORG_A)
+        a_url = _a_url(path, world)
+        url = a_url if _org_addressed(path) else _to_org(a_url, ORG_A)
         resp = await actor.call(
             method, url, params=_query(path, world), body=_body(method, path, world)
         )
@@ -880,6 +900,9 @@ async def test_org_qualified_routes_of_org_a_answer_404_to_org_b(
     own = await world.a.owner.get(f"{API}/orgs/{ORG_A}/projects/{SLUG}/events")
     assert own.status_code == 200, own.text
     assert MARKER in own.text
+    members = await world.a.owner.get(f"{API}/orgs/{ORG_A}/members")
+    assert members.status_code == 200, members.text
+    assert world.a.member_id in members.text
 
 
 # ── the legacy path: acting in B, A's ids answer like unknown ids ───────────
@@ -931,7 +954,9 @@ async def test_legacy_routes_in_org_b_never_reach_org_a(world: World, actor_name
 
     failures: list[str] = []
     for method, path in _matrix_routes():
-        if (method, path) in LEGACY_NOT_DRIVEN:
+        if (method, path) in LEGACY_NOT_DRIVEN or _org_addressed(path):
+            # ``/orgs/{org}/...`` has no legacy form: the org-qualified matrix
+            # above drives it against A.
             continue
         names = [n for n in _PARAM.findall(path) if n != "slug"]
         own = actor.own_prefix

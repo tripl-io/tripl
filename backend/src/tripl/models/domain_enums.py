@@ -346,6 +346,19 @@ class OrganizationRole(enum.StrEnum):
     member = "member"
 
 
+class OrganizationStatus(enum.StrEnum):
+    """Lifecycle of an organization row (``organizations.status``, F20 PR6).
+
+    ``deleting`` is set the moment an owner asks to delete the organization; a
+    Celery job then purges it. From that moment every read of it answers 404
+    (``services.org_resolution``), so nothing new lands in an organization that
+    is on its way out.
+    """
+
+    active = "active"
+    deleting = "deleting"
+
+
 class ApiKeyScope(enum.StrEnum):
     read = "read"
     write = "write"

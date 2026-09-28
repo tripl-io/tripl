@@ -285,7 +285,8 @@ a single-use link into the organization the request acts in.
 | Address | Fixed by the invitation. The redeem form never asks for one, so a link cannot be turned into an account for someone else. |
 | Role | The organization role, fixed by the inviter at invite time (`invitations.org_role`). The invitee cannot influence it. |
 | Lifetime | 72 hours, single use. Re-inviting the same address invalidates the previous link. |
-| Delivery | The link appears **once**, in the response to creating it, and is never retrievable afterwards. Copy it then. This is deliberate: SMTP is optional, so handing the link over out of band has to be a first-class path. |
+| Delivery | The link appears **once**, in the response to creating it, and is never retrievable afterwards. Copy it then. This is deliberate: SMTP is optional, so handing the link over out of band has to be a first-class path. When the operator has SMTP configured, the link is also emailed, always through the operator's mail server (never an organization's). |
+| Existing accounts | An address that already has an account can be invited into an organization it is not yet in. Accepting while signed in adds the membership, and only when the signed-in account's email equals the invitation's (case-insensitive); any other account gets `403` and the link stays unused. Email addresses are not yet verified at sign-up, so on a hosted instance this rule tightens to *verified* addresses before hosted sign-up opens. |
 | Storage | Only a keyed HMAC digest of the token is stored, like session and reset tokens — a leaked `invitations` table is useless without `SECRET_KEY`. |
 | Rejection | Unknown, expired and already-used links return one identical error, so a rejected redemption never reveals which it hit. |
 | Revoking | **Settings → Members** lists the organization's pending invitations; revoking one kills its link immediately. An invitation into another organization answers `404`. |

@@ -90,10 +90,13 @@ class InvitationAcceptRequest(BaseModel):
     invalid password never reaches the service.
     """
 
-    password: str = Field(max_length=PASSWORD_MAX_LENGTH)
+    # Required to create the account. A signed-in account accepting an
+    # invitation into another organization sends none (F20 PR6): it keeps its
+    # own password and gains a membership.
+    password: str | None = Field(default=None, max_length=PASSWORD_MAX_LENGTH)
     name: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("password")
     @classmethod
-    def _enforce_password_policy(cls, value: str) -> str:
-        return validate_password_strength(value)
+    def _enforce_password_policy(cls, value: str | None) -> str | None:
+        return None if value is None else validate_password_strength(value)

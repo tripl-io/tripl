@@ -24,7 +24,7 @@ from sqlalchemy.sql.compiler import SQLCompiler
 from sqlalchemy.sql.elements import ColumnElement
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
-from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole
+from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.models.enum_types import db_enum
 
 #: The organization every pre-organization row was migrated into. A fixed,
@@ -93,6 +93,15 @@ class Organization(UUIDMixin, TimestampMixin, Base):
     )
     members_can_create_projects: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False
+    )
+    # ``deleting`` from the moment an owner asks to delete the organization
+    # until the purge job removes the row (F20 PR6, critique #26). Every read
+    # resolves ``active`` organizations only.
+    status: Mapped[str] = mapped_column(
+        db_enum(OrganizationStatus, "organization_status"),
+        default=OrganizationStatus.active.value,
+        server_default=OrganizationStatus.active.value,
+        nullable=False,
     )
 
 

@@ -1123,6 +1123,12 @@ async def delete_project(session: AsyncSession, slug: str) -> None:
     await _forget_purged_project(project_id)
 
 
+async def forget_purged_project(project_id: uuid.UUID) -> None:
+    """Every id-keyed cache and realtime key of a purged project (org deletion)."""
+    await _invalidate_project_caches(project_id)
+    await _forget_purged_project(project_id)
+
+
 async def _forget_purged_project(project_id: uuid.UUID) -> None:
     """Drop id-keyed state that only a purged project's id can reach.
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
 
 from tripl.api.deps import OrgMemberUserDep, OwnerUserDep, SessionDep, request_org_role
 from tripl.middleware.org_context import require_org_id
@@ -28,7 +28,7 @@ from tripl.schemas.invitation import (
     InvitationCreatedResponse,
     InvitationResponse,
 )
-from tripl.services import audit_service, invitation_service, user_service
+from tripl.services import audit_service, invitation_email, invitation_service, user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -45,6 +45,7 @@ async def create_invitation(
     session: SessionDep,
     data: InvitationCreate,
     current_user: OwnerUserDep,
+    background_tasks: BackgroundTasks,
 ) -> InvitationCreatedResponse:
     """Invite one person into the request's organization, at an organization role.
 
@@ -55,7 +56,12 @@ async def create_invitation(
 
     The redeem link is returned in the body, not merely emailed: SMTP is
     optional and unconfigured on many instances, so a body-only path is the one
-    that always works. It appears here and nowhere else.
+    that always works. It appears here and nowhere else. When the operator has
+    SMTP configured the link is also mailed, through the operator's relay (never
+    an organization's), after the response.
+
+    The invitation belongs to the organization the request acts in: the one an
+    ``/orgs/{org}/users/invitations`` URL names, else the legacy default.
     """
     if (
         data.role == OrganizationRole.owner
@@ -78,9 +84,18 @@ async def create_invitation(
         target_name=invitation.email,
         payload={"role": OrganizationRole(data.role).value},
     )
+    accept_path = f"/invite/{raw_token}"
+    mail = await invitation_email.prepare(
+        session,
+        recipient=invitation.email,
+        organization_id=invitation.organization_id,
+        accept_path=accept_path,
+    )
+    if mail is not None:
+        background_tasks.add_task(invitation_email.send, mail)
     return InvitationCreatedResponse(
         invitation=InvitationResponse.model_validate(invitation),
-        accept_path=f"/invite/{raw_token}",
+        accept_path=accept_path,
         expires_at=invitation.expires_at,
     )
 
@@ -133,7 +148,6 @@ async def list_users(
 
 @router.patch("/{user_id}", response_model=UserListItem)
 async def update_user_role(
-    request: Request,
     session: SessionDep,
     user_id: uuid.UUID,
     data: UserRoleUpdate,
@@ -146,12 +160,9 @@ async def update_user_role(
     owner. The member stays signed in; the new role applies from their next
     request.
     """
-    actor_role = await request_org_role(request, session, current_user)
-    if actor_role is None:  # pragma: no cover - OwnerUserDep already demanded owner/admin
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=OWNER_MANAGEMENT_REQUIRED)
     try:
-        target, old_role = await user_service.update_org_role(
-            session, require_org_id(), user_id, data.role, actor_role=actor_role
+        target, old_role, invitations = await user_service.update_org_role(
+            session, require_org_id(), user_id, data.role, actor_id=current_user.id
         )
     except LookupError:
         raise HTTPException(
@@ -173,6 +184,10 @@ async def update_user_role(
         target_type="user",
         target_id=target.id,
         target_name=target.email,
-        payload={"old_role": old_role, "new_role": OrganizationRole(data.role).value},
+        payload={
+            "old_role": old_role,
+            "new_role": OrganizationRole(data.role).value,
+            "invitations_revoked": invitations,
+        },
     )
     return target

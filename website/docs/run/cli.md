@@ -10,7 +10,7 @@ a **running instance** over HTTP; two commands instead act on a **directory and
 the local Docker daemon**, and those are the ones that bring an instance into
 existence in the first place.
 
-Three commands ask a question about the instance as a whole and change nothing:
+Four commands ask a question about the instance as a whole and change nothing:
 
 - **`tripl doctor`** — runs six diagnostic checks and tells you what is broken,
   why, and what to do about it. Exits non-zero when something is wrong.
@@ -19,6 +19,8 @@ Three commands ask a question about the instance as a whole and change nothing:
 - **`tripl watch`** — follow mode. Prints what changes while you watch: replay
   chunk progress, jobs starting and finishing, signals opening, alert deliveries
   failing. Runs until you stop it. Never reports a verdict.
+- **`tripl whoami`** — which account the configured key acts as, the
+  organization it is bound to, and its scope. See [`tripl whoami`](#tripl-whoami).
 
 Two more act on a **class of objects** and are spelled `<plural-noun> <verb>`:
 
@@ -610,6 +612,49 @@ derives its own count by walking each config's job history. They normally agree.
 If they ever disagree in the field, `doctor`'s number is the one with the
 evidence attached — read the `scans` findings.
 :::
+
+## `tripl whoami`
+
+```
+usage: tripl whoami [-h] [--url URL] [--api-key KEY] [--config PATH] [--json]
+                    [--timeout SECONDS]
+```
+
+Answers "whose key is this, and where does it act?" with one read of
+`GET /api/v1/auth/me`. Nothing is written.
+
+```text
+tripl whoami - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+user:  Deploy bot <deploy@example.com>
+key:   write, reaches the whole organization
+org:   acme (role: admin)
+```
+
+- **user** is the account that minted the key. A key acts as that account, with
+  its role, in one organization.
+- **key** is the key's access (`read` or `write`) and its reach: the whole
+  organization, or one project for a project-bound key.
+- **org** is the organization the key is bound to, and the account's role
+  there. A key reaches only that organization, whichever others its account
+  belongs to.
+
+A **project-bound key** cannot read `/auth/me` at all (every route without a
+project slug refuses it with 403). `whoami` reports that as the answer rather
+than as a failure, and exits 0:
+
+```text
+key:   read, bound to one project
+user:  unknown (a project-bound key cannot read /auth/me)
+```
+
+Against an instance older than organizations the access is read off the key's
+`tk_r_` / `tk_w_` prefix and `org` is `unknown`. A rejected key (401) exits 1.
+
+`--json` prints one document with `reach` (`instance` or `project`), `access`,
+`user` (`id`, `email`, `name`, or `null`), `org`, `role`, `is_platform_admin`
+and `orgs` (the slugs of every organization the account belongs to). Cost: **1
+request**.
 
 ## `tripl watch`
 

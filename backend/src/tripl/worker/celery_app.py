@@ -96,6 +96,13 @@ celery_app.conf.beat_schedule = {
         # rows the worker/broker failed to dispatch.
         "schedule": crontab(minute="*/5"),
     },
+    "requeue-stranded-org-deletions": {
+        "task": "tripl.worker.tasks.org_delete.requeue_stranded_org_deletions",
+        # Hourly: a row counts as stranded only after STRANDED_DELETION_GRACE
+        # (2 h, above the task time limit) without a purge job touching it, and
+        # all it costs meanwhile is a slug and some storage.
+        "schedule": crontab(minute=17),
+    },
     "send-weekly-plan-digest": {
         "task": "tripl.worker.tasks.alerts.send_weekly_plan_digest",
         "schedule": crontab(day_of_week=1, hour=8, minute=0),
@@ -270,6 +277,7 @@ import tripl.worker.tasks.maintenance  # noqa: F401, E402
 import tripl.worker.tasks.metrics  # noqa: F401, E402
 import tripl.worker.tasks.metrics.freshness_sweep  # noqa: F401, E402
 import tripl.worker.tasks.notification_email  # noqa: F401, E402
+import tripl.worker.tasks.org_delete  # noqa: F401, E402
 import tripl.worker.tasks.scan  # noqa: F401, E402
 import tripl.worker.tasks.scan_dry_run  # noqa: F401, E402
 import tripl.worker.tasks.search  # noqa: F401, E402

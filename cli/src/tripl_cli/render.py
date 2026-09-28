@@ -36,6 +36,7 @@ from tripl_cli.model import (
     ScansSnapshot,
     Severity,
     StatusSnapshot,
+    Whoami,
     float_of,
     int_of,
     text_of,
@@ -604,3 +605,26 @@ def _annotation_line(outcome: MutationOutcome, result: JsonDict) -> str:
             f"at {bucket}); the API de-duplicated it and nothing new was created."
         )
     return f"{outcome.project}: annotated {label!r} at {bucket} ({annotation_id})."
+
+
+def render_whoami(whoami: Whoami) -> str:
+    """The ``tripl whoami`` lines: one fact per line, ``label: value``."""
+    access = whoami.access or "unknown"
+    if whoami.user_id is None:
+        return "\n".join(
+            [
+                f"key:   {access}, bound to one project",
+                "user:  unknown (a project-bound key cannot read /auth/me)",
+            ]
+        )
+    who = whoami.email or whoami.user_id
+    if whoami.name:
+        who = f"{whoami.name} <{who}>"
+    lines = [
+        f"user:  {who}",
+        f"key:   {access}, reaches the whole organization",
+        f"org:   {whoami.org or 'unknown'}" + (f" (role: {whoami.role})" if whoami.role else ""),
+    ]
+    if whoami.is_platform_admin:
+        lines.append("platform admin: yes (operator settings; browser sessions only)")
+    return "\n".join(lines)

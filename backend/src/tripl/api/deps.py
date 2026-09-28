@@ -11,6 +11,7 @@ from tripl.config import settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
 from tripl.middleware.org_context import (
+    OrgRef,
     bind_org,
     current_org,
     current_org_id,
@@ -22,14 +23,14 @@ from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services import api_key_service, project_access, project_service
+from tripl.services import api_key_service, org_service, project_access, project_service
 from tripl.services._plan_branch_locks import (
     hold_branch_for_plan_write,
     hold_main_plan_for_write,
     locks_rows,
 )
 from tripl.services.auth_service import get_user_by_session_token
-from tripl.services.org_resolution import resolve_request_org
+from tripl.services.org_resolution import ORG_NOT_FOUND, resolve_request_org
 from tripl.services.project_lookup import (
     PROJECT_NOT_FOUND,
     project_slug_clause,
@@ -82,6 +83,12 @@ _ORG_FREE_PATH_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth/",
     "/api/v1/settings",
     "/api/v1/project-templates",
+    # The organization management API (F20 PR6): ``GET/POST /orgs`` act in no
+    # organization, and ``/orgs/{org}/...`` resolves the organization its path
+    # names through its own gate (:func:`_resolve_path_org`), which holds a
+    # session to a membership of it. Org-qualified project URLs are rewritten to
+    # their legacy path before routing, so they never match this prefix.
+    "/api/v1/orgs",
 )
 
 
@@ -495,6 +502,90 @@ async def get_settings_admin_user(
     return user
 
 
+# ── the organization management gates (F20 PR6) ─────────────────────────────
+
+ORG_OWNER_REQUIRED = "Organization owner role required"
+_MANAGED_ORG_STATE_KEY = "managed_org"
+
+
+async def _resolve_path_org(
+    request: Request, session: AsyncSession, user: User
+) -> org_service.ManagedOrg:
+    """The organization a ``/orgs/{org}/...`` path names, if the caller may see it.
+
+    404 "Organization not found" for an unknown slug, a ``deleting``
+    organization, a non-member and an API key of another organization alike,
+    and always BEFORE any scope or role check, so a 403 never tells a stranger
+    that the organization exists. Binds the organization for the rest of the
+    request (the audit rows it files belong to it) and caches the result.
+    """
+    cached = getattr(request.state, _MANAGED_ORG_STATE_KEY, None)
+    if isinstance(cached, org_service.ManagedOrg):
+        return cached
+    try:
+        org = await org_service.resolve_managed_org(
+            session,
+            slug=str(request.path_params.get("org", "")),
+            user_id=user.id,
+            key_org_id=getattr(request.state, "api_key_org_id", None),
+        )
+    except org_service.OrgNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ORG_NOT_FOUND) from None
+    bind_org(OrgRef(id=org.id, slug=org.slug))
+    request.state.org_role = org.role
+    setattr(request.state, _MANAGED_ORG_STATE_KEY, org)
+    return org
+
+
+def _refuse_api_keys(request: Request) -> None:
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner session required")
+
+
+async def get_path_org_member_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """Any member of the path's organization; an API key of that organization too."""
+    await _resolve_path_org(request, session, user)
+    return user
+
+
+async def get_path_org_admin_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """An owner or admin of the path's organization, from a browser session."""
+    org = await _resolve_path_org(request, session, user)
+    _refuse_api_keys(request)
+    if not project_access.is_org_admin_role(org.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
+    return user
+
+
+async def get_path_org_owner_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """An owner of the path's organization, from a browser session."""
+    org = await _resolve_path_org(request, session, user)
+    _refuse_api_keys(request)
+    if org.role != OrganizationRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_OWNER_REQUIRED)
+    return user
+
+
+def get_managed_org(request: Request) -> org_service.ManagedOrg:
+    """What the route's path-org gate resolved; declare it AFTER that gate."""
+    org = getattr(request.state, _MANAGED_ORG_STATE_KEY, None)
+    if not isinstance(org, org_service.ManagedOrg):  # pragma: no cover - wiring error
+        raise RuntimeError("get_managed_org needs a path-org gate declared before it")
+    return org
+
+
+PathOrgMemberUserDep = Annotated[User, Depends(get_path_org_member_user)]
+PathOrgAdminUserDep = Annotated[User, Depends(get_path_org_admin_user)]
+PathOrgOwnerUserDep = Annotated[User, Depends(get_path_org_owner_user)]
+ManagedOrgDep = Annotated[org_service.ManagedOrg, Depends(get_managed_org)]
+
 WriteUserDep = Annotated[User, Depends(get_write_user)]
 EditorUserDep = Annotated[User, Depends(get_editor_user)]
 OwnerUserDep = Annotated[User, Depends(get_owner_user)]
@@ -516,6 +607,8 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
     get_key_reachable_owner_user: get_key_reachable_owner_user,
     require_platform_admin: lambda request, _session, user: require_platform_admin(request, user),
     get_settings_admin_user: get_settings_admin_user,
+    get_path_org_admin_user: get_path_org_admin_user,
+    get_path_org_owner_user: get_path_org_owner_user,
 }
 
 # The route audits in tests/ classify every route by the gate it carries. Each

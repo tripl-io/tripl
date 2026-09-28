@@ -4754,6 +4754,16 @@
       "AuthUserResponse": {
         "description": "The signed-in account. Built by ``auth_service.build_auth_user_response``.\n\n``role`` is the organization role in the organization the request acts in\n(``None`` when the user belongs to none that applies); ``orgs`` lists every\nmembership. ``is_platform_admin`` is the operator flag, which grants the\noperator settings and nothing inside any organization.",
         "properties": {
+          "api_key_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApiKeyScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -4783,6 +4793,17 @@
               }
             ],
             "title": "Name"
+          },
+          "org": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org"
           },
           "orgs": {
             "items": {
@@ -14174,14 +14195,18 @@
             "title": "Name"
           },
           "password": {
-            "maxLength": 255,
-            "title": "Password",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
           }
         },
-        "required": [
-          "password"
-        ],
         "title": "InvitationAcceptRequest",
         "type": "object"
       },
@@ -17905,6 +17930,77 @@
         "title": "ObservabilitySettingsUpdate",
         "type": "object"
       },
+      "OrgCreate": {
+        "additionalProperties": false,
+        "description": "A new organization. The slug is permanent (owner decision 6).",
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "OrgCreate",
+        "type": "object"
+      },
+      "OrgDeleteRequest": {
+        "description": "The typed confirmation: the organization's slug, exactly.",
+        "properties": {
+          "confirm_slug": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Confirm Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirm_slug"
+        ],
+        "title": "OrgDeleteRequest",
+        "type": "object"
+      },
+      "OrgMemberRemoved": {
+        "description": "What removing a member took away with the membership (critique #28).",
+        "properties": {
+          "api_keys_revoked": {
+            "title": "Api Keys Revoked",
+            "type": "integer"
+          },
+          "invitations_revoked": {
+            "title": "Invitations Revoked",
+            "type": "integer"
+          },
+          "project_memberships_removed": {
+            "title": "Project Memberships Removed",
+            "type": "integer"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "project_memberships_removed",
+          "api_keys_revoked",
+          "invitations_revoked"
+        ],
+        "title": "OrgMemberRemoved",
+        "type": "object"
+      },
       "OrgMembershipOut": {
         "description": "One organization the signed-in user belongs to, with their role there.",
         "properties": {
@@ -17928,6 +18024,82 @@
         "title": "OrgMembershipOut",
         "type": "object"
       },
+      "OrgResponse": {
+        "description": "One organization, with the caller's role in it.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/OrganizationRole"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "role",
+          "status",
+          "is_default",
+          "created_at"
+        ],
+        "title": "OrgResponse",
+        "type": "object"
+      },
+      "OrgTransferOwnership": {
+        "description": "Hand the organization to another member, who becomes an owner.",
+        "properties": {
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "OrgTransferOwnership",
+        "type": "object"
+      },
+      "OrgUpdate": {
+        "additionalProperties": false,
+        "description": "A rename. ``extra=\"forbid\"``: the slug is immutable, so sending one is a 422.",
+        "properties": {
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "OrgUpdate",
+        "type": "object"
+      },
       "OrganizationRole": {
         "description": "A user's role in one organization (``organization_members.role``).\n\nThe source of truth for organization-level rights (F20 PR4). ``owner`` and\n``admin`` administer the organization and are the implicit ``owner`` of\nevery project in it; only an ``owner`` can make or unmake another owner.\n``member`` holds exactly the roles of their ``project_members`` rows.",
         "enum": [
@@ -17936,6 +18108,15 @@
           "member"
         ],
         "title": "OrganizationRole",
+        "type": "string"
+      },
+      "OrganizationStatus": {
+        "description": "Lifecycle of an organization row (``organizations.status``, F20 PR6).\n\n``deleting`` is set the moment an owner asks to delete the organization; a\nCelery job then purges it. From that moment every read of it answers 404\n(``services.org_resolution``), so nothing new lands in an organization that\nis on its way out.",
+        "enum": [
+          "active",
+          "deleting"
+        ],
+        "title": "OrganizationStatus",
         "type": "string"
       },
       "OverviewKpiSeriesResponse": {
@@ -28078,7 +28259,7 @@
     },
     "/api/v1/auth/invitations/{token}/accept": {
       "post": {
-        "description": "Redeem an invitation into an account, and sign the new user straight in.\n\nReachable regardless of ``registration_mode`` \u2014 that is the entire point:\nan owner-issued, single-use, expiring, address-bound invitation is a\ndifferent mechanism from the instance-wide door, so a closed instance can\nstill onboard exactly the people its owner named.\n\nOn the register rate-limit bucket, so guessing tokens costs the same as\nhammering signup.",
+        "description": "Redeem an invitation: into a new account, or into the signed-in one.\n\nSigned in (a browser session cookie): the invitation adds a membership of\nits organization to THIS account, but only when the account's email is the\ninvitation's (case-insensitive) \u2014 else 403 and the invitation stays unused;\n409 when the account is already a member. Answers 200 and leaves the\nsession as it is (F20 PR6).\n\nNot signed in: the new-account path, unchanged. ``password`` is required,\nthe account is created with the invitation's address and the new user is\nsigned straight in (201). Reachable regardless of ``registration_mode`` \u2014\nan owner-issued, single-use, expiring, address-bound invitation is a\ndifferent mechanism from the instance-wide door, so a closed instance can\nstill onboard exactly the people its owner named.\n\nOn the register rate-limit bucket, so guessing tokens costs the same as\nhammering signup.",
         "operationId": "accept_invitation_api_v1_auth_invitations__token__accept_post",
         "parameters": [
           {
@@ -28186,7 +28367,7 @@
     },
     "/api/v1/auth/me": {
       "get": {
-        "description": "The signed-in account with its organization role(s) and the platform-admin flag.",
+        "description": "The signed-in account with its organization role(s) and the platform-admin flag.\n\nFor an API key it also names the key's organization (``org``) and scope\n(``api_key_scope``): what ``tripl whoami`` prints. Read from the database on\nevery call, so a membership added, changed or removed shows at once.",
         "operationId": "get_me_api_v1_auth_me_get",
         "responses": {
           "200": {
@@ -29016,6 +29197,371 @@
         "summary": "My Unread Count",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/v1/orgs": {
+      "get": {
+        "description": "The organizations the caller belongs to, with their role in each.\n\nAn API key belongs to one organization and lists only that one.",
+        "operationId": "list_orgs_api_v1_orgs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrgResponse"
+                  },
+                  "title": "Response List Orgs Api V1 Orgs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Orgs",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "post": {
+        "description": "Create an organization; the platform admin who creates it becomes its owner.",
+        "operationId": "create_org_api_v1_orgs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Org",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}": {
+      "delete": {
+        "description": "Start deleting the organization: 202, then a background job purges it.\n\nThe body must repeat the slug (``{\"confirm_slug\": \"<slug>\"}``). The default\norganization cannot be deleted. From this response on the organization\nanswers 404 everywhere.",
+        "operationId": "delete_org_api_v1_orgs__org__delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Org",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "get": {
+        "operationId": "get_org_api_v1_orgs__org__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Org",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "patch": {
+        "description": "Rename the organization. Only the name: a ``slug`` in the body is a 422.",
+        "operationId": "rename_org_api_v1_orgs__org__patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Org",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/members": {
+      "get": {
+        "operationId": "list_members_api_v1_orgs__org__members_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserListItem"
+                  },
+                  "title": "Response List Members Api V1 Orgs  Org  Members Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/members/{user_id}": {
+      "delete": {
+        "description": "Remove a member: their membership, project rows, keys and pending invitations here.",
+        "operationId": "remove_member_api_v1_orgs__org__members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgMemberRemoved"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Member",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "patch": {
+        "description": "Change a member's organization role (owner | admin | member).",
+        "operationId": "update_member_role_api_v1_orgs__org__members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserRoleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserListItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Member Role",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/transfer-ownership": {
+      "post": {
+        "description": "Make another member an owner and step the caller down to admin.",
+        "operationId": "transfer_ownership_api_v1_orgs__org__transfer_ownership_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgTransferOwnership"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserListItem"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transfer Ownership",
+        "tags": [
+          "organizations"
         ]
       }
     },
@@ -46348,7 +46894,7 @@
         ]
       },
       "post": {
-        "description": "Invite one person into the request's organization, at an organization role.\n\n``OwnerUserDep`` is org owner/admin-only AND rejects API keys of any scope, so\nminting an account always requires an interactive session \u2014 an automation\ntoken can never conjure a new identity. Inviting at ``owner`` takes an\nowner: an admin cannot mint an account more privileged than their own.\n\nThe redeem link is returned in the body, not merely emailed: SMTP is\noptional and unconfigured on many instances, so a body-only path is the one\nthat always works. It appears here and nowhere else.",
+        "description": "Invite one person into the request's organization, at an organization role.\n\n``OwnerUserDep`` is org owner/admin-only AND rejects API keys of any scope, so\nminting an account always requires an interactive session \u2014 an automation\ntoken can never conjure a new identity. Inviting at ``owner`` takes an\nowner: an admin cannot mint an account more privileged than their own.\n\nThe redeem link is returned in the body, not merely emailed: SMTP is\noptional and unconfigured on many instances, so a body-only path is the one\nthat always works. It appears here and nowhere else. When the operator has\nSMTP configured the link is also mailed, through the operator's relay (never\nan organization's), after the response.\n\nThe invitation belongs to the organization the request acts in: the one an\n``/orgs/{org}/users/invitations`` URL names, else the legacy default.",
         "operationId": "create_invitation_api_v1_users_invitations_post",
         "requestBody": {
           "content": {

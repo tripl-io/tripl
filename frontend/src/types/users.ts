@@ -39,6 +39,13 @@ export interface AuthUser {
   is_platform_admin: boolean
   /** Every organization membership. */
   orgs: OrgMembership[]
+  /**
+   * The organization this request acts in, when one is bound: an API key's
+   * own. `null` for a browser session on `/auth/me`.
+   */
+  org?: string | null
+  /** `read` / `write` for an API key; `null` for a browser session. */
+  api_key_scope?: ApiKeyScope | null
   created_at: string
   updated_at: string
 }

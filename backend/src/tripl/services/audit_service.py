@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import enum
 import json
 import uuid
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Final, Literal, cast
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, null, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.middleware.branch_context import current_branch
@@ -54,6 +55,18 @@ _REDACTED_KEYS = frozenset(
 _TARGET_NAME_MAX = 255
 
 
+class _BoundOrg(enum.Enum):
+    """Sentinel type of :data:`BOUND_ORG`."""
+
+    token = 0
+
+
+#: ``record(organization_id=...)``'s default: the project's organization, else
+#: the bound one. Pass an id to file the row elsewhere (a new organization's
+#: ``org.create``), or ``None`` for a platform-scope row (``org.delete_complete``).
+BOUND_ORG: Final = _BoundOrg.token
+
+
 def _jsonable(payload: dict[str, Any]) -> dict[str, Any]:
     """Round-trip through JSON to coerce UUIDs, datetimes, enums to primitives."""
     return cast(dict[str, Any], json.loads(json.dumps(payload, default=str)))
@@ -75,6 +88,7 @@ async def record(
     project_slug: str | None = None,
     payload: dict[str, Any] | None = None,
     commit: bool = True,
+    organization_id: uuid.UUID | None | Literal[_BoundOrg.token] = BOUND_ORG,
 ) -> AuditLog:
     """Write one audit row.
 
@@ -111,11 +125,11 @@ async def record(
     slug = ""
     # The row belongs to the project's organization, else the bound one (the
     # default when none is bound), so the feed can be read per organization.
-    organization_id = owning_org_id()
+    owning_org = owning_org_id()
     if project is not None:
         project_id = project.id
         slug = project.slug
-        organization_id = project.organization_id
+        owning_org = project.organization_id
     elif project_slug:
         row = (
             await session.execute(
@@ -128,9 +142,10 @@ async def record(
             project_id = None
             slug = project_slug
         else:
-            project_id, slug, organization_id = row
+            project_id, slug, owning_org = row
     else:
         project_id = None
+    org_id: uuid.UUID | None = owning_org if organization_id is BOUND_ORG else organization_id
 
     # Read once per row so a ``commit=False`` batch (the inbox bulk route) is
     # consistent within itself; that route carries no branch, so it gets NULL.
@@ -141,7 +156,7 @@ async def record(
         user_email=user.email if user else "",
         project_id=project_id,
         project_slug=slug,
-        organization_id=organization_id,
+        organization_id=org_id,
         branch_id=branch[0] if branch else None,
         branch_name=branch[1] if branch else "",
         action=action,
@@ -150,6 +165,10 @@ async def record(
         target_name=(target_name or "")[:_TARGET_NAME_MAX],
         payload=_redact(_jsonable(payload or {})),
     )
+    if org_id is None:
+        # A platform-scope row. ``None`` alone would let the column's default
+        # (the default organization) fill it in; ``NULL`` is written as such.
+        entry.organization_id = null()
     session.add(entry)
     if commit:
         await session.commit()

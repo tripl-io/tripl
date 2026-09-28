@@ -16,6 +16,11 @@ known and before any project slug is resolved. The rules, in order:
    (no query, exactly as before organizations existed); a hosted one acts in the
    user's only organization, and answers 400 "Organization required" when the
    user has none or several. There is never a fallback.
+
+Only ``active`` organizations resolve (F20 PR6): one an owner has asked to
+delete is ``deleting`` until the purge job removes it, and answers exactly like
+an organization that does not exist — its URLs, its API keys and a hosted
+member's legacy paths all 404 (or, for the last, stop counting it).
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.config import DEPLOYMENT_SELF_HOSTED, settings
 from tripl.middleware.org_context import OrgRef
+from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.organization import (
     DEFAULT_ORG_ID,
     DEFAULT_ORG_SLUG,
@@ -39,6 +45,9 @@ from tripl.models.user import User
 ORG_NOT_FOUND = "Organization not found"
 ORG_REQUIRED = "Organization required"
 
+#: The one predicate "this organization can be acted in". SQL column on the left.
+ORG_IS_ACTIVE = Organization.status == OrganizationStatus.active.value
+
 
 def _not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ORG_NOT_FOUND)
@@ -46,7 +55,7 @@ def _not_found() -> HTTPException:
 
 async def _org_by_slug(session: AsyncSession, slug: str) -> OrgRef | None:
     org_id: uuid.UUID | None = await session.scalar(
-        select(Organization.id).where(Organization.slug == slug)
+        select(Organization.id).where(Organization.slug == slug, ORG_IS_ACTIVE)
     )
     return None if org_id is None else OrgRef(id=org_id, slug=slug)
 
@@ -55,11 +64,12 @@ async def _org_by_id(session: AsyncSession, org_id: uuid.UUID) -> OrgRef:
     if org_id == DEFAULT_ORG_ID:
         return OrgRef(id=DEFAULT_ORG_ID, slug=DEFAULT_ORG_SLUG)
     slug: str | None = await session.scalar(
-        select(Organization.slug).where(Organization.id == org_id)
+        select(Organization.slug).where(Organization.id == org_id, ORG_IS_ACTIVE)
     )
     if slug is None:
         # The key's organization_id is a foreign key; a missing row means it was
-        # deleted under the key, which then reaches nothing.
+        # deleted under the key, which then reaches nothing — and so does a key
+        # of an organization that is being deleted.
         raise _not_found()
     return OrgRef(id=org_id, slug=slug)
 
@@ -79,7 +89,7 @@ async def _only_org_of(session: AsyncSession, user_id: uuid.UUID) -> OrgRef:
         await session.execute(
             select(Organization.id, Organization.slug)
             .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
-            .where(OrganizationMember.user_id == user_id)
+            .where(OrganizationMember.user_id == user_id, ORG_IS_ACTIVE)
             .limit(2)
         )
     ).all()
