@@ -394,7 +394,8 @@ def _send_email(target: _TestTarget) -> None:
             "(and SMTP_USERNAME/SMTP_PASSWORD if your relay requires auth)."
         )
     recipients = _parse_email_recipients(validate_email_recipients(target.email_recipients))
-    from_address = target.email_from_address or email_config.smtp_from_address
+    # Same rule as delivery (critique #16): the override only on an own relay.
+    from_address = app_settings_service.email_sender_for(target.email_from_address, email_config)
     if not from_address:
         raise ValueError("Email destination has no From: address and SMTP_FROM_ADDRESS is unset.")
     alerts._send_email_message(

@@ -548,7 +548,11 @@ def _resolve_email_context(
             "Email destination configuration is invalid. Update the recipients list."
         ) from exc
     recipients = _parse_email_recipients(recipients_csv)
-    from_address = destination.email_from_address or email_config.smtp_from_address
+    # The override only on the organization's own relay (critique #16): through
+    # the operator's relay the organization's mail goes out under its sender.
+    from_address = app_settings_service.email_sender_for(
+        destination.email_from_address, email_config
+    )
     if not from_address:
         raise ValueError("Email destination has no From: address and SMTP_FROM_ADDRESS is unset.")
     try:
