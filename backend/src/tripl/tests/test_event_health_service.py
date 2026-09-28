@@ -26,6 +26,7 @@ from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.models.signal_triage import SignalTriage
+from tripl.services._open_event_signals import open_unverdicted_event_signals
 from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
 
@@ -396,3 +397,128 @@ async def test_non_member_gets_404_and_viewer_can_read(client: AsyncClient) -> N
     for url in urls:
         resp = await client.get(url)
         assert resp.status_code == 200, (url, resp.text)
+
+
+@pytest.mark.asyncio
+async def test_health_signal_counts_agree_with_the_badge_event_scope(
+    client: AsyncClient,
+) -> None:
+    """The health score's per-event counts and the badge read one implementation.
+
+    The fixture holds event-scope anomalies only (no other scope, no catalog
+    metric), so the badge's ``monitoring_signal_count`` is exactly its event-scope
+    count and must equal the sum of ``open_unverdicted_event_signals``: one open
+    significant signal, one verdicted, one below the magnitude gate and one
+    closed by a newer metric bucket.
+    """
+    project_id, base, event_type_id = await _project(client, "hs-badge-parity")
+    names = ("open_one", "verdicted", "insignificant", "closed")
+    event_ids = [
+        await _event(client, base, event_type_id, name, status=EventStatus.live) for name in names
+    ]
+    config_id = await _scan_config(project_id, event_type_id, detection=True)
+    bucket = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+    old_bucket = bucket - timedelta(days=3)
+    shape = {
+        "open_one": (bucket, 100),
+        "verdicted": (bucket, 100),
+        "insignificant": (bucket, 21),
+        "closed": (old_bucket, 100),
+    }
+    async with TestSessionLocal() as session:
+        for name, event_id in zip(names, event_ids, strict=True):
+            anomaly_bucket, actual = shape[name]
+            session.add(
+                EventMetric(scan_config_id=config_id, event_id=event_id, bucket=bucket, count=20)
+            )
+            session.add(
+                MetricAnomaly(
+                    scan_config_id=config_id,
+                    scope_type="event",
+                    scope_ref=str(event_id),
+                    event_id=event_id,
+                    event_type_id=event_type_id,
+                    bucket=anomaly_bucket,
+                    actual_count=actual,
+                    expected_count=20,
+                    stddev=5,
+                    z_score=16,
+                    direction="spike",
+                )
+            )
+        session.add(
+            SignalTriage(
+                project_id=project_id,
+                scan_config_id=config_id,
+                scope_type="event",
+                scope_ref=str(event_ids[1]),
+                action="false_positive",
+                bucket=bucket,
+            )
+        )
+        await session.commit()
+
+    async with TestSessionLocal() as session:
+        per_event = await open_unverdicted_event_signals(session, project_id, event_ids)
+    assert per_event == {event_ids[0]: 1}
+
+    resp = await client.get(base)
+    assert resp.status_code == 200
+    assert resp.json()["summary"]["monitoring_signal_count"] == sum(per_event.values())
+
+
+@pytest.mark.asyncio
+async def test_scan_liveness_ignores_rows_without_event_or_type(client: AsyncClient) -> None:
+    """Scan liveness reads only rows with an event or a type id (the badge's rule).
+
+    An outage anchor (zero actual, non-zero expected, three days old, the event's
+    newest stored bucket) stays open only while its scan still collects. A fresh
+    row whose event and type were both deleted (both FKs SET NULL) does not count
+    as the scan collecting: the health count and the badge both read it closed.
+    A fresh per-type row does count, and both then read it open.
+    """
+    project_id, base, event_type_id = await _project(client, "hs-liveness")
+    event_id = await _event(client, base, event_type_id, "gone_quiet", status=EventStatus.live)
+    config_id = await _scan_config(project_id, event_type_id, detection=True)
+    fresh = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - timedelta(hours=1)
+    anchor = fresh - timedelta(days=3)
+    async with TestSessionLocal() as session:
+        session.add(
+            EventMetric(scan_config_id=config_id, event_id=event_id, bucket=anchor, count=0)
+        )
+        session.add(EventMetric(scan_config_id=config_id, bucket=fresh, count=50))
+        session.add(
+            MetricAnomaly(
+                scan_config_id=config_id,
+                scope_type="event",
+                scope_ref=str(event_id),
+                event_id=event_id,
+                event_type_id=event_type_id,
+                bucket=anchor,
+                actual_count=0,
+                expected_count=20,
+                stddev=5,
+                z_score=-4,
+                direction="drop",
+            )
+        )
+        await session.commit()
+
+    async def counts() -> tuple[int, int]:
+        async with TestSessionLocal() as session:
+            per_event = await open_unverdicted_event_signals(session, project_id, [event_id])
+        resp = await client.get(base)
+        assert resp.status_code == 200
+        return sum(per_event.values()), resp.json()["summary"]["monitoring_signal_count"]
+
+    assert await counts() == (0, 0)
+
+    async with TestSessionLocal() as session:
+        session.add(
+            EventMetric(
+                scan_config_id=config_id, event_type_id=event_type_id, bucket=fresh, count=50
+            )
+        )
+        await session.commit()
+
+    assert await counts() == (1, 1)

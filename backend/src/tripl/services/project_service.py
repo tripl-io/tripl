@@ -6,13 +6,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlalchemy import case, delete, func, literal, or_, select, union_all, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache, realtime
 from tripl.core.analyzers.anomaly_detector import (
-    SCOPE_EVENT,
-    SCOPE_EVENT_TYPE,
     SCOPE_METRIC,
     SCOPE_PROJECT_TOTAL,
 )
@@ -24,7 +22,6 @@ from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import MetricScopeType, ProjectGenerationStatus
 from tripl.models.event import Event
-from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
@@ -46,15 +43,11 @@ from tripl.schemas.project import (
 )
 from tripl.services import alerting_service, plan_branch_service, signal_triage_service
 from tripl.services._monitor_state_intervals import load_monitor_state_intervals
+from tripl.services._open_signals import SCAN_SCOPES, open_counted_scan_signals
 from tripl.services.metrics_insights_service import (
     _active_metric_signals_by_project,
-    is_significant_signal,
 )
-from tripl.services.metrics_service import _get_project_recent_signal_windows
 from tripl.services.monitoring_utils import (
-    classify_signal_state,
-    latest_bucket_by_scan,
-    scan_interval_to_timedelta,
     summarize_monitor_states,
 )
 from tripl.services.project_lookup import project_slug_taken, resolve_project
@@ -471,9 +464,10 @@ async def _populate_monitoring_signals(
     project_ids = list(summaries)
 
     # Catalog-metric anomalies carry a NULL scan_config_id and are keyed by
-    # metric_definition_id, so the ScanConfig-joined query below silently drops
-    # them. Fold them into the count here by reusing the exact open-signal logic
-    # the AnomaliesPage uses (metrics_insights_service._count_active_metric_signals_by_project,
+    # metric_definition_id, so the ScanConfig-joined query in
+    # _open_signals.open_counted_scan_signals silently drops them. Fold them
+    # into the count here by reusing the exact open-signal logic the
+    # AnomaliesPage uses (metrics_insights_service._count_active_metric_signals_by_project,
     # the batched sibling of _get_active_metric_signals, which classifies each
     # metric's newest anomaly against its latest stored value bucket ON THAT
     # METRIC'S OWN GRID), so the sidebar / ProjectsPage badge agrees with the
@@ -483,7 +477,7 @@ async def _populate_monitoring_signals(
     # O(1) queries so listing N projects does not fan out to N per-project scans.
     # These signals have no scan_config_id and so cannot populate ``latest_signal``
     # (a ProjectLatestSignal requires one); they contribute to
-    # ``monitoring_signal_count`` only. This runs before the ``anomaly_rows``
+    # ``monitoring_signal_count`` only. This runs before the ``open_rows``
     # early-return so a project with only metric-scope anomalies is still counted.
     #
     # Both halves drop signals a triage verdict hides (muted scope or marked
@@ -510,208 +504,29 @@ async def _populate_monitoring_signals(
             if signal_triage_service.signal_key(None, SCOPE_METRIC, scope_ref, bucket) not in hidden
         )
 
-    latest_anomaly_keys = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            MetricAnomaly.scan_config_id.label("scan_config_id"),
-            MetricAnomaly.scope_type.label("scope_type"),
-            MetricAnomaly.scope_ref.label("scope_ref"),
-            func.max(MetricAnomaly.bucket).label("bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == MetricAnomaly.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            # The AnomaliesPage now lists EVERY open scope as a flat, magnitude-
-            # filtered list (tripl-w0ay), so the badge must count the same
-            # population — project_total + event_type + per-event — and gate on
-            # magnitude below rather than excluding the per-event scope. The
-            # "Significant" threshold (not scope exclusion) is what now keeps
-            # trivial per-event wobble out of the badge (tripl-yfsj.1, supersedes
-            # tripl-posm).
-            MetricAnomaly.scope_type.in_([SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT]),
-        )
-        .group_by(
-            ScanConfig.project_id,
-            MetricAnomaly.scan_config_id,
-            MetricAnomaly.scope_type,
-            MetricAnomaly.scope_ref,
-        )
-        .subquery()
-    )
-
-    anomaly_rows = (
-        await session.execute(
-            select(ScanConfig.project_id, ScanConfig.name, ScanConfig.interval, MetricAnomaly)
-            .join(ScanConfig, ScanConfig.id == MetricAnomaly.scan_config_id)
-            .join(
-                latest_anomaly_keys,
-                (ScanConfig.project_id == latest_anomaly_keys.c.project_id)
-                & (MetricAnomaly.scan_config_id == latest_anomaly_keys.c.scan_config_id)
-                & (MetricAnomaly.scope_type == latest_anomaly_keys.c.scope_type)
-                & (MetricAnomaly.scope_ref == latest_anomaly_keys.c.scope_ref)
-                & (MetricAnomaly.bucket == latest_anomaly_keys.c.bucket),
-            )
-            .order_by(ScanConfig.project_id, MetricAnomaly.bucket.desc())
-        )
-    ).all()
-    if not anomaly_rows:
+    # The scan-backed half (project_total, event_type, per-event scopes) is the
+    # shared open-signal rule the F15 health score also reads
+    # (``_open_signals.open_counted_scan_signals``): latest anomaly per scope,
+    # classified against its scope's latest bucket and its scan's liveness, the
+    # "Significant" magnitude gate (every open signal across all scopes with
+    # relative effect >= 0.5, incident children INCLUDED, no incident dedup, so
+    # the badge equals the AnomaliesPage's headline open count, tripl-yfsj.1),
+    # and the triage filter. Rows come newest bucket first per project.
+    open_rows = await open_counted_scan_signals(session, project_ids, SCAN_SCOPES)
+    if not open_rows:
         return
 
-    anomalies = [anomaly for _project_id, _scan_name, _interval, anomaly in anomaly_rows]
-    event_names, event_type_names = await _load_scope_names(session, anomalies)
-
-    project_total_metrics = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            EventMetric.scan_config_id.label("scan_config_id"),
-            literal(SCOPE_PROJECT_TOTAL).label("scope_type"),
-            EventMetric.scan_config_id.label("scope_ref_uuid"),
-            func.max(EventMetric.bucket).label("latest_metric_bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            EventMetric.event_id.is_(None),
-            EventMetric.event_type_id.is_not(None),
-        )
-        .group_by(ScanConfig.project_id, EventMetric.scan_config_id)
+    event_names, event_type_names = await _load_scope_names(
+        session, [row.anomaly for row in open_rows]
     )
-    event_type_metrics = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            EventMetric.scan_config_id.label("scan_config_id"),
-            literal(SCOPE_EVENT_TYPE).label("scope_type"),
-            EventMetric.event_type_id.label("scope_ref_uuid"),
-            func.max(EventMetric.bucket).label("latest_metric_bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            EventMetric.event_id.is_(None),
-            EventMetric.event_type_id.is_not(None),
-        )
-        .group_by(ScanConfig.project_id, EventMetric.scan_config_id, EventMetric.event_type_id)
-    )
-    # Per-event branch: event-scope anomalies now flow through ``latest_anomaly_keys``
-    # (tripl-yfsj.1), so classify_signal_state needs each event's latest metric
-    # bucket to judge freshness — keyed by event_id, mirroring get_active_signals'
-    # ``_get_latest_metric_buckets_multi``.
-    event_metrics = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            EventMetric.scan_config_id.label("scan_config_id"),
-            literal(SCOPE_EVENT).label("scope_type"),
-            EventMetric.event_id.label("scope_ref_uuid"),
-            func.max(EventMetric.bucket).label("latest_metric_bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            EventMetric.event_id.is_not(None),
-        )
-        .group_by(ScanConfig.project_id, EventMetric.scan_config_id, EventMetric.event_id)
-    )
-    latest_metric_union = union_all(
-        project_total_metrics,
-        event_type_metrics,
-        event_metrics,
-    ).subquery()
-    latest_metric_rows = await session.execute(
-        select(
-            latest_metric_union.c.project_id,
-            latest_metric_union.c.scan_config_id,
-            latest_metric_union.c.scope_type,
-            latest_metric_union.c.scope_ref_uuid,
-            latest_metric_union.c.latest_metric_bucket,
-        )
-    )
-    latest_metric_buckets = {
-        (project_id, scan_config_id, scope_type, str(scope_ref_uuid)): latest_metric_bucket
-        for (
-            project_id,
-            scan_config_id,
-            scope_type,
-            scope_ref_uuid,
-            latest_metric_bucket,
-        ) in latest_metric_rows.all()
-    }
-
-    # Scan liveness, off the rows already loaded: an outage anchor stays open only
-    # while its scan is still collecting SOMETHING. Keyed on the scan config id
-    # itself, never on the stringified scope_ref. Same helper as the AnomaliesPage.
-    scan_latest_buckets = latest_bucket_by_scan(
-        (scan_config_id, bucket)
-        for (_project_id, scan_config_id, _scope_type, _scope_ref), bucket in (
-            latest_metric_buckets.items()
-        )
-    )
-
-    now = datetime.now(UTC)
-    # Same per-project open-signal window the metric-scope half above and the
-    # AnomaliesPage already honour; without it the two halves of this badge
-    # would classify against different horizons.
-    recent_windows = await _get_project_recent_signal_windows(session, project_ids)
-    open_rows: list[tuple[uuid.UUID, str, str, MetricAnomaly]] = []
-    for project_id, scan_name, scan_interval, anomaly in anomaly_rows:
-        latest_metric_bucket = latest_metric_buckets.get(
-            (project_id, anomaly.scan_config_id, anomaly.scope_type, anomaly.scope_ref)
-        )
-        state = classify_signal_state(
-            anomaly_bucket=anomaly.bucket,
-            latest_metric_bucket=latest_metric_bucket,
-            now=now,
-            interval=scan_interval_to_timedelta(scan_interval),
-            recent_window=recent_windows.get(project_id),
-            # An outage announced once and never re-emitted is re-checked against
-            # the current series rather than its own age (tripl-l429.15), and only
-            # while the anchor had volume to lose (tripl-wkwv.4). The magnitude
-            # gate below already hides a zero-versus-zero row from this count, so
-            # the expectation changes no number here today; it is passed because
-            # the badge and the page must reach ``classify_signal_state`` with the
-            # same inputs — classifying by different rules is how these two
-            # surfaces drifted apart twice before.
-            anomaly_actual_count=anomaly.actual_count,
-            anomaly_expected_count=anomaly.expected_count,
-            scan_latest_bucket=scan_latest_buckets.get(anomaly.scan_config_id),
-        )
-        if state is None:
-            continue
-        # Magnitude gate: the badge counts the AnomaliesPage's default "Significant"
-        # view — every open signal across all scopes with relative effect >= 0.5,
-        # incident children INCLUDED (the expanded page tags them, it does not drop
-        # them). No incident dedup here, so the badge equals the page's headline
-        # open count (tripl-yfsj.1).
-        if not is_significant_signal(anomaly.actual_count, anomaly.expected_count):
-            continue
-        open_rows.append((project_id, scan_name, state, anomaly))
-
-    # Triage runs over the open, significant rows only: one verdict query for
-    # every project, and one incident lookup per project with open rows.
-    hidden_keys = await signal_triage_service.uncounted_signal_keys(
-        session,
-        {
-            project_id: [
-                signal_triage_service.signal_key(
-                    anomaly.scan_config_id, anomaly.scope_type, anomaly.scope_ref, anomaly.bucket
-                )
-                for row_project_id, _scan_name, _state, anomaly in open_rows
-                if row_project_id == project_id
-            ]
-            for project_id in {row[0] for row in open_rows}
-        },
-    )
-    for project_id, scan_name, state, anomaly in open_rows:
-        if signal_triage_service.signal_key(
-            anomaly.scan_config_id, anomaly.scope_type, anomaly.scope_ref, anomaly.bucket
-        ) in hidden_keys.get(project_id, set()):
-            continue
-
-        summary = summaries[project_id]
+    for row in open_rows:
+        anomaly = row.anomaly
+        summary = summaries[row.project_id]
         summary.monitoring_signal_count += 1
 
         signal = ProjectLatestSignal(
             scan_config_id=anomaly.scan_config_id,
-            scan_name=scan_name,
+            scan_name=row.scan_name,
             scope_type=anomaly.scope_type,
             scope_ref=anomaly.scope_ref,
             scope_name=_resolve_scope_name(
@@ -719,7 +534,7 @@ async def _populate_monitoring_signals(
                 event_names=event_names,
                 event_type_names=event_type_names,
             ),
-            state=state,
+            state=row.state,
             bucket=anomaly.bucket,
             actual_count=anomaly.actual_count,
             expected_count=anomaly.expected_count,
