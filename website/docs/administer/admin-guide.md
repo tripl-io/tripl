@@ -181,10 +181,29 @@ A few things follow from this:
   of, and a key bound to one project can only be created by a member of it. A
   project-bound key used on another project gets `404 Project not found`, the
   same as an unknown slug.
-- **Taken slugs still answer `409`.** Creating a project with, or renaming one
-  to, a slug that already exists is refused with `409` even if the caller cannot
-  see that project. Slugs are unique instance-wide, so this signal cannot be
-  hidden.
+- **Taken slugs still answer `409`, within the organization.** Creating a
+  project with, or renaming one to, a slug that already exists in the same
+  organization is refused with `409` even if the caller cannot see that
+  project. Slugs are unique per organization: another organization may use the
+  same slug, and its projects never show up in this organization's lists.
+- **Some slugs are reserved.** `demo`, `orgs`, `new`, `settings`, `api`, `p`,
+  `o` and the other top-level route names cannot be project slugs (`422`).
+  Generated demo slugs such as `demo-3f2a1c` are fine. A project created before
+  a slug was reserved keeps it and can still be edited; only renaming a project
+  to a reserved slug is refused.
+- **Links in alerts and notifications name the project by slug only.** They
+  open in the organization your session acts in, so while two organizations
+  share a slug, a link about one organization's `web` can open the other's.
+  Until links carry the organization, avoid giving projects in different
+  organizations the same slug.
+- **Data source names are per organization** too: two organizations may each
+  have a source called `warehouse`, and a name clash inside one organization is
+  a `409`.
+- **Lists and the notification bell are per organization.** `GET /projects`,
+  the data-source list and `/me/notifications` show only the organization the
+  request acts in; use the `/api/v1/orgs/{org}/...` form of the URL to read
+  another organization you belong to. The demo-workspace cap per creator is
+  counted per organization.
 - **Upgrading to organizations** capped every former instance viewer's project
   memberships at `viewer`, and made every former instance owner an owner of the
   default organization.

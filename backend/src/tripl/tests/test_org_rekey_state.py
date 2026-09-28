@@ -14,9 +14,10 @@ instance-level list by the organization's id. These tests pin that:
   to within the request's organization, and main's plan lock is taken by id;
 * the data-source list's defensive cap applies per organization.
 
-Project slugs are still unique instance-wide (``uq_projects_slug`` goes in a
-later PR), so the two-organization HTTP cases use two slugs; the key-builder
-cases show a slug cannot reach a key at all.
+The two-organization HTTP cases were written while slugs were still unique
+instance-wide and use two slugs; since F20 PR5 the same slug in two
+organizations is allowed (``test_org_uniqueness``). The key-builder cases show a
+slug cannot reach a key at all.
 """
 
 from __future__ import annotations

@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
+from tripl.middleware.org_context import require_org_id
 from tripl.models.notification import Notification, NotificationKind
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -222,6 +223,19 @@ _REQUIRED_NOTIFY_ARGS = frozenset(
 
 
 # ── the bell ────────────────────────────────────────────────────────────────
+#
+# Organization rule (F20 PR5): the bell is filtered by the REQUEST's
+# organization. ``/me/notifications``, the unread count and mark-read only see
+# notifications about projects of the bound organization (the path's
+# ``/orgs/{org}``, the API key's, else the session's), never another
+# organization's, so a user in two organizations reads each bell under its own
+# prefix. The organization is required: a call with none bound raises instead
+# of spanning every organization.
+
+
+async def _bell_project_ids(session: AsyncSession, user: User) -> set[uuid.UUID]:
+    """Projects of the bound organization whose notifications ``user`` may read."""
+    return await member_project_ids(session, user, require_org_id())
 
 
 def _visible(visible: set[uuid.UUID] | None) -> ColumnElement[bool] | None:
@@ -252,8 +266,11 @@ async def list_notifications(
     limit: int = 30,
     cursor: str | None = None,
 ) -> NotificationPage:
-    """The caller's notifications, newest first, only from projects they can see now."""
-    visible = await member_project_ids(session, user)
+    """The caller's notifications in the bound organization, newest first.
+
+    Only from projects of that organization the caller can see now.
+    """
+    visible = await _bell_project_ids(session, user)
     if visible is not None and not visible:
         return NotificationPage(items=[], next_cursor=None)
     limit = max(1, min(limit, MAX_NOTIFICATIONS_PAGE))
@@ -324,7 +341,7 @@ async def _unread_count(session: AsyncSession, user: User, visible: set[uuid.UUI
 
 
 async def unread_count(session: AsyncSession, user: User) -> int:
-    return await _unread_count(session, user, await member_project_ids(session, user))
+    return await _unread_count(session, user, await _bell_project_ids(session, user))
 
 
 async def mark_read(session: AsyncSession, user: User, data: MarkReadRequest) -> MarkReadResponse:
@@ -333,7 +350,7 @@ async def mark_read(session: AsyncSession, user: User, data: MarkReadRequest) ->
     Ids that are not the caller's, or already read, are ignored rather than
     refused: the bell may race another tab.
     """
-    visible = await member_project_ids(session, user)
+    visible = await _bell_project_ids(session, user)
     updated = 0
     if visible is None or visible:
         stmt = (

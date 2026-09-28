@@ -356,6 +356,46 @@ computed against the project's **own** organization, and every project lookup is
 fenced to the organization the request acts in, so an id taken from a resource
 (a comment, a photo, a reviewer) cannot reach across organizations either.
 
+### Organization isolation
+
+Organizations are isolated by application code and by database constraints;
+there is no row-level security in PostgreSQL. What holds the boundary:
+
+- **Names are per organization.** A project slug is unique within its
+  organization (`uq_projects_organization_slug`) and a data source name within
+  its organization (`uq_data_sources_organization_name`). Two organizations can
+  both have a project `web` and a source `warehouse`; each is reached only
+  through its own organization.
+- **Every lookup is fenced to the request's organization.** A slug resolves only
+  in the organization the request acts in (`services/project_lookup.py`; a
+  guard test fails the build on any other `Project.slug` comparison). Another
+  organization's project, data source, audit entry or invitation answers `404`,
+  as an unknown one does.
+- **Lists are per organization.** `GET /projects`, `GET /data-sources`, the
+  member roster, the audit feed, API keys and the notification bell
+  (`/me/notifications`, its unread count and mark-read) show only the request
+  organization's rows. The bell does not span organizations: a user in two
+  organizations reads each one's notifications under its own prefix
+  (`/api/v1/orgs/{org}/me/notifications`). The audit log's fallback for a
+  deleted project's slug stays inside the organization too, so a reused slug
+  never inherits another organization's history.
+- **A project-bound row stays in its project's organization.** Data sources and
+  API keys bound to a project carry a composite foreign key
+  `(project_id, organization_id)` onto `projects(id, organization_id)`, so the
+  database refuses a source or key that names one organization and points at
+  another's project. Rows with no project (workspace-wide sources, unbound keys)
+  are not affected.
+- **No write lands in an organization by default.** `organization_id` on
+  projects, data sources, API keys and invitations has no default value. The
+  create paths take the request's organization and raise when none is bound, so
+  a code path that forgets the organization fails loudly instead of writing into
+  the default one.
+- **Reserved slugs.** A project cannot take a slug that names a route
+  (`demo`, `orgs`, `new`, `settings`, `api`, `p`, `o` and a few more; the list is
+  `RESERVED_PROJECT_SLUGS` in `schemas/project.py`): `422`.
+- **Demo limits are per organization.** The cap on live demo workspaces per
+  creator is counted inside each organization.
+
 Enforcement lives in `backend/src/tripl/api/deps.py`. The route-facing FastAPI
 dependencies compose the checks below:
 
@@ -414,10 +454,11 @@ was removed from the project gets `404` like any other non-member.
   project-bound key used on any other project's slug also gets `404 Project not
   found`, the same answer as an unknown slug, even when its user is a member of
   that project.
-- **One existence signal remains.** Slugs are unique across the instance, so
-  creating a project with, or renaming one to, a slug that is already taken
-  answers `409`, whether or not the caller can see the project that holds it.
-  This is unavoidable without giving up unique slugs.
+- **One existence signal remains, inside the organization.** Slugs are unique
+  per organization, so creating a project with, or renaming one to, a slug that
+  is already taken in the same organization answers `409`, whether or not the
+  caller can see the project that holds it. Another organization's slugs are
+  invisible: the same slug there is free.
 - **Removal takes effect at once.** Removing a member also removes their
   event-type ownerships and their pending branch-reviewer assignments in that
   project, and a live-updates stream (`/projects/{slug}/events/stream`) they

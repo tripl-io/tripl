@@ -17,10 +17,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.middleware.org_context import require_org_id
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope
 from tripl.models.project import Project
-from tripl.services.project_lookup import owning_org_id
 
 ALLOWED_SCOPES = tuple(scope.value for scope in ApiKeyScope)
 _PREFIX = "tk_"
@@ -94,8 +94,10 @@ async def create_key(
     row = ApiKey(
         user_id=user_id,
         project_id=project_id,
-        # A project-bound key's project was resolved in this same bound org.
-        organization_id=owning_org_id(),
+        # The bound organization; with none bound this raises rather than
+        # defaulting (F20 PR5). A project-bound key's project was resolved in
+        # this same organization, and fk_api_keys_project_organization holds it.
+        organization_id=require_org_id(),
         name=normalized_name,
         key_prefix=prefix,
         key_hash=_hash_token(raw),

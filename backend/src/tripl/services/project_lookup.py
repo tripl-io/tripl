@@ -29,14 +29,36 @@ PROJECT_NOT_FOUND = "Project not found"
 
 
 def owning_org_id() -> uuid.UUID:
-    """The organization a new project-scoped row (project, API key) belongs to.
+    """The bound organization, else the default one: for reads and the audit log.
 
-    The bound organization, so a create through ``/api/v1/orgs/{org}/...`` lands
-    in that org and is found again by the same prefix. With none bound (a script,
-    a worker, a service test) it is the default organization, the column's ORM
-    default: the row is written exactly as before organizations were bound.
+    Not for creating projects, data sources, API keys or invitations: since F20
+    PR5 those columns have no default and their create paths call
+    :func:`~tripl.middleware.org_context.require_org_id`, so a write with no
+    organization bound fails instead of landing in the default organization.
     """
     return current_org_id() or DEFAULT_ORG_ID
+
+
+async def project_slug_taken(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    slug: str,
+    *,
+    exclude_project_id: uuid.UUID | None = None,
+) -> bool:
+    """Whether ``slug`` already names a project of ``organization_id``.
+
+    The availability check behind create and rename (a 409 before the write).
+    Per organization since F20 PR5, like ``uq_projects_organization_slug``: the
+    same slug in another organization is no conflict. ``exclude_project_id``
+    leaves the renamed project itself out.
+    """
+    statement = select(Project.id).where(
+        Project.organization_id == organization_id, Project.slug == slug
+    )
+    if exclude_project_id is not None:
+        statement = statement.where(Project.id != exclude_project_id)
+    return await session.scalar(statement.limit(1)) is not None
 
 
 def project_slug_clause(slug: str) -> ColumnElement[bool]:

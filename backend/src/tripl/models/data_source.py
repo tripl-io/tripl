@@ -6,12 +6,19 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tripl.models.base import Base, TimestampMixin, UUIDMixin
 from tripl.models.enum_types import db_enum
-from tripl.models.organization import DEFAULT_ORG_ID, default_org_server_default
 
 if TYPE_CHECKING:
     from tripl.models.scan_config import ScanConfig
@@ -35,7 +42,22 @@ class TestStatus(enum.StrEnum):
 
 class DataSource(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "data_sources"
-    __table_args__ = (UniqueConstraint("name", name="uq_data_source_name"),)
+    __table_args__ = (
+        # F20 PR5: a name is unique inside an organization, not instance-wide.
+        UniqueConstraint("organization_id", "name", name="uq_data_sources_organization_name"),
+        # A project-bound source lives in its project's organization. MATCH
+        # SIMPLE: a NULL project_id (a workspace-wide source) is not checked.
+        # Two FKs now point at ``projects`` (this and ``project_id``'s own), so
+        # ``join(Project)`` without an ON clause raises AmbiguousForeignKeysError:
+        # join with ``DataSource.project_id == Project.id``, and give any future
+        # ``relationship()`` to Project ``foreign_keys=[project_id]``.
+        ForeignKeyConstraint(
+            ["project_id", "organization_id"],
+            ["projects.id", "projects.organization_id"],
+            name="fk_data_sources_project_organization",
+            ondelete="CASCADE",
+        ),
+    )
 
     # Ownership. NULL = workspace-global source (the normal case, shared across
     # projects). A non-NULL owner scopes this source to one project — used by
@@ -44,12 +66,10 @@ class DataSource(UUIDMixin, TimestampMixin, Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, default=None, index=True
     )
-    # F20 PR1: the owning organization. Always the default one for now — the
-    # ORM default and the server default both name it (see models/organization).
+    # The owning organization. No ORM or server default (F20 PR5): a write that
+    # forgets it fails instead of landing in the default organization.
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="RESTRICT"),
-        default=DEFAULT_ORG_ID,
-        server_default=default_org_server_default(),
         nullable=False,
         index=True,
     )

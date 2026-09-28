@@ -247,20 +247,11 @@ def test_rows_without_an_org_and_project_bound_keys_are_assigned(
         elsewhere = Project(name="elsewhere", slug="elsewhere", organization_id=other_org)
         session.add(elsewhere)
         session.flush()
-        # Written as an old container would have: the key never named an org, so
-        # it holds the default — the backfill must move it to its project's.
-        bound = ApiKey(
-            user_id=owner,
-            project_id=elsewhere.id,
-            name="bound",
-            key_prefix="p1",
-            key_hash="a" * 64,
-            scope="read",
-        )
+        elsewhere_id = elsewhere.id
         unbound = ApiKey(
             user_id=owner, name="free", key_prefix="p2", key_hash="b" * 64, scope="read"
         )
-        session.add_all([bound, unbound])
+        session.add(unbound)
         session.add(
             AuditLog(
                 action="x", target_type="project", project_slug="elsewhere", organization_id=None
@@ -275,7 +266,31 @@ def test_rows_without_an_org_and_project_bound_keys_are_assigned(
             )
         )
         session.flush()
-        bound_id, unbound_id = bound.id, unbound.id
+        unbound_id = unbound.id
+
+    # Written as an old container would have: the key never named an org, so it
+    # holds the default — the backfill must move it to its project's. The model
+    # schema refuses that row since F20 PR5 (fk_api_keys_project_organization),
+    # so it goes in with foreign-key checks off, as the pre-PR5 schema took it.
+    bound_id = uuid.uuid4()
+    with engine.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.execute(
+            sa.insert(ApiKey.__table__).values(
+                id=bound_id,
+                user_id=owner,
+                project_id=elsewhere_id,
+                organization_id=DEFAULT_ORG_ID,
+                name="bound",
+                key_prefix="p1",
+                key_hash="a" * 64,
+                scope="read",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        connection.commit()
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
 
     _backfill(engine, migration)
 

@@ -16,6 +16,7 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_METRIC,
     SCOPE_PROJECT_TOTAL,
 )
+from tripl.middleware.org_context import require_org_id
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
@@ -41,6 +42,7 @@ from tripl.schemas.project import (
     ProjectResponse,
     ProjectSummary,
     ProjectUpdate,
+    reject_reserved_slug,
 )
 from tripl.services import alerting_service, plan_branch_service, signal_triage_service
 from tripl.services._monitor_state_intervals import load_monitor_state_intervals
@@ -55,7 +57,7 @@ from tripl.services.monitoring_utils import (
     scan_interval_to_timedelta,
     summarize_monitor_states,
 )
-from tripl.services.project_lookup import owning_org_id, resolve_project
+from tripl.services.project_lookup import project_slug_taken, resolve_project
 
 
 async def _get_project_summaries(
@@ -749,18 +751,22 @@ def _serialize_projects(
 
 
 async def list_projects(session: AsyncSession, user: User) -> list[ProjectResponse]:
-    """Every listable project ``user`` is a member of (all of them for an owner).
+    """Every listable project of the bound organization ``user`` may see.
 
-    The cached list is instance-wide and shared by every caller; membership is
-    applied after the cache read, so one cache entry serves every user and a
-    membership change needs no cache invalidation.
+    Only the bound organization's projects are listed (F20 PR5); another
+    organization's projects do not exist here, whatever the caller's role
+    there. The cached list is per organization and shared by every caller in
+    it; membership is applied after the cache read, so one cache entry serves
+    every user of the organization and a membership change needs no cache
+    invalidation.
     """
     # Imported here, not at module top: project_access reads project rows and
     # must stay importable without pulling this module in first.
     from tripl.services.project_access import member_project_ids
 
-    visible = await member_project_ids(session, user)
-    return _only_visible(await _list_all_projects(session), visible)
+    organization_id = require_org_id()
+    visible = await member_project_ids(session, user, organization_id)
+    return _only_visible(await _list_org_projects(session, organization_id), visible)
 
 
 def _only_visible(
@@ -771,10 +777,12 @@ def _only_visible(
     return [response for response in responses if response.id in visible]
 
 
-async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
-    # Keyed by the bound organization (F20 PR3) so no two organizations ever
-    # share the entry; what is listed is unchanged until the list is org-scoped.
-    list_key = cache.key_projects_list(owning_org_id())
+async def _list_org_projects(
+    session: AsyncSession, organization_id: uuid.UUID
+) -> list[ProjectResponse]:
+    # Keyed and filtered by the organization (F20 PR3 keyed it, PR5 filters it),
+    # so no two organizations share the entry or see each other's projects.
+    list_key = cache.key_projects_list(organization_id)
     cached = await cache.get_json(list_key)
     if cached is not None:
         return [ProjectResponse.model_validate(item) for item in cached]
@@ -785,10 +793,11 @@ async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
     result = await session.execute(
         select(Project)
         .where(
+            Project.organization_id == organization_id,
             or_(
                 Project.is_demo.is_(False),
                 Project.generation_status == ProjectGenerationStatus.ready.value,
-            )
+            ),
         )
         .order_by(Project.created_at.desc())
     )
@@ -953,14 +962,16 @@ async def create_project(
         if data.template_id is not None
         else None
     )
-    existing = await session.execute(select(Project).where(Project.slug == data.slug))
-    if existing.scalar_one_or_none():
+    # The bound organization owns the project; with none bound this raises
+    # rather than defaulting (F20 PR5). Slugs are unique per organization.
+    organization_id = require_org_id()
+    if await project_slug_taken(session, organization_id, data.slug):
         raise HTTPException(status_code=409, detail="Project with this slug already exists")
 
     project = Project(
         **data.model_dump(exclude={"template_id"}),
         created_by_user_id=created_by,
-        organization_id=owning_org_id(),
+        organization_id=organization_id,
     )
     session.add(project)
     await session.flush()
@@ -999,11 +1010,20 @@ async def update_project(session: AsyncSession, slug: str, data: ProjectUpdate) 
     update_data = data.model_dump(exclude_unset=True)
     new_slug = update_data.get("slug")
     if new_slug is not None and new_slug != project.slug:
-        existing = await session.execute(
-            select(Project).where(Project.slug == new_slug, Project.id != project.id)
+        # A change only: a project keeps a legacy slug that is now reserved, and
+        # the settings form resends it unchanged with every save.
+        try:
+            reject_reserved_slug(new_slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if (
+        new_slug is not None
+        and new_slug != project.slug
+        and await project_slug_taken(
+            session, project.organization_id, new_slug, exclude_project_id=project.id
         )
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=409, detail="Project with this slug already exists")
+    ):
+        raise HTTPException(status_code=409, detail="Project with this slug already exists")
     for key, value in update_data.items():
         setattr(project, key, value)
     # Keep the legacy per-scan field synchronized during the rolling-deploy

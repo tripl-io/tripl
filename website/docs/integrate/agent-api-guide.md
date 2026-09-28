@@ -167,9 +167,11 @@ user must be a member of the project, or the call answers `422`
 event-type ownerships and pending branch-reviewer assignments in that project,
 and closes a live-updates stream they have open within one heartbeat.
 
-One existence signal is unavoidable: slugs are unique across the instance, so
-`POST /api/v1/projects` or a rename to a slug that is already taken answers
-`409` even when the caller cannot see the project holding it.
+One existence signal is unavoidable: slugs are unique within an organization,
+so `POST /api/v1/projects` or a rename to a slug that is already taken in the
+same organization answers `409` even when the caller cannot see the project
+holding it. Another organization may use the same slug. Reserved slugs (`demo`,
+`orgs`, `new`, `settings`, `api`, `p`, `o`, ...) answer `422`.
 
 ### Creating a project from a template {#project-templates}
 
