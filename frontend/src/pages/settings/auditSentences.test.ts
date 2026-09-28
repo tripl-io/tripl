@@ -31,6 +31,19 @@ function entry(overrides: Partial<AuditEntry>): AuditEntry {
 }
 
 describe('auditSentences', () => {
+  it('reads and tones the platform console actions (F20)', () => {
+    expect(actionSentence('org.suspend')).toBe('Suspended the organization')
+    expect(actionSentence('org.unsuspend')).toBe('Reinstated the organization')
+    expect(actionSentence('platform.step_in')).toBe('Started a read-only step-in')
+    expect(actionSentence('platform.step_in_end')).toBe('Ended a read-only step-in')
+    expect(actionSentence('platform.admin_grant')).toBe('Granted platform admin to')
+    expect(actionSentence('platform.admin_revoke')).toBe('Revoked platform admin from')
+    expect(actionTone('org.suspend')).toBe('danger')
+    expect(actionTone('org.unsuspend')).toBe('success')
+    expect(actionTone('platform.step_in')).toBe('warning')
+    expect(actionTone('platform.admin_revoke')).toBe('danger')
+  })
+
   it('tones an action by the suffix of its verb', () => {
     expect(actionTone('event.bulk_delete')).toBe('danger')
     expect(actionTone('plan_branch.merge')).toBe('success')

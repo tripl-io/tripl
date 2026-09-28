@@ -92,7 +92,9 @@ async def test_hosted_sign_up_creates_the_org_and_its_owner(
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["orgs"] == [{"slug": "founders", "name": "Founders Inc", "role": "owner"}]
+    assert body["orgs"] == [
+        {"slug": "founders", "name": "Founders Inc", "role": "owner", "status": "active"}
+    ]
     assert body["role"] == "owner"
     assert body["email_verified"] is False
     assert body["is_platform_admin"] is False

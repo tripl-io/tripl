@@ -80,6 +80,19 @@ class ConfirmationMismatchError(Exception):
     """The typed confirmation is not the organization's slug."""
 
 
+class OrgNotActiveError(Exception):
+    """The organization stopped being ``active`` between the gate and the update.
+
+    ``suspended`` is ``True`` when a platform admin suspended it meanwhile (the
+    caller answers the suspended 403); ``False`` when it is gone or already
+    ``deleting`` (404).
+    """
+
+    def __init__(self, *, suspended: bool) -> None:
+        super().__init__("suspended" if suspended else "gone")
+        self.suspended = suspended
+
+
 @dataclass(frozen=True)
 class PurgeResult:
     slug: str
@@ -104,10 +117,26 @@ async def request_deletion(
         raise DefaultOrgUndeletableError
     if confirm_slug != slug:
         raise ConfirmationMismatchError
-    org = await session.get(Organization, org_id)
-    if org is None:  # pragma: no cover - the gate resolved it in this request
-        raise LookupError(org_id)
-    org.status = OrganizationStatus.deleting.value
+    # Compare-and-set: the gate read the organization ``active``, but a platform
+    # admin may suspend it before this runs. Flipping only an ``active`` row
+    # keeps a suspension from being overwritten by a deletion its owner could
+    # no longer have asked for.
+    result = await session.execute(
+        update(Organization)
+        .where(
+            Organization.id == org_id,
+            Organization.status == OrganizationStatus.active.value,
+        )
+        .values(status=OrganizationStatus.deleting.value)
+        # "fetch": a loaded instance takes the new status and never flushes its
+        # stale ``active`` back over the row.
+        .execution_options(synchronize_session="fetch")
+    )
+    if getattr(result, "rowcount", 0) == 0:
+        current: str | None = await session.scalar(
+            select(Organization.status).where(Organization.id == org_id)
+        )
+        raise OrgNotActiveError(suspended=current == OrganizationStatus.suspended.value)
     await session.flush()
 
 

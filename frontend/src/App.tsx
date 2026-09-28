@@ -519,6 +519,23 @@ function TakeoverSub({ group }: { group: string }) {
   return <Takeover section={`${group}/${sub}`} />
 }
 
+/** `/settings/platform/orgs/:orgSlug`: one organization in the platform console. */
+function PlatformOrgTakeover() {
+  const { orgSlug = '' } = useParams<{ orgSlug: string }>()
+  return <Takeover section={`platform/orgs/${orgSlug}`} />
+}
+
+/**
+ * `/platform[/…]`: the platform console's short address. The console lives in
+ * the settings takeover, beside the Platform settings it belongs with, so this
+ * only moves the address there (`/platform` itself opens Organizations).
+ */
+function PlatformRedirect() {
+  const { '*': rest = '' } = useParams<{ '*': string }>()
+  const section = rest.replace(/\/+$/, '') || 'orgs'
+  return <Navigate to={`/settings/platform/${section}`} replace />
+}
+
 /**
  * Bare "/" entry. Most accounts have exactly one project, so landing on the
  * multi-project workspace dashboard is a redundant hop (UX-11 / UX-25). When
@@ -629,6 +646,10 @@ export default function App() {
               <Route path="/settings/project/plan-rules" element={<Takeover section="project/plan-rules" />} />
               <Route path="/settings/project/members" element={<Takeover section="project/members" />} />
               <Route path="/settings/instance/:sub" element={<TakeoverSub group="instance" />} />
+              {/* The platform console (F20): Organizations, Users, one organization. */}
+              <Route path="/settings/platform/orgs/:orgSlug" element={<PlatformOrgTakeover />} />
+              <Route path="/settings/platform/:sub" element={<TakeoverSub group="platform" />} />
+              <Route path="/platform/*" element={<PlatformRedirect />} />
               {/* Legacy → takeover redirects. */}
               <Route path="/settings/users" element={<Navigate to="/settings/members" replace />} />
               <Route path="/settings/account" element={<Navigate to="/settings/profile" replace />} />

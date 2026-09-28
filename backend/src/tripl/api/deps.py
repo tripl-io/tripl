@@ -35,7 +35,7 @@ from tripl.services._plan_branch_locks import (
     locks_rows,
 )
 from tripl.services.auth_service import get_user_by_session_token
-from tripl.services.org_resolution import ORG_NOT_FOUND, resolve_request_org
+from tripl.services.org_resolution import ORG_NOT_FOUND, resolve_request_org, suspended_error
 from tripl.services.project_lookup import (
     PROJECT_NOT_FOUND,
     project_slug_clause,
@@ -165,7 +165,46 @@ async def _bind_request_org(
         key_org_id=key_org_id,
         path_org_slug=path_org_slug(request),
     )
+    refuse_step_in_writes(request, org)
     bind_org(org)
+
+
+STEP_IN_READ_ONLY = "Step-in is read-only"
+
+#: The two read-shaped POSTs a step-in may send (F20 PR14, owner decision):
+#: the signal and window-metric batches carry their ids in a body because they
+#: outgrow a query string, and write nothing. Every other non-GET/HEAD/OPTIONS
+#: request in a stepped-in organization is refused. Named by handler for the
+#: reason given at ``_DERIVED_DATA_HANDLERS``; test_platform_step_in fails if a
+#: name stops matching a route.
+STEP_IN_READ_HANDLERS = frozenset(
+    {
+        "tripl.api.v1.metrics.query_active_signals",
+        "tripl.api.v1.metrics.get_events_window_metrics",
+    }
+)
+
+
+def _handler_of(request: Request) -> str:
+    endpoint = getattr(request.scope.get("route"), "endpoint", None)
+    return f"{getattr(endpoint, '__module__', '')}.{getattr(endpoint, '__qualname__', '')}"
+
+
+def refuse_step_in_writes(request: Request, org: OrgRef) -> None:
+    """403 "Step-in is read-only" for a write in an organization bound through a step-in.
+
+    The fence of the read-only step-in (F20 PR14): keyed on the method, not on
+    the route's gates, so a route that forgot its write gate is closed too. The
+    only exceptions are :data:`STEP_IN_READ_HANDLERS`. Org settings, member
+    management, API keys and deletion are all writes, so a step-in never
+    reaches them; their reads still take an owner/admin role, which a step-in
+    (organization role ``member``) does not hold.
+    """
+    if org.step_in_user_id is None or request.method in _SAFE_METHODS:
+        return
+    if _handler_of(request) in STEP_IN_READ_HANDLERS:
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=STEP_IN_READ_ONLY)
 
 
 async def _ensure_request_org(request: Request, session: AsyncSession, user: User) -> None:
@@ -495,9 +534,12 @@ async def get_key_reachable_owner_user(
 async def require_platform_admin(request: Request, user: CurrentUserDep) -> User:
     """The operator gate: ``users.is_platform_admin`` in an interactive session.
 
-    For the instance-wide operator settings and the ``system`` block, nothing
-    else. A platform admin gets no organization or project access from the flag,
-    and an organization owner gets no operator access from their org role.
+    For the instance-wide operator settings, the ``system`` block and the
+    platform console (F20 PR14). A platform admin gets no organization or
+    project access from the flag — only a live read-only step-in, which the
+    console opens with a reason and a time limit, lets them read one
+    organization — and an organization owner gets no operator access from their
+    org role.
     """
     require_write_scope(request)
     if getattr(request.state, "api_key_scope", None) is not None:
@@ -611,22 +653,32 @@ async def _resolve_path_org(
     404 "Organization not found" for an unknown slug, a ``deleting``
     organization, a non-member and an API key of another organization alike,
     and always BEFORE any scope or role check, so a 403 never tells a stranger
-    that the organization exists. Binds the organization for the rest of the
-    request (the audit rows it files belong to it) and caches the result.
+    that the organization exists. A member of a suspended organization then
+    gets 403 "This organization is suspended". A platform admin's live
+    read-only step-in reads it as a member, and every write under it is
+    refused (:func:`refuse_step_in_writes`). Binds the organization for the
+    rest of the request (the audit rows it files belong to it) and caches the
+    result.
     """
     cached = getattr(request.state, _MANAGED_ORG_STATE_KEY, None)
     if isinstance(cached, org_service.ManagedOrg):
         return cached
+    key_org_id = getattr(request.state, "api_key_org_id", None)
     try:
         org = await org_service.resolve_managed_org(
             session,
             slug=str(request.path_params.get("org", "")),
             user_id=user.id,
-            key_org_id=getattr(request.state, "api_key_org_id", None),
+            key_org_id=key_org_id,
+            platform_admin=bool(user.is_platform_admin) and key_org_id is None,
         )
     except org_service.OrgNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ORG_NOT_FOUND) from None
-    bind_org(OrgRef(id=org.id, slug=org.slug))
+    except org_service.OrgSuspendedError:
+        raise suspended_error() from None
+    ref = OrgRef(id=org.id, slug=org.slug, step_in_user_id=user.id if org.step_in else None)
+    refuse_step_in_writes(request, ref)
+    bind_org(ref)
     request.state.org_role = org.role
     setattr(request.state, _MANAGED_ORG_STATE_KEY, org)
     return org

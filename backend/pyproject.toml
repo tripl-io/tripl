@@ -44,6 +44,11 @@ dependencies = [
     "pyyaml>=6.0.2",
 ]
 
+[project.scripts]
+# The operator's shell tool for the platform-admin flag (F20 PR14): how a hosted
+# operator makes the first platform admin. Not the `tripl` CLI (cli/).
+tripl-admin = "tripl.admin_cli:main"
+
 [project.optional-dependencies]
 otel = [
     "opentelemetry-sdk>=1.38.0,<2",

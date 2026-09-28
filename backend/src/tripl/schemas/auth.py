@@ -5,7 +5,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from tripl.config import DEPLOYMENT_HOSTED, settings
-from tripl.models.domain_enums import ApiKeyScope, OrganizationRole
+from tripl.models.domain_enums import ApiKeyScope, OrganizationRole, OrganizationStatus
 from tripl.schemas.organization import (
     ORG_NAME_MAX_LENGTH,
     check_org_slug,
@@ -124,11 +124,24 @@ class AuthStatusResponse(BaseModel):
 
 
 class OrgMembershipOut(BaseModel):
-    """One organization the signed-in user belongs to, with their role there."""
+    """One organization the signed-in user belongs to, with their role there.
+
+    ``status`` is ``active`` or ``suspended`` (F20 PR14): a suspended
+    organization stays listed so the UI can explain why it is closed.
+    """
 
     slug: str
     name: str
     role: Role
+    status: OrganizationStatus = OrganizationStatus.active
+
+
+class ActiveStepInOut(BaseModel):
+    """A platform admin's live read-only step-in (F20 PR14), for the UI banner."""
+
+    id: uuid.UUID
+    org_slug: str
+    expires_at: datetime
 
 
 class AuthUserResponse(BaseModel):
@@ -156,6 +169,9 @@ class AuthUserResponse(BaseModel):
     # ``read`` or ``write`` when the caller authenticated with an API key;
     # ``None`` for a browser session.
     api_key_scope: ApiKeyScope | None = None
+    # A platform admin's live read-only step-ins (F20 PR14); empty for everyone
+    # else and for an API key.
+    active_step_ins: list[ActiveStepInOut] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

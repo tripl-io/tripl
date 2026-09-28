@@ -56,6 +56,7 @@ from tripl.models.plan_branch_comment import PlanBranchComment
 from tripl.models.plan_branch_merge_resolution import PlanBranchMergeResolution
 from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.plan_revision import PlanRevision
+from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.project_branch_settings import ProjectBranchSettings
@@ -130,6 +131,7 @@ __all__ = [
     "OrganizationGroupMember",
     "OrganizationMember",
     "PhotoStorageConfig",
+    "PlatformStepIn",
     "PasswordResetToken",
     "EmailVerificationToken",
     "PlanBranch",

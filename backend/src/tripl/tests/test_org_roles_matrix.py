@@ -475,6 +475,11 @@ async def test_auth_me_carries_every_membership(people: People) -> None:
     assert me["role"] == "owner"  # the default org, on this org-free route
     assert me["is_platform_admin"] is True
     assert sorted(me["orgs"], key=lambda org: org["slug"]) == [
-        {"slug": ACME_SLUG, "name": "Acme", "role": "admin"},
-        {"slug": DEFAULT_ORG_SLUG, "name": "Default organization", "role": "owner"},
+        {"slug": ACME_SLUG, "name": "Acme", "role": "admin", "status": "active"},
+        {
+            "slug": DEFAULT_ORG_SLUG,
+            "name": "Default organization",
+            "role": "owner",
+            "status": "active",
+        },
     ]

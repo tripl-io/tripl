@@ -274,6 +274,17 @@ export const projectsQueryOptions = () =>
  * organization root.
  */
 export const orgsKey = () => ['orgs'] as const
+/**
+ * The platform console (F20): ACCOUNT keys, the operator's across every
+ * organization. The root is camel-cased so it can never be an organization
+ * slug, and so never a prefix of an organization's own keys.
+ */
+export const platformConsoleKey = () => ['platformConsole'] as const
+export const platformOrgsKey = (params: { q?: string; status?: string; limit?: number; offset?: number }) =>
+  [...platformConsoleKey(), 'orgs', params] as const
+export const platformOrgKey = (slug: string) => [...platformConsoleKey(), 'org', slug] as const
+export const platformUsersKey = (params: { q?: string; limit?: number; offset?: number }) =>
+  [...platformConsoleKey(), 'users', params] as const
 /** One organization, rooted at THAT organization. */
 export const orgKey = (org: string) => [org, 'org'] as const
 /** One organization's own settings (mail, AI, row limits), rooted at THAT organization. */

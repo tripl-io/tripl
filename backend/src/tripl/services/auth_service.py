@@ -27,15 +27,18 @@ from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope, OrganizationRole, OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.password_reset_token import PasswordResetToken
+from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
 from tripl.schemas.auth import (
+    ActiveStepInOut,
     AuthUserResponse,
     LoginRequest,
     OrgMembershipOut,
     RegisterRequest,
 )
 from tripl.services import app_settings_service, audit_service, email_verification_service
+from tripl.services.step_in_expiry import close_expired_step_ins
 
 # Password-reset link lifetime. Short on purpose: a reset link is a bearer
 # credential, so it should be usable just long enough for a human to open their
@@ -362,25 +365,66 @@ def _signup_conflict_detail(exc: IntegrityError) -> str:
 
 async def _membership_rows(
     session: AsyncSession, user_id: uuid.UUID
-) -> list[tuple[uuid.UUID, str, str, str]]:
+) -> list[tuple[uuid.UUID, str, str, str, str]]:
+    """``(org id, slug, name, role, status)`` for every membership of ``user_id``.
+
+    A ``deleting`` organization is gone for every read (F20 PR6); a
+    ``suspended`` one is listed with its status (F20 PR14).
+    """
     rows = await session.execute(
-        select(Organization.id, Organization.slug, Organization.name, OrganizationMember.role)
+        select(
+            Organization.id,
+            Organization.slug,
+            Organization.name,
+            OrganizationMember.role,
+            Organization.status,
+        )
         .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
-        # A ``deleting`` organization is gone for every read (F20 PR6).
         .where(
             OrganizationMember.user_id == user_id,
-            Organization.status == OrganizationStatus.active.value,
+            Organization.status != OrganizationStatus.deleting.value,
         )
         .order_by(Organization.name, Organization.slug)
     )
-    return [(org_id, slug, name, str(role)) for org_id, slug, name, role in rows.all()]
+    return [
+        (org_id, slug, name, str(role), str(org_status))
+        for org_id, slug, name, role, org_status in rows.all()
+    ]
 
 
 async def user_org_memberships(session: AsyncSession, user_id: uuid.UUID) -> list[OrgMembershipOut]:
     """Every organization ``user_id`` belongs to, with their role there."""
     return [
-        OrgMembershipOut(slug=slug, name=name, role=OrganizationRole(role))
-        for _org_id, slug, name, role in await _membership_rows(session, user_id)
+        OrgMembershipOut(
+            slug=slug,
+            name=name,
+            role=OrganizationRole(role),
+            status=OrganizationStatus(org_status),
+        )
+        for _org_id, slug, name, role, org_status in await _membership_rows(session, user_id)
+    ]
+
+
+async def _active_step_ins(session: AsyncSession, user: User) -> list[ActiveStepInOut]:
+    """A platform admin's live read-only step-ins (F20 PR14), soonest to end first."""
+    if not user.is_platform_admin:
+        return []
+    # Record the natural end of any step-in that ran out since it was last seen.
+    await close_expired_step_ins(session, user)
+    rows = await session.execute(
+        select(PlatformStepIn.id, Organization.slug, PlatformStepIn.expires_at)
+        .join(Organization, Organization.id == PlatformStepIn.organization_id)
+        .where(
+            PlatformStepIn.user_id == user.id,
+            PlatformStepIn.ended_at.is_(None),
+            PlatformStepIn.expires_at > datetime.now(UTC),
+            Organization.status != OrganizationStatus.deleting.value,
+        )
+        .order_by(PlatformStepIn.expires_at, Organization.slug)
+    )
+    return [
+        ActiveStepInOut(id=step_in_id, org_slug=slug, expires_at=expires_at)
+        for step_in_id, slug, expires_at in rows.all()
     ]
 
 
@@ -392,10 +436,12 @@ async def build_auth_user_response(
     ``role`` is the user's role in the organization the request acts in: the
     bound one, else the default organization, else the user's only one; ``None``
     when none of those applies. ``orgs`` lists every membership so the UI can
-    tell the roles apart once a user belongs to several.
+    tell the roles apart once a user belongs to several. ``active_step_ins``
+    lists a platform admin's live read-only step-ins (a browser session only),
+    for the step-in banner.
     """
     rows = await _membership_rows(session, user.id)
-    by_id = {org_id: role for org_id, _slug, _name, role in rows}
+    by_id = {org_id: role for org_id, _slug, _name, role, _status in rows}
     bound = current_org()
     target = None if bound is None else bound.id
     role: str | None = None
@@ -403,8 +449,12 @@ async def build_auth_user_response(
         role = by_id.get(target)
     elif DEFAULT_ORG_ID in by_id:
         role = by_id[DEFAULT_ORG_ID]
-    elif len(rows) == 1:
-        role = rows[0][3]
+    else:
+        # The user's only ACTIVE organization, as ``org_resolution`` binds it:
+        # a suspended membership beside it is listed, never picked.
+        active = [row for row in rows if row[4] == OrganizationStatus.active.value]
+        if len(active) == 1:
+            role = active[0][3]
     return AuthUserResponse(
         id=user.id,
         email=user.email,
@@ -413,11 +463,17 @@ async def build_auth_user_response(
         is_platform_admin=bool(user.is_platform_admin),
         email_verified=user.email_verified_at is not None,
         orgs=[
-            OrgMembershipOut(slug=slug, name=name, role=OrganizationRole(org_role))
-            for _org_id, slug, name, org_role in rows
+            OrgMembershipOut(
+                slug=slug,
+                name=name,
+                role=OrganizationRole(org_role),
+                status=OrganizationStatus(org_status),
+            )
+            for _org_id, slug, name, org_role, org_status in rows
         ],
         org=None if bound is None else bound.slug,
         api_key_scope=None if api_key_scope is None else ApiKeyScope(api_key_scope),
+        active_step_ins=[] if api_key_scope is not None else await _active_step_ins(session, user),
         created_at=user.created_at,
         updated_at=user.updated_at,
     )

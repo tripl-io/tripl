@@ -32,6 +32,7 @@ from tripl.models.metric_value import MetricValue
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
+from tripl.services.active_org_scope import in_active_org, project_in_active_org
 from tripl.worker.celery_app import celery_app
 from tripl.worker.tasks._demo_pause import is_demo_paused
 from tripl.worker.tasks.metrics._helpers import (
@@ -409,6 +410,8 @@ def check_metrics_due() -> dict[str, int]:
             .where(
                 ScanConfig.interval.isnot(None),
                 ScanConfig.time_column.isnot(None),
+                # A suspended or deleting organization gets no new work (F20 PR14).
+                project_in_active_org(),
             )
         ).all()
         configs = [row[0] for row in config_rows]
@@ -833,7 +836,10 @@ def check_metric_definitions_due() -> dict[str, int]:
 
         definitions = (
             session.execute(
-                select(MetricDefinition).where(MetricDefinition.status == MetricStatus.active)
+                select(MetricDefinition).where(
+                    MetricDefinition.status == MetricStatus.active,
+                    in_active_org(MetricDefinition.project_id),
+                )
             )
             .scalars()
             .all()

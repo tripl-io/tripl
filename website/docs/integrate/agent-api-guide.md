@@ -70,7 +70,7 @@ answer as for a slug that does not exist, and always before any `403`.
 
 | Method and path | Who | What |
 |---|---|---|
-| `GET /api/v1/orgs` | any account | Your organizations, with your role in each. An API key lists only its own organization. |
+| `GET /api/v1/orgs` | any account | Your organizations, with your role and the organization's `status` (`active` or `suspended`) in each. An API key lists only its own organization. |
 | `POST /api/v1/orgs` | self-hosted: platform admin; hosted: any account; browser session | `{"slug", "name"}`; the creator becomes the owner. `409` when the slug is taken, `422` for an invalid or reserved slug. |
 | `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `created_at`. |
 | `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"}` only. The slug is permanent; sending one is `422`. |
@@ -100,6 +100,40 @@ key, whatever its scope. Invitations into an organization are
 slug) and `api_key_scope` (`read` or `write`); `tripl whoami` prints them. For a
 browser session both are `null`. A project-bound key cannot call `/auth/me`
 (`403`).
+
+### Platform console {#platform-console}
+
+The instance operator's API, under `/api/v1/platform`. Every route takes a
+**platform admin's browser session**: an API key is `403 Platform admin session
+required` whatever its scope or owner, and anyone else is `403 Platform admin
+required`. Agents cannot use it; it is listed so a client can tell it apart.
+Organizations are named by slug; nothing here returns project content. See
+[Platform console](../administer/admin-guide.md#platform-console) for the
+rules behind each action.
+
+| Method and path | What |
+|---|---|
+| `GET /api/v1/platform/orgs` | `q` (name or slug), `status` (`active`, `suspended`, `deleting`), `limit`, `offset`. `{"items", "total"}`; each item: `id`, `slug`, `name`, `status`, `created_at`, `suspended_at`, `suspended_reason`, `member_count`, `project_count`, `owner_emails`. |
+| `GET /api/v1/platform/orgs/{org_slug}` | The same fields plus `members` (`email`, `name`, `role`) and `projects` (`slug`, `name`, `created_at`). |
+| `POST /api/v1/platform/orgs/{org_slug}/suspend` | `{"reason"}` (required, 1 to 500 characters, no NUL). The organization answers `403 This organization is suspended` to its members and keys until unsuspended. `409` for an organization being deleted and for the default organization (in any `DEPLOYMENT_MODE`). A platform admin's read-only step-in may still read it. Audited as `org.suspend` in the organization. |
+| `POST /api/v1/platform/orgs/{org_slug}/unsuspend` | Back to `active`. `409` for an organization being deleted. Audited as `org.unsuspend`. |
+| `POST /api/v1/platform/orgs/{org_slug}/step-in` | `{"reason", "ttl_minutes"?}`: reason 1 to 500 characters, `ttl_minutes` 5 to 240 (default 60). `{"id", "org_slug", "expires_at"}`. Starts a read-only step-in into an active or a suspended organization (`409` for one being deleted); a second step-in to the same organization supersedes the first. Audited as `platform.step_in` in the organization. |
+| `POST /api/v1/platform/step-ins/{id}/end` | Ends one of your step-ins now; audited as `platform.step_in_end`. A step-in that runs out is recorded as `platform.step_in_end` with `expired: true`, lazily, the first time a request or a listing sees it. |
+| `GET /api/v1/platform/step-ins` | Your step-ins; `active=true` keeps the unexpired, un-ended ones. |
+| `GET /api/v1/platform/users` | `q` (email or name), `limit`, `offset`. Each item: `id`, `email`, `name`, `is_platform_admin`, `email_verified`, `created_at`, `org_count`. |
+| `POST /api/v1/platform/users/{user_id}/platform-admin` | `{"grant": true \| false}`. `409` when revoking the last platform admin or yourself. Audited as `platform.admin_grant` / `platform.admin_revoke`, with no organization. |
+
+During a step-in the admin acts in that organization as a `member` with the
+`viewer` role on every project, from the browser session only. Any request in
+it other than `GET`, `HEAD` and `OPTIONS` answers `403 Step-in is read-only`,
+except `POST /api/v1/projects/{slug}/anomalies/signals/query` and
+`POST /api/v1/projects/{slug}/events/window-metrics`. `GET /api/v1/auth/me`
+returns the caller's active step-ins as `active_step_ins`
+(`[{"org_slug", "expires_at"}]`).
+
+A suspended organization answers `403 This organization is suspended` to every
+request that acts in it, from a session or a key; `GET /api/v1/orgs` still lists
+it, with `status: "suspended"`.
 
 ## MCP Server
 
@@ -180,7 +214,7 @@ address and answer `429` with `Retry-After` when exceeded.
 | `POST /api/v1/auth/register` | anyone, when registration is open | `{"email", "password", "name"?}`, plus `"org_name"` and `"org_slug"`, which a hosted instance requires (`422` without them, `409` when the slug is taken) and a self-hosted one ignores. Hosted: `503 Email delivery is not configured` when the operator cannot send mail; the new account owns a new organization and is sent a verification link. |
 | `POST /api/v1/auth/login` | anyone | Starts a browser session. |
 | `POST /api/v1/auth/logout` | session | `204`. |
-| `GET /api/v1/auth/me` | session or key | The account, including `email_verified`. |
+| `GET /api/v1/auth/me` | session or key | The account, including `email_verified`, `is_platform_admin` and, for a platform admin's session, `active_step_ins` (`[{"org_slug", "expires_at"}]`). |
 | `POST /api/v1/auth/verify-email/request` | session | `204`. Sends a new verification link (24 hours, single use) and invalidates the earlier unused ones; a verified account gets `204` and no mail, and so does every account on a self-hosted instance, where verification is not required. `503` when the operator cannot send mail. Rate-limited to 10 an hour. |
 | `POST /api/v1/auth/verify-email/confirm` | the signed-in browser session of the token's own account | `{"token"}`. `204`, and the address is verified; every other session of the account is signed out, the caller's is kept. No session: `401 Sign in to confirm your email address.` and the token stays unused. An unknown, expired or used token, or one sent to another account than the signed-in one, is one uniform `400` (the token stays unused). Hosted: an address listed in `PLATFORM_ADMIN_EMAILS` becomes a platform admin here, and only here. |
 | `POST /api/v1/auth/password-reset/request` | anyone | Sends a reset link when the address has an account; the answer does not say whether it does. |

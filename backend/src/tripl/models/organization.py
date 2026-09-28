@@ -14,16 +14,17 @@ is the source of truth for every organization-level permission
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint, true
+from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint, true
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.compiler import SQLCompiler
 from sqlalchemy.sql.elements import ColumnElement
 
-from tripl.models.base import Base, TimestampMixin, UUIDMixin
+from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.models.enum_types import db_enum
 
@@ -103,6 +104,10 @@ class Organization(UUIDMixin, TimestampMixin, Base):
         server_default=OrganizationStatus.active.value,
         nullable=False,
     )
+    # Set with ``status = suspended`` by a platform admin (F20 PR14), cleared on
+    # unsuspend. The reason is operator-facing: members see only the status.
+    suspended_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    suspended_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class OrganizationMember(UUIDMixin, TimestampMixin, Base):

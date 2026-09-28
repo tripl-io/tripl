@@ -33,6 +33,21 @@ const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSecti
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
+// The platform console (F20): its own chunks, fetched by platform admins alone.
+const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
+const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
+const PlatformUsersSection = lazyWithReload(() => import('@/pages/platform/PlatformUsersSection'))
+
+/** The console's organization list, which its detail pages belong to in the rail. */
+const PLATFORM_ORGS_SECTION = 'platform/orgs'
+
+/**
+ * The rail entry a section lights up: an organization's console page
+ * (`platform/orgs/<slug>`) belongs to Organizations.
+ */
+function railPathFor(section: string): string {
+  return section.startsWith(`${PLATFORM_ORGS_SECTION}/`) ? PLATFORM_ORGS_SECTION : section
+}
 
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
@@ -154,7 +169,7 @@ export default function SettingsArea({ section }: { section: string }) {
 
   return (
     <SettingsLayout
-      activePath={section}
+      activePath={railPathFor(section)}
       backHref={backHref}
       projectName={projectName}
       projectSlug={slug}
@@ -180,7 +195,7 @@ export default function SettingsArea({ section }: { section: string }) {
           }}
         />
       )}
-      <Suspense fallback={<SectionFallback section={section} />}>
+      <Suspense fallback={<SectionFallback section={railPathFor(section)} />}>
         {renderSection({
           section,
           slug,
@@ -203,7 +218,9 @@ export default function SettingsArea({ section }: { section: string }) {
 /** Sections that render against one project and so need a slug bound. */
 function isProjectScopedSection(section: string): boolean {
   return (
-    !ACCOUNT_SECTIONS.has(section) && !section.startsWith('instance/')
+    !ACCOUNT_SECTIONS.has(section) &&
+    !section.startsWith('instance/') &&
+    !section.startsWith('platform/')
   )
 }
 
@@ -276,6 +293,18 @@ function renderSection({
     // operator's, whatever the caller's organization role.
     if (!platformAdmin) return <PlatformOnly section={section} />
     return <InstanceSection section={section.slice('instance/'.length)} />
+  }
+  if (section.startsWith('platform/')) {
+    // The platform console (F20): organizations, users, suspension and
+    // read-only step-in. The operator's, whatever the caller's organization role.
+    if (!platformAdmin) return <PlatformOnly section={railPathFor(section)} />
+    if (section === PLATFORM_ORGS_SECTION) return <PlatformOrgsSection />
+    if (section === 'platform/users') return <PlatformUsersSection />
+    const orgSlug = section.slice(`${PLATFORM_ORGS_SECTION}/`.length)
+    if (section.startsWith(`${PLATFORM_ORGS_SECTION}/`) && orgSlug && !orgSlug.includes('/')) {
+      return <PlatformOrgDetailSection key={orgSlug} slug={orgSlug} />
+    }
+    return <Navigate to={`/settings/${PLATFORM_ORGS_SECTION}`} replace />
   }
   // Everything below is project-scoped. Never guess which project that is.
   if (!slug) {

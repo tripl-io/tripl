@@ -7,7 +7,8 @@ so ``OrgPathRewriteMiddleware`` never rewrites them. Everything under
 organization, a non-member, an API key of another organization — gets the same
 404, before any 403.
 
-* ``GET /orgs`` — the caller's organizations with their role (an API key: its own).
+* ``GET /orgs`` — the caller's organizations with their role and status (an API
+  key: its own); a platform admin's live step-ins too, flagged ``step_in``.
 * ``POST /orgs`` — from a browser session: a platform admin on a self-hosted
   instance; any signed-in account on a hosted one (critique #24), which the
   hosted email-verification gate has already held to a verified address. The
@@ -58,6 +59,7 @@ from tripl.services import (
     user_service,
 )
 from tripl.services._celery_dispatch import dispatch
+from tripl.services.org_resolution import ORG_NOT_FOUND, suspended_error
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +77,17 @@ async def list_orgs(
 ) -> list[OrgResponse]:
     """The organizations the caller belongs to, with their role in each.
 
-    An API key belongs to one organization and lists only that one.
+    An API key belongs to one organization and lists only that one. A
+    suspended organization is listed with its ``status`` (F20 PR14). A platform
+    admin's browser session also lists the organizations they have a live
+    read-only step-in to, flagged ``step_in``.
     """
+    key_org_id = getattr(request.state, "api_key_org_id", None)
     return await org_service.list_my_orgs(
         session,
         current_user.id,
-        only_org_id=getattr(request.state, "api_key_org_id", None),
+        only_org_id=key_org_id,
+        include_step_ins=bool(current_user.is_platform_admin) and key_org_id is None,
     )
 
 
@@ -168,6 +175,11 @@ async def delete_org(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Type the organization's slug exactly to confirm the deletion",
         ) from None
+    except org_deletion_service.OrgNotActiveError as exc:
+        # Suspended (or deleted) after the gate admitted the request.
+        if exc.suspended:
+            raise suspended_error() from None
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ORG_NOT_FOUND) from None
     await audit_service.record(
         session,
         user=current_user,

@@ -353,10 +353,17 @@ class OrganizationStatus(enum.StrEnum):
     Celery job then purges it. From that moment every read of it answers 404
     (``services.org_resolution``), so nothing new lands in an organization that
     is on its way out.
+
+    ``suspended`` is set by a platform admin from the platform console (F20
+    PR14). The organization stays listed for its members, with its status, but
+    every org-scoped request of theirs answers 403 "This organization is
+    suspended", and the scheduled worker jobs skip its projects
+    (``services.active_org_scope``). Unsuspending restores it untouched.
     """
 
     active = "active"
     deleting = "deleting"
+    suspended = "suspended"
 
 
 class ApiKeyScope(enum.StrEnum):

@@ -20,7 +20,13 @@ catalog (F20 PR4: organization roles are the source of truth):
   cannot even learn that the slug is taken. A project-bound API key hitting
   another project's slug gets that same 404 (``api.deps._enforce_project_scope``);
 * a platform admin (``users.is_platform_admin``) gets nothing from that flag
-  here: it is an operator role, not an organization or project one;
+  here: it is an operator role, not an organization or project one. The one
+  exception is a live read-only step-in (F20 PR14), which
+  ``services.org_resolution`` records on the bound organization: there, and
+  only for that user in that organization, a non-member answers organization
+  role ``member`` and project role ``viewer`` on every project
+  (:func:`_step_in_role`). Writes are refused before any of this is asked
+  (``api.deps``);
 * inside a request the bound organization fences every answer: a project of
   another organization is ``None`` for everyone, so an id taken from a resource
   (a photo, a comment, a reviewer) cannot reach across organizations.
@@ -41,6 +47,7 @@ clause — so any service can import it at module level.
 
 import uuid
 from collections.abc import Collection, Iterable
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import HTTPException, Request, status
@@ -49,9 +56,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import QueryableAttribute, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from tripl.middleware.org_context import current_org_id, require_org_id
-from tripl.models.domain_enums import OrganizationRole
-from tripl.models.organization import OrganizationMember
+from tripl.middleware.org_context import current_org_id, require_org_id, stepped_in
+from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
+from tripl.models.organization import Organization, OrganizationMember
+from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
@@ -95,7 +103,10 @@ async def org_role_of(
             OrganizationMember.user_id == user_id,
         )
     )
-    return None if role is None else OrganizationRole(str(role))
+    if role is None:
+        # The step-in arm: a platform admin reading the bound organization.
+        return OrganizationRole.member if stepped_in(user_id, org_id) else None
+    return OrganizationRole(str(role))
 
 
 async def is_org_admin(session: AsyncSession, user: User, org_id: uuid.UUID | None = None) -> bool:
@@ -125,14 +136,27 @@ def effective_role(org_role: str | None, membership_role: object | None) -> Proj
     return VIEWER if str(membership_role) == VIEWER else EDITOR
 
 
+def _step_in_role(
+    user_id: uuid.UUID, org_id: uuid.UUID, role: ProjectRole | None
+) -> ProjectRole | None:
+    """The step-in arm of every project answer: ``viewer`` where there was none.
+
+    Only when the bound organization is a live step-in of ``user_id``'s and the
+    project belongs to it (F20 PR14). A real role always wins.
+    """
+    if role is None and stepped_in(user_id, org_id):
+        return VIEWER
+    return role
+
+
 def _role_rows(user_id: uuid.UUID) -> Select[Any]:
-    """``(project id, org role, membership role)`` per project, for one user.
+    """``(project id, org role, membership role, project org id)`` per project, for one user.
 
     The org role is joined from the PROJECT's organization, never from the
     request, so an admin of another organization contributes nothing.
     """
     return (
-        select(Project.id, OrganizationMember.role, ProjectMember.role)
+        select(Project.id, OrganizationMember.role, ProjectMember.role, Project.organization_id)
         .select_from(Project)
         .outerjoin(
             OrganizationMember,
@@ -169,7 +193,7 @@ async def _member_role(
     row = (await session.execute(statement)).first()
     if row is None:
         return None
-    return effective_role(row[1], row[2])
+    return _step_in_role(user_id, row[3], effective_role(row[1], row[2]))
 
 
 async def member_role(
@@ -197,8 +221,8 @@ async def member_roles(
         return {}
     rows = await session.execute(_in_bound_org(_role_rows(user.id).where(Project.id.in_(ids))))
     roles: dict[uuid.UUID, ProjectRole] = {}
-    for project_id, org_role, row_role in rows.all():
-        role = effective_role(org_role, row_role)
+    for project_id, org_role, row_role, project_org_id in rows.all():
+        role = _step_in_role(user.id, project_org_id, effective_role(org_role, row_role))
         if role is not None:
             roles[project_id] = role
     return roles
@@ -283,6 +307,10 @@ async def member_project_ids(
     every project of that organization, not "everything on the instance".
     """
     target = org_id if org_id is not None else current_org_id()
+    if target is not None and stepped_in(user.id, target):
+        # A step-in reads every project of the organization it names.
+        statement = select(Project.id).where(Project.organization_id == target)
+        return set((await session.scalars(statement)).all())
     statement = select(Project.id).where(project_member_clause(user.id, Project.id))
     if target is not None:
         statement = statement.where(Project.organization_id == target)
@@ -298,7 +326,7 @@ async def member_role_by_slug(session: AsyncSession, user: User, slug: str) -> P
     row = (await session.execute(_role_rows(user.id).where(project_slug_clause(slug)))).first()
     if row is None:
         return None
-    return effective_role(row[1], row[2])
+    return _step_in_role(user.id, row[3], effective_role(row[1], row[2]))
 
 
 async def require_project_access(
@@ -343,9 +371,40 @@ async def still_member(
     client reconnect and resolve the new id. Not fenced by the bound
     organization: the stream's project was resolved in it when it opened, and
     the role is always read against the project's own organization.
+
+    A member's stream also ends once that organization is no longer
+    ``active`` (suspended or being deleted); a platform admin's step-in stream
+    survives a suspension (a step-in reads one) but not a deletion.
     """
     async with session_factory() as session:
         user = await session.get(User, user_id)
         if user is None:
             return False
-        return await _member_role(session, user.id, project_id, fenced=False) is not None
+        row = (await session.execute(_role_rows(user.id).where(Project.id == project_id))).first()
+        if row is None:
+            return False
+        # A suspension (or deletion) of the project's organization ends its
+        # members' streams: the next request would get the 403 (or the 404).
+        org_status: str | None = await session.scalar(
+            select(Organization.status).where(Organization.id == row[3])
+        )
+        if org_status is None:
+            return False
+        if effective_role(row[1], row[2]) is not None:
+            return str(org_status) == OrganizationStatus.active.value
+        if not stepped_in(user.id, row[3]) or not user.is_platform_admin:
+            return False
+        # A step-in reads a suspended organization too, never a deleting one.
+        if str(org_status) == OrganizationStatus.deleting.value:
+            return False
+        # A step-in stream ends with the step-in: re-read it, it may have been
+        # ended or run out since the stream opened.
+        live: uuid.UUID | None = await session.scalar(
+            select(PlatformStepIn.id).where(
+                PlatformStepIn.user_id == user.id,
+                PlatformStepIn.organization_id == row[3],
+                PlatformStepIn.ended_at.is_(None),
+                PlatformStepIn.expires_at > datetime.now(UTC),
+            )
+        )
+        return live is not None

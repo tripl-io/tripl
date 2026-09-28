@@ -18838,7 +18838,7 @@
           "organizations"
         ],
         "summary": "List Orgs",
-        "description": "The organizations the caller belongs to, with their role in each.\n\nAn API key belongs to one organization and lists only that one.",
+        "description": "The organizations the caller belongs to, with their role in each.\n\nAn API key belongs to one organization and lists only that one. A\nsuspended organization is listed with its ``status`` (F20 PR14). A platform\nadmin's browser session also lists the organizations they have a live\nread-only step-in to, flagged ``step_in``.",
         "operationId": "list_orgs_api_v1_orgs_get",
         "responses": {
           "200": {
@@ -19923,6 +19923,520 @@
           }
         }
       }
+    },
+    "/api/v1/platform/orgs": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "List Platform Orgs",
+        "description": "Every organization with its status, member and project counts and owners.",
+        "operationId": "list_platform_orgs_api_v1_platform_orgs_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Substring of the slug or name.",
+              "title": "Q"
+            },
+            "description": "Substring of the slug or name."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OrganizationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformOrgList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/orgs/{org_slug}": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Get Platform Org",
+        "description": "One organization: its members (email, name, role) and projects (slug, name).",
+        "operationId": "get_platform_org_api_v1_platform_orgs__org_slug__get",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformOrgDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/orgs/{org_slug}/suspend": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Suspend Platform Org",
+        "description": "Suspend an organization: its members get 403 and its scheduled jobs stop.",
+        "operationId": "suspend_platform_org_api_v1_platform_orgs__org_slug__suspend_post",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSuspendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformOrgDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/orgs/{org_slug}/unsuspend": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Unsuspend Platform Org",
+        "description": "Put a suspended organization back; everything resumes where it stopped.",
+        "operationId": "unsuspend_platform_org_api_v1_platform_orgs__org_slug__unsuspend_post",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformOrgDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/users": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "List Platform Users",
+        "description": "Every account, with its platform-admin flag and organization count.",
+        "operationId": "list_platform_users_api_v1_platform_users_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 320
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Substring of the email or name.",
+              "title": "Q"
+            },
+            "description": "Substring of the email or name."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformUserList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/users/{user_id}/platform-admin": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Set Platform Admin",
+        "description": "Grant or revoke the platform-admin flag. Not yourself, not the last admin.",
+        "operationId": "set_platform_admin_api_v1_platform_users__user_id__platform_admin_post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlatformAdminGrant"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformUserItem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/orgs/{org_slug}/step-in": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Start Step In",
+        "description": "Open a read-only step-in: a reason, a time limit, audited in the organization.",
+        "operationId": "start_step_in_api_v1_platform_orgs__org_slug__step_in_post",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepInResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/step-ins/{step_in_id}/end": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "End Step In",
+        "description": "End one of the caller's step-ins now.",
+        "operationId": "end_step_in_api_v1_platform_step_ins__step_in_id__end_post",
+        "parameters": [
+          {
+            "name": "step_in_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Step In Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepInResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/step-ins": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "List Step Ins",
+        "description": "The caller's own step-ins, newest first.",
+        "operationId": "list_step_ins_api_v1_platform_step_ins_get",
+        "parameters": [
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: live only; false: ended or expired.",
+              "title": "Active"
+            },
+            "description": "true: live only; false: ended or expired."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StepInResponse"
+                  },
+                  "title": "Response List Step Ins Api V1 Platform Step Ins Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -19941,6 +20455,32 @@
         },
         "type": "object",
         "title": "ActiveSignalsQuery"
+      },
+      "ActiveStepInOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "org_slug",
+          "expires_at"
+        ],
+        "title": "ActiveStepInOut",
+        "description": "A platform admin's live read-only step-in (F20 PR14), for the UI banner."
       },
       "ActivityItemResponse": {
         "properties": {
@@ -24762,6 +25302,13 @@
                 "type": "null"
               }
             ]
+          },
+          "active_step_ins": {
+            "items": {
+              "$ref": "#/components/schemas/ActiveStepInOut"
+            },
+            "type": "array",
+            "title": "Active Step Ins"
           },
           "created_at": {
             "type": "string",
@@ -38669,6 +39216,10 @@
           },
           "role": {
             "$ref": "#/components/schemas/OrganizationRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationStatus",
+            "default": "active"
           }
         },
         "type": "object",
@@ -38678,7 +39229,7 @@
           "role"
         ],
         "title": "OrgMembershipOut",
-        "description": "One organization the signed-in user belongs to, with their role there."
+        "description": "One organization the signed-in user belongs to, with their role there.\n\n``status`` is ``active`` or ``suspended`` (F20 PR14): a suspended\norganization stays listed so the UI can explain why it is closed."
       },
       "OrgResponse": {
         "properties": {
@@ -38709,6 +39260,11 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "step_in": {
+            "type": "boolean",
+            "title": "Step In",
+            "default": false
           }
         },
         "type": "object",
@@ -39196,6 +39752,23 @@
         "title": "OrgStorageSettingsUpdate",
         "description": "Backend, bucket, credential JSON, public URLs and URL lifetime are ONE\ngroup: setting any of them makes the organization's photos go to its own\nstorage, and the platform's credentials are never used on its bucket.\n``gcs_photo_credentials_json`` is the service-account key file's content:\nstored encrypted, never returned; ``null`` or an empty string clears it."
       },
+      "OrgSuspendRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "OrgSuspendRequest",
+        "description": "Why the organization is suspended. Shown to platform admins only."
+      },
       "OrgTrackerDefaultsResponse": {
         "properties": {
           "organization": {
@@ -39302,10 +39875,11 @@
         "type": "string",
         "enum": [
           "active",
-          "deleting"
+          "deleting",
+          "suspended"
         ],
         "title": "OrganizationStatus",
-        "description": "Lifecycle of an organization row (``organizations.status``, F20 PR6).\n\n``deleting`` is set the moment an owner asks to delete the organization; a\nCelery job then purges it. From that moment every read of it answers 404\n(``services.org_resolution``), so nothing new lands in an organization that\nis on its way out."
+        "description": "Lifecycle of an organization row (``organizations.status``, F20 PR6).\n\n``deleting`` is set the moment an owner asks to delete the organization; a\nCelery job then purges it. From that moment every read of it answers 404\n(``services.org_resolution``), so nothing new lands in an organization that\nis on its way out.\n\n``suspended`` is set by a platform admin from the platform console (F20\nPR14). The organization stays listed for its members, with its status, but\nevery org-scoped request of theirs answers 403 \"This organization is\nsuspended\", and the scheduled worker jobs skip its projects\n(``services.active_org_scope``). Unsuspending restores it untouched."
       },
       "OverviewKpiSeriesResponse": {
         "properties": {
@@ -40557,6 +41131,283 @@
         "title": "PlanValueChange",
         "description": "One member of a collection-valued field that moved.\n\n``key`` is the member's natural identifier \u2014 the field name behind an event\nfield value, the tag itself, the event an override targets. ``before``/\n``after`` carry that member's value with the key stripped out, so a reviewer\nreads \"currency: USD \u2192 EUR\" instead of two JSON dumps of the whole\ncollection."
       },
+      "PlatformAdminGrant": {
+        "properties": {
+          "grant": {
+            "type": "boolean",
+            "title": "Grant"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grant"
+        ],
+        "title": "PlatformAdminGrant",
+        "description": "Grant (``true``) or revoke (``false``) the platform-admin flag."
+      },
+      "PlatformOrgDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationStatus"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "suspended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspended At"
+          },
+          "suspended_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspended Reason"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count"
+          },
+          "project_count": {
+            "type": "integer",
+            "title": "Project Count"
+          },
+          "owner_emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Owner Emails"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformOrgMember"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformOrgProject"
+            },
+            "type": "array",
+            "title": "Projects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "status",
+          "is_default",
+          "created_at",
+          "suspended_at",
+          "suspended_reason",
+          "member_count",
+          "project_count",
+          "owner_emails",
+          "members",
+          "projects"
+        ],
+        "title": "PlatformOrgDetail"
+      },
+      "PlatformOrgItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationStatus"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "suspended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspended At"
+          },
+          "suspended_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suspended Reason"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count"
+          },
+          "project_count": {
+            "type": "integer",
+            "title": "Project Count"
+          },
+          "owner_emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Owner Emails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "status",
+          "is_default",
+          "created_at",
+          "suspended_at",
+          "suspended_reason",
+          "member_count",
+          "project_count",
+          "owner_emails"
+        ],
+        "title": "PlatformOrgItem",
+        "description": "One organization in the console list."
+      },
+      "PlatformOrgList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformOrgItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PlatformOrgList"
+      },
+      "PlatformOrgMember": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/OrganizationRole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "email",
+          "name",
+          "role"
+        ],
+        "title": "PlatformOrgMember"
+      },
+      "PlatformOrgProject": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "created_at"
+        ],
+        "title": "PlatformOrgProject",
+        "description": "A project's metadata: never its plan, data or settings."
+      },
       "PlatformParityAnomaly": {
         "properties": {
           "bucket": {
@@ -40664,6 +41515,79 @@
         ],
         "title": "PlatformPresenceRow",
         "description": "One event and the platform values it has stored breakdown data for."
+      },
+      "PlatformUserItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "is_platform_admin": {
+            "type": "boolean",
+            "title": "Is Platform Admin"
+          },
+          "email_verified": {
+            "type": "boolean",
+            "title": "Email Verified"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "org_count": {
+            "type": "integer",
+            "title": "Org Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "name",
+          "is_platform_admin",
+          "email_verified",
+          "created_at",
+          "org_count"
+        ],
+        "title": "PlatformUserItem"
+      },
+      "PlatformUserList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformUserItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PlatformUserList"
       },
       "PostgresSettings": {
         "properties": {
@@ -47621,6 +48545,90 @@
         ],
         "title": "SqlMetricDefinition",
         "description": "Kind + collection config for a ``sql`` metric: SELECT + its data source."
+      },
+      "StepInRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "ttl_minutes": {
+            "type": "integer",
+            "maximum": 240.0,
+            "minimum": 5.0,
+            "title": "Ttl Minutes",
+            "default": 60
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "StepInRequest",
+        "description": "Start a read-only step-in: a mandatory reason and a time limit in minutes."
+      },
+      "StepInResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "org_name": {
+            "type": "string",
+            "title": "Org Name"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "org_slug",
+          "org_name",
+          "reason",
+          "created_at",
+          "expires_at",
+          "ended_at",
+          "active"
+        ],
+        "title": "StepInResponse",
+        "description": "One step-in. ``active`` is \"not ended and not expired\" at response time."
       },
       "StorageSettings": {
         "properties": {
