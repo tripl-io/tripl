@@ -296,7 +296,14 @@ the instance to the world:
    you chose. Someone who **already has an account** (in another organization)
    signs in first and accepts the link: the organization is added to their
    account. That only works for the account whose email the invitation was sent
-   to; any other signed-in account is refused. Only a link the server rejects (used, expired or revoked) shows
+   to; any other signed-in account is refused. On a
+   [hosted](#hosted-sign-up-and-email-verification) instance that account must
+   also have verified its address first, or the page shows **Verify your email
+   address before accepting an invitation.** A new account made from the link
+   is verified at creation on a self-hosted instance. On a hosted instance it
+   is not: you received the raw link yourself, so using it proves nothing about
+   who reads the mailbox. The new account is emailed a verification link and
+   sees **Check your inbox** until it confirms it, like a sign-up. Only a link the server rejects (used, expired or revoked) shows
    **This invite link no longer works**; if the page could not reach the server
    or it failed, it shows **Could not check this invitation** with **Try again**,
    so a network blip does not read as a dead link.
@@ -316,9 +323,11 @@ role from **Settings → Members**.
 
 While registration is disabled the sign-in page shows no sign-up form at all,
 and `POST /auth/register` is refused with a `403` that tells the visitor to ask
-an owner. The one exception is an instance with **no users at all** — that first
-registration always works and becomes the owner, so a fresh or reset deploy can
-always be claimed. Registration is also rate-limited (see
+an owner. On a self-hosted instance the one exception is an instance with **no
+users at all** — that first registration always works and becomes the owner, so
+a fresh or reset deploy can always be claimed. A hosted instance has no such
+exception (see [Hosted sign-up and email
+verification](#hosted-sign-up-and-email-verification)). Registration is also rate-limited (see
 [Security & access](#security--access)).
 :::
 
@@ -326,8 +335,10 @@ always be claimed. Registration is also rate-limited (see
 
 Every project, data source, API key and invitation belongs to one
 **organization**. A self-hosted instance starts with one, the **default
-organization** (slug `default`), and everyone who registers joins it. An account
-can belong to several organizations, with a separate role in each.
+organization** (slug `default`), and everyone who registers joins it. On a
+hosted instance each sign-up creates an organization of its own instead (see
+[Hosted sign-up and email verification](#hosted-sign-up-and-email-verification)).
+An account can belong to several organizations, with a separate role in each.
 
 ### Organizations in the app
 
@@ -352,8 +363,8 @@ workspace. With a single organization the switcher is not shown.
 The organization's own settings are in **Settings → Organization**:
 
 - **Details** — the name, which owners and admins can change; the slug, shown
-  read-only because it cannot change; **Create organization** for a platform
-  admin; and the **Danger zone**, where an owner deletes the organization after
+  read-only because it cannot change; **Create organization** (for a platform
+  admin on a self-hosted instance, for anyone on a hosted one); and the **Danger zone**, where an owner deletes the organization after
   typing its slug. The default organization has no danger zone: it cannot be
   deleted.
 - **Members** — everyone in the organization, with a role select, **Remove**
@@ -431,16 +442,99 @@ does not exist.
 
 ### Create an organization
 
-Only a **platform admin** can create one (`POST /api/v1/orgs` with a `name` and
-a `slug`), from a signed-in browser session. This holds for both deployment
-modes until hosted sign-up ships. The creator becomes the new organization's
-**owner**.
+`POST /api/v1/orgs` with a `name` and a `slug`, from a signed-in browser
+session. Who may call it depends on `DEPLOYMENT_MODE`:
+
+- **self-hosted** — only a **platform admin**;
+- **hosted** — any signed-in user (whose address is verified, like every route
+  outside `/api/v1/auth/*` there). Signing up creates the first one.
+
+The creator becomes the new organization's **owner**.
 
 The **slug is permanent**: it is part of every organization-qualified URL
 (`/api/v1/orgs/{slug}/...` and the app's `/o/{slug}/p/{project}/...`), and links
 already sent in email and Slack must keep working, so they are never rewritten. It follows the project slug rules (lowercase letters, digits and single
 hyphens), and names that the app routes as something else (`settings`, `orgs`,
 `projects`, `default`, …) are refused.
+
+### Hosted sign-up and email verification
+
+With `DEPLOYMENT_MODE=hosted` (see
+[Configuration](../run/configuration.md#organizations)) the instance is a
+multi-tenant service, and signing up works differently. A self-hosted instance
+behaves as before: nothing below is enforced there, and every account is
+marked verified when it is created.
+
+**Sign-up creates an organization.** The **Create account** form also asks for
+an **Organization name** and an **Organization URL slug** (derived from the name
+until you edit it, with a preview of the `/o/<slug>` address). The API is
+`POST /api/v1/auth/register` with `org_name` and `org_slug` besides `email`,
+`password` and `name`; on a hosted instance both are required (`422` without
+them), and the slug follows the [organization slug
+rules](#create-an-organization) (`409` when it is taken). The new account is the
+organization's **owner** and joins no other organization, the default one
+included. To join an existing organization instead, ask one of its owners or
+admins for an [invitation](#invite-a-member). On a self-hosted instance
+`org_name` and `org_slug` are ignored and the account joins the default
+organization.
+
+**Registration still applies.** `REGISTRATION_MODE=disabled` refuses every
+sign-up with `403`. Unlike self-hosted, there is no first-account exception, so
+the operator's own account is created the same way as everyone else's.
+
+**The operator's SMTP is required.** Every new address has to be verified, and
+account mail always goes through the operator's relay (never an
+organization's). Without it, sign-up answers `503 Email delivery is not
+configured` before creating anything.
+
+**Addresses are verified.** Right after sign-up the account is sent a link to
+`/verify-email`. It works once and expires after 24 hours; asking for a new one
+(**Resend email** on the **Check your inbox** screen, or
+`POST /api/v1/auth/verify-email/request`) invalidates the earlier unused
+links. The link confirms only in a browser signed in as the account it was
+sent to: opened while signed out, the page asks you to sign in and then brings
+you back to it; opened in another account's session, it is refused like a dead
+link and stays unused. Confirming signs the account out everywhere else and
+keeps only the session that confirmed. Until the address is verified, the app shows only that screen, and every
+API route outside `/api/v1/auth/*` answers `403 Email address not verified`,
+whatever the credential. What remains is signing out, reading your own account
+(`/auth/me`), resending and confirming the link, and previewing an invitation.
+
+An address also counts as verified when:
+
+- a password reset is completed, because the reset link was mailed to that
+  address (a reset also signs the account out everywhere and revokes its API
+  keys);
+- the account was created on a self-hosted instance: every self-hosted account
+  is marked verified at creation, whether by sign-up or invitation;
+- the account existed before email verification was introduced.
+
+On a hosted instance an account created from an invitation link is **not**
+verified by it: the inviter got the raw link in the API response, so redeeming
+it proves nothing. The new account is sent a verification link (a failed send
+is logged; **Resend email** sends another) and must confirm it before it can
+use the app.
+
+On a self-hosted instance nothing is ever blocked, and
+`POST /api/v1/auth/verify-email/request` answers `204` without sending
+anything: the check is enforced only when `DEPLOYMENT_MODE=hosted`.
+
+**Signed-in invitation acceptance needs a verified address.** On a hosted
+instance an existing account accepts an invitation only after verifying its
+address (`403 Verify your email address before accepting an invitation.`); the
+rule that the account's email must equal the invitation's still applies.
+
+**Platform admins are granted on verification.** An account whose address is
+listed in `PLATFORM_ADMIN_EMAILS` becomes a platform admin only when it
+confirms the emailed verification link while signed in as itself. Sign-up,
+invitations and password reset never grant it. To bootstrap a hosted instance,
+set the list, sign up with a listed address, and open the verification link in
+the browser where you are signed in as that account.
+
+`GET /api/v1/auth/status` reports `deployment_mode` and
+`email_verification_required` (`true` on a hosted instance), which the sign-in
+page uses to show the organization fields. On a hosted instance it always
+reports `has_users: true`, so it does not reveal whether the instance is empty.
 
 ### Rename an organization
 
@@ -895,14 +989,16 @@ only: an org owner or admin does not see this section.
   can create their own account. **Open** allows self-service signup: anyone who
   can reach this instance creates an account, joins the default organization as
   a **member**, and can immediately read the member roster; they see no project
-  until someone adds them to one. Each workspace-global data source's name, type
+  until someone adds them to one. (On a hosted instance a sign-up creates an
+  organization of its own instead; see [Hosted sign-up and email
+  verification](#hosted-sign-up-and-email-verification).) Each workspace-global data source's name, type
   and health are visible to them; its connection details (host, port, username,
   whether a password is set) are for org owners and admins only, and the
   password itself is never returned to anybody.
   **Disabled** refuses `POST /auth/register` with a `403` and hides
-  the sign-up form on the sign-in page. It defaults to Open only because there
-  is no invite or owner-creates-user flow yet, so a closed instance cannot
-  onboard anyone; close it once your team has accounts. See
+  the sign-up form on the sign-in page. It defaults to Open for historical
+  reasons; an owner or admin can [invite](#invite-a-member) people into a closed
+  instance, so close it once your team has accounts. See
   [Members](#members) for the onboarding flow.
 - **Sessions:** Session cookie name (`session_cookie_name`, default
   `tripl_session`), Session TTL hours (`session_ttl_hours`, default 168), Secure

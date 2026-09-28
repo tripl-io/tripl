@@ -8,8 +8,11 @@ organization, a non-member, an API key of another organization — gets the same
 404, before any 403.
 
 * ``GET /orgs`` — the caller's organizations with their role (an API key: its own).
-* ``POST /orgs`` — a platform admin, from a browser session, in both deployment
-  modes until hosted sign-up (critique #24). The creator becomes the owner.
+* ``POST /orgs`` — from a browser session: a platform admin on a self-hosted
+  instance; any signed-in account on a hosted one (critique #24), which the
+  hosted email-verification gate has already held to a verified address. The
+  creator becomes the owner. Hosted sign-up (``POST /auth/register``) creates
+  the account's first organization the same way.
 * ``GET /orgs/{org}`` and ``GET /orgs/{org}/members`` — any member.
 * ``PATCH /orgs/{org}`` (name only; the slug is permanent), member role change
   and removal — an owner or admin. Owners are managed by owners only, and the
@@ -24,8 +27,9 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from tripl.api.deps import (
     CurrentUserDep,
@@ -33,10 +37,13 @@ from tripl.api.deps import (
     PathOrgAdminUserDep,
     PathOrgMemberUserDep,
     PathOrgOwnerUserDep,
-    PlatformAdminUserDep,
     SessionDep,
+    require_platform_admin,
+    require_write_scope,
 )
+from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
+from tripl.models.user import User
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
 from tripl.schemas.organization import (
     OrgCreate,
@@ -59,6 +66,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orgs", tags=["organizations"])
 
 OWNER_MANAGEMENT_REQUIRED = "Only an owner can manage owners"
+BROWSER_SESSION_REQUIRED = "A browser session is required"
 LAST_OWNER = "Cannot remove or demote the last remaining owner"
 MEMBER_NOT_FOUND = "Member not found"
 
@@ -78,11 +86,24 @@ async def list_orgs(
     )
 
 
+async def require_org_creator(request: Request, user: CurrentUserDep) -> User:
+    """Who may ``POST /orgs``: see the module docstring. Never an API key."""
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        return await require_platform_admin(request, user)
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=BROWSER_SESSION_REQUIRED)
+    return user
+
+
+OrgCreatorDep = Annotated[User, Depends(require_org_creator)]
+
+
 @router.post("", response_model=OrgResponse, status_code=status.HTTP_201_CREATED)
 async def create_org(
-    session: SessionDep, data: OrgCreate, current_user: PlatformAdminUserDep
+    session: SessionDep, data: OrgCreate, current_user: OrgCreatorDep
 ) -> OrgResponse:
-    """Create an organization; the platform admin who creates it becomes its owner."""
+    """Create an organization; its creator becomes its owner."""
     try:
         org = await org_service.create_org(
             session, creator=current_user, slug=data.slug, name=data.name

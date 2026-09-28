@@ -8,7 +8,8 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,6 +23,7 @@ from tripl.auth_utils import (
 )
 from tripl.config import DEPLOYMENT_SELF_HOSTED, REGISTRATION_OPEN, settings
 from tripl.middleware.org_context import current_org
+from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope, OrganizationRole, OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.password_reset_token import PasswordResetToken
@@ -33,7 +35,7 @@ from tripl.schemas.auth import (
     OrgMembershipOut,
     RegisterRequest,
 )
-from tripl.services import app_settings_service
+from tripl.services import app_settings_service, audit_service, email_verification_service
 
 # Password-reset link lifetime. Short on purpose: a reset link is a bearer
 # credential, so it should be usable just long enough for a human to open their
@@ -51,6 +53,10 @@ REGISTRATION_CLOSED_MESSAGE = (
     "Settings -> Instance -> Security & access (or set REGISTRATION_MODE=open) "
     "to create an account."
 )
+
+# Hosted sign-up refuses up front when the operator relay cannot send: the new
+# account could never verify its address, so it could never use the app.
+EMAIL_DELIVERY_NOT_CONFIGURED_MESSAGE = "Email delivery is not configured"
 
 # Single neutral message for both the "we emailed you" and "no such account"
 # cases so the request endpoint never reveals whether an address is registered.
@@ -190,15 +196,14 @@ def add_organization_membership(
 
 
 async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[User, str]:
-    """Self-service sign-up into the default organization.
+    """Self-hosted self-service sign-up into the default organization.
 
-    On a self-hosted instance the first user becomes the default organization's
-    owner AND a platform admin, so the instance always has someone who can
-    manage members and the operator settings. Every later user (and every user
-    of a hosted instance) joins as ``member``. Self-service sign-up never grants
-    platform admin on a hosted instance: nothing here proves the caller owns the
-    address, so ``PLATFORM_ADMIN_EMAILS`` is applied only operator-side (by the
-    organization migrations, to accounts that already exist).
+    A hosted instance signs up through :func:`register_hosted_user` instead.
+    The first user becomes the default organization's owner AND a platform
+    admin, so the instance always has someone who can manage members and the
+    operator settings. Every later user joins as ``member``. Every account is
+    recorded as email-verified at creation: there may be no SMTP to verify
+    with, and nothing enforces it self-hosted anyway.
 
     The advisory lock closes the TOCTOU window: taken before the empty-table
     check and held until this registration's commit, so a concurrent first
@@ -234,6 +239,7 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
         password_hash=await asyncio.to_thread(hash_password, data.password),
         is_platform_admin=bootstrap,
     )
+    email_verification_service.mark_verified(user)
     session.add(user)
     await session.flush()
     add_organization_membership(
@@ -247,6 +253,111 @@ async def register_user(session: AsyncSession, data: RegisterRequest) -> tuple[U
     await session.commit()
     await session.refresh(user)
     return user, session_token
+
+
+async def register_hosted_user(
+    session: AsyncSession, data: RegisterRequest, *, email_can_send: bool
+) -> tuple[User, str, str]:
+    """Hosted sign-up: a new account that creates and owns a new organization.
+
+    Returns ``(user, session_token, verification_token)``; the caller mails the
+    verification link after this commits. Refusals, in order: registration
+    closed (403 — there is no first-user bootstrap on a hosted instance, and
+    this comes first so a closed instance never answers anything else), the
+    operator relay unable to send (503, ``email_can_send``), the address taken
+    (409), the slug taken (409). A concurrent sign-up that slips past those
+    pre-checks trips a unique constraint instead: rolled back, also 409.
+
+    The account starts unverified and is never a platform admin, whatever
+    ``PLATFORM_ADMIN_EMAILS`` says: that is granted when the account confirms
+    its verification link (``email_verification_service.confirm``). It joins no other
+    organization — joining an existing one is what invitations are for. The
+    ``org.create`` audit row lands in the new organization, in the same commit.
+    """
+    # Lazy: org_service imports this module.
+    from tripl.services import org_service
+
+    if data.org_name is None or data.org_slug is None:  # the schema guarantees both
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="org_name and org_slug are required to sign up on this instance",
+        )
+    if not await is_registration_allowed(session, is_first_user=False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=REGISTRATION_CLOSED_MESSAGE,
+        )
+    if not email_can_send:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=EMAIL_DELIVERY_NOT_CONFIGURED_MESSAGE,
+        )
+
+    email = normalize_email(data.email)
+    if await _get_user_by_email(session, email) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User with this email already exists",
+        )
+
+    password_hash = await asyncio.to_thread(hash_password, data.password)
+    try:
+        user = User(
+            email=email,
+            name=_normalize_name(data.name),
+            password_hash=password_hash,
+            is_platform_admin=False,
+        )
+        session.add(user)
+        await session.flush()
+        try:
+            org = await org_service.create_org(
+                session, creator=user, slug=data.org_slug, name=data.org_name
+            )
+        except org_service.OrgSlugTakenError:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"An organization with slug '{data.org_slug}' already exists",
+            ) from None
+
+        session_token = await _create_user_session(session, user.id)
+        verification_token = await email_verification_service.issue_token(session, user)
+        # Commits: the user, the organization, the session, the token and this row.
+        await audit_service.record(
+            session,
+            user=user,
+            action="org.create",
+            target_type="organization",
+            target_id=org.id,
+            target_name=org.slug,
+            payload={"slug": org.slug, "name": org.name, "via": "signup"},
+            organization_id=org.id,
+        )
+    except IntegrityError as exc:
+        # A concurrent sign-up took the address or the slug between the
+        # pre-checks above and this flush/commit.
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_signup_conflict_detail(exc)
+        ) from None
+    await session.refresh(user)
+    return user, session_token, verification_token
+
+
+def _signup_conflict_detail(exc: IntegrityError) -> str:
+    """Name what a unique-constraint failure at hosted sign-up collided with.
+
+    SQLite reports ``UNIQUE constraint failed: organizations.slug``; PostgreSQL
+    names the index (``ix_organizations_slug`` / ``ix_users_email``). Anything
+    unrecognised gets the generic message.
+    """
+    message = str(exc.orig).lower()
+    if "slug" in message:
+        return "This organization URL is already taken"
+    if "email" in message:
+        return "User with this email already exists"
+    return "Organization URL or email is already taken"
 
 
 async def _membership_rows(
@@ -300,6 +411,7 @@ async def build_auth_user_response(
         name=user.name,
         role=None if role is None else OrganizationRole(role),
         is_platform_admin=bool(user.is_platform_admin),
+        email_verified=user.email_verified_at is not None,
         orgs=[
             OrgMembershipOut(slug=slug, name=name, role=OrganizationRole(org_role))
             for _org_id, slug, name, org_role in rows
@@ -432,8 +544,12 @@ async def confirm_password_reset(session: AsyncSession, raw_token: str, new_pass
 
     The token must exist, be unexpired and unused. On success the password is
     re-hashed with the shared policy-enforced hasher, the token is marked used
-    (single-use), every other outstanding token for the user is dropped, and all
-    active sessions are cleared so a reset always ends other logins. Password
+    (single-use), every other outstanding token for the user is dropped, all
+    active sessions are cleared so a reset always ends other logins, and every
+    live API key of the user is revoked (a reset is what an owner does when the
+    account may be compromised). The address counts as verified — the link was
+    mailed to it — but that grants nothing further (no ``PLATFORM_ADMIN_EMAILS``
+    promotion: see ``email_verification_service``). Password
     strength is enforced upstream at the schema boundary (same policy as
     register), so an invalid password never reaches here.
     """
@@ -460,6 +576,9 @@ async def confirm_password_reset(session: AsyncSession, raw_token: str, new_pass
         )
 
     user.password_hash = await asyncio.to_thread(hash_password, new_password)
+    # The reset link reached this address, so the address is proven. No
+    # platform-admin grant here: only a confirmed verification link does that.
+    email_verification_service.mark_verified(user, now=now)
     row.used_at = now
     await _delete_reset_tokens_for_user(session, user.id, exclude_id=row.id)
     # A password reset invalidates existing sessions: whoever reset the password
@@ -467,6 +586,15 @@ async def confirm_password_reset(session: AsyncSession, raw_token: str, new_pass
     await session.execute(
         delete(UserSession)
         .where(UserSession.user_id == user.id)
+        .execution_options(synchronize_session=False)
+    )
+    # ... and so does every API key: revoked (``revoked_at``), the same
+    # convention as ``api_key_service.revoke_key``, so the audit trail keeps
+    # the rows.
+    await session.execute(
+        update(ApiKey)
+        .where(ApiKey.user_id == user.id, ApiKey.revoked_at.is_(None))
+        .values(revoked_at=now)
         .execution_options(synchronize_session=False)
     )
     await session.commit()

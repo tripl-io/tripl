@@ -143,12 +143,18 @@ export interface paths {
          *     Signed in (a browser session cookie): the invitation adds a membership of
          *     its organization to THIS account, but only when the account's email is the
          *     invitation's (case-insensitive) — else 403 and the invitation stays unused;
+         *     on a hosted instance the account must also have verified its address (403);
          *     409 when the account is already a member. Answers 200 and leaves the
          *     session as it is (F20 PR6).
          *
-         *     Not signed in: the new-account path, unchanged. ``password`` is required,
-         *     the account is created with the invitation's address and the new user is
-         *     signed straight in (201). Reachable regardless of ``registration_mode`` —
+         *     Not signed in: the new-account path. ``password`` is required, the account
+         *     is created with the invitation's address and the new user is signed
+         *     straight in (201). Self-hosted the account counts as email-verified. Hosted
+         *     it starts unverified — the inviter was handed the raw link, so redeeming it
+         *     proves nothing about the address — and a verification link is mailed
+         *     through the operator relay after the commit (a failed send is logged; the
+         *     user can resend).
+         *     Reachable regardless of ``registration_mode`` —
          *     an owner-issued, single-use, expiring, address-bound invitation is a
          *     different mechanism from the instance-wide door, so a closed instance can
          *     still onboard exactly the people its owner named.
@@ -264,7 +270,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description Self-service sign-up.
+         *
+         *     Self-hosted: into the default organization (the first account owns it and
+         *     is a platform admin); ``org_name`` / ``org_slug`` are ignored.
+         *
+         *     Hosted: ``org_name`` and ``org_slug`` are required and the account creates
+         *     and owns that organization. It starts unverified — the verification link
+         *     is mailed through the operator relay after the commit (a failed send is
+         *     logged; the user can resend) — so 503 up front when that relay cannot send.
+         */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
         options?: never;
@@ -283,6 +300,61 @@ export interface paths {
         get: operations["get_status_api_v1_auth_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Email Verification
+         * @description Redeem a verification link, signed in as the account it was issued to.
+         *
+         *     Needs a browser session (401 without one): the link alone proves only that
+         *     someone read the mail, the session proves it is the account holder who
+         *     did. A session of a different account gets the same 400 as an unknown,
+         *     expired or used token, and the token stays usable. On success every other
+         *     session of the account is signed out, and on a hosted instance an address
+         *     listed in ``PLATFORM_ADMIN_EMAILS`` becomes a platform admin — the only
+         *     place that grant happens. On the login bucket, like the password reset
+         *     confirm, so guessing tokens costs what guessing passwords does.
+         */
+        post: operations["confirm_email_verification_api_v1_auth_verify_email_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Email Verification
+         * @description Mail the signed-in account a fresh verification link (a resend).
+         *
+         *     A browser session only (an API key is 403). 204 without doing anything
+         *     when the address is already verified or the instance does not require
+         *     verification (self-hosted); 503 when the operator relay cannot send.
+         *     Otherwise every earlier link of the account stops working and the new one
+         *     goes out after the response (a failed send is logged).
+         */
+        post: operations["request_email_verification_api_v1_auth_verify_email_request_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -522,7 +594,7 @@ export interface paths {
         put?: never;
         /**
          * Create Org
-         * @description Create an organization; the platform admin who creates it becomes its owner.
+         * @description Create an organization; its creator becomes its owner.
          */
         post: operations["create_org_api_v1_orgs_post"];
         delete?: never;
@@ -6739,10 +6811,21 @@ export interface components {
         /** AuthStatusResponse */
         AuthStatusResponse: {
             /**
+             * Deployment Mode
+             * @default self_hosted
+             * @enum {string}
+             */
+            deployment_mode: "self_hosted" | "hosted";
+            /**
              * Email Configured
              * @default false
              */
             email_configured: boolean;
+            /**
+             * Email Verification Required
+             * @default false
+             */
+            email_verification_required: boolean;
             /** Has Users */
             has_users: boolean;
             /**
@@ -6769,6 +6852,11 @@ export interface components {
             created_at: string;
             /** Email */
             email: string;
+            /**
+             * Email Verified
+             * @default false
+             */
+            email_verified: boolean;
             /**
              * Id
              * Format: uuid
@@ -13646,6 +13734,10 @@ export interface components {
             email: string;
             /** Name */
             name?: string | null;
+            /** Org Name */
+            org_name?: string | null;
+            /** Org Slug */
+            org_slug?: string | null;
             /** Password */
             password: string;
         };
@@ -16252,6 +16344,14 @@ export interface components {
          * @enum {string}
          */
         VariableValueKind: "low" | "high";
+        /**
+         * VerifyEmailConfirmRequest
+         * @description ``POST /auth/verify-email/confirm``: the raw token from the emailed link.
+         */
+        VerifyEmailConfirmRequest: {
+            /** Token */
+            token: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -16667,6 +16767,55 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuthStatusResponse"];
                 };
+            };
+        };
+    };
+    confirm_email_verification_api_v1_auth_verify_email_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_email_verification_api_v1_auth_verify_email_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

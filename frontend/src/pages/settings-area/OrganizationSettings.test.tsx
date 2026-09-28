@@ -226,6 +226,28 @@ describe('Organization › Details', () => {
     expect(await screen.findByLabelText('Name')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Create organization' })).toBeNull()
   })
+
+  it('offers "Create organization" to every account in hosted mode', async () => {
+    mockApi()
+    const answer = vi.mocked(globalThis.fetch).getMockImplementation()!
+    vi.mocked(globalThis.fetch).mockImplementation((input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url === '/api/v1/auth/status') {
+        return Promise.resolve(
+          jsonResponse({
+            has_users: true,
+            registration_enabled: true,
+            email_configured: true,
+            deployment_mode: 'hosted',
+            email_verification_required: true,
+          }),
+        )
+      }
+      return answer(input, init)
+    })
+    renderSection(<OrganizationGeneralSection />)
+    expect(await screen.findByRole('heading', { name: 'Create organization' })).toBeInTheDocument()
+  })
 })
 
 describe('Organization › Members', () => {

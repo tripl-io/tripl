@@ -18,6 +18,7 @@ from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.doc_file import DocFile, DocLink, DocRevision
 from tripl.models.duplicate_dismissal import DuplicateDismissal
+from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.event import Event
 from tripl.models.event_change import EventChange
 from tripl.models.event_field_value import EventFieldValue
@@ -130,6 +131,7 @@ __all__ = [
     "OrganizationMember",
     "PhotoStorageConfig",
     "PasswordResetToken",
+    "EmailVerificationToken",
     "PlanBranch",
     "PlanBranchApproval",
     "PlanBranchComment",

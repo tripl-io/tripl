@@ -109,6 +109,7 @@ describe('query key values (SHELL-50)', () => {
   // matches leaves the screen stale with nothing to show for it.
   it.each([
     [keys.authStatusKey(), ['auth', 'status']],
+    [keys.verifyEmailKey('tok'), ['auth', 'verify-email', 'tok']],
     [keys.usersKey(), ['users']],
     [keys.projectMembersKey('demo'), ['projectMembers', 'demo']],
     [keys.invitationsKey(), ['invitations']],

@@ -6,9 +6,10 @@ fenced to the bound organization:
 
 * data sources: another organization's source is "not found" on every route
   (read, update, delete, test, stats, schema) and absent from the list;
-* the audit feed: list and detail read only the bound organization's rows;
-* hosted self-registration never grants platform admin, whatever
-  ``PLATFORM_ADMIN_EMAILS`` says — nothing proves the caller owns the address.
+* the audit feed: list and detail read only the bound organization's rows.
+
+That hosted sign-up never grants platform admin, whatever
+``PLATFORM_ADMIN_EMAILS`` says, is pinned in ``test_hosted_signup.py``.
 """
 
 from __future__ import annotations
@@ -20,11 +21,9 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from tripl.config import settings
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
 from tripl.models.organization import DEFAULT_ORG_ID, Organization
-from tripl.models.user import User
 from tripl.tests._members import add_org_member
 from tripl.tests.conftest import TestSessionLocal
 
@@ -127,20 +126,3 @@ async def test_the_audit_feed_is_per_organization(stand: Stand) -> None:
 
     own = await stand.boss.get(f"/api/v1/audit/{entry_id}")
     assert own.status_code == 200, own.text
-
-
-@pytest.mark.asyncio
-async def test_hosted_self_registration_never_grants_platform_admin(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", "hosted")
-    monkeypatch.setattr(settings, "platform_admin_emails", ["claimed@example.com"])
-    client = _new_client()
-    try:
-        user_id = await _register(client, "claimed")
-    finally:
-        await client.aclose()
-    async with TestSessionLocal() as session:
-        user = await session.get(User, user_id)
-    assert user is not None
-    assert user.is_platform_admin is False

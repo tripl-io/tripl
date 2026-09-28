@@ -392,6 +392,9 @@ export const topbarDeliveriesKey = (slug: string | null | undefined) =>
 
 /** Whether the instance still needs its first owner — `GET /auth/status`. */
 export const authStatusKey = () => ['auth', 'status'] as const
+/** One redemption of an emailed verification token — `POST /auth/verify-email/confirm`.
+ * Under `auth` so signing in or out never drops the answer the page is showing. */
+export const verifyEmailKey = (token: string) => ['auth', 'verify-email', token] as const
 
 export const usersKey = () => [...orgRoot(), 'users'] as const
 /** Who belongs to one project — `GET /projects/{slug}/members`. The reviewer

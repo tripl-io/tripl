@@ -151,9 +151,15 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `GET /api/v1/auth/status` | Shared status limiter | 30 / minute |
 | `GET /api/v1/auth/invitations/{token}` | Shared status limiter | 30 / minute |
 | `POST /api/v1/auth/invitations/{token}/accept` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
+| `POST /api/v1/auth/verify-email/request` | Own verification limiter (fixed, not configurable) | 10 / hour |
+| `POST /api/v1/auth/verify-email/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 
-The two password-reset routes reuse the **login** limiter (same bucket and
-setting), so they share its per-IP quota. Buckets are keyed per
+The verification-link request has a bucket of its own, so resending a link does
+not use up the login or sign-up quota, and a signed-in caller cannot turn the
+operator's mail relay into a mail cannon.
+
+The two password-reset routes and the verification-link confirm reuse the
+**login** limiter (same bucket and setting), so they share its per-IP quota. Buckets are keyed per
 `(limiter name, client-IP)`, so routes on **different** limiters (login vs
 register) do not share quota, while routes that reuse a limiter (the password-reset
 routes on the login limiter) do. Exceeding a limit returns `429 Too Many Requests`
@@ -244,11 +250,13 @@ invite people directly (see below), so a closed instance can still add exactly
 the people they name. Closing registration is the right end state for a publicly
 reachable instance.
 
-- **First-owner bootstrap is always exempt.** On an instance with **no users**,
-  the first registration is accepted regardless of the mode and becomes the
-  owner of the default organization **and** the platform admin.
+- **First-owner bootstrap is always exempt (self-hosted).** On an instance with
+  **no users**, the first registration is accepted regardless of the mode and
+  becomes the owner of the default organization **and** the platform admin.
   A fresh (or reset) deploy is therefore always claimable; every *later* signup
-  is subject to the policy.
+  is subject to the policy. With `DEPLOYMENT_MODE=hosted` there is no such
+  exception, and a sign-up never grants platform admin; see
+  [Email verification](#email-verification).
 - **Adding a teammate to a closed instance:** invite them. **Settings → Organization
   → Invitations** takes an email and an organization role and returns a
   single-use link.
@@ -267,6 +275,9 @@ reachable instance.
   from a `403`. It also reports `email_configured` (SMTP host and From: address
   both set), so the forgot-password form says up front that no reset link can
   arrive; the unauthenticated reset request already returned the same flag.
+  Finally it reports `deployment_mode` and `email_verification_required`. A
+  hosted instance always reports `has_users: true`, so the endpoint does not
+  reveal whether it is empty.
 
 Rate limiting (`RATE_LIMIT_REGISTER_PER_HOUR`) still applies on top and is *not*
 a substitute: it slows signups, it never closes them.
@@ -286,7 +297,7 @@ a single-use link into the organization the request acts in.
 | Role | The organization role, fixed by the inviter at invite time (`invitations.org_role`). The invitee cannot influence it. |
 | Lifetime | 72 hours, single use. Re-inviting the same address invalidates the previous link. |
 | Delivery | The link appears **once**, in the response to creating it, and is never retrievable afterwards. Copy it then. This is deliberate: SMTP is optional, so handing the link over out of band has to be a first-class path. When the operator has SMTP configured, the link is also emailed, always through the operator's mail server (never an organization's). |
-| Existing accounts | An address that already has an account can be invited into an organization it is not yet in. Accepting while signed in adds the membership, and only when the signed-in account's email equals the invitation's (case-insensitive); any other account gets `403` and the link stays unused. Email addresses are not yet verified at sign-up, so on a hosted instance this rule tightens to *verified* addresses before hosted sign-up opens. |
+| Existing accounts | An address that already has an account can be invited into an organization it is not yet in. Accepting while signed in adds the membership, and only when the signed-in account's email equals the invitation's (case-insensitive); any other account gets `403` and the link stays unused. On a hosted instance the signed-in account must also have [verified](#email-verification) its address (`403` otherwise). |
 | Storage | Only a keyed HMAC digest of the token is stored, like session and reset tokens — a leaked `invitations` table is useless without `SECRET_KEY`. |
 | Rejection | Unknown, expired and already-used links return one identical error, so a rejected redemption never reveals which it hit. |
 | Revoking | **Settings → Organization → Invitations** lists the organization's pending invitations; revoking one kills its link immediately. An invitation into another organization answers `404`. |
@@ -295,6 +306,25 @@ Endpoints: `POST`/`GET` `/api/v1/users/invitations`, `DELETE
 /api/v1/users/invitations/{id}` (all org owner/admin-only), plus the unauthenticated
 `GET /api/v1/auth/invitations/{token}` preview and
 `POST /api/v1/auth/invitations/{token}/accept`.
+
+### Email verification
+
+Every account records whether its email address is verified. The check is
+**enforced only with `DEPLOYMENT_MODE=hosted`**; a self-hosted instance records
+the flag and blocks nothing.
+
+| Property | Behaviour |
+|---|---|
+| Gate | On a hosted instance an unverified account gets `403 Email address not verified` on every route outside `/api/v1/auth/*`, with a browser session or an API key. It can still sign out, read `/auth/me`, request and confirm a verification link, and preview an invitation. A self-hosted instance never gates. |
+| Sign-up | Hosted sign-up needs the operator's SMTP (`503 Email delivery is not configured` otherwise, before anything is created) and sends the link right after the account is made. A failed send is logged, and the user resends with **Resend email** on the **Check your inbox** screen. |
+| Link | `{APP_BASE_URL}/verify-email?token=...`, sent through the operator's relay. Single use, 24 hours. Requesting a new one deletes the account's older unused links; confirming one deletes the rest. On a self-hosted instance `POST /auth/verify-email/request` answers `204` and sends nothing. |
+| Confirming | `POST /auth/verify-email/confirm` needs the signed-in browser session of the account the link was sent to. Without a session it answers `401 Sign in to confirm your email address.` and the link stays unused; the web page sends the visitor to sign in and back to the link. A session of any other account gets the same `400` as a dead link, and the link stays unused. Holding the link alone therefore proves nothing. |
+| Other sessions | Confirming signs out every other session of the account and keeps only the one that confirmed. The owner of the address has just proved control, so a session opened by someone else (for example with a password that was guessed or reused) ends there. |
+| Storage | Only a keyed HMAC digest of the token is stored, like session, reset and invitation tokens. |
+| Rejection | Unknown, expired and used tokens, and tokens sent to another account than the signed-in one, return one identical `400`. |
+| Verified by construction | A self-hosted instance marks **every** account verified when it is created (sign-up, invitation, the first account), and never checks the flag. On a hosted instance an account that completes a password reset is marked verified, since the reset link was mailed to the address. Accounts that existed before verification was introduced were marked verified by the upgrade. |
+| Invitations | On a hosted instance, redeeming an invitation into a **new** account does not verify the address: the inviter received the raw link in the API response, so using it proves nothing about who reads that mailbox. The new account is sent a verification link (a failed send is logged) and must confirm it like a sign-up before it can use the app. A signed-in account accepts an invitation only once verified. |
+| Platform admin | Granted only when an account whose address is listed in `PLATFORM_ADMIN_EMAILS` confirms the emailed verification link while signed in as itself. Sign-up, invitations and password reset never grant it, so the grant always follows proof that the person controls both the address and the account. |
 
 ### Passwords
 
@@ -310,7 +340,8 @@ Two endpoints back the "Forgot your password?" flow (`backend/src/tripl/api/v1/a
 Token handling mirrors session tokens and never trusts the raw value:
 
 - The token is `secrets.token_urlsafe(32)` (~256 bits). The **raw token is never stored** — only its HMAC-SHA256 digest keyed by `SECRET_KEY` (`auth_utils.hash_session_token`) lands in `password_reset_tokens`, so a leaked column is useless without the secret.
-- **Single-use and short-lived**: each token carries `expires_at` (1 hour, `auth_service.PASSWORD_RESET_TTL_HOURS`) and `used_at`. Confirming marks it used, drops any other outstanding token for that user, and clears all of the user's active sessions (a reset ends other logins).
+- **Single-use and short-lived**: each token carries `expires_at` (1 hour, `auth_service.PASSWORD_RESET_TTL_HOURS`) and `used_at`. Confirming marks it used, drops any other outstanding token for that user, clears all of the user's active sessions (a reset ends other logins) and revokes all of the user's API keys, so a key minted by whoever held the old password stops working too. Keys have to be issued again after a reset.
+- **Marks the address verified, grants nothing else**: the link was mailed to the account's address, so a completed reset counts as email verification. It never grants platform admin, even for an address listed in `PLATFORM_ADMIN_EMAILS`; only the [verification link](#email-verification) does.
 - Both routes are **rate-limited** via the shared login limiter (see the rate-limiting table above), and email is sent through the existing alert email channel (`worker/tasks/alerts_channels.py`) as a background task — so a slow SMTP round-trip neither blocks the request nor becomes a timing oracle for whether the account exists.
 
 ### Session cookies

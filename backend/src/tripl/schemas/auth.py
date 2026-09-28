@@ -1,9 +1,16 @@
 import uuid
 from datetime import datetime
+from typing import Literal, Self
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.models.domain_enums import ApiKeyScope, OrganizationRole
+from tripl.schemas.organization import (
+    ORG_NAME_MAX_LENGTH,
+    check_org_slug,
+    clean_org_name,
+)
 
 # The role vocabulary of the users API and ``/auth/me``: the ORGANIZATION role
 # (owner | admin | member) since F20 PR4. ``users.role`` (owner | editor |
@@ -45,11 +52,40 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(max_length=PASSWORD_MAX_LENGTH)
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    # Hosted sign-up (F20): the organization the new account creates and owns.
+    # Both required when DEPLOYMENT_MODE=hosted (422 otherwise), under the same
+    # rules as ``OrgCreate`` (length included, checked in the validator below).
+    # A self-hosted instance ignores them — whatever is sent is dropped
+    # unvalidated, and the account joins the default organization as before.
+    org_name: str | None = None
+    org_slug: str | None = None
 
     @field_validator("password")
     @classmethod
     def _enforce_password_policy(cls, value: str) -> str:
         return validate_password_strength(value)
+
+    @model_validator(mode="after")
+    def _organization_fields_by_mode(self) -> Self:
+        if settings.deployment_mode != DEPLOYMENT_HOSTED:
+            self.org_name = None
+            self.org_slug = None
+            return self
+        if self.org_name is None or self.org_slug is None:
+            raise ValueError("org_name and org_slug are required to sign up on this instance")
+        org_name = clean_org_name(self.org_name)
+        if len(org_name) > ORG_NAME_MAX_LENGTH:
+            raise ValueError(f"org_name must be at most {ORG_NAME_MAX_LENGTH} characters")
+        # ``check_org_slug`` enforces 1..ORG_SLUG_MAX_LENGTH itself.
+        self.org_name = org_name
+        self.org_slug = check_org_slug(self.org_slug)
+        return self
+
+
+class VerifyEmailConfirmRequest(BaseModel):
+    """``POST /auth/verify-email/confirm``: the raw token from the emailed link."""
+
+    token: str = Field(min_length=1, max_length=512)
 
 
 class LoginRequest(BaseModel):
@@ -77,6 +113,14 @@ class AuthStatusResponse(BaseModel):
     # after the request (ST-24). Instance-wide, and already returned by the
     # unauthenticated reset request, so exposing it here leaks nothing new.
     email_configured: bool = False
+    # ``self_hosted`` or ``hosted`` (DEPLOYMENT_MODE). On a hosted instance the
+    # sign-up form also asks for the new organization, ``has_users`` is always
+    # true (no first-account note, and it does not reveal an empty instance),
+    # and ``registration_enabled`` has no first-user bootstrap.
+    deployment_mode: Literal["self_hosted", "hosted"] = "self_hosted"
+    # Whether a signed-in account must verify its address before using the
+    # app: true exactly when hosted.
+    email_verification_required: bool = False
 
 
 class OrgMembershipOut(BaseModel):
@@ -101,6 +145,9 @@ class AuthUserResponse(BaseModel):
     name: str | None
     role: Role | None
     is_platform_admin: bool = False
+    # Whether the account proved it owns ``email`` (``users.email_verified_at``).
+    # Enforced only on a hosted instance; see ``AuthStatusResponse``.
+    email_verified: bool = False
     orgs: list[OrgMembershipOut] = Field(default_factory=list)
     # The slug of the organization this request acts in, when one is bound: an
     # API key's own organization. ``None`` for a browser session on

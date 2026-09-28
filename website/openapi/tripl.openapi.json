@@ -33,6 +33,7 @@
           "auth"
         ],
         "summary": "Register",
+        "description": "Self-service sign-up.\n\nSelf-hosted: into the default organization (the first account owns it and\nis a platform admin); ``org_name`` / ``org_slug`` are ignored.\n\nHosted: ``org_name`` and ``org_slug`` are required and the account creates\nand owns that organization. It starts unverified \u2014 the verification link\nis mailed through the operator relay after the commit (a failed send is\nlogged; the user can resend) \u2014 so 503 up front when that relay cannot send.",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
@@ -117,7 +118,7 @@
           "auth"
         ],
         "summary": "Accept Invitation",
-        "description": "Redeem an invitation: into a new account, or into the signed-in one.\n\nSigned in (a browser session cookie): the invitation adds a membership of\nits organization to THIS account, but only when the account's email is the\ninvitation's (case-insensitive) \u2014 else 403 and the invitation stays unused;\n409 when the account is already a member. Answers 200 and leaves the\nsession as it is (F20 PR6).\n\nNot signed in: the new-account path, unchanged. ``password`` is required,\nthe account is created with the invitation's address and the new user is\nsigned straight in (201). Reachable regardless of ``registration_mode`` \u2014\nan owner-issued, single-use, expiring, address-bound invitation is a\ndifferent mechanism from the instance-wide door, so a closed instance can\nstill onboard exactly the people its owner named.\n\nOn the register rate-limit bucket, so guessing tokens costs the same as\nhammering signup.",
+        "description": "Redeem an invitation: into a new account, or into the signed-in one.\n\nSigned in (a browser session cookie): the invitation adds a membership of\nits organization to THIS account, but only when the account's email is the\ninvitation's (case-insensitive) \u2014 else 403 and the invitation stays unused;\non a hosted instance the account must also have verified its address (403);\n409 when the account is already a member. Answers 200 and leaves the\nsession as it is (F20 PR6).\n\nNot signed in: the new-account path. ``password`` is required, the account\nis created with the invitation's address and the new user is signed\nstraight in (201). Self-hosted the account counts as email-verified. Hosted\nit starts unverified \u2014 the inviter was handed the raw link, so redeeming it\nproves nothing about the address \u2014 and a verification link is mailed\nthrough the operator relay after the commit (a failed send is logged; the\nuser can resend).\nReachable regardless of ``registration_mode`` \u2014\nan owner-issued, single-use, expiring, address-bound invitation is a\ndifferent mechanism from the instance-wide door, so a closed instance can\nstill onboard exactly the people its owner named.\n\nOn the register rate-limit bucket, so guessing tokens costs the same as\nhammering signup.",
         "operationId": "accept_invitation_api_v1_auth_invitations__token__accept_post",
         "parameters": [
           {
@@ -273,6 +274,56 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify-email/request": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Request Email Verification",
+        "description": "Mail the signed-in account a fresh verification link (a resend).\n\nA browser session only (an API key is 403). 204 without doing anything\nwhen the address is already verified or the instance does not require\nverification (self-hosted); 503 when the operator relay cannot send.\nOtherwise every earlier link of the account stops working and the new one\ngoes out after the response (a failed send is logged).",
+        "operationId": "request_email_verification_api_v1_auth_verify_email_request_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify-email/confirm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Confirm Email Verification",
+        "description": "Redeem a verification link, signed in as the account it was issued to.\n\nNeeds a browser session (401 without one): the link alone proves only that\nsomeone read the mail, the session proves it is the account holder who\ndid. A session of a different account gets the same 400 as an unknown,\nexpired or used token, and the token stays usable. On success every other\nsession of the account is signed out, and on a hosted instance an address\nlisted in ``PLATFORM_ADMIN_EMAILS`` becomes a platform admin \u2014 the only\nplace that grant happens. On the login bucket, like the password reset\nconfirm, so guessing tokens costs what guessing passwords does.",
+        "operationId": "confirm_email_verification_api_v1_auth_verify_email_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyEmailConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -18811,7 +18862,7 @@
           "organizations"
         ],
         "summary": "Create Org",
-        "description": "Create an organization; the platform admin who creates it becomes its owner.",
+        "description": "Create an organization; its creator becomes its owner.",
         "operationId": "create_org_api_v1_orgs_post",
         "requestBody": {
           "content": {
@@ -24620,6 +24671,20 @@
             "type": "boolean",
             "title": "Email Configured",
             "default": false
+          },
+          "deployment_mode": {
+            "type": "string",
+            "enum": [
+              "self_hosted",
+              "hosted"
+            ],
+            "title": "Deployment Mode",
+            "default": "self_hosted"
+          },
+          "email_verification_required": {
+            "type": "boolean",
+            "title": "Email Verification Required",
+            "default": false
           }
         },
         "type": "object",
@@ -24663,6 +24728,11 @@
           "is_platform_admin": {
             "type": "boolean",
             "title": "Is Platform Admin",
+            "default": false
+          },
+          "email_verified": {
+            "type": "boolean",
+            "title": "Email Verified",
             "default": false
           },
           "orgs": {
@@ -42294,6 +42364,28 @@
               }
             ],
             "title": "Name"
+          },
+          "org_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Name"
+          },
+          "org_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Slug"
           }
         },
         "type": "object",
@@ -49011,6 +49103,22 @@
           "high"
         ],
         "title": "VariableValueKind"
+      },
+      "VerifyEmailConfirmRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "VerifyEmailConfirmRequest",
+        "description": "``POST /auth/verify-email/confirm``: the raw token from the emailed link."
       }
     }
   },

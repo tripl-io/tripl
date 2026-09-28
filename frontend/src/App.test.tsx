@@ -535,13 +535,16 @@ describe('App auth links', () => {
 
     renderApp('/invite/tok-1')
 
-    expect(await screen.findByRole('heading', { name: 'You are already signed in' })).toBeInTheDocument()
+    // F20: signed in, the invitation can join THIS account; the page says who
+    // that is and offers a sign-out that keeps the link.
+    expect(await screen.findByRole('button', { name: 'Accept with this account' })).toBeInTheDocument()
     expect(screen.getByText('owner@example.com')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/invite/tok-1')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out and continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out and use another account' }))
 
-    expect(await screen.findByRole('heading', { name: 'Join this tripl workspace' })).toBeInTheDocument()
+    expect(await screen.findByLabelText('Password')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Join this tripl workspace' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/invite/tok-1')
   })
 })

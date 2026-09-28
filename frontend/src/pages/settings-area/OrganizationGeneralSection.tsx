@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/hooks/useConfirm'
 import { orgHomePath } from '@/lib/activeOrg'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { useIsOrgOwner, useIsOwner, useIsPlatformAdmin } from '@/lib/permissions'
+import { useCanCreateOrg } from '@/lib/deploymentMode'
+import { useIsOrgOwner, useIsOwner } from '@/lib/permissions'
 import { orgKey, orgsKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import { DangerRow } from './ProjectDangerRows'
@@ -25,13 +26,13 @@ const RENAME_FORM_ID = 'rename-organization-form'
 /**
  * Organization › Details, its General page (F20 PR7): the organization's name (an owner or admin
  * renames it), its slug (read-only: it is in every address, `/o/{slug}/…`, and
- * links already sent must keep working), the platform admin's "Create
- * organization", and the danger zone, where an owner deletes it. The default
+ * links already sent must keep working), "Create organization" (a platform
+ * admin's, or anyone's in hosted mode), and the danger zone, where an owner deletes it. The default
  * organization cannot be deleted, so its danger zone is not drawn.
  */
 export default function OrganizationGeneralSection() {
   const { slug } = useActiveOrg()
-  const platformAdmin = useIsPlatformAdmin()
+  const canCreateOrg = useCanCreateOrg()
 
   return (
     <div>
@@ -42,7 +43,7 @@ export default function OrganizationGeneralSection() {
       {slug ? <OrganizationCards org={slug} /> : (
         <ReadOnlyNotice className="mb-5">You are not a member of any organization.</ReadOnlyNotice>
       )}
-      {platformAdmin && <CreateOrganizationCard />}
+      {canCreateOrg && <CreateOrganizationCard />}
     </div>
   )
 }
@@ -178,7 +179,8 @@ function OrganizationCards({ org }: { org: string }) {
 }
 
 /**
- * A platform admin's "Create organization". The creator becomes its owner and
+ * "Create organization": a platform admin's, and in hosted mode every
+ * signed-in account's (`POST /orgs` allows both). The creator becomes its owner and
  * lands in its (empty) workspace. `?create=1` — the switcher's menu item —
  * brings the form into view.
  */
@@ -223,7 +225,7 @@ function CreateOrganizationCard() {
   return (
     <SCard
       title="Create organization"
-      description="Platform admins only. You become its owner; invite its members from Invitations once you are in it."
+      description="You become its owner; invite its members from Invitations once you are in it."
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
           {createMut.isError && (

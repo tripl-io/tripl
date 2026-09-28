@@ -464,6 +464,8 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "has_users": False,
         "registration_enabled": True,
         "email_configured": False,
+        "deployment_mode": "self_hosted",
+        "email_verification_required": False,
     }
 
     await _register(anon_client, "status-owner@example.com", "Password123!")
@@ -473,4 +475,6 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "has_users": True,
         "registration_enabled": False,
         "email_configured": False,
+        "deployment_mode": "self_hosted",
+        "email_verification_required": False,
     }

@@ -71,7 +71,7 @@ answer as for a slug that does not exist, and always before any `403`.
 | Method and path | Who | What |
 |---|---|---|
 | `GET /api/v1/orgs` | any account | Your organizations, with your role in each. An API key lists only its own organization. |
-| `POST /api/v1/orgs` | platform admin, browser session | `{"slug", "name"}`; the creator becomes the owner. `409` when the slug is taken, `422` for an invalid or reserved slug. |
+| `POST /api/v1/orgs` | self-hosted: platform admin; hosted: any account; browser session | `{"slug", "name"}`; the creator becomes the owner. `409` when the slug is taken, `422` for an invalid or reserved slug. |
 | `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `created_at`. |
 | `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"}` only. The slug is permanent; sending one is `422`. |
 | `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
@@ -145,6 +145,11 @@ Project scope:
 - Project-scoped keys cannot call instance-level routes such as `/api/v1/projects` or `/api/v1/users`.
 - Omit `project_slug` only for trusted automation that must read or write multiple projects.
 
+With `DEPLOYMENT_MODE=hosted`, an account whose email address is not verified
+gets `403 Email address not verified` on every route outside `/api/v1/auth/*`,
+with a session or a key. Keys are created behind that check, so in practice a
+working key always belongs to a verified account.
+
 If a Bearer token is invalid, expired, or revoked, the API returns `401`. If a valid key lacks scope or role permission, the API returns `403`. A project-bound key used on another project's slug gets `404 Project not found`, the same answer as a slug that does not exist, even when the key's user is a member of that project; instance-wide routes still answer `403` to a project-bound key.
 
 Project membership:
@@ -161,6 +166,27 @@ Project membership:
   mutation routes, whatever its scope.
 - A new user is a member of no project. Ask the project's creator or an owner or
   admin of the organization to add the account behind your key.
+
+### Account endpoints {#account-endpoints}
+
+The `/api/v1/auth` routes handle sign-in and the account itself. Agents rarely
+need them beyond `/auth/me`; they are listed so a client can tell them apart
+from the rest of the API. The unauthenticated ones are rate-limited per client
+address and answer `429` with `Retry-After` when exceeded.
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/auth/status` | anyone | `has_users`, `registration_enabled`, `email_configured`, `deployment_mode` (`self_hosted` or `hosted`) and `email_verification_required` (`true` when hosted). A hosted instance always reports `has_users: true`. |
+| `POST /api/v1/auth/register` | anyone, when registration is open | `{"email", "password", "name"?}`, plus `"org_name"` and `"org_slug"`, which a hosted instance requires (`422` without them, `409` when the slug is taken) and a self-hosted one ignores. Hosted: `503 Email delivery is not configured` when the operator cannot send mail; the new account owns a new organization and is sent a verification link. |
+| `POST /api/v1/auth/login` | anyone | Starts a browser session. |
+| `POST /api/v1/auth/logout` | session | `204`. |
+| `GET /api/v1/auth/me` | session or key | The account, including `email_verified`. |
+| `POST /api/v1/auth/verify-email/request` | session | `204`. Sends a new verification link (24 hours, single use) and invalidates the earlier unused ones; a verified account gets `204` and no mail, and so does every account on a self-hosted instance, where verification is not required. `503` when the operator cannot send mail. Rate-limited to 10 an hour. |
+| `POST /api/v1/auth/verify-email/confirm` | the signed-in browser session of the token's own account | `{"token"}`. `204`, and the address is verified; every other session of the account is signed out, the caller's is kept. No session: `401 Sign in to confirm your email address.` and the token stays unused. An unknown, expired or used token, or one sent to another account than the signed-in one, is one uniform `400` (the token stays unused). Hosted: an address listed in `PLATFORM_ADMIN_EMAILS` becomes a platform admin here, and only here. |
+| `POST /api/v1/auth/password-reset/request` | anyone | Sends a reset link when the address has an account; the answer does not say whether it does. |
+| `POST /api/v1/auth/password-reset/confirm` | anyone | Sets the new password and marks the address verified. Signs the account out everywhere and revokes all of its API keys; issue new keys afterwards. Never grants platform admin. |
+| `GET /api/v1/auth/invitations/{token}` | anyone | Previews an invitation. |
+| `POST /api/v1/auth/invitations/{token}/accept` | anyone, or the invited account signed in | Creates the account, or adds the organization to the signed-in account. Self-hosted: the new account is verified at creation. Hosted: the new account is **not** verified by the invitation and is sent a verification link to confirm, and a signed-in account must be verified first (`403`). Never grants platform admin. |
 
 ### Project members
 

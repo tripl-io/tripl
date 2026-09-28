@@ -44,6 +44,7 @@ from tripl.services.app_settings_service import (
     resolve_settings,
     settings_scope_for,
 )
+from tripl.tests._accounts import sign_up
 from tripl.tests._members import add_org_member
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
 from tripl.tests.conftest import TestSessionLocal
@@ -404,12 +405,8 @@ def _new_client() -> AsyncClient:
 
 
 async def _register(client: AsyncClient, name: str) -> uuid.UUID:
-    resp = await client.post(
-        f"{API}/auth/register",
-        json={"email": f"{name}@example.com", "password": PASSWORD, "name": name},
-    )
-    assert resp.status_code == 201, resp.text
-    return uuid.UUID(resp.json()["id"])
+    # Hosted: a verified default-org member, as hosted sign-up used to make.
+    return await sign_up(client, email=f"{name}@example.com", password=PASSWORD, name=name)
 
 
 async def _move_to_org(user_id: uuid.UUID, org_id: uuid.UUID, role: str) -> None:
