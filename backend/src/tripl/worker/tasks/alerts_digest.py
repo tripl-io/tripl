@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.project import Project
 from tripl.services import app_settings_service
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.tasks.alerts_channels import DIGEST_SUBJECT_TITLE
@@ -190,6 +191,7 @@ def send_weekly_plan_digest() -> dict[str, int]:
                 # which is the honest tally: nothing was attempted, and nothing
                 # is wrong (tripl-0zpq.33).
                 Project.is_demo.is_(False),
+                project_in_active_org(),
                 AlertDestination.enabled.is_(True),
                 AlertDestination.type.in_(
                     [AlertDestinationType.slack.value, AlertDestinationType.email.value]
@@ -262,6 +264,7 @@ def check_deprecated_sunset_events() -> dict[str, int]:
                 # its destinations the same way and is equally outside the API's
                 # demo guard.
                 Project.is_demo.is_(False),
+                project_in_active_org(),
                 AlertDestination.enabled.is_(True),
                 AlertDestination.type.in_(
                     [AlertDestinationType.slack.value, AlertDestinationType.email.value]

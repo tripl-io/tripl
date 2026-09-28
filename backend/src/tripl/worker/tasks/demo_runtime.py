@@ -86,6 +86,7 @@ from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.schema_drift import SchemaDrift
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.demo import noise
 from tripl.services.demo.builders.plan import event_specs
 from tripl.services.demo.builders.warehouse import (
@@ -177,6 +178,7 @@ def advance_demos(now: datetime | None = None) -> dict[str, object]:
             ).where(
                 Project.is_demo.is_(True),
                 Project.generation_status == ProjectGenerationStatus.ready.value,
+                project_in_active_org(),
             )
         ).all()
         # End the read transaction before per-demo write transactions so each demo

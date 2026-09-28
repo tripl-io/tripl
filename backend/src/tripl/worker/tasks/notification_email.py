@@ -55,6 +55,7 @@ from tripl.models.user_notification_prefs import (
     UserNotificationPrefs,
 )
 from tripl.services import alert_owner_routing, app_settings_service
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.project_access import project_member_clause
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
@@ -251,6 +252,8 @@ def _candidates(
     conditions = [
         Notification.emailed_at.is_(None),
         Project.is_demo.is_(False),
+        # A suspended organization's mail waits for it to be unsuspended (F20 PR14).
+        project_in_active_org(),
         project_member_clause(Notification.user_id, Notification.project_id),
     ]
     if digest is None:

@@ -34,7 +34,22 @@ const ACTION_TONE_RULES: { pattern: RegExp; tone: ChipTone }[] = [
   },
 ]
 
+/**
+ * Whole-action tones for the platform console's codes (F20), whose verbs no
+ * suffix rule should learn: `step_in` and `suspend` are not generic verbs.
+ */
+const ACTION_TONE: Record<string, ChipTone> = {
+  'org.suspend': 'danger',
+  'org.unsuspend': 'success',
+  'platform.step_in': 'warning',
+  'platform.step_in_end': 'neutral',
+  'platform.admin_grant': 'success',
+  'platform.admin_revoke': 'danger',
+}
+
 export function actionTone(action: string): ChipTone {
+  const whole = ACTION_TONE[action]
+  if (whole) return whole
   const verb = action.split('.').pop() ?? ''
   return ACTION_TONE_RULES.find((rule) => rule.pattern.test(verb))?.tone ?? 'neutral'
 }
@@ -101,6 +116,14 @@ const ACTION_SENTENCE: Record<string, string> = {
   'doc.folder_delete': 'Deleted a folder of notes',
   'doc.import': 'Imported notes',
   'doc.restore': 'Restored an earlier revision of note',
+  // The platform console (F20): an operator acting on the organization, which
+  // its owners read in their own audit log.
+  'org.suspend': 'Suspended the organization',
+  'org.unsuspend': 'Reinstated the organization',
+  'platform.step_in': 'Started a read-only step-in',
+  'platform.step_in_end': 'Ended a read-only step-in',
+  'platform.admin_grant': 'Granted platform admin to',
+  'platform.admin_revoke': 'Revoked platform admin from',
 }
 
 export const TARGET_NOUN: Record<string, string> = {

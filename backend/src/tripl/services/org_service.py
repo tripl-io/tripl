@@ -6,6 +6,9 @@ plain exceptions, never HTTP ones:
 * :class:`OrgNotFoundError` — no such ``active`` organization, or the caller
   cannot see it (not a member, or an API key of another organization). One
   error for all of them, so the answer is no oracle for which slugs exist.
+* :class:`OrgSuspendedError` — a member (or a key) of a ``suspended``
+  organization (F20 PR14); raised only after the membership check, so a
+  stranger still gets :class:`OrgNotFoundError`.
 * :class:`OrgSlugTakenError` — create with a slug another organization holds.
 * :class:`user_service.LastOwnerError` / :class:`user_service.OwnerManagementError`
   — the owner-set invariants, shared with ``PATCH /users/{id}``.
@@ -27,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
+from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
@@ -38,13 +42,18 @@ from tripl.services import (
     project_member_service,
     user_service,
 )
-from tripl.services.org_resolution import ORG_IS_ACTIVE
+from tripl.services.org_resolution import ORG_IS_VISIBLE, active_step_in_id
+from tripl.services.step_in_expiry import close_expired_step_ins
 
 _ORG_SLUG = re.compile(ORG_SLUG_PATTERN)
 
 
 class OrgNotFoundError(LookupError):
     """The organization does not exist, is being deleted, or is not the caller's."""
+
+
+class OrgSuspendedError(Exception):
+    """The organization is suspended; its members are refused (403)."""
 
 
 class OrgSlugTakenError(Exception):
@@ -81,6 +90,9 @@ class ManagedOrg:
     role: OrganizationRole
     status: str
     created_at: datetime
+    #: The caller reads it through a platform admin's read-only step-in (F20
+    #: PR14), not a membership; ``role`` is then ``member``.
+    step_in: bool = False
 
 
 def org_response(org: ManagedOrg) -> OrgResponse:
@@ -92,6 +104,7 @@ def org_response(org: ManagedOrg) -> OrgResponse:
         status=OrganizationStatus(org.status),
         is_default=org.id == DEFAULT_ORG_ID,
         created_at=org.created_at,
+        step_in=org.step_in,
     )
 
 
@@ -101,8 +114,9 @@ async def resolve_managed_org(
     slug: str,
     user_id: uuid.UUID,
     key_org_id: uuid.UUID | None,
+    platform_admin: bool = False,
 ) -> ManagedOrg:
-    """The ``active`` organization ``slug`` if the caller may see it.
+    """The organization ``slug`` if the caller may see it.
 
     A member of it, through a browser session or an API key of that same
     organization. Everything else — an unknown slug, a ``deleting``
@@ -110,26 +124,40 @@ async def resolve_managed_org(
     :class:`OrgNotFoundError`. Unlike the project routes' org resolution, the
     default organization gets no exception for non-members here: managing an
     organization takes a membership of it.
+
+    A member of a ``suspended`` organization gets :class:`OrgSuspendedError`.
+    A platform admin's browser session (``platform_admin`` and no key) with a
+    live step-in to it reads it as a ``member`` (``step_in=True``), suspended
+    or not; the route layer refuses every write under a step-in.
     """
     if not _ORG_SLUG.fullmatch(slug):
         # A NUL or any other byte no slug can hold never reaches a query.
         raise OrgNotFoundError(slug)
-    row = (
-        await session.execute(
-            select(Organization, OrganizationMember.role)
-            .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
-            .where(
-                Organization.slug == slug,
-                ORG_IS_ACTIVE,
-                OrganizationMember.user_id == user_id,
-            )
+    org: Organization | None = await session.scalar(
+        select(Organization).where(Organization.slug == slug, ORG_IS_VISIBLE)
+    )
+    if org is None or (key_org_id is not None and key_org_id != org.id):
+        raise OrgNotFoundError(slug)
+    role: str | None = await session.scalar(
+        select(OrganizationMember.role).where(
+            OrganizationMember.organization_id == org.id,
+            OrganizationMember.user_id == user_id,
         )
-    ).first()
-    if row is None:
-        raise OrgNotFoundError(slug)
-    org, role = cast(tuple[Organization, str], tuple(row))
-    if key_org_id is not None and key_org_id != org.id:
-        raise OrgNotFoundError(slug)
+    )
+    step_in = False
+    if role is None:
+        if key_org_id is not None or not platform_admin:
+            raise OrgNotFoundError(slug)
+        if await active_step_in_id(session, user_id, org.id) is None:
+            # An expired step-in nobody ended is recorded the first time it is seen.
+            admin = await session.get(User, user_id)
+            if admin is not None:
+                await close_expired_step_ins(session, admin, org_id=org.id)
+            raise OrgNotFoundError(slug)
+        role = OrganizationRole.member.value
+        step_in = True
+    elif str(org.status) == OrganizationStatus.suspended.value:
+        raise OrgSuspendedError(slug)
     return ManagedOrg(
         id=org.id,
         slug=org.slug,
@@ -137,39 +165,79 @@ async def resolve_managed_org(
         role=OrganizationRole(str(role)),
         status=str(org.status),
         created_at=org.created_at,
+        step_in=step_in,
     )
 
 
 async def list_my_orgs(
-    session: AsyncSession, user_id: uuid.UUID, *, only_org_id: uuid.UUID | None = None
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    only_org_id: uuid.UUID | None = None,
+    include_step_ins: bool = False,
 ) -> list[OrgResponse]:
-    """Every ``active`` organization ``user_id`` belongs to, by name.
+    """Every organization ``user_id`` belongs to, by name, suspended ones included.
 
-    ``only_org_id`` narrows it to one: an API key belongs to one organization
-    and must not list the others its user happens to be in.
+    A ``suspended`` organization is listed with its status, so the UI can say
+    why it is closed; a ``deleting`` one is gone. ``only_org_id`` narrows it to
+    one: an API key belongs to one organization and must not list the others
+    its user happens to be in. ``include_step_ins`` (a platform admin's
+    browser session) adds the organizations they have a live step-in to and
+    no membership of, flagged ``step_in`` with role ``member``.
     """
     query = (
         select(Organization, OrganizationMember.role)
         .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
-        .where(OrganizationMember.user_id == user_id, ORG_IS_ACTIVE)
+        .where(OrganizationMember.user_id == user_id, ORG_IS_VISIBLE)
         .order_by(Organization.name, Organization.slug)
     )
     if only_org_id is not None:
         query = query.where(Organization.id == only_org_id)
     rows = (await session.execute(query)).all()
-    return [
-        org_response(
+    managed = [
+        ManagedOrg(
+            id=org.id,
+            slug=org.slug,
+            name=org.name,
+            role=OrganizationRole(str(role)),
+            status=str(org.status),
+            created_at=org.created_at,
+        )
+        for org, role in rows
+    ]
+    if include_step_ins and only_org_id is None:
+        admin = await session.get(User, user_id)
+        if admin is not None:
+            await close_expired_step_ins(session, admin)
+        member_of = {org.id for org in managed}
+        stepped = (
+            await session.scalars(
+                select(Organization)
+                .join(PlatformStepIn, PlatformStepIn.organization_id == Organization.id)
+                .where(
+                    PlatformStepIn.user_id == user_id,
+                    PlatformStepIn.ended_at.is_(None),
+                    PlatformStepIn.expires_at > datetime.now(UTC),
+                    ORG_IS_VISIBLE,
+                )
+                .distinct()
+            )
+        ).all()
+        managed.extend(
             ManagedOrg(
                 id=org.id,
                 slug=org.slug,
                 name=org.name,
-                role=OrganizationRole(str(role)),
+                role=OrganizationRole.member,
                 status=str(org.status),
                 created_at=org.created_at,
+                step_in=True,
             )
+            for org in stepped
+            if org.id not in member_of
         )
-        for org, role in rows
-    ]
+        managed.sort(key=lambda org: (org.name, org.slug))
+    return [org_response(org) for org in managed]
 
 
 async def create_org(session: AsyncSession, *, creator: User, slug: str, name: str) -> ManagedOrg:

@@ -41,6 +41,7 @@ from tripl.api.v1.plan_branches import router as plan_branches_router
 from tripl.api.v1.plan_export import router as plan_export_router
 from tripl.api.v1.plan_revisions import router as plan_revisions_router
 from tripl.api.v1.plan_validation import router as plan_validation_router
+from tripl.api.v1.platform_console import router as platform_console_router
 from tripl.api.v1.platform_settings import router as platform_settings_router
 from tripl.api.v1.project_anomaly_settings import router as project_anomaly_settings_router
 from tripl.api.v1.project_branch_settings import router as project_branch_settings_router
@@ -119,3 +120,5 @@ router.include_router(orgs_router, dependencies=protected_dependencies)
 router.include_router(org_settings_router, dependencies=protected_dependencies)
 router.include_router(org_groups_router, dependencies=protected_dependencies)
 router.include_router(platform_settings_router, dependencies=protected_dependencies)
+# The platform console (F20 PR14): organizations, users, read-only step-ins.
+router.include_router(platform_console_router, dependencies=protected_dependencies)

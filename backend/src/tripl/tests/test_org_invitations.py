@@ -117,7 +117,9 @@ async def test_a_signed_in_account_accepts_an_invitation_sent_to_it(world: World
 
     accepted = await world.alice.post(f"{API}/auth/invitations/{token}/accept", json={})
     assert accepted.status_code == 200, accepted.text
-    assert {"slug": ACME, "name": "Acme", "role": "admin"} in accepted.json()["orgs"]
+    assert {"slug": ACME, "name": "Acme", "role": "admin", "status": "active"} in accepted.json()[
+        "orgs"
+    ]
     # /auth/me says so at once, and the account keeps its default membership.
     me = (await world.alice.get(f"{API}/auth/me")).json()
     assert {org["slug"] for org in me["orgs"]} == {"default", ACME}

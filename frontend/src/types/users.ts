@@ -20,6 +20,23 @@ export interface OrgMembership {
   slug: string
   name: string
   role: Role
+  /**
+   * `suspended`: an operator suspended the organization, and every request
+   * inside it answers 403 until it is reinstated; the shell shows that state
+   * instead of the app. Optional: absent reads as active.
+   */
+  status?: 'active' | 'suspended' | 'deleting'
+}
+
+/**
+ * A platform admin's read-only step-in (F20): until `expires_at` they read the
+ * organization `org_slug` as a viewer, and every write there is refused.
+ */
+export interface ActiveStepIn {
+  /** The step-in's id, which ends it. Optional so hand-built fixtures type. */
+  id?: string
+  org_slug: string
+  expires_at: string
 }
 
 export interface AuthUser {
@@ -47,6 +64,11 @@ export interface AuthUser {
   email_verified?: boolean
   /** Every organization membership. */
   orgs: OrgMembership[]
+  /**
+   * The platform admin's unexpired, un-ended step-ins, so the shell can show
+   * the read-only banner. Optional: absent (and for everyone else) is none.
+   */
+  active_step_ins?: ActiveStepIn[]
   /**
    * The organization this request acts in, when one is bound: an API key's
    * own. `null` for a browser session on `/auth/me`.

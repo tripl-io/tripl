@@ -18,6 +18,7 @@ from tripl.services._search_documents import (
     EMBED_TEXT_MAX_CHARS,
     embed_text_for,
 )
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.app_settings_service import AiConfig
 from tripl.services.embedding_service import can_embed, embed_texts, embedding_provenance
 from tripl.services.search_service import sanitize_embedding
@@ -252,7 +253,7 @@ def _orgs_by_embedding_space(session: Session) -> dict[tuple[bool, str], list[uu
     # of each project instead of aggregating the whole search_documents table.
     org_ids = session.scalars(
         select(Project.organization_id)
-        .where(exists().where(SearchDocument.project_id == Project.id))
+        .where(exists().where(SearchDocument.project_id == Project.id), project_in_active_org())
         .distinct()
     ).all()
     groups: dict[tuple[bool, str], list[uuid.UUID]] = {}
@@ -416,6 +417,7 @@ def requeue_stranded_search_embeddings() -> dict[str, int]:
             .where(
                 SearchDocument.embedding_status == "pending",
                 SearchDocument.updated_at < cutoff,
+                project_in_active_org(),
             )
             .distinct()
         ).all()

@@ -2,6 +2,7 @@ import {
   Activity,
   Building2,
   Archive,
+  Building,
   Cpu,
   Database,
   Key,
@@ -265,6 +266,26 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
     sub: 'Platform admin',
     desc: 'Server-wide settings',
     items: [
+      // The console (F20): every organization and account on the instance.
+      // "Organizations" and "User accounts", not "Organization" / "Members": those
+      // are the organization's own pages, and two items with one label read
+      // as one page in the rail and in both palettes.
+      {
+        id: 'platform-orgs',
+        label: 'Organizations',
+        icon: Building,
+        path: 'platform/orgs',
+        platformOnly: true,
+        keywords: ['tenants', 'suspend', 'step in', 'support'],
+      },
+      {
+        id: 'platform-users',
+        label: 'User accounts',
+        icon: UserCog,
+        path: 'platform/users',
+        platformOnly: true,
+        keywords: ['accounts', 'platform admin', 'operators'],
+      },
       {
         id: 'runtime',
         label: 'Runtime',

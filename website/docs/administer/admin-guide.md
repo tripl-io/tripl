@@ -49,7 +49,7 @@ Access is decided by two roles and one flag:
 | **Member, project `editor`** | That project | That project | Projects they created | No | No | No | No |
 | **Member, project `viewer`** | That project | No | No | No | No | No | No |
 | **Member, no project row** | — (`404`) | No | No | No | No | No | No |
-| **Platform admin** (flag only) | None from the flag | No | No | No | No | Yes | Yes |
+| **Platform admin** (flag only) | None from the flag; read-only during a [step-in](#read-only-step-in) | No | No | No | No | Yes | Yes |
 
 An owner and an admin differ only on owners: an admin can do everything an owner
 can except promote someone to owner, demote an owner, or invite at the `owner`
@@ -59,9 +59,12 @@ role (`403 Only an owner can manage owners`). Owner-only matters that come later
 The platform admin is an **operator** role, not an organization one. The flag
 grants the operator settings and nothing inside any organization: a platform
 admin who is not a member sees no project (`404`), no audit log and no data
-source connection. On a self-hosted instance the first account is both the
-default organization's owner and the platform admin, so a one-person instance
-never notices the split.
+source connection. The one way in is a time-limited, audited
+[read-only step-in](#read-only-step-in) from the
+[platform console](#platform-console), which also suspends organizations and
+grants or revokes the flag. On a self-hosted instance the first account is both
+the default organization's owner and the platform admin, so a one-person
+instance never notices the split.
 
 How roles are assigned:
 
@@ -530,6 +533,8 @@ confirms the emailed verification link while signed in as itself. Sign-up,
 invitations and password reset never grant it. To bootstrap a hosted instance,
 set the list, sign up with a listed address, and open the verification link in
 the browser where you are signed in as that account.
+Without working mail, grant it on the server instead with
+[`tripl-admin grant-platform-admin`](../run/configuration.md#tripl-admin).
 
 `GET /api/v1/auth/status` reports `deployment_mode` and
 `email_verification_required` (`true` on a hosted instance), which the sign-in
@@ -660,6 +665,142 @@ Every organization action is audited: `org.create`, `org.rename`,
 `org.group.member_remove`, and for invitations
 `user.invite`, `user.invite_revoke` and `user.invite_accept`. They appear under
 **Organization** and **Workspace** in the Audit tab's action filter.
+
+The [platform console](#platform-console)'s six actions have a filter group of
+their own, **Platform**: `org.suspend`, `org.unsuspend`, `platform.step_in`,
+`platform.step_in_end`, `platform.admin_grant` and `platform.admin_revoke`.
+Suspension and a platform admin's [read-only step-in](#read-only-step-in) are
+recorded in the organization's own log; the two grant actions belong to no
+organization (see [Users](#platform-users)).
+
+## Platform console
+
+The **platform console** is where the operator of a hosted instance looks after
+the organizations and accounts on it. It is for **platform admins** only and
+lives in **Settings → Platform**, as two pages beside the platform settings:
+**Organizations** (`/settings/platform/orgs`, one organization at
+`/settings/platform/orgs/{org}`) and **User accounts**
+(`/settings/platform/users`). Both are shown only when your account is a
+platform admin. The short address `/platform` redirects to **Organizations**
+(and `/platform/users` to **User accounts**). Its API is under
+`/api/v1/platform` and, like the platform settings, takes a platform admin's
+browser session and never an API key (`403 Platform admin session required`).
+The endpoints are listed in the
+[Agent API guide](../integrate/agent-api-guide.md#platform-console).
+
+The console shows **metadata and counts, never project content**: an
+organization's name, slug, status, creation date, member and project counts,
+owners' emails, and on its detail page the member list (email, name,
+organization role) and the project list (slug, name, creation date). Reading an
+organization's plan, scans or alerts takes a
+[read-only step-in](#read-only-step-in), which that organization can see in its
+audit log.
+
+### Organizations {#platform-organizations}
+
+**Settings → Platform → Organizations** lists every organization on the instance with a search box
+(name or slug) and a status filter (`active`, `suspended`, `deleting`), each row
+with its member and project counts and its owners. Opening a row shows the
+organization's members and projects.
+
+#### Suspend an organization
+
+**Suspend** (with a reason, required, up to 500 characters) stops an
+organization without deleting anything:
+
+- Every request that acts in the organization answers
+  `403 This organization is suspended` — reads and writes, from its members'
+  browser sessions and from its API keys, on `/api/v1/orgs/{org}/...` and on the
+  short paths alike. Open live-update streams in its projects are closed too.
+  The one exception is a platform admin's
+  [read-only step-in](#read-only-step-in), which may still read a suspended
+  organization to investigate it.
+- The organization stays in its members' organization list
+  (`GET /api/v1/orgs`) with `status: "suspended"`, and opening it in the app
+  shows a full-page **This organization is suspended** notice instead of the
+  workspace, so members know why it stopped rather than finding it gone.
+- Scheduled work stops for its projects: scans and metrics collection, alert
+  evaluation and digests, notification digests, sunset alerts and the
+  search-embedding sweeps all skip projects of an organization that is not
+  active. The same rule keeps them off an organization that is being deleted.
+- Nothing is removed. **Unsuspend** makes it active again, and the schedules
+  pick its projects up on their next run.
+
+A suspended organization is still listed in the console, and it cannot be
+deleted until it is unsuspended. Suspending or unsuspending an organization that
+is being deleted is refused (`409`), and the default organization can never be
+suspended (`409`), whatever the `DEPLOYMENT_MODE`.
+Both actions are audited in the organization itself (`org.suspend`, with the
+reason, and `org.unsuspend`), with the platform admin as the actor, so its
+owners see who did it and why.
+
+### Users {#platform-users}
+
+**Settings → Platform → User accounts** lists every account with a search box (email or name): whether it is
+a platform admin, whether its address is verified, when it was created and how
+many organizations it belongs to. **Grant platform admin** and **Revoke platform
+admin** each ask for confirmation. Two revocations are refused with `409`:
+
+- the **last** platform admin — an instance always keeps one;
+- **your own** flag — another platform admin has to revoke it, so nobody locks
+  themselves out by accident.
+
+Grants and revocations are audited as `platform.admin_grant` and
+`platform.admin_revoke`. They belong to no organization, so no organization's
+audit feed lists them; reading them takes a direct database query, like
+`org.delete_complete`.
+
+The first platform admin of a hosted instance, or a replacement when every
+platform admin has lost access, comes from the
+[`tripl-admin`](../run/configuration.md#tripl-admin) command on the server,
+not from the console. It also marks the account's address verified if it was
+not, since whoever runs it controls the instance.
+
+### Read-only step-in
+
+A platform admin is not a member of the organizations on the instance and sees
+none of their projects (`404`). To look into one — to answer a support question
+or check a report of abuse — the admin **steps in**: **Step in (read-only)** on
+the organization's row or its detail page asks for a reason and a duration,
+then opens the organization at `/o/{org}`. An active or a **suspended**
+organization can be stepped into (suspension blocks its members and keys, not
+an investigation); one that is being deleted cannot.
+
+The rules:
+
+- **Read-only, always.** For the step-in's lifetime the admin acts in the
+  organization as a `member` who is a `viewer` of every one of its projects.
+  Every request that is not a `GET`, `HEAD` or `OPTIONS` is refused with
+  `403 Step-in is read-only`, with exactly two exceptions, the two read-shaped
+  `POST` queries the charts use:
+  `POST /api/v1/projects/{slug}/anomalies/signals/query` and
+  `POST /api/v1/projects/{slug}/events/window-metrics`. Organization settings,
+  members and roles, invitations, API keys and deleting the organization stay
+  out of reach, and so does everything that needs the organization's owner or
+  admin role (data-source connection details, scan SQL, the audit log).
+- **A reason is mandatory** (1 to 500 characters), and it is recorded.
+- **It expires.** The duration is 5 to 240 minutes (60 by default). After that
+  the admin is back to `404`. **End now** in the banner, or
+  `POST /api/v1/platform/step-ins/{id}/end`, ends it early.
+- **One at a time per organization.** Stepping in again to the same
+  organization supersedes the earlier step-in: it ends, and the new one (with
+  its own reason and duration) takes over.
+- **Browser session only.** A step-in never extends to an API key, the admin's
+  own keys included.
+- **Audited in the organization.** Starting writes `platform.step_in` (with the
+  reason, the duration and the expiry) and ending writes
+  `platform.step_in_end` to the organization's own audit log, with the platform
+  admin as the actor, so its owners and admins see every step-in in
+  **Audit**. A step-in that simply runs out is recorded as
+  `platform.step_in_end` with `expired: true`, written lazily: when the
+  instance next looks at that step-in (the admin's next request, or a listing
+  of step-ins), not at the exact expiry time.
+
+While a step-in is active, every page of that organization shows a banner:
+**Read-only step-in to *Acme* — ends at 14:30 — End now**. A write the admin
+tries anyway surfaces the backend's `403 Step-in is read-only`.
+`GET /api/v1/auth/me` lists the caller's active step-ins
+(`active_step_ins: [{org_slug, expires_at}]`), which is what the banner reads.
 
 ## Profile & account security
 

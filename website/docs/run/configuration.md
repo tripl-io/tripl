@@ -166,9 +166,40 @@ cannot be changed in **Settings → Instance**.
 
 | Variable | Default | Required in prod? | Purpose |
 | --- | --- | --- | --- |
-| `DEPLOYMENT_MODE` | `self_hosted` | No | `self_hosted` is one team's instance. `hosted` is a multi-tenant service. It is read when the database is migrated to decide who becomes a **platform admin** (the operator of the whole instance). When the value is `self_hosted`, every owner of the default organization becomes a platform admin, and so does the first account of an empty instance. When the value is `hosted`, only existing accounts whose address is in `PLATFORM_ADMIN_EMAILS` do. It also decides which organization a request acts in when its URL does not name one (no `/api/v1/orgs/{org}/` prefix): `self_hosted` always acts in the default organization; `hosted` acts in the user's only organization and answers 400 `Organization required` when the user belongs to none or to several (such a user names the organization in the URL). With `hosted`, sign-up creates a new organization, signing up needs the operator's SMTP, and an account must verify its email address before it can use anything beyond the `/api/v1/auth/*` routes; any signed-in user may create an organization. A new account made from an invitation on a hosted instance must verify its address too. With `self_hosted` none of that applies: every account is marked verified when it is created and nothing is ever gated. See [Hosted sign-up and email verification](../administer/admin-guide.md#hosted-sign-up-and-email-verification). Any other value refuses to start. The platform-admin grant runs during the upgrades that add organizations (the organization schema, and again with organization roles). It only adds the flag and never revokes it. Changing the value between upgrades changes nothing until the next such upgrade, and there is no platform-admin management yet. |
-| `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. Only accounts that already exist when an organization upgrade runs are flagged, so create them first and set the list before upgrading. Signing up, accepting an invitation or completing a password reset with a listed address **never** grants it. The only way is the emailed verification link: when an account with a listed address confirms that link while signed in as itself, it becomes a platform admin at that moment, so the grant follows proof of both the mailbox and the account. Removing an email revokes nothing. |
+| `DEPLOYMENT_MODE` | `self_hosted` | No | `self_hosted` is one team's instance. `hosted` is a multi-tenant service. It is read when the database is migrated to decide who becomes a **platform admin** (the operator of the whole instance). When the value is `self_hosted`, every owner of the default organization becomes a platform admin, and so does the first account of an empty instance. When the value is `hosted`, only existing accounts whose address is in `PLATFORM_ADMIN_EMAILS` do. It also decides which organization a request acts in when its URL does not name one (no `/api/v1/orgs/{org}/` prefix): `self_hosted` always acts in the default organization; `hosted` acts in the user's only organization and answers 400 `Organization required` when the user belongs to none or to several (such a user names the organization in the URL). With `hosted`, sign-up creates a new organization, signing up needs the operator's SMTP, and an account must verify its email address before it can use anything beyond the `/api/v1/auth/*` routes; any signed-in user may create an organization. A new account made from an invitation on a hosted instance must verify its address too. With `self_hosted` none of that applies: every account is marked verified when it is created and nothing is ever gated. See [Hosted sign-up and email verification](../administer/admin-guide.md#hosted-sign-up-and-email-verification). Any other value refuses to start. The platform-admin grant runs during the upgrades that add organizations (the organization schema, and again with organization roles). It only adds the flag and never revokes it. Changing the value between upgrades changes nothing until the next such upgrade. After that, platform admins are granted and revoked in the [platform console](../administer/admin-guide.md#platform-console) or with [`tripl-admin`](#tripl-admin). |
+| `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. Only accounts that already exist when an organization upgrade runs are flagged, so create them first and set the list before upgrading. Signing up, accepting an invitation or completing a password reset with a listed address **never** grants it. Through the list, the only way is the emailed verification link: when an account with a listed address confirms that link while signed in as itself, it becomes a platform admin at that moment, so the grant follows proof of both the mailbox and the account. Removing an email revokes nothing; revoke in the [platform console](../administer/admin-guide.md#platform-users) or with [`tripl-admin`](#tripl-admin). An operator who cannot receive mail on a listed address can grant the flag with `tripl-admin` instead. |
 | `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or search-embedding settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Disabled by operator policy**) until it sets its own relay, AI endpoint or embedding endpoint and key. With `none`, an organization without its own embedding endpoint has semantic search off; lexical search still works. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (email verification, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. |
+
+### Managing platform admins: `tripl-admin` {#tripl-admin}
+
+`tripl-admin` is a console command installed with the backend (it is on the
+`PATH` of the tripl image). It works on the database directly, over the same
+`SYNC_DATABASE_URL` the Celery workers use, so it needs no running app, no
+session and no mail. It is how the operator of a hosted instance makes the
+first platform admin, and the way back in when every platform admin has lost
+access; after that, the [platform console](../administer/admin-guide.md#platform-users)
+does the same from the browser.
+
+```bash
+# In a compose deployment, from the directory holding compose.yaml and .env:
+docker compose exec app tripl-admin grant-platform-admin ops@example.com
+docker compose exec app tripl-admin list-platform-admins
+docker compose exec app tripl-admin revoke-platform-admin former-ops@example.com
+```
+
+| Command | What it does |
+| --- | --- |
+| `grant-platform-admin EMAIL` | Makes the account with that address a platform admin, and marks its address verified if it was not (recorded as `marked_verified: true` in the audit entry). Granting an existing admin changes nothing. |
+| `revoke-platform-admin EMAIL` | Takes the flag away. Refuses to revoke the **last** platform admin, so the instance always keeps one. |
+| `list-platform-admins` | Prints the address of every platform admin. |
+
+The address is matched without regard to case and must belong to an existing
+account: create it first (sign up, or accept an invitation). An unknown address
+or a refused revocation prints the reason and exits non-zero, so a provisioning
+script can stop on it. The command does not look at `DEPLOYMENT_MODE` or
+`PLATFORM_ADMIN_EMAILS` and does not require the address to be verified:
+whoever can run it on the server already controls the instance, so a grant
+marks an unverified address verified instead.
 
 ### Operator and organization settings
 

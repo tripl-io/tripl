@@ -317,6 +317,21 @@ describe('Layout breadcrumbs', () => {
   })
 })
 
+describe('Layout suspended organization (F20)', () => {
+  it('shows the suspended state instead of the shell when the organization refuses', async () => {
+    renderLayout('/workspace', '/workspace', 'Workspace page', {
+      mocks: () => {
+        vi.mocked(projectsApi.list).mockRejectedValue(new ApiError('This organization is suspended', 403))
+      },
+    })
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'This organization is suspended' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Workspace page')).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'sidebar' })).toBeNull()
+  })
+})
+
 describe('Layout backend unavailable (fj5g.6)', () => {
   it('shows the card once and no toast on top of it when the project list fails', async () => {
     const toastError = vi.spyOn(toast, 'error')

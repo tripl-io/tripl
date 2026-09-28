@@ -109,6 +109,9 @@ class OrgResponse(BaseModel):
     status: OrganizationStatus
     is_default: bool
     created_at: datetime
+    #: Listed because a platform admin has a live read-only step-in to it, not
+    #: a membership (F20 PR14); ``role`` is then ``member``.
+    step_in: bool = False
 
 
 class OrgMemberRemoved(BaseModel):

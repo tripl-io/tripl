@@ -244,6 +244,20 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "org.group.member_remove",
         ),
     ),
+    (
+        # F20 PR14: the platform console. Suspension and step-ins are filed in
+        # the TARGET organization, so its owners read them in their own feed;
+        # platform-admin grants have no organization (platform scope).
+        "Platform",
+        (
+            "org.suspend",
+            "org.unsuspend",
+            "platform.step_in",
+            "platform.step_in_end",
+            "platform.admin_grant",
+            "platform.admin_revoke",
+        ),
+    ),
 )
 
 

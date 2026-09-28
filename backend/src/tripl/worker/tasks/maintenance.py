@@ -41,6 +41,7 @@ from tripl.models.organization import Organization
 from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.schema_drift import SchemaDrift
+from tripl.services.active_org_scope import in_active_org
 from tripl.services.event_photo_service import PHOTO_KEY_PREFIX
 from tripl.services.photo_storage_service import (
     group_org_stores,
@@ -213,6 +214,9 @@ def requeue_stranded_alert_deliveries() -> dict[str, object]:
                     AlertDelivery.status == AlertDeliveryStatus.pending.value,
                     AlertDelivery.created_at < cutoff,
                     AlertDelivery.updated_at < cutoff,
+                    # A suspended organization's deliveries wait, un-exhausted,
+                    # for it to be unsuspended (F20 PR14).
+                    in_active_org(AlertDelivery.project_id),
                 )
             )
             .scalars()
@@ -260,6 +264,7 @@ def requeue_stranded_alert_deliveries() -> dict[str, object]:
                     # silent: auto-retrying rows they watched fail and then
                     # switched off would re-send through a toggle that says off.
                     AlertDestination.enabled.is_(True),
+                    in_active_org(AlertDelivery.project_id),
                 )
             )
             .scalars()

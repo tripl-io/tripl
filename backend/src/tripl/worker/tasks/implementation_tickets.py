@@ -39,6 +39,7 @@ from tripl.alerting_validation import (
 from tripl.models.event import Event, EventStatus, event_status_rank
 from tripl.models.implementation_ticket import ImplementationTicket
 from tripl.models.project_tracker_config import ProjectTrackerConfig
+from tripl.services.active_org_scope import in_active_org
 from tripl.services.org_tracker_defaults_service import (
     NO_DEFAULTS,
     OrgTrackerDefaults,
@@ -510,6 +511,7 @@ async def _sync_tickets(session: AsyncSession) -> None:
                 select(ImplementationTicket.id).where(
                     ImplementationTicket.status == "open",
                     ImplementationTicket.external_key.is_not(None),
+                    in_active_org(ImplementationTicket.project_id),
                 )
             )
         )

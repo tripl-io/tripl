@@ -149,7 +149,7 @@ async def test_only_a_platform_admin_creates_an_organization(people: People) -> 
 
     # The creator's /auth/me and /orgs list it at once.
     me = (await people["root"].get(f"{API}/auth/me")).json()
-    assert {"slug": ACME, "name": "Acme", "role": "owner"} in me["orgs"]
+    assert {"slug": ACME, "name": "Acme", "role": "owner", "status": "active"} in me["orgs"]
     listed = (await people["root"].get(f"{API}/orgs")).json()
     assert ACME in {org["slug"] for org in listed}
     # Nobody else is in it.
@@ -264,7 +264,7 @@ async def test_role_changes_keep_owners_with_owners(people: People, acme: uuid.U
     assert promoted.status_code == 200, promoted.text
     # The member's own /auth/me says so at once.
     me = (await people["alice"].get(f"{API}/auth/me")).json()
-    assert {"slug": ACME, "name": "Acme", "role": "admin"} in me["orgs"]
+    assert {"slug": ACME, "name": "Acme", "role": "admin", "status": "active"} in me["orgs"]
     [entry] = await _audit("org.member_role_update")
     assert entry.organization_id == acme
 

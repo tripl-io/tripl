@@ -25,6 +25,10 @@ import { LazyDemoScenarioProvider } from '@/demo/LazyDemoScenarioProvider'
 import { DemoBannerPlaceholder } from '@/demo/DemoBannerPlaceholder'
 import { ShellSkeleton } from '@/components/states/skeletons'
 import { ProjectNotFound } from '@/components/states/project-not-found'
+import { OrgSuspendedState } from '@/components/states/org-suspended'
+import { StepInBanner } from '@/components/shell/step-in-banner'
+import { useActiveOrg } from '@/components/active-org-context'
+import { orgIsSuspended } from '@/lib/orgStatus'
 import {
   DocumentEntityTitleContext,
   EDIT_PAGE_TITLE_PREFIX,
@@ -296,6 +300,7 @@ function ShellFallback({ children }: { children: ReactNode }) {
 export default function Layout() {
   const location = useLocation()
   const { slug } = useParams()
+  const activeOrg = useActiveOrg()
   const [activityOpen, setActivityOpen] = useActivityOpen()
 
   // A page may ask for the rail to stay out of its way (the 404, LIVE-35).
@@ -500,6 +505,21 @@ export default function Layout() {
     ? entityAction
     : entityTitle || (crumbs[crumbs.length - 1]?.label ?? '')
 
+  // A suspended organization (F20) refuses every request inside it, so the
+  // shell would only be a wall of failing panels: say what happened instead.
+  // Known from the membership when the session carries its status, otherwise
+  // from the server's refusal of the first request.
+  if (orgIsSuspended(activeOrg.membership, projectsQuery.error, confirmProject.error)) {
+    return (
+      <OrgSuspendedState
+        orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
+        otherOrgs={activeOrg.orgs.filter(
+          (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
+        )}
+      />
+    )
+  }
+
   // Hold the shell until the slug is resolved. Everything below fans out
   // project-scoped requests the moment it mounts, so rendering optimistically is
   // what produced the doomed fan-out in the first place.
@@ -583,6 +603,8 @@ export default function Layout() {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col" inert={drawerActive}>
+            {/* A platform admin's read-only step-in to this organization. */}
+            <StepInBanner />
             <TopBar
               title={headerTitle}
               crumbs={headerCrumbs}

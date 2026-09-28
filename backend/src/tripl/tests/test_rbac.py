@@ -183,7 +183,9 @@ async def test_first_user_becomes_owner_subsequent_users_are_members(
     me = (await fresh_anon_client.get("/api/v1/auth/me")).json()
     assert me["role"] == "owner"
     assert me["is_platform_admin"] is True
-    assert me["orgs"] == [{"slug": "default", "name": "Default organization", "role": "owner"}]
+    assert me["orgs"] == [
+        {"slug": "default", "name": "Default organization", "role": "owner", "status": "active"}
+    ]
 
     # Clear the owner session and register a second user → an org member.
     await fresh_anon_client.post("/api/v1/auth/logout")
@@ -191,7 +193,9 @@ async def test_first_user_becomes_owner_subsequent_users_are_members(
     me2 = (await fresh_anon_client.get("/api/v1/auth/me")).json()
     assert me2["role"] == "member"
     assert me2["is_platform_admin"] is False
-    assert me2["orgs"] == [{"slug": "default", "name": "Default organization", "role": "member"}]
+    assert me2["orgs"] == [
+        {"slug": "default", "name": "Default organization", "role": "member", "status": "active"}
+    ]
 
 
 @pytest.mark.asyncio

@@ -748,7 +748,9 @@ def _recorded_actions() -> tuple[set[str], set[str]]:
                 start = source.rfind("record(", 0, match.start())
                 end = source.find("\n    )", match.end())
                 block = source[start : end if end > 0 else match.end() + 600]
-                has_project = "project=" in block or "project_slug=" in block
+                # ``project_slug=""`` / ``project=None`` name no project: the
+                # platform-scope rows (F20 PR14) spell the column out empty.
+                has_project = re.search(r'project(?:_slug)?=(?!None\b|"")', block) is not None
                 (scoped if has_project else unscoped).add(match.group(1))
     return scoped, unscoped
 
