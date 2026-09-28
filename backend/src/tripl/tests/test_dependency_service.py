@@ -331,7 +331,7 @@ async def test_event_edges(client: AsyncClient) -> None:
     assert down[s.composition_metric].relation == "metric uses event in its composition"
     assert down[s.composition_metric].certainty == "direct"
     assert down[s.composition_metric].url_hint == (
-        f"/p/dep-event/monitoring/metric/{s.composition_metric}"
+        f"/o/default/p/dep-event/monitoring/metric/{s.composition_metric}"
     )
     # The ratio reads it as its denominator.
     assert s.ratio_metric in down
@@ -754,6 +754,6 @@ async def test_detection_override_is_a_downstream_edge(client: AsyncClient) -> N
     deps = await _resolve(s, "event", s.purchase)
     edge = _by_id(deps.downstream)[override.id]
     assert edge.kind == "detection_override"
-    assert edge.url_hint == f"/p/{s.slug}/settings/monitoring"
+    assert edge.url_hint == f"/o/default/p/{s.slug}/settings/monitoring"
     # Another event is not touched by it.
     assert override.id not in _by_id((await _resolve(s, "event", s.refund)).downstream)

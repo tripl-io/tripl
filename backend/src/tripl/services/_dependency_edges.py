@@ -111,7 +111,9 @@ def _event_edge(scope: Scope, event: Event, relation: str) -> Edge:
         id=event.id,
         name=event.name,
         relation=relation,
-        url_hint=url_for(scope.slug, "event", event.id, event_type_name=type_name),
+        url_hint=url_for(
+            scope.slug, "event", event.id, org_slug=scope.org_slug, event_type_name=type_name
+        ),
     )
 
 
@@ -121,7 +123,7 @@ def _type_edge(scope: Scope, event_type: EventType, relation: str) -> Edge:
         id=event_type.id,
         name=event_type.display_name or event_type.name,
         relation=relation,
-        url_hint=url_for(scope.slug, "event_type", event_type.id),
+        url_hint=url_for(scope.slug, "event_type", event_type.id, org_slug=scope.org_slug),
     )
 
 
@@ -138,7 +140,13 @@ def _field_edge(
         name=f"{type_name}.{field_def.name}",
         relation=relation,
         certainty=certainty,
-        url_hint=url_for(scope.slug, "field", field_def.id, event_type_id=field_def.event_type_id),
+        url_hint=url_for(
+            scope.slug,
+            "field",
+            field_def.id,
+            org_slug=scope.org_slug,
+            event_type_id=field_def.event_type_id,
+        ),
     )
 
 
@@ -151,7 +159,7 @@ def _variable_edge(
         name=variable.name,
         relation=relation,
         certainty=certainty,
-        url_hint=url_for(scope.slug, "variable", variable.id),
+        url_hint=url_for(scope.slug, "variable", variable.id, org_slug=scope.org_slug),
     )
 
 
@@ -164,7 +172,7 @@ def _metric_edge(
         name=metric.display_name or metric.name,
         relation=relation,
         certainty=certainty,
-        url_hint=url_for(scope.slug, "metric", metric.id),
+        url_hint=url_for(scope.slug, "metric", metric.id, org_slug=scope.org_slug),
     )
 
 
@@ -177,7 +185,7 @@ def _fact_table_edge(
         name=table.display_name or table.name,
         relation=relation,
         certainty=certainty,
-        url_hint=url_for(scope.slug, "fact_table", table.id),
+        url_hint=url_for(scope.slug, "fact_table", table.id, org_slug=scope.org_slug),
     )
 
 
@@ -187,7 +195,7 @@ def _alert_edge(scope: Scope, rule: AlertRule, relation: str) -> Edge:
         id=rule.id,
         name=rule.name,
         relation=relation,
-        url_hint=url_for(scope.slug, "alert_rule", rule.id),
+        url_hint=url_for(scope.slug, "alert_rule", rule.id, org_slug=scope.org_slug),
     )
 
 
@@ -200,7 +208,7 @@ def _scan_edge(
         name=scan.name,
         relation=relation,
         certainty=certainty,
-        url_hint=url_for(scope.slug, "scan_config", scan.id),
+        url_hint=url_for(scope.slug, "scan_config", scan.id, org_slug=scope.org_slug),
     )
 
 
@@ -210,7 +218,7 @@ def _override_edge(scope: Scope, override: AnomalyScopeOverride, relation: str) 
         id=override.id,
         name=override.scope_name or f"{override.scope_type} {override.scope_ref}",
         relation=relation,
-        url_hint=url_for(scope.slug, "detection_override", override.id),
+        url_hint=url_for(scope.slug, "detection_override", override.id, org_slug=scope.org_slug),
     )
 
 
@@ -254,7 +262,7 @@ async def _relation_edges(
                 id=rel.id,
                 name=f"{source} → {target}",
                 relation=relation,
-                url_hint=url_for(scope.slug, "relation", rel.id),
+                url_hint=url_for(scope.slug, "relation", rel.id, org_slug=scope.org_slug),
             )
         )
     return edges

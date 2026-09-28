@@ -60,6 +60,7 @@ from tripl.worker.tasks.metrics.urls import (
     _build_event_details_url,
     _build_item_paths,
     _build_monitoring_url,
+    _get_org_slug,
     _get_project_slug,
     _trim_alert_text,
 )
@@ -90,6 +91,7 @@ __all__ = [
     "_fail_stale_active_scan_job",
     "_floor_to_interval",
     "_get_active_scan_job",
+    "_get_org_slug",
     "_get_project_slug",
     "_get_scan_job_activity_at",
     "_get_scan_json_value_path_map",

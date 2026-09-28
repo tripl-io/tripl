@@ -17,6 +17,7 @@ from tripl.schemas.dependency import (
     DependencyEdgeKind,
     DependencyEntityKind,
 )
+from tripl.services.project_links import project_url
 
 __all__ = [
     "ENTITY_KINDS",
@@ -104,37 +105,56 @@ def url_for(
     kind: str,
     entity_id: uuid.UUID,
     *,
+    org_slug: str | None,
     event_type_name: str | None = None,
     event_type_id: uuid.UUID | None = None,
 ) -> str | None:
-    """The page an edge links to, mirroring ``_search_documents``' route paths."""
-    if not slug:
+    """The page an edge links to, org-qualified (``/o/{org}/p/{slug}/...``, F20 PR8).
+
+    Mirrors ``_search_documents``' route paths. ``None`` without both slugs: a
+    project slug alone names a project only inside one organization.
+    """
+    if not slug or not org_slug:
         return None
+    path = _entity_path(
+        kind, entity_id, event_type_name=event_type_name, event_type_id=event_type_id
+    )
+    return None if path is None else project_url(org_slug, slug, path)
+
+
+def _entity_path(
+    kind: str,
+    entity_id: uuid.UUID,
+    *,
+    event_type_name: str | None,
+    event_type_id: uuid.UUID | None,
+) -> str | None:
+    """The in-project part of an entity's page, or ``None`` when it has none."""
     match kind:
         case "event":
             if event_type_name:
-                return f"/p/{slug}/events/{event_type_name}/{entity_id}"
-            return f"/p/{slug}/monitoring/event/{entity_id}"
+                return f"/events/{event_type_name}/{entity_id}"
+            return f"/monitoring/event/{entity_id}"
         case "event_type":
-            return f"/p/{slug}/event-types/{entity_id}"
+            return f"/event-types/{entity_id}"
         case "field":
-            return f"/p/{slug}/event-types/{event_type_id}" if event_type_id else None
+            return f"/event-types/{event_type_id}" if event_type_id else None
         case "variable":
-            return f"/p/{slug}/variables/{entity_id}"
+            return f"/variables/{entity_id}"
         case "metric":
-            return f"/p/{slug}/monitoring/metric/{entity_id}"
+            return f"/monitoring/metric/{entity_id}"
         case "fact_table":
-            return f"/p/{slug}/metrics/fact-tables/{entity_id}/edit"
+            return f"/metrics/fact-tables/{entity_id}/edit"
         case "alert_rule":
-            return f"/p/{slug}/monitors/{entity_id}"
+            return f"/monitors/{entity_id}"
         case "relation":
-            return f"/p/{slug}/relations"
+            return "/relations"
         case "scan_config":
-            return f"/p/{slug}/scans/{entity_id}"
+            return f"/scans/{entity_id}"
         case "detection_override":
             # Overrides are listed (and undone) in the project's Detection
             # settings; there is no per-override page.
-            return f"/p/{slug}/settings/monitoring"
+            return "/settings/monitoring"
     return None
 
 

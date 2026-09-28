@@ -48,11 +48,11 @@ from tripl.models.lifecycle_finding import LifecycleFindingKind
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.notification import Notification, NotificationKind
-from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.signal_triage import SignalTriage
 from tripl.models.subscription import SubscriptionEntityType
 from tripl.services import notification_service
+from tripl.services.project_links import project_link_slugs_sync, project_url
 
 logger = logging.getLogger(__name__)
 
@@ -129,12 +129,9 @@ def produce_notifications(session: Session, source: str, subject: Any) -> int:
 # --- shared lookups ------------------------------------------------------------------
 
 
-def _slugs(session: Session, project_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, str]:
-    ids = set(project_ids)
-    if not ids:
-        return {}
-    rows = session.execute(select(Project.id, Project.slug).where(Project.id.in_(ids))).all()
-    return {project_id: slug for project_id, slug in rows}
+def _slugs(session: Session, project_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, tuple[str, str]]:
+    """``project_id → (org_slug, project_slug)``: what a notification link names."""
+    return project_link_slugs_sync(session, project_ids)
 
 
 def _events(session: Session, event_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, Event]:
@@ -207,6 +204,19 @@ def _scope_key(
     return (scan_config_id, scope_type, scope_ref)
 
 
+def _url_forms(url: str) -> tuple[str, ...]:
+    """``url`` and its pre-F20-PR8 org-less form (``/o/{org}/p/...`` → ``/p/...``).
+
+    Rows written before org-qualified links still carry ``/p/{slug}/...``
+    (they are not migrated: the frontend redirects them). Matching both keeps
+    the first run after the upgrade from re-announcing every open signal.
+    """
+    if url.startswith("/o/"):
+        _empty, _o, _org, rest = url.split("/", 3)
+        return (url, f"/{rest}")
+    return (url,)
+
+
 def _already_told(
     session: Session, entity_type: str, entity_id: uuid.UUID, url: str, now: datetime
 ) -> frozenset[uuid.UUID]:
@@ -224,7 +234,7 @@ def _already_told(
             Notification.entity_id == entity_id,
             Notification.kind == NotificationKind.signal.value,
             Notification.created_at >= now - ALREADY_TOLD_WINDOW,
-            Notification.url == url,
+            Notification.url.in_(_url_forms(url)),
         )
     )
     return frozenset(rows.all())
@@ -246,9 +256,10 @@ def _signal_drafts(session: Session, config: ScanConfig) -> list[_Draft]:
     signals = [anomaly for anomaly in open_signals if anomaly.id not in triaged]
     if not signals:
         return []
-    slug = _slugs(session, [project_id]).get(project_id)
-    if slug is None:
+    slugs = _slugs(session, [project_id]).get(project_id)
+    if slugs is None:
         return []
+    org_slug, slug = slugs
 
     event_ids = {
         anomaly.event_id or _as_uuid(anomaly.scope_ref)
@@ -321,9 +332,11 @@ def _signal_drafts(session: Session, config: ScanConfig) -> list[_Draft]:
             continue
 
         bucket = to_utc(anomaly.bucket)
-        url = (
-            f"/p/{slug}/monitoring/{path_scope}/{entity_id}"
-            f"?{SIGNAL_URL_PARAM}={bucket.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+        url = project_url(
+            org_slug,
+            slug,
+            f"/monitoring/{path_scope}/{entity_id}"
+            f"?{SIGNAL_URL_PARAM}={bucket.strftime('%Y-%m-%dT%H:%M:%SZ')}",
         )
         direction = str(anomaly.direction)
         drafts.append(
@@ -366,8 +379,8 @@ def _lifecycle_drafts(
     drafts: list[_Draft] = []
     for project_id, event_id, kind in items:
         event = events.get(event_id)
-        slug = slugs.get(project_id)
-        if event is None or slug is None:
+        link_slugs = slugs.get(project_id)
+        if event is None or link_slugs is None:
             continue
         template = _LIFECYCLE_TITLES.get(kind, "Lifecycle finding on {name}")
         drafts.append(
@@ -378,7 +391,7 @@ def _lifecycle_drafts(
                 entity_id=event.id,
                 title=f"Lifecycle: {template.format(name=event.name)}",
                 body="A deprecated event needs attention: open it to see the finding.",
-                url=f"/p/{slug}/events/detail/{event.id}",
+                url=project_url(*link_slugs, f"/events/detail/{event.id}"),
                 watchers_of=((_EVENT, event.id), (_EVENT_TYPE, event.event_type_id)),
             )
         )

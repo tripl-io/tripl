@@ -32,6 +32,7 @@ from tripl.models.project import Project
 from tripl.schemas.docs import DocAudience, DocBacklinkItem, DocLinkKind, DocLinkResolution
 from tripl.services.docs_paths import MAX_LINKS_PER_FILE, DocScope
 from tripl.services.plan_branch_service import resolve_branch_id
+from tripl.services.project_links import project_org_slugs, project_url
 
 LINK_PATTERN = re.compile(
     r"\[\[(event|event-type|field):([^\]|\n]{1,500})(?:\|([^\]\n]{1,200}))?\]\]"
@@ -177,6 +178,8 @@ async def resolve_links(
         return []
     branch_id = await resolve_branch_id(session, project.id, None)
     slug = project.slug
+    # Built per read, never stored: the organization goes straight into the link.
+    org_slug = (await project_org_slugs(session, [project.id])).get(project.id, "")
 
     event_names = {ref.target for ref in refs if ref.kind == "event"}
     events: dict[str, list[tuple[uuid.UUID, str]]] = {}
@@ -239,13 +242,13 @@ async def resolve_links(
             candidates = len(matches)
             if matches:
                 entity_id = matches[0][0]
-                route = f"/p/{slug}/monitoring/event/{entity_id}"
+                route = project_url(org_slug, slug, f"/monitoring/event/{entity_id}")
         elif ref.kind == "event_type":
             type_id = types.get(ref.target)
             candidates = 1 if type_id else 0
             if type_id:
                 entity_id = type_id
-                route = f"/p/{slug}/events/{ref.target}"
+                route = project_url(org_slug, slug, f"/events/{ref.target}")
         else:
             field_matches = [
                 match
@@ -255,7 +258,7 @@ async def resolve_links(
             candidates = len(field_matches)
             if field_matches:
                 entity_id = field_matches[0][0]
-                route = f"/p/{slug}/event-types/{field_matches[0][1]}"
+                route = project_url(org_slug, slug, f"/event-types/{field_matches[0][1]}")
         status = "broken" if candidates == 0 else "resolved" if candidates == 1 else "ambiguous"
         out.append(
             DocLinkResolution(

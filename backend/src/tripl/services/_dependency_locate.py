@@ -97,6 +97,8 @@ class Scope:
     branch_id: uuid.UUID
     main_branch_id: uuid.UUID
     slug: str | None = None
+    # The project's organization slug; with ``slug`` it builds ``url_hint``s.
+    org_slug: str | None = None
     expansions_left: int = 0
     _metrics: list[MetricDefinition] | None = None
     _fact_tables: list[FactTable] | None = None

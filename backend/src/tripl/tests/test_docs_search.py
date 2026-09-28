@@ -32,7 +32,7 @@ async def test_notes_are_searchable_with_their_own_route(client: AsyncClient) ->
     assert [(item["entity_type"], item["title"]) for item in items] == [
         ("doc", "Axolotl warehouse gotchas")
     ]
-    assert items[0]["route_path"] == "/p/searchable/docs/project/guides/warehouse.md"
+    assert items[0]["route_path"] == "/o/default/p/searchable/docs/project/guides/warehouse.md"
     assert items[0]["subtitle"] == "Project notes · guides/warehouse.md"
 
     docs = await client.get("/api/v1/projects/searchable/docs/search", params={"q": "axolotl"})
@@ -68,7 +68,9 @@ async def test_organization_notes_reach_every_project_of_the_organization(
     routed = await client.get(
         "/api/v1/projects/reader/search", params={"q": "quokka", "types": "doc"}
     )
-    assert routed.json()["items"][0]["route_path"] == "/p/reader/docs/organization/shared.md"
+    assert (
+        routed.json()["items"][0]["route_path"] == "/o/default/p/reader/docs/organization/shared.md"
+    )
 
 
 async def test_a_deleted_note_leaves_the_index(client: AsyncClient) -> None:

@@ -68,6 +68,7 @@ from tripl.services.plan_revision_service import (
 )
 from tripl.services.project_access import OWNER, member_role
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
+from tripl.services.project_links import project_link
 from tripl.services.project_lookup import resolve_project, resolve_project_id
 from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
 
@@ -1197,8 +1198,9 @@ async def transition_branch(
     return await _to_detail(session, branch)
 
 
-def _branch_url(slug: str, branch: PlanBranch) -> str:
-    return f"/p/{slug}/branches/{branch.id}"
+async def _branch_url(session: AsyncSession, branch: PlanBranch) -> str:
+    """The branch page, org-qualified (F20 PR8)."""
+    return await project_link(session, branch.project_id, f"/branches/{branch.id}")
 
 
 async def _reviewer_ids(session: AsyncSession, branch_id: uuid.UUID) -> set[uuid.UUID]:
@@ -1240,7 +1242,7 @@ async def _announce_transition(
             entity_type=subscription_service.BRANCH,
             entity_id=branch.id,
             title=f"{who} asked for your review of branch {branch.name}",
-            url=_branch_url(slug, branch),
+            url=await _branch_url(session, branch),
             actor_user_id=actor_id,
             user_ids=reviewers,
         )
@@ -1252,7 +1254,7 @@ async def _announce_transition(
         entity_type=subscription_service.BRANCH,
         entity_id=branch.id,
         title=f"{who} approved branch {branch.name}",
-        url=_branch_url(slug, branch),
+        url=await _branch_url(session, branch),
         actor_user_id=actor_id,
         user_ids={
             *(await _reviewer_ids(session, branch.id)),
@@ -1316,7 +1318,7 @@ async def add_reviewer(
                 entity_type=subscription_service.BRANCH,
                 entity_id=branch.id,
                 title=f"{who} asked for your review of branch {branch.name}",
-                url=_branch_url(slug, branch),
+                url=await _branch_url(session, branch),
                 actor_user_id=actor_user_id,
                 user_ids=[data.user_id],
             )
@@ -1418,7 +1420,7 @@ async def _announce_branch_comment(
             "project_id": branch.project_id,
             "entity_type": subscription_service.BRANCH,
             "entity_id": branch.id,
-            "url": _branch_url(slug, branch),
+            "url": await _branch_url(session, branch),
             "body": excerpt(comment.body),
             "actor_user_id": comment.user_id,
         }

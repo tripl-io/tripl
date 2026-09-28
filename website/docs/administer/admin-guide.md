@@ -191,11 +191,27 @@ A few things follow from this:
   Generated demo slugs such as `demo-3f2a1c` are fine. A project created before
   a slug was reserved keeps it and can still be edited; only renaming a project
   to a reserved slug is refused.
-- **Links in alerts and notifications name the project by slug only.** They
-  open in the organization your session acts in, so while two organizations
-  share a slug, a link about one organization's `web` can open the other's.
-  Until links carry the organization, avoid giving projects in different
-  organizations the same slug.
+- **Links tripl sends name the organization.** Alert messages, digests,
+  notifications and their emails, search results, the activity rail, dependency
+  and impact links and incident-summary citations all link to
+  `/o/{org}/p/{project}/...`, so a link about one organization's `web` opens that
+  project even when another organization also has a `web`. Messages read
+  outside the app (alerts, emails) carry absolute links built from the
+  **App base URL** setting (`app_base_url`).
+  - Links written before this change (`/p/{project}/...`) are not rewritten:
+    notifications already stored, and alerts already sent to Slack or email,
+    keep their old form, and the app redirects them to the organization that
+    holds that project (the default organization, or your only organization
+    with that slug). Such an old link is ambiguous only for someone who belongs
+    to two organizations that both have the slug.
+  - Search keeps storing the organization-less path and adds the organization
+    when it answers, and incident summaries do not count links as part of what
+    makes a summary stale, so this change re-indexes nothing and regenerates no
+    AI summary.
+  - Screenshot file URLs in the API name the organization too
+    (`/api/v1/orgs/{org}/projects/{project}/events/.../photos/.../file`); the
+    old `/api/v1/projects/...` form keeps working.
+  - Invitation links (`/invite/{token}`) are not project links and are unchanged.
 - **Data source names are per organization** too: two organizations may each
   have a source called `warehouse`, and a name clash inside one organization is
   a `409`.
@@ -315,8 +331,8 @@ modes until hosted sign-up ships. The creator becomes the new organization's
 **owner**.
 
 The **slug is permanent**: it is part of every organization-qualified URL
-(`/api/v1/orgs/{slug}/...`), and links already sent in email and Slack must keep
-working. It follows the project slug rules (lowercase letters, digits and single
+(`/api/v1/orgs/{slug}/...` and the app's `/o/{slug}/p/{project}/...`), and links
+already sent in email and Slack must keep working, so they are never rewritten. It follows the project slug rules (lowercase letters, digits and single
 hyphens), and names that the app routes as something else (`settings`, `orgs`,
 `projects`, `default`, …) are refused.
 

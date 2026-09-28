@@ -274,6 +274,7 @@ def _build_delivery_snapshot(
     *,
     project_slug: str,
     app_base_url: str,
+    org_slug: str,
     rule: AlertRule,
     destination: AlertDestination,
     anomalies: list[AlertMatchCandidate],
@@ -303,7 +304,8 @@ def _build_delivery_snapshot(
     rows that have them, with nothing but a ``logger.warning`` to say why.
     ``dispatch._create_deliveries`` resolves the value once, before the chunk
     loop, and hands that one string here and to the per-item
-    ``_build_item_paths`` call that mints the rows.
+    ``_build_item_paths`` call that mints the rows. ``org_slug`` is resolved
+    once beside it, for the same reason.
 
     That buys agreement about the BASE, and deliberately nothing more. This is
     the FIRST of the two ``_build_item_paths`` calls per item — the snapshot is
@@ -322,6 +324,7 @@ def _build_delivery_snapshot(
     for anomaly in anomalies:
         details_path, monitoring_path = _build_item_paths(
             project_slug,
+            org_slug=org_slug,
             app_base_url=app_base_url,
             scope_type=anomaly.scope_type,
             scope_ref=anomaly.scope_ref,
@@ -389,6 +392,9 @@ def _build_delivery_snapshot(
         )
     return {
         "project_slug": project_slug,
+        # The organization the links above name (F20 PR8). Beside the project
+        # slug, which on its own names a project only inside one organization.
+        "org_slug": org_slug,
         "scan_name": config.name,
         "destination_name": destination.name,
         "rule_name": rule.name,

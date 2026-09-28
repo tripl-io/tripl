@@ -150,7 +150,8 @@ async def test_project_activity_feed_uses_real_backend_records(client: AsyncClie
     event_items = [item for item in items if item["type"] == "event"]
     assert event_items, "expected an event activity item"
     assert all(
-        item["target_path"].startswith(f"/p/{slug}/monitoring/event/") for item in event_items
+        item["target_path"].startswith(f"/o/default/p/{slug}/monitoring/event/")
+        for item in event_items
     )
     assert not any("/events/detail/" in (item["target_path"] or "") for item in items)
 
@@ -159,7 +160,7 @@ async def test_project_activity_feed_uses_real_backend_records(client: AsyncClie
     # legacy path and has to be bounced through a redirect.
     scan_items = [item for item in items if item["type"] == "scan"]
     assert scan_items, "expected a scan activity item"
-    assert all(item["target_path"] == f"/p/{slug}/scans" for item in scan_items)
+    assert all(item["target_path"] == f"/o/default/p/{slug}/scans" for item in scan_items)
     assert not any("/settings/scans" in (item["target_path"] or "") for item in items)
 
 
@@ -392,7 +393,7 @@ async def test_an_open_branch_does_not_add_a_second_unreachable_copy_of_each_eve
     event_items = [item for item in items if item["type"] == "event"]
 
     assert len(event_items) == 1, f"one event, one rail row; got {len(event_items)}"
-    assert event_items[0]["target_path"] == f"/p/{slug}/monitoring/event/{main_event_id}"
+    assert event_items[0]["target_path"] == f"/o/default/p/{slug}/monitoring/event/{main_event_id}"
 
     linked_id = event_items[0]["target_path"].rsplit("/", 1)[-1]
     followed = await client.get(f"/api/v1/projects/{slug}/events/{linked_id}")

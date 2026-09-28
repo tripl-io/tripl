@@ -136,7 +136,7 @@ async def test_watching_an_event_delivers_a_comment_notification(people: People)
     assert [(n["kind"], n["entity_id"], n["project_slug"]) for n in items] == [
         ("comment", event_id, slug)
     ]
-    assert items[0]["url"] == f"/p/{slug}/events/detail/{event_id}"
+    assert items[0]["url"] == f"/o/default/p/{slug}/events/detail/{event_id}"
     assert items[0]["body"] == "is this live?"
     assert items[0]["actor"]["name"] == "Ann"
     assert await _unread(people.bob) == 1
@@ -348,7 +348,7 @@ async def test_a_mention_in_a_screenshot_thread_reaches_the_member(people: Peopl
     items = await _inbox(people.bob)
     assert [(n["kind"], n["entity_id"]) for n in items] == [("mention", event_id)]
     assert items[0]["body"] == "@Bob does the button match?"
-    assert items[0]["url"] == f"/p/{slug}/events/detail/{event_id}"
+    assert items[0]["url"] == f"/o/default/p/{slug}/events/detail/{event_id}"
 
 
 @pytest.mark.asyncio

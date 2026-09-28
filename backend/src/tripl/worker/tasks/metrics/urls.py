@@ -25,6 +25,14 @@ that delivery from that one value.
 is non-optional and an unconfigured instance carries ``""``. The empty string
 is the "emit no link" case, and every builder below still guards for it, so
 behaviour at an unconfigured base URL is exactly what it was.
+
+Every link names the project's ORGANIZATION as well (F20 PR8, tripl-oam4.7):
+``{base}/o/{org_slug}/p/{project_slug}/...``, built by
+``services.project_links.project_url``. A project slug is unique only inside
+its organization, so a slug-only link opened whichever project of that slug the
+reader's organization held. ``org_slug`` is resolved once per delivery beside
+``app_base_url`` (``dispatch._create_deliveries`` via :func:`_get_org_slug`);
+organization slugs are immutable, so a sent link never goes stale on a rename.
 """
 
 from __future__ import annotations
@@ -45,6 +53,7 @@ from tripl.core.analyzers.anomaly_detector import (
     SCOPE_PROJECT_TOTAL,
 )
 from tripl.models.project import Project
+from tripl.services.project_links import project_org_slugs_sync, project_url
 
 # The one scope with nowhere else to go at all.
 #
@@ -70,25 +79,29 @@ _SCOPES_LINKED_TO_ALERT_AUDIT = frozenset({SCOPE_RELEASE_REGRESSION})
 def _build_monitoring_url(
     project_slug: str,
     *,
+    org_slug: str,
     app_base_url: str,
     scope_type: str,
     scope_ref: str,
 ) -> str | None:
     if not app_base_url:
         return None
-    base = app_base_url.rstrip("/")
+
+    def link(path: str) -> str:
+        return project_url(org_slug, project_slug, path, base_url=app_base_url)
+
     if scope_type == SCOPE_PROJECT_TOTAL:
-        return f"{base}/p/{project_slug}/monitoring/project-total/{scope_ref}"
+        return link(f"/monitoring/project-total/{scope_ref}")
     if scope_type == SCOPE_EVENT_TYPE:
-        return f"{base}/p/{project_slug}/monitoring/event-type/{scope_ref}"
+        return link(f"/monitoring/event-type/{scope_ref}")
     if scope_type == SCOPE_METRIC:
         # Catalog-metric anomalies carry scope_ref = metric_definition_id, and
         # the metric drilldown is its own route. The fallthrough used to send
         # them to /monitoring/event/{metric_definition_id} — same defect class
         # as the release-regression link, just a quieter one.
-        return f"{base}/p/{project_slug}/monitoring/metric/{scope_ref}"
+        return link(f"/monitoring/metric/{scope_ref}")
     if scope_type == SCOPE_EVENT:
-        return f"{base}/p/{project_slug}/monitoring/event/{scope_ref}"
+        return link(f"/monitoring/event/{scope_ref}")
     # Everything else — schema drift, distribution drift, release regression,
     # variable-value drift — describes a SLICE of a scan rather than one catalog
     # entity, so no entity-level monitoring page can show it. They get no link
@@ -120,12 +133,14 @@ def _build_event_details_url(
     project_slug: str,
     event_id: uuid.UUID | None,
     *,
+    org_slug: str,
     app_base_url: str,
 ) -> str | None:
     if not app_base_url or event_id is None:
         return None
-    base = app_base_url.rstrip("/")
-    return f"{base}/p/{project_slug}/monitoring/event/{event_id}"
+    return project_url(
+        org_slug, project_slug, f"/monitoring/event/{event_id}", base_url=app_base_url
+    )
 
 
 # Query parameter naming the ONE item inside a delivery that a given message
@@ -170,6 +185,7 @@ def _build_alert_audit_url(
     project_slug: str,
     delivery_id: uuid.UUID | None,
     *,
+    org_slug: str,
     app_base_url: str,
     scope_type: str,
     scope_ref: str,
@@ -194,9 +210,13 @@ def _build_alert_audit_url(
     """
     if not app_base_url or delivery_id is None:
         return None
-    base = app_base_url.rstrip("/")
     anchor = _alert_audit_item_anchor(scope_type, scope_ref)
-    url = f"{base}/p/{project_slug}/alerting/{delivery_id}?{ALERT_AUDIT_ITEM_PARAM}={anchor}"
+    url = project_url(
+        org_slug,
+        project_slug,
+        f"/alerting/{delivery_id}?{ALERT_AUDIT_ITEM_PARAM}={anchor}",
+        base_url=app_base_url,
+    )
     # The incident is what the page acts on — Ack / Resolve / Mute / False
     # positive all key on it — so the link carries it and the page can open the
     # right card with its actions in view. Without it the reader landed on the
@@ -225,6 +245,7 @@ def _build_alert_audit_url(
 def _build_item_paths(
     project_slug: str,
     *,
+    org_slug: str,
     app_base_url: str,
     scope_type: str,
     scope_ref: str,
@@ -246,6 +267,10 @@ def _build_item_paths(
     pair in ``payload_snapshot``, so it mints every link an alert carries, and a
     default would let a new call site ship link-less alerts in silence. See the
     module docstring for why the value is passed in at all.
+
+    ``org_slug`` is required for the same reason (F20 PR8): since project slugs
+    are unique per organization only, a link without the organization opens
+    whichever project of that slug the READER's organization holds.
     """
     # One destination for every alert, whatever fired it: the incident, where the
     # actions are. Previously only release regressions came here and everything
@@ -259,6 +284,7 @@ def _build_item_paths(
             _build_alert_audit_url(
                 project_slug,
                 delivery_id,
+                org_slug=org_slug,
                 app_base_url=app_base_url,
                 scope_type=scope_type,
                 scope_ref=scope_ref,
@@ -277,6 +303,7 @@ def _build_item_paths(
             _build_alert_audit_url(
                 project_slug,
                 delivery_id,
+                org_slug=org_slug,
                 app_base_url=app_base_url,
                 scope_type=scope_type,
                 scope_ref=scope_ref,
@@ -284,9 +311,12 @@ def _build_item_paths(
             None,
         )
     return (
-        _build_event_details_url(project_slug, event_id, app_base_url=app_base_url),
+        _build_event_details_url(
+            project_slug, event_id, org_slug=org_slug, app_base_url=app_base_url
+        ),
         _build_monitoring_url(
             project_slug,
+            org_slug=org_slug,
             app_base_url=app_base_url,
             scope_type=scope_type,
             scope_ref=scope_ref,
@@ -302,6 +332,15 @@ def _get_project_slug(session: Session, project_id: uuid.UUID) -> str:
         msg = f"Project {project_id} not found"
         raise ValueError(msg)
     return slug
+
+
+def _get_org_slug(session: Session, project_id: uuid.UUID) -> str:
+    """The slug of the organization owning ``project_id``, for its deep links."""
+    org_slug = project_org_slugs_sync(session, [project_id]).get(project_id)
+    if org_slug is None:
+        msg = f"Project {project_id} not found"
+        raise ValueError(msg)
+    return org_slug
 
 
 def _trim_alert_text(value: str | None, *, max_length: int = 500) -> str | None:

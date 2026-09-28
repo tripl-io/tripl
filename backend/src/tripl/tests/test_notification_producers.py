@@ -264,7 +264,7 @@ def test_event_signal_reaches_event_and_type_watchers_only(
         assert note.entity_id == world.event_id
         assert note.title == "Signal: drop on page_view"
         assert note.url == (
-            f"/p/shop/monitoring/event/{world.event_id}"
+            f"/o/default/p/shop/monitoring/event/{world.event_id}"
             f"?{notification_producers.SIGNAL_URL_PARAM}=2026-09-27T09:00:00Z"
         )
         assert note.emailed_at is None and note.read_at is None
@@ -297,6 +297,27 @@ def test_the_same_anomaly_notifies_once_even_past_the_throttle(
         session.execute(
             update(Notification).values(created_at=datetime.now(UTC) - timedelta(hours=7))
         )
+        session.commit()
+
+        assert _produce_signals(session, world) == 0
+        assert len(_notes(session, kind="signal")) == 2
+
+
+def test_a_pre_upgrade_org_less_url_still_dedupes_the_signal(
+    factory: sessionmaker[Session], open_signals: list[MetricAnomaly]
+) -> None:
+    """Rows written before F20 PR8 carry ``/p/{slug}/...``; the first run after
+    the upgrade must not re-announce every open signal to their readers."""
+    with factory() as session:
+        world = _world(session)
+        open_signals.append(_anomaly(session, world, "event"))
+        _produce_signals(session, world)
+        notes = _notes(session, kind="signal")
+        assert notes and all(note.url.startswith("/o/default/p/shop/") for note in notes)
+        # Rewrite them into the pre-upgrade shape, past the 6h throttle.
+        for note in notes:
+            note.url = note.url.removeprefix("/o/default")
+            note.created_at = datetime.now(UTC) - timedelta(hours=7)
         session.commit()
 
         assert _produce_signals(session, world) == 0
@@ -426,7 +447,7 @@ def test_lifecycle_finding_reaches_event_watchers(factory: sessionmaker[Session]
         notes = _notes(session, kind="lifecycle")
         assert {note.user_id for note in notes} == {world.anna, world.oleg}
         assert notes[0].title == "Lifecycle: page_view is past its sunset and still receives data"
-        assert notes[0].url == f"/p/shop/events/detail/{world.event_id}"
+        assert notes[0].url == f"/o/default/p/shop/events/detail/{world.event_id}"
 
 
 def test_the_lifecycle_sweep_hands_its_opened_findings_over(
@@ -544,7 +565,7 @@ async def test_merge_notifies_reviewers_but_not_the_merger(client: AsyncClient) 
     assert [row.user_id for row in rows] == [reviewer_id]
     assert rows[0].entity_type == "branch"
     assert rows[0].entity_id == branch_id
-    assert rows[0].url == f"/p/{slug}/branches/{branch_id}"
+    assert rows[0].url == f"/o/default/p/{slug}/branches/{branch_id}"
     assert rows[0].title.endswith("merged branch feature into main")
 
     # The approval reached the same audience as the merge: the reviewer, not

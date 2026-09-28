@@ -104,7 +104,8 @@ DEFAULT_ALERT_ITEMS_TEMPLATES: dict[str, str] = {
 
 ALERT_TEMPLATE_VARIABLES: dict[str, str] = {
     "project_name": "Project display name",
-    "project_slug": "Project slug",
+    "project_slug": "Project slug (unique only inside its organization)",
+    "org_slug": "Organization slug of the project",
     "channel": "Destination channel",
     "destination_name": "Destination name",
     "rule_name": "Rule name",

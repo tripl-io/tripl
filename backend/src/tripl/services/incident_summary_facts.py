@@ -23,7 +23,7 @@ import json
 import re
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -46,6 +46,7 @@ from tripl.schemas.alerting import AlertInboxGroupResponse
 from tripl.services import alerting_service, anomaly_attribution_service, signal_triage_service
 from tripl.services._signal_verdict_read import VERDICT_ACTIONS, resolve_verdict
 from tripl.services.mentions import excerpt
+from tripl.services.project_links import project_org_slugs, qualify_project_path
 from tripl.services.project_lookup import resolve_project
 from tripl.services.signal_triage_service import SignalKey, TriageIndex
 
@@ -102,6 +103,9 @@ class IncidentFacts:
     group: AlertInboxGroupResponse
     facts: tuple[SummaryFact, ...]
     facts_hash: str
+    # The project's organization slug: completes the org-less hrefs of a stored
+    # summary written before F20 PR8 when it is read back.
+    org_slug: str | None = None
 
 
 @dataclass(frozen=True)
@@ -199,10 +203,20 @@ def _scope_href(slug: str, scope: _Scope) -> str | None:
 
 
 def compute_facts_hash(facts: Iterable[SummaryFact]) -> str:
+    """The staleness key of a summary: the prompt version and each fact's kind
+    and text, in order.
+
+    ``href`` is deliberately NOT part of it (critique #21, F20 PR8). A link is
+    how the UI resolves a citation, not something the summary says, so a change
+    to link SHAPE — ``/p/{slug}/...`` becoming ``/o/{org}/p/{slug}/...`` — must
+    not mark every summary stale and regenerate it through the LLM. Migration
+    ``d4e8f1a2b3c5`` rewrote the stored hashes to this definition. Any change
+    here owes the stored rows the same rewrite.
+    """
     canonical = json.dumps(
         {
             "version": PROMPT_VERSION,
-            "facts": [[fact.kind, fact.text, fact.href] for fact in facts],
+            "facts": [[fact.kind, fact.text] for fact in facts],
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -707,7 +721,22 @@ async def gather_incident_facts(
     )
     drafts.extend(await _comment_drafts(session, slug, group))
 
+    # The builders above write org-less ``/p/{slug}/...`` links; complete them
+    # with the project's organization (F20 PR8). The hash ignores hrefs, so this
+    # never makes a stored summary stale.
+    org_slug = (await project_org_slugs(session, [project.id])).get(project.id)
+    if org_slug is not None:
+        drafts = [
+            replace(draft, href=qualify_project_path(org_slug, draft.href))
+            if draft.href is not None
+            else draft
+            for draft in drafts
+        ]
     facts = number_facts(drafts)
     return IncidentFacts(
-        project=project, group=group, facts=facts, facts_hash=compute_facts_hash(facts)
+        project=project,
+        group=group,
+        facts=facts,
+        facts_hash=compute_facts_hash(facts),
+        org_slug=org_slug,
     )

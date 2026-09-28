@@ -69,6 +69,7 @@ from tripl.services.plan_revision_service import (
     with_snapshot_defaults,
 )
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
+from tripl.services.project_links import project_link
 from tripl.services.scan_config_lookup import (
     event_type_binding_conflict_detail,
     name_format_conflict_detail,
@@ -2426,7 +2427,7 @@ async def _announce_merge(
                 entity_type=subscription_service.BRANCH,
                 entity_id=branch_id,
                 title=f"{who} merged branch {branch_name} into main",
-                url=f"/p/{slug}/branches/{branch_id}",
+                url=await project_link(notify_session, project_id, f"/branches/{branch_id}"),
                 actor_user_id=actor_id,
                 user_ids={*reviewers, *([author_id] if author_id is not None else [])},
                 watchers_of=[(subscription_service.BRANCH, branch_id)],
