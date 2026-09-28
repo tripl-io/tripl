@@ -218,6 +218,16 @@ STATUS_RATE_LIMIT_PER_MINUTE = 30
 
 status_rate_limiter = _limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
 
+# ``/auth/verify-email/request`` sends a mail through the operator's relay each
+# time it is accepted, so it gets its own small hourly bucket: resending never
+# consumes login/register quota, and a signed-in caller cannot turn the relay
+# into a mail cannon. A module constant for the same reason as the status one.
+VERIFY_EMAIL_RATE_LIMIT_PER_HOUR = 10
+
+verify_email_rate_limiter = _limiter_for(
+    VERIFY_EMAIL_RATE_LIMIT_PER_HOUR, per_seconds=3600.0, name="verify_email"
+)
+
 
 def enforce(limiter: TokenBucketLimiter) -> Callable[[Request], Awaitable[None]]:
     """FastAPI dependency that applies ``limiter`` to the inbound request."""

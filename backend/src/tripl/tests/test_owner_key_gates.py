@@ -24,6 +24,7 @@ from tripl.api.deps import (
     get_path_org_admin_user,
     get_path_org_owner_user,
     get_settings_admin_user,
+    require_org_creator,
     require_platform_admin,
 )
 from tripl.main import app
@@ -159,7 +160,7 @@ def test_settings_routes_take_the_settings_admin_gate() -> None:
     assert _routes_carrying(get_settings_admin_user) == SETTINGS_ADMIN_ROUTES
     assert SETTINGS_ADMIN_ROUTES.isdisjoint(_routes_carrying(get_owner_user))
     # The platform gate, wherever a route declares it, guards operator settings
-    # and, until hosted sign-up, creating an organization (F20 PR6, critique #24).
+    # only; creating an organization has its own mode-aware gate (critique #24).
     assert _routes_carrying(require_platform_admin) <= SETTINGS_ADMIN_ROUTES | PLATFORM_ADMIN_ROUTES
 
 
@@ -171,8 +172,11 @@ PLATFORM_SETTINGS_ROUTES = {
     "POST /api/v1/platform/settings/email/test",
 }
 
-# Routes only a platform admin reaches, beyond the operator settings.
-PLATFORM_ADMIN_ROUTES = {"POST /api/v1/orgs", *PLATFORM_SETTINGS_ROUTES}
+# Routes only a platform admin reaches.
+PLATFORM_ADMIN_ROUTES = set(PLATFORM_SETTINGS_ROUTES)
+# Creating an organization: a platform admin self-hosted, any verified session
+# hosted (``deps.require_org_creator``, F20 hosted sign-up).
+ORG_CREATOR_ROUTES = {"POST /api/v1/orgs"}
 
 # The organization management gates (F20 PR6): a membership of the ORGANIZATION
 # THE PATH NAMES, with the owner/admin and owner gates session only. Listed, not
@@ -205,6 +209,7 @@ PATH_ORG_OWNER_ROUTES = {
 
 def test_org_management_routes_take_the_path_org_gates() -> None:
     assert _routes_carrying(require_platform_admin) >= PLATFORM_ADMIN_ROUTES
+    assert _routes_carrying(require_org_creator) == ORG_CREATOR_ROUTES
     assert _routes_carrying(get_path_org_admin_user) == PATH_ORG_ADMIN_ROUTES
     assert _routes_carrying(get_path_org_owner_user) == PATH_ORG_OWNER_ROUTES
     # None of them rides the request-org gate, which binds a different organization.

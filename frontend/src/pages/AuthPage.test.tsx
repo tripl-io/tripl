@@ -312,12 +312,42 @@ describe('AuthPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'short' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create your account' }))
+    const submit = screen.getByRole('button', { name: 'Create your account' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    fireEvent.click(submit)
 
     const password = screen.getByLabelText('Password')
     expect(password).toHaveAttribute('aria-invalid', 'true')
     expect(await screen.findByText('Use at least 12 characters.')).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('holds the sign-up submit until the instance probe settles (F20)', async () => {
+    let answerStatus: (response: Response) => void = () => {}
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+      const url = urlOf(input)
+      if (url.endsWith('/api/v1/auth/status')) {
+        return new Promise<Response>((resolve) => {
+          answerStatus = resolve
+        })
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+    renderAuth()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    const submit = screen.getByRole('button', { name: 'Create your account' })
+    // Hosted or not is still unknown, so the organization fields may be missing.
+    expect(submit).toBeDisabled()
+    // Signing in never depends on the probe.
+    fireEvent.click(screen.getByRole('button', { name: 'Existing account' }))
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    answerStatus(jsonResponse({ has_users: true, registration_enabled: true }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Create your account' })).toBeEnabled(),
+    )
   })
 
   it('shows the product mark, a plain name placeholder and a password reveal (SH-31)', () => {
@@ -333,5 +363,105 @@ describe('AuthPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     expect(screen.getByLabelText('Name')).toHaveAttribute('placeholder', 'Your name')
+  })
+
+  describe('hosted mode (F20)', () => {
+    const HOSTED_STATUS = {
+      has_users: true,
+      registration_enabled: true,
+      email_configured: true,
+      deployment_mode: 'hosted',
+      email_verification_required: true,
+    }
+
+    function mockHosted() {
+      const bodies: unknown[] = []
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input)
+        if (url.endsWith('/api/v1/auth/status')) return Promise.resolve(jsonResponse(HOSTED_STATUS))
+        if (url.endsWith('/api/v1/auth/register')) {
+          bodies.push(JSON.parse(String(init?.body ?? '{}')))
+          return Promise.resolve(
+            jsonResponse(
+              {
+                id: 'user-9',
+                email: 'founder@example.com',
+                name: null,
+                role: 'owner',
+                is_platform_admin: false,
+                email_verified: false,
+                orgs: [{ slug: 'acme-labs', name: 'Acme Labs', role: 'owner' }],
+                created_at: '2026-09-28T00:00:00Z',
+                updated_at: '2026-09-28T00:00:00Z',
+              },
+              201,
+            ),
+          )
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      return bodies
+    }
+
+    it('asks for the organization and derives its slug from the name until edited', async () => {
+      mockHosted()
+      renderAuth()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+      const orgName = await screen.findByLabelText('Organization name')
+      const orgSlug = screen.getByLabelText('Organization URL slug')
+      fireEvent.change(orgName, { target: { value: 'Acme Labs' } })
+      expect(orgSlug).toHaveValue('acme-labs')
+      expect(screen.getByText('/o/acme-labs')).toBeInTheDocument()
+
+      fireEvent.change(orgSlug, { target: { value: 'acme' } })
+      fireEvent.change(orgName, { target: { value: 'Acme Laboratories' } })
+      expect(orgSlug).toHaveValue('acme')
+      expect(screen.getByText('/o/acme')).toBeInTheDocument()
+      // No first-account note in hosted mode.
+      expect(screen.queryByText(/The first account on a new instance/)).toBeNull()
+    })
+
+    it('refuses a malformed slug inline and sends nothing', async () => {
+      const bodies = mockHosted()
+      renderAuth()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+      fireEvent.change(await screen.findByLabelText('Organization name'), { target: { value: 'Acme' } })
+      fireEvent.change(screen.getByLabelText('Organization URL slug'), { target: { value: 'Acme Labs' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'founder@example.com' } })
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Create your account' }))
+
+      expect(screen.getByLabelText('Organization URL slug')).toHaveAttribute('aria-invalid', 'true')
+      expect(bodies).toHaveLength(0)
+    })
+
+    it('sends the organization with the sign-up', async () => {
+      const bodies = mockHosted()
+      renderAuth()
+      fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+      fireEvent.change(await screen.findByLabelText('Organization name'), { target: { value: 'Acme Labs' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'founder@example.com' } })
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'a-long-enough-password' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Create your account' }))
+
+      await waitFor(() => expect(bodies).toHaveLength(1))
+      expect(bodies[0]).toEqual({
+        email: 'founder@example.com',
+        password: 'a-long-enough-password',
+        org_name: 'Acme Labs',
+        org_slug: 'acme-labs',
+      })
+    })
+  })
+
+  it('keeps the self-hosted sign-up form free of organization fields', async () => {
+    renderAuth()
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+    expect(screen.queryByLabelText('Organization name')).toBeNull()
+    expect(screen.queryByLabelText('Organization URL slug')).toBeNull()
   })
 })

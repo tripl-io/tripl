@@ -1457,7 +1457,10 @@ def _buffer_metric(
             )
         },
         scan_job_id=None,
-        now=_NOW,
+        # The wall clock, not ``_NOW``: the flush tick these rows feed reads
+        # ``datetime.now`` and sweeps anything older than 14 days, so a fixed
+        # stamp turned every test here red once the calendar passed it.
+        now=datetime.now(UTC),
     )
     session.commit()
 

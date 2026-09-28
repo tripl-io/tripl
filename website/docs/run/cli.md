@@ -4251,7 +4251,10 @@ A completed first run. Note the two absent keys — no `requests`, no `instance`
   },
   "bootstrap": {
     "has_users": false,
-    "registration_enabled": true
+    "registration_enabled": true,
+    "email_configured": false,
+    "deployment_mode": "self_hosted",
+    "email_verification_required": false
   },
   "exit_code": 0
 }
@@ -4267,7 +4270,7 @@ A completed first run. Note the two absent keys — no `requests`, no `instance`
 | `secrets_generated` | The **names** of the secrets this run produced. Empty on a re-run that left `.env` alone. There is a test asserting no generated value appears anywhere in this document. |
 | `commands[]` | Every **planned** command with `argv`, `cwd`, the env overlay, and `returncode`. A command that was never reached carries `"returncode": null` rather than being omitted — "the pull failed so `up -d` never ran" is exactly the fact you need, and an absent entry would read as "it ran and we lost the code". Empty under `--no-start`. Compose's own output is not here by construction; see [above](#what-actually-runs-and-where-its-output-goes). |
 | `health` | `null` when the run never got there (including `--dry-run`). Otherwise `status` is `ok`, `timeout` or `skipped`; `last_error` carries the last probe's own message (`"HTTP 502"`, `"ConnectError"`) and is `null` when it succeeded or was skipped. |
-| `bootstrap` | The `/auth/status` body verbatim — `has_users`, `registration_enabled` — or `null` if it could not be read. That failure never changes the exit code; it only changes the wording of the next steps. |
+| `bootstrap` | The `/auth/status` body verbatim — `has_users`, `registration_enabled`, `email_configured`, `deployment_mode`, `email_verification_required` — or `null` if it could not be read. A hosted instance always reports `has_users: true`, so the next steps never offer it a first-owner account. That failure never changes the exit code; it only changes the wording of the next steps. |
 | `exit_code` | The process exit code, in the document. |
 
 ### `upgrade` document

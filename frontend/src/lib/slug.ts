@@ -18,6 +18,21 @@ export function isValidSlug(value: string): boolean {
 }
 
 /**
+ * The slug a name folds to, diacritics folded first (`Café Ölmotor` →
+ * `cafe-olmotor`); `''` when nothing Latin or numeric is left. The sign-up
+ * form derives an organization's slug with it, where a made-up fallback would
+ * be worse than an empty field the user fills in.
+ */
+export function foldSlug(name: string): string {
+  return name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+}
+
+/**
  * Derive a slug from a project name.
  *
  * Diacritics are folded first (`Café Ölmotor` → `cafe-olmotor`), so a Latin
@@ -30,12 +45,7 @@ export function isValidSlug(value: string): boolean {
  * `project-3` again, and the create fails with a 409).
  */
 export function slugify(name: string, takenSlugs: Iterable<string> = []): string {
-  const folded = name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
+  const folded = foldSlug(name)
   if (folded) return folded
   if (!name.trim()) return ''
   const taken = new Set(takenSlugs)

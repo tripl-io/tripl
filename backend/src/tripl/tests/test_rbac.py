@@ -123,6 +123,12 @@ READ_LIKE_MUTATING_PATHS = {
     # owner-only with API keys rejected (POST /users/invitations). Rate-limited
     # on the register bucket.
     "/api/v1/auth/invitations/{token}/accept",
+    # Email verification (F20 hosted sign-up): mailing a fresh link to one's
+    # own address (a browser session only, API keys refused) and redeeming a
+    # link, whose single-use token is its own authorization. Neither has a
+    # role to gate on: an unverified hosted account has none it may use yet.
+    "/api/v1/auth/verify-email/request",
+    "/api/v1/auth/verify-email/confirm",
     "/api/v1/projects/{slug}/events/window-metrics",
     "/api/v1/projects/{slug}/anomalies/signals/query",
     # Read-like: row sparklines for a batch of signals; POST only to carry it.

@@ -8,8 +8,11 @@ organization, a non-member, an API key of another organization — gets the same
 404, before any 403.
 
 * ``GET /orgs`` — the caller's organizations with their role (an API key: its own).
-* ``POST /orgs`` — a platform admin, from a browser session, in both deployment
-  modes until hosted sign-up (critique #24). The creator becomes the owner.
+* ``POST /orgs`` — from a browser session: a platform admin on a self-hosted
+  instance; any signed-in account on a hosted one (critique #24), which the
+  hosted email-verification gate has already held to a verified address. The
+  creator becomes the owner. Hosted sign-up (``POST /auth/register``) creates
+  the account's first organization the same way.
 * ``GET /orgs/{org}`` and ``GET /orgs/{org}/members`` — any member.
 * ``PATCH /orgs/{org}`` (name only; the slug is permanent), member role change
   and removal — an owner or admin. Owners are managed by owners only, and the
@@ -24,8 +27,9 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from tripl.api.deps import (
     CurrentUserDep,
@@ -33,10 +37,11 @@ from tripl.api.deps import (
     PathOrgAdminUserDep,
     PathOrgMemberUserDep,
     PathOrgOwnerUserDep,
-    PlatformAdminUserDep,
     SessionDep,
+    require_org_creator,
 )
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
+from tripl.models.user import User
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
 from tripl.schemas.organization import (
     OrgCreate,
@@ -59,6 +64,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orgs", tags=["organizations"])
 
 OWNER_MANAGEMENT_REQUIRED = "Only an owner can manage owners"
+BROWSER_SESSION_REQUIRED = "A browser session is required"
 LAST_OWNER = "Cannot remove or demote the last remaining owner"
 MEMBER_NOT_FOUND = "Member not found"
 
@@ -78,11 +84,14 @@ async def list_orgs(
     )
 
 
+OrgCreatorDep = Annotated[User, Depends(require_org_creator)]
+
+
 @router.post("", response_model=OrgResponse, status_code=status.HTTP_201_CREATED)
 async def create_org(
-    session: SessionDep, data: OrgCreate, current_user: PlatformAdminUserDep
+    session: SessionDep, data: OrgCreate, current_user: OrgCreatorDep
 ) -> OrgResponse:
-    """Create an organization; the platform admin who creates it becomes its owner."""
+    """Create an organization; its creator becomes its owner."""
     try:
         org = await org_service.create_org(
             session, creator=current_user, slug=data.slug, name=data.name

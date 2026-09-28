@@ -5,6 +5,7 @@ import { ActiveOrgProvider } from './components/active-org-provider'
 import { LegacyProjectRoute } from './components/legacy-project-route'
 import { AuthProvider } from './components/auth-provider'
 import { useAuth } from './components/auth-context'
+import { EmailVerificationGate } from './components/email-verification-gate'
 import { ErrorState } from './components/error-state'
 import { RouteErrorBoundary } from './components/error-boundary'
 import { KeyedRoute } from './components/keyed-route'
@@ -32,6 +33,7 @@ import NotFoundPage from './pages/NotFoundPage'
 
 const AuthPage = lazyWithReload(() => import('./pages/AuthPage'))
 const InvitePage = lazyWithReload(() => import('./pages/InvitePage'))
+const VerifyEmailPage = lazyWithReload(() => import('./pages/VerifyEmailPage'))
 const MainPage = lazyWithReload(() => import('./pages/ProjectsPage'))
 const EventsPage = lazyWithReload(() => import('./pages/EventsPage'))
 const EventEditPage = lazyWithReload(() => import('./pages/events/EventForm'))
@@ -148,12 +150,13 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (auth.status === 'anonymous') {
     return <Navigate to="/auth" replace state={{ from: location }} />
   }
-  return <>{children}</>
+  // Hosted mode: an unverified account sees "Check your inbox", not the app.
+  return <EmailVerificationGate>{children}</EmailVerificationGate>
 }
 
 /**
- * A signed-in visitor on a link meant for someone without a session — an
- * invitation, a password reset. Bouncing them to `/` dropped the token and read
+ * A signed-in visitor on a link meant for someone without a session — a
+ * password reset. Bouncing them to `/` dropped the token and read
  * as a broken link (SHELL-16); this says who they are signed in as and lets
  * them sign out without leaving the URL.
  */
@@ -217,6 +220,40 @@ function AnonymousOnly({
     return <Navigate to={postLoginDestination(location.state)} replace />
   }
   return <>{children}</>
+}
+
+/**
+ * /invite/:token. Signed out, the page redeems the invitation into a new
+ * account. Someone who ARRIVED signed in may accept it into that account
+ * (`POST /auth/invitations/{token}/accept` without a password, F20 PR6) or
+ * sign out to use another one; the API's refusal — a different address, an
+ * unverified one in hosted mode — is shown as it says it. Signing in on the
+ * page itself (the new-account path) goes on into the app, as before.
+ */
+function InviteRoute() {
+  const auth = useAuth()
+  const location = useLocation()
+  const [arrivedSignedIn, setArrivedSignedIn] = useState<boolean | null>(null)
+  if (auth.status === 'anonymous' && arrivedSignedIn !== false) setArrivedSignedIn(false)
+  if (auth.status === 'authenticated' && arrivedSignedIn === null) setArrivedSignedIn(true)
+
+  if (auth.status === 'loading') {
+    return <SessionFallback />
+  }
+  if (auth.status === 'error') {
+    return <SessionError />
+  }
+  if (auth.status === 'authenticated' && arrivedSignedIn === false) {
+    return <Navigate to={postLoginDestination(location.state)} replace />
+  }
+  const signedIn = auth.status === 'authenticated' && auth.user
+    ? {
+        email: auth.user.email,
+        isSigningOut: auth.isLoggingOut,
+        signOut: () => void auth.logout(),
+      }
+    : undefined
+  return withSuspense('invite', <InvitePage signedIn={signedIn} />, 'form')
 }
 
 /** /auth — a password-reset link keeps its token when someone is signed in. */
@@ -568,17 +605,13 @@ export default function App() {
           <DocumentTitleRoot>
             <Routes>
               <Route path="/auth" element={<AuthRoute />} />
-              {/* Redeeming an invitation needs a signed-out browser. Someone signed
-                  in is told so and offered a sign-out that keeps the link, rather
-                  than being bounced to / with the token dropped. */}
-              <Route
-                path="/invite/:token"
-                element={
-                  <AnonymousOnly signedInPurpose="accept this invitation">
-                    {withSuspense('invite', <InvitePage />, 'form')}
-                  </AnonymousOnly>
-                }
-              />
+              {/* Redeeming an invitation: into a new account signed out, or into
+                  the signed-in one (see InviteRoute). */}
+              <Route path="/invite/:token" element={<InviteRoute />} />
+              {/* The emailed verification link (F20). Public: it works signed
+                  out, and signed in it is how an unverified account gets past
+                  "Check your inbox". */}
+              <Route path="/verify-email" element={withSuspense('verify-email', <VerifyEmailPage />, 'form')} />
               {/* Full-takeover Settings area — its own viewport shell, so each route
                   mounts OUTSIDE the app Layout (no app sidebar) but requires auth. */}
               <Route path="/settings" element={<SettingsIndexRedirect />} />

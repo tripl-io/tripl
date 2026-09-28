@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 
@@ -17,6 +18,38 @@ ORG_SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 #: organization's own slug (taken anyway, but refused with a clear message
 #: rather than a 409) and the platform console's future segment.
 RESERVED_ORG_SLUGS: frozenset[str] = RESERVED_PROJECT_SLUGS | {"default", "platform"}
+ORG_NAME_MAX_LENGTH = 255
+ORG_SLUG_MAX_LENGTH = 255
+
+
+def clean_org_name(value: str) -> str:
+    """An organization name, stripped; blank is refused (``ValueError``)."""
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("name must not be blank")
+    return stripped
+
+
+def check_org_slug_not_reserved(value: str) -> str:
+    """Refuse a slug no organization may take (``ValueError``)."""
+    if value in RESERVED_ORG_SLUGS:
+        raise ValueError(f"'{value}' is reserved and cannot be used as an organization slug")
+    return value
+
+
+def check_org_slug(value: str) -> str:
+    """The full slug rule for a slug not declared through ``Field`` constraints.
+
+    Length, :data:`ORG_SLUG_PATTERN` and the reserved list: what ``OrgCreate``
+    enforces, for the hosted sign-up form's ``org_slug`` (``schemas.auth``).
+    """
+    if not value or len(value) > ORG_SLUG_MAX_LENGTH:
+        raise ValueError(f"slug must be 1 to {ORG_SLUG_MAX_LENGTH} characters")
+    if re.fullmatch(ORG_SLUG_PATTERN, value) is None:
+        raise ValueError(
+            "slug may contain only lowercase letters, digits and single hyphens between them"
+        )
+    return check_org_slug_not_reserved(value)
 
 
 class OrgCreate(BaseModel):
@@ -24,23 +57,18 @@ class OrgCreate(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(min_length=1, max_length=255)
-    slug: str = Field(min_length=1, max_length=255, pattern=ORG_SLUG_PATTERN)
+    name: str = Field(min_length=1, max_length=ORG_NAME_MAX_LENGTH)
+    slug: str = Field(min_length=1, max_length=ORG_SLUG_MAX_LENGTH, pattern=ORG_SLUG_PATTERN)
 
     @field_validator("name")
     @classmethod
     def _strip_name(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("name must not be blank")
-        return stripped
+        return clean_org_name(value)
 
     @field_validator("slug")
     @classmethod
     def _slug_not_reserved(cls, value: str) -> str:
-        if value in RESERVED_ORG_SLUGS:
-            raise ValueError(f"'{value}' is reserved and cannot be used as an organization slug")
-        return value
+        return check_org_slug_not_reserved(value)
 
 
 class OrgUpdate(BaseModel):

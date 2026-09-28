@@ -56,6 +56,7 @@ from tripl.middleware.rate_limit import (  # noqa: E402
     login_rate_limiter,
     register_rate_limiter,
     status_rate_limiter,
+    verify_email_rate_limiter,
 )
 from tripl.models import Base  # noqa: E402
 from tripl.models.data_source import TestStatus  # noqa: E402
@@ -202,6 +203,7 @@ def _reset_rate_limiters() -> None:
     login_rate_limiter.reset()
     register_rate_limiter.reset()
     status_rate_limiter.reset()
+    verify_email_rate_limiter.reset()
 
 
 async def override_get_session() -> AsyncGenerator[AsyncSession]:

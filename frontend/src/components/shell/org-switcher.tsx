@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useActiveOrg } from '@/components/active-org-context'
 import { orgHomePath, settingsPath } from '@/lib/activeOrg'
-import { useIsPlatformAdmin } from '@/lib/permissions'
+import { useCanCreateOrg } from '@/lib/deploymentMode'
 import { cn } from '@/lib/utils'
 import { ORG_SETTINGS_PATH, shouldShowOrgSwitcher } from './org-switcher-model'
 import { ICON_BUTTON_CLASS } from './sidebar-style'
@@ -24,7 +24,6 @@ import { ICON_BUTTON_CLASS } from './sidebar-style'
 export function OrgSwitcher({ compact = false }: { compact?: boolean }) {
   const { slug, membership, orgs } = useActiveOrg()
   const navigate = useNavigate()
-  const platformAdmin = useIsPlatformAdmin()
   if (!shouldShowOrgSwitcher(orgs.length)) return null
 
   const name = membership?.name ?? slug ?? 'Organization'
@@ -88,18 +87,29 @@ export function OrgSwitcher({ compact = false }: { compact?: boolean }) {
             Organization settings
           </Link>
         </DropdownMenuItem>
-        {platformAdmin && (
-          <DropdownMenuItem asChild>
-            <Link
-              to={settingsPath(`${ORG_SETTINGS_PATH}?create=1`)}
-              className="flex items-center gap-2 text-body-sm no-underline text-fg"
-            >
-              <Plus className="size-3.5 shrink-0 text-fg-tertiary" aria-hidden="true" />
-              Create organization
-            </Link>
-          </DropdownMenuItem>
-        )}
+        <CreateOrgMenuItem />
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/**
+ * "Create organization", for a platform admin or anyone in hosted mode (F20
+ * hosted sign-up). Its own component so the instance probe it may need runs
+ * when the menu opens, not on every page the switcher sits on.
+ */
+function CreateOrgMenuItem() {
+  const canCreateOrg = useCanCreateOrg()
+  if (!canCreateOrg) return null
+  return (
+    <DropdownMenuItem asChild>
+      <Link
+        to={settingsPath(`${ORG_SETTINGS_PATH}?create=1`)}
+        className="flex items-center gap-2 text-body-sm no-underline text-fg"
+      >
+        <Plus className="size-3.5 shrink-0 text-fg-tertiary" aria-hidden="true" />
+        Create organization
+      </Link>
+    </DropdownMenuItem>
   )
 }

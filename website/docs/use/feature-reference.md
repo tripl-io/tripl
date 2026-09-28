@@ -2784,7 +2784,14 @@ Each entry keeps the request payload, which is why it is owner-gated: see
 ### Sign-in and password reset
 
 The sign-in screen toggles between **Existing account** and **Create account**,
-and exposes a **Forgot your password?** flow. After signing in you return to the
+and exposes a **Forgot your password?** flow. On a hosted instance **Create
+account** also asks for an organization name and URL slug, and the new account
+must open the verification link emailed to it before the app opens (a **Check
+your inbox** screen offers **Resend email** and **Sign out**). The link
+confirms only while you are signed in as the account it was sent to; opened
+signed out, it sends you to sign in and back, and confirming signs that account
+out of its other sessions; see [Hosted sign-up and
+email verification](../administer/admin-guide.md#hosted-sign-up-and-email-verification). After signing in you return to the
 page you were sent from, query string included, so an alert link's incident
 card or a branch link's branch survives the detour. If your session expires
 while the app is open, a sign-in dialog opens over the page instead of

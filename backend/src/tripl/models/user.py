@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from tripl.models.base import Base, TimestampMixin, UUIDMixin
+from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
 from tripl.models.domain_enums import UserRole
 from tripl.models.enum_types import db_enum
 
@@ -33,6 +34,11 @@ class User(UUIDMixin, TimestampMixin, Base):
     is_platform_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # When the account proved it owns ``email`` (F20 hosted sign-up): a
+    # verification link, an invitation redeemed into a new account, or a
+    # password reset confirmed. Stored in both deployment modes, ENFORCED only
+    # when ``DEPLOYMENT_MODE=hosted`` (``api.deps.get_current_user``).
+    email_verified_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan", lazy="selectin"

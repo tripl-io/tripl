@@ -14,6 +14,7 @@ import { PasswordInput } from '@/components/ui/password-input'
 import { cn } from '@/lib/utils'
 import { postLoginDestination } from '@/lib/authRedirect'
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '@/lib/passwordPolicy'
+import { SLUG_ERROR, foldSlug, isValidSlug } from '@/lib/slug'
 import type { AuthUser } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { authStatusKey, projectsKey } from '@/lib/queryKeys'
@@ -57,6 +58,17 @@ function passwordError(value: string, minLength: number): string | null {
   return null
 }
 
+function orgNameError(value: string): string | null {
+  return value.trim() ? null : REQUIRED_MESSAGE
+}
+
+/** The backend's `OrgCreate.slug` shape; reserved words are left to its 422. */
+function orgSlugError(value: string): string | null {
+  if (!value.trim()) return REQUIRED_MESSAGE
+  if (!isValidSlug(value.trim())) return SLUG_ERROR
+  return null
+}
+
 /** `aria-describedby` for a control with a standing hint and a possible error. */
 function describedBy(...ids: Array<string | false | null | undefined>): string | undefined {
   const list = ids.filter(Boolean)
@@ -89,6 +101,11 @@ export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  // Hosted sign-up names the organization the new account creates and owns.
+  // The slug follows the name until the user types one of their own.
+  const [orgName, setOrgName] = useState('')
+  const [editedOrgSlug, setEditedOrgSlug] = useState<string | null>(null)
+  const orgSlug = editedOrgSlug ?? foldSlug(orgName)
   // The form whose Submit was pressed: its missing or malformed fields are
   // marked from then on, not while the reader is still typing (AU-4).
   const [submittedMode, setSubmittedMode] = useState<AuthMode | null>(null)
@@ -110,6 +127,9 @@ export default function AuthPage() {
   // Same rule: only a definite `false` says so before the request (ST-24). The
   // form stays usable — the server's answer is the same neutral one either way.
   const emailOff = statusQuery.data?.email_configured === false
+  // Hosted mode (F20): sign-up creates an organization, and the new account
+  // verifies its address before it can use the app.
+  const hosted = statusQuery.data?.deployment_mode === 'hosted'
   // A live reset token always forces reset mode: a reset link must show the reset
   // form even when /auth was ALREADY mounted (same route, new ?reset_token=, no
   // remount). Deriving `mode` — rather than syncing it in an effect — means the
@@ -131,6 +151,7 @@ export default function AuthPage() {
             email,
             password,
             ...(name.trim() ? { name: name.trim() } : {}),
+            ...(hosted ? { org_name: orgName.trim(), org_slug: orgSlug.trim() } : {}),
           }),
     onSuccess: async (user: AuthUser) => {
       queryClient.setQueryData<AuthUser | null>(AUTH_QUERY_KEY, user)
@@ -180,6 +201,15 @@ export default function AuthPage() {
   const authErrors = {
     email: submitted ? emailError(email) : null,
     password: submitted ? passwordError(password, mode === 'register' ? PASSWORD_MIN_LENGTH : 1) : null,
+  }
+  const askOrg = mode === 'register' && hosted
+  // Until the probe settles the page cannot know whether this is a hosted
+  // instance, so it cannot know whether the organization fields belong on the
+  // form: a sign-up sent now would go without them and bounce off the server.
+  const registerWaitingForStatus = mode === 'register' && statusQuery.isPending
+  const orgErrors = {
+    name: submitted && askOrg ? orgNameError(orgName) : null,
+    slug: submitted && askOrg ? orgSlugError(orgSlug) : null,
   }
   const forgotEmailError = submitted ? emailError(email) : null
   const newPasswordError = submitted ? passwordError(newPassword, PASSWORD_MIN_LENGTH) : null
@@ -306,7 +336,8 @@ export default function AuthPage() {
                   event.preventDefault()
                   setSubmittedMode(mode)
                   const minLength = mode === 'register' ? PASSWORD_MIN_LENGTH : 1
-                  if (emailError(email) || passwordError(password, minLength)) {
+                  const orgInvalid = askOrg && (orgNameError(orgName) || orgSlugError(orgSlug))
+                  if (emailError(email) || passwordError(password, minLength) || orgInvalid) {
                     focusFirstInvalidSoon(event.currentTarget)
                     return
                   }
@@ -372,7 +403,55 @@ export default function AuthPage() {
                   <FieldError inputId="auth-password" message={authErrors.password} className="mt-0" />
                 </div>
 
-                {mode === 'register' && isFreshInstance && (
+                {askOrg && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="auth-org-name">
+                        Organization name
+                      </Label>
+                      <Input
+                        id="auth-org-name"
+                        value={orgName}
+                        onChange={event => setOrgName(event.target.value)}
+                        placeholder="e.g. Acme Labs"
+                        autoComplete="organization"
+                        aria-required
+                        {...invalidAria('auth-org-name', orgErrors.name)}
+                      />
+                      <FieldError inputId="auth-org-name" message={orgErrors.name} className="mt-0" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="auth-org-slug">
+                        Organization URL slug
+                      </Label>
+                      <Input
+                        id="auth-org-slug"
+                        className="font-mono"
+                        value={orgSlug}
+                        onChange={event => setEditedOrgSlug(event.target.value)}
+                        placeholder="acme-labs"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        aria-required
+                        aria-invalid={orgErrors.slug ? true : undefined}
+                        aria-describedby={describedBy(
+                          'auth-org-slug-hint',
+                          orgErrors.slug && 'auth-org-slug-error',
+                        )}
+                      />
+                      <p id="auth-org-slug-hint" className="text-body-sm leading-5 text-fg-subtle">
+                        Your organization's address,{' '}
+                        <span className="font-mono text-fg-muted">/o/{orgSlug.trim() || '<slug>'}</span>.
+                        Lowercase letters, digits and single hyphens. It cannot be changed later.
+                      </p>
+                      <FieldError inputId="auth-org-slug" message={orgErrors.slug} className="mt-0" />
+                    </div>
+                  </>
+                )}
+
+                {mode === 'register' && !hosted && isFreshInstance && (
                   <p className="rounded-lg border border-accent/25 bg-accent-soft px-3 py-2 text-body leading-6 text-fg">
                     The first account on a new instance becomes the owner and can manage
                     members and instance settings.
@@ -392,7 +471,7 @@ export default function AuthPage() {
                   type="submit"
                   size="lg"
                   className="w-full justify-center"
-                  disabled={authMutation.isPending}
+                  disabled={authMutation.isPending || registerWaitingForStatus}
                 >
                   {authMutation.isPending ? 'Working…' : submitLabel}
                   {!authMutation.isPending && <ArrowRight className="h-4 w-4" />}
@@ -597,7 +676,9 @@ export default function AuthPage() {
 
             {mode === 'register' && (
               <p className="text-body leading-6 text-fg-subtle">
-                New accounts are created inside this tripl workspace and receive access immediately.
+                {hosted
+                  ? 'You become the owner of the new organization. We will email you a link to verify your address before you can start.'
+                  : 'New accounts are created inside this tripl workspace and receive access immediately.'}
               </p>
             )}
           </CardContent>

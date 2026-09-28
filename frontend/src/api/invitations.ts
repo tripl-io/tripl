@@ -44,4 +44,9 @@ export const invitationsApi = {
   // Answers with the new account, already signed in (AuthUserResponse).
   accept: (token: string, password: string, name?: string) =>
     api.post<AuthUser>(`/auth/invitations/${token}/accept`, { password, name: name || null }),
+  // Signed in: joins THIS account to the invitation's organization (F20 PR6).
+  // No password; 403 when the invitation names another address or, in hosted
+  // mode, when this address is not verified yet; 409 when already a member.
+  acceptSignedIn: (token: string) =>
+    api.post<AuthUser>(`/auth/invitations/${token}/accept`, {}),
 }

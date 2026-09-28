@@ -7,7 +7,7 @@ from fastapi.dependencies.models import Dependant
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import settings
+from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
 from tripl.middleware.org_context import (
@@ -22,7 +22,13 @@ from tripl.models.domain_enums import OrganizationRole
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services import api_key_service, org_service, project_access, project_service
+from tripl.services import (
+    api_key_service,
+    email_verification_service,
+    org_service,
+    project_access,
+    project_service,
+)
 from tripl.services._plan_branch_locks import (
     hold_branch_for_plan_write,
     hold_main_plan_for_write,
@@ -58,12 +64,15 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired API key",
         )
+    key_user = await session.get(User, api_key.user_id)
+    if key_user is not None:
+        _refuse_unverified(request, key_user)
     # Stash on request.state so role/scope checks downstream can tell whether
     # the caller is a session user or an API-key client.
     request.state.api_key_scope = api_key.scope
     request.state.api_key_project_id = api_key.project_id
     request.state.api_key_org_id = api_key.organization_id
-    user = await session.get(User, api_key.user_id)
+    user = key_user
     if user is not None:
         # The key's organization, bound before get_current_user runs the
         # project-bound key fence: that fence resolves a slug (critique #2).
@@ -93,11 +102,42 @@ _ORG_FREE_PATH_PREFIXES: tuple[str, ...] = (
 )
 
 
-def _is_org_free(request: Request) -> bool:
+def _app_path(request: Request) -> str:
+    """The routed path without any ``root_path`` prefix."""
     path: str = request.scope.get("path", "")
     root_path: str = request.scope.get("root_path", "") or ""
     if root_path and path.startswith(root_path):
         path = path[len(root_path) :]
+    return path
+
+
+#: What an account with an unverified address may still reach on a hosted
+#: instance: identity routes — who am I, sign out, verify/resend, preview an
+#: invitation.
+_UNVERIFIED_ALLOWED_PREFIX = "/api/v1/auth/"
+
+
+def _refuse_unverified(request: Request, user: User) -> None:
+    """The hosted email-verification gate (F20 hosted sign-up).
+
+    Enforced only when ``DEPLOYMENT_MODE=hosted``: an account that has not
+    verified its address gets 403 on every authenticated route outside
+    ``/api/v1/auth/``. Checked before the organization is resolved, so the
+    answer never depends on the account's memberships. An API key cannot be
+    minted behind this gate; it is refused all the same, in case one exists.
+    """
+    if not email_verification_service.is_blocked(user):
+        return
+    if _app_path(request).startswith(_UNVERIFIED_ALLOWED_PREFIX):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=email_verification_service.EMAIL_NOT_VERIFIED_MESSAGE,
+    )
+
+
+def _is_org_free(request: Request) -> bool:
+    path = _app_path(request)
     return any(
         path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/")
         for prefix in _ORG_FREE_PATH_PREFIXES
@@ -189,6 +229,7 @@ async def get_current_user(request: Request, session: SessionDep) -> User:
             detail="Authentication required",
         )
 
+    _refuse_unverified(request, user)
     await _bind_request_org(request, session, user, key_org_id=None)
     return user
 
@@ -469,6 +510,23 @@ async def require_platform_admin(request: Request, user: CurrentUserDep) -> User
     return user
 
 
+async def require_org_creator(request: Request, user: CurrentUserDep) -> User:
+    """Who may create an organization (``POST /orgs``). Never an API key.
+
+    Self-hosted: a platform admin only (owner decision 4). Hosted: any signed-in
+    browser session; the hosted email-verification gate in
+    :func:`get_current_user` has already refused unverified accounts.
+    """
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        return await require_platform_admin(request, user)
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="A browser session is required"
+        )
+    return user
+
+
 _LEGACY_SETTINGS_ORG_STATE_KEY = "legacy_settings_org_id"
 
 
@@ -643,6 +701,7 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
     get_owner_user: get_owner_user,
     get_key_reachable_owner_user: get_key_reachable_owner_user,
     require_platform_admin: lambda request, _session, user: require_platform_admin(request, user),
+    require_org_creator: lambda request, _session, user: require_org_creator(request, user),
     get_settings_admin_user: get_settings_admin_user,
     get_path_org_admin_user: get_path_org_admin_user,
     get_path_org_owner_user: get_path_org_owner_user,

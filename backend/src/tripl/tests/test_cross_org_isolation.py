@@ -60,6 +60,7 @@ from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.notification import Notification
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.project import Project
+from tripl.tests._accounts import sign_up
 from tripl.tests._incident_summary_seed import SeededIncident, add_item
 from tripl.tests._members import add_member, add_org_member
 from tripl.tests.conftest import TestSessionLocal
@@ -114,6 +115,8 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/auth/login": _AUTH_REASON,
     f"{API}/auth/password-reset/request": _AUTH_REASON,
     f"{API}/auth/password-reset/confirm": _AUTH_REASON,
+    f"{API}/auth/verify-email/request": _AUTH_REASON,
+    f"{API}/auth/verify-email/confirm": _AUTH_REASON,
     f"{API}/auth/logout": _AUTH_REASON,
     f"{API}/auth/me": _AUTH_REASON,
     f"{API}/settings": _SETTINGS_REASON,
@@ -128,8 +131,9 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/platform/settings/email/test": _PLATFORM_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
     f"{API}/orgs": (
-        "the caller's own organizations (an API key: its own one) and, for a platform "
-        "admin, creating a new one; names no organization in the path"
+        "the caller's own organizations (an API key: its own one) and creating a new "
+        "one (a platform admin self-hosted, any verified session hosted); names no "
+        "organization in the path"
     ),
 }
 
@@ -325,11 +329,8 @@ async def _ok(resp: Response, *codes: int) -> Any:
 
 
 async def _register(client: AsyncClient, email: str, name: str) -> str:
-    resp = await client.post(
-        f"{API}/auth/register", json={"email": email, "password": PASSWORD, "name": name}
-    )
-    assert resp.status_code == 201, resp.text
-    return str(resp.json()["id"])
+    # Hosted here: a verified default-org member, as hosted sign-up used to make.
+    return str(await sign_up(client, email=email, password=PASSWORD, name=name))
 
 
 async def _move_to_org(user_id: str, org_id: uuid.UUID, role: str) -> None:

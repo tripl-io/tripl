@@ -16,7 +16,7 @@ from tripl.models.domain_enums import OrganizationRole
 from tripl.models.invitation import Invitation
 from tripl.models.organization import Organization, OrganizationMember
 from tripl.models.user import User
-from tripl.services import auth_service
+from tripl.services import auth_service, email_verification_service
 from tripl.services.org_resolution import ORG_IS_ACTIVE
 
 # Long enough that an owner can hand the link over out of band (SMTP is
@@ -240,6 +240,11 @@ async def redeem_invitation(
     influence, and the address is taken from the invitation
     rather than from the request body — so a link cannot be redeemed into a
     different identity than the one it was issued for.
+
+    Self-hosted, the new account is email-verified at creation, as every
+    self-hosted account is. Hosted, it starts UNVERIFIED: the inviter receives
+    the raw link in the response body, so redeeming it proves nothing about
+    who reads the address; the caller mails a verification link.
     """
     invitation = await get_valid_invitation(session, raw_token)
 
@@ -259,6 +264,8 @@ async def redeem_invitation(
         name=stripped_name,
         password_hash=await asyncio.to_thread(hash_password, password),
     )
+    if not email_verification_service.verification_required():
+        email_verification_service.mark_verified(user)
     session.add(user)
     await session.flush()
     auth_service.add_organization_membership(
@@ -286,19 +293,27 @@ class AlreadyMemberError(Exception):
     """The signed-in account already belongs to the invitation's organization."""
 
 
+class EmailNotVerifiedError(Exception):
+    """A hosted instance's signed-in account has not verified its address yet."""
+
+
 async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: User) -> Invitation:
     """Redeem an invitation for an EXISTING, signed-in account: add the membership.
 
     Only when the account's email is the invitation's (both normalized, so the
     comparison is case-insensitive); anything else raises
-    :class:`InvitationEmailMismatchError` and the invitation stays unused. The
-    role is the one the inviter chose. Email verification arrives with hosted
-    sign-up (critique #27); until then the address match is the whole check.
-    Does NOT commit: the caller files its audit row and commits once.
+    :class:`InvitationEmailMismatchError` and the invitation stays unused. On a
+    hosted instance the account must also have verified that address
+    (:class:`EmailNotVerifiedError`, critique #27): anyone may sign up with any
+    address there, so the match alone proves nothing. The role is the one the
+    inviter chose. Does NOT commit: the caller files its audit row and commits
+    once.
     """
     invitation = await get_valid_invitation(session, raw_token)
     if normalize_email(user.email) != normalize_email(invitation.email):
         raise InvitationEmailMismatchError
+    if email_verification_service.is_blocked(user):
+        raise EmailNotVerifiedError
     member_id: uuid.UUID | None = await session.scalar(
         select(OrganizationMember.id).where(
             OrganizationMember.organization_id == invitation.organization_id,

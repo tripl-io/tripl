@@ -1,7 +1,8 @@
 """The organization management API (F20 PR6, GH #273).
 
-* ``POST /orgs`` is a platform admin's, in both deployment modes; the creator
-  owns the new organization and ``/auth/me`` lists it at once;
+* ``POST /orgs`` is a platform admin's on a self-hosted instance (any verified
+  session's on a hosted one: ``test_hosted_signup.py``); the creator owns the
+  new organization and ``/auth/me`` lists it at once;
 * ``PATCH /orgs/{org}`` renames (owner/admin), never re-slugs (422);
 * ``DELETE /orgs/{org}`` is an owner's, needs the typed slug, never takes the
   default organization, marks the row ``deleting`` (404 from then on) and queues
@@ -130,11 +131,8 @@ async def _audit(action: str) -> list[AuditLog]:
 # ── create ───────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("mode", ["self_hosted", "hosted"])
-async def test_only_a_platform_admin_creates_an_organization(
-    people: People, monkeypatch: pytest.MonkeyPatch, mode: str
-) -> None:
-    monkeypatch.setattr(settings, "deployment_mode", mode)
+async def test_only_a_platform_admin_creates_an_organization(people: People) -> None:
+    assert settings.deployment_mode == "self_hosted"
     refused = await people["alice"].post(f"{API}/orgs", json={"slug": ACME, "name": "Acme"})
     assert refused.status_code == 403, refused.text
 

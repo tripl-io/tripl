@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import InvitePage from './InvitePage'
+import InvitePage, { type InviteSignedInAccount } from './InvitePage'
+import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { at } from '@/test/at'
 
 
@@ -19,12 +20,16 @@ function urlOf(input: RequestInfo | URL) {
 
 const TOKEN = 'invite-token-abc'
 
-function renderInvitePage(qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function renderInvitePage(
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  signedIn?: InviteSignedInAccount,
+) {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/invite/${TOKEN}`]}>
         <Routes>
-          <Route path="/invite/:token" element={<InvitePage />} />
+          <Route path="/invite/:token" element={<InvitePage signedIn={signedIn} />} />
+          <Route path="/o/:org" element={<div>Joined organization home</div>} />
           <Route path="/" element={<div>Signed in home</div>} />
           <Route path="/auth" element={<div>Sign in screen</div>} />
         </Routes>
@@ -229,5 +234,87 @@ describe('InvitePage', () => {
     fireEvent.click(toggle)
     expect(password).toHaveAttribute('type', 'text')
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  describe('signed in (F20)', () => {
+    const PREVIEW = { email: 'member@example.com', role: 'member', expires_at: '2026-12-01T00:00:00Z' }
+    const ME = {
+      id: 'user-2',
+      email: 'member@example.com',
+      name: null,
+      role: 'owner',
+      is_platform_admin: false,
+      email_verified: false,
+      orgs: [{ slug: 'own-org', name: 'Own Org', role: 'owner' }],
+      created_at: '2026-09-28T00:00:00Z',
+      updated_at: '2026-09-28T00:00:00Z',
+    }
+
+    function signedInAs(email: string, signOut = vi.fn()): InviteSignedInAccount {
+      return { email, isSigningOut: false, signOut }
+    }
+
+    it("shows the API's refusal for an unverified address in its own words", async () => {
+      const bodies: unknown[] = []
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input)
+        if (url.endsWith(`/auth/invitations/${TOKEN}/accept`)) {
+          bodies.push(JSON.parse(String(init?.body ?? '{}')))
+          return Promise.resolve(
+            jsonResponse({ detail: 'Verify your email address before accepting an invitation.' }, 403),
+          )
+        }
+        if (url.endsWith(`/auth/invitations/${TOKEN}`)) return Promise.resolve(jsonResponse(PREVIEW))
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      renderInvitePage(undefined, signedInAs('member@example.com'))
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Accept with this account' }))
+
+      expect(
+        await screen.findByText('Verify your email address before accepting an invitation.'),
+      ).toBeInTheDocument()
+      // No password is asked for or sent: the account keeps its own.
+      expect(screen.queryByLabelText('Password')).toBeNull()
+      expect(bodies).toEqual([{}])
+    })
+
+    it('joins the signed-in account and opens the organization it joined', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith(`/auth/invitations/${TOKEN}/accept`)) {
+          return Promise.resolve(
+            jsonResponse({
+              ...ME,
+              email_verified: true,
+              orgs: [...ME.orgs, { slug: 'acme', name: 'Acme', role: 'member' }],
+            }),
+          )
+        }
+        if (url.endsWith(`/auth/invitations/${TOKEN}`)) return Promise.resolve(jsonResponse(PREVIEW))
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      qc.setQueryData(AUTH_QUERY_KEY, { ...ME, email_verified: true })
+      renderInvitePage(qc, signedInAs('member@example.com'))
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Accept with this account' }))
+
+      expect(await screen.findByText('Joined organization home')).toBeInTheDocument()
+    })
+
+    it('offers to sign out and redeem the link into another account', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith(`/auth/invitations/${TOKEN}`)) return Promise.resolve(jsonResponse(PREVIEW))
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      const signOut = vi.fn()
+      renderInvitePage(undefined, signedInAs('someone@example.com', signOut))
+
+      expect(await screen.findByText('someone@example.com')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out and use another account' }))
+      expect(signOut).toHaveBeenCalledTimes(1)
+    })
   })
 })

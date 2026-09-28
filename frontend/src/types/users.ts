@@ -37,6 +37,14 @@ export interface AuthUser {
    * organization.
    */
   is_platform_admin: boolean
+  /**
+   * Whether the account has confirmed its email address. Enforced only in
+   * hosted mode (`GET /auth/status` → `email_verification_required`), where an
+   * unverified session sees the "check your inbox" screen instead of the app.
+   * Optional so hand-built fixtures read as verified; only a definite `false`
+   * counts as unverified.
+   */
+  email_verified?: boolean
   /** Every organization membership. */
   orgs: OrgMembership[]
   /**
