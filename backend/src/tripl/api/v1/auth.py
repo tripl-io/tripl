@@ -314,9 +314,8 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     invitation = await invitation_service.get_valid_invitation(session, token)
     return InvitationPreview(
         email=invitation.email,
-        # The organization role the invitee joins with; NULL only for a row
-        # written behind the application's back, which redeems as member.
-        role=OrganizationRole(invitation.org_role or OrganizationRole.member.value),
+        # The organization role the invitee joins with.
+        role=OrganizationRole(invitation.org_role),
         expires_at=invitation.expires_at,
     )
 
@@ -439,7 +438,7 @@ async def _record_acceptance(
         target_id=invitation.id,
         target_name=invitation.email,
         payload={
-            "role": invitation.org_role or "member",
+            "role": invitation.org_role,
             "existing_account": existing_account,
         },
         organization_id=invitation.organization_id,

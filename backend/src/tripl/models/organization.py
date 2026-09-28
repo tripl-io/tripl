@@ -7,7 +7,8 @@ in the default one below. Since PR5 there is no ORM or server default on those
 ``middleware.org_context``) and a write that forgets fails on NOT NULL instead
 of landing in the default organization. Since PR4 ``organization_members.role``
 is the source of truth for every organization-level permission
-(``services.project_access``, ``api.deps``); ``users.role`` is no longer read.
+(``services.project_access``, ``api.deps``); the instance-wide ``users.role``
+is gone.
 
 """
 

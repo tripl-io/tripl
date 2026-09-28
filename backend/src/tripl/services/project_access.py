@@ -36,7 +36,7 @@ catalog (F20 PR4: organization roles are the source of truth):
 * inside a request the bound organization fences every answer: a project of
   another organization is ``None`` for everyone, so an id taken from a resource
   (a photo, a comment, a reviewer) cannot reach across organizations.
-  ``users.role`` is never read.
+  There is no instance-wide role to consult.
 
 Two helpers carry the rule, and every surface goes through one of them:
 :func:`effective_role` (Python, over the rows :func:`_role_rows` reads) and

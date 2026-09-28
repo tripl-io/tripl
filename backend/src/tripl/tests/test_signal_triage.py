@@ -23,7 +23,7 @@ from tripl.api.deps import get_current_user
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
 from tripl.models.chart_annotation import ChartAnnotation
-from tripl.models.domain_enums import SignalTriageAction, UserRole
+from tripl.models.domain_enums import SignalTriageAction
 from tripl.models.event_metric import EventMetric
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.project import Project
@@ -160,7 +160,7 @@ async def _collapsed_scopes(slug: str) -> set[str]:
 
 async def _as_viewer(slug: str) -> None:
     # A persisted viewer MEMBER: a non-member would get 404, not 403.
-    viewer = await persisted_member_user(await _project_id(slug), role=UserRole.viewer.value)
+    viewer = await persisted_member_user(await _project_id(slug), role="viewer")
 
     async def _viewer() -> User:
         return viewer

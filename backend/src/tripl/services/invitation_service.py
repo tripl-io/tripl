@@ -86,7 +86,6 @@ async def drop_pending_invitations(
     )
     if above_role is not None:
         floor = _ROLE_RANK[OrganizationRole(above_role).value]
-        # A NULL org_role redeems as ``member`` (see :func:`redeem_invitation`).
         query = query.where(
             Invitation.org_role.in_([role for role, rank in _ROLE_RANK.items() if rank > floor])
         )
@@ -104,8 +103,7 @@ async def create_invitation(
 ) -> tuple[Invitation, str]:
     """Mint a single-use invitation into ``organization_id`` and return it with its raw token.
 
-    The invitee joins that organization at ``org_role``; the legacy
-    ``invitations.role`` column keeps its default and is not read.
+    The invitee joins that organization at ``org_role``.
 
     The raw token is returned to the caller ONCE and never stored, so the route
     can put the redeem URL in its response body. That is the primary delivery
@@ -272,10 +270,7 @@ async def redeem_invitation(
         session,
         user,
         organization_id=invitation.organization_id,
-        # Migration c9e1a3b5d7f9 filled every pending invitation's org_role; a
-        # NULL could only come from a row written behind the application's
-        # back, and gets the least privilege.
-        org_role=OrganizationRole(invitation.org_role or OrganizationRole.member.value),
+        org_role=OrganizationRole(invitation.org_role),
     )
 
     invitation.used_at = datetime.now(UTC)
@@ -326,7 +321,7 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
         session,
         user,
         organization_id=invitation.organization_id,
-        org_role=OrganizationRole(invitation.org_role or OrganizationRole.member.value),
+        org_role=OrganizationRole(invitation.org_role),
     )
     # Invited back after a removal: an SSO sign-in may add them again (F20).
     await org_sso_service.lift_membership_block(session, invitation.organization_id, user.id)

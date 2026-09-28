@@ -97,7 +97,7 @@ def _visible_to(ds: DataSourceResponse, is_admin: bool) -> DataSourceResponse:
     """``ds`` unredacted for an org owner/admin of the bound organization, else redacted.
 
     ``is_admin`` is computed once per request
-    (:func:`tripl.services.project_access.is_org_admin`); ``users.role`` is not read.
+    (:func:`tripl.services.project_access.is_org_admin`).
     """
     if is_admin:
         return ds

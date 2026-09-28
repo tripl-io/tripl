@@ -83,7 +83,7 @@ class World:
 
 
 def _user(session: Session, email: str, name: str) -> uuid.UUID:
-    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x", role="editor")
+    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x")
     session.add(user)
     session.flush()
     return user.id
@@ -525,13 +525,11 @@ async def test_merge_notifies_reviewers_but_not_the_merger(client: AsyncClient) 
                     id=reviewer_id,
                     email="merge-reviewer@example.com",
                     password_hash="!seed",
-                    role="editor",
                 ),
                 User(
                     id=outsider_id,
                     email="merge-outsider@example.com",
                     password_hash="!seed",
-                    role="editor",
                 ),
             ]
         )

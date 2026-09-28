@@ -7,7 +7,7 @@
   user of another organization is 404; the member is NOT signed out;
 * invitations are minted into, listed for and revoked within the bound
   organization, at an organization role; inviting an owner takes an owner;
-* ``users.role`` is neither what the API answers nor what it writes.
+* the role the API answers is the organization role (there is no other).
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from sqlalchemy import delete, select
 
 from tripl.main import app
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
-from tripl.models.user import User
 from tripl.tests._members import add_org_member
 from tripl.tests.conftest import TestSessionLocal
 
@@ -133,8 +132,6 @@ async def test_the_instance_vocabulary_is_refused(people: People, legacy: str) -
 @pytest.mark.asyncio
 async def test_role_change_writes_the_org_role_and_keeps_the_session(people: People) -> None:
     mia = await people.register("mia")
-    async with TestSessionLocal() as session:
-        legacy_before = await session.scalar(select(User.role).where(User.id == people.ids["mia"]))
 
     promoted = await people["boss"].patch(
         f"/api/v1/users/{people.ids['mia']}", json={"role": "admin"}
@@ -149,9 +146,7 @@ async def test_role_change_writes_the_org_role_and_keeps_the_session(people: Peo
                 OrganizationMember.organization_id == DEFAULT_ORG_ID,
             )
         )
-        legacy_after = await session.scalar(select(User.role).where(User.id == people.ids["mia"]))
     assert org_role == "admin"
-    assert legacy_after == legacy_before  # the legacy column is not written
 
     # Critique #7: still signed in, and the new role applies at once.
     me = await mia.get("/api/v1/auth/me")

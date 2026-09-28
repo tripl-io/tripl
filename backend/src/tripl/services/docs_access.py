@@ -11,7 +11,7 @@ and indexed into, every project of the organization — so they get more rules:
 * Only an owner or admin of the note's organization (``organization_members``,
   the organization of the path's project) may create, edit, move, restore or
   delete them. A plain organization member with an editor row on one project
-  may not change notes every other project reads. ``users.role`` is not read.
+  may not change notes every other project reads.
 * A project-bound API key is fenced into one project (``_enforce_project_scope``),
   so it may not change notes that other projects read.
 * Deleting organization notes in bulk (a folder delete, a ``mirror`` import)

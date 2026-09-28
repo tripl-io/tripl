@@ -234,12 +234,12 @@ Core planning entities:
   org is enforced in `services/org_group_service.py`; `org_service.remove_member`
   drops the user's groups. Consumers (F24 sharing, owners, alert routing) resolve
   groups with `org_group_service.group_member_ids`; SCIM sync is not wired yet.
-- `Organization`, `OrganizationMember` (F20, schema only so far): the tenant
-  above projects, with org roles `owner` | `admin` | `member`. Projects, data
+- `Organization`, `OrganizationMember` (F20): the tenant above projects, with
+  org roles `owner` | `admin` | `member`. Projects, data
   sources, API keys and invitations carry a NOT NULL `organization_id`; every row
   is in the default organization (`DEFAULT_ORG_ID` in `models/organization.py`).
-  Nothing reads org roles yet: `users.role` is still the permission source, and
-  `app_settings` reads must filter `organization_id IS NULL` (operator scope).
+  Org roles and project roles are the only permission source (the old
+  instance role, `users.role`, is dropped), and `app_settings` reads must filter `organization_id IS NULL` (operator scope).
   Org context (F20 PR2): every authenticated request acts in one organization,
   bound in `middleware/org_context.py` by `api/deps.py` (`get_current_user` /
   `_resolve_api_key_user` via `services/org_resolution.py`) BEFORE any slug is

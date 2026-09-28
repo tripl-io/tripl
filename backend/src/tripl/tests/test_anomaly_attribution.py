@@ -32,7 +32,6 @@ from tripl.main import app
 from tripl.models import Base
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.data_source import DataSource
-from tripl.models.domain_enums import UserRole
 from tripl.models.event import Event
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
@@ -784,7 +783,6 @@ async def test_non_member_gets_404(client: AsyncClient) -> None:
             email=f"outsider-{uuid.uuid4().hex[:8]}@example.com",
             name="Outsider",
             password_hash=PASSWORD_HASH_PLACEHOLDER,
-            role=UserRole.editor.value,
         )
         session.add(outsider)
         await session.commit()

@@ -13,9 +13,9 @@ from tripl.schemas.organization import (
 )
 
 # The role vocabulary of the users API and ``/auth/me``: the ORGANIZATION role
-# (owner | admin | member) since F20 PR4. ``users.role`` (owner | editor |
-# viewer) is no longer read or returned; what a member may do inside a project
-# is their project role.
+# (owner | admin | member) since F20 PR4, which replaced the instance role
+# (owner | editor | viewer, since dropped); what a member may do inside a
+# project is their project role.
 Role = OrganizationRole
 
 # Single source of truth for the password policy. Enforced authoritatively here

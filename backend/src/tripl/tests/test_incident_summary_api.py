@@ -9,7 +9,6 @@ from httpx import AsyncClient
 
 from tripl.api.deps import get_current_user
 from tripl.main import app
-from tripl.models.domain_enums import UserRole
 from tripl.models.user import User
 from tripl.tests._incident_summary_seed import (
     GOOD_REPLY,
@@ -134,7 +133,7 @@ async def test_viewer_reads_and_ensures_but_cannot_regenerate(
     seeded = await seed_incident(client, "sum-api-viewer")
     enable_ai(monkeypatch)
     llm = FakeLlm(GOOD_REPLY).install(monkeypatch)
-    viewer = await persisted_member_user(seeded.project_id, role=UserRole.viewer.value)
+    viewer = await persisted_member_user(seeded.project_id, role="viewer")
     _as(viewer)
     try:
         got = await client.get(seeded.summary_url)
@@ -180,7 +179,6 @@ async def test_non_member_gets_404(client: AsyncClient, monkeypatch: pytest.Monk
             email=f"outsider-{uuid.uuid4().hex[:8]}@example.com",
             name="Outsider",
             password_hash=PASSWORD_HASH_PLACEHOLDER,
-            role=UserRole.editor.value,
         )
         session.add(outsider)
         await session.commit()

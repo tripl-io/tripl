@@ -43,7 +43,6 @@ from tripl.models.domain_enums import (
     MetricComposition,
     MetricKind,
     MetricStatus,
-    UserRole,
 )
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
@@ -103,7 +102,7 @@ def factory(tmp_path: Path) -> Iterator[sessionmaker[Session]]:
 
 
 def _user(session: Session, email: str, name: str | None) -> uuid.UUID:
-    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x", role="editor")
+    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x")
     session.add(user)
     session.flush()
     return user.id
@@ -699,7 +698,7 @@ async def _api_world(client: AsyncClient, slug: str) -> ApiWorld:
     assert event_type.status_code == 201, event_type.text
     event_type_id = uuid.UUID(event_type.json()["id"])
     owner = await persisted_member_user(
-        project_id, role=UserRole.editor.value, email=f"owner-{slug}@example.com"
+        project_id, role="editor", email=f"owner-{slug}@example.com"
     )
     group_id = uuid.uuid4()
     async with TestSessionLocal() as session:
@@ -999,7 +998,7 @@ async def test_manual_notify_needs_an_editor_member(
 ) -> None:
     world = await _api_world(client, "owner-gates")
     viewer = await persisted_member_user(
-        world.project_id, role=UserRole.viewer.value, email="viewer-owner@example.com"
+        world.project_id, role="viewer", email="viewer-owner@example.com"
     )
     async with TestSessionLocal() as session:
         outsider = User(
