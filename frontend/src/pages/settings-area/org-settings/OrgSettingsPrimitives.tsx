@@ -135,6 +135,7 @@ export function OrgTextField({
   number = false,
   suffix,
   grouped,
+  readOnly = false,
   last,
 }: OrgFieldProps & {
   section: OrgSection
@@ -145,6 +146,8 @@ export function OrgTextField({
   number?: boolean
   suffix?: string
   grouped?: boolean
+  /** Shown, never edited here (e.g. the operator's embedding endpoint, an env value). */
+  readOnly?: boolean
   last?: boolean
 }) {
   const errorId = useId()
@@ -182,6 +185,7 @@ export function OrgTextField({
         placeholder={placeholder}
         suffix={suffix}
         mono
+        readOnly={readOnly}
         aria-invalid={error !== null}
         aria-describedby={error ? errorId : undefined}
       />

@@ -10,6 +10,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import {
   aiStatusRootKey,
   authStatusKey,
+  commandPaletteSearchRootKey,
   orgSettingsKey,
   rowLimitDefaultsKey,
 } from '@/lib/queryKeys'
@@ -17,6 +18,7 @@ import { getErrorMessage } from '@/lib/utils'
 import { OrgAiFields } from './org-settings/OrgAiFields'
 import { OrgEmailFields } from './org-settings/OrgEmailFields'
 import { OrgLimitFields } from './org-settings/OrgLimitFields'
+import { OrgSearchFields } from './org-settings/OrgSearchFields'
 import { ORG_SOURCE_LEGEND } from './org-settings/OrgSettingsPrimitives'
 import {
   EMPTY_DRAFTS,
@@ -36,6 +38,7 @@ import {
 const DESCRIPTIONS: Record<OrgSection, string> = {
   email: "The mail relay this organization's alerts, digests and notifications go out through.",
   ai: "The AI provider this organization's explanations, suggestions and assistant use.",
+  search: "The embedding model semantic search uses for this organization's events and plans.",
   limits: 'Row caps for the scans and metrics runs of this organization.',
 }
 
@@ -44,8 +47,16 @@ const UNSAVED_MESSAGE =
 
 const ORG_PATHS: ReadonlySet<string> = new Set(Object.values(ORG_SECTION_PATHS))
 
+/** What the organization loses while the operator shares nothing with it. */
+const FALLBACK_NONE_NOTES: Record<Exclude<OrgSection, 'limits'>, string> = {
+  email: 'The operator shares no mail relay with organizations: until this organization sets its own, its email is off.',
+  ai: 'The operator shares no AI provider with organizations: until this organization sets its own, its AI is off.',
+  search:
+    'The operator shares no embedding endpoint with organizations: until this organization sets its own, semantic search is off for it. Keyword search still works.',
+}
+
 /**
- * Organization › Email, AI and Limits (F20 PR9): the organization's own
+ * Organization › Email, AI, Search and Limits (F20 PR9, PR10): the organization's own
  * values, each shown with where it comes from (the organization, the
  * operator, the environment) and what it would inherit without its own.
  * Owners and admins of the organization only (the area gates the route).
@@ -86,6 +97,12 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
       // A self-hosted default organization's relay IS the account relay.
       if (target === 'email') void qc.invalidateQueries({ queryKey: authStatusKey() })
       if (target === 'limits') void qc.invalidateQueries({ queryKey: rowLimitDefaultsKey() })
+      // A new vector space re-embeds this organization's projects: results
+      // cached from the old one are stale.
+      if (target === 'search') {
+        void qc.invalidateQueries({ queryKey: aiStatusRootKey() })
+        void qc.invalidateQueries({ queryKey: commandPaletteSearchRootKey() })
+      }
     },
   })
 
@@ -95,7 +112,7 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
     registerUnsaved(
       dirtyKey
         ? {
-            // Moving between Email, AI and Limits keeps this component, and so
+            // Moving between Email, AI, Search and Limits keeps this component, and so
             // the drafts; anything else unmounts it.
             keptBy: path => ORG_PATHS.has(path),
             message: UNSAVED_MESSAGE,
@@ -144,14 +161,20 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
         section !== 'limits' &&
         settings.operator_fallback === 'none' && (
           <p role="note" className="m-0 text-body-sm text-fg-tertiary">
-            The operator shares no mail relay or AI provider with organizations: until this
-            organization sets its own, its {section === 'email' ? 'email' : 'AI'} is off.
+            {FALLBACK_NONE_NOTES[section]}
           </p>
         )
       )}
       {section === 'email' && settings.scope === 'organization' && (
         <p className="m-0 text-body-sm text-fg-tertiary">
           Sign-up, password-reset and invitation mail always go through the platform&rsquo;s relay.
+        </p>
+      )}
+      {section === 'search' && (
+        <p className="m-0 text-body-sm text-fg-tertiary">
+          Changing the model or endpoint re-embeds this organization&rsquo;s projects, and no one
+          else&rsquo;s. Semantic results fill back in as the reindex runs; keyword search keeps
+          working meanwhile.
         </p>
       )}
       <p className="m-0 text-body-sm text-fg-tertiary">{ORG_SOURCE_LEGEND}</p>
@@ -178,6 +201,9 @@ function OrgSettingsForm({ org, section }: { org: string; section: OrgSection })
       )}
       {section === 'ai' && (
         <OrgAiFields {...fieldProps} org={org} setDraft={setDraft} saving={saveMut.isPending} />
+      )}
+      {section === 'search' && (
+        <OrgSearchFields {...fieldProps} setDraft={setDraft} saving={saveMut.isPending} />
       )}
       {section === 'limits' && <OrgLimitFields {...fieldProps} />}
     </div>

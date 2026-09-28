@@ -1,6 +1,6 @@
 import type { OrgSettings, OrgSettingsValues } from '@/api/orgSettings'
 
-/** Test fixture: an organization with some values of its own (F20 PR9). */
+/** Test fixture: an organization with some values of its own (F20 PR9, PR10). */
 const OPERATOR_VALUES: OrgSettingsValues = {
   limits: { scan_row_limit_default: 50000, metrics_row_limit_default: 100000 },
   email: {
@@ -21,6 +21,15 @@ const OPERATOR_VALUES: OrgSettingsValues = {
     describe_system_prompt: 'Describe.',
     ask_system_prompt: 'Ask.',
     alert_explanation_system_prompt: 'Explain.',
+  },
+  search: {
+    search_embeddings_enabled: true,
+    search_embedding_provider: 'openai',
+    search_embedding_model: 'text-embedding-3-small',
+    // The operator's endpoint is never shown to an organization's admins.
+    search_embedding_base_url: '',
+    search_embedding_api_key_configured: true,
+    search_embedding_dimensions: 1536,
   },
 }
 
@@ -58,6 +67,11 @@ export function orgSettingsFixture(overrides: Partial<OrgSettings> = {}): OrgSet
       'ai.describe_system_prompt': 'default',
       'ai.ask_system_prompt': 'default',
       'ai.alert_explanation_system_prompt': 'default',
+      'search.search_embeddings_enabled': 'override',
+      'search.search_embedding_provider': 'default',
+      'search.search_embedding_model': 'env',
+      'search.search_embedding_base_url': 'override',
+      'search.search_embedding_api_key': 'override',
     },
     ...overrides,
   }

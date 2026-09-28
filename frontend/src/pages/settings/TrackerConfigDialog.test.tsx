@@ -222,6 +222,52 @@ describe('TrackerConfigDialog', () => {
     expect(trackerConfigApi.update).not.toHaveBeenCalled()
   })
 
+  describe("the organization's tracker defaults (F20 PR12)", () => {
+    const inheriting = () =>
+      makeConfig({
+        enabled: false,
+        base_url: '',
+        project_key: '',
+        auth_email: '',
+        api_token_set: false,
+        inherited_fields: ['api_token', 'auth_email', 'base_url', 'project_key'],
+      })
+
+    it('enables a tracker whose empty fields the organization fills in', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(inheriting())
+      vi.mocked(trackerConfigApi.update).mockResolvedValue(makeConfig())
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByLabelText('Enabled'))
+      expect(screen.getAllByText('From the organization’s tracker defaults.')).toHaveLength(3)
+      expect(screen.getByLabelText('API token')).toHaveAttribute(
+        'placeholder',
+        "The organization's API token — leave blank to use it",
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(trackerConfigApi.update).toHaveBeenCalledWith('demo', { enabled: true }))
+      expect(screen.queryByText('Required while the tracker is enabled.')).toBeNull()
+    })
+
+    it("asks for the project's own account and token once it names its own site (critique #13)", async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(inheriting())
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByLabelText('Enabled'))
+      fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://other.atlassian.net' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      // The project key still comes from the organization; the account and the
+      // token do not follow a site the project names.
+      expect(await screen.findAllByText('Required while the tracker is enabled.')).toHaveLength(1)
+      expect(screen.getByText(/the organization's token is never sent there/)).toBeInTheDocument()
+      expect(trackerConfigApi.update).not.toHaveBeenCalled()
+    })
+  })
+
   it('lets an owner park an incomplete connection while it is disabled', async () => {
     vi.mocked(trackerConfigApi.get).mockResolvedValue(
       makeConfig({ enabled: false, base_url: '', project_key: '', auth_email: '' }),

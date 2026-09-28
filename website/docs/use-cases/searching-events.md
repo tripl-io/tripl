@@ -233,7 +233,9 @@ There are two flags with this name and they answer two different questions.
 **On the envelope**, `semantic_used` tells you which engine answered:
 
 - `true` — embeddings were used (true semantic ranking by meaning).
-- `false` — the instance has no embedding provider configured, so search fell back
+- `false` — the organization the project belongs to has no embedding provider
+  configured (each organization chooses its own under **Settings → Organization
+  → Search**, or inherits the operator's), so search fell back
   to keyword/substring matching. `/search` still works, but it ranks by word
   overlap (stemmed, as above) rather than by meaning.
 

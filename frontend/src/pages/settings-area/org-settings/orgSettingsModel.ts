@@ -6,20 +6,22 @@ import type {
 } from '@/api/orgSettings'
 
 /**
- * The pure half of Organization › Email, AI and Limits (F20 PR9): the draft,
+ * The pure half of Organization › Email, AI, Search and Limits (F20 PR9,
+ * PR10): the draft,
  * what a save sends, and the rules the backend applies that the page has to
  * say out loud (credential groups, operator ceilings, the fallback policy).
  * Mirrors backend/src/tripl/services/_org_settings_merge.py.
  */
 
-export type OrgSection = 'limits' | 'email' | 'ai'
+export type OrgSection = 'limits' | 'email' | 'ai' | 'search'
 
-export const ORG_SECTIONS: readonly OrgSection[] = ['email', 'ai', 'limits']
+export const ORG_SECTIONS: readonly OrgSection[] = ['email', 'ai', 'search', 'limits']
 
 /** The settings path of each section (`/settings/<path>`). */
 export const ORG_SECTION_PATHS: Record<OrgSection, string> = {
   email: 'organization/email',
   ai: 'organization/ai',
+  search: 'organization/search',
   limits: 'organization/limits',
 }
 
@@ -37,10 +39,14 @@ export type DraftValue = string | boolean | null
 export type OrgDraft = Readonly<Record<string, DraftValue>>
 export type OrgDrafts = Readonly<Record<OrgSection, OrgDraft>>
 
-export const EMPTY_DRAFTS: OrgDrafts = { limits: {}, email: {}, ai: {} }
+export const EMPTY_DRAFTS: OrgDrafts = { limits: {}, email: {}, ai: {}, search: {} }
 
 /** Secrets are write-only: the response only says whether one is configured. */
-export const SECRET_FIELDS: ReadonlySet<string> = new Set(['ai_api_key', 'smtp_password'])
+export const SECRET_FIELDS: ReadonlySet<string> = new Set([
+  'ai_api_key',
+  'smtp_password',
+  'search_embedding_api_key',
+])
 
 /** Sent as numbers; typed as text. */
 export const NUMBER_FIELDS: ReadonlySet<string> = new Set([
@@ -80,6 +86,25 @@ export const SMTP_GROUP = [
   'smtp_password',
   'smtp_from_address',
 ] as const
+/**
+ * The search-embedding endpoint (F20 PR10, backend `EMBEDDING_GROUP`): where
+ * indexed plan text is sent, the key it goes with, and the provider and model
+ * that define the vector space. The width (`search_embedding_dimensions`) is
+ * the operator's and not part of it.
+ */
+export const EMBEDDING_GROUP = [
+  'search_embedding_provider',
+  'search_embedding_model',
+  'search_embedding_base_url',
+  'search_embedding_api_key',
+] as const
+
+/** Each credential-group section, its group and the secret in it. */
+const GROUPS: Record<'ai' | 'email' | 'search', { group: readonly string[]; secret: string }> = {
+  ai: { group: AI_ENDPOINT_GROUP, secret: 'ai_api_key' },
+  email: { group: SMTP_GROUP, secret: 'smtp_password' },
+  search: { group: EMBEDDING_GROUP, secret: 'search_embedding_api_key' },
+}
 
 export function sourceOf(settings: OrgSettings, section: OrgSection, field: string): OrgSettingSource {
   return settings.sources[`${section}.${field}`] ?? 'default'
@@ -243,10 +268,9 @@ export function clearGroup(draft: OrgDraft, settings: OrgSettings, section: OrgS
 export function groupWarning(
   settings: OrgSettings,
   draft: OrgDraft,
-  section: 'ai' | 'email',
+  section: 'ai' | 'email' | 'search',
 ): { starting: boolean; missingSecret: boolean } | null {
-  const group = section === 'ai' ? AI_ENDPOINT_GROUP : SMTP_GROUP
-  const secret = section === 'ai' ? 'ai_api_key' : 'smtp_password'
+  const { group, secret } = GROUPS[section]
   if (!groupOwnedAfterSave(settings, draft, section, group)) return null
   const starting = !groupOwned(settings, section, group)
   const missingSecret = !ownSecretAfterSave(settings, draft, section, secret)
@@ -257,5 +281,6 @@ export function groupWarning(
 export const SECTION_TITLES: Record<OrgSection, string> = {
   email: 'Email',
   ai: 'AI',
+  search: 'Search',
   limits: 'Limits',
 }

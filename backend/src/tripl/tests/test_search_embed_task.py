@@ -117,10 +117,11 @@ def test_task_retries_on_batch_failure_and_keeps_docs_pending(
         search_embeddings_enabled=True,
         search_embedding_api_key="sk-test",
     )
+    # The owning organization's config, read by project (F20 PR10).
     monkeypatch.setattr(
         search_tasks.app_settings_service,
-        "get_embedding_config_sync",
-        lambda session=None: enabled_config,
+        "get_embedding_config_for_project_sync",
+        lambda session, project_id: enabled_config,
     )
     monkeypatch.setattr(search_tasks, "embed_texts", lambda texts, *, config: [])
 
@@ -139,9 +140,10 @@ def test_stranded_chaser_requeues_one_embed_task_per_pending_branch(
     """The beat chaser re-queues the embed task for every (project, branch)
     that still has stale pending documents — the safety net behind the
     event-driven queue-after-reindex flow."""
-    project_id, branch_id = uuid.uuid4(), uuid.uuid4()
+    project_id, branch_id, org_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     session = MagicMock()
-    session.execute.return_value.all.return_value = [(project_id, branch_id)]
+    # (project, branch, the project's organization) — F20 PR10.
+    session.execute.return_value.all.return_value = [(project_id, branch_id, org_id)]
     monkeypatch.setattr(search_tasks, "_get_sync_session", lambda: session)
     enabled_config = replace(
         env_ai_config(),
@@ -151,7 +153,7 @@ def test_stranded_chaser_requeues_one_embed_task_per_pending_branch(
     monkeypatch.setattr(
         search_tasks.app_settings_service,
         "get_embedding_config_sync",
-        lambda session=None: enabled_config,
+        lambda session=None, *, org_id: enabled_config,
     )
     fake_task = MagicMock()
     monkeypatch.setattr(search_tasks, "embed_search_documents", fake_task)
@@ -167,12 +169,15 @@ def test_stranded_chaser_noop_when_embeddings_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     session = MagicMock()
+    # Stranded rows exist, but their organization has embeddings off (F20 PR10:
+    # each organization's own config decides, not one for the instance).
+    session.execute.return_value.all.return_value = [(uuid.uuid4(), uuid.uuid4(), uuid.uuid4())]
     monkeypatch.setattr(search_tasks, "_get_sync_session", lambda: session)
     disabled_config = replace(env_ai_config(), search_embeddings_enabled=False)
     monkeypatch.setattr(
         search_tasks.app_settings_service,
         "get_embedding_config_sync",
-        lambda session=None: disabled_config,
+        lambda session=None, *, org_id: disabled_config,
     )
     fake_task = MagicMock()
     monkeypatch.setattr(search_tasks, "embed_search_documents", fake_task)
@@ -180,7 +185,6 @@ def test_stranded_chaser_noop_when_embeddings_disabled(
     result = search_tasks.requeue_stranded_search_embeddings()
 
     assert result == {"branches_requeued": 0}
-    session.execute.assert_not_called()
     fake_task.delay.assert_not_called()
 
 

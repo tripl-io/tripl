@@ -683,6 +683,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orgs/{org}/settings/trackers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Org Tracker Defaults
+         * @description The organization's Jira/Linear defaults (F20 PR12); secrets as ``*_configured``.
+         */
+        get: operations["get_org_tracker_defaults_api_v1_orgs__org__settings_trackers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Org Tracker Defaults
+         * @description Set or clear (``null`` / ``""``) the organization's tracker defaults.
+         */
+        patch: operations["patch_org_tracker_defaults_api_v1_orgs__org__settings_trackers_patch"];
+        trace?: never;
+    };
     "/api/v1/orgs/{org}/transfer-ownership": {
         parameters: {
             query?: never;
@@ -11838,6 +11862,28 @@ export interface components {
             /** Smtp Username */
             smtp_username?: string | null;
         };
+        /** OrgJiraDefaults */
+        OrgJiraDefaults: {
+            /** Api Token Configured */
+            api_token_configured: boolean;
+            /** Auth Email */
+            auth_email: string;
+            /** Base Url */
+            base_url: string;
+            /** Project Key */
+            project_key: string;
+        };
+        /** OrgJiraDefaultsUpdate */
+        OrgJiraDefaultsUpdate: {
+            /** Api Token */
+            api_token?: string | null;
+            /** Auth Email */
+            auth_email?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Project Key */
+            project_key?: string | null;
+        };
         /** OrgLimitSettings */
         OrgLimitSettings: {
             /** Metrics Row Limit Default */
@@ -11851,6 +11897,20 @@ export interface components {
             metrics_row_limit_default?: number | null;
             /** Scan Row Limit Default */
             scan_row_limit_default?: number | null;
+        };
+        /** OrgLinearDefaults */
+        OrgLinearDefaults: {
+            /** Api Key Configured */
+            api_key_configured: boolean;
+            /** Team Id */
+            team_id: string;
+        };
+        /** OrgLinearDefaultsUpdate */
+        OrgLinearDefaultsUpdate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Team Id */
+            team_id?: string | null;
         };
         /**
          * OrgMemberRemoved
@@ -11905,6 +11965,43 @@ export interface components {
             status: components["schemas"]["OrganizationStatus"];
         };
         /**
+         * OrgSearchSettings
+         * @description An organization's semantic-search embeddings (F20 PR10).
+         */
+        OrgSearchSettings: {
+            /** Search Embedding Api Key Configured */
+            search_embedding_api_key_configured: boolean;
+            /** Search Embedding Base Url */
+            search_embedding_base_url: string;
+            /** Search Embedding Dimensions */
+            search_embedding_dimensions: number;
+            /** Search Embedding Model */
+            search_embedding_model: string;
+            /** Search Embedding Provider */
+            search_embedding_provider: string;
+            /** Search Embeddings Enabled */
+            search_embeddings_enabled: boolean;
+        };
+        /**
+         * OrgSearchSettingsUpdate
+         * @description Endpoint, provider, model and key are ONE credential group: setting any of
+         *     them makes the whole group the organization's, and the operator's key is
+         *     never sent to an organization's endpoint. Saved only after a test embedding
+         *     of ``search_embedding_dimensions`` values succeeds (422 otherwise).
+         */
+        OrgSearchSettingsUpdate: {
+            /** Search Embedding Api Key */
+            search_embedding_api_key?: string | null;
+            /** Search Embedding Base Url */
+            search_embedding_base_url?: string | null;
+            /** Search Embedding Model */
+            search_embedding_model?: string | null;
+            /** Search Embedding Provider */
+            search_embedding_provider?: "openai" | null;
+            /** Search Embeddings Enabled */
+            search_embeddings_enabled?: boolean | null;
+        };
+        /**
          * OrgSettingsCeilings
          * @description The operator's maxima: an organization's value above one is clamped to it.
          */
@@ -11939,6 +12036,7 @@ export interface components {
              * @enum {string}
              */
             scope: "organization" | "operator";
+            search: components["schemas"]["OrgSearchSettings"];
             /** Sources */
             sources: {
                 [key: string]: "env" | "override" | "default" | "org" | "disabled";
@@ -11949,12 +12047,30 @@ export interface components {
             ai?: components["schemas"]["OrgAiSettingsUpdate"] | null;
             email?: components["schemas"]["OrgEmailSettingsUpdate"] | null;
             limits?: components["schemas"]["OrgLimitSettingsUpdate"] | null;
+            search?: components["schemas"]["OrgSearchSettingsUpdate"] | null;
         };
         /** OrgSettingsValues */
         OrgSettingsValues: {
             ai: components["schemas"]["OrgAiSettings"];
             email: components["schemas"]["EmailSettings"];
             limits: components["schemas"]["OrgLimitSettings"];
+            search: components["schemas"]["OrgSearchSettings"];
+        };
+        /** OrgTrackerDefaultsResponse */
+        OrgTrackerDefaultsResponse: {
+            jira: components["schemas"]["OrgJiraDefaults"];
+            linear: components["schemas"]["OrgLinearDefaults"];
+            /** Organization */
+            organization: string;
+            /** Sources */
+            sources: {
+                [key: string]: "org" | "default";
+            };
+        };
+        /** OrgTrackerDefaultsUpdate */
+        OrgTrackerDefaultsUpdate: {
+            jira?: components["schemas"]["OrgJiraDefaultsUpdate"] | null;
+            linear?: components["schemas"]["OrgLinearDefaultsUpdate"] | null;
         };
         /**
          * OrgTransferOwnership
@@ -13183,6 +13299,11 @@ export interface components {
             enabled: boolean;
             /** Id */
             id?: string | null;
+            /**
+             * Inherited Fields
+             * @default []
+             */
+            inherited_fields: string[];
             /** Issue Type */
             issue_type: string;
             /**
@@ -17182,6 +17303,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RowLimitDefaultsResponse"];
+                };
+            };
+        };
+    };
+    get_org_tracker_defaults_api_v1_orgs__org__settings_trackers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgTrackerDefaultsResponse"];
+                };
+            };
+        };
+    };
+    patch_org_tracker_defaults_api_v1_orgs__org__settings_trackers_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgTrackerDefaultsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgTrackerDefaultsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

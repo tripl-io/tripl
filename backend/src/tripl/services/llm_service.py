@@ -75,6 +75,8 @@ class _RefuseRedirects(urllib.request.HTTPRedirectHandler):
 
 # Not installed with install_opener: other urllib callers keep their policy.
 _NO_REDIRECT_OPENER = urllib.request.build_opener(_RefuseRedirects)
+#: The same opener, for the search-embedding client (F20 PR10).
+NO_REDIRECT_OPENER = _NO_REDIRECT_OPENER
 
 
 def _post_chat_completions(

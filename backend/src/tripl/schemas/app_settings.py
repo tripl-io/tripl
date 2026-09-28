@@ -224,11 +224,12 @@ class AiSettings(BaseModel):
     search_embedding_model: str
     search_embedding_api_key_configured: bool
     search_embedding_dimensions: int
-    # Reported, never accepted: absent from AiSettingsUpdate below AND from
-    # EDITABLE_FIELDS, so a body carrying it is dropped twice over. Repointing
-    # the endpoint at runtime would silently poison every vector already in the
-    # index; leaving it invisible turned a compose allowlist slip into an
-    # unnoticed change of where plan text is sent (tripl-wkwv.2).
+    # The OPERATOR's value is reported, never accepted: absent from
+    # AiSettingsUpdate below AND from EDITABLE_FIELDS, so a body carrying it is
+    # dropped twice over; leaving it invisible turned a compose allowlist slip
+    # into an unnoticed change of where plan text is sent (tripl-wkwv.2). An
+    # ORGANIZATION sets its own under /orgs/{org}/settings (F20 PR10), where the
+    # endpoint is part of its provenance and a change re-embeds only its rows.
     search_embedding_base_url: str
 
 
@@ -367,9 +368,9 @@ class SettingsTestResponse(BaseModel):
 # ── organization settings (F20 PR9) ─────────────────────────────────────────
 #
 # What an organization owner/admin may set for their own organization: mail, AI
-# chat and the row-limit defaults. The update models forbid unknown keys, so a
-# body carrying an operator field (security, storage, embeddings, the public
-# URL...) is a 422, never silently dropped.
+# chat, search embeddings (PR10) and the row-limit defaults. The update models
+# forbid unknown keys, so a body carrying an operator field (security, storage,
+# embedding dimensions, the public URL...) is a 422, never silently dropped.
 
 OrgSettingsScope = Literal["organization", "operator"]
 OperatorFallback = Literal["all", "none"]
@@ -422,10 +423,63 @@ class OrgAiSettingsUpdate(BaseModel):
         return _check_ai_base_url_format(value)
 
 
+def _check_embedding_base_url_format(value: str | None) -> str | None:
+    """Format only, like ``ai_base_url``; the private-address check is the service's.
+
+    Blank means "clear" (``None``): an organization's stored ``""`` would make
+    the whole credential group its own with no endpoint at all, so clearing the
+    field falls back to the group default or the operator's endpoint instead.
+    """
+    if value is None:
+        return value
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    parsed = urlparse(trimmed)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("search_embedding_base_url must be a valid http(s) URL")
+    return trimmed
+
+
+class OrgSearchSettings(BaseModel):
+    """An organization's semantic-search embeddings (F20 PR10)."""
+
+    search_embeddings_enabled: bool
+    search_embedding_provider: str
+    search_embedding_model: str
+    #: Blank while the organization inherits the operator's endpoint (the
+    #: operator's infrastructure is not shown to organization admins).
+    search_embedding_base_url: str
+    search_embedding_api_key_configured: bool
+    #: The operator's, fixed: every organization's model must produce this width.
+    search_embedding_dimensions: int
+
+
+class OrgSearchSettingsUpdate(BaseModel):
+    """Endpoint, provider, model and key are ONE credential group: setting any of
+    them makes the whole group the organization's, and the operator's key is
+    never sent to an organization's endpoint. Saved only after a test embedding
+    of ``search_embedding_dimensions`` values succeeds (422 otherwise)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    search_embeddings_enabled: bool | None = None
+    search_embedding_provider: Literal["openai"] | None = None
+    search_embedding_model: str | None = Field(default=None, min_length=1, max_length=200)
+    search_embedding_base_url: str | None = None
+    search_embedding_api_key: str | None = Field(default=None, max_length=4096)
+
+    @field_validator("search_embedding_base_url")
+    @classmethod
+    def _check_base_url(cls, value: str | None) -> str | None:
+        return _check_embedding_base_url_format(value)
+
+
 class OrgSettingsValues(BaseModel):
     limits: OrgLimitSettings
     email: EmailSettings
     ai: OrgAiSettings
+    search: OrgSearchSettings
 
 
 class OrgSettingsCeilings(BaseModel):
@@ -448,7 +502,7 @@ class OrgSettingsResponse(OrgSettingsValues):
     inherited: OrgSettingsValues
     ceilings: OrgSettingsCeilings
     overridden_fields: list[str]
-    #: Keyed ``limits.<field>``, ``email.<field>``, ``ai.<field>``.
+    #: Keyed ``limits.<field>``, ``email.<field>``, ``ai.<field>``, ``search.<field>``.
     sources: dict[str, SettingSource]
 
 
@@ -458,3 +512,58 @@ class OrgSettingsUpdate(BaseModel):
     limits: OrgLimitSettingsUpdate | None = None
     email: OrgEmailSettingsUpdate | None = None
     ai: OrgAiSettingsUpdate | None = None
+    search: OrgSearchSettingsUpdate | None = None
+
+
+# ── organization tracker defaults (F20 PR12) ────────────────────────────────
+#
+# Jira and Linear defaults every project of the organization inherits unless its
+# own tracker config sets the field. Secrets are write-only (``*_configured``).
+# In an update, an omitted field is unchanged and ``null`` or ``""`` clears it.
+
+TrackerDefaultSource = Literal["org", "default"]
+
+
+class OrgJiraDefaults(BaseModel):
+    base_url: str
+    auth_email: str
+    api_token_configured: bool
+    project_key: str
+
+
+class OrgLinearDefaults(BaseModel):
+    api_key_configured: bool
+    team_id: str
+
+
+class OrgTrackerDefaultsResponse(BaseModel):
+    organization: str
+    jira: OrgJiraDefaults
+    linear: OrgLinearDefaults
+    #: Keyed ``jira.<field>`` / ``linear.<field>``: "org" when the organization
+    #: set it, "default" when it did not (projects then need their own).
+    sources: dict[str, TrackerDefaultSource]
+
+
+class OrgJiraDefaultsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: https only, and refused when it resolves to a private address.
+    base_url: str | None = None
+    auth_email: str | None = None
+    api_token: str | None = Field(default=None, max_length=4096)
+    project_key: str | None = None
+
+
+class OrgLinearDefaultsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: str | None = Field(default=None, max_length=4096)
+    team_id: str | None = None
+
+
+class OrgTrackerDefaultsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    jira: OrgJiraDefaultsUpdate | None = None
+    linear: OrgLinearDefaultsUpdate | None = None

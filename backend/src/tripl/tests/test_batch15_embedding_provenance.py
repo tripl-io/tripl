@@ -21,8 +21,13 @@ def test_provenance_changes_with_model_or_endpoint(
     config = env_ai_config()
     original = embedding_provenance(config)
     assert original != embedding_provenance(replace(config, search_embedding_model="another-model"))
+    # The endpoint is the CONFIG's (F20 PR10: an organization's own), so it is
+    # read when the config is built, not off ``settings`` at hash time.
     monkeypatch.setattr(settings, "search_embedding_base_url", "https://other.example/v1")
-    assert original != embedding_provenance(config)
+    assert original != embedding_provenance(env_ai_config())
+    assert original != embedding_provenance(
+        replace(config, search_embedding_base_url="https://org.example/v1")
+    )
     assert len(original) <= 128
 
 

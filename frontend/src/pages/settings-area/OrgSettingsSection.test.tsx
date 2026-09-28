@@ -164,3 +164,105 @@ describe('Organization › Email', () => {
     expect(screen.queryByRole('button', { name: 'Use the inherited value' })).toBeNull()
   })
 })
+
+describe('Organization › Search (F20 PR10)', () => {
+  it("shows the operator's width as fixed and never the operator's endpoint", async () => {
+    renderSection('search')
+    await screen.findByDisplayValue('text-embedding-3-small')
+
+    expect(input('Dimensions')).toHaveValue('1536')
+    expect(input('Dimensions')).toHaveAttribute('readonly')
+    // The operator's infrastructure stays hidden from organization admins.
+    expect(input('Base URL')).toHaveValue('')
+    expect(screen.getByText('Env', { selector: '[title]' })).toBeInTheDocument()
+    expect(screen.getByText(/re-embeds this organization’s projects, and no one else’s/)).toBeInTheDocument()
+  })
+
+  it('makes the whole endpoint the organization’s and asks for its own key (critique #13)', async () => {
+    const { update } = renderSection('search')
+    await screen.findByDisplayValue('text-embedding-3-small')
+
+    fireEvent.change(input('Base URL'), { target: { value: 'https://embed.acme.example/v1' } })
+    expect(screen.getByText(/the operator’s key is never sent to an endpoint set here/)).toBeInTheDocument()
+
+    fireEvent.change(input('Model'), { target: { value: 'acme-embed' } })
+    fireEvent.change(input('API key'), { target: { value: 'sk-embed' } })
+    expect(screen.queryByText(/the operator’s key is never sent to an endpoint set here/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('acme', {
+        search: {
+          search_embedding_base_url: 'https://embed.acme.example/v1',
+          search_embedding_model: 'acme-embed',
+          search_embedding_api_key: 'sk-embed',
+        },
+      }),
+    )
+  })
+
+  it('shows the 422 of a model that answers with the wrong width', async () => {
+    const { update } = renderSection('search')
+    update.mockRejectedValueOnce(new Error('The embedding model returned 768 dimensions; 1536 are required.'))
+    await screen.findByDisplayValue('text-embedding-3-small')
+
+    fireEvent.change(input('Model'), { target: { value: 'nomic-embed-text' } })
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+
+    expect(await screen.findByText(/returned 768 dimensions/)).toBeInTheDocument()
+  })
+
+  it("goes back to the operator's embeddings as one group", async () => {
+    const base = orgSettingsFixture()
+    const settings = orgSettingsFixture({
+      search: { ...base.search, search_embedding_model: 'acme-embed', search_embedding_base_url: 'https://embed.acme.example' },
+      sources: {
+        ...base.sources,
+        'search.search_embedding_model': 'org',
+        'search.search_embedding_base_url': 'org',
+        'search.search_embedding_api_key': 'org',
+      },
+    })
+    const { update } = renderSection('search', settings)
+    await screen.findByDisplayValue('acme-embed')
+
+    fireEvent.click(screen.getByRole('button', { name: "Use the operator's embeddings" }))
+    fireEvent.click(screen.getByRole('button', { name: /Save changes/ }))
+
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith('acme', {
+        search: {
+          search_embedding_model: null,
+          search_embedding_base_url: null,
+          search_embedding_api_key: null,
+        },
+      }),
+    )
+  })
+
+  it('says semantic search is off while the operator shares no endpoint', async () => {
+    const base = orgSettingsFixture()
+    const settings = orgSettingsFixture({
+      operator_fallback: 'none',
+      search: { ...base.search, search_embeddings_enabled: false },
+      sources: {
+        ...base.sources,
+        'search.search_embeddings_enabled': 'disabled',
+        'search.search_embedding_base_url': 'disabled',
+        'search.search_embedding_api_key': 'disabled',
+      },
+    })
+    renderSection('search', settings)
+
+    expect(await screen.findByText(/semantic search is off for it\. Keyword search still works/)).toBeInTheDocument()
+    expect(screen.getAllByText('Disabled by operator policy')).toHaveLength(3)
+  })
+
+  it("keeps the operator's endpoint read-only in the operator scope", async () => {
+    renderSection('search', orgSettingsFixture({ scope: 'operator' }))
+    await screen.findByDisplayValue('text-embedding-3-small')
+
+    expect(input('Base URL')).toHaveAttribute('readonly')
+    expect(screen.getByText(/set by SEARCH_EMBEDDING_BASE_URL/)).toBeInTheDocument()
+  })
+})

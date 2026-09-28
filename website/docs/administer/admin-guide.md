@@ -122,9 +122,10 @@ The backend gates endpoints with role/scope dependencies, not just UI hiding:
   members, roles and invitations (`403 Organization owner or admin role
   required`). On a project route the project must belong to the organization the
   request acts in.
-- **Organization settings** (`/api/v1/orgs/{org}/settings`: email, AI and
-  row limits) take an owner or admin of that organization; the row limits alone
-  are readable by every member. A body naming an operator field is refused with
+- **Organization settings** (`/api/v1/orgs/{org}/settings`: email, AI, search
+  embeddings and row limits; `.../settings/trackers`: Jira and Linear defaults)
+  take an owner or admin of that organization; the row limits alone are
+  readable by every member. A body naming an operator field is refused with
   `422`. **Platform settings** (`/api/v1/platform/settings`) take a platform
   admin (`403 Platform admin required`).
 - **Settings admin** — a platform admin, or an owner or admin of the
@@ -378,13 +379,32 @@ The organization's own settings are in **Settings → Organization**:
   invitation mail always use the operator's relay. See
   [Operator and organization settings](../run/configuration.md#operator-and-organization-settings)
   for the full classification.
+- **Search** — the organization's own semantic-search embeddings: the switch,
+  provider, model, OpenAI-compatible base URL and API key, with the same source
+  badges and **Inherit** actions. The four endpoint fields are one group, like
+  the AI endpoint. Saving an own endpoint or model with embeddings on sends one
+  test text to it, and the save is refused unless the model answers with
+  vectors of the instance's width (1536). A change that moves the
+  organization's embedding space queues a reindex of the organization's own
+  projects; other organizations are not touched. With
+  `ORG_SETTINGS_OPERATOR_FALLBACK=none` and no endpoint of its own, semantic
+  search is off for the organization and search is lexical.
+- **Trackers** — Jira and Linear defaults for the organization's projects: the
+  Jira site (https, public), account e-mail, API token and default project key;
+  a Linear API key and default team. A project's own **Tracker** settings
+  override each field, and a project still switches ticket automation on
+  itself. A project that sets its own Jira site, account or token uses none of
+  the organization's three. Tokens are write-only.
 
 The operator's own settings — public URL, security, observability, storage,
-embeddings, and the operator's defaults for every organization field — are under
-**Settings → Platform**, for platform admins only. On a self-hosted instance the
-default organization's Email, AI and Limits are the same values as the
-platform's; its owners and admins can change the limits, timeouts and prompts
-there, and only a platform admin its SMTP relay and AI endpoint.
+and the operator's defaults for every organization field (including the
+embedding switch, provider, model and key; the embedding base URL and
+dimensions are env-only) — are under **Settings → Platform**, for platform
+admins only. On a self-hosted instance the default organization's Email, AI,
+Search and Limits are the same values as the platform's; its owners and admins
+can change the limits, timeouts and prompts there, and only a platform admin its
+SMTP relay, AI endpoint and embeddings. Tracker defaults have no operator layer:
+every organization, the default one included, sets its own.
 
 ### The organization API
 

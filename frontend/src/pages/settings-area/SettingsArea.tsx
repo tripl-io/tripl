@@ -16,6 +16,7 @@ import type { Project } from '@/types'
 import { isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
 import { orgStorageKey } from '@/lib/activeOrg'
 import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
+import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -30,6 +31,7 @@ const SecuritySection = lazyWithReload(() => import('./SecuritySection'))
 const InstanceSection = lazyWithReload(() => import('./InstanceSection'))
 const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSection'))
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
+const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
@@ -213,6 +215,7 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   'profile',
   'security',
   ...Object.values(ORG_SECTION_PATHS),
+  ORG_TRACKERS_PATH,
 ])
 
 function renderSection({
@@ -250,6 +253,10 @@ function renderSection({
     // The organization's own mail, AI and limits: its owners and admins. The
     // platform flag grants nothing inside an organization.
     return isOwner ? <OrgSettingsSection section={orgSection} /> : <OwnerOnly section={section} />
+  }
+  if (section === ORG_TRACKERS_PATH) {
+    // The Jira/Linear defaults its projects inherit (F20 PR12): the same gate.
+    return isOwner ? <OrgTrackersSection /> : <OwnerOnly section={section} />
   }
   // One route serves every organization section; an unknown one is not a
   // project section to guess at.

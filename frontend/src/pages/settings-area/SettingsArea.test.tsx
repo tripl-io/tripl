@@ -363,6 +363,20 @@ describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
     )
   })
 
+  it.each([
+    ['organization/search', 'Search'],
+    ['organization/trackers', 'Trackers'],
+  ])('gates %s behind the organization owner/admin role (F20 PR10, PR12)', async (section, title) => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const owner = ownerAuthValue()
+    const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'member' } }
+
+    renderArea(section, '', member)
+
+    expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
+  })
+
   it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
 

@@ -18307,6 +18307,86 @@
         "title": "OrgEmailSettingsUpdate",
         "type": "object"
       },
+      "OrgJiraDefaults": {
+        "properties": {
+          "api_token_configured": {
+            "title": "Api Token Configured",
+            "type": "boolean"
+          },
+          "auth_email": {
+            "title": "Auth Email",
+            "type": "string"
+          },
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "project_key": {
+            "title": "Project Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_url",
+          "auth_email",
+          "api_token_configured",
+          "project_key"
+        ],
+        "title": "OrgJiraDefaults",
+        "type": "object"
+      },
+      "OrgJiraDefaultsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "api_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Token"
+          },
+          "auth_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auth Email"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "project_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Key"
+          }
+        },
+        "title": "OrgJiraDefaultsUpdate",
+        "type": "object"
+      },
       "OrgLimitSettings": {
         "properties": {
           "metrics_row_limit_default": {
@@ -18354,6 +18434,54 @@
           }
         },
         "title": "OrgLimitSettingsUpdate",
+        "type": "object"
+      },
+      "OrgLinearDefaults": {
+        "properties": {
+          "api_key_configured": {
+            "title": "Api Key Configured",
+            "type": "boolean"
+          },
+          "team_id": {
+            "title": "Team Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_key_configured",
+          "team_id"
+        ],
+        "title": "OrgLinearDefaults",
+        "type": "object"
+      },
+      "OrgLinearDefaultsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "title": "OrgLinearDefaultsUpdate",
         "type": "object"
       },
       "OrgMemberRemoved": {
@@ -18453,6 +18581,112 @@
         "title": "OrgResponse",
         "type": "object"
       },
+      "OrgSearchSettings": {
+        "description": "An organization's semantic-search embeddings (F20 PR10).",
+        "properties": {
+          "search_embedding_api_key_configured": {
+            "title": "Search Embedding Api Key Configured",
+            "type": "boolean"
+          },
+          "search_embedding_base_url": {
+            "title": "Search Embedding Base Url",
+            "type": "string"
+          },
+          "search_embedding_dimensions": {
+            "title": "Search Embedding Dimensions",
+            "type": "integer"
+          },
+          "search_embedding_model": {
+            "title": "Search Embedding Model",
+            "type": "string"
+          },
+          "search_embedding_provider": {
+            "title": "Search Embedding Provider",
+            "type": "string"
+          },
+          "search_embeddings_enabled": {
+            "title": "Search Embeddings Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "search_embeddings_enabled",
+          "search_embedding_provider",
+          "search_embedding_model",
+          "search_embedding_base_url",
+          "search_embedding_api_key_configured",
+          "search_embedding_dimensions"
+        ],
+        "title": "OrgSearchSettings",
+        "type": "object"
+      },
+      "OrgSearchSettingsUpdate": {
+        "additionalProperties": false,
+        "description": "Endpoint, provider, model and key are ONE credential group: setting any of\nthem makes the whole group the organization's, and the operator's key is\nnever sent to an organization's endpoint. Saved only after a test embedding\nof ``search_embedding_dimensions`` values succeeds (422 otherwise).",
+        "properties": {
+          "search_embedding_api_key": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Embedding Api Key"
+          },
+          "search_embedding_base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Embedding Base Url"
+          },
+          "search_embedding_model": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Embedding Model"
+          },
+          "search_embedding_provider": {
+            "anyOf": [
+              {
+                "const": "openai",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Embedding Provider"
+          },
+          "search_embeddings_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Embeddings Enabled"
+          }
+        },
+        "title": "OrgSearchSettingsUpdate",
+        "type": "object"
+      },
       "OrgSettingsCeilings": {
         "description": "The operator's maxima: an organization's value above one is clamped to it.",
         "properties": {
@@ -18526,6 +18760,9 @@
             "title": "Scope",
             "type": "string"
           },
+          "search": {
+            "$ref": "#/components/schemas/OrgSearchSettings"
+          },
           "sources": {
             "additionalProperties": {
               "enum": [
@@ -18545,6 +18782,7 @@
           "limits",
           "email",
           "ai",
+          "search",
           "organization",
           "scope",
           "operator_fallback",
@@ -18588,6 +18826,16 @@
                 "type": "null"
               }
             ]
+          },
+          "search": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgSearchSettingsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "OrgSettingsUpdate",
@@ -18603,14 +18851,78 @@
           },
           "limits": {
             "$ref": "#/components/schemas/OrgLimitSettings"
+          },
+          "search": {
+            "$ref": "#/components/schemas/OrgSearchSettings"
           }
         },
         "required": [
           "limits",
           "email",
-          "ai"
+          "ai",
+          "search"
         ],
         "title": "OrgSettingsValues",
+        "type": "object"
+      },
+      "OrgTrackerDefaultsResponse": {
+        "properties": {
+          "jira": {
+            "$ref": "#/components/schemas/OrgJiraDefaults"
+          },
+          "linear": {
+            "$ref": "#/components/schemas/OrgLinearDefaults"
+          },
+          "organization": {
+            "title": "Organization",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "enum": [
+                "org",
+                "default"
+              ],
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "object"
+          }
+        },
+        "required": [
+          "organization",
+          "jira",
+          "linear",
+          "sources"
+        ],
+        "title": "OrgTrackerDefaultsResponse",
+        "type": "object"
+      },
+      "OrgTrackerDefaultsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "jira": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgJiraDefaultsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "linear": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgLinearDefaultsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "OrgTrackerDefaultsUpdate",
         "type": "object"
       },
       "OrgTransferOwnership": {
@@ -21478,6 +21790,14 @@
               }
             ],
             "title": "Id"
+          },
+          "inherited_fields": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Inherited Fields",
+            "type": "array"
           },
           "issue_type": {
             "title": "Issue Type",
@@ -30271,6 +30591,68 @@
           }
         },
         "summary": "Get Org Row Limits",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
+    "/api/v1/orgs/{org}/settings/trackers": {
+      "get": {
+        "description": "The organization's Jira/Linear defaults (F20 PR12); secrets as ``*_configured``.",
+        "operationId": "get_org_tracker_defaults_api_v1_orgs__org__settings_trackers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgTrackerDefaultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Org Tracker Defaults",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "patch": {
+        "description": "Set or clear (``null`` / ``\"\"``) the organization's tracker defaults.",
+        "operationId": "patch_org_tracker_defaults_api_v1_orgs__org__settings_trackers_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgTrackerDefaultsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgTrackerDefaultsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Org Tracker Defaults",
         "tags": [
           "organizations"
         ]

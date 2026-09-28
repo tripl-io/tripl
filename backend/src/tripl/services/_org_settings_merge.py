@@ -1,4 +1,4 @@
-"""How an organization's own settings combine with the operator's (F20 PR9).
+"""How an organization's own settings combine with the operator's (F20 PR9, PR10).
 
 Pure: no database, no ``settings`` singleton. ``app_settings_service`` reads the
 two override documents and hands this module the operator's EFFECTIVE values
@@ -18,7 +18,9 @@ The rules (design section 5, critique #13 and #15):
   whole, or — under ``ORG_SETTINGS_OPERATOR_FALLBACK=none`` — not at all, which
   leaves the feature off for that organization.
 * Non-secret scalars (row limits, timeouts, prompts, the AI switch) always fall
-  back to the operator, whatever the fallback policy says.
+  back to the operator, whatever the fallback policy says — except a group's
+  switch (:data:`GROUP_SWITCHES`, the search-embeddings switch), which is off
+  while the policy withholds its group.
 * The **ceiling** fields protect worker memory and the process: an organization
   may lower them, never raise them above the operator's effective value.
 """
@@ -41,7 +43,25 @@ SMTP_GROUP: tuple[str, ...] = (
     "smtp_password",
     "smtp_from_address",
 )
-CREDENTIAL_GROUPS: tuple[tuple[str, ...], ...] = (AI_ENDPOINT_GROUP, SMTP_GROUP)
+#: The search-embedding endpoint (F20 PR10): where indexed plan text is sent,
+#: the key it is sent with, and the provider/model that define the vector space
+#: (``embedding_service.embedding_provenance``). One unit for the same reason as
+#: the AI endpoint: an organization that points embeddings at its own server
+#: never has the operator's key sent there.
+EMBEDDING_GROUP: tuple[str, ...] = (
+    "search_embedding_provider",
+    "search_embedding_model",
+    "search_embedding_base_url",
+    "search_embedding_api_key",
+)
+CREDENTIAL_GROUPS: tuple[tuple[str, ...], ...] = (AI_ENDPOINT_GROUP, SMTP_GROUP, EMBEDDING_GROUP)
+
+#: A group's on/off switch, forced off when the fallback policy withholds the
+#: group: an organization with no endpoint of its own under
+#: ``ORG_SETTINGS_OPERATOR_FALLBACK=none`` has semantic search OFF (lexical
+#: search is unaffected), rather than "on" with no endpoint — which would leave
+#: every new search document ``pending`` for a worker that can never embed it.
+GROUP_SWITCHES: dict[tuple[str, ...], str] = {EMBEDDING_GROUP: "search_embeddings_enabled"}
 
 #: Org values for these are clamped to the operator's effective value.
 CEILING_FIELDS: tuple[str, ...] = (
@@ -54,11 +74,17 @@ CEILING_FIELDS: tuple[str, ...] = (
 #: Hosts an organization can point tripl at. An organization-set value (every
 #: organization scope, hosted or self-hosted) is refused when it is (or resolves
 #: to) a private address, at save and at use.
-GUARDED_HOST_FIELDS: tuple[str, ...] = ("ai_base_url", "smtp_host")
+GUARDED_HOST_FIELDS: tuple[str, ...] = ("ai_base_url", "smtp_host", "search_embedding_base_url")
 
 #: Blanked, not defaulted, when a group is disabled by policy: the addresses.
 _DISABLED_BLANK_FIELDS = frozenset(
-    {"ai_base_url", "smtp_host", "smtp_username", "smtp_from_address"}
+    {
+        "ai_base_url",
+        "smtp_host",
+        "smtp_username",
+        "smtp_from_address",
+        "search_embedding_base_url",
+    }
 )
 
 #: Where an organization's value came from, before it is mapped onto the
@@ -130,6 +156,11 @@ def merge_org_values(
             provenance[field] = "org"
         else:
             provenance[field] = "inherited"
+
+    for group, switch in GROUP_SWITCHES.items():
+        if switch in org_fields and any(provenance.get(f) == "disabled" for f in group):
+            values[switch] = False
+            provenance[switch] = "disabled"
 
     for field in CEILING_FIELDS:
         if provenance.get(field) == "org":

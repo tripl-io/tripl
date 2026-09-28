@@ -179,7 +179,7 @@ async def seeded_corpus(relevance_sessions: async_sessionmaker[AsyncSession]) ->
     what production runs, so the harness ranks the same rows a user would.
     """
     async with relevance_sessions() as session:
-        ai_config = await app_settings_service.get_embedding_config(session)
+        ai_config = await app_settings_service.get_embedding_config(session, org_id=None)
         if ai_config.search_embeddings_enabled:
             pytest.fail(
                 "search embeddings are enabled in this environment, so the semantic "

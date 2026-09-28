@@ -27,7 +27,7 @@ const PROMPTS = [
 /**
  * Organization › AI: the chat provider this organization's plan text is sent
  * to, its prompts, and its timeouts within the operator's maxima. Search
- * embeddings stay the platform's.
+ * embeddings are their own section (OrgSearchFields).
  */
 export function OrgAiFields({
   org,
