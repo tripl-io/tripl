@@ -118,7 +118,12 @@ def _doc_row(**values: object) -> dict[str, object]:
 def test_scopes_and_uniqueness_are_enforced(engine: Engine, migration: ModuleType) -> None:
     _run(engine, migration.upgrade)
     project_id = uuid.uuid4()
-    docs = Base.metadata.tables["doc_files"]
+    # The model's column types, limited to the columns this revision creates:
+    # later revisions add more (F24 visibility), and the ORM defaults would
+    # write them into a table that does not have them yet.
+    model = Base.metadata.tables["doc_files"]
+    present = {column["name"] for column in sa.inspect(engine).get_columns("doc_files")}
+    docs = sa.table("doc_files", *(sa.column(c.name, c.type) for c in model.c if c.name in present))
     with engine.begin() as connection:
         connection.execute(
             sa.insert(Base.metadata.tables["projects"]).values(
