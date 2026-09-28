@@ -13,9 +13,10 @@ tripl is a single multi-user instance ("workspace") that contains every project.
 Almost everything an administrator does lives under **Settings**, which has two
 contexts:
 
-- **Workspace** — Members, Data sources, API keys, your own Profile and
-  Security, and the **Instance** sections (org owners and admins, and the
-  platform admin for the operator ones).
+- **Organization** — Details, Members, Invitations, Data sources and API keys of
+  the organization you are working in, then your own Profile and Security, and
+  the **Instance** sections (org owners and admins, and the platform admin for
+  the operator ones).
 - **Project** — per-project configuration (General, Plan rules), covered in the
   user guide rather than here.
 
@@ -252,7 +253,7 @@ Decide the policy before you expose the instance; see
 The recommended way to add someone, and the only one that works without opening
 the instance to the world:
 
-1. **Settings → Members → Invite a member**. Enter their email and pick an
+1. **Settings → Organization → Invitations → Invite a member**. Enter their email and pick an
    organization role (**Member** by default). Picking **Owner** shows what the
    role grants, and creating an owner invite asks for confirmation — whoever
    opens that link administers the organization. Only an owner can invite an
@@ -276,7 +277,7 @@ the instance to the world:
 Owners and admins only, and only from a signed-in browser session — an API key
 cannot mint an account whatever its scope. The link works a single time, expires after 72
 hours, and is bound to the address you typed, so it cannot be redeemed into a
-different identity. Pending invitations are listed under **Settings → Members**
+different identity. Pending invitations are listed under **Settings → Organization → Invitations**
 and revoking one kills its link immediately. Inviting the same address again
 invalidates the previous link.
 
@@ -300,6 +301,41 @@ Every project, data source, API key and invitation belongs to one
 **organization**. A self-hosted instance starts with one, the **default
 organization** (slug `default`), and everyone who registers joins it. An account
 can belong to several organizations, with a separate role in each.
+
+### Organizations in the app
+
+Every page of the app lives inside an organization, and its address says which
+one:
+
+- `/o/{org}` is the organization's workspace — its list of projects;
+- `/o/{org}/p/{project}/…` is a project page, for example
+  `/o/acme/p/web/events`.
+
+Links written before organizations, `/p/{project}/…`, keep working: they open
+the same page in the organization that holds the project — the one of yours whose
+projects include that slug; else the default organization, if you are in it; else
+your only organization. The query string and `#anchor` are kept. The Settings
+pages (`/settings/…`) act in the organization you used last; `/o/{org}/settings/…`
+opens them for a given organization.
+
+Someone in more than one organization gets an **organization switcher** above
+the project switcher in the sidebar. Picking an organization opens its
+workspace. With a single organization the switcher is not shown.
+
+The organization's own settings are in **Settings → Organization**:
+
+- **Details** — the name, which owners and admins can change; the slug, shown
+  read-only because it cannot change; **Create organization** for a platform
+  admin; and the **Danger zone**, where an owner deletes the organization after
+  typing its slug. The default organization has no danger zone: it cannot be
+  deleted.
+- **Members** — everyone in the organization, with a role select, **Remove**
+  (after a confirmation) and, for an owner, **Transfer ownership**.
+- **Invitations** — invite someone at an organization role (owner, admin or
+  member), see the pending invitations and revoke them. Owners and admins only.
+- **Data sources** and **API keys** — the organization's own.
+
+### The organization API
 
 The organization API is under `/api/v1/orgs`; the endpoints are listed in the
 [Agent API guide](../integrate/agent-api-guide.md#organizations). Everything

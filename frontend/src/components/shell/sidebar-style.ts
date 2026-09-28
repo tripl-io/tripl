@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { NavItem } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
+import { settingsPath } from '@/lib/activeOrg'
 
 // Shared by the expanded sidebar, its nav sections and the collapsed rail.
 
@@ -55,7 +56,7 @@ export const ICON_BUTTON_CLASS =
 
 /** Project settings, bound to THIS project by the address (SHELL-20). */
 export function projectSettingsHref(slug: string): string {
-  return `/settings/project/general?project=${encodeURIComponent(slug)}`
+  return settingsPath(`/settings/project/general?project=${encodeURIComponent(slug)}`)
 }
 
 /** "owner" -> "Owner". */

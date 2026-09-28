@@ -58,6 +58,7 @@ import { IncidentDeliveries } from './IncidentDeliveries'
 import { IncidentSummary } from './IncidentSummary'
 import { OwnersNotify } from './OwnersNotify'
 import { useNoteDraft, type NoteDraftStore } from './noteDraftStore'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** The status filter, where `''` is "All" — the state with no `status=` param. */
 export type InboxStatusFilter = AlertInboxStatus | ''
@@ -931,7 +932,7 @@ const IncidentCard = memo(function IncidentCard({
                   <span key={rule.id}>
                     {index > 0 && ', '}
                     <Link
-                      to={`/p/${slug}/monitors/${rule.id}`}
+                      to={projectPath(currentOrgSlug(), slug, `/monitors/${rule.id}`)}
                       className="hover:text-foreground hover:underline"
                     >
                       {rule.name}

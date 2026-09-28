@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 
 import type { ChannelMeta } from './channelMeta'
 import type { DestinationChannel } from './constants'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 interface AlertingGuidedSetupProps {
   slug: string
@@ -124,7 +125,7 @@ export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }:
             >
               <div>
                 <Button asChild size="sm" variant="outline">
-                  <Link to={`/p/${slug}/scans`}>Go to Scans</Link>
+                  <Link to={projectPath(currentOrgSlug(), slug, '/scans')}>Go to Scans</Link>
                 </Button>
               </div>
             </Step>

@@ -16,7 +16,7 @@ import { useExpandedSignals } from '@/hooks/useExpandedSignals'
 import { useConfirm, type ConfirmOptions } from '@/hooks/useConfirm'
 import { formatIncidentCount, incidentMagnitudeLabel } from '@/lib/alertStatus'
 import { formatRelativeTime } from '@/lib/datetime'
-import { getAlertingPath } from '@/lib/navigation'
+import { currentOrgSlug, getAlertingPath, projectPath, workspacePath } from '@/lib/navigation'
 import { channelLabel, TICKET_CHANNELS } from '@/lib/alertChannels'
 import {
   signalScopeLabel,
@@ -185,7 +185,7 @@ function WorkspaceNotifications({ projects }: { projects: Project[] | undefined 
             ))}
             {needing.length > shown.length && (
               <Link
-                to="/workspace"
+                to={workspacePath()}
                 className="px-1.5 py-1 text-caption no-underline hover:underline text-fg-secondary"
               >
                 +{needing.length - shown.length} more
@@ -196,7 +196,7 @@ function WorkspaceNotifications({ projects }: { projects: Project[] | undefined 
       )}
       <div className="border-t px-3.5 py-2 border-border-subtle">
         <Link
-          to="/workspace"
+          to={workspacePath()}
           className="text-caption font-medium no-underline hover:underline text-fg-secondary"
         >
           All projects →
@@ -215,7 +215,7 @@ function ProjectAttentionRow({ project }: { project: Project }) {
   ].filter((part): part is string => part !== null)
   return (
     <Link
-      to={incidents > 0 ? `${getAlertingPath(project.slug)}?section=inbox` : `/p/${project.slug}/anomalies`}
+      to={incidents > 0 ? `${getAlertingPath(project.slug)}?section=inbox` : projectPath(currentOrgSlug(), project.slug, '/anomalies')}
       className="flex items-center gap-2 rounded-md px-1.5 py-2 no-underline transition-colors hover:bg-[var(--surface-active)] text-inherit"
     >
       <Dot tone={incidents > 0 ? 'danger' : 'warning'} size={7} />
@@ -324,7 +324,7 @@ function ProjectNotifications({
                     (AL-40 / SH-17). */}
                 {signals.length > previewSignals.length && (
                   <Link
-                    to={`/p/${projectSlug}/anomalies`}
+                    to={projectPath(currentOrgSlug(), projectSlug, '/anomalies')}
                     className="px-1.5 py-1 text-caption no-underline hover:underline text-fg-secondary"
                   >
                     +{signals.length - previewSignals.length} more
@@ -372,7 +372,7 @@ function ProjectNotifications({
         {/* The two lists this popover previews, each in full (JR-9). */}
         <div className="flex items-center justify-between gap-3">
           <Link
-            to={`/p/${projectSlug}/anomalies`}
+            to={projectPath(currentOrgSlug(), projectSlug, '/anomalies')}
             className="text-caption font-medium no-underline hover:underline text-fg-secondary"
           >
             All anomalies →

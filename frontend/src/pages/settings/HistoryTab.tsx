@@ -48,6 +48,7 @@ import {
   planRevisionsKey,
   projectPlanRevisionsKey,
 } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // One page of revisions. It used to be the ONLY page: the list asked for 50 and
 // ignored `total`, so anything older was unreachable (PLAN-50).
@@ -680,7 +681,7 @@ function RevisionHeader({
       {branch ? (
         branchId ? (
           <Link
-            to={`/p/${slug}/branches/${branchId}`}
+            to={projectPath(currentOrgSlug(), slug, `/branches/${branchId}`)}
             className="mono font-medium hover:underline text-accent"
           >
             {branch}

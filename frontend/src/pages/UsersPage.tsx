@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 
 import { invitationsApi, type Invitation, type InvitationCreated } from '@/api/invitations'
+import { orgsApi, type OrgMemberRemoved } from '@/api/orgs'
 import { usersApi } from '@/api/users'
+import { AUTH_QUERY_KEY } from '@/components/auth-context'
+import { useActiveOrg } from '@/components/active-org-context'
 import { useAuth } from '@/components/auth-context'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
@@ -72,7 +75,7 @@ const COPIED_RESET_MS = 2000
  * another invite over a link nobody copied asks first: it used to be replaced
  * without a word, and the first link was gone for good (WS-21).
  */
-function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean }) {
+export function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean }) {
   const qc = useQueryClient()
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -403,30 +406,103 @@ function InviteMemberCard({ actorIsOrgOwner }: { actorIsOrgOwner: boolean }) {
   )
 }
 
+/** "2 project memberships and 1 API key went with it." — what a removal took. */
+function removalSummary(who: string, removed: OrgMemberRemoved): string {
+  const parts: string[] = []
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+  if (removed.project_memberships_removed > 0) {
+    parts.push(count(removed.project_memberships_removed, 'project membership', 'project memberships'))
+  }
+  if (removed.api_keys_revoked > 0) parts.push(count(removed.api_keys_revoked, 'API key', 'API keys'))
+  if (removed.invitations_revoked > 0) parts.push(count(removed.invitations_revoked, 'invitation', 'invitations'))
+  return parts.length > 0 ? `Removed ${who}, with ${parts.join(', ')}.` : `Removed ${who}.`
+}
+
+/**
+ * Organization › Members (F20 PR7): the active organization's roster, with the
+ * role select, removal and ownership transfer of `/orgs/{org}/members`. With no
+ * organization known it reads `/users`, the default organization's roster, as
+ * before organizations; removal and transfer need the organization and are not
+ * offered then.
+ */
 export default function UsersPage() {
   const qc = useQueryClient()
   const { user: currentUser } = useAuth()
+  const { slug: org } = useActiveOrg()
   // An org owner or admin manages members; only an owner manages owners.
   const isOwner = isOwnerRole(currentUser?.role)
   const actorIsOrgOwner = currentUser?.role === 'owner'
+  const [removedNote, setRemovedNote] = useState<string | null>(null)
 
   const { confirm, dialog } = useConfirm()
   // A role change applies at once, with no Save step; it now says so on the
   // row, the way a settings page says "Saved" (ST-3).
   const [roleUpdated, markRoleUpdated, clearRoleUpdated] = useTransientFlag(SAVED_FEEDBACK_MS)
 
-  const listQuery = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
+  const listQuery = useQuery({
+    queryKey: usersKey(),
+    queryFn: () => (org ? orgsApi.members(org) : usersApi.list()),
+  })
   const updateMut = useMutation({
     // The failure is shown on the row it belongs to, below.
     meta: SILENT_ERROR_META,
     mutationFn: ({ userId, role }: { userId: string; role: Role }) =>
-      usersApi.updateRole(userId, role),
+      org ? orgsApi.updateMemberRole(org, userId, role) : usersApi.updateRole(userId, role),
     onMutate: clearRoleUpdated,
     onSuccess: () => {
       markRoleUpdated()
       return qc.invalidateQueries({ queryKey: usersKey() })
     },
   })
+  const removeMut = useMutation({
+    meta: SILENT_ERROR_META,
+    mutationFn: (member: UserListItem) => orgsApi.removeMember(org ?? '', member.id),
+    onMutate: () => setRemovedNote(null),
+    onSuccess: (removed, member) => {
+      setRemovedNote(removalSummary(member.name ?? member.email, removed))
+      return qc.invalidateQueries({ queryKey: usersKey() })
+    },
+  })
+  const transferMut = useMutation({
+    meta: SILENT_ERROR_META,
+    mutationFn: (member: UserListItem) => orgsApi.transferOwnership(org ?? '', member.id),
+    onSuccess: () => {
+      // The caller is an admin now: the session's role changes with it.
+      void qc.invalidateQueries({ queryKey: AUTH_QUERY_KEY })
+      return qc.invalidateQueries({ queryKey: usersKey() })
+    },
+  })
+
+  const handleRemove = async (member: UserListItem) => {
+    const who = member.name ?? member.email
+    const ok = await confirm({
+      title: `Remove ${who}?`,
+      message:
+        `${who} leaves the organization at once: their project memberships go, their API keys `
+        + 'for it are revoked and their pending invitations are withdrawn. Invite them again to bring them back.',
+      confirmLabel: 'Remove member',
+      variant: 'danger',
+    })
+    if (!ok) return
+    // One error line serves both actions: clear the other one's stale failure,
+    // or it would keep speaking for this attempt.
+    transferMut.reset()
+    removeMut.mutate(member)
+  }
+
+  const handleTransfer = async (member: UserListItem) => {
+    const who = member.name ?? member.email
+    const ok = await confirm({
+      title: `Transfer ownership to ${who}?`,
+      message: `${OWNER_POWERS} ${who} becomes an owner, and you step down to Admin.`,
+      confirmLabel: 'Transfer ownership',
+      variant: 'danger',
+    })
+    if (!ok) return
+    removeMut.reset()
+    transferMut.mutate(member)
+  }
+
   const users = listQuery.data ?? []
   const [memberQuery, setMemberQuery] = useState('')
   const needle = memberQuery.trim().toLowerCase()
@@ -483,7 +559,19 @@ export default function UsersPage() {
         <ReadOnlyNotice className="mb-5">Only owners and admins can change roles or invite people.</ReadOnlyNotice>
       )}
 
-      {isOwner && <InviteMemberCard actorIsOrgOwner={actorIsOrgOwner} />}
+      {removedNote && (
+        <p role="status" className="m-0 mb-3 text-body-sm text-success">{removedNote}</p>
+      )}
+      {removeMut.isError && (
+        <p role="alert" className="m-0 mb-3 text-body-sm text-destructive">
+          {getErrorMessage(removeMut.error)}
+        </p>
+      )}
+      {transferMut.isError && (
+        <p role="alert" className="m-0 mb-3 text-body-sm text-destructive">
+          {getErrorMessage(transferMut.error)}
+        </p>
+      )}
 
       {/* A titled card with a count, like every other settings list (ST-40). */}
       <SCard
@@ -588,6 +676,32 @@ export default function UsersPage() {
                   )}
                 </div>
               </div>
+              {org && isOwner && u.id !== currentUser?.id && (actorIsOrgOwner || u.role !== 'owner') && (
+                <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+                  {actorIsOrgOwner && u.role !== 'owner' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void handleTransfer(u)}
+                      disabled={transferMut.isPending}
+                      aria-label={`Transfer ownership to ${u.name ?? u.email}`}
+                    >
+                      Transfer ownership
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void handleRemove(u)}
+                    disabled={removeMut.isPending && removeMut.variables?.id === u.id}
+                    aria-label={`Remove ${u.name ?? u.email}`}
+                  >
+                    {removeMut.isPending && removeMut.variables?.id === u.id ? 'Removing…' : 'Remove'}
+                  </Button>
+                </div>
+              )}
               {/* On the row it belongs to, naming the person: it used to sit
                   under the whole list, where it said nothing about whose role
                   had failed to change (WS-19). The status region is always

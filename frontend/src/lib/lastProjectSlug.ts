@@ -3,6 +3,8 @@
  * writes it on every project route; Settings falls back to it for a bare
  * address.
  */
+
+import { orgStorageKey } from '@/lib/activeOrg'
 export const LAST_PROJECT_SLUG_KEY = 'tripl-last-project-slug'
 
 /**
@@ -13,8 +15,9 @@ export const LAST_PROJECT_SLUG_KEY = 'tripl-last-project-slug'
  */
 export function forgetLastProjectSlug(slug: string): void {
   try {
-    if (localStorage.getItem(LAST_PROJECT_SLUG_KEY) === slug) {
-      localStorage.removeItem(LAST_PROJECT_SLUG_KEY)
+    const key = orgStorageKey(LAST_PROJECT_SLUG_KEY)
+    if (localStorage.getItem(key) === slug) {
+      localStorage.removeItem(key)
     }
   } catch {
     /* storage unavailable: nothing is remembered, so nothing to forget */

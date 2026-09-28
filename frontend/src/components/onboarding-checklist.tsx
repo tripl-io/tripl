@@ -14,6 +14,7 @@ import { useAuth } from '@/components/auth-context'
 import type { ProjectSummary } from '@/types'
 import { isOwner as isOwnerRole, useCanWriteProject } from '@/lib/permissions'
 import { isOnboardingDismissed, setOnboardingDismissed } from '@/lib/onboardingDismissal'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Guided first-run checklist (UX-24). A newcomer lands on the Overview with no
@@ -215,7 +216,7 @@ export function OnboardingChecklist({
           {`${steps.length} steps to your first monitored event`} ·{' '}
           {/* The glossary, for a reader who does not know the words the
               steps use yet (#238 JR-32). */}
-          <Link to={`/p/${slug}/concepts`} className="text-accent no-underline hover:underline">
+          <Link to={projectPath(currentOrgSlug(), slug, '/concepts')} className="text-accent no-underline hover:underline">
             What is this?
           </Link>
         </>

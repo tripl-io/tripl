@@ -12,7 +12,7 @@ import { useScenarioArtifacts } from '@/demo/demoScenarioContext'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ConfirmImpactMessage } from '@/components/dependencies/ImpactNotice'
 import { getErrorMessage } from '@/lib/utils'
-import { getAlertingPath } from '@/lib/navigation'
+import { currentOrgSlug, getAlertingPath, projectPath } from '@/lib/navigation'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { metricDefinitionKey, metricsCatalogKey } from '@/lib/queryKeys'
 import type { MetricDefinitionDetailResponse } from '@/types'
@@ -66,7 +66,7 @@ export function MetricHeaderActions({
       await metricsCatalogApi.del(slug, scopeId)
       toast.success('Metric deleted.')
       void queryClient.invalidateQueries({ queryKey: metricsCatalogKey(slug) })
-      navigate(`/p/${slug}/metrics`)
+      navigate(projectPath(currentOrgSlug(), slug, '/metrics'))
     } catch {
       toast.error('Could not delete metric.')
     }

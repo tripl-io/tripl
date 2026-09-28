@@ -24,6 +24,8 @@
 
 import { getMetricMonitoringPath } from '@/lib/monitoring'
 import { SCENARIO_STORAGE_PREFIX } from './demoLocalState'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 export type ChapterId =
   | 'live-loop'
@@ -551,7 +553,7 @@ export function buildChapterSteps(
   chapterId: ChapterId,
   state: ScenarioState,
 ): [ScenarioStep, ...ScenarioStep[]] {
-  const base = `/p/${slug}`
+  const base = projectPath(currentOrgSlug(), slug)
   const scans = `${base}/scans`
   switch (chapterId) {
     case 'live-loop': {
@@ -835,7 +837,7 @@ export function stepCompletedByPath(
   step: ScenarioStepId,
   pathname: string,
 ): boolean {
-  const base = `/p/${slug}`
+  const base = projectPath(currentOrgSlug(), slug)
   switch (step) {
     case 'edit-event/open-editor':
       // /p/:slug/events/:tab/:eventId/edit — the editor for ANY event counts;
@@ -1005,7 +1007,7 @@ function parseScenarioState(raw: string): ScenarioState | null {
 export function readScenarioState(slug: string): ScenarioState {
   if (typeof window === 'undefined') return initialScenarioState()
   try {
-    const raw = window.localStorage.getItem(`${STORAGE_PREFIX}${slug}`)
+    const raw = window.localStorage.getItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`))
     if (raw === null) return initialScenarioState()
     return parseScenarioState(raw) ?? initialScenarioState()
   } catch {
@@ -1016,7 +1018,7 @@ export function readScenarioState(slug: string): ScenarioState {
 export function writeScenarioState(slug: string, state: ScenarioState): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(`${STORAGE_PREFIX}${slug}`, JSON.stringify(state))
+    window.localStorage.setItem(orgStorageKey(`${STORAGE_PREFIX}${slug}`), JSON.stringify(state))
   } catch {
     /* ignore — a scenario that cannot remember its place still coaches this session */
   }

@@ -79,6 +79,7 @@ import {
 } from './eventNameConvention'
 import { SuccessorPicker } from './SuccessorPicker'
 import { FieldValuesCard, MetaFieldsCard, TagsBreakdownsCard } from './EventFormCards'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const NO_CREATED: CreatedIdentity[] = []
 const NO_DUPLICATE_CANDIDATES: DuplicateCandidate[] = []
@@ -896,7 +897,7 @@ export function EventForm({
                 <p className="text-body-sm text-fg-secondary">
                   This project has no event types yet, and an event belongs to one.{' '}
                   <Link
-                    to={`/p/${slug}/event-types`}
+                    to={projectPath(currentOrgSlug(), slug, '/event-types')}
                     className="underline underline-offset-2 text-accent"
                   >
                     Create an event type
@@ -961,7 +962,7 @@ export function EventForm({
                     <p className="mt-1 text-body-sm text-warning">
                       An event of this type is already named “{namesake.name}”:{' '}
                       <Link
-                        to={`/p/${slug}/monitoring/event/${namesake.id}`}
+                        to={projectPath(currentOrgSlug(), slug, `/monitoring/event/${namesake.id}`)}
                         className="underline underline-offset-2"
                       >
                         open it
@@ -1001,7 +1002,7 @@ export function EventForm({
                     <p className="mt-1 text-body-sm text-(--danger)" role="alert">
                       An event already answers to this name and would take every scan update:{' '}
                       <Link
-                        to={`/p/${slug}/monitoring/event/${identityTaken.id}`}
+                        to={projectPath(currentOrgSlug(), slug, `/monitoring/event/${identityTaken.id}`)}
                         className="underline underline-offset-2"
                       >
                         open it instead

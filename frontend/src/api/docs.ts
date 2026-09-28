@@ -1,5 +1,5 @@
 import { uid } from '@/lib/uid'
-import { api, ApiError, AUTH_UNAUTHORIZED_EVENT } from './client'
+import { api, ApiError, AUTH_UNAUTHORIZED_EVENT, orgScopedPath } from './client'
 import type {
   DocBacklinksResponse,
   DocBundle,
@@ -48,7 +48,7 @@ async function rawRequest(path: string, init: RequestInit): Promise<Response> {
   headers.set('X-Request-ID', uid())
   let res: Response
   try {
-    res = await fetch(`${BASE}${path}`, { ...init, headers, credentials: 'include' })
+    res = await fetch(`${BASE}${orgScopedPath(path)}`, { ...init, headers, credentials: 'include' })
   } catch {
     throw new ApiError('Backend is unavailable. Check that the API server is running and try again.', 503)
   }

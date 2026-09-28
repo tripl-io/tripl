@@ -1,5 +1,6 @@
 import { countOf } from '@/lib/plural'
 import type { DataSource } from '@/types'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export interface UsedByLink {
   id: string
@@ -35,7 +36,7 @@ export function dataSourceUsedBy(ds: DataSource): UsedBy | null {
     links: scans.map(scan => ({
       id: scan.id,
       name: scan.name,
-      href: `/p/${scan.project_slug}/scans/${scan.id}`,
+      href: projectPath(currentOrgSlug(), scan.project_slug, `/scans/${scan.id}`),
       projectName: manyProjects ? scan.project_name : null,
     })),
     more: Math.max(0, ds.scan_count - scans.length),

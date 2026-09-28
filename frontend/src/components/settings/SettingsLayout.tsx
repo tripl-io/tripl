@@ -31,6 +31,8 @@ import {
 } from './unsaved-changes'
 import type { Project } from '@/types'
 import { isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
+import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
+import { useActiveOrg } from '@/components/active-org-context'
 
 const RAIL_TITLE_ID = 'settings-rail-title'
 const RAIL_ID = 'settings-rail'
@@ -105,6 +107,11 @@ export function SettingsLayout({
   // The operator sections (security, observability, system) are the platform
   // admin's alone, whatever their organization role (F20 PR4).
   const isPlatformAdmin = isPlatformAdminUser(auth.user)
+  // The takeover's address names no organization of its own (only `?org=`),
+  // so the rail says which one it acts in: Members, Invitations, Data sources
+  // and API keys otherwise read the same in every organization.
+  const activeOrg = useActiveOrg()
+  const orgName = activeOrg.membership?.name ?? activeOrg.slug ?? ''
 
   // Personalize group sub-labels with live identity, matching the mockup
   // (Project → project name, Account → "You · <name>"). Workspace stays
@@ -114,6 +121,7 @@ export function SettingsLayout({
   const subFor = (group: { label: string; sub: string }): string => {
     if (group.label === 'Project' && projectName) return projectName
     if (group.label === 'Account' && userName) return `You · ${userName}`
+    if (group.label === 'Organization' && orgName) return orgName
     if (group.sub === group.label) return ''
     return group.sub
   }
@@ -256,7 +264,7 @@ export function SettingsLayout({
     void confirmLeave(null).then((leave) => {
       if (!leave) return
       closeRail()
-      navigate(`/settings/${path}?project=${encodeURIComponent(slug)}`, { state: LEAVE_CONFIRMED })
+      navigate(settingsPath(`/settings/${path}?project=${encodeURIComponent(slug)}`), { state: LEAVE_CONFIRMED })
     })
   }
 
@@ -463,8 +471,8 @@ export function SettingsLayout({
                   const Icon = item.icon
                   const href =
                     projectSlug && item.path.startsWith('project/')
-                      ? `/settings/${item.path}?project=${encodeURIComponent(projectSlug)}`
-                      : `/settings/${item.path}`
+                      ? settingsPath(`/settings/${item.path}?project=${encodeURIComponent(projectSlug)}`)
+                      : settingsPath(`/settings/${item.path}`)
                   return (
                     // A real anchor, not a button: as buttons none of these 14
                     // destinations could be cmd-clicked into a new tab,
@@ -518,7 +526,7 @@ export function SettingsLayout({
                   // "Project operations" button on General as the only way
                   // there (#238 ST-5). The arrow marks it as leaving the area.
                   <Link
-                    to={`/p/${encodeURIComponent(projectSlug)}/event-types`}
+                    to={projectPath(currentOrgSlug(), encodeURIComponent(projectSlug), '/event-types')}
                     onClick={guardLeave}
                     className="flex items-center gap-2 rounded-md px-[9px] py-2.5 md:py-[7px] text-left text-body-sm font-medium text-fg-muted no-underline transition-colors hover:bg-sidebar-hover focus-visible:bg-sidebar-hover"
                   >

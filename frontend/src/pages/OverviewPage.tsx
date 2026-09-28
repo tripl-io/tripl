@@ -36,7 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/components/auth-context'
 import { useTheme } from '@/components/theme-provider'
 import { isOwner } from '@/lib/permissions'
-import { getAlertingPath } from '@/lib/navigation'
+import { currentOrgSlug, getAlertingPath, projectPath, settingsPath, withActiveOrg } from '@/lib/navigation'
 import { METRIC_INTERVAL_LABEL } from '@/lib/metricFormat'
 import { formatPlanCoverage, planCoverageRatio } from '@/lib/coverage'
 import {
@@ -309,7 +309,7 @@ export default function OverviewPage() {
           action={
             canConnectSource ? (
               <Button asChild size="sm">
-                <Link to="/settings/data-sources" className="no-underline">
+                <Link to={settingsPath('/settings/data-sources')} className="no-underline">
                   Connect a data source
                 </Link>
               </Button>
@@ -343,13 +343,13 @@ export default function OverviewPage() {
           />
           {/* "In review", the one name for the status count everywhere
               (JR-27): the tile, the Events tab and the glossary. */}
-          <KpiLink to={slug ? `/p/${slug}/events/review` : undefined}>
+          <KpiLink to={slug ? projectPath(currentOrgSlug(), slug, '/events/review') : undefined}>
             <MiniStat
               label="In review"
               value={summary ? formatNumber(reviewCount) : <StatValueSkeleton />}
             />
           </KpiLink>
-          <KpiLink to={slug ? `/p/${slug}/anomalies` : undefined}>
+          <KpiLink to={slug ? projectPath(currentOrgSlug(), slug, '/anomalies') : undefined}>
             <MiniStat
               label="Open signals"
               value={signalsQuery.data ? formatNumber(signalCount) : <StatValueSkeleton />}
@@ -359,7 +359,7 @@ export default function OverviewPage() {
               delta={signalCount > 0 ? 'active' : undefined}
             />
           </KpiLink>
-          <KpiLink to={slug ? `/p/${slug}/coverage` : undefined}>
+          <KpiLink to={slug ? projectPath(currentOrgSlug(), slug, '/coverage') : undefined}>
             <MiniStat
               label="Coverage"
               value={
@@ -420,7 +420,7 @@ export default function OverviewPage() {
         right={
           slug && signals.length > 0 ? (
             <Link
-              to={`/p/${slug}/anomalies`}
+              to={projectPath(currentOrgSlug(), slug, '/anomalies')}
               className="rounded-md px-2 py-1 text-body-sm no-underline transition-colors hover:bg-[var(--surface-hover)] text-accent"
             >
               View all ({formatNumber(signals.length)})
@@ -770,7 +770,7 @@ export default function OverviewPage() {
             {lateScans.map((item) => (
               <li key={item.id} className="flex items-center gap-2 text-body-sm">
                 <Link
-                  to={`/p/${slug}/scans/${item.id}`}
+                  to={projectPath(currentOrgSlug(), slug, `/scans/${item.id}`)}
                   className="min-w-0 flex-1 truncate no-underline hover:underline text-inherit"
                 >
                   {item.name}
@@ -884,7 +884,7 @@ function OverviewStatus({
   if (signalCount != null) {
     parts.push(
       signalCount > 0 ? (
-        <Link to={`/p/${slug}/anomalies`} style={linkStyle}>
+        <Link to={projectPath(currentOrgSlug(), slug, '/anomalies')} style={linkStyle}>
           {plural(signalCount, 'open anomaly', 'open anomalies')}
         </Link>
       ) : (
@@ -901,7 +901,7 @@ function OverviewStatus({
   }
   if (failingScans > 0) {
     parts.push(
-      <Link to={`/p/${slug}/scans`} style={linkStyle}>
+      <Link to={projectPath(currentOrgSlug(), slug, '/scans')} style={linkStyle}>
         {plural(failingScans, 'failing scan', 'failing scans')}
       </Link>,
     )
@@ -1113,7 +1113,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
     'flex min-h-(--row-h) items-start gap-2.5 py-2 no-underline transition-colors hover:bg-[var(--surface-hover)]'
   if (item.target_path) {
     return (
-      <Link to={item.target_path} className={`${className} text-inherit`}>
+      <Link to={withActiveOrg(item.target_path)} className={`${className} text-inherit`}>
         {content}
       </Link>
     )
@@ -1158,7 +1158,7 @@ function SourceRow({
   const showEngine = !(source.is_synthetic && source.db_type === 'synthetic')
   return (
     <Link
-      to={`/settings/data-sources/${source.id}`}
+      to={settingsPath(`/settings/data-sources/${source.id}`)}
       className="flex min-h-(--row-h) flex-wrap items-center gap-x-2 gap-y-0.5 py-2 no-underline transition-colors hover:bg-[var(--surface-hover)] text-inherit"
     >
       <Database aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" />

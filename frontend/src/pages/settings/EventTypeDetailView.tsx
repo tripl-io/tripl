@@ -47,6 +47,7 @@ import {
   STextarea,
   SaveFooter,
 } from './EventTypesTab'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const sensitiveFieldCount = (et: EventType): number =>
   et.field_definitions.filter((f) => f.sensitivity !== 'none').length
@@ -115,14 +116,14 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
       ? eventTypes.find((e) => e.name === lastSeenName)
       : undefined
   const redirectTo = sameNameOnThisBranch
-    ? `/p/${slug}/event-types/${sameNameOnThisBranch.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`
+    ? projectPath(currentOrgSlug(), slug, `/event-types/${sameNameOnThisBranch.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`)
     : null
   useEffect(() => {
     if (redirectTo) navigate(redirectTo, { replace: true })
   }, [navigate, redirectTo])
 
-  const goBack = () => navigate(`/p/${slug}/event-types`)
-  const goEvents = () => navigate(`/p/${slug}/events/${et?.name ?? 'all'}`)
+  const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/event-types'))
+  const goEvents = () => navigate(projectPath(currentOrgSlug(), slug, `/events/${et?.name ?? 'all'}`))
 
   // Only a load that never answered replaces the page. A failed refetch keeps
   // the cached type on screen with a line saying so: every save on the Settings
@@ -153,7 +154,7 @@ export function EventTypeDetail({ slug, eventTypeId }: { slug: string; eventType
             ? 'This event type does not exist on main. It may have been deleted or renamed.'
             : 'This event type does not exist on the selected branch. It may have been deleted, renamed, or only exist on another branch.'
         }
-        back={{ to: `/p/${slug}/event-types`, label: 'Back to event types' }}
+        back={{ to: projectPath(currentOrgSlug(), slug, '/event-types'), label: 'Back to event types' }}
       />
     )
   }

@@ -20,6 +20,7 @@ import {
   type EventRef,
   type EventRefOption,
 } from './eventRefOptions'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export type { EventRef }
 
@@ -326,7 +327,7 @@ export function EventRefPicker({
       {noEvents && (
         <p className="text-caption text-fg-tertiary">
           No events in this project yet.{' '}
-          <Link to={`/p/${slug}/events`} className="underline underline-offset-2 text-fg">
+          <Link to={projectPath(currentOrgSlug(), slug, '/events')} className="underline underline-offset-2 text-fg">
             Add events
           </Link>
         </p>

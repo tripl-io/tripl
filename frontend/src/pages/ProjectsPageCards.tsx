@@ -25,7 +25,7 @@ import { formatIncidentCount } from '@/lib/alertStatus'
 import { formatPlanCoverage, planCoverageRatio } from '@/lib/coverage'
 import { formatDate, formatDateTime, formatRelativeTime } from '@/lib/datetime'
 import { getMonitoringPath } from '@/lib/monitoring'
-import { projectHomePath } from '@/lib/navigation'
+import { currentOrgSlug, projectHomePath, projectPath } from '@/lib/navigation'
 import { countOf, pluralize } from '@/lib/plural'
 import { friendlyScanError } from '@/lib/scanError'
 import { formatJobScanned, jobScanned } from './settings/scans/scanUtils'
@@ -347,7 +347,7 @@ function ProjectFacts({
           cmd-clickable (tripl-a1d1). */}
       {summary.review_pending_event_count > 0 ? (
         <Link
-          to={`/p/${project.slug}/events/review`}
+          to={projectPath(currentOrgSlug(), project.slug, '/events/review')}
           aria-label={`In review in ${project.name}: ${pluralize(
             summary.review_pending_event_count,
             '1 event',
@@ -457,7 +457,7 @@ function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boole
           </Panel>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to={`/p/${project.slug}/settings`}>
+          <Link to={projectPath(currentOrgSlug(), project.slug, '/settings')}>
             <Settings2 className="h-3.5 w-3.5" />
             Settings
           </Link>

@@ -1,4 +1,5 @@
 import type { DocScope } from '@/types/docs'
+import { currentOrgSlug, projectPath } from '@/lib/activeOrg'
 
 /**
  * Pure helpers for the docs catalog (F22): folder trees built from flat paths,
@@ -98,7 +99,7 @@ export function isUnder(path: string, prefix: string): boolean {
 /** The in-app address of a note; each segment is encoded, slashes kept. */
 export function docRoute(slug: string, scope: DocScope, path: string): string {
   const encoded = path.split('/').map(encodeURIComponent).join('/')
-  return `/p/${slug}/docs/${scope}/${encoded}`
+  return projectPath(currentOrgSlug(), slug, `/docs/${scope}/${encoded}`)
 }
 
 export function isDocScope(value: string | undefined): value is DocScope {

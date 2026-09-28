@@ -42,6 +42,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { StreamStatus } from './pollingPolicy'
 import { PROJECT_EVENT_TYPES, invalidateForEvent, isProjectEventType } from './invalidationMap'
+import { orgScopedPath } from '@/api/client'
+import { useActiveOrg } from '@/components/active-org-context'
 
 const BASE_BACKOFF_MS = 1000
 const MAX_BACKOFF_MS = 30_000
@@ -120,7 +122,8 @@ function initialStatus(slug: string | undefined): StreamStatus {
 }
 
 function streamUrl(slug: string, lastEventId: string | null): string {
-  const base = `/api/v1/projects/${encodeURIComponent(slug)}/events/stream`
+  // Inside the active organization, like every request `api` sends (F20 PR7).
+  const base = `/api/v1${orgScopedPath(`/projects/${encodeURIComponent(slug)}/events/stream`)}`
   return lastEventId ? `${base}?last_event_id=${encodeURIComponent(lastEventId)}` : base
 }
 
@@ -135,9 +138,13 @@ export function useProjectEventStream(slug: string | undefined): StreamStatus {
   // Reset status the moment the project scope changes (render-time derived state,
   // the React-documented alternative to a setState-in-effect). The connection
   // effect below then re-subscribes for the new slug.
-  const [lastSlug, setLastSlug] = useState(slug)
-  if (lastSlug !== slug) {
-    setLastSlug(slug)
+  // The organization is part of the scope (F20 PR7): two organizations may each
+  // hold a project `web`, and switching between them is a new stream.
+  const { slug: org } = useActiveOrg()
+  const scope = `${org ?? ''}/${slug ?? ''}`
+  const [lastScope, setLastScope] = useState(scope)
+  if (lastScope !== scope) {
+    setLastScope(scope)
     setStatus(initialStatus(slug))
   }
 
@@ -303,7 +310,7 @@ export function useProjectEventStream(slug: string | undefined): StreamStatus {
         sourceRef.current = null
       }
     }
-  }, [slug, queryClient])
+  }, [slug, org, queryClient])
 
   return status
 }

@@ -8,10 +8,11 @@ import type {
   MonitoringSignal,
 } from '@/types'
 import type { EventStatus } from '@/lib/eventStatus'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 /** Per-project key holding which tabs have their volume chart open. */
 export function chartOpenStorageKey(slug: string): string {
-  return `tripl.eventsChartOpen.${slug}`
+  return orgStorageKey(`tripl.eventsChartOpen.${slug}`)
 }
 
 function readOpenCharts(slug: string): Record<string, boolean> {

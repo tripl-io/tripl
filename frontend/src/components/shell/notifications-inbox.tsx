@@ -17,6 +17,7 @@ import { useMarkNotificationsRead, useNotificationList } from '@/hooks/useNotifi
 import { formatRelativeTime } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
 import type { AppNotification, NotificationKind } from '@/types'
+import { withActiveOrg } from '@/lib/navigation'
 
 const KIND_ICON: Record<NotificationKind, LucideIcon> = {
   comment: MessageSquare,
@@ -32,7 +33,8 @@ const KIND_ICON: Record<NotificationKind, LucideIcon> = {
 
 /** Only an in-app path is followed; anything else opens the bell's owner nowhere. */
 function safeInAppPath(url: string): string | null {
-  return url.startsWith('/') && !url.startsWith('//') ? url : null
+  // A server-written `/p/…` address opens under the active organization (F20 PR7).
+  return url.startsWith('/') && !url.startsWith('//') ? withActiveOrg(url) : null
 }
 
 /**

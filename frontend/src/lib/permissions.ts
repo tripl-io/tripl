@@ -2,7 +2,30 @@ import { useContext } from 'react'
 
 import { ActiveProjectContext } from '@/components/active-project-context'
 import { AuthContext } from '@/components/auth-context'
+import { currentOrgSlug } from '@/lib/activeOrg'
 import type { AuthUser, Project, Role } from '@/types'
+
+/**
+ * The user's role in the organization the app acts in (F20 PR7).
+ *
+ * `/auth/me` answers `role` for the organization a browser session acts in by
+ * default — the default organization — and lists every membership in `orgs`.
+ * Once the app acts in another organization, `role` says nothing about it: an
+ * owner of `default` is nobody in `acme`. So the role is read from `orgs` for
+ * the active organization, and is `null` when the user holds none there (an
+ * address naming someone else's organization, which the server answers 404).
+ *
+ * With no organization known — no provider, or a session from before
+ * organizations (no `orgs`) — `role` is all there is, and it stands.
+ */
+export function activeOrgRole(
+  user: Pick<AuthUser, 'role'> & Partial<Pick<AuthUser, 'orgs'>> | null | undefined,
+  org: string | null = currentOrgSlug(),
+): Role | null {
+  if (!user) return null
+  if (!org || !user.orgs || user.orgs.length === 0) return user.role ?? null
+  return user.orgs.find((membership) => membership.slug === org)?.role ?? null
+}
 
 /**
  * May this organization role write?
@@ -38,7 +61,7 @@ export function canWrite(_role: Role | null | undefined): boolean {
  */
 export function useCanWrite(): boolean {
   const auth = useContext(AuthContext)
-  return canWrite(auth?.user?.role)
+  return canWrite(activeOrgRole(auth?.user))
 }
 
 /**
@@ -60,16 +83,17 @@ export function useCanWrite(): boolean {
  * read-only visitor.
  */
 export function canWriteProject(
-  user: Pick<AuthUser, 'id' | 'role'> | null | undefined,
+  user: Pick<AuthUser, 'id' | 'role'> & Partial<Pick<AuthUser, 'orgs'>> | null | undefined,
   project: Pick<Project, 'is_demo' | 'created_by_user_id' | 'can_mutate' | 'my_role'> | null | undefined,
 ): boolean {
-  if (!canWrite(user?.role)) return false
+  const role = activeOrgRole(user)
+  if (!canWrite(role)) return false
   if (typeof project?.can_mutate === 'boolean') return project.can_mutate
   // Project membership (tripl-vefw): a viewer member only reads.
   // `can_mutate` already folds this in when present.
   if (project?.my_role === 'viewer') return false
   if (!user || !project?.is_demo) return true
-  if (isOwner(user.role)) return true
+  if (isOwner(role)) return true
   return project.created_by_user_id != null && project.created_by_user_id === user.id
 }
 
@@ -106,7 +130,16 @@ export function isOwner(role: Role | null | undefined): boolean {
 /** {@link isOwner} for the signed-in user, read the same way as {@link useCanWrite}. */
 export function useIsOwner(): boolean {
   const auth = useContext(AuthContext)
-  return isOwner(auth?.user?.role)
+  return isOwner(activeOrgRole(auth?.user))
+}
+
+/**
+ * Is the signed-in user an OWNER (not an admin) of the active organization?
+ * Deleting the organization and transferring or managing ownership are theirs.
+ */
+export function useIsOrgOwner(): boolean {
+  const auth = useContext(AuthContext)
+  return activeOrgRole(auth?.user) === 'owner'
 }
 
 /**
@@ -143,16 +176,17 @@ export function useIsPlatformAdmin(): boolean {
  * manages nothing.
  */
 export function canManageProject(
-  user: Pick<AuthUser, 'id' | 'role'> | null | undefined,
+  user: Pick<AuthUser, 'id' | 'role'> & Partial<Pick<AuthUser, 'orgs'>> | null | undefined,
   project: Pick<Project, 'created_by_user_id' | 'can_mutate' | 'my_role'> | null | undefined,
 ): boolean {
   if (!user) return false
-  if (isOwner(user.role)) return true
+  const role = activeOrgRole(user)
+  if (isOwner(role)) return true
   // The editor half: a creator who only views this project now (a `viewer`
   // row) fails `EditorUserDep` before the creator check is reached.
   if (project?.my_role === 'viewer' || project?.can_mutate === false) return false
   return (
-    canWrite(user.role) &&
+    canWrite(role) &&
     project?.created_by_user_id != null &&
     project.created_by_user_id === user.id
   )
@@ -205,12 +239,13 @@ export const VIEWER_READ_ONLY_HINT =
  * controls are drawn.
  */
 export function canManageProjectMembers(
-  user: Pick<AuthUser, 'id' | 'role'> | null | undefined,
+  user: Pick<AuthUser, 'id' | 'role'> & Partial<Pick<AuthUser, 'orgs'>> | null | undefined,
   project: Pick<Project, 'created_by_user_id' | 'can_mutate' | 'my_role'> | null | undefined,
 ): boolean {
   if (!user) return false
-  if (isOwner(user.role)) return true
-  if (!canWrite(user.role)) return false
+  const role = activeOrgRole(user)
+  if (isOwner(role)) return true
+  if (!canWrite(role)) return false
   if (project?.my_role === 'viewer' || project?.can_mutate === false) return false
   return project?.created_by_user_id != null && project.created_by_user_id === user.id
 }

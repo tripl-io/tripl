@@ -10,6 +10,7 @@ import {
   navLinkClass,
   navLinkStyle,
 } from './sidebar-style'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EVENT_TYPES_EXPANDED_KEY = 'tripl-sidebar-event-types-expanded'
 /** Event-type rows shown under Events before a "Show N more" row (#238 SH-9). */
@@ -228,7 +229,7 @@ function EventTypeNavRow({
 }
 
 function eventTypeEventsHref(slug: string, eventTypeName: string): string {
-  return `/p/${slug}/events/${eventTypeName}`
+  return projectPath(currentOrgSlug(), slug, `/events/${eventTypeName}`)
 }
 
 export function EmptyNav({ loading }: { loading: boolean }) {

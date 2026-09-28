@@ -55,6 +55,16 @@ Invite member (owners) and the theme toggle.
 2. After signing in you land on your projects. If you already have exactly one
    project, tripl takes you straight into it; otherwise you see the workspace
    dashboard.
+
+   Everything you see belongs to an **organization**, and the address says which:
+   the workspace is `/o/{org}` and a project page is `/o/{org}/p/{project}/…`
+   (for example `/o/default/p/web/events`). Older links of the form
+   `/p/{project}/…` still work and open the same page in the organization that
+   holds the project. If you belong to more than one organization, the switcher
+   above the project switcher in the sidebar moves you between them; each has
+   its own projects, data sources, API keys and members. Its settings are under
+   **Settings → Organization** (see the
+   [Administration guide](../administer/admin-guide.md#organizations-in-the-app)).
 3. From the dashboard you have two ways forward:
    - **Generate demo project** — a complete synthetic project to explore.
    - **New project** — an empty project for your real work.

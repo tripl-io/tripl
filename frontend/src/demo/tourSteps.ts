@@ -7,7 +7,7 @@
  * unit-testable without rendering.
  */
 
-import { buildNavGroups } from '@/lib/navigation'
+import { buildNavGroups, currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export interface TourStep {
   id: string
@@ -52,7 +52,7 @@ export interface MetricBuildingBlock {
 }
 
 export function buildMetricBuildingBlocks(slug: string): MetricBuildingBlock[] {
-  const metrics = `/p/${slug}/metrics`
+  const metrics = projectPath(currentOrgSlug(), slug, '/metrics')
   return [
     {
       // Event volume is NOT a catalog metric kind — MetricKind is only
@@ -63,7 +63,7 @@ export function buildMetricBuildingBlocks(slug: string): MetricBuildingBlock[] {
       id: 'event-count',
       label: 'Event volume',
       blurb: 'How often each event fires over time — collected per event by a scan.',
-      to: `/p/${slug}/events`,
+      to: projectPath(currentOrgSlug(), slug, '/events'),
     },
     {
       id: 'fact',
@@ -105,7 +105,7 @@ interface TourStepSpec {
 }
 
 export function buildTourSteps(slug: string): [TourStep, ...TourStep[]] {
-  const base = `/p/${slug}`
+  const base = projectPath(currentOrgSlug(), slug)
   const nav = new Map(
     buildNavGroups(slug, undefined).flatMap((group) =>
       group.items.map((item) => [item.id, { area: group.label, label: item.label }] as const),

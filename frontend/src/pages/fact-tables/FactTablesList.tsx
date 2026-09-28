@@ -30,6 +30,7 @@ import { countOf } from '@/lib/plural'
 import { dataSourcesKey, factTablesKey, projectFactTableKey } from '@/lib/queryKeys'
 import { useCanWriteProject } from '@/lib/permissions'
 import { buildFactTableCopy } from './factTableCopy'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const FACT_TABLE_GRID =
   'grid grid-cols-[1.7fr_1fr_1fr_96px_84px_24px] items-center gap-3 px-4'
@@ -133,7 +134,7 @@ export function FactTablesList({ slug }: { slug?: string }) {
     onSuccess: created => {
       void qc.invalidateQueries({ queryKey: factTablesKey(slug) })
       toast.success('Fact table duplicated.')
-      navigate(`/p/${slug}/metrics/fact-tables/${created.id}/edit`)
+      navigate(projectPath(currentOrgSlug(), slug, `/metrics/fact-tables/${created.id}/edit`))
     },
   })
 
@@ -198,7 +199,7 @@ export function FactTablesList({ slug }: { slug?: string }) {
               action={
                 slug && canWrite ? (
                   <Button asChild size="sm">
-                    <Link to={`/p/${slug}/metrics/fact-tables/new`} className="no-underline">
+                    <Link to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables/new')} className="no-underline">
                       <Plus className="h-3.5 w-3.5" />
                       New fact table
                     </Link>
@@ -366,7 +367,7 @@ function FactTableRow({
   onDuplicate,
 }: FactTableRowProps) {
   const navigate = useNavigate()
-  const href = slug ? `/p/${slug}/metrics/fact-tables/${table.id}/edit` : undefined
+  const href = slug ? projectPath(currentOrgSlug(), slug, `/metrics/fact-tables/${table.id}/edit`) : undefined
   const usedByTitle = `${countOf(table.column_count ?? 0, 'column', 'columns')}, ${countOf(table.identifier_count ?? 0, 'identifier', 'identifiers')}`
 
   // The whole row opens the table, as a catalog row does (MT-30); the name
@@ -417,7 +418,7 @@ function FactTableRow({
       <span role="cell" className={`tnum truncate text-body-sm ${PHONE_CELL.usedBy}`}>
         {table.metric_count && slug ? (
           <Link
-            to={`/p/${slug}/metrics?fact_table=${encodeURIComponent(table.id)}`}
+            to={projectPath(currentOrgSlug(), slug, `/metrics?fact_table=${encodeURIComponent(table.id)}`)}
             onClick={event => event.stopPropagation()}
             className="underline-offset-2 hover:underline text-fg-tertiary"
             title={usedByTitle}

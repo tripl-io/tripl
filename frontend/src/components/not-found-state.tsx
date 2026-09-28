@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { projectHomePath } from '@/lib/navigation'
+import { projectHomePath, workspacePath } from '@/lib/navigation'
 
 const DEFAULT_DESCRIPTION = 'The page you’re looking for doesn’t exist or may have moved.'
 
@@ -21,6 +21,12 @@ interface NotFoundStateProps {
    * at the slug in the URL.
    */
   project?: NotFoundProject
+  /**
+   * Where "Back to all projects" goes. Defaults to the active organization's
+   * workspace; a page about an organization the user is not in points
+   * elsewhere, since that workspace is the thing that is missing.
+   */
+  homeHref?: string
 }
 
 /**
@@ -32,6 +38,7 @@ export function NotFoundState({
   title = 'Page not found',
   description = DEFAULT_DESCRIPTION,
   project,
+  homeHref,
 }: NotFoundStateProps) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
@@ -57,7 +64,7 @@ export function NotFoundState({
           </Button>
         )}
         <Button asChild size="lg" variant={project ? 'outline' : 'default'}>
-          <Link to="/workspace">{project ? 'All projects' : 'Back to all projects'}</Link>
+          <Link to={homeHref ?? workspacePath()}>{project ? 'All projects' : 'Back to all projects'}</Link>
         </Button>
       </div>
     </div>

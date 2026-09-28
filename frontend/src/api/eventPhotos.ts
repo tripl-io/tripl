@@ -1,8 +1,22 @@
 import type { EventPhoto, EventPhotoComment, PhotoLimits } from '../types'
 import { uid } from '@/lib/uid'
-import { api, ApiError, AUTH_UNAUTHORIZED_EVENT } from './client'
+import { api, ApiError, AUTH_UNAUTHORIZED_EVENT, orgScopedPath } from './client'
 
 const BASE = '/api/v1'
+
+/**
+ * The address to load a photo's file from. The server builds `photo.url` as an
+ * org-less `/api/v1/projects/{slug}/…/file` (tripl-0chm), which a cookie
+ * session resolves in the default organization, so an `<img>` in any other one
+ * would load the default organization's same-slug project, or 404. This applies
+ * the client's organization rewrite to it; an already org-qualified URL, or one
+ * outside the API, is returned as it is.
+ */
+export function photoFileUrl(url: string): string {
+  const apiPrefix = `${BASE}/`
+  if (!url.startsWith(apiPrefix)) return url
+  return `${BASE}${orgScopedPath(url.slice(BASE.length))}`
+}
 
 /**
  * POST one file with upload progress.
@@ -20,7 +34,8 @@ function uploadWithProgress<T>(
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${BASE}${path}`)
+    // The same organization rewrite `api` applies (F20 PR7).
+    xhr.open('POST', `${BASE}${orgScopedPath(path)}`)
     xhr.withCredentials = true
     xhr.setRequestHeader('X-Request-ID', uid())
     xhr.upload.onprogress = event => {

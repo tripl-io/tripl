@@ -49,7 +49,7 @@ import { SearchVariantCount, SearchVariantRows } from '@/components/search-varia
 import { PROJECT_GROUPS, WORKSPACE_GROUPS } from '@/components/settings/nav'
 import { useTheme } from '@/components/theme-provider'
 import { eventNameLabel } from '@/lib/eventName'
-import { buildNavGroups, projectHomePath, switchProjectPath } from '@/lib/navigation'
+import { buildNavGroups, currentOrgSlug, projectHomePath, projectPath, settingsPath, switchProjectPath, withActiveOrg, workspacePath } from '@/lib/navigation'
 import { isOnboardingDismissed, setOnboardingDismissed } from '@/lib/onboardingDismissal'
 import { useBranchContext, useBranchLinkProps } from '@/hooks/useBranch'
 import { requestPageLeave } from '@/hooks/useUnsavedChangesGuard'
@@ -539,7 +539,7 @@ export default function CommandPalette({
   // branch (tripl-kjhi.7). Only `to` is used: the palette never leaves the
   // branch it searched in, so there is nothing for the click half to set.
   const goToResult = useCallback(
-    (routePath: string) => goTo(branchLink(routePath, branchId).to),
+    (routePath: string) => goTo(branchLink(withActiveOrg(routePath), branchId).to),
     [branchId, branchLink, goTo],
   )
 
@@ -584,8 +584,8 @@ export default function CommandPalette({
       .filter(item => !item.path.startsWith('project/') || !!activeProject)
       .map(item => {
         const path = item.path.startsWith('project/') && activeProject
-          ? `/settings/${item.path}?project=${encodeURIComponent(activeProject.slug)}`
-          : `/settings/${item.path}`
+          ? settingsPath(`/settings/${item.path}?project=${encodeURIComponent(activeProject.slug)}`)
+          : settingsPath(`/settings/${item.path}`)
         const label = group.label === 'Project'
           ? `Project settings: ${item.label}`
           : (SETTINGS_LABEL[item.id] ?? item.label)
@@ -597,7 +597,7 @@ export default function CommandPalette({
       }),
   )
   const navigateRows: PaletteRow[] = [
-    navRow('/workspace', 'All projects', LayoutDashboard, ['portfolio', 'workspace']),
+    navRow(workspacePath(), 'All projects', LayoutDashboard, ['portfolio', 'workspace']),
     ...settingsRows,
   ]
 
@@ -625,10 +625,10 @@ export default function CommandPalette({
   // settings" was a third name for it.
   const projectExtraRows: PaletteRow[] = activeProject
     ? [
-        navRow(`/p/${activeProject.slug}/settings`, 'Project settings', Settings),
-        navRow(`/p/${activeProject.slug}/concepts`, 'Concepts', BookOpen, ['glossary', 'help']),
+        navRow(projectPath(currentOrgSlug(), activeProject.slug, '/settings'), 'Project settings', Settings),
+        navRow(projectPath(currentOrgSlug(), activeProject.slug, '/concepts'), 'Concepts', BookOpen, ['glossary', 'help']),
         navRow(
-          `/p/${activeProject.slug}/settings/monitoring`,
+          projectPath(currentOrgSlug(), activeProject.slug, '/settings/monitoring'),
           'Detection settings',
           SlidersHorizontal,
           ['sensitivity', 'threshold', 'monitoring'],
@@ -673,7 +673,7 @@ export default function CommandPalette({
         hint: eventType.name,
         icon: Tag,
         iconColor: eventType.color,
-        onSelect: () => goTo(`/p/${activeProject.slug}/events/${eventType.name}`),
+        onSelect: () => goTo(projectPath(currentOrgSlug(), activeProject.slug, `/events/${eventType.name}`)),
       }))
     : []
 
@@ -718,7 +718,7 @@ export default function CommandPalette({
           // nav:<branches path>, and cmdk selects by value, so a shared one
           // would highlight both rows at once.
           {
-            ...navRow(`/p/${activeProject.slug}/branches`, 'Switch branch…', GitBranch, [
+            ...navRow(projectPath(currentOrgSlug(), activeProject.slug, '/branches'), 'Switch branch…', GitBranch, [
               'branch',
               'checkout',
             ]),
@@ -733,9 +733,9 @@ export default function CommandPalette({
   const actionRows: PaletteRow[] = [
     ...(activeProject && canEdit
       ? [
-          navRow(`/p/${activeProject.slug}/events/all/new`, 'New event', Plus, ['create', 'add']),
-          navRow(`/p/${activeProject.slug}/metrics/new`, 'New metric', Plus, ['create', 'add']),
-          navRow(`/p/${activeProject.slug}/branches?new=1`, 'New branch', GitBranch, [
+          navRow(projectPath(currentOrgSlug(), activeProject.slug, '/events/all/new'), 'New event', Plus, ['create', 'add']),
+          navRow(projectPath(currentOrgSlug(), activeProject.slug, '/metrics/new'), 'New metric', Plus, ['create', 'add']),
+          navRow(projectPath(currentOrgSlug(), activeProject.slug, '/branches?new=1'), 'New branch', GitBranch, [
             'create',
             'add',
           ]),
@@ -743,7 +743,7 @@ export default function CommandPalette({
       : []),
     ...branchSwitchRows,
     ...(isOwner
-      ? [navRow('/settings/members?invite=1', 'Invite member', UserPlus, ['add', 'user', 'invite'])]
+      ? [navRow(settingsPath('/settings/invitations?invite=1'), 'Invite member', UserPlus, ['add', 'user', 'invite'])]
       : []),
     {
       value: paletteValue.action('toggle-theme'),

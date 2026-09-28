@@ -17,6 +17,7 @@ vi.mock('@/api/eventPhotos', () => ({
     createComment: vi.fn(),
     deleteComment: vi.fn(),
   },
+  photoFileUrl: (url: string) => url,
 }))
 vi.mock('@/api/users', () => ({
   usersApi: { list: vi.fn().mockResolvedValue([]) },

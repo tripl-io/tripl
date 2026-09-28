@@ -12,6 +12,7 @@ import { ScanErrorTechnicalDetails } from './ScanErrorTechnicalDetails'
 import type { ScanMode } from './scanMode'
 import { buildRunReport, type RunReportLine, type RunReportTarget } from './runReport'
 import { scanErrorNextStep } from './scanErrorNextStep'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Where a report line's counter can be inspected. Both filter by SCAN, not by
@@ -24,11 +25,11 @@ const TARGET_LINK: Record<
   { href: (slug: string, scanConfigId: string) => string; title: string }
 > = {
   anomalies: {
-    href: (slug, scanConfigId) => `/p/${slug}/anomalies?scan=${scanConfigId}`,
+    href: (slug, scanConfigId) => projectPath(currentOrgSlug(), slug, `/anomalies?scan=${scanConfigId}`),
     title: 'View anomalies from this scan',
   },
   alerts: {
-    href: (slug, scanConfigId) => `/p/${slug}/alerting?scan=${scanConfigId}`,
+    href: (slug, scanConfigId) => projectPath(currentOrgSlug(), slug, `/alerting?scan=${scanConfigId}`),
     title: 'View alerts from this scan',
   },
 }

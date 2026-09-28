@@ -8,12 +8,13 @@ import { FactTablesList } from '@/pages/fact-tables/FactTablesList'
 import { MetricsCatalog } from './MetricsCatalog'
 import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export type MetricsTab = 'catalog' | 'fact-tables'
 
 const TABS: { id: MetricsTab; label: string; path: (slug: string) => string }[] = [
-  { id: 'catalog', label: 'Catalog', path: slug => `/p/${slug}/metrics` },
-  { id: 'fact-tables', label: 'Fact tables', path: slug => `/p/${slug}/metrics/fact-tables` },
+  { id: 'catalog', label: 'Catalog', path: slug => projectPath(currentOrgSlug(), slug, '/metrics') },
+  { id: 'fact-tables', label: 'Fact tables', path: slug => projectPath(currentOrgSlug(), slug, '/metrics/fact-tables') },
 ]
 
 /**
@@ -33,7 +34,7 @@ export default function MetricsPage({ tab = 'catalog' }: { tab?: MetricsTab }) {
   const action = !canWrite ? undefined :
     slug && tab === 'fact-tables' ? (
       <Button asChild size="sm">
-        <Link to={`/p/${slug}/metrics/fact-tables/new`} className="no-underline">
+        <Link to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables/new')} className="no-underline">
           <Plus className="h-3.5 w-3.5" />
           {/* "New table" on a phone, so the button stays beside the title
               as "New metric" does instead of wrapping under it (MT-37). */}
@@ -42,7 +43,7 @@ export default function MetricsPage({ tab = 'catalog' }: { tab?: MetricsTab }) {
       </Button>
     ) : slug ? (
       <Button asChild size="sm">
-        <Link to={`/p/${slug}/metrics/new`} className="no-underline">
+        <Link to={projectPath(currentOrgSlug(), slug, '/metrics/new')} className="no-underline">
           <Plus className="h-3.5 w-3.5" />
           New metric
         </Link>

@@ -22,6 +22,7 @@ import {
   alertInboxGroupKey,
   alertInboxKey,
   eventsMetricsKey,
+  keySegment,
   metricDefinitionKey,
   metricsCatalogKey,
   monitorsSummaryKey,
@@ -182,7 +183,7 @@ export function invalidateForEvent(
   slug: string,
 ): void {
   for (const queryKey of invalidationKeysFor(type, slug)) {
-    if (queryKey[0] === 'events') void refreshEventsLists(queryClient, queryKey)
+    if (keySegment(queryKey, 0) === 'events') void refreshEventsLists(queryClient, queryKey)
     else void queryClient.invalidateQueries({ queryKey })
   }
 }

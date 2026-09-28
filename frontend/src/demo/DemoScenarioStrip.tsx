@@ -30,6 +30,7 @@ import {
   type ScenarioStep,
 } from './scenarioModel'
 import { useWelcomeDismissed } from './welcomeDismissal'
+import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
 
 const REGION_LABEL = 'Demo scenario'
 
@@ -296,7 +297,7 @@ function CompletedStrip({
              and a demo-scoped link straight to the global connection page was
              deliberately removed by tripl-q7i1.7. */
           <Button asChild size="xs">
-            <Link to="/workspace">
+            <Link to={workspacePath()}>
               <Plus className="h-3 w-3" />
               Create a real project
             </Link>
@@ -374,7 +375,7 @@ export function DemoScenarioStrip() {
   // a user who picked "Run the live loop" or pressed Restart is on that very
   // step too, and must keep the strip that coaches it.
   const welcomeShowing =
-    slug !== undefined && !welcomeDismissed && location.pathname === `/p/${slug}/overview`
+    slug !== undefined && !welcomeDismissed && location.pathname === projectPath(currentOrgSlug(), slug, '/overview')
   const untouched =
     !state.engaged && activeChapter === 'live-loop' && step.id === 'live-loop/run-scan'
   if (welcomeShowing && untouched) return null

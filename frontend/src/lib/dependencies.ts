@@ -15,6 +15,7 @@ import {
   type ImpactChange,
   type ImpactChangeType,
 } from '@/types'
+import { currentOrgSlug, projectPath, withActiveOrg } from '@/lib/activeOrg'
 
 export const DEPENDENCY_KIND_LABELS: Record<DependencyKind, { one: string; many: string }> = {
   event: { one: 'event', many: 'events' },
@@ -139,28 +140,29 @@ export function summarizeEdges(edges: readonly DependencyEdge[]): string {
  */
 export function dependencyHref(slug: string, edge: Pick<DependencyEdge, 'kind' | 'id' | 'url_hint'>): string | null {
   if (edge.url_hint && edge.url_hint.startsWith('/') && !edge.url_hint.startsWith('//')) {
-    return edge.url_hint
+    // Server-written and org-less: it opens in the active organization.
+    return withActiveOrg(edge.url_hint)
   }
   const id = encodeURIComponent(edge.id)
   switch (edge.kind) {
     case 'event':
-      return `/p/${slug}/monitoring/event/${id}`
+      return projectPath(currentOrgSlug(), slug, `/monitoring/event/${id}`)
     case 'event_type':
-      return `/p/${slug}/event-types/${id}`
+      return projectPath(currentOrgSlug(), slug, `/event-types/${id}`)
     case 'variable':
-      return `/p/${slug}/variables/${id}`
+      return projectPath(currentOrgSlug(), slug, `/variables/${id}`)
     case 'metric':
       return getMetricMonitoringPath(slug, id)
     case 'fact_table':
-      return `/p/${slug}/metrics/fact-tables/${id}/edit`
+      return projectPath(currentOrgSlug(), slug, `/metrics/fact-tables/${id}/edit`)
     case 'alert_rule':
-      return `/p/${slug}/monitors/${id}`
+      return projectPath(currentOrgSlug(), slug, `/monitors/${id}`)
     case 'relation':
-      return `/p/${slug}/relations`
+      return projectPath(currentOrgSlug(), slug, '/relations')
     case 'scan_config':
-      return `/p/${slug}/scans/${id}`
+      return projectPath(currentOrgSlug(), slug, `/scans/${id}`)
     case 'detection_override':
-      return `/p/${slug}/settings/monitoring`
+      return projectPath(currentOrgSlug(), slug, '/settings/monitoring')
     default:
       return null
   }

@@ -57,6 +57,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { hasExecutedScanJob } from '@/components/onboarding-utils'
 import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const COVERAGE_DAYS = 14 as const
 // Deliberately NOT COVERAGE_DAYS. Dead events answer a different question than
@@ -552,7 +553,7 @@ export default function ReconciliationPage() {
           action={
             slug ? (
               <Button asChild size="lg">
-                <Link to={`/p/${slug}/scans`} className="no-underline">
+                <Link to={projectPath(currentOrgSlug(), slug, '/scans')} className="no-underline">
                   Go to Scans
                   <ArrowRight aria-hidden="true" />
                 </Link>
@@ -1207,7 +1208,7 @@ function ShadowRow({
             className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-micro [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·'] text-fg-tertiary"
           >
             {slug ? (
-              <Link to={`/p/${slug}/scans/${item.scan_config_id}`} className="hover:underline">
+              <Link to={projectPath(currentOrgSlug(), slug, `/scans/${item.scan_config_id}`)} className="hover:underline">
                 {item.scan_config_name}
               </Link>
             ) : (

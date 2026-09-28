@@ -30,6 +30,7 @@ import { CreateBranchDialog, MergePolicyDialog } from './branches/BranchDialogs'
 import type { DiffLoad } from './branches/branchDiffModel'
 import { BranchDetail } from './branches/FeatureBranchDetail'
 import { invalidateBranchCounts } from './branches/branchQueryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Plan branches: the list, the selected branch's review, and the merge policy.
@@ -94,7 +95,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
   })
 
   const selectBranch = (branch: PlanBranchSummary) => {
-    navigate(`/p/${slug}/branches/${branch.id}`)
+    navigate(projectPath(currentOrgSlug(), slug, `/branches/${branch.id}`))
     // Below `lg` the list stacks above the review, so a tap changed content
     // off-screen (PL-30): bring the review into view.
     if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1023px)').matches) {

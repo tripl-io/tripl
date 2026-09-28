@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { incidentSummaryApi, type IncidentSummaryResponse } from '@/api/incidentSummary'
 import { useAiStatus } from '@/hooks/useAiStatus'
+import { orgRoot } from '@/lib/activeOrg'
 
 /** Local on purpose: the summary is read and written only through this hook. */
 export function incidentSummaryKey(slug: string, correlationGroupId: string) {
-  return ['incidentSummary', slug, correlationGroupId] as const
+  return [...orgRoot(), 'incidentSummary', slug, correlationGroupId] as const
 }
 
 /**
@@ -17,7 +18,7 @@ export function incidentSummaryKey(slug: string, correlationGroupId: string) {
  * later visit may try once more.
  */
 function incidentSummaryEnsuredKey(slug: string, correlationGroupId: string) {
-  return ['incidentSummaryEnsured', slug, correlationGroupId] as const
+  return [...orgRoot(), 'incidentSummaryEnsured', slug, correlationGroupId] as const
 }
 
 /**

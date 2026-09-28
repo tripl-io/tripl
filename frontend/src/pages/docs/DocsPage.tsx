@@ -23,6 +23,7 @@ import { DocQuickOpen } from './DocQuickOpen'
 import { DocsTree } from './DocsTree'
 import { DocView } from './DocView'
 import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree } from './useDocs'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // The editor carries CodeMirror and its Markdown grammar; readers never load it.
 const DocEditor = lazyWithReload(() => import('./DocEditor').then(m => ({ default: m.DocEditor })))
@@ -118,7 +119,7 @@ export default function DocsPage() {
     )
   }
   const data = tree.data
-  const docsIndex = `/p/${slug}/docs`
+  const docsIndex = projectPath(currentOrgSlug(), slug, '/docs')
 
   const onDeleteNote = async () => {
     if (!scope || !path) return

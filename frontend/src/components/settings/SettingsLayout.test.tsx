@@ -96,9 +96,9 @@ describe('SettingsLayout signposting', () => {
   it('does not repeat a group name as its sub-label (ST-7)', () => {
     renderSettings('members')
 
-    // "Project Project" / "Workspace Workspace" while nothing names them.
+    // "Project Project" / "Organization Organization" while nothing names them.
     expect(screen.getAllByText('Project')).toHaveLength(1)
-    expect(screen.getAllByText('Workspace')).toHaveLength(1)
+    expect(screen.getAllByText('Organization')).toHaveLength(1)
   })
 
   it('offers a labelled "Back to project" cross-link to the in-app surface', () => {
@@ -149,7 +149,7 @@ describe('SettingsLayout signposting', () => {
   it('shows a short descriptor for each visible nav group', () => {
     renderSettings('members')
 
-    expect(screen.getByText('Shared across everyone in the workspace')).toBeInTheDocument()
+    expect(screen.getByText('Shared across everyone in the organization')).toBeInTheDocument()
     expect(screen.getByText('Settings just for you')).toBeInTheDocument()
     // "(owner only)" once, in the sub-label, not again in the description (ST-7).
     expect(screen.getByText('Server-wide settings')).toBeInTheDocument()

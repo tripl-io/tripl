@@ -15,6 +15,7 @@ import { docRoute } from '@/lib/docTree'
 import { docUrlTransform } from './docMarkdownUrl'
 import { cn } from '@/lib/utils'
 import type { DocLinkResolution, DocScope } from '@/types/docs'
+import { withActiveOrg } from '@/lib/navigation'
 
 /**
  * Renders a note's Markdown body (F22). GFM (tables, task lists,
@@ -128,7 +129,7 @@ function DocAnchor({
     const ambiguous = resolution.status === 'ambiguous'
     return (
       <Link
-        to={resolution.route_path}
+        to={withActiveOrg(resolution.route_path)}
         data-doc-link={resolution.status}
         title={ambiguous ? describeUnresolved(resolution) : undefined}
         className={cn(LINK_CLASS, 'font-mono', ambiguous && 'text-warning')}

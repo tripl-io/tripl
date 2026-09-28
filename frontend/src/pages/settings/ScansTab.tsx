@@ -34,6 +34,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useProjectDataSources } from '@/hooks/useProjectDataSources'
 import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
 import { DisabledReason, ReadOnlyNotice, StatValueSkeleton, disabledReasonAria } from '@/components/states'
+import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
 
 /**
  * Jobs per scan the list asks for. It shows the head of each history (the last
@@ -123,8 +124,8 @@ export function ScansTab({ slug }: { slug: string }) {
     (sc: ScanConfig) => {
       const typeName = sc.event_type_id ? eventTypeNameById.get(sc.event_type_id) : undefined
       return typeName
-        ? `/p/${slug}/events/${typeName}?status=in_review`
-        : `/p/${slug}/events/review`
+        ? projectPath(currentOrgSlug(), slug, `/events/${typeName}?status=in_review`)
+        : projectPath(currentOrgSlug(), slug, '/events/review')
     },
     [slug, eventTypeNameById],
   )
@@ -326,7 +327,7 @@ export function ScansTab({ slug }: { slug: string }) {
                 size="sm"
                 disabled={noDataSources}
                 {...disabledReasonAria('new-scan', noDataSources ? NEW_SCAN_BLOCKER : null)}
-                onClick={() => navigate(`/p/${slug}/scans/new`)}
+                onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/scans/new'))}
               >
                 <Plus className="size-3.5" />
                 New scan
@@ -384,7 +385,7 @@ export function ScansTab({ slug }: { slug: string }) {
           noDataSources={noDataSources}
           dataSourcesError={dataSourcesFailed ? dataSourcesError : null}
           onRetryDataSources={() => { void refetchDataSources() }}
-          onNewScan={() => navigate(`/p/${slug}/scans/new`)}
+          onNewScan={() => navigate(projectPath(currentOrgSlug(), slug, '/scans/new'))}
         />
       ) : (
         <>
@@ -404,7 +405,7 @@ export function ScansTab({ slug }: { slug: string }) {
                 // on a page with nothing they could add.
                 isOwner ? (
                   <Button asChild size="sm">
-                    <Link to="/settings/data-sources">
+                    <Link to={settingsPath('/settings/data-sources')}>
                       <Plus className="size-3.5" />
                       Add connection
                     </Link>
@@ -464,7 +465,7 @@ export function ScansTab({ slug }: { slug: string }) {
                     // from separate literals is how they drift apart — and this is
                     // the live route, NOT the /settings/scans/ form, which App.tsx
                     // only keeps as a redirect (tripl-np3p).
-                    const detailHref = `/p/${slug}/scans/${sc.id}`
+                    const detailHref = projectPath(currentOrgSlug(), slug, `/scans/${sc.id}`)
                     return (
                       <ScanListRow
                         key={sc.id}

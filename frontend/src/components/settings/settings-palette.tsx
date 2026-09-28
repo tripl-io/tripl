@@ -8,6 +8,7 @@ import { SETTINGS_CONTENT_ID } from './landmarks'
 import { visibleGroupsAll } from './nav'
 import { projectHomePath } from '@/lib/navigation'
 import type { Project } from '@/types'
+import { stripOrgPrefix, workspacePath } from '@/lib/activeOrg'
 
 type PaletteIcon = React.ComponentType<{ className?: string; style?: React.CSSProperties }>
 
@@ -164,7 +165,7 @@ export function SettingsCommandPalette({
   }
 
   const leaveRows: PaletteRow[] = [
-    ...(backHref === '/workspace'
+    ...(stripOrgPrefix(backHref) === '/workspace'
       ? []
       : [
           {
@@ -178,9 +179,9 @@ export function SettingsCommandPalette({
     {
       value: 'nav:/workspace',
       label: 'All projects',
-      hint: '/workspace',
+      hint: workspacePath(),
       icon: LayoutDashboard,
-      onSelect: () => run(() => onLeave('/workspace')),
+      onSelect: () => run(() => onLeave(workspacePath())),
     },
   ]
 

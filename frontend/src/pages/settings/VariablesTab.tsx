@@ -35,6 +35,7 @@ import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
 import { countOf, pluralize } from '@/lib/plural'
 import { projectKey, variablesKey, variablesUsagePageKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // Rows rendered at once. The whole set arrives in one request, but a governance
 // project can hold >1k variables and painting them all froze the tab for
@@ -97,7 +98,7 @@ export function VariablesTab({
   const qc = useQueryClient()
   const branchId = useActiveBranchId()
   // Stable, so the memoized rows do not all re-render for a new function (AU-29).
-  const eventHref = useCallback((eventId: string) => `/p/${slug}/events/all/${eventId}`, [slug])
+  const eventHref = useCallback((eventId: string) => projectPath(currentOrgSlug(), slug, `/events/all/${eventId}`), [slug])
   // The `${name}` token opens the variable's own page (AU-26).
   const detailHref = useCallback((variableId: string) => variableDetailPath(slug, variableId), [slug])
   const canWrite = useCanWriteProject()

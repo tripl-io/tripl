@@ -9,6 +9,7 @@ import {
   viewParamsOf,
   type EventsSavedView,
 } from './savedViews'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 type ConfirmFn = (options: {
   title: string
@@ -83,7 +84,7 @@ export function useSavedViews({
 
   const applySavedView = useCallback((view: EventsSavedView) => {
     if (!slug) return
-    const path = view.tab === 'all' ? `/p/${slug}/events` : `/p/${slug}/events/${view.tab}`
+    const path = view.tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${view.tab}`)
     const params = applyViewParams(searchParams, view.params).toString()
     navigate(path + (params ? `?${params}` : ''), { replace: true })
   }, [navigate, searchParams, slug])

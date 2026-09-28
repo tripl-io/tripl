@@ -1,4 +1,5 @@
 import type { DocLinkKind, DocLinkResolution } from '@/types/docs'
+import { currentOrgSlug, projectPath } from '@/lib/activeOrg'
 
 /**
  * `[[kind:name|label]]` links in docs notes (F22), mirrored from the backend's
@@ -154,7 +155,7 @@ export function docLinkSyntax(kind: DocLinkKind, name: string, qualifier?: strin
 /** Where "New note about this" lands: the docs page opens its new-note dialog. */
 export function newNoteHref(slug: string, kind: DocLinkKind, name: string, qualifier?: string | null): string {
   const sp = new URLSearchParams({ new: '1', link: docLinkSyntax(kind, name, qualifier) })
-  return `/p/${slug}/docs?${sp.toString()}`
+  return projectPath(currentOrgSlug(), slug, `/docs?${sp.toString()}`)
 }
 
 /** The broken/ambiguous line shown in the warning banner. */

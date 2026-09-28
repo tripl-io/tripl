@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
+import InvitationsSection from './settings-area/InvitationsSection'
 import UsersPage from './UsersPage'
 
 /**
@@ -97,6 +98,9 @@ function renderUsersPage() {
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={OWNER}>
         <MemoryRouter>
+          {/* Members and Invitations are two sections since F20 PR7; the
+              invite flows here are the Invitations section's. */}
+          <InvitationsSection />
           <UsersPage />
         </MemoryRouter>
       </AuthContext.Provider>
