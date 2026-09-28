@@ -464,13 +464,41 @@ organization**: their rows on its projects (with the event-type ownerships and
 reviewer seats those carried), every API key of theirs bound to it, which
 stops working at once, and every unused invitation into it that they sent or
 that is addressed to them, so no link minted earlier can bring them back. Their
-account, and their memberships of other organizations, are untouched. The
-response says how many project memberships, keys and invitations went.
+account, and their memberships of other organizations, are untouched. They
+also leave every [group](#groups) of the organization. The response says how
+many project memberships, keys, invitations and group memberships went.
 
 A demotion drops the member's unused invitations at roles they can no longer
 grant: an owner who becomes an admin loses their pending `owner` invitations
 (the same happens to the caller of a transfer), and an owner or admin who
 becomes a member loses their pending `owner` and `admin` ones.
+
+### Groups
+
+A group is a named set of an organization's members, such as *Analysts* or
+*On-call*. Groups are the organization's own: another organization never sees
+them. Sharing notes with a group, and routing event-type ownership and alerts
+to one, build on them in later releases; syncing groups from an identity
+provider (SCIM) comes with SCIM provisioning.
+
+Open **Settings › Organization › Groups**. Every member of the organization can
+see the groups and who is in each. Owners and admins can also:
+
+- **create** a group with a name and an optional description. Names are unique
+  within the organization, ignoring case;
+- **rename** it or change its description (**Manage**, then **Save**);
+- **add** members, picked from the organization's members, and **remove**
+  them;
+- **delete** it, after a confirmation. Its members stay in the organization.
+
+Only members of the organization can be in its groups. Removing someone from
+the organization removes them from all its groups, and deleting the
+organization deletes its groups.
+
+The same actions are available under `/api/v1/orgs/{org}/groups`; see the
+[Agent API guide](../integrate/agent-api-guide.md#organizations). Reading works
+with an API key of the organization; changes need an owner's or admin's
+signed-in browser session.
 
 ### Invitations
 
@@ -533,7 +561,9 @@ direct database query.
 Every organization action is audited: `org.create`, `org.rename`,
 `org.delete_request`, `org.delete_cancel`, `org.delete_complete`,
 `org.member_role_update`,
-`org.member_remove`, `org.transfer_ownership`, and for invitations
+`org.member_remove`, `org.transfer_ownership`, for groups `org.group.create`,
+`org.group.update`, `org.group.delete`, `org.group.member_add` and
+`org.group.member_remove`, and for invitations
 `user.invite`, `user.invite_revoke` and `user.invite_accept`. They appear under
 **Organization** and **Workspace** in the Audit tab's action filter.
 

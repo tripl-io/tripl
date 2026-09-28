@@ -296,6 +296,7 @@ async def test_removing_a_member_takes_their_project_rows_and_keys(
         "project_memberships_removed": 1,
         "api_keys_revoked": 1,
         "invitations_revoked": 0,
+        "group_memberships_removed": 0,
     }
 
     async with TestSessionLocal() as session:

@@ -77,8 +77,20 @@ answer as for a slug that does not exist, and always before any `403`.
 | `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
 | `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role; `limit` / `offset`. |
 | `PATCH /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | `{"role": "owner" \| "admin" \| "member"}`. Only an owner manages owners; the last owner cannot be demoted (`400`). |
-| `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and revokes their keys bound to it. |
+| `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and their group memberships in it, and revokes their keys bound to it. |
 | `POST /api/v1/orgs/{org}/transfer-ownership` | owner, browser session | `{"user_id"}`: that member becomes an owner, the caller an admin. |
+| `GET /api/v1/orgs/{org}/groups` | any member (or its key) | The organization's groups by name: `id`, `name`, `description`, `member_count`, `created_at`, `updated_at`. |
+| `POST /api/v1/orgs/{org}/groups` | owner or admin, browser session | `{"name", "description"?}`. `201` with the group and its (empty) `members`. `409` when the organization already has a group of that name (ignoring case); `422` for a blank name or a NUL character. |
+| `GET /api/v1/orgs/{org}/groups/{group_id}` | any member (or its key) | The group with `members`: `user_id`, `email`, `name`, `added_at`. |
+| `PATCH /api/v1/orgs/{org}/groups/{group_id}` | owner or admin, browser session | `{"name"?, "description"?}`; an omitted field is unchanged, `null` is `422`. `409` on a name clash. |
+| `DELETE /api/v1/orgs/{org}/groups/{group_id}` | owner or admin, browser session | `204`. The group and its memberships go; the members stay in the organization. |
+| `POST /api/v1/orgs/{org}/groups/{group_id}/members` | owner or admin, browser session | `{"user_id"}`. `201` with the member. `404` when the user is not a member of the organization, `409` when already in the group. |
+| `DELETE /api/v1/orgs/{org}/groups/{group_id}/members/{user_id}` | owner or admin, browser session | `204`; `404` when the user is not in the group. |
+
+A group id of another organization answers `404 Group not found`, like an id
+that does not exist. Every group change is audited (`org.group.create`,
+`org.group.update`, `org.group.delete`, `org.group.member_add`,
+`org.group.member_remove`).
 
 API keys never manage an organization: every write above answers `403` to a
 key, whatever its scope. Invitations into an organization are

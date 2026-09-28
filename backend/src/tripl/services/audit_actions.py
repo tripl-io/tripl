@@ -237,6 +237,11 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "org.member_role_update",
             "org.member_remove",
             "org.transfer_ownership",
+            "org.group.create",
+            "org.group.update",
+            "org.group.delete",
+            "org.group.member_add",
+            "org.group.member_remove",
         ),
     ),
 )

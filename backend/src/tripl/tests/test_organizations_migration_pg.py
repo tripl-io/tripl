@@ -41,6 +41,7 @@ MIGRATION = "b8d0f2a4c6e8_organizations_schema_and_default_org.py"
 # an ``organization_id`` foreign key that would block dropping ``organizations``.
 # A new revision that depends on the organization schema belongs here.
 LATER_MIGRATIONS: tuple[str, ...] = (
+    "a7c9e1f3b5d8_organization_groups.py",
     "f6c8a0b2d4e7_per_org_photo_storage.py",
     "d4e8f1a2b3c5_incident_summary_hash_without_hrefs.py",
     "e5b7d9f1a3c6_organization_status.py",

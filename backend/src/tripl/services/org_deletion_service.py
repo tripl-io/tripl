@@ -50,7 +50,7 @@ from tripl.models.organization import DEFAULT_ORG_ID, Organization, Organization
 from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services import audit_service, project_service
+from tripl.services import audit_service, org_group_service, project_service
 from tripl.services.event_photo_service import BlobRef
 from tripl.services.photo_storage_service import (
     driver_for_blob,
@@ -185,6 +185,7 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
     await session.execute(delete(Invitation).where(Invitation.organization_id == org_id))
     await session.execute(delete(DocFile).where(DocFile.organization_id == org_id))
     await session.execute(delete(AppSetting).where(AppSetting.organization_id == org_id))
+    await org_group_service.delete_org_groups(session, org_id)
     await session.execute(
         delete(OrganizationMember).where(OrganizationMember.organization_id == org_id)
     )

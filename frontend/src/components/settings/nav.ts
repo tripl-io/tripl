@@ -141,6 +141,14 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         path: 'members',
         keywords: ['users', 'people', 'roles', 'team', 'remove member', 'transfer ownership'],
       },
+      // Named sets of members (F20): note sharing and owner routing will name
+      // them. Everyone reads them; owners and admins manage them.
+      {
+        id: 'groups',
+        label: 'Groups',
+        icon: Users,
+        path: 'organization/groups',
+      },
       {
         id: 'invitations',
         label: 'Invitations',
