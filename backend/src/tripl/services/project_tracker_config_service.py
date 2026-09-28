@@ -24,6 +24,12 @@ from tripl.schemas.project_tracker_config import (
     ProjectTrackerConfigResponse,
     ProjectTrackerConfigUpdate,
 )
+from tripl.services.org_tracker_defaults_service import (
+    NO_DEFAULTS,
+    OrgTrackerDefaults,
+    defaults_for_project,
+    inherited_fields,
+)
 from tripl.services.project_lookup import resolve_project_id
 
 DEFAULT_ENABLED = False
@@ -52,9 +58,14 @@ _JIRA_FIELD_VALIDATORS: dict[str, Callable[[str | None], str]] = {
 }
 
 
-def _to_response(config: ProjectTrackerConfig) -> ProjectTrackerConfigResponse:
+def _to_response(
+    config: ProjectTrackerConfig, defaults: OrgTrackerDefaults = NO_DEFAULTS
+) -> ProjectTrackerConfigResponse:
     """Explicit build — ``api_token_set`` is derived, so ``model_validate`` from
-    the ORM row would miss it (and we must never surface the token itself)."""
+    the ORM row would miss it (and we must never surface the token itself).
+
+    ``inherited_fields`` names what the project takes from its organization's
+    tracker defaults (F20 PR12) because it left the field empty."""
     is_linear = config.tracker_type == TRACKER_LINEAR
     return ProjectTrackerConfigResponse(
         id=config.id,
@@ -71,12 +82,25 @@ def _to_response(config: ProjectTrackerConfig) -> ProjectTrackerConfigResponse:
         issue_type=config.issue_type,
         team_id=config.project_key if is_linear else "",
         api_token_set=bool(config.api_token_encrypted),
+        inherited_fields=inherited_fields(config, defaults),
         created_at=config.created_at,
         updated_at=config.updated_at,
     )
 
 
-def _defaults_response(project_id: uuid.UUID) -> ProjectTrackerConfigResponse:
+def _defaults_response(
+    project_id: uuid.UUID, defaults: OrgTrackerDefaults = NO_DEFAULTS
+) -> ProjectTrackerConfigResponse:
+    blank = ProjectTrackerConfig(
+        project_id=project_id,
+        enabled=DEFAULT_ENABLED,
+        tracker_type=DEFAULT_TRACKER_TYPE,
+        base_url="",
+        project_key="",
+        auth_email="",
+        api_token_encrypted="",
+        issue_type=DEFAULT_ISSUE_TYPE,
+    )
     return ProjectTrackerConfigResponse(
         project_id=project_id,
         enabled=DEFAULT_ENABLED,
@@ -86,6 +110,7 @@ def _defaults_response(project_id: uuid.UUID) -> ProjectTrackerConfigResponse:
         auth_email="",
         issue_type=DEFAULT_ISSUE_TYPE,
         api_token_set=False,
+        inherited_fields=inherited_fields(blank, defaults),
     )
 
 
@@ -127,9 +152,10 @@ async def get_project_tracker_config(
     config = await session.scalar(
         select(ProjectTrackerConfig).where(ProjectTrackerConfig.project_id == project_id)
     )
+    defaults = await defaults_for_project(session, project_id)
     if config is None:
-        return _defaults_response(project_id)
-    return _to_response(config)
+        return _defaults_response(project_id, defaults)
+    return _to_response(config, defaults)
 
 
 async def update_project_tracker_config(
@@ -202,7 +228,7 @@ async def update_project_tracker_config(
 
     await session.commit()
     await session.refresh(config)
-    return _to_response(config)
+    return _to_response(config, await defaults_for_project(session, project_id))
 
 
 def _validate(validator: Callable[[str | None], str], value: str) -> str:

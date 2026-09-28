@@ -77,6 +77,31 @@ const LINEAR_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 const REQUIRED_WHEN_ENABLED = 'Required while the tracker is enabled.'
 const CANNOT_CLEAR = 'A saved value cannot be cleared; enter a new one.'
 
+const JIRA_ENDPOINT_FIELDS = ['base_url', 'auth_email', 'api_token'] as const
+
+/**
+ * The fields this project would take from its organization's tracker defaults
+ * after the save (F20 PR12). The response names what the SAVED config
+ * inherits; the form adjusts it for what is typed: a switch of tracker drops
+ * everything (the saved set is the other tracker's), and a project that types a
+ * site, account or token of its own inherits none of the three — the Jira site,
+ * account and token are one unit, so the organization's token never goes to a
+ * site the project names.
+ */
+function inheritedAfterSave(values: TrackerFormValues, saved: ProjectTrackerConfig): ReadonlySet<string> {
+  if (values.trackerType !== savedTrackerType(saved)) return new Set()
+  const inherited = new Set(saved.inherited_fields ?? [])
+  if (values.trackerType === 'jira') {
+    const typedOwn =
+      (values.baseUrl.trim() !== '' && values.baseUrl.trim() !== saved.base_url) ||
+      (values.authEmail.trim() !== '' && values.authEmail.trim() !== saved.auth_email) ||
+      values.apiToken.trim() !== ''
+    const groupWasInherited = JIRA_ENDPOINT_FIELDS.some(field => inherited.has(field))
+    if (typedOwn && groupWasInherited) for (const field of JIRA_ENDPOINT_FIELDS) inherited.delete(field)
+  }
+  return inherited
+}
+
 /**
  * What the form would save wrong, per field (PLAN-21).
  *
@@ -87,15 +112,21 @@ const CANNOT_CLEAR = 'A saved value cannot be cleared; enter a new one.'
  * enabled tracker needs all of its own fields; a disabled one may stay
  * half-filled, because blank fields are simply not sent (see `trackerPatch`).
  * What cannot be done is blanking a field that has a saved value — the PATCH
- * has no way to clear it. Only the chosen tracker's fields are checked.
+ * has no way to clear it. Only the chosen tracker's fields are checked. A field
+ * the organization's tracker defaults fill in is not required (F20 PR12).
  */
 function trackerConfigErrors(
   values: TrackerFormValues,
   saved: ProjectTrackerConfig,
 ): Partial<Record<TrackerField, string>> {
   const errors: Partial<Record<TrackerField, string>> = {}
-  const blank = (savedValue: string | null | undefined) =>
-    (savedValue ?? '').trim() !== '' ? CANNOT_CLEAR : values.enabled ? REQUIRED_WHEN_ENABLED : null
+  const inherited = inheritedAfterSave(values, saved)
+  const blank = (savedValue: string | null | undefined, field: string) =>
+    (savedValue ?? '').trim() !== ''
+      ? CANNOT_CLEAR
+      : values.enabled && !inherited.has(field)
+        ? REQUIRED_WHEN_ENABLED
+        : null
 
   // One secret slot serves both trackers, and saving a switch makes the backend
   // DROP the stored secret and destination (project key / team) rather than
@@ -108,6 +139,15 @@ function trackerConfigErrors(
     errors.apiToken = saved.api_token_set
       ? `${wanted}; the one stored is for ${TRACKER_LABEL[savedTrackerType(saved)]}.`
       : `${wanted} to switch trackers.`
+  } else if (
+    values.trackerType === 'jira' &&
+    values.enabled &&
+    values.apiToken.trim() === '' &&
+    (saved.inherited_fields ?? []).includes('api_token') &&
+    !inherited.has('api_token')
+  ) {
+    errors.apiToken =
+      "Enter an API token: this project now names its own Jira site or account, and the organization's token is never sent there."
   }
 
   if (values.trackerType === 'linear') {
@@ -115,7 +155,7 @@ function trackerConfigErrors(
     if (teamId === '') {
       // After a switch the saved team is wiped by the save, so it cannot be
       // "kept"; only an enabled tracker then needs one.
-      const message = switching ? (values.enabled ? REQUIRED_WHEN_ENABLED : null) : blank(saved.team_id)
+      const message = switching ? (values.enabled ? REQUIRED_WHEN_ENABLED : null) : blank(saved.team_id, 'team_id')
       if (message) errors.teamId = message
     } else if (!LINEAR_ID_RE.test(teamId)) {
       errors.teamId = 'Use up to 64 letters, digits, dashes or underscores (the team id or key).'
@@ -125,7 +165,7 @@ function trackerConfigErrors(
 
   const baseUrl = values.baseUrl.trim()
   if (baseUrl === '') {
-    const message = blank(saved.base_url)
+    const message = blank(saved.base_url, 'base_url')
     if (message) errors.baseUrl = message
   } else {
     let parsed: URL | null
@@ -141,7 +181,7 @@ function trackerConfigErrors(
 
   const projectKey = values.projectKey.trim()
   if (projectKey === '') {
-    const message = blank(saved.project_key)
+    const message = blank(saved.project_key, 'project_key')
     if (message) errors.projectKey = message
   } else if (!JIRA_PROJECT_KEY_RE.test(projectKey.toUpperCase())) {
     errors.projectKey = 'Use 2–32 letters, digits or underscores, starting with a letter (e.g. ENG).'
@@ -149,7 +189,7 @@ function trackerConfigErrors(
 
   const email = values.authEmail.trim()
   if (email === '') {
-    const message = blank(saved.auth_email)
+    const message = blank(saved.auth_email, 'auth_email')
     if (message) errors.authEmail = message
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     errors.authEmail = 'Enter an email address.'
@@ -288,6 +328,11 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
     trackerType, enabled, baseUrl, projectKey, authEmail, teamId, apiToken,
   }
   const errors = trackerConfigErrors(values, config)
+  const inherited = inheritedAfterSave(values, config)
+  const fromOrg = (field: string, empty: boolean) =>
+    empty && inherited.has(field) ? (
+      <p className="text-body-sm text-fg-tertiary">From the organization&rsquo;s tracker defaults.</p>
+    ) : null
   const invalid = Object.keys(errors).length > 0
   // Field errors show once the owner has tried to save, not while typing.
   const [attempted, setAttempted] = useState(false)
@@ -339,7 +384,9 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
 
   const tokenPlaceholder = secretStored
     ? `${isLinear ? 'Key' : 'Token'} stored — leave blank to keep`
-    : `Paste your ${label} ${secret}`
+    : inherited.has('api_token')
+      ? `The organization's ${secret} — leave blank to use it`
+      : `Paste your ${label} ${secret}`
 
   return (
     <form
@@ -415,6 +462,7 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
               {...fieldProps('teamId', teamIdErrorId)}
             />
             <FieldError id={teamIdErrorId} message={shown.teamId} />
+            {fromOrg('team_id', teamId.trim() === '')}
             <p className="text-body-sm text-fg-tertiary">
               The Linear team the issues are created in.
             </p>
@@ -433,6 +481,7 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
                 {...fieldProps('baseUrl', baseUrlErrorId)}
               />
               <FieldError id={baseUrlErrorId} message={shown.baseUrl} />
+              {fromOrg('base_url', baseUrl.trim() === '')}
             </div>
 
             <div className="grid gap-2">
@@ -446,6 +495,7 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
                 {...fieldProps('projectKey', projectKeyErrorId)}
               />
               <FieldError id={projectKeyErrorId} message={shown.projectKey} />
+              {fromOrg('project_key', projectKey.trim() === '')}
             </div>
 
             <div className="grid gap-2">
@@ -460,6 +510,7 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
                 {...fieldProps('authEmail', authEmailErrorId)}
               />
               <FieldError id={authEmailErrorId} message={shown.authEmail} />
+              {fromOrg('auth_email', authEmail.trim() === '')}
             </div>
           </>
         )}
@@ -480,7 +531,9 @@ function TrackerConfigForm({ slug, config, onClose }: TrackerConfigFormProps) {
           <p className="text-body-sm text-fg-tertiary">
             {secretStored
               ? `A ${isLinear ? 'key' : 'token'} is stored. Leave this blank to keep it, or paste a new one to replace it.`
-              : isLinear
+              : inherited.has('api_token') && apiToken.trim() === ''
+                ? `The organization's ${secret} is used. Paste one to give this project its own.`
+                : isLinear
                 ? 'Create a personal API key in your Linear settings.'
                 : 'Create an API token in your Jira account settings.'}
           </p>

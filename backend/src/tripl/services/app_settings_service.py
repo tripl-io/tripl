@@ -3,7 +3,8 @@
 Two scopes (F20 PR9). The OPERATOR scope (``organization_id IS NULL``) stores
 explicit overrides of the env-based defaults from :class:`tripl.config.Settings`
 for every editable field. An ORGANIZATION scope stores that organization's own
-values of the :data:`ORG_FIELDS` (mail, AI chat, row limits). Resolution:
+values of the :data:`ORG_FIELDS` (mail, AI chat, search embeddings, row limits).
+Resolution:
 
 * operator view: operator override -> env;
 * an organization: org override -> operator override -> env, with the
@@ -155,6 +156,10 @@ FIELD_SECTIONS: dict[str, tuple[str, ...]] = {
 # error anywhere. They still get a ``sources`` entry, because "which endpoint is
 # the indexed plan text going to" is the question the AI section exists to
 # answer, and nothing in the running system answered it (tripl-wkwv.2).
+#
+# Read-only for the OPERATOR. An organization may still set its own endpoint
+# (ORG_FIELDS, F20 PR10): its provenance includes it, so a change re-embeds only
+# that organization's rows.
 READ_ONLY_ENV_FIELDS: tuple[str, ...] = (
     "search_embedding_base_url",
     "search_embedding_dimensions",
@@ -162,11 +167,14 @@ READ_ONLY_ENV_FIELDS: tuple[str, ...] = (
 EDITABLE_FIELDS = frozenset(
     field for section_fields in FIELD_SECTIONS.values() for field in section_fields
 )
+#: Every field a resolution reports a value and a source for: the editable ones
+#: and the operator's env-only embedding endpoint, which an organization may
+#: still set for itself (F20 PR10).
+REPORTED_FIELDS = EDITABLE_FIELDS | {"search_embedding_base_url"}
 SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key", "smtp_password"})
 AI_SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key"})
 
-# The chat half of the AI section. The embedding fields stay operator-only until
-# PR10 gives each organization its own vector space.
+# The chat half of the AI section.
 AI_CHAT_FIELDS: tuple[str, ...] = (
     "ai_enabled",
     "ai_base_url",
@@ -179,10 +187,26 @@ AI_CHAT_FIELDS: tuple[str, ...] = (
     "alert_explanation_system_prompt",
 )
 
-# What an ORGANIZATION may set for itself (F20 PR9, owner decision 4): mail, AI
-# chat and the scan/metrics row-limit defaults. Resolution for an organization is
-# org override -> operator override -> env (see ``resolve_settings``), with the
-# credential-group, ceiling and fallback-policy rules of
+# The search-embedding half (F20 PR10): each organization may run its own vector
+# space. ``search_embedding_base_url`` is among them although the OPERATOR's
+# value stays env-only (READ_ONLY_ENV_FIELDS): an organization's endpoint is
+# part of its own provenance, so repointing it re-embeds that organization's
+# documents and nobody else's. ``search_embedding_dimensions`` is not: the
+# column is vector(1536) for everyone, and an organization's model is checked
+# against it with a test embedding when it is saved.
+EMBEDDING_FIELDS: tuple[str, ...] = (
+    "search_embeddings_enabled",
+    "search_embedding_provider",
+    "search_embedding_model",
+    "search_embedding_base_url",
+    "search_embedding_api_key",
+)
+
+# What an ORGANIZATION may set for itself (F20 PR9/PR10, owner decision 4): mail,
+# AI chat, search embeddings and the scan/metrics row-limit defaults. Resolution
+# for an organization is org override -> operator override -> env (see
+# ``resolve_settings``), with the credential-group, ceiling and fallback-policy
+# rules of
 # :mod:`tripl.services._org_settings_merge`.
 ORG_FIELDS: frozenset[str] = frozenset(
     {
@@ -190,6 +214,7 @@ ORG_FIELDS: frozenset[str] = frozenset(
         "metrics_row_limit_default",
         *EMAIL_FIELDS,
         *AI_CHAT_FIELDS,
+        *EMBEDDING_FIELDS,
     }
 )
 
@@ -197,8 +222,7 @@ ORG_FIELDS: frozenset[str] = frozenset(
 # public URL, every security and observability knob (including who may register
 # at all), storage (server filesystem paths, critique 12, and the photo size cap,
 # which is the process request-body limit, critique 15; per-org storage is
-# PR11) and the embedding endpoint (PR10). Everything editable that an
-# organization may not set for itself.
+# PR11). Everything editable that an organization may not set for itself.
 OPERATOR_FIELDS: frozenset[str] = EDITABLE_FIELDS - ORG_FIELDS
 
 
@@ -248,13 +272,21 @@ class AiConfig:
     search_embedding_provider: str
     search_embedding_model: str
     search_embedding_api_key: str
+    #: Where the OpenAI-compatible embeddings endpoint lives: the operator's
+    #: ``SEARCH_EMBEDDING_BASE_URL``, or an organization's own (F20 PR10).
+    search_embedding_base_url: str
     # True when ``ai_base_url`` came from an ORGANIZATION (any deployment mode):
     # ``llm_service`` then re-checks the host right before the request
     # (reject_private_host, the DNS-rebinding half of the SSRF guard).
     host_guard: bool = False
+    # The same for ``search_embedding_base_url`` and ``embedding_service``.
+    embedding_host_guard: bool = False
 
 
-AI_CONFIG_FIELDS = frozenset(f.name for f in fields(AiConfig)) - {"host_guard"}
+AI_CONFIG_FIELDS = frozenset(f.name for f in fields(AiConfig)) - {
+    "host_guard",
+    "embedding_host_guard",
+}
 
 
 def default_ai_prompts() -> dict[str, str]:
@@ -331,6 +363,9 @@ def env_service_values() -> dict[str, Any]:
         "search_embedding_provider": settings.search_embedding_provider,
         "search_embedding_model": settings.search_embedding_model,
         "search_embedding_api_key": settings.resolved_search_embedding_api_key(),
+        # Env-only for the operator (READ_ONLY_ENV_FIELDS), an organization field
+        # all the same: its value here is what an organization inherits.
+        "search_embedding_base_url": settings.search_embedding_base_url,
     }
     # Last, and unconditionally: a startup-applied override is still an override,
     # and ``build_service_values`` writes it back over this a moment later. What
@@ -404,7 +439,9 @@ def _email_config_from(values: Mapping[str, Any]) -> EmailConfig:
     )
 
 
-def _ai_config_from(values: Mapping[str, Any], *, host_guard: bool = False) -> AiConfig:
+def _ai_config_from(
+    values: Mapping[str, Any], *, host_guard: bool = False, embedding_host_guard: bool = False
+) -> AiConfig:
     return AiConfig(
         ai_enabled=bool(values["ai_enabled"]),
         ai_base_url=str(values["ai_base_url"]),
@@ -419,7 +456,9 @@ def _ai_config_from(values: Mapping[str, Any], *, host_guard: bool = False) -> A
         search_embedding_provider=str(values["search_embedding_provider"]),
         search_embedding_model=str(values["search_embedding_model"]),
         search_embedding_api_key=str(values["search_embedding_api_key"]),
+        search_embedding_base_url=str(values["search_embedding_base_url"]),
         host_guard=host_guard,
+        embedding_host_guard=embedding_host_guard,
     )
 
 
@@ -435,6 +474,7 @@ def disabled_ai_config() -> AiConfig:
         ai_api_key="",
         search_embeddings_enabled=False,
         search_embedding_api_key="",
+        search_embedding_base_url="",
     )
 
 
@@ -620,7 +660,7 @@ def resolve_settings(
     """
     base = build_service_values(operator_overrides)
     base_sources: dict[str, SettingSource] = {
-        field: _setting_source(field, base[field], operator_overrides) for field in EDITABLE_FIELDS
+        field: _setting_source(field, base[field], operator_overrides) for field in REPORTED_FIELDS
     }
     if org_overrides is None:
         return ResolvedSettings(
@@ -705,7 +745,11 @@ def _guard_smtp_host(resolved: ResolvedSettings, config: EmailConfig) -> EmailCo
 
 
 def ai_config_for(resolved: ResolvedSettings) -> AiConfig:
-    return _ai_config_from(resolved.values, host_guard="ai_base_url" in resolved.guarded_hosts)
+    return _ai_config_from(
+        resolved.values,
+        host_guard="ai_base_url" in resolved.guarded_hosts,
+        embedding_host_guard="search_embedding_base_url" in resolved.guarded_hosts,
+    )
 
 
 def email_config_for(resolved: ResolvedSettings) -> EmailConfig:
@@ -717,8 +761,8 @@ async def get_ai_config(session: AsyncSession, *, org_id: uuid.UUID | None) -> A
     """The AI config an organization's call runs with.
 
     ``org_id`` is required: ``None`` is the operator's own config and must be
-    asked for explicitly (embeddings, until PR10), so a call site cannot
-    forget its organization and quietly borrow the operator's key.
+    asked for explicitly, so a call site cannot forget its organization and
+    quietly borrow the operator's key.
     """
     return ai_config_for(await resolve_for_org(session, org_id))
 
@@ -806,19 +850,71 @@ def get_runtime_config_sync(
         return env_runtime_config()
 
 
-async def get_embedding_config(session: AsyncSession) -> AiConfig:
-    """The config search embeddings run with: the OPERATOR's, for every organization.
+async def get_embedding_config(session: AsyncSession, *, org_id: uuid.UUID | None) -> AiConfig:
+    """The config an organization's search embeddings run with (F20 PR10).
 
-    Embeddings are operator-only until PR10 gives each organization its own
-    vector space (one index, one provider, one dimension today). Only the
-    ``search_embedding_*`` fields of the result may be used.
+    Each organization has its own vector space: its endpoint, provider, model
+    and key (one credential group), stamped on its documents through
+    ``embedding_service.embedding_provenance``. ``org_id`` is required for the
+    same reason as :func:`get_ai_config`. Only the ``search_embedding*``
+    fields of the result may be used.
     """
-    return await get_ai_config(session, org_id=None)
+    return await get_ai_config(session, org_id=org_id)
 
 
-def get_embedding_config_sync(session: Session | None = None) -> AiConfig:
-    """Sync twin of :func:`get_embedding_config` for the search worker."""
-    return get_ai_config_sync(session, org_id=None)
+def get_embedding_config_sync(
+    session: Session | None = None, *, org_id: uuid.UUID | None
+) -> AiConfig:
+    """Sync twin of :func:`get_embedding_config` for the search worker; fails closed."""
+    return get_ai_config_sync(session, org_id=org_id)
+
+
+async def project_org_id(session: AsyncSession, project_id: uuid.UUID) -> uuid.UUID | None:
+    """The organization a project belongs to, read from the database."""
+    from tripl.models.project import Project
+
+    org_id: uuid.UUID | None = await session.scalar(
+        select(Project.organization_id).where(Project.id == project_id)
+    )
+    return org_id
+
+
+async def get_embedding_config_for_project(
+    session: AsyncSession, project_id: uuid.UUID
+) -> AiConfig:
+    """The embedding config of the organization owning ``project_id``; off if unknown."""
+    org_id = await project_org_id(session, project_id)
+    if org_id is None:
+        return disabled_ai_config()
+    return await get_embedding_config(session, org_id=org_id)
+
+
+async def get_search_embedding_config(session: AsyncSession, *, project_id: uuid.UUID) -> AiConfig:
+    """The embedding config a search query in ``project_id`` runs with.
+
+    Always the PROJECT's organization, read from the database: its key and
+    endpoint embed the query, and its provenance is what the query-time
+    ``embedding_model`` filter compares stored vectors with, so a query never
+    ranks another organization's vector space (F20 PR10). A bound request
+    organization that is not the project's fails closed (semantic search off)
+    rather than spend either organization's key on the other's corpus.
+    """
+    from tripl.middleware.org_context import current_org_id
+
+    org_id = await project_org_id(session, project_id)
+    if org_id is None:
+        return disabled_ai_config()
+    bound = current_org_id()
+    if bound is not None and bound != org_id:
+        return disabled_ai_config()
+    return await get_embedding_config(session, org_id=org_id)
+
+
+def get_embedding_config_for_project_sync(
+    session: Session | None, project_id: uuid.UUID
+) -> AiConfig:
+    """Sync twin of :func:`get_embedding_config_for_project` (worker paths)."""
+    return get_ai_config_for_project_sync(session, project_id)
 
 
 def project_org_id_sync(session: Session | None, project_id: uuid.UUID) -> uuid.UUID | None:
@@ -1071,6 +1167,25 @@ async def update_service_overrides(
     return await get_service_overrides(session)
 
 
+def apply_org_override_changes(
+    overrides: Mapping[str, Any], changes: Mapping[str, Any]
+) -> dict[str, Any]:
+    """An organization's stored overrides after ``changes`` (a new dict).
+
+    ``None`` clears a field, an empty secret clears it too, anything else is
+    stored (secrets encrypted). Keys outside :data:`ORG_FIELDS` are ignored.
+    """
+    result = dict(overrides)
+    for key, value in changes.items():
+        if key not in ORG_FIELDS:
+            continue
+        if value is None or (key in SECRET_FIELDS and value == ""):
+            result.pop(key, None)
+            continue
+        result[key] = crypto.encrypt_value(str(value)) if key in SECRET_FIELDS else value
+    return result
+
+
 async def update_org_overrides(
     session: AsyncSession,
     org_scope: uuid.UUID,
@@ -1083,16 +1198,9 @@ async def update_org_overrides(
     Returns the organization's raw overrides after the write.
     """
     row = await session.scalar(_org_setting(SERVICE_SETTINGS_KEY, org_scope))
-    overrides: dict[str, Any] = (
-        dict(row.value) if row is not None and isinstance(row.value, dict) else {}
+    overrides = apply_org_override_changes(
+        dict(row.value) if row is not None and isinstance(row.value, dict) else {}, changes
     )
-    for key, value in changes.items():
-        if key not in ORG_FIELDS:
-            continue
-        if value is None or (key in SECRET_FIELDS and value == ""):
-            overrides.pop(key, None)
-            continue
-        overrides[key] = crypto.encrypt_value(str(value)) if key in SECRET_FIELDS else value
     if row is None:
         session.add(
             AppSetting(key=SERVICE_SETTINGS_KEY, value=overrides, organization_id=org_scope)
@@ -1196,11 +1304,15 @@ def public_service_settings(
     for section, section_fields in FIELD_SECTIONS.items():
         for field in section_fields:
             sources[f"{section}.{field}"] = resolved.sources[field]
-    # No override can exist for these — they are outside EDITABLE_FIELDS — so the
-    # only question they can answer is delivered-versus-default, which is exactly
-    # the one an operator verifying SEARCH_EMBEDDING_BASE_URL is asking.
+    # No operator override can exist for these — they are outside EDITABLE_FIELDS
+    # — so for the operator the only question they can answer is delivered-
+    # versus-default, which is exactly the one an operator verifying
+    # SEARCH_EMBEDDING_BASE_URL is asking. An organization's own endpoint
+    # (F20 PR10) reads "org" from the resolution.
     for field in READ_ONLY_ENV_FIELDS:
-        sources[f"ai.{field}"] = _setting_source(field, getattr(settings, field), {})
+        sources[f"ai.{field}"] = resolved.sources.get(
+            field, _setting_source(field, getattr(settings, field), {})
+        )
 
     return {
         "runtime": {
@@ -1264,7 +1376,7 @@ def public_service_settings(
             "search_embedding_model": values["search_embedding_model"],
             "search_embedding_api_key_configured": bool(values["search_embedding_api_key"]),
             "search_embedding_dimensions": settings.search_embedding_dimensions,
-            "search_embedding_base_url": settings.search_embedding_base_url,
+            "search_embedding_base_url": values["search_embedding_base_url"],
         },
         "system": {
             "debug": settings.debug,

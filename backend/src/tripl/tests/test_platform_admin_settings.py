@@ -78,7 +78,9 @@ async def stand() -> AsyncIterator[Stand]:
 
 # Written out, not derived: a new settings field must be classified on purpose.
 # F20 PR9 (owner decision 4): mail, AI chat and the row-limit defaults are an
-# organization's own; storage (PR11) and embeddings (PR10) stay the operator's.
+# organization's own, and PR10 adds the search embeddings (switch, provider,
+# model, key; the endpoint too, which is env-only for the operator and so not
+# an editable field at all). Storage (PR11) stays the operator's.
 _ORG_FIELDS = {
     "scan_row_limit_default",
     "metrics_row_limit_default",
@@ -97,6 +99,10 @@ _ORG_FIELDS = {
     "describe_system_prompt",
     "ask_system_prompt",
     "alert_explanation_system_prompt",
+    "search_embeddings_enabled",
+    "search_embedding_provider",
+    "search_embedding_model",
+    "search_embedding_api_key",
 }
 
 
@@ -104,19 +110,14 @@ def test_every_editable_field_is_classified_exactly_once() -> None:
     operator = app_settings_service.OPERATOR_FIELDS
     assert operator.isdisjoint(_ORG_FIELDS)
     assert operator | _ORG_FIELDS == app_settings_service.EDITABLE_FIELDS
-    assert app_settings_service.ORG_FIELDS == _ORG_FIELDS
+    # The org-only field: an organization's own embedding endpoint (PR10).
+    assert _ORG_FIELDS | {"search_embedding_base_url"} == app_settings_service.ORG_FIELDS
+    assert "search_embedding_base_url" not in app_settings_service.EDITABLE_FIELDS
     assert set(app_settings_service.SECURITY_FIELDS) <= operator
     assert set(app_settings_service.OBSERVABILITY_FIELDS) <= operator
-    # Still one shared value per instance: every storage field (PR11) and the
-    # embedding endpoint (PR10), which route every organization's photos and
-    # indexed plan text.
+    # Still one shared value per instance: every storage field (PR11), which
+    # routes every organization's photos.
     assert set(app_settings_service.STORAGE_FIELDS) <= operator
-    assert {
-        "search_embeddings_enabled",
-        "search_embedding_provider",
-        "search_embedding_model",
-        "search_embedding_api_key",
-    } <= operator
     assert {
         "app_base_url",
         "registration_mode",
@@ -183,6 +184,9 @@ async def test_system_is_only_for_the_platform_admin(stand: Stand) -> None:
         {"storage": {"gcs_photo_bucket": "attacker-bucket"}},
         {"storage": {"gcs_photo_public": True}},
         {"storage": {"photo_allowed_mime": "image/png"}},
+        # The operator's embedding endpoint group and switch (PR10): the stand's
+        # organization is the operator alias, so these are every inheriting
+        # organization's search provider and need a platform admin.
         {"ai": {"search_embedding_api_key": "sk-x"}},
         {"ai": {"search_embeddings_enabled": True}},
         # An operator field riding along with an org field refuses the whole write.

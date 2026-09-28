@@ -54,6 +54,23 @@ describe('orgSettingsApi', () => {
       { url: '/api/v1/orgs/acme/settings/email/test', method: 'POST', body: '{}' },
     ])
   })
+
+  it("reads and writes the organization's tracker defaults under its own path (F20 PR12)", async () => {
+    setCurrentOrgSlug('other')
+    const fetchSpy = mockFetch()
+
+    await orgSettingsApi.getTrackers('acme')
+    await orgSettingsApi.updateTrackers('acme', { linear: { team_id: 'ENG' } })
+
+    expect(calls(fetchSpy)).toEqual([
+      { url: '/api/v1/orgs/acme/settings/trackers', method: 'GET', body: undefined },
+      {
+        url: '/api/v1/orgs/acme/settings/trackers',
+        method: 'PATCH',
+        body: JSON.stringify({ linear: { team_id: 'ENG' } }),
+      },
+    ])
+  })
 })
 
 describe('serviceSettingsApi (Platform)', () => {

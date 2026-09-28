@@ -277,7 +277,7 @@ async def _stored_vector_model(session: AsyncSession, project_id: uuid.UUID) -> 
     from tripl.services.demo.search_embeddings import load_demo_embedding_fixture
     from tripl.services.embedding_service import embedding_provenance
 
-    ai_config = await app_settings_service.get_embedding_config(session)
+    ai_config = await app_settings_service.get_embedding_config_for_project(session, project_id)
     if ai_config.search_embeddings_enabled:
         return embedding_provenance(ai_config)
     if await session.scalar(select(Project.is_demo).where(Project.id == project_id)):
@@ -287,12 +287,16 @@ async def _stored_vector_model(session: AsyncSession, project_id: uuid.UUID) -> 
 
 
 async def _embed_candidates(
-    session: AsyncSession, texts: list[str]
+    session: AsyncSession, project_id: uuid.UUID, texts: list[str]
 ) -> tuple[list[list[float]], str | None]:
-    """Live vectors for the candidates, or ``[]`` when that is not possible."""
+    """Live vectors for the candidates, or ``[]`` when that is not possible.
+
+    In the project's organization's vector space (F20 PR10), so they compare
+    with that organization's stored event vectors and nobody else's.
+    """
     from tripl.services.embedding_service import embed_texts, embedding_provenance
 
-    ai_config = await app_settings_service.get_embedding_config(session)
+    ai_config = await app_settings_service.get_embedding_config_for_project(session, project_id)
     if not ai_config.search_embeddings_enabled or not texts:
         return [], None
     try:
@@ -464,7 +468,7 @@ async def check_candidates(
             )
             for c, name in zip(candidates, names, strict=True)
         ]
-        candidate_vectors, model = await _embed_candidates(session, texts)
+        candidate_vectors, model = await _embed_candidates(session, project_id, texts)
         if candidate_vectors and model:
             stored = await _event_vectors(
                 session,

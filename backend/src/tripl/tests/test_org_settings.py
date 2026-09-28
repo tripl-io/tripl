@@ -733,7 +733,9 @@ async def test_self_hosted_default_org_settings_write_the_operator_scope(
 
 def test_org_fields_are_what_the_owner_decided() -> None:
     assert {"smtp_host", "smtp_password", "ai_base_url", "ai_api_key"} <= ORG_FIELDS
-    assert "search_embedding_api_key" not in ORG_FIELDS
+    # PR10: each organization's own vector space; the width stays the operator's.
+    assert {"search_embedding_api_key", "search_embedding_base_url"} <= ORG_FIELDS
+    assert "search_embedding_dimensions" not in ORG_FIELDS
     assert "photo_allowed_mime" not in ORG_FIELDS
     assert "app_base_url" not in ORG_FIELDS
 

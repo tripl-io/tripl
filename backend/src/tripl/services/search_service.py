@@ -243,7 +243,8 @@ async def _reindex_branch_documents(
 
     project_slug = slug or await _project_slug(session, project_id)
     documents = await _build_documents(session, project_id, branch_id, project_slug)
-    ai_config = await app_settings_service.get_embedding_config(session)
+    # The owning organization's vector space (F20 PR10).
+    ai_config = await app_settings_service.get_embedding_config_for_project(session, project_id)
     demo_fixture_model = await _demo_fixture_model(session, project_id, ai_config)
 
     existing_rows = (

@@ -267,13 +267,13 @@ async def test_the_query_embedding_is_fetched_while_the_lexical_leg_runs(
 
     enabled = replace(env_ai_config(), search_embeddings_enabled=True)
 
-    async def fake_ai_config(_session: object) -> AiConfig:
+    async def fake_ai_config(_session: object, **_kwargs: object) -> AiConfig:
         return enabled
 
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", fake_embed)
-    monkeypatch.setattr(app_settings_service, "get_embedding_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_search_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         _, semantic_used = await _search_query.postgres_search(
@@ -493,13 +493,13 @@ async def test_the_envelope_and_the_row_may_disagree_about_the_semantic_leg(
 
     enabled = replace(env_ai_config(), search_embeddings_enabled=True)
 
-    async def fake_ai_config(_session: object) -> AiConfig:
+    async def fake_ai_config(_session: object, **_kwargs: object) -> AiConfig:
         return enabled
 
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", fake_embed)
-    monkeypatch.setattr(app_settings_service, "get_embedding_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_search_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         merged, semantic_used = await _search_query.postgres_search(
@@ -1911,13 +1911,13 @@ async def test_semantic_false_never_reaches_the_embedding_provider(
 
     enabled = replace(env_ai_config(), search_embeddings_enabled=True)
 
-    async def fake_ai_config(_session: object) -> AiConfig:
+    async def fake_ai_config(_session: object, **_kwargs: object) -> AiConfig:
         return enabled
 
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", fake_embed)
-    monkeypatch.setattr(app_settings_service, "get_embedding_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_search_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         _, semantic_used = await _search_query.postgres_search(

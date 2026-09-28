@@ -14,6 +14,8 @@ from tripl.models.base import Base, TimestampMixin, UUIDMixin
 # this feature.
 SERVICE_SETTINGS_KEY = "service"
 AI_SETTINGS_KEY = "ai"
+#: An organization's issue-tracker defaults (F20 PR12): organization scope only.
+TRACKER_DEFAULTS_KEY = "tracker_defaults"
 
 _OPERATOR_SCOPE = text("organization_id IS NULL")
 _ORGANIZATION_SCOPE = text("organization_id IS NOT NULL")

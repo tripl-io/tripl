@@ -44,6 +44,12 @@ class ProjectTrackerConfigResponse(BaseModel):
     # Linear team id; "" unless ``tracker_type`` is ``linear``.
     team_id: str = ""
     api_token_set: bool
+    #: Fields the project leaves empty and takes from its organization's tracker
+    #: defaults (F20 PR12): ``base_url``, ``auth_email``, ``api_token`` and
+    #: ``project_key`` for Jira; ``api_token`` and ``team_id`` for Linear. The
+    #: Jira site, account and token are one unit: a project setting any of them
+    #: inherits none of the three.
+    inherited_fields: list[str] = []
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

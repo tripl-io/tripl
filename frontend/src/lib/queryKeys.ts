@@ -72,7 +72,9 @@ export const planBranchTicketsKey = (slug: string, branchId: string) =>
 export const branchSettingsKey = (slug: string) => [...orgRoot(), 'branchSettings', slug] as const
 
 /** `GET /tracker-config`, read by the branch tickets panel and TrackerConfigDialog. */
-export const trackerConfigKey = (slug: string) => [...orgRoot(), 'trackerConfig', slug] as const
+/** Every project's tracker config: what an organization's tracker-default save invalidates. */
+export const trackerConfigRootKey = () => [...orgRoot(), 'trackerConfig'] as const
+export const trackerConfigKey = (slug: string) => [...trackerConfigRootKey(), slug] as const
 
 /**
  * Project variables, ITEMS ONLY — `variablesApi.list`, an array.
@@ -276,6 +278,8 @@ export const orgsKey = () => ['orgs'] as const
 export const orgKey = (org: string) => [org, 'org'] as const
 /** One organization's own settings (mail, AI, row limits), rooted at THAT organization. */
 export const orgSettingsKey = (org: string) => [org, 'orgSettings'] as const
+/** An organization's Jira/Linear defaults (F20 PR12). */
+export const orgTrackerDefaultsKey = (org: string) => [org, 'orgTrackerDefaults'] as const
 /**
  * Every cached query whose data inherits the platform (operator) settings, in any organization:
  * an organization's settings view (its inherited values and ceilings) and the row caps the scan

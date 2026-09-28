@@ -5,9 +5,11 @@ import {
   Cpu,
   Database,
   Key,
+  Ticket,
   Lock,
   Mail,
   ScrollText,
+  Search,
   Server,
   Shield,
   SlidersHorizontal,
@@ -159,8 +161,10 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         path: 'api-keys',
         keywords: ['token', 'api key', 'integration'],
       },
-      // The organization's own settings (F20 PR9): its mail relay, AI provider
-      // and row caps, each inheriting the platform's value until it sets one.
+      // The organization's own settings (F20 PR9, PR10, PR12): its mail relay,
+      // AI provider, search embeddings and row caps, each inheriting the
+      // platform's value until it sets one; and the tracker defaults its
+      // projects fall back to.
       {
         id: 'org-email',
         label: 'Email',
@@ -173,6 +177,20 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'AI',
         icon: Sparkles,
         path: 'organization/ai',
+        ownerOnly: true,
+      },
+      {
+        id: 'org-search',
+        label: 'Search',
+        icon: Search,
+        path: 'organization/search',
+        ownerOnly: true,
+      },
+      {
+        id: 'org-trackers',
+        label: 'Trackers',
+        icon: Ticket,
+        path: 'organization/trackers',
         ownerOnly: true,
       },
       {

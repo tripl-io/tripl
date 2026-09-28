@@ -1034,6 +1034,20 @@ the stored credential: the old tracker's token or key (and Jira's project key) i
 cleared, because it must never be sent to the other vendor, so enter the new
 tracker's credential when you switch.
 
+**Organization defaults.** An organization's owners and admins can set Jira and
+Linear defaults once for every project, under **Settings → Organization →
+Trackers** (`GET/PATCH /api/v1/orgs/{org}/settings/trackers`): the Jira base URL,
+auth email, API token and default project key, and the Linear API key and
+default team. A field the project leaves empty uses the organization's default;
+a field the project sets wins. The Jira base URL, auth email and API token are
+one unit: a project that sets any of the three uses none of the organization's,
+so the organization's token is never sent to a site a project chose. Enabling
+the automation and choosing Jira or Linear stay per project. The project's
+tracker settings report which fields come from the organization
+(`inherited_fields`). Organization tokens are encrypted at rest, never returned
+and never audited; the Jira base URL must be `https` and must not point at a
+private address, checked on save and again before every call.
+
 When enabled, a successful merge best-effort creates one implementation ticket —
 a Jira issue or a Linear issue — for the added/changed events, and a scheduled
 sync promotes covered events to `implemented` when the tracker reports the

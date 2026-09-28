@@ -2,12 +2,18 @@
 
 ``/api/v1/platform/settings`` is the operator scope, whole: tripl's own
 infrastructure (``OPERATOR_FIELDS``: public URL, security, observability,
-storage, embeddings), the ``system`` block, and the operator's values of the
-organization fields — the defaults every organization without its own value
+storage), the ``system`` block, and the operator's values of the
+organization fields (mail, AI chat, search embeddings, row limits) — the
+defaults every organization without its own value
 inherits (``ORG_SETTINGS_OPERATOR_FALLBACK=all``) and the relay account mail
 (sign-up, password reset, invitations) always uses. Platform admins only, from
 a browser session; the flag grants no organization access and an organization
 role grants none here. Org-free: no organization is resolved or bound.
+
+A change to the operator's embedding values reaches the organizations that
+inherit them through the stale-search sweep (F20 PR10), not an immediate
+reindex: every inheriting organization's documents move at once, which is what
+the sweep's per-run budget exists to pace.
 """
 
 from __future__ import annotations

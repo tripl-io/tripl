@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 #   organization fields as the resolved organization runs with them. For
 #   anyone but a platform admin the operator's infrastructure is withheld:
 #   ``system``, ``security``, ``storage`` and ``observability`` are ``None``
-#   and the embedding endpoint is blank.
+#   and the embedding endpoint is blank unless it is the organization's own.
 #
 # The per-scope surfaces are ``/orgs/{org}/settings`` and ``/platform/settings``.
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -67,6 +67,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 #: Response sections that are wholly the operator's infrastructure.
 _OPERATOR_SECTIONS: tuple[str, ...] = ("security", "storage", "observability")
+_EMBEDDING_URL_SOURCE = "ai.search_embedding_base_url"
 
 
 def _for_caller(payload: dict[str, Any], user: User) -> CombinedSettingsResponse:
@@ -77,18 +78,27 @@ def _for_caller(payload: dict[str, Any], user: User) -> CombinedSettingsResponse
     if user.is_platform_admin:
         return response
     hidden_prefixes = tuple(f"{section}." for section in (*_OPERATOR_SECTIONS, "system"))
+    # The embedding endpoint is withheld while it is the OPERATOR's; an
+    # organization's own endpoint (F20 PR10) is its own to see.
+    own_endpoint = response.sources.get(_EMBEDDING_URL_SOURCE) == "org"
+    ai = (
+        response.ai
+        if own_endpoint
+        else response.ai.model_copy(update={"search_embedding_base_url": ""})
+    )
     return response.model_copy(
         update={
             "system": None,
             **dict.fromkeys(_OPERATOR_SECTIONS),
-            "ai": response.ai.model_copy(update={"search_embedding_base_url": ""}),
+            "ai": ai,
             "overridden_fields": [
                 field for field in response.overridden_fields if field not in OPERATOR_FIELDS
             ],
             "sources": {
                 key: value
                 for key, value in response.sources.items()
-                if not key.startswith(hidden_prefixes) and key != "ai.search_embedding_base_url"
+                if not key.startswith(hidden_prefixes)
+                and (own_endpoint or key != _EMBEDDING_URL_SOURCE)
             },
         }
     )
@@ -168,6 +178,14 @@ async def patch_service_settings(
         # operator half of the same save unapplied too.
         await org_settings_service.validate_org_changes(session, org_scope, org_changes)
 
+    # The organization's embedding identity before the save (F20 PR10): a move
+    # enqueues the reindex of that organization's projects only.
+    embeddings_before = (
+        await org_settings_service.embedding_identity(session, org_id)
+        if org_id is not None and org_settings_service.touches_embeddings(org_changes)
+        else None
+    )
+
     # (changed fields, scope written, organization feed)
     written: list[tuple[list[str], uuid.UUID | None, uuid.UUID | None]] = []
     if org_scope is None:
@@ -186,6 +204,8 @@ async def patch_service_settings(
         if org_changes:
             await app_settings_service.update_org_overrides(session, org_scope, org_changes)
             written.append((sorted(org_changes), org_scope, org_scope))
+    if org_id is not None:
+        await org_settings_service.reindex_if_embeddings_moved(session, org_id, embeddings_before)
     if not written:
         written.append(([], None, None))
     for changed, scope, feed in written:

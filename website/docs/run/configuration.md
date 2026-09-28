@@ -168,7 +168,7 @@ cannot be changed in **Settings → Instance**.
 | --- | --- | --- | --- |
 | `DEPLOYMENT_MODE` | `self_hosted` | No | `self_hosted` is one team's instance. `hosted` is a multi-tenant service. It is read when the database is migrated to decide who becomes a **platform admin** (the operator of the whole instance). When the value is `self_hosted`, every owner of the default organization becomes a platform admin, and so does the first account of an empty instance. When the value is `hosted`, only existing accounts whose address is in `PLATFORM_ADMIN_EMAILS` do. It also decides which organization a request acts in when its URL does not name one (no `/api/v1/orgs/{org}/` prefix): `self_hosted` always acts in the default organization; `hosted` acts in the user's only organization and answers 400 `Organization required` when the user belongs to none or to several (such a user names the organization in the URL). Everything else hosted mode changes arrives in later releases. Any other value refuses to start. The platform-admin grant runs during the upgrades that add organizations (the organization schema, and again with organization roles). It only adds the flag and never revokes it. Changing the value between upgrades changes nothing until the next such upgrade, and there is no platform-admin management yet. |
 | `PLATFORM_ADMIN_EMAILS` | empty | Only when `hosted` | Comma-separated account emails that become platform admins when `DEPLOYMENT_MODE=hosted`. Case and surrounding spaces are ignored. Only accounts that already exist when an organization upgrade runs are flagged, so create them first and set the list before upgrading. Signing up (or accepting an invitation) with a listed address does **not** grant it, because nothing proves the person owns the address. Removing an email revokes nothing. |
-| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI or SMTP settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Disabled by operator policy**) until it sets its own relay or AI endpoint and key. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (sign-up, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. Embeddings are still operator-only (see [Operator and organization settings](#operator-and-organization-settings)). |
+| `ORG_SETTINGS_OPERATOR_FALLBACK` | `all` | No | Covers an organization that has not set its own AI, SMTP or search-embedding settings. `all` means it uses the operator's; `none` means those features are off for it (the organization page shows **Disabled by operator policy**) until it sets its own relay, AI endpoint or embedding endpoint and key. With `none`, an organization without its own embedding endpoint has semantic search off; lexical search still works. Non-secret values (row limits, AI timeout and token limits, prompts, the AI switch) fall back to the operator either way. Account mail (sign-up, password reset, invitations) always uses the operator's SMTP. On a `self_hosted` instance the default organization's settings **are** the operator's, so this has no effect there; it matters for every other organization. |
 
 ### Operator and organization settings
 
@@ -179,28 +179,59 @@ as **its own value → the operator's value → the environment variable → the
 built-in default**, subject to three rules:
 
 - **A secret travels with its endpoint.** The AI endpoint, key and model form
-  one group, and the SMTP host, port, security, username, password and From:
-  address form another. An organization that sets any field of a group owns the
+  one group; the SMTP host, port, security, username, password and From:
+  address form another; the search-embedding base URL, provider, model and key
+  form a third. An organization that sets any field of a group owns the
   whole group: fields it left empty take the built-in default (a secret is
-  empty), never the operator's. Pointing `ai_base_url` or `smtp_host` at your
-  own server therefore never sends the operator's key or password there.
+  empty), never the operator's. Pointing `ai_base_url`, `smtp_host` or
+  `search_embedding_base_url` at your own server therefore never sends the
+  operator's key or password there.
 - **Operator ceilings.** An organization's `scan_row_limit_default`,
   `metrics_row_limit_default`, `ai_timeout_seconds` and `ai_max_output_tokens`
   may lower the operator's value, never raise it: a higher value is refused on
   save (`422`) and clamped at use if the operator later lowers theirs.
-- **Public hosts only, for organizations.** An organization's `ai_base_url`
-  and `smtp_host` must not be (or resolve to) a private, loopback or link-local
-  address, in either deployment mode. The check runs on save (`422`) and again
-  right before each request, so a name re-pointed at an internal address later
-  is refused too (the feature is off for that call). An AI endpoint that
-  answers with a redirect is refused rather than followed. The operator's own
+- **Public hosts only, for organizations.** An organization's `ai_base_url`,
+  `search_embedding_base_url` and `smtp_host` must not be (or resolve to) a
+  private, loopback or link-local address, in either deployment mode. The check
+  runs on save (`422`) and again right before each request, so a name
+  re-pointed at an internal address later is refused too (the feature is off
+  for that call). An AI or embedding endpoint that answers with a redirect is
+  refused rather than followed (on a `hosted` instance the operator's embedding
+  endpoint too). The operator's own
   values — which on a `self_hosted` instance are also the default
   organization's — may point at private hosts such as a local model server or
   relay.
 
 If an organization's settings cannot be read, background jobs (alerts, digests,
-notification email, AI explanations) run with AI and email off for that
-organization; a request fails rather than falling back to the operator's keys.
+notification email, AI explanations, search embedding) run with AI, email and
+embeddings off for that organization; a request fails rather than falling back
+to the operator's keys.
+
+**Search embeddings per organization.** Each organization has its own vector
+space. Vectors are stamped with the organization's *provenance* — its endpoint,
+provider, model and the dimensions — and a query only compares with rows
+stamped with the provenance of the organization it runs in. An organization
+that inherits the operator's endpoint has exactly the operator's provenance, so
+introducing organizations re-embeds nothing. `SEARCH_EMBEDDING_DIMENSIONS`
+stays the operator's (the column is `vector(1536)` for everyone): when an
+organization saves its own endpoint or model with embeddings on, tripl embeds
+one short test text with it and refuses the save (`422`) unless the answer is a
+1536-value vector. A save that changes an organization's embedding identity
+(on/off, endpoint, provider or model) queues a reindex of **that organization's
+projects only**; unchanged rows keep their vectors. A change to the operator's
+values reaches the organizations that inherit them through the regular stale
+sweep. The operator's own base URL stays env-only (`SEARCH_EMBEDDING_BASE_URL`):
+on a `self_hosted` instance the default organization cannot change it in
+settings (`422`).
+
+**Tracker defaults per organization.** An organization's owners and admins can
+set Jira and Linear defaults under **Settings → Organization → Trackers**: the
+Jira site, account e-mail, API token and default project key, and a Linear API
+key and default team. A project's own tracker config overrides each field; a
+project still has to switch the automation on itself. The Jira site, account
+and token are one unit: a project that sets any of the three uses none of the
+organization's. Tokens are encrypted at rest and never returned; the Jira site
+must be `https` and public (checked on save and before every call).
 
 | Setting | Scope | Where it is edited |
 | --- | --- | --- |
@@ -208,7 +239,9 @@ organization; a request fails rather than falling back to the operator's keys.
 | Security & access (CORS, cookies, headers, rate limits, `REGISTRATION_MODE`) | Operator | **Settings → Platform** |
 | Observability (request id, logging, metrics, tracing) | Operator | **Settings → Platform** |
 | Photo storage (all 8 fields, incl. `PHOTO_MAX_SIZE_MB` and the MIME allow-list) | Operator (per-organization storage comes later) | **Settings → Platform** |
-| Search embeddings (switch, provider, model, key; base URL and dimensions env-only) | Operator (per-organization embeddings come later) | **Settings → Platform** |
+| Search embeddings: switch, provider, model, key, base URL | Organization (the operator's base URL is env-only) | **Settings → Organization → Search** |
+| `SEARCH_EMBEDDING_DIMENSIONS` | Operator, env-only (1536) | read-only |
+| Jira / Linear tracker defaults (site, account, token, project; key, team) | Organization (no operator layer; projects override) | **Settings → Organization → Trackers** |
 | Database, broker, Redis, `ENCRYPTION_KEY`, `SECRET_KEY` (the "system" block) | Operator, env-only | read-only in **Settings → Platform** |
 | Email / SMTP (6 fields) | Organization | **Settings → Organization → Email** |
 | AI chat: switch, base URL, model, key, timeout, output tokens, the three prompts | Organization | **Settings → Organization → AI** |
@@ -224,14 +257,16 @@ prompts are theirs to change; its SMTP relay and AI endpoint (the whole group,
 key and password included) take a platform admin (`403 Platform admin
 required`), because password-reset and invitation mail go through that relay
 and, with `ORG_SETTINGS_OPERATOR_FALLBACK=all`, every other organization
-inherits both. The API is `GET/PATCH/PUT /api/v1/orgs/{org}/settings` (with
-`POST .../ai/test` and `.../email/test`) for an organization's owners and admins,
+inherits both. The same applies to the embedding key, provider, model and
+switch. The API is `GET/PATCH/PUT /api/v1/orgs/{org}/settings` (with
+`POST .../ai/test` and `.../email/test`, and `GET/PATCH .../trackers` for the
+tracker defaults) for an organization's owners and admins,
 and `GET/PATCH /api/v1/platform/settings` (with the same two probes) for a
 platform admin. The older `/api/v1/settings` still answers with the combined
 view: operator fields as the operator has them and organization fields as the
 caller's organization runs with them. For anyone but a platform admin its
 `security`, `storage`, `observability` and `system` blocks are `null` and the
-embedding base URL is blank.
+embedding base URL is blank unless it is the organization's own.
 
 ### Rate limiting
 
@@ -334,7 +369,7 @@ content sent to the configured provider.
 | `SEARCH_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model. |
 | `SEARCH_EMBEDDING_DIMENSIONS` | `1536` | Vector dimensions. |
 | `SEARCH_EMBEDDING_API_KEY` | `""` | Provider API key; falls back to `OPENAI_API_KEY` if empty. |
-| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Point it at a self-hosted provider to keep plan text inside your own infrastructure. Env-only, and changing it after indexing needs a re-index — see [AI and search](./ai-and-search.md). The resolved value is visible read-only under **Settings → Instance → AI**, with a source badge, so a value that never reached the container can be noticed from a browser instead of by diffing the compose file. |
+| `SEARCH_EMBEDDING_BASE_URL` | `https://api.openai.com/v1` | Base URL of an OpenAI-compatible embeddings endpoint; `/embeddings` is appended. Point it at a self-hosted provider to keep plan text inside your own infrastructure. Env-only for the operator (an organization may set its own under **Settings → Organization → Search**), and changing it after indexing needs a re-index — see [AI and search](./ai-and-search.md). The resolved value is visible read-only under **Settings → Instance → AI**, with a source badge, so a value that never reached the container can be noticed from a browser instead of by diffing the compose file. |
 | `OPENAI_API_KEY` | `""` | Shared OpenAI key used as fallback for search embeddings and AI features. |
 
 ### AI features (LLM descriptions, Q&A)

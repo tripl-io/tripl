@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { orgSettingsFixture } from '@/test/orgSettings'
 import {
   AI_ENDPOINT_GROUP,
+  EMBEDDING_GROUP,
   SMTP_GROUP,
   buildOrgUpdate,
   clearGroup,
@@ -15,9 +16,11 @@ import {
 } from './orgSettingsModel'
 
 describe('orgSettingsModel', () => {
-  it('maps the settings paths onto the three sections', () => {
+  it('maps the settings paths onto the four sections', () => {
     expect(orgSectionForPath('organization/email')).toBe('email')
     expect(orgSectionForPath('organization/ai')).toBe('ai')
+    expect(orgSectionForPath('organization/search')).toBe('search')
+    expect(orgSectionForPath('organization/trackers')).toBeNull()
     expect(orgSectionForPath('organization/limits')).toBe('limits')
     expect(orgSectionForPath('organization/general')).toBeNull()
     expect(orgSectionForPath('instance/email')).toBeNull()
@@ -101,5 +104,28 @@ describe('orgSettingsModel', () => {
       ai_api_key: null,
     })
     expect(clearGroup({}, orgSettingsFixture(), 'email', SMTP_GROUP)).toEqual({})
+  })
+
+  it('treats the embedding endpoint as one credential group with a write-only key (F20 PR10)', () => {
+    const settings = orgSettingsFixture()
+    expect(buildOrgUpdate('search', { search_embedding_api_key: '  ', search_embeddings_enabled: false })).toEqual({
+      search: { search_embeddings_enabled: false },
+    })
+    expect(withEdit(settings, {}, 'search', 'search_embedding_api_key', '')).toEqual({})
+    expect(displayValue(settings, {}, 'search', 'search_embedding_api_key')).toBe('')
+    expect(groupWarning(settings, {}, 'search')).toBeNull()
+    expect(groupWarning(settings, { search_embedding_model: 'acme-embed' }, 'search')).toEqual({
+      starting: true,
+      missingSecret: true,
+    })
+    expect(
+      groupWarning(settings, { search_embedding_model: 'acme-embed', search_embedding_api_key: 'sk' }, 'search'),
+    ).toEqual({ starting: true, missingSecret: false })
+    // The switch is not a group member: turning search off takes nothing over.
+    expect(groupWarning(settings, { search_embeddings_enabled: false }, 'search')).toBeNull()
+    const owned = orgSettingsFixture({
+      sources: { ...settings.sources, 'search.search_embedding_model': 'org' },
+    })
+    expect(clearGroup({}, owned, 'search', EMBEDDING_GROUP)).toEqual({ search_embedding_model: null })
   })
 })

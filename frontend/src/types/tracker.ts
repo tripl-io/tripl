@@ -22,6 +22,10 @@ export interface ProjectTrackerConfig {
    *  Linear trackers (#258); unused by Jira. */
   team_id?: string | null
   api_token_set: boolean
+  /** Fields the project leaves empty and takes from its organization's tracker
+   *  defaults (F20 PR12): `base_url`, `auth_email`, `api_token`, `project_key`
+   *  for Jira; `api_token`, `team_id` for Linear. */
+  inherited_fields?: string[]
   created_at: string | null
   updated_at: string | null
 }
