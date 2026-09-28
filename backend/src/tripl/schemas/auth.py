@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from tripl.models.domain_enums import OrganizationRole
+from tripl.models.domain_enums import ApiKeyScope, OrganizationRole
 
 # The role vocabulary of the users API and ``/auth/me``: the ORGANIZATION role
 # (owner | admin | member) since F20 PR4. ``users.role`` (owner | editor |
@@ -102,6 +102,13 @@ class AuthUserResponse(BaseModel):
     role: Role | None
     is_platform_admin: bool = False
     orgs: list[OrgMembershipOut] = Field(default_factory=list)
+    # The slug of the organization this request acts in, when one is bound: an
+    # API key's own organization. ``None`` for a browser session on
+    # ``/auth/me``, which acts in no organization (F20 PR6, ``tripl whoami``).
+    org: str | None = None
+    # ``read`` or ``write`` when the caller authenticated with an API key;
+    # ``None`` for a browser session.
+    api_key_scope: ApiKeyScope | None = None
     created_at: datetime
     updated_at: datetime
 

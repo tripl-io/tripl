@@ -371,7 +371,7 @@ async def test_the_last_owner_rule_is_per_org(people: People) -> None:
                 ACME_ID,
                 people.ids["olga"],
                 OrganizationRole.admin,
-                actor_role=OrganizationRole.owner,
+                actor_id=people.ids["olga"],
             )
         await session.rollback()
 
@@ -406,7 +406,7 @@ async def test_only_an_owner_manages_owners(people: People) -> None:
                 DEFAULT_ORG_ID,
                 people.ids["bob"],
                 OrganizationRole.owner,
-                actor_role=OrganizationRole.admin,
+                actor_id=people.ids["ada"],
             )
         await session.rollback()
 

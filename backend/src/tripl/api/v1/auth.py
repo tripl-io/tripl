@@ -1,8 +1,9 @@
 import logging
 import smtplib
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.api.deps import CurrentUserDep, SessionDep
 from tripl.config import settings
@@ -13,6 +14,8 @@ from tripl.middleware.rate_limit import (
     status_rate_limiter,
 )
 from tripl.models.domain_enums import OrganizationRole
+from tripl.models.invitation import Invitation
+from tripl.models.user import User
 from tripl.schemas.auth import (
     PASSWORD_MAX_LENGTH,
     AuthStatusResponse,
@@ -22,7 +25,7 @@ from tripl.schemas.auth import (
     validate_password_strength,
 )
 from tripl.schemas.invitation import InvitationAcceptRequest, InvitationPreview
-from tripl.services import app_settings_service, auth_service, invitation_service
+from tripl.services import app_settings_service, audit_service, auth_service, invitation_service
 
 logger = logging.getLogger(__name__)
 
@@ -208,11 +211,23 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     dependencies=[Depends(enforce(register_rate_limiter))],
 )
 async def accept_invitation(
-    response: Response, session: SessionDep, token: str, data: InvitationAcceptRequest
+    request: Request,
+    response: Response,
+    session: SessionDep,
+    token: str,
+    data: InvitationAcceptRequest,
 ) -> AuthUserResponse:
-    """Redeem an invitation into an account, and sign the new user straight in.
+    """Redeem an invitation: into a new account, or into the signed-in one.
 
-    Reachable regardless of ``registration_mode`` — that is the entire point:
+    Signed in (a browser session cookie): the invitation adds a membership of
+    its organization to THIS account, but only when the account's email is the
+    invitation's (case-insensitive) — else 403 and the invitation stays unused;
+    409 when the account is already a member. Answers 200 and leaves the
+    session as it is (F20 PR6).
+
+    Not signed in: the new-account path, unchanged. ``password`` is required,
+    the account is created with the invitation's address and the new user is
+    signed straight in (201). Reachable regardless of ``registration_mode`` —
     an owner-issued, single-use, expiring, address-bound invitation is a
     different mechanism from the instance-wide door, so a closed instance can
     still onboard exactly the people its owner named.
@@ -220,11 +235,60 @@ async def accept_invitation(
     On the register rate-limit bucket, so guessing tokens costs the same as
     hammering signup.
     """
-    user, session_token = await invitation_service.redeem_invitation(
+    cookie = request.cookies.get(settings.session_cookie_name)
+    signed_in = await auth_service.get_user_by_session_token(session, cookie) if cookie else None
+    if signed_in is not None:
+        try:
+            invitation = await invitation_service.accept_as_signed_in(
+                session, raw_token=token, user=signed_in
+            )
+        except invitation_service.InvitationEmailMismatchError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "This invitation was sent to a different email address. Sign in "
+                    "with that address to accept it."
+                ),
+            ) from None
+        except invitation_service.AlreadyMemberError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You are already a member of this organization.",
+            ) from None
+        await _record_acceptance(session, signed_in, invitation, existing_account=True)
+        response.status_code = status.HTTP_200_OK
+        return await auth_service.build_auth_user_response(session, signed_in)
+
+    if data.password is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A password is required to create the account.",
+        )
+    user, session_token, invitation = await invitation_service.redeem_invitation(
         session, raw_token=token, password=data.password, name=data.name
     )
+    await _record_acceptance(session, user, invitation, existing_account=False)
     _set_session_cookie(response, session_token)
     return await auth_service.build_auth_user_response(session, user)
+
+
+async def _record_acceptance(
+    session: AsyncSession, user: User, invitation: Invitation, *, existing_account: bool
+) -> None:
+    """``user.invite_accept``, filed in the invitation's organization. Commits."""
+    await audit_service.record(
+        session,
+        user=user,
+        action="user.invite_accept",
+        target_type="invitation",
+        target_id=invitation.id,
+        target_name=invitation.email,
+        payload={
+            "role": invitation.org_role or "member",
+            "existing_account": existing_account,
+        },
+        organization_id=invitation.organization_id,
+    )
 
 
 @router.post(
@@ -309,6 +373,15 @@ async def logout(
 
 
 @router.get("/me", response_model=AuthUserResponse)
-async def get_me(session: SessionDep, current_user: CurrentUserDep) -> AuthUserResponse:
-    """The signed-in account with its organization role(s) and the platform-admin flag."""
-    return await auth_service.build_auth_user_response(session, current_user)
+async def get_me(
+    request: Request, session: SessionDep, current_user: CurrentUserDep
+) -> AuthUserResponse:
+    """The signed-in account with its organization role(s) and the platform-admin flag.
+
+    For an API key it also names the key's organization (``org``) and scope
+    (``api_key_scope``): what ``tripl whoami`` prints. Read from the database on
+    every call, so a membership added, changed or removed shows at once.
+    """
+    return await auth_service.build_auth_user_response(
+        session, current_user, api_key_scope=getattr(request.state, "api_key_scope", None)
+    )

@@ -52,6 +52,7 @@ from tripl_cli.model import (
     SectionError,
     StatusSnapshot,
     Target,
+    Whoami,
     to_rfc3339,
 )
 
@@ -654,4 +655,25 @@ def export_document(
     document["revision"] = revision
     document["files"] = list(files)
     document["schemas"] = schemas
+    return document
+
+
+def whoami_document(whoami: Whoami) -> JsonDict:
+    """``tripl whoami --json``: the account, the key's reach and access, its organization.
+
+    ``reach`` is ``instance`` or ``project``; for a project-bound key every
+    account key is ``null`` (``/auth/me`` is out of such a key's reach).
+    """
+    document = _run_envelope("whoami", whoami.run)
+    document["reach"] = whoami.reach
+    document["access"] = whoami.access
+    document["user"] = (
+        None
+        if whoami.user_id is None
+        else {"id": whoami.user_id, "email": whoami.email, "name": whoami.name}
+    )
+    document["org"] = whoami.org
+    document["role"] = whoami.role
+    document["is_platform_admin"] = whoami.is_platform_admin
+    document["orgs"] = list(whoami.orgs)
     return document

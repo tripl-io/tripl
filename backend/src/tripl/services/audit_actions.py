@@ -215,12 +215,28 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "data_source.delete",
             "user.invite",
             "user.invite_revoke",
+            "user.invite_accept",
             "user.role_update",
             "api_key.revoke",
             "settings.update",
             # Written by the removed ``PUT /settings/ai``; older entries carry it.
             "settings.ai_update",
             "project.delete",
+        ),
+    ),
+    (
+        # F20 PR6. ``org.delete_complete`` is filed at platform scope (no
+        # organization: it is gone), so no organization's feed ever lists it.
+        "Organization",
+        (
+            "org.create",
+            "org.rename",
+            "org.delete_request",
+            "org.delete_cancel",
+            "org.delete_complete",
+            "org.member_role_update",
+            "org.member_remove",
+            "org.transfer_ownership",
         ),
     ),
 )

@@ -27,7 +27,7 @@ from tripl.models.domain_enums import OrganizationRole
 from tripl.models.organization import OrganizationMember
 from tripl.models.user import User
 from tripl.schemas.auth import UserListItem
-from tripl.services import auth_service
+from tripl.services import auth_service, invitation_service
 
 
 class LastOwnerError(Exception):
@@ -69,15 +69,25 @@ async def update_org_role(
     user_id: uuid.UUID,
     role: OrganizationRole,
     *,
-    actor_role: OrganizationRole,
-) -> tuple[UserListItem, str]:
-    """Change one member's organization role; returns the member and the old role.
+    actor_id: uuid.UUID,
+) -> tuple[UserListItem, str, int]:
+    """Change one member's organization role.
+
+    Returns the member, the old role, and how many of the member's pending
+    invitations were dropped because the new role could no longer issue them
+    (a demotion must not leave the old role reachable through a link minted
+    before it).
+
+    The actor's role is read HERE, under the owner-set lock, not taken from the
+    request's gate: a role read before the lock is stale by the time the guard
+    runs, and an owner demoted in between could still manage owners.
 
     Raises :class:`LookupError` when ``user_id`` is not a member of ``org_id``,
-    :class:`OwnerManagementError` when the actor is not an owner but the target
-    is, or would become, one, and :class:`LastOwnerError` when the change would
-    empty the organization's owner set — plain exceptions rather than HTTP
-    ones, because this layer does not know it is behind HTTP.
+    :class:`OwnerManagementError` when the actor is no longer an owner or admin,
+    or is not an owner but the target is, or would become, one, and
+    :class:`LastOwnerError` when the change would empty the organization's owner
+    set — plain exceptions rather than HTTP ones, because this layer does not
+    know it is behind HTTP.
 
     Does NOT commit: the caller commits once, after it has written its audit
     entry, so the role change and its record land together.
@@ -89,6 +99,9 @@ async def update_org_role(
     # see the other as the survivor, both pass, and the organization is left
     # with no owner at all — recoverable only from the database.
     await auth_service.acquire_owner_set_xact_lock(session, org_id)
+    actor_role = await org_role_under_lock(session, org_id, actor_id)
+    if actor_role not in (OrganizationRole.owner.value, OrganizationRole.admin.value):
+        raise OwnerManagementError
 
     row = (
         await session.execute(
@@ -122,5 +135,38 @@ async def update_org_role(
             raise LastOwnerError
 
     membership.role = new_role
+    dropped = 0
+    if _outranks(old_role, new_role):
+        dropped = await invitation_service.drop_pending_invitations(
+            session, org_id, invited_by_user_id=user_id, above_role=OrganizationRole(new_role)
+        )
     await session.flush()
-    return _item(target, new_role), old_role
+    return _item(target, new_role), old_role, dropped
+
+
+_RANK = {
+    OrganizationRole.member.value: 0,
+    OrganizationRole.admin.value: 1,
+    OrganizationRole.owner.value: 2,
+}
+
+
+def _outranks(role: str, other: str) -> bool:
+    return _RANK[role] > _RANK[other]
+
+
+async def org_role_under_lock(
+    session: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID
+) -> str | None:
+    """``user_id``'s current role in ``org_id``; ``None`` for a non-member.
+
+    For owner-set mutations: call it after ``acquire_owner_set_xact_lock`` so
+    the answer cannot change before the transaction commits.
+    """
+    role: str | None = await session.scalar(
+        select(OrganizationMember.role).where(
+            OrganizationMember.organization_id == org_id,
+            OrganizationMember.user_id == user_id,
+        )
+    )
+    return None if role is None else str(role)

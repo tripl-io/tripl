@@ -149,14 +149,27 @@ async def test_unknown_org_is_401_for_an_anonymous_caller(anon_client: AsyncClie
         "/api/v1/orgs/default/settings",
         "/api/v1/orgs/default/project-templates",
         "/api/v1/orgs/default/auth/me",
-        "/api/v1/orgs",
-        "/api/v1/orgs/default",
     ],
 )
 async def test_non_allow_listed_org_paths_reach_no_route(client: AsyncClient, path: str) -> None:
     resp = await client.get(path)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Not Found"
+
+
+async def test_the_organization_routes_are_real_and_never_rewritten(client: AsyncClient) -> None:
+    """``/orgs`` and ``/orgs/{org}`` are the org management API (F20 PR6), and
+    ``members`` is not a rewrite prefix, so none of them is served as a legacy path."""
+    assert rewrite_org_path("/api/v1/orgs/default/members") is None
+    assert rewrite_org_path("/api/v1/orgs/default/transfer-ownership") is None
+    listed = await client.get("/api/v1/orgs")
+    assert listed.status_code == 200, listed.text
+    assert [org["slug"] for org in listed.json()] == ["default"]
+    one = await client.get("/api/v1/orgs/default")
+    assert one.status_code == 200, one.text
+    assert (one.json()["slug"], one.json()["is_default"]) == ("default", True)
+    members = await client.get("/api/v1/orgs/default/members")
+    assert members.status_code == 200, members.text
 
 
 @pytest.mark.parametrize(

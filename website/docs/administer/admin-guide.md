@@ -258,12 +258,17 @@ the instance to the world:
    opens that link administers the organization. Only an owner can invite an
    owner.
 2. **Copy the link it returns.** It is shown once and cannot be retrieved
-   afterwards — send it however you like (the instance may have no SMTP). The
+   afterwards — send it however you like. When the instance operator has SMTP
+   configured the link is also emailed to the address, always through the
+   operator's mail server. The
    panel names the role and stays until you **Dismiss** it; creating another
    invite before the link was copied asks first, since the uncopied link would
    be lost.
 3. They open the link, set a password, and land in the organization at the role
-   you chose. Only a link the server rejects (used, expired or revoked) shows
+   you chose. Someone who **already has an account** (in another organization)
+   signs in first and accepts the link: the organization is added to their
+   account. That only works for the account whose email the invitation was sent
+   to; any other signed-in account is refused. Only a link the server rejects (used, expired or revoked) shows
    **This invite link no longer works**; if the page could not reach the server
    or it failed, it shows **Could not check this invitation** with **Try again**,
    so a network blip does not read as a dead link.
@@ -288,6 +293,121 @@ registration always works and becomes the owner, so a fresh or reset deploy can
 always be claimed. Registration is also rate-limited (see
 [Security & access](#security--access)).
 :::
+
+## Organizations
+
+Every project, data source, API key and invitation belongs to one
+**organization**. A self-hosted instance starts with one, the **default
+organization** (slug `default`), and everyone who registers joins it. An account
+can belong to several organizations, with a separate role in each.
+
+The organization API is under `/api/v1/orgs`; the endpoints are listed in the
+[Agent API guide](../integrate/agent-api-guide.md#organizations). Everything
+under `/api/v1/orgs/{org}` answers `404 Organization not found` to anyone who is
+not a member of that organization — the same answer as for an organization that
+does not exist.
+
+### Create an organization
+
+Only a **platform admin** can create one (`POST /api/v1/orgs` with a `name` and
+a `slug`), from a signed-in browser session. This holds for both deployment
+modes until hosted sign-up ships. The creator becomes the new organization's
+**owner**.
+
+The **slug is permanent**: it is part of every organization-qualified URL
+(`/api/v1/orgs/{slug}/...`), and links already sent in email and Slack must keep
+working. It follows the project slug rules (lowercase letters, digits and single
+hyphens), and names that the app routes as something else (`settings`, `orgs`,
+`projects`, `default`, …) are refused.
+
+### Rename an organization
+
+Owners and admins can change the **name** (`PATCH /api/v1/orgs/{org}` with
+`{"name": "..."}`). The slug cannot be changed; a request that sends one is
+refused with `422`.
+
+### Members and roles
+
+`GET /api/v1/orgs/{org}/members` lists the members with their organization role
+(any member may read it). Owners and admins change roles
+(`PATCH /api/v1/orgs/{org}/members/{user_id}`) and remove members
+(`DELETE /api/v1/orgs/{org}/members/{user_id}`), with the same rules as the
+Members screen:
+
+- only an **owner** can make, demote or remove an owner;
+- the **last owner** can be neither demoted nor removed.
+
+Removing a member takes away everything the membership carried **in this
+organization**: their rows on its projects (with the event-type ownerships and
+reviewer seats those carried), every API key of theirs bound to it, which
+stops working at once, and every unused invitation into it that they sent or
+that is addressed to them, so no link minted earlier can bring them back. Their
+account, and their memberships of other organizations, are untouched. The
+response says how many project memberships, keys and invitations went.
+
+A demotion drops the member's unused invitations at roles they can no longer
+grant: an owner who becomes an admin loses their pending `owner` invitations
+(the same happens to the caller of a transfer), and an owner or admin who
+becomes a member loses their pending `owner` and `admin` ones.
+
+### Invitations
+
+Invitations are per organization. `POST /api/v1/orgs/{org}/users/invitations`
+invites into the organization the path names; the legacy
+`/api/v1/users/invitations` keeps inviting into the default organization. See
+[Invite a member](#invite-a-member) for the flow. An address that already has an
+account may be invited into an organization it is not yet in; inviting a current
+member is refused (`409`).
+
+### Transfer ownership
+
+An owner can hand the organization to another member:
+`POST /api/v1/orgs/{org}/transfer-ownership` with `{"user_id": "..."}`. The
+member becomes an **owner** and the caller steps down to **admin**. Another
+owner can always be made with a role change instead; the transfer is the
+one-step way to leave the owner seat.
+
+### Delete an organization
+
+Only an **owner** can delete an organization, and never the default one. The
+request repeats the slug as a confirmation:
+
+```bash
+curl -X DELETE https://tripl.example.com/api/v1/orgs/acme \
+  -H 'Content-Type: application/json' -b cookies.txt \
+  -d '{"confirm_slug": "acme"}'
+```
+
+It answers `202` and the organization is gone for everyone at once: every URL
+under `/api/v1/orgs/acme`, its API keys, its invitation links and its members'
+organization lists all behave as if it never existed. A background job then
+removes everything it owned — each project with its plan, scans, alerting and
+photos (including the stored image files), the data sources, API keys,
+invitations, organization notes, settings and memberships — and finally the
+organization itself. The slug is free again once the job finishes.
+
+If the job cannot be queued (the message broker is down), the request answers
+`503` and the organization is active again. Its audit log shows the
+`org.delete_request` followed by an `org.delete_cancel`.
+
+If the job fails for good (it retries a few times), an hourly check queues it
+again for any organization that has sat in the deleting state for two hours
+without a job working on it, until the purge completes.
+
+Deletion cannot be undone. The audit rows are kept in the database: the
+request's rows lose their organization link when the organization row goes, and
+the completion (`org.delete_complete`) is filed with no organization. No audit
+feed in the app lists any of them after the purge, so reading them takes a
+direct database query.
+
+### Audit
+
+Every organization action is audited: `org.create`, `org.rename`,
+`org.delete_request`, `org.delete_cancel`, `org.delete_complete`,
+`org.member_role_update`,
+`org.member_remove`, `org.transfer_ownership`, and for invitations
+`user.invite`, `user.invite_revoke` and `user.invite_accept`. They appear under
+**Organization** and **Workspace** in the Audit tab's action filter.
 
 ## Profile & account security
 

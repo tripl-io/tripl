@@ -21,8 +21,8 @@ from tripl.auth_utils import (
     verify_password,
 )
 from tripl.config import DEPLOYMENT_SELF_HOSTED, REGISTRATION_OPEN, settings
-from tripl.middleware.org_context import current_org_id
-from tripl.models.domain_enums import OrganizationRole
+from tripl.middleware.org_context import current_org
+from tripl.models.domain_enums import ApiKeyScope, OrganizationRole, OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.user import User
@@ -255,7 +255,11 @@ async def _membership_rows(
     rows = await session.execute(
         select(Organization.id, Organization.slug, Organization.name, OrganizationMember.role)
         .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
-        .where(OrganizationMember.user_id == user_id)
+        # A ``deleting`` organization is gone for every read (F20 PR6).
+        .where(
+            OrganizationMember.user_id == user_id,
+            Organization.status == OrganizationStatus.active.value,
+        )
         .order_by(Organization.name, Organization.slug)
     )
     return [(org_id, slug, name, str(role)) for org_id, slug, name, role in rows.all()]
@@ -269,7 +273,9 @@ async def user_org_memberships(session: AsyncSession, user_id: uuid.UUID) -> lis
     ]
 
 
-async def build_auth_user_response(session: AsyncSession, user: User) -> AuthUserResponse:
+async def build_auth_user_response(
+    session: AsyncSession, user: User, *, api_key_scope: str | None = None
+) -> AuthUserResponse:
     """``/auth/me`` (and the login/register answers) for ``user``.
 
     ``role`` is the user's role in the organization the request acts in: the
@@ -279,7 +285,8 @@ async def build_auth_user_response(session: AsyncSession, user: User) -> AuthUse
     """
     rows = await _membership_rows(session, user.id)
     by_id = {org_id: role for org_id, _slug, _name, role in rows}
-    target = current_org_id()
+    bound = current_org()
+    target = None if bound is None else bound.id
     role: str | None = None
     if target is not None:
         role = by_id.get(target)
@@ -297,6 +304,8 @@ async def build_auth_user_response(session: AsyncSession, user: User) -> AuthUse
             OrgMembershipOut(slug=slug, name=name, role=OrganizationRole(org_role))
             for _org_id, slug, name, org_role in rows
         ],
+        org=None if bound is None else bound.slug,
+        api_key_scope=None if api_key_scope is None else ApiKeyScope(api_key_scope),
         created_at=user.created_at,
         updated_at=user.updated_at,
     )

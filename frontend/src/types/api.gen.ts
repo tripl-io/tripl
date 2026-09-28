@@ -138,9 +138,17 @@ export interface paths {
         put?: never;
         /**
          * Accept Invitation
-         * @description Redeem an invitation into an account, and sign the new user straight in.
+         * @description Redeem an invitation: into a new account, or into the signed-in one.
          *
-         *     Reachable regardless of ``registration_mode`` — that is the entire point:
+         *     Signed in (a browser session cookie): the invitation adds a membership of
+         *     its organization to THIS account, but only when the account's email is the
+         *     invitation's (case-insensitive) — else 403 and the invitation stays unused;
+         *     409 when the account is already a member. Answers 200 and leaves the
+         *     session as it is (F20 PR6).
+         *
+         *     Not signed in: the new-account path, unchanged. ``password`` is required,
+         *     the account is created with the invitation's address and the new user is
+         *     signed straight in (201). Reachable regardless of ``registration_mode`` —
          *     an owner-issued, single-use, expiring, address-bound invitation is a
          *     different mechanism from the instance-wide door, so a closed instance can
          *     still onboard exactly the people its owner named.
@@ -199,6 +207,10 @@ export interface paths {
         /**
          * Get Me
          * @description The signed-in account with its organization role(s) and the platform-admin flag.
+         *
+         *     For an API key it also names the key's organization (``org``) and scope
+         *     (``api_key_scope``): what ``tripl whoami`` prints. Read from the database on
+         *     every call, so a membership added, changed or removed shows at once.
          */
         get: operations["get_me_api_v1_auth_me_get"];
         put?: never;
@@ -487,6 +499,122 @@ export interface paths {
         get: operations["my_unread_count_api_v1_me_notifications_unread_count_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orgs
+         * @description The organizations the caller belongs to, with their role in each.
+         *
+         *     An API key belongs to one organization and lists only that one.
+         */
+        get: operations["list_orgs_api_v1_orgs_get"];
+        put?: never;
+        /**
+         * Create Org
+         * @description Create an organization; the platform admin who creates it becomes its owner.
+         */
+        post: operations["create_org_api_v1_orgs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Org */
+        get: operations["get_org_api_v1_orgs__org__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Org
+         * @description Start deleting the organization: 202, then a background job purges it.
+         *
+         *     The body must repeat the slug (``{"confirm_slug": "<slug>"}``). The default
+         *     organization cannot be deleted. From this response on the organization
+         *     answers 404 everywhere.
+         */
+        delete: operations["delete_org_api_v1_orgs__org__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename Org
+         * @description Rename the organization. Only the name: a ``slug`` in the body is a 422.
+         */
+        patch: operations["rename_org_api_v1_orgs__org__patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Members */
+        get: operations["list_members_api_v1_orgs__org__members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Member
+         * @description Remove a member: their membership, project rows, keys and pending invitations here.
+         */
+        delete: operations["remove_member_api_v1_orgs__org__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Member Role
+         * @description Change a member's organization role (owner | admin | member).
+         */
+        patch: operations["update_member_role_api_v1_orgs__org__members__user_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/transfer-ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Ownership
+         * @description Make another member an owner and step the caller down to admin.
+         */
+        post: operations["transfer_ownership_api_v1_orgs__org__transfer_ownership_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4550,7 +4678,12 @@ export interface paths {
          *
          *     The redeem link is returned in the body, not merely emailed: SMTP is
          *     optional and unconfigured on many instances, so a body-only path is the one
-         *     that always works. It appears here and nowhere else.
+         *     that always works. It appears here and nowhere else. When the operator has
+         *     SMTP configured the link is also mailed, through the operator's relay (never
+         *     an organization's), after the response.
+         *
+         *     The invitation belongs to the organization the request acts in: the one an
+         *     ``/orgs/{org}/users/invitations`` URL names, else the legacy default.
          */
         post: operations["create_invitation_api_v1_users_invitations_post"];
         delete?: never;
@@ -6366,6 +6499,7 @@ export interface components {
          *     operator settings and nothing inside any organization.
          */
         AuthUserResponse: {
+            api_key_scope?: components["schemas"]["ApiKeyScope"] | null;
             /**
              * Created At
              * Format: date-time
@@ -6385,6 +6519,8 @@ export interface components {
             is_platform_admin: boolean;
             /** Name */
             name: string | null;
+            /** Org */
+            org?: string | null;
             /** Orgs */
             orgs?: components["schemas"]["OrgMembershipOut"][];
             role: components["schemas"]["OrganizationRole"] | null;
@@ -10130,7 +10266,7 @@ export interface components {
             /** Name */
             name?: string | null;
             /** Password */
-            password: string;
+            password?: string | null;
         };
         /**
          * InvitationCreate
@@ -11463,6 +11599,41 @@ export interface components {
             request_id_header?: string | null;
         };
         /**
+         * OrgCreate
+         * @description A new organization. The slug is permanent (owner decision 6).
+         */
+        OrgCreate: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * OrgDeleteRequest
+         * @description The typed confirmation: the organization's slug, exactly.
+         */
+        OrgDeleteRequest: {
+            /** Confirm Slug */
+            confirm_slug: string;
+        };
+        /**
+         * OrgMemberRemoved
+         * @description What removing a member took away with the membership (critique #28).
+         */
+        OrgMemberRemoved: {
+            /** Api Keys Revoked */
+            api_keys_revoked: number;
+            /** Invitations Revoked */
+            invitations_revoked: number;
+            /** Project Memberships Removed */
+            project_memberships_removed: number;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
          * OrgMembershipOut
          * @description One organization the signed-in user belongs to, with their role there.
          */
@@ -11472,6 +11643,49 @@ export interface components {
             role: components["schemas"]["OrganizationRole"];
             /** Slug */
             slug: string;
+        };
+        /**
+         * OrgResponse
+         * @description One organization, with the caller's role in it.
+         */
+        OrgResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Name */
+            name: string;
+            role: components["schemas"]["OrganizationRole"];
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["OrganizationStatus"];
+        };
+        /**
+         * OrgTransferOwnership
+         * @description Hand the organization to another member, who becomes an owner.
+         */
+        OrgTransferOwnership: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * OrgUpdate
+         * @description A rename. ``extra="forbid"``: the slug is immutable, so sending one is a 422.
+         */
+        OrgUpdate: {
+            /** Name */
+            name: string;
         };
         /**
          * OrganizationRole
@@ -11484,6 +11698,17 @@ export interface components {
          * @enum {string}
          */
         OrganizationRole: "owner" | "admin" | "member";
+        /**
+         * OrganizationStatus
+         * @description Lifecycle of an organization row (``organizations.status``, F20 PR6).
+         *
+         *     ``deleting`` is set the moment an owner asks to delete the organization; a
+         *     Celery job then purges it. From that moment every read of it answers 404
+         *     (``services.org_resolution``), so nothing new lands in an organization that
+         *     is on its way out.
+         * @enum {string}
+         */
+        OrganizationStatus: "active" | "deleting";
         /**
          * OverviewKpiSeriesResponse
          * @description Real daily series behind Overview KPI sparklines.
@@ -16260,6 +16485,276 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnreadCountResponse"];
+                };
+            };
+        };
+    };
+    list_orgs_api_v1_orgs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"][];
+                };
+            };
+        };
+    };
+    create_org_api_v1_orgs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_api_v1_orgs__org__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+        };
+    };
+    delete_org_api_v1_orgs__org__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_org_api_v1_orgs__org__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_members_api_v1_orgs__org__members_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_v1_orgs__org__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgMemberRemoved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_role_api_v1_orgs__org__members__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserRoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transfer_ownership_api_v1_orgs__org__transfer_ownership_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgTransferOwnership"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -72,6 +72,7 @@ def register_all(
         status,
         upgrade,
         watch,
+        whoami,
     )
 
     doctor.register(subparsers, parent)
@@ -107,6 +108,9 @@ def register_all(
     # A group again: the docs catalog is a class of objects an operator browses
     # (`ls`, `cat`), and `pull`/`push` move a folder of them to and from disk (F22).
     docs.register(subparsers, parent)
+    # One word: it answers one question about the configured key as a whole —
+    # who it acts as, in which organization, with what scope (F20 PR6).
+    whoami.register(subparsers, parent)
 
 
 def group_help(parser: argparse.ArgumentParser) -> Handler:

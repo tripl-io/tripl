@@ -750,3 +750,61 @@ def format_duration(seconds: float) -> str:
     if value < 72 * 3600:
         return f"{value // 3600}h"
     return f"{value // 86400}d"
+
+
+# ``tripl whoami`` (F20 PR6). The key's access comes from ``/auth/me``'s
+# ``api_key_scope``; an older instance that does not send it is read off the
+# token prefix, which the backend derives from the scope's first letter.
+ACCESS_READ = "read"
+ACCESS_WRITE = "write"
+_ACCESS_BY_PREFIX = {"tk_r_": ACCESS_READ, "tk_w_": ACCESS_WRITE}
+
+
+@dataclass(frozen=True)
+class Whoami:
+    """Who the configured key acts as, and where.
+
+    ``reach`` is ``instance`` or ``project`` (see :func:`scope_from_auth`): a
+    project-bound key cannot read ``/auth/me`` at all, so for it every account
+    field is ``None`` and only the reach and the access are known.
+    """
+
+    run: Run
+    reach: str
+    access: str | None
+    user_id: str | None = None
+    email: str | None = None
+    name: str | None = None
+    org: str | None = None
+    role: str | None = None
+    is_platform_admin: bool = False
+    orgs: tuple[str, ...] = ()
+
+
+def access_of_key(api_key: str | None) -> str | None:
+    """``read`` / ``write`` from the token prefix, or ``None`` for anything else."""
+    for prefix, access in _ACCESS_BY_PREFIX.items():
+        if api_key and api_key.startswith(prefix):
+            return access
+    return None
+
+
+def whoami_of(run: Run, me: JsonDict | None, *, reach: str, api_key: str | None) -> Whoami:
+    """Assemble :class:`Whoami` from ``GET /auth/me`` (``None`` when it answered 403)."""
+    if me is None:
+        return Whoami(run=run, reach=reach, access=access_of_key(api_key))
+    access = text_of(me, "api_key_scope") or access_of_key(api_key)
+    return Whoami(
+        run=run,
+        reach=reach,
+        access=access,
+        user_id=text_of(me, "id"),
+        email=text_of(me, "email"),
+        name=text_of(me, "name"),
+        org=text_of(me, "org"),
+        role=text_of(me, "role"),
+        is_platform_admin=me.get("is_platform_admin") is True,
+        orgs=tuple(
+            slug for org in as_list(me.get("orgs")) if (slug := text_of(org, "slug")) is not None
+        ),
+    )

@@ -244,6 +244,18 @@ async def remove_member(
     return removed
 
 
+async def drop_grants_in_projects(
+    session: AsyncSession, project_ids: list[uuid.UUID], user_id: uuid.UUID
+) -> None:
+    """:func:`_drop_project_grants` over several projects: a member leaving an organization.
+
+    No commit. Used by ``org_service.remove_member`` (critique #28), which takes
+    the user out of every project of the organization at once.
+    """
+    for project_id in project_ids:
+        await _drop_project_grants(session, project_id, user_id)
+
+
 async def _drop_project_grants(
     session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID
 ) -> None:

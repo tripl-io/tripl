@@ -57,6 +57,37 @@ only the short form. The rules:
 - `/api/v1/settings`, `/api/v1/project-templates` and `/api/v1/auth` are not
   org-qualified: `/api/v1/orgs/{org}/settings` is reserved for per-organization
   settings and answers `404` until those routes exist.
+- `/api/v1/orgs/{org}`, `/members`, `/members/{user_id}` and
+  `/transfer-ownership` are real routes of the [organization API](#organizations),
+  not rewritten ones.
+
+### Organizations {#organizations}
+
+The organization management API. Everything under `/api/v1/orgs/{org}` answers
+`404 Organization not found` to anyone who is not a member of `{org}`, to an API
+key of another organization, and for an organization being deleted — the same
+answer as for a slug that does not exist, and always before any `403`.
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs` | any account | Your organizations, with your role in each. An API key lists only its own organization. |
+| `POST /api/v1/orgs` | platform admin, browser session | `{"slug", "name"}`; the creator becomes the owner. `409` when the slug is taken, `422` for an invalid or reserved slug. |
+| `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `created_at`. |
+| `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"}` only. The slug is permanent; sending one is `422`. |
+| `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
+| `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role; `limit` / `offset`. |
+| `PATCH /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | `{"role": "owner" \| "admin" \| "member"}`. Only an owner manages owners; the last owner cannot be demoted (`400`). |
+| `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and revokes their keys bound to it. |
+| `POST /api/v1/orgs/{org}/transfer-ownership` | owner, browser session | `{"user_id"}`: that member becomes an owner, the caller an admin. |
+
+API keys never manage an organization: every write above answers `403` to a
+key, whatever its scope. Invitations into an organization are
+`POST /api/v1/orgs/{org}/users/invitations` (owner or admin, browser session).
+
+`GET /api/v1/auth/me` with an API key also returns `org` (the key's organization
+slug) and `api_key_scope` (`read` or `write`); `tripl whoami` prints them. For a
+browser session both are `null`. A project-bound key cannot call `/auth/me`
+(`403`).
 
 ## MCP Server
 
