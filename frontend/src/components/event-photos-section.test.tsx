@@ -57,7 +57,10 @@ function drop(files: File[]) {
 beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   vi.mocked(eventPhotosApi.list).mockResolvedValue([])
-  vi.mocked(eventPhotosApi.limits).mockResolvedValue({ photo_max_size_mb: 10 })
+  vi.mocked(eventPhotosApi.limits).mockResolvedValue({
+    photo_max_size_mb: 10,
+    photo_allowed_mime: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+  })
   vi.mocked(eventPhotosApi.listComments).mockResolvedValue([])
   vi.mocked(eventPhotosApi.upload).mockReset()
 })
@@ -99,23 +102,45 @@ describe('EventPhotosSection uploads (EVT-28)', () => {
     expect(vi.mocked(eventPhotosApi.upload).mock.calls[0]?.[2]).toHaveProperty('name', 'ok.png')
   })
 
-  it('leaves the image type to the server, whose allowed list is an owner setting', async () => {
+  it("follows the organization's own content types, read from the server", async () => {
+    // An organization's list (F20 PR11) may allow AVIF and leave out GIF.
+    vi.mocked(eventPhotosApi.limits).mockResolvedValue({
+      photo_max_size_mb: 10,
+      photo_allowed_mime: ['image/png', 'image/avif'],
+    })
     vi.mocked(eventPhotosApi.upload).mockResolvedValue(PHOTO)
     renderSection()
-    await screen.findByText(/Drop images here/)
+    expect(await screen.findByText(/PNG or AVIF/)).toBeInTheDocument()
 
-    // An instance may allow AVIF; the browser cannot know, so it is not refused here.
-    drop([image('photo.avif', 1024, 'image/avif')])
+    drop([image('photo.avif', 1024, 'image/avif'), image('loop.gif', 1024, 'image/gif')])
 
     await waitFor(() => expect(eventPhotosApi.upload).toHaveBeenCalledTimes(1))
     expect(vi.mocked(eventPhotosApi.upload).mock.calls[0]?.[2]).toHaveProperty('name', 'photo.avif')
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'loop.gif (a type this organization does not accept)',
+    )
+  })
+
+  it('leaves the image type to the server when the list cannot be read', async () => {
+    vi.mocked(eventPhotosApi.limits).mockRejectedValue(new Error('offline'))
+    vi.mocked(eventPhotosApi.upload).mockResolvedValue(PHOTO)
+    renderSection()
+    await screen.findByText(/Drop images here/)
+    await waitFor(() => expect(eventPhotosApi.limits).toHaveBeenCalled())
+
+    drop([image('photo.avif', 1024, 'image/avif')])
+
+    await waitFor(() => expect(eventPhotosApi.upload).toHaveBeenCalledTimes(1))
     expect(screen.queryByText(/Not uploaded/)).toBeNull()
   })
 
   it("refuses a file over the instance's own size limit, read from the server", async () => {
     // An instance that raised the limit to 25 MB takes a 15 MB file; the fixed
     // 10 MB gate this replaced warned about it (EVT-28).
-    vi.mocked(eventPhotosApi.limits).mockResolvedValue({ photo_max_size_mb: 25 })
+    vi.mocked(eventPhotosApi.limits).mockResolvedValue({
+      photo_max_size_mb: 25,
+      photo_allowed_mime: ['image/png'],
+    })
     vi.mocked(eventPhotosApi.upload).mockResolvedValue(PHOTO)
     renderSection()
     expect(await screen.findByText(/up to 25 MB each/)).toBeInTheDocument()

@@ -529,7 +529,10 @@ async def test_org_settings_write_is_scoped_audited_and_secret_safe(hosted: Host
         {"security": {"registration_mode": "open"}},
         {"runtime": {"app_base_url": "https://evil.example.com"}},
         {"ai": {"search_embedding_api_key": "sk-x"}},
-        {"storage": {"photo_allowed_mime": "image/svg+xml"}},
+        # The storage server paths stay the operator's (PR11, critique #12);
+        # an SVG allow-list is refused too, in test_org_photo_storage.py.
+        {"storage": {"photo_local_dir": "/etc"}},
+        {"storage": {"gcs_photo_credentials_path": "/etc/shadow"}},
     ],
 )
 @pytest.mark.asyncio
@@ -736,7 +739,9 @@ def test_org_fields_are_what_the_owner_decided() -> None:
     # PR10: each organization's own vector space; the width stays the operator's.
     assert {"search_embedding_api_key", "search_embedding_base_url"} <= ORG_FIELDS
     assert "search_embedding_dimensions" not in ORG_FIELDS
-    assert "photo_allowed_mime" not in ORG_FIELDS
+    # PR11: photo storage, without the server paths.
+    assert {"photo_storage_backend", "gcs_photo_bucket", "gcs_photo_credentials_json"} <= ORG_FIELDS
+    assert {"photo_local_dir", "gcs_photo_credentials_path"}.isdisjoint(ORG_FIELDS)
     assert "app_base_url" not in ORG_FIELDS
 
 

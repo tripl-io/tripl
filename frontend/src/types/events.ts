@@ -201,9 +201,11 @@ export interface EventPhoto {
   created_at: string
 }
 
-/** GET /settings/photo-limits: what the upload endpoint takes. */
+/** GET /orgs/{org}/settings/photo-limits: what the upload endpoint takes. */
 export interface PhotoLimits {
   photo_max_size_mb: number
+  /** Lower-case content types the organization accepts (F20 PR11). */
+  photo_allowed_mime: string[]
 }
 
 export interface EventPhotoComment {

@@ -1,4 +1,5 @@
 import type { EventPhoto, EventPhotoComment, PhotoLimits } from '../types'
+import { currentOrgSlug } from '@/lib/activeOrg'
 import { uid } from '@/lib/uid'
 import { api, ApiError, AUTH_UNAUTHORIZED_EVENT, orgScopedPath } from './client'
 
@@ -74,8 +75,18 @@ function uploadWithProgress<T>(
 }
 
 export const eventPhotosApi = {
-  /** The instance's upload limit (an owner setting any signed-in user may read). */
-  limits: (): Promise<PhotoLimits> => api.get<PhotoLimits>('/settings/photo-limits'),
+  /**
+   * The ACTIVE organization's upload limits (F20 PR11: its own cap and content
+   * types, within the operator's), readable by every member. The legacy route
+   * guesses an organization for a user in several, so the one on screen is
+   * named whenever there is one.
+   */
+  limits: (): Promise<PhotoLimits> => {
+    const org = currentOrgSlug()
+    return api.get<PhotoLimits>(
+      org ? `/orgs/${encodeURIComponent(org)}/settings/photo-limits` : '/settings/photo-limits',
+    )
+  },
 
   list: (slug: string, eventId: string): Promise<EventPhoto[]> =>
     api.get<EventPhoto[]>(`/projects/${slug}/events/${eventId}/photos`),

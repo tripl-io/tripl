@@ -338,6 +338,8 @@ class _Applier:
                 kept.content_type = photo.content_type
                 kept.size_bytes = photo.size_bytes
                 kept.storage_backend = photo.storage_backend
+                kept.storage_org_id = photo.storage_org_id
+                kept.storage_config_id = photo.storage_config_id
                 kept.sort_order = photo.sort_order
                 kept.uploaded_by_user_id = photo.uploaded_by_user_id
                 continue
@@ -354,6 +356,8 @@ class _Applier:
                     external_url=photo.external_url,
                     storage_backend=photo.storage_backend,
                     storage_key=photo.storage_key,
+                    storage_org_id=photo.storage_org_id,
+                    storage_config_id=photo.storage_config_id,
                     sort_order=photo.sort_order,
                 )
             )

@@ -6,22 +6,23 @@ import type {
 } from '@/api/orgSettings'
 
 /**
- * The pure half of Organization › Email, AI, Search and Limits (F20 PR9,
- * PR10): the draft,
+ * The pure half of Organization › Email, AI, Search, Storage and Limits (F20
+ * PR9-PR11): the draft,
  * what a save sends, and the rules the backend applies that the page has to
  * say out loud (credential groups, operator ceilings, the fallback policy).
  * Mirrors backend/src/tripl/services/_org_settings_merge.py.
  */
 
-export type OrgSection = 'limits' | 'email' | 'ai' | 'search'
+export type OrgSection = 'limits' | 'email' | 'ai' | 'search' | 'storage'
 
-export const ORG_SECTIONS: readonly OrgSection[] = ['email', 'ai', 'search', 'limits']
+export const ORG_SECTIONS: readonly OrgSection[] = ['email', 'ai', 'search', 'storage', 'limits']
 
 /** The settings path of each section (`/settings/<path>`). */
 export const ORG_SECTION_PATHS: Record<OrgSection, string> = {
   email: 'organization/email',
   ai: 'organization/ai',
   search: 'organization/search',
+  storage: 'organization/storage',
   limits: 'organization/limits',
 }
 
@@ -39,13 +40,14 @@ export type DraftValue = string | boolean | null
 export type OrgDraft = Readonly<Record<string, DraftValue>>
 export type OrgDrafts = Readonly<Record<OrgSection, OrgDraft>>
 
-export const EMPTY_DRAFTS: OrgDrafts = { limits: {}, email: {}, ai: {}, search: {} }
+export const EMPTY_DRAFTS: OrgDrafts = { limits: {}, email: {}, ai: {}, search: {}, storage: {} }
 
 /** Secrets are write-only: the response only says whether one is configured. */
 export const SECRET_FIELDS: ReadonlySet<string> = new Set([
   'ai_api_key',
   'smtp_password',
   'search_embedding_api_key',
+  'gcs_photo_credentials_json',
 ])
 
 /** Sent as numbers; typed as text. */
@@ -55,6 +57,8 @@ export const NUMBER_FIELDS: ReadonlySet<string> = new Set([
   'smtp_port',
   'ai_timeout_seconds',
   'ai_max_output_tokens',
+  'photo_max_size_mb',
+  'gcs_photo_signed_url_ttl_seconds',
 ])
 
 /** Capped at the operator's value (backend `CEILING_FIELDS`). */
@@ -64,6 +68,7 @@ export const CEILING_FIELDS: readonly CeilingField[] = [
   'metrics_row_limit_default',
   'ai_timeout_seconds',
   'ai_max_output_tokens',
+  'photo_max_size_mb',
 ]
 
 function isCeilingField(field: string): field is CeilingField {
@@ -99,11 +104,28 @@ export const EMBEDDING_GROUP = [
   'search_embedding_api_key',
 ] as const
 
+/**
+ * Where the organization's photos are written (F20 PR11, backend
+ * `STORAGE_GROUP`): an own bucket always goes with its own service-account
+ * JSON, never the platform's credentials. The size cap and content types are
+ * not part of it.
+ */
+export const STORAGE_GROUP = [
+  'photo_storage_backend',
+  'gcs_photo_bucket',
+  'gcs_photo_credentials_json',
+  'gcs_photo_public',
+  'gcs_photo_signed_url_ttl_seconds',
+] as const
+
+type GroupSection = 'ai' | 'email' | 'search' | 'storage'
+
 /** Each credential-group section, its group and the secret in it. */
-const GROUPS: Record<'ai' | 'email' | 'search', { group: readonly string[]; secret: string }> = {
+const GROUPS: Record<GroupSection, { group: readonly string[]; secret: string }> = {
   ai: { group: AI_ENDPOINT_GROUP, secret: 'ai_api_key' },
   email: { group: SMTP_GROUP, secret: 'smtp_password' },
   search: { group: EMBEDDING_GROUP, secret: 'search_embedding_api_key' },
+  storage: { group: STORAGE_GROUP, secret: 'gcs_photo_credentials_json' },
 }
 
 export function sourceOf(settings: OrgSettings, section: OrgSection, field: string): OrgSettingSource {
@@ -174,6 +196,8 @@ export function numberError(field: string, value: DraftValue, settings: OrgSetti
   const text = value.trim()
   if (!/^\d+$/.test(text) || Number(text) < 1) return 'Enter a whole number of at least 1.'
   if (field === 'smtp_port' && Number(text) > 65535) return 'A port is at most 65535.'
+  if (field === 'gcs_photo_signed_url_ttl_seconds' && (Number(text) < 60 || Number(text) > 604800))
+    return 'Between 60 seconds and 7 days (604800).'
   // The operator's own scope has no ceiling above it.
   if (settings.scope === 'organization' && isCeilingField(field)) {
     const ceiling = settings.ceilings[field]
@@ -183,9 +207,12 @@ export function numberError(field: string, value: DraftValue, settings: OrgSetti
 }
 
 export function draftInvalid(settings: OrgSettings, draft: OrgDraft): boolean {
-  return Object.entries(draft).some(
-    ([field, value]) => NUMBER_FIELDS.has(field) && numberError(field, value, settings) !== null,
-  )
+  return Object.entries(draft).some(([field, value]) => {
+    if (NUMBER_FIELDS.has(field)) return numberError(field, value, settings) !== null
+    if (field === 'photo_allowed_mime' && settings.scope === 'organization')
+      return mimeListError(value, settings.storage_limits.operator_allowed_mime) !== null
+    return false
+  })
 }
 
 /** The PATCH body for one section's draft. An empty secret is no change. */
@@ -268,7 +295,7 @@ export function clearGroup(draft: OrgDraft, settings: OrgSettings, section: OrgS
 export function groupWarning(
   settings: OrgSettings,
   draft: OrgDraft,
-  section: 'ai' | 'email' | 'search',
+  section: GroupSection,
 ): { starting: boolean; missingSecret: boolean } | null {
   const { group, secret } = GROUPS[section]
   if (!groupOwnedAfterSave(settings, draft, section, group)) return null
@@ -282,5 +309,27 @@ export const SECTION_TITLES: Record<OrgSection, string> = {
   email: 'Email',
   ai: 'AI',
   search: 'Search',
+  storage: 'Photo storage',
   limits: 'Limits',
+}
+
+/** An organization's content types, lower-cased: `"image/png, IMAGE/GIF"` -> two. */
+export function splitMimeList(value: string): string[] {
+  return value
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(item => item !== '')
+}
+
+/**
+ * What is wrong with a content-type list, or null (backend: the organization's
+ * list may only narrow the operator's).
+ */
+export function mimeListError(value: DraftValue, operatorAllowed: readonly string[]): string | null {
+  if (value === null || typeof value === 'boolean') return null
+  const wanted = splitMimeList(value)
+  if (wanted.length === 0) return 'List at least one content type, or use the inherited list.'
+  const refused = wanted.filter(item => !operatorAllowed.includes(item))
+  if (refused.length > 0) return `Not allowed by the operator: ${refused.join(', ')}.`
+  return null
 }

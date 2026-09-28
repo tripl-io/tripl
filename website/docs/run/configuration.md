@@ -181,15 +181,20 @@ built-in default**, subject to three rules:
 - **A secret travels with its endpoint.** The AI endpoint, key and model form
   one group; the SMTP host, port, security, username, password and From:
   address form another; the search-embedding base URL, provider, model and key
-  form a third. An organization that sets any field of a group owns the
+  form a third; the photo storage backend, GCS bucket, service-account JSON,
+  public-URL switch and signed-URL lifetime a fourth. An organization that sets any field of a group owns the
   whole group: fields it left empty take the built-in default (a secret is
   empty), never the operator's. Pointing `ai_base_url`, `smtp_host` or
   `search_embedding_base_url` at your own server therefore never sends the
-  operator's key or password there.
+  operator's key or password there, and an organization's own bucket is never
+  written with the server's GCS credentials.
 - **Operator ceilings.** An organization's `scan_row_limit_default`,
-  `metrics_row_limit_default`, `ai_timeout_seconds` and `ai_max_output_tokens`
-  may lower the operator's value, never raise it: a higher value is refused on
-  save (`422`) and clamped at use if the operator later lowers theirs.
+  `metrics_row_limit_default`, `ai_timeout_seconds`, `ai_max_output_tokens`
+  and `photo_max_size_mb` may lower the operator's value, never raise it: a
+  higher value is refused on save (`422`) and clamped at use if the operator
+  later lowers theirs. Likewise an organization's `photo_allowed_mime` may only
+  narrow the operator's allow-list: a content type the operator does not allow
+  (SVG, HTML) is refused on save and dropped at use.
 - **Public hosts only, for organizations.** An organization's `ai_base_url`,
   `search_embedding_base_url` and `smtp_host` must not be (or resolve to) a
   private, loopback or link-local address, in either deployment mode. The check
@@ -224,6 +229,33 @@ sweep. The operator's own base URL stays env-only (`SEARCH_EMBEDDING_BASE_URL`):
 on a `self_hosted` instance the default organization cannot change it in
 settings (`422`).
 
+**Photo storage per organization.** An organization's owners and admins can
+give it storage of its own under **Settings → Organization → Photos**: a GCS
+bucket with the organization's own service-account JSON key (pasted in the
+page, encrypted at rest, never returned: the response only says whether one is
+configured). On a `self_hosted` instance an organization other than the default
+one may pick the `local` backend instead (the operator's `PHOTO_LOCAL_DIR`); on
+a `hosted` instance it may not (`422`). The server paths `PHOTO_LOCAL_DIR` and
+`GCS_PHOTO_CREDENTIALS_PATH` are the operator's alone. An organization without
+storage of its own uses the operator's, whatever
+`ORG_SETTINGS_OPERATOR_FALLBACK` says. The save is refused (`422`) for a GCS
+bucket without a key of its own, a key that is not a loadable service-account
+JSON, a key whose `token_uri` is not `https://oauth2.googleapis.com/token` or
+whose `universe_domain` is not `googleapis.com` (the server would otherwise
+send its token requests wherever the key says), or an invalid bucket name. Changes apply to the next upload: every photo
+row records the organization and the **storage version** it was written with
+(a `photo_storage_configs` row per distinct bucket/key/flags), and each photo is
+read and deleted through that version, so moving to another bucket or rotating
+the key keeps older photos working as long as the old bucket and key still
+grant access. New uploads are keyed `orgs/{organization id}/events/...` on
+whichever store they land in. Everyone in the organization can read its upload
+limits at `GET /api/v1/orgs/{org}/settings/photo-limits`. Deleting an
+organization deletes its photos through its own storage. The
+Content-Security-Policy admits `https://storage.googleapis.com` images for the
+pages of an instance where the operator or any organization stores photos in
+GCS, and per organization for API responses; a policy set with
+`CONTENT_SECURITY_POLICY` is used as given.
+
 **Tracker defaults per organization.** An organization's owners and admins can
 set Jira and Linear defaults under **Settings → Organization → Trackers**: the
 Jira site, account e-mail, API token and default project key, and a Linear API
@@ -238,7 +270,9 @@ must be `https` and public (checked on save and before every call).
 | Public URL (`APP_BASE_URL`) | Operator | **Settings → Platform** |
 | Security & access (CORS, cookies, headers, rate limits, `REGISTRATION_MODE`) | Operator | **Settings → Platform** |
 | Observability (request id, logging, metrics, tracing) | Operator | **Settings → Platform** |
-| Photo storage (all 8 fields, incl. `PHOTO_MAX_SIZE_MB` and the MIME allow-list) | Operator (per-organization storage comes later) | **Settings → Platform** |
+| `PHOTO_LOCAL_DIR`, `GCS_PHOTO_CREDENTIALS_PATH` (server paths) | Operator | **Settings → Platform** |
+| Photo storage: backend, GCS bucket, public URLs, URL lifetime, service-account JSON (organization only) | Organization (inherits the operator's store when unset) | **Settings → Organization → Photos** |
+| `PHOTO_MAX_SIZE_MB`, `PHOTO_ALLOWED_MIME` | Organization (capped by / a subset of the operator's) | **Settings → Organization → Photos** |
 | Search embeddings: switch, provider, model, key, base URL | Organization (the operator's base URL is env-only) | **Settings → Organization → Search** |
 | `SEARCH_EMBEDDING_DIMENSIONS` | Operator, env-only (1536) | read-only |
 | Jira / Linear tracker defaults (site, account, token, project; key, team) | Organization (no operator layer; projects override) | **Settings → Organization → Trackers** |
@@ -258,9 +292,13 @@ key and password included) take a platform admin (`403 Platform admin
 required`), because password-reset and invitation mail go through that relay
 and, with `ORG_SETTINGS_OPERATOR_FALLBACK=all`, every other organization
 inherits both. The same applies to the embedding key, provider, model and
-switch. The API is `GET/PATCH/PUT /api/v1/orgs/{org}/settings` (with
+switch, and to the storage fields: the operator's bucket holds every inheriting
+organization's photos, and its size cap and content types are every
+organization's ceiling. The operator's storage values take effect when the
+server restarts; an organization's own apply to its next upload. The API is `GET/PATCH/PUT /api/v1/orgs/{org}/settings` (with
 `POST .../ai/test` and `.../email/test`, and `GET/PATCH .../trackers` for the
-tracker defaults) for an organization's owners and admins,
+tracker defaults) for an organization's owners and admins, plus
+`GET .../photo-limits` for every member,
 and `GET/PATCH /api/v1/platform/settings` (with the same two probes) for a
 platform admin. The older `/api/v1/settings` still answers with the combined
 view: operator fields as the operator has them and organization fields as the
@@ -441,9 +479,9 @@ only place the failure surfaces.
 | --- | --- | --- |
 | `PHOTO_STORAGE_BACKEND` | `local` | `local` (filesystem, served via authenticated API endpoint) or `gcs` (Google Cloud Storage). |
 | `PHOTO_LOCAL_DIR` | `./var/photos` | Directory for the `local` backend. In the shipped image this resolves to `/app/var/photos`, which is writable by the image's `app` user and mounted as the `photos` volume by `compose.yaml`. Point it elsewhere only at another mounted, writable volume, or uploads are lost when the container is recreated. |
-| `PHOTO_MAX_SIZE_MB` | `10` | Max upload size in MB. A request to the photo routes whose body is larger than this plus 1 MiB of multipart framing is refused with `413` without being read past that limit. |
+| `PHOTO_MAX_SIZE_MB` | `10` | Max upload size in MB, and the ceiling of every organization's own cap. A request to the photo routes whose body is larger than this plus 1 MiB of multipart framing is refused with `413` without being read past that limit (before any organization is known). |
 | `MAX_REQUEST_BODY_MB` | `2` | App-wide JSON/body limit in MiB. The photo upload route uses `PHOTO_MAX_SIZE_MB` plus multipart framing instead. Oversized requests return `413` before parsing or authentication. |
-| `PHOTO_ALLOWED_MIME` | `image/jpeg,image/png,image/gif,image/webp` | Allowed MIME types (comma-separated). |
+| `PHOTO_ALLOWED_MIME` | `image/jpeg,image/png,image/gif,image/webp` | Allowed MIME types (comma-separated). An organization's own list may only narrow it. |
 | `GCS_PHOTO_BUCKET` | `""` | GCS bucket for the `gcs` backend. |
 | `GCS_PHOTO_CREDENTIALS_PATH` | `""` | Service-account JSON path. Empty falls back to Application Default Credentials. Credentials that cannot sign URLs (Application Default Credentials on Compute Engine or workload identity, `gcloud` user credentials) make photos fall back to the authenticated `/file` endpoint instead of signed URLs. |
 | `GCS_PHOTO_PUBLIC` | `false` | Return public URLs instead of time-limited signed URLs. |
@@ -457,10 +495,14 @@ more and that are older than `PHOTO_ORPHAN_SWEEP_GRACE_HOURS`. Newer files are
 never touched, because an upload writes its file before it saves the row. When
 no photo row at all references a backend, the sweep skips that backend and logs
 a warning instead of deleting: that is what an empty or half-restored database
-looks like, not a directory of orphans. Only
-keys under `events/` are considered, so other files in the directory or bucket
-are left alone. The sweep covers the `local` backend and, when `GCS_PHOTO_BUCKET`
-is set, the `gcs` backend, including rows written before a backend switch. It
+looks like, not a directory of orphans. Only the prefixes tripl writes are
+listed — `events/` (uploads before per-organization storage) and
+`orgs/{organization id}/events/` for each organization that exists — so other
+files in the directory or bucket are left alone. The sweep covers the `local`
+backend and, when `GCS_PHOTO_BUCKET` is set, the `gcs` backend, including rows
+written before a backend switch; and each organization's own bucket, with the
+organization's own key and under its own prefix only. A file any photo row
+names is kept, in any store. It
 runs on `celery-worker`, which therefore mounts the same `photos` volume as
 `app`. A worker without that mount sees an empty directory and deletes nothing.
 

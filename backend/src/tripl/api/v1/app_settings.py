@@ -31,11 +31,11 @@ from tripl.services import (
     _settings_probe,
     app_settings_service,
     audit_service,
-    event_photo_service,
     org_settings_service,
+    photo_storage_service,
     project_access,
 )
-from tripl.services.app_settings_service import OPERATOR_FIELDS, ORG_FIELDS
+from tripl.services.app_settings_service import OPERATOR_FIELDS, ORG_FIELDS, STORAGE_FIELDS
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,12 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 #: Response sections that are wholly the operator's infrastructure.
 _OPERATOR_SECTIONS: tuple[str, ...] = ("security", "storage", "observability")
+
+#: What this legacy route writes to the OPERATOR scope, platform admins only.
+#: The storage section is the operator's own store and ceilings here, as it
+#: always was: an organization's own storage (F20 PR11) is set under
+#: ``/orgs/{org}/settings`` (``storage``), never through this combined view.
+_LEGACY_OPERATOR_FIELDS: frozenset[str] = OPERATOR_FIELDS | frozenset(STORAGE_FIELDS)
 _EMBEDDING_URL_SOURCE = "ai.search_embedding_base_url"
 
 
@@ -92,7 +98,9 @@ def _for_caller(payload: dict[str, Any], user: User) -> CombinedSettingsResponse
             **dict.fromkeys(_OPERATOR_SECTIONS),
             "ai": ai,
             "overridden_fields": [
-                field for field in response.overridden_fields if field not in OPERATOR_FIELDS
+                field
+                for field in response.overridden_fields
+                if field not in _LEGACY_OPERATOR_FIELDS
             ],
             "sources": {
                 key: value
@@ -126,13 +134,17 @@ async def _combined_payload(session: AsyncSession, org_id: uuid.UUID | None) -> 
     resolved = await app_settings_service.resolve_for_org(session, org_id)
     if resolved.org_scope is not None:
         operator_overrides = await app_settings_service.get_service_overrides(session)
+        operator = app_settings_service.resolve_settings(operator_overrides, None)
         overridden = {
-            *resolved.overridden_fields,
-            *(field for field in operator_overrides if field in OPERATOR_FIELDS),
+            *(field for field in resolved.overridden_fields if field not in STORAGE_FIELDS),
+            *(field for field in operator_overrides if field in _LEGACY_OPERATOR_FIELDS),
         }
+        # The storage section is the operator's here (see _LEGACY_OPERATOR_FIELDS).
+        values = {**resolved.values, **{f: operator.values[f] for f in STORAGE_FIELDS}}
+        sources = {**resolved.sources, **{f: operator.sources[f] for f in STORAGE_FIELDS}}
         resolved = app_settings_service.ResolvedSettings(
-            values=resolved.values,
-            sources=resolved.sources,
+            values=values,
+            sources=sources,
             org_scope=resolved.org_scope,
             overridden_fields=tuple(sorted(overridden)),
             guarded_hosts=resolved.guarded_hosts,
@@ -159,8 +171,10 @@ async def patch_service_settings(
 ) -> CombinedSettingsResponse:
     changes = _flatten_update(payload)
     org_id = await _legacy_org(request, session, current_user)
-    operator_changes = {k: v for k, v in changes.items() if k in OPERATOR_FIELDS}
-    org_changes = {k: v for k, v in changes.items() if k in ORG_FIELDS}
+    operator_changes = {k: v for k, v in changes.items() if k in _LEGACY_OPERATOR_FIELDS}
+    org_changes = {
+        k: v for k, v in changes.items() if k in ORG_FIELDS and k not in _LEGACY_OPERATOR_FIELDS
+    }
     if operator_changes and not current_user.is_platform_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PLATFORM_ADMIN_REQUIRED)
     org_scope = app_settings_service.settings_scope_for(org_id)
@@ -236,15 +250,26 @@ async def put_service_settings(
 
 
 @router.get("/photo-limits", response_model=PhotoLimitsResponse)
-async def get_photo_limits() -> PhotoLimitsResponse:
-    """The photo upload limit, readable by every signed-in user.
+async def get_photo_limits(
+    request: Request, session: SessionDep, current_user: CurrentUserDep
+) -> PhotoLimitsResponse:
+    """The photo upload limits, readable by every signed-in user.
 
-    The rest of this router is for settings admins; this one value is not, because it is
-    an editor's upload it refuses and the browser should say so before the
-    upload rather than after (EVT-28). The router's own dependency still
-    requires a session.
+    The rest of this router is for settings admins; these values are not, because it is
+    an editor's upload they refuse and the browser should say so before the
+    upload rather than after (EVT-28). The caller's organization's limits
+    (F20 PR11), resolved like the rest of the legacy route; the operator's when
+    it resolves none. ``/orgs/{org}/settings/photo-limits`` names one.
     """
-    return PhotoLimitsResponse(photo_max_size_mb=event_photo_service.max_size_mb())
+    org_id = await _legacy_org(request, session, current_user)
+    policy = await photo_storage_service.policy_for_org(session, org_id)
+    return photo_limits_response(policy)
+
+
+def photo_limits_response(policy: photo_storage_service.PhotoPolicy) -> PhotoLimitsResponse:
+    return PhotoLimitsResponse(
+        photo_max_size_mb=policy.max_size_mb, photo_allowed_mime=list(policy.allowed_mime)
+    )
 
 
 @router.get("/row-limits", response_model=RowLimitDefaultsResponse)

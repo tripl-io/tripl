@@ -790,7 +790,7 @@
           "settings"
         ],
         "summary": "Get Photo Limits",
-        "description": "The photo upload limit, readable by every signed-in user.\n\nThe rest of this router is for settings admins; this one value is not, because it is\nan editor's upload it refuses and the browser should say so before the\nupload rather than after (EVT-28). The router's own dependency still\nrequires a session.",
+        "description": "The photo upload limits, readable by every signed-in user.\n\nThe rest of this router is for settings admins; these values are not, because it is\nan editor's upload they refuse and the browser should say so before the\nupload rather than after (EVT-28). The caller's organization's limits\n(F20 PR11), resolved like the rest of the legacy route; the operator's when\nit resolves none. ``/orgs/{org}/settings/photo-limits`` names one.",
         "operationId": "get_photo_limits_api_v1_settings_photo_limits_get",
         "responses": {
           "200": {
@@ -19261,6 +19261,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RowLimitDefaultsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/settings/photo-limits": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Get Org Photo Limits",
+        "description": "The organization's photo upload limits (F20 PR11), readable by every member.",
+        "operationId": "get_org_photo_limits_api_v1_orgs__org__settings_photo_limits_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhotoLimitsResponse"
                 }
               }
             }
@@ -38264,6 +38286,10 @@
           "ai_max_output_tokens": {
             "type": "integer",
             "title": "Ai Max Output Tokens"
+          },
+          "photo_max_size_mb": {
+            "type": "integer",
+            "title": "Photo Max Size Mb"
           }
         },
         "type": "object",
@@ -38271,7 +38297,8 @@
           "scan_row_limit_default",
           "metrics_row_limit_default",
           "ai_timeout_seconds",
-          "ai_max_output_tokens"
+          "ai_max_output_tokens",
+          "photo_max_size_mb"
         ],
         "title": "OrgSettingsCeilings",
         "description": "The operator's maxima: an organization's value above one is clamped to it."
@@ -38289,6 +38316,9 @@
           },
           "search": {
             "$ref": "#/components/schemas/OrgSearchSettings"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/OrgStorageSettings"
           },
           "organization": {
             "type": "string",
@@ -38315,6 +38345,9 @@
           },
           "ceilings": {
             "$ref": "#/components/schemas/OrgSettingsCeilings"
+          },
+          "storage_limits": {
+            "$ref": "#/components/schemas/OrgStorageLimits"
           },
           "overridden_fields": {
             "items": {
@@ -38344,11 +38377,13 @@
           "email",
           "ai",
           "search",
+          "storage",
           "organization",
           "scope",
           "operator_fallback",
           "inherited",
           "ceilings",
+          "storage_limits",
           "overridden_fields",
           "sources"
         ],
@@ -38395,6 +38430,16 @@
                 "type": "null"
               }
             ]
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OrgStorageSettingsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -38414,6 +38459,9 @@
           },
           "search": {
             "$ref": "#/components/schemas/OrgSearchSettings"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/OrgStorageSettings"
           }
         },
         "type": "object",
@@ -38421,9 +38469,171 @@
           "limits",
           "email",
           "ai",
-          "search"
+          "search",
+          "storage"
         ],
         "title": "OrgSettingsValues"
+      },
+      "OrgStorageLimits": {
+        "properties": {
+          "operator_allowed_mime": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Operator Allowed Mime"
+          },
+          "local_backend_allowed": {
+            "type": "boolean",
+            "title": "Local Backend Allowed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operator_allowed_mime",
+          "local_backend_allowed"
+        ],
+        "title": "OrgStorageLimits",
+        "description": "What the operator allows an organization's storage (F20 PR11)."
+      },
+      "OrgStorageSettings": {
+        "properties": {
+          "photo_storage_backend": {
+            "type": "string",
+            "title": "Photo Storage Backend"
+          },
+          "photo_max_size_mb": {
+            "type": "integer",
+            "title": "Photo Max Size Mb"
+          },
+          "photo_allowed_mime": {
+            "type": "string",
+            "title": "Photo Allowed Mime"
+          },
+          "gcs_photo_bucket": {
+            "type": "string",
+            "title": "Gcs Photo Bucket"
+          },
+          "gcs_photo_credentials_configured": {
+            "type": "boolean",
+            "title": "Gcs Photo Credentials Configured"
+          },
+          "gcs_photo_public": {
+            "type": "boolean",
+            "title": "Gcs Photo Public"
+          },
+          "gcs_photo_signed_url_ttl_seconds": {
+            "type": "integer",
+            "title": "Gcs Photo Signed Url Ttl Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "photo_storage_backend",
+          "photo_max_size_mb",
+          "photo_allowed_mime",
+          "gcs_photo_bucket",
+          "gcs_photo_credentials_configured",
+          "gcs_photo_public",
+          "gcs_photo_signed_url_ttl_seconds"
+        ],
+        "title": "OrgStorageSettings",
+        "description": "An organization's photo storage (F20 PR11). No server paths: the local\ndirectory and the operator's credential file are the operator's alone."
+      },
+      "OrgStorageSettingsUpdate": {
+        "properties": {
+          "photo_storage_backend": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "local",
+                  "gcs"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Storage Backend"
+          },
+          "photo_max_size_mb": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Max Size Mb"
+          },
+          "photo_allowed_mime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Allowed Mime"
+          },
+          "gcs_photo_bucket": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 222
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gcs Photo Bucket"
+          },
+          "gcs_photo_credentials_json": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 65536
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gcs Photo Credentials Json"
+          },
+          "gcs_photo_public": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gcs Photo Public"
+          },
+          "gcs_photo_signed_url_ttl_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 604800.0,
+                "minimum": 60.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gcs Photo Signed Url Ttl Seconds"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "OrgStorageSettingsUpdate",
+        "description": "Backend, bucket, credential JSON, public URLs and URL lifetime are ONE\ngroup: setting any of them makes the organization's photos go to its own\nstorage, and the platform's credentials are never used on its bucket.\n``gcs_photo_credentials_json`` is the service-account key file's content:\nstored encrypted, never returned; ``null`` or an empty string clears it."
       },
       "OrgTrackerDefaultsResponse": {
         "properties": {
@@ -38629,14 +38839,22 @@
           "photo_max_size_mb": {
             "type": "integer",
             "title": "Photo Max Size Mb"
+          },
+          "photo_allowed_mime": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Photo Allowed Mime"
           }
         },
         "type": "object",
         "required": [
-          "photo_max_size_mb"
+          "photo_max_size_mb",
+          "photo_allowed_mime"
         ],
         "title": "PhotoLimitsResponse",
-        "description": "What the upload endpoint will take, for the browser to say so up front.\n\n``photo_max_size_mb`` is an owner setting; every signed-in user may read it,\nbecause an editor's upload is what it refuses (EVT-28)."
+        "description": "What the upload endpoint will take, for the browser to say so up front.\n\n``photo_max_size_mb`` is an owner setting; every signed-in user may read it,\nbecause an editor's upload is what it refuses (EVT-28). Both values are the\norganization's (F20 PR11): its own cap, never above the operator's, and its\nallow-list, never wider than the operator's."
       },
       "PlanBranchCreate": {
         "properties": {

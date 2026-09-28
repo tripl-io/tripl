@@ -47,6 +47,7 @@ from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.notification import Notification
 from tripl.models.organization import Organization, OrganizationMember
 from tripl.models.password_reset_token import PasswordResetToken
+from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.plan_branch import PlanBranch
 from tripl.models.plan_branch_approval import PlanBranchApproval
 from tripl.models.plan_branch_comment import PlanBranchComment
@@ -124,6 +125,7 @@ __all__ = [
     "Notification",
     "Organization",
     "OrganizationMember",
+    "PhotoStorageConfig",
     "PasswordResetToken",
     "PlanBranch",
     "PlanBranchApproval",

@@ -58,7 +58,9 @@ export type SettingsNavItem = {
   /**
    * What people type when they look for this section but do not know its name
    * ("timezone" finds General). Palettes match on these as well as the label
-   * (#238 JR-19).
+   * (#238 JR-19). Only words the label and the other keywords do not already
+   * contain: the palettes match substrings of all of them, and this list
+   * ships in the entry chunk.
    */
   keywords?: readonly string[]
   /**
@@ -130,7 +132,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Details',
         icon: Building2,
         path: 'organization/general',
-        keywords: ['general', 'organization', 'org', 'name', 'rename', 'slug', 'delete organization', 'create organization'],
+        keywords: ['general', 'organization', 'name', 'rename', 'slug', 'delete organization', 'create organization'],
       },
       {
         id: 'members',
@@ -145,7 +147,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: UserPlus,
         path: 'invitations',
         ownerOnly: true,
-        keywords: ['invite', 'invitation', 'add member', 'revoke'],
+        keywords: ['invite', 'add member', 'revoke'],
       },
       {
         id: 'sources',
@@ -161,8 +163,8 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         path: 'api-keys',
         keywords: ['token', 'api key', 'integration'],
       },
-      // The organization's own settings (F20 PR9, PR10, PR12): its mail relay,
-      // AI provider, search embeddings and row caps, each inheriting the
+      // The organization's own settings (F20 PR9-PR12): its mail relay, AI
+      // provider, search embeddings, photo storage and row caps, each inheriting the
       // platform's value until it sets one; and the tracker defaults its
       // projects fall back to.
       {
@@ -184,6 +186,15 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Search',
         icon: Search,
         path: 'organization/search',
+        ownerOnly: true,
+      },
+      {
+        // "Photos", not "Storage": the Platform group's "Storage" is the
+        // operator's store, and two items with one label read as one page.
+        id: 'org-storage',
+        label: 'Photos',
+        icon: Archive,
+        path: 'organization/storage',
         ownerOnly: true,
       },
       {
@@ -234,7 +245,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Password & sessions',
         icon: Lock,
         path: 'security',
-        keywords: ['security', 'password', 'sign out', 'sessions'],
+        keywords: ['security', 'password', 'sign out'],
       },
     ],
   },

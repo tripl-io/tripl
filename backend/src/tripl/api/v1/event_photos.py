@@ -23,11 +23,13 @@ router = APIRouter(
 )
 
 
-async def _to_response(photo, slug: str) -> EventPhotoResponse:  # type: ignore[no-untyped-def]
+async def _to_response(session: SessionDep, photo, slug: str) -> EventPhotoResponse:  # type: ignore[no-untyped-def]
     # The organization this request resolved ``slug`` in (tripl-0chm): the file
     # URL names it, so a later fetch cannot land in another organization.
     org = current_org()
-    url = await event_photo_service.url_for(photo, slug, org.slug if org is not None else None)
+    url = await event_photo_service.url_for(
+        photo, slug, org.slug if org is not None else None, session=session
+    )
     return EventPhotoResponse(
         id=photo.id,
         event_id=photo.event_id,
@@ -52,7 +54,7 @@ async def list_event_photos(
     event_id: uuid.UUID,
 ) -> list[EventPhotoResponse]:
     photos = await event_photo_service.list_photos(session, slug, event_id)
-    return [await _to_response(photo, slug) for photo in photos]
+    return [await _to_response(session, photo, slug) for photo in photos]
 
 
 @router.post("", response_model=EventPhotoResponse, status_code=201)
@@ -63,7 +65,10 @@ async def upload_event_photo(
     current_user: EditorUserDep,
     file: Annotated[UploadFile, File()],
 ) -> EventPhotoResponse:
-    data = await event_photo_service.read_upload(file)
+    # The project's organization's limits and storage (F20 PR11): checked while
+    # the file is read, so a refused upload is never buffered whole.
+    policy = await event_photo_service.policy_for_slug(session, slug)
+    data = await event_photo_service.read_upload(file, policy)
     photo = await event_photo_service.upload_photo(
         session,
         slug,
@@ -72,6 +77,7 @@ async def upload_event_photo(
         content_type=file.content_type or "",
         original_filename=file.filename or "",
         uploaded_by_user_id=current_user.id,
+        policy=policy,
     )
     await audit_service.record(
         session,
@@ -82,7 +88,7 @@ async def upload_event_photo(
         project_slug=slug,
         payload={"event_id": str(event_id)},
     )
-    return await _to_response(photo, slug)
+    return await _to_response(session, photo, slug)
 
 
 @router.patch("/reorder", response_model=list[EventPhotoResponse])
@@ -103,7 +109,7 @@ async def reorder_event_photos(
         project_slug=slug,
         payload={"photo_ids": [str(photo_id) for photo_id in data.photo_ids]},
     )
-    return [await _to_response(photo, slug) for photo in photos]
+    return [await _to_response(session, photo, slug) for photo in photos]
 
 
 @router.delete("/{photo_id}", status_code=204)
@@ -145,7 +151,7 @@ async def download_event_photo(
     if photo.kind != event_photo_service.PHOTO_KIND_PHOTO or not photo.storage_key:
         # Figma-kind attachments have no blob to stream.
         return Response(status_code=204)
-    data = await event_photo_service.read_blob(photo)
+    data = await event_photo_service.read_blob(session, photo)
     return Response(
         content=data,
         media_type=photo.content_type or "application/octet-stream",
@@ -178,7 +184,7 @@ async def attach_figma_spec(
         project_slug=slug,
         payload={"event_id": str(event_id)},
     )
-    return await _to_response(photo, slug)
+    return await _to_response(session, photo, slug)
 
 
 @router.get("/{photo_id}/comments", response_model=list[EventPhotoCommentResponse])
