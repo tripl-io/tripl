@@ -314,12 +314,12 @@ async def delete_group(session: SessionDep, caller: CallerDep, group_id: str) ->
 
 
 @router.api_route("/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
-async def unknown_endpoint(rest: str) -> Response:
+async def unknown_endpoint() -> Response:
     """Every other path under the base URL (``/Bulk``, ``/Me``, a typo): a SCIM 404.
 
     Declared last so every real endpoint matches first; without it such a path
     would fall through to FastAPI's plain 404 (or the SPA). No token is needed
-    to learn that an endpoint does not exist.
+    to learn that an endpoint does not exist. The path parameter is left
+    undeclared: the handler never reads it.
     """
-    del rest
     raise not_found("Endpoint not supported")
