@@ -415,6 +415,14 @@ export const ssoLinkPreviewKey = (ticket: string) => ['sso-link', ticket] as con
 /** An organization's single sign-on configuration and its claimed domains (F20). */
 export const orgSsoKey = (org: string) => [org, 'orgSso'] as const
 export const orgSsoDomainsKey = (org: string) => [org, 'orgSso', 'domains'] as const
+/** An organization's audit webhook and its recent deliveries (F20). The
+ * deliveries nest under the webhook so a save or delete refreshes both. */
+export const orgAuditWebhookKey = (org: string) => [org, 'orgAuditWebhook'] as const
+export const orgAuditWebhookDeliveriesKey = (org: string) =>
+  [org, 'orgAuditWebhook', 'deliveries'] as const
+/** One status filter of those deliveries (`''` for all of them). */
+export const orgAuditWebhookDeliveriesListKey = (org: string, status: string) =>
+  [...orgAuditWebhookDeliveriesKey(org), status] as const
 
 export const usersKey = () => [...orgRoot(), 'users'] as const
 /** Who belongs to one project — `GET /projects/{slug}/members`. The reviewer

@@ -53,6 +53,7 @@ from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.services import (
     audit_service,
+    audit_webhook_service,
     org_group_service,
     org_sso_service,
     project_service,
@@ -229,6 +230,7 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
     await session.execute(delete(OrgScimToken).where(OrgScimToken.organization_id == org_id))
     await org_group_service.delete_org_groups(session, org_id)
     await org_sso_service.delete_org_sso(session, org_id)
+    await audit_webhook_service.delete_org_webhook(session, org_id)
     await session.execute(
         delete(OrganizationMember).where(OrganizationMember.organization_id == org_id)
     )

@@ -21,6 +21,7 @@ import {
   UserCog,
   UserPlus,
   Users,
+  Webhook,
   type LucideIcon,
 } from 'lucide-react'
 import { stripOrgPrefix } from '@/lib/activeOrg'
@@ -252,7 +253,18 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: ScrollText,
         path: 'instance/audit',
         ownerOnly: true,
-        keywords: ['activity', 'who changed', 'log'],
+        keywords: ['activity', 'who changed', 'log', 'export', 'csv', 'download'],
+      },
+      // The audit log leaving tripl (F20): every entry POSTed, signed, to the
+      // organization's SIEM. Listed for owners and admins alike; the page
+      // itself is an owner's, like Single sign-on.
+      {
+        id: 'org-audit-webhook',
+        label: 'Audit webhook',
+        icon: Webhook,
+        path: 'organization/audit-webhook',
+        ownerOnly: true,
+        keywords: ['siem', 'stream', 'signature', 'hmac'],
       },
     ],
   },

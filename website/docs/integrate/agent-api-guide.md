@@ -108,6 +108,28 @@ did not sign in through the organization's provider answers
 key bound to it works only if it was created from a single sign-on session of
 that organization; any other key is `403`.
 
+The audit log leaves tripl two ways (see
+[Exporting the audit log](../administer/admin-guide.md#audit-export) and
+[Audit webhook](../administer/admin-guide.md#audit-webhook)). Neither takes an
+API key: the export is an owner's or admin's browser session, like the audit
+feed, and the webhook an owner's:
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs/{org}/audit/export?format=csv\|json&from=YYYY-MM-DD&to=YYYY-MM-DD&action=` | owner or admin, browser session | A streamed download (`Content-Disposition: attachment`, `audit-<org>-<from>-<to>.<ext>`) of the organization's entries and its projects', ordered by `created_at` then `id`. `csv` is `text/csv` with every cell quoted and formula-like cells (`=`, `+`, `-`, `@`, tab, carriage return) prefixed with `'`; `json` is NDJSON (`application/x-ndjson`), one object per line. Columns: `id`, `created_at`, `org_slug`, `project_slug`, `branch_name`, `user_email`, `action`, `target_type`, `target_id`, `target_name`, `payload`. The range is `from` **included**, `to` **excluded** (both read in UTC; a bare date is midnight), so to include a whole last day send the day after it. `to` must be after `from` and at most 366 days later, else `422`. `action` is optional. Rate-limited (`429`). Audited as `org.audit_export`. |
+| `GET /api/v1/orgs/{org}/audit/webhook` | owner, browser session | Always `200`: `configured`, `url`, `enabled`, `secret_configured` (the secret itself is never returned), `last_success_at`, `last_error`, `last_error_at`. With no webhook, `configured` is `false`, `url` is `""` and `enabled` `false`. |
+| `PUT /api/v1/orgs/{org}/audit/webhook` | owner, browser session | `{"url", "enabled"}`. The URL must be `https`, and on a hosted instance a public address (`422` otherwise). Answers the webhook's fields; the call that creates it also generates the signing secret and returns it once, in `secret`. Rate-limited with `test` (10 a minute, `429`). |
+| `DELETE /api/v1/orgs/{org}/audit/webhook` | owner, browser session | Removes the webhook; nothing more is sent. |
+| `POST /api/v1/orgs/{org}/audit/webhook/rotate-secret` | owner, browser session | The webhook's fields (as `GET`) plus `secret`: a new signing secret, returned once. The old one stops working at once. `404` when there is no webhook. |
+| `POST /api/v1/orgs/{org}/audit/webhook/test` | owner, browser session | Sends a synthetic `audit.webhook_test` event now: `{"ok", "status_code", "error"}`. At most 15 seconds; rate-limited (10 a minute, `429`). |
+| `GET /api/v1/orgs/{org}/audit/webhook/deliveries?status=&limit=` | owner, browser session | Recent deliveries, newest first: `id`, `audit_log_id`, `action`, `status` (`pending`, `sent`, `failed`, `dead`), `attempts`, `next_attempt_at`, `last_error`, `created_at`, `sent_at`. |
+
+Each delivery is a `POST` of one entry as JSON with `X-Tripl-Event-Id` (the
+entry's `id`), `X-Tripl-Timestamp` (Unix seconds) and
+`X-Tripl-Signature: sha256=<hex HMAC-SHA256 of "t=<timestamp>.<raw body>">`
+(the literal `t=`, then the `X-Tripl-Timestamp` value, a dot and the body bytes).
+Webhook changes are audited as `org.audit_webhook.*`, without the secret.
+
 A group id of another organization answers `404 Group not found`, like an id
 that does not exist. Every group change is audited (`org.group.create`,
 `org.group.update`, `org.group.delete`, `org.group.member_add`,

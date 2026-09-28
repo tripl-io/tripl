@@ -248,6 +248,19 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        # F20: reading the log out — the export (filed when it starts) and the
+        # audit webhook's settings (``org.audit_webhook.*``).
+        "Audit log",
+        (
+            "org.audit_export",
+            "org.audit_webhook.create",
+            "org.audit_webhook.update",
+            "org.audit_webhook.delete",
+            "org.audit_webhook.rotate_secret",
+            "org.audit_webhook.test",
+        ),
+    ),
+    (
         # F20: an organization's OIDC single sign-on — its settings and domains
         # (``org.sso.*``) and the sign-ins through it (``user.sso_*``), all
         # filed in the organization.

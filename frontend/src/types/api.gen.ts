@@ -81,6 +81,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Audit
+         * @description Stream the organization's audit log for ``[from, to)`` (UTC; default the
+         *     last 30 days, at most 366). ``to`` is exclusive: to include a whole last
+         *     day, send the day after it. Rows of the organization and of its projects;
+         *     never platform-scope rows. 422 for an empty, reversed or too wide range.
+         */
+        get: operations["export_audit_api_v1_audit_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Audit Webhook */
+        get: operations["get_audit_webhook_api_v1_audit_webhook_get"];
+        /**
+         * Put Audit Webhook
+         * @description Create the webhook (the answer carries its secret, once) or change it.
+         *
+         *     422 for a URL that is not https, carries credentials, or (hosted) names a
+         *     private host.
+         */
+        put: operations["put_audit_webhook_api_v1_audit_webhook_put"];
+        post?: never;
+        /** Delete Audit Webhook */
+        delete: operations["delete_audit_webhook_api_v1_audit_webhook_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit Webhook Deliveries */
+        get: operations["list_audit_webhook_deliveries_api_v1_audit_webhook_deliveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Audit Webhook Secret
+         * @description A new signing secret, shown once; the old one stops working at once.
+         */
+        post: operations["rotate_audit_webhook_secret_api_v1_audit_webhook_rotate_secret_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Audit Webhook Test
+         * @description Send a synthetic ``audit.webhook_test`` event now; 200 whatever the receiver said.
+         */
+        post: operations["send_audit_webhook_test_api_v1_audit_webhook_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/{entry_id}": {
         parameters: {
             query?: never;
@@ -7286,6 +7391,140 @@ export interface components {
             items: components["schemas"]["AuditEntryResponse"][];
             /** Total */
             total: number;
+        };
+        /** AuditWebhookDeliveryResponse */
+        AuditWebhookDeliveryResponse: {
+            /** Action */
+            action: string;
+            /** Attempts */
+            attempts: number;
+            /**
+             * Audit Log Id
+             * Format: uuid
+             */
+            audit_log_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "failed" | "sent" | "dead";
+        };
+        /**
+         * AuditWebhookResponse
+         * @description The webhook as its owner reads it; ``configured`` false when there is none.
+         */
+        AuditWebhookResponse: {
+            /** Configured */
+            configured: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Error At */
+            last_error_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /**
+             * Secret Configured
+             * @default false
+             */
+            secret_configured: boolean;
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /**
+         * AuditWebhookSaved
+         * @description What a create or a rotation answers: the new secret, this once.
+         */
+        AuditWebhookSaved: {
+            /** Configured */
+            configured: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Error At */
+            last_error_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Secret */
+            secret?: string | null;
+            /**
+             * Secret Configured
+             * @default false
+             */
+            secret_configured: boolean;
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /** AuditWebhookTestResult */
+        AuditWebhookTestResult: {
+            /** Error */
+            error?: string | null;
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Ok */
+            ok: boolean;
+            /** Status Code */
+            status_code?: number | null;
+        };
+        /**
+         * AuditWebhookUpdate
+         * @description ``PUT /orgs/{org}/audit/webhook``: create it, or change its URL or switch.
+         *
+         *     The secret is never sent: it is generated on create and on
+         *     ``POST .../rotate-secret``, and shown once.
+         */
+        AuditWebhookUpdate: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Url */
+            url: string;
         };
         /** AuthStatusResponse */
         AuthStatusResponse: {
@@ -17422,6 +17661,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditActionCatalog"];
+                };
+            };
+        };
+    };
+    export_audit_api_v1_audit_export_get: {
+        parameters: {
+            query?: {
+                format?: "csv" | "json";
+                from?: string | null;
+                to?: string | null;
+                action?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rows, oldest first: CSV (a header row) or NDJSON. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": string;
+                    "text/csv": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_audit_webhook_api_v1_audit_webhook_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookResponse"];
+                };
+            };
+        };
+    };
+    put_audit_webhook_api_v1_audit_webhook_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditWebhookUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_audit_webhook_api_v1_audit_webhook_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_audit_webhook_deliveries_api_v1_audit_webhook_deliveries_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "failed" | "sent" | "dead") | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookDeliveryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_audit_webhook_secret_api_v1_audit_webhook_rotate_secret_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookSaved"];
+                };
+            };
+        };
+    };
+    send_audit_webhook_test_api_v1_audit_webhook_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookTestResult"];
                 };
             };
         };

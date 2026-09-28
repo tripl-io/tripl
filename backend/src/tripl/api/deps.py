@@ -819,6 +819,21 @@ async def get_path_org_owner_user(
     return user
 
 
+async def get_org_owner_user(request: Request, session: SessionDep, user: CurrentUserDep) -> User:
+    """An OWNER (not an admin) of the request's bound organization, browser session only.
+
+    :func:`get_owner_user`'s checks (owner or admin, no API key, ``write``
+    scope), then the owner role itself. For org-bound settings reached through
+    the org-qualified rewrite (``/orgs/{org}/audit/webhook``), where the path
+    gates of the real ``/orgs/{org}`` routes do not apply: an admin can read
+    the audit feed, but where it is copied to is the owner's decision.
+    """
+    await _owner_gate(request, session, user, key_reachable=False)
+    if await request_org_role(request, session, user) != OrganizationRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_OWNER_REQUIRED)
+    return user
+
+
 def get_managed_org(request: Request) -> org_service.ManagedOrg:
     """What the route's path-org gate resolved; declare it AFTER that gate."""
     org = getattr(request.state, _MANAGED_ORG_STATE_KEY, None)
@@ -836,6 +851,7 @@ WriteUserDep = Annotated[User, Depends(get_write_user)]
 EditorUserDep = Annotated[User, Depends(get_editor_user)]
 OwnerUserDep = Annotated[User, Depends(get_owner_user)]
 KeyReachableOwnerUserDep = Annotated[User, Depends(get_key_reachable_owner_user)]
+OrgOwnerUserDep = Annotated[User, Depends(get_org_owner_user)]
 OrgMemberUserDep = Annotated[User, Depends(get_org_member_user)]
 PlatformAdminUserDep = Annotated[User, Depends(require_platform_admin)]
 SettingsAdminUserDep = Annotated[User, Depends(get_settings_admin_user)]
@@ -856,6 +872,7 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
     get_settings_admin_user: get_settings_admin_user,
     get_path_org_admin_user: get_path_org_admin_user,
     get_path_org_owner_user: get_path_org_owner_user,
+    get_org_owner_user: get_org_owner_user,
 }
 
 # The route audits in tests/ classify every route by the gate it carries. Each

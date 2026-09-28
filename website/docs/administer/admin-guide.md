@@ -739,6 +739,9 @@ rename as `org.rename`),
 `org.scim.*` plus the changes SCIM makes (marked `via: "scim"`). They appear under
 **Organization** and **Workspace** in the Audit tab's action filter.
 
+To take the log out of tripl, [export it](#audit-export) as CSV or NDJSON, or
+stream every new entry to your SIEM with the [audit webhook](#audit-webhook).
+
 The [platform console](#platform-console)'s six actions have a filter group of
 their own, **Platform**: `org.suspend`, `org.unsuspend`, `platform.step_in`,
 `platform.step_in_end`, `platform.admin_grant` and `platform.admin_revoke`.
@@ -1069,6 +1072,175 @@ owner (removed, deactivated, demoted, or after transferring ownership), their
 tokens are revoked at once and recorded as `org.scim.token_revoke` with
 `reason: "creator_no_longer_owner"`. Create a new token as a remaining owner and
 update the IdP.
+## Exporting the audit log {#audit-export}
+
+Owners and admins of an organization can download its audit log as a file, for
+an auditor, a spreadsheet or a one-off import into a SIEM. Open **Settings →
+Organization → Audit log**, pick a format and a date range in the **Export**
+card, and select **Export**. The browser downloads the file directly; nothing is
+held in the page, so a large export does not slow it down.
+
+- **What is included.** Every entry recorded in the organization, and every
+  entry of its projects. Entries of other organizations and platform-level
+  entries that belong to no organization (such as `platform.admin_grant`) are
+  never included.
+- **Range.** In the **Export** card, **From** and **To** are calendar days in
+  UTC and **both are included**: 1 to 30 September exports all of 30
+  September, and the default range ends with today. One export covers at most
+  **366 days**; export a longer period in parts.
+- **Range in the API.** `from` and `to` are dates (`YYYY-MM-DD`) or ISO 8601
+  timestamps, read in UTC, and the range is **`from` included, `to`
+  excluded**: `to=2026-09-30` stops at midnight at the start of 30 September.
+  To include a whole last day, send the day after it (the Export card does
+  this for you). `to` must be after `from` and at most 366 days later;
+  anything else is refused with `422`.
+- **Formats.** **CSV** (`text/csv`, every cell quoted) or **NDJSON**
+  (`application/x-ndjson`, one JSON object per line). The file is named
+  `audit-<org>-<from>-<to>` with the format's extension.
+- **Columns.** `id`, `created_at` (ISO 8601, UTC), `org_slug`, `project_slug`,
+  `branch_name`, `user_email`, `action`, `target_type`, `target_id`,
+  `target_name` and `payload`. In CSV `payload` is a JSON string; in NDJSON it
+  is an object. Rows are ordered by `created_at`, then `id`.
+- **Spreadsheet safety.** A CSV cell that starts with `=`, `+`, `-`, `@`, a tab
+  or a carriage return gets a leading apostrophe (`'`), so a spreadsheet shows
+  it as text instead of running it as a formula. NDJSON values are unchanged.
+- **Streaming.** The server reads the log in pages of 1,000 entries and streams
+  them as it goes, so an export of a busy year does not have to fit in memory on
+  either side.
+- **Filter.** The API also takes `action=` to export one action only.
+
+The endpoint is `GET /api/v1/orgs/{org}/audit/export?format=csv|json&from=&to=`.
+Like the audit feed, it takes an owner's or admin's **browser session**; an API
+key is refused with `403`, whatever its scope. It is rate-limited to a few
+exports a minute (`429` with `Retry-After` past that). Each export is itself
+recorded as `org.audit_export`, with the format and the range.
+
+## Audit webhook {#audit-webhook}
+
+An organization can stream its audit log to a SIEM or log pipeline as it is
+written: every new entry of the organization and its projects is POSTed, signed,
+to one HTTPS endpoint. Set it up under **Settings → Organization → Audit
+webhook**. Only an organization **owner** can see or change it (an admin gets a
+notice; the API answers `403`), and it takes a browser session.
+
+### Set it up
+
+1. Enter the receiver's **URL** and save. It must be `https://`, and on a hosted
+   instance it must resolve to a public address: private, loopback and
+   link-local addresses are refused when you save and again on every delivery.
+2. The first save generates a **signing secret** and shows it **once**. Copy it
+   into your receiver. tripl stores it encrypted and never shows it again; the
+   page only says whether one is configured.
+3. Select **Send test event**. tripl sends a synthetic `audit.webhook_test`
+   event straight away and shows the status code your receiver answered (or why
+   none came back). Tests and saves are rate-limited to 10 a minute.
+
+**Rotate secret** generates a new secret and shows it once; deliveries are
+signed with the new secret from then on, so update the receiver right away.
+Turning **Send audit entries** off pauses the webhook: entries recorded while
+it is off are not sent later. **Delete webhook** stops deliveries. The page also shows the last successful delivery, the last
+error and a table of recent deliveries with their status.
+
+### Payload
+
+One JSON object per audit entry, `Content-Type: application/json`, with the same
+fields as the [export](#audit-export) (`payload` is an object):
+
+```json
+{
+  "id": "5f1c2a9e-3b4d-4e8f-9a61-0c7d2b3e4f50",
+  "created_at": "2026-09-28T09:14:03.512000Z",
+  "org_slug": "acme",
+  "project_slug": "web",
+  "branch_name": "",
+  "user_email": "alex@example.com",
+  "action": "org.member_role_update",
+  "target_type": "user",
+  "target_id": "8a2b6c1d-7e3f-4a5b-9c0d-1e2f3a4b5c6d",
+  "target_name": "sam@example.com",
+  "payload": { "before": "member", "after": "admin" }
+}
+```
+
+`created_at` is ISO 8601 in UTC with microseconds (`.512000Z`), or with no
+fraction when it is zero; parse it as a timestamp rather than matching its
+length. A field with no value (`project_slug`, `branch_name`, `user_email`,
+`target_name`) is an empty string, not `null`; `target_id` is `null` when the
+entry has no target.
+
+Every request carries three headers:
+
+| Header | Value |
+|---|---|
+| `X-Tripl-Event-Id` | The audit entry's `id`. Use it to drop duplicates: delivery is at least once. |
+| `X-Tripl-Timestamp` | When the request was signed, in Unix seconds. |
+| `X-Tripl-Signature` | `sha256=` followed by the hex HMAC-SHA256 of `t=<timestamp>.<raw body>` (the literal `t=`, the `X-Tripl-Timestamp` value, a dot, then the body bytes), keyed with the signing secret. |
+
+### Verify the signature
+
+Compute the HMAC over `t=`, the timestamp, a dot and the **raw** request body
+exactly as received (not a re-serialized copy), compare it in constant time,
+and reject a timestamp more than a few minutes old so a captured request cannot
+be replayed.
+
+Python:
+
+```python
+import hashlib
+import hmac
+import time
+
+
+def verify(secret: str, body: bytes, timestamp: str, signature: str, tolerance: int = 300) -> bool:
+    if abs(time.time() - int(timestamp)) > tolerance:
+        return False
+    signed = b"t=" + timestamp.encode() + b"." + body
+    expected = "sha256=" + hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+```
+
+Node.js:
+
+```js
+const crypto = require('node:crypto')
+
+function verify(secret, rawBody, timestamp, signature, tolerance = 300) {
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > tolerance) return false
+  const expected =
+    'sha256=' +
+    crypto.createHmac('sha256', secret).update(`t=${timestamp}.`).update(rawBody).digest('hex')
+  const a = Buffer.from(expected)
+  const b = Buffer.from(signature)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+```
+
+In Express, read the body with `express.raw({ type: 'application/json' })` so
+`rawBody` is the exact bytes that were signed.
+
+### Delivery and retries
+
+A background task picks up new entries about every 30 seconds. A delivery
+succeeds when the receiver answers **2xx** within **15 seconds** (no single
+network step may stall for more than 10). Only the status counts: tripl does
+not read the response body, so answer as soon as the event is stored. Anything
+else counts as a failure: another status, a timeout, a connection error, and a
+**redirect** (redirects are never followed). A failed delivery is retried after
+**1 minute, 5 minutes, 30 minutes, 2 hours**, then every **6 hours**; after
+**8 failed attempts** it is marked **dead** and not tried again. Entries are
+delivered independently, so they can arrive out of order: sort by `created_at`
+if order matters.
+
+While the organization is suspended or being deleted, nothing is delivered.
+Delivered entries are removed from the delivery queue after 7 days and dead ones
+after 30 days; the audit log itself is not affected, and the
+[export](#audit-export) remains the way to fill a gap.
+
+### Webhook audit
+
+Every change to the webhook is recorded in the organization's audit log as
+`org.audit_webhook.*` (creating, changing, deleting, rotating the secret and
+sending a test), never with the secret.
 
 ## Platform console
 
