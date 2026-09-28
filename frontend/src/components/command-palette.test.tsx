@@ -318,13 +318,16 @@ describe('CommandPalette', () => {
       throw new Error(`Unhandled fetch: ${url}`)
     })
 
-    renderHarness('/p/demo/events')
+    // A platform admin, so the Platform group's sections are offered too.
+    renderHarness('/p/demo/events', { ...authValue, user: { ...ownerUser, is_platform_admin: true } })
 
     fireEvent.click(screen.getByTestId('open-palette'))
 
     // Canonical terms shared with the settings nav.
     expect(await screen.findByText('Members')).toBeInTheDocument()
     expect(screen.getByText('Runtime')).toBeInTheDocument()
+    expect(screen.getByText('Mail relay')).toBeInTheDocument()
+    expect(screen.getByText('AI & search')).toBeInTheDocument()
 
     // The old, divergent palette-only labels are gone.
     expect(screen.queryByText('Users')).toBeNull()
@@ -373,10 +376,40 @@ describe('CommandPalette', () => {
     await screen.findByText('Demo')
 
     expect(screen.queryByText('Audit log')).toBeNull()
-    // The instance-wide Runtime section is owner-only for the same reason.
-    expect(screen.queryByText('Runtime')).toBeNull()
+    expect(screen.queryByText('Instance audit log')).toBeNull()
+    // The organization's own settings are its owners' and admins'.
+    expect(screen.queryByText('Email')).toBeNull()
+    expect(screen.queryByText('AI')).toBeNull()
+    expect(screen.queryByText('Limits')).toBeNull()
+    // The Platform sections are the platform admin's alone.
+    for (const label of ['Runtime', 'Mail relay', 'AI & search', 'Storage', 'Observability', 'System', 'Security & access']) {
+      expect(screen.queryByText(label), `non-owner offered "${label}"`).toBeNull()
+    }
     // Everything else still shows: this is a filter, not an empty nav.
     expect(screen.getByText('Anomalies')).toBeInTheDocument()
+  })
+
+  it('offers an organization owner its settings but not the Platform ones (F20 PR9)', async () => {
+    // Platform sections carry only `platformOnly`: a palette filtering on
+    // `ownerOnly` alone would hand every signed-in user the operator console.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.endsWith('/api/v1/projects')) return mockJsonResponse([demoProject()])
+      if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
+      throw new Error(`Unhandled fetch: ${url}`)
+    })
+
+    renderHarness('/p/demo/events')
+    fireEvent.click(screen.getByTestId('open-palette'))
+    await screen.findByText('Demo')
+
+    expect(screen.getByText('Email')).toBeInTheDocument()
+    expect(screen.getByText('AI')).toBeInTheDocument()
+    expect(screen.getByText('Limits')).toBeInTheDocument()
+    expect(screen.getByText('Instance audit log')).toBeInTheDocument()
+    for (const label of ['Runtime', 'Mail relay', 'AI & search', 'Storage', 'Observability', 'System', 'Security & access']) {
+      expect(screen.queryByText(label), `owner offered "${label}"`).toBeNull()
+    }
   })
 
   it('toggles via ⌘K keyboard shortcut', async () => {
