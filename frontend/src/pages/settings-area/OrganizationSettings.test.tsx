@@ -68,7 +68,13 @@ function mockApi(org = 'acme', role: Role = 'owner') {
     }
     if (url.startsWith(`${base}/members/`) && method === 'DELETE') {
       return Promise.resolve(
-        jsonResponse({ user_id: 'mb-1', project_memberships_removed: 2, api_keys_revoked: 1, invitations_revoked: 0 }),
+        jsonResponse({
+          user_id: 'mb-1',
+          project_memberships_removed: 2,
+          api_keys_revoked: 1,
+          invitations_revoked: 0,
+          group_memberships_removed: 3,
+        }),
       )
     }
     if (url === `${base}/transfer-ownership`) return Promise.resolve(jsonResponse({ ...MEMBERS[2], role: 'owner' }))
@@ -98,7 +104,12 @@ function Where() {
 
 function renderSection(
   section: React.ReactNode,
-  { org = 'acme', role = 'owner' as Role, platformAdmin = false } = {},
+  {
+    org = 'acme',
+    role = 'owner' as Role,
+    platformAdmin = false,
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }),
+  } = {},
 ) {
   const orgs: OrgMembership[] =
     org === 'default'
@@ -109,7 +120,6 @@ function renderSection(
         ]
   const auth = authAs('member', 'me')
   const value = auth.user ? { ...auth, user: { ...auth.user, orgs, is_platform_admin: platformAdmin } } : auth
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={value}>
@@ -234,7 +244,9 @@ describe('Organization › Members', () => {
 
   it('removes a member after a confirmation and says what went with them', async () => {
     const calls = mockApi()
-    renderSection(<UsersPage />)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    renderSection(<UsersPage />, { queryClient })
 
     // Each row's button names its person, not a list of identical "Remove"s.
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Mo' }))
@@ -245,7 +257,12 @@ describe('Organization › Members', () => {
     await waitFor(() => {
       expect(calls.find((c) => c.method === 'DELETE')?.url).toBe('/api/v1/orgs/acme/members/mb-1')
     })
-    expect(await screen.findByText('Removed Mo, with 2 project memberships, 1 API key.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Removed Mo, with 2 project memberships, 1 API key, 3 group memberships.'),
+    ).toBeInTheDocument()
+    // The Groups page's copies of the roster go stale with it.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['acme', 'orgGroups'] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['acme', 'orgMembers'] })
   })
 
   it('transfers ownership after a confirmation', async () => {

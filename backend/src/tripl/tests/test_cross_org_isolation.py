@@ -185,6 +185,7 @@ KNOWN_PARAMS = frozenset(
         "event_type_id",
         "fact_table_id",
         "field_id",
+        "group_id",
         "invitation_id",
         "key_id",
         "org",
@@ -553,6 +554,17 @@ async def _seed_plan(seed: OrgSeed, p: str) -> None:
     key = await _ok(await c.post(f"{API}/me/api-keys", json={"name": f"{p} key", "scope": "write"}))
     ids["key_id"] = key["id"]
     seed.key_token = key["token"]
+    group = await _ok(
+        await c.post(f"{API}/orgs/{seed.slug}/groups", json={"name": f"{p} team"}), 201
+    )
+    ids["group_id"] = group["id"]
+    await _ok(
+        await c.post(
+            f"{API}/orgs/{seed.slug}/groups/{group['id']}/members",
+            json={"user_id": seed.member_id},
+        ),
+        201,
+    )
 
     await _seed_rows(seed, p)
 
@@ -818,6 +830,9 @@ def _body(method: str, path: str, w: World) -> Any:
         f"{API}/orgs/{{org}}": {"name": "probe"} if method == "PATCH" else {"confirm_slug": ORG_A},
         f"{API}/orgs/{{org}}/members/{{user_id}}": {"role": "member"},
         f"{API}/orgs/{{org}}/transfer-ownership": {"user_id": w.a.member_id},
+        f"{API}/orgs/{{org}}/groups": {"name": "probe"},
+        f"{API}/orgs/{{org}}/groups/{{group_id}}": {"name": "probe"},
+        f"{API}/orgs/{{org}}/groups/{{group_id}}/members": {"user_id": w.a.member_id},
     }
     return table.get(path, {})
 
@@ -1093,6 +1108,15 @@ async def test_org_b_lists_carry_nothing_of_org_a(world: World) -> None:
                 failures.append(f"{actor.name} GET {url} -> {resp.status_code} {resp.text[:120]}")
             elif leaked := _leaks(resp, markers):
                 failures.append(f"{actor.name} GET {url} leaks {leaked}")
+        # Organization groups have no legacy form: B's own list, under B's path.
+        groups_url = f"{API}/orgs/{ORG_B}/groups"
+        groups = await actor.call("GET", groups_url)
+        if groups.status_code != 200:
+            failures.append(f"{actor.name} GET {groups_url} -> {groups.status_code}")
+        elif leaked := _leaks(groups, markers):
+            failures.append(f"{actor.name} GET {groups_url} leaks {leaked}")
+        elif [g["id"] for g in groups.json()] != [world.b.ids["group_id"]]:
+            failures.append(f"{actor.name} GET {groups_url} -> {groups.text[:120]}")
 
     # B's lists are not empty by accident: B sees its own ``web`` and source.
     projects = (await world.b.owner.get(f"{API}/projects")).json()

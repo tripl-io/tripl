@@ -34,6 +34,7 @@ from tripl.schemas.organization import ORG_SLUG_PATTERN, OrgResponse
 from tripl.services import (
     auth_service,
     invitation_service,
+    org_group_service,
     project_member_service,
     user_service,
 )
@@ -67,6 +68,7 @@ class RemovedMember:
     project_memberships: int
     api_keys: int
     invitations: int
+    group_memberships: int
 
 
 @dataclass(frozen=True)
@@ -227,8 +229,9 @@ async def remove_member(
     carried), revokes every live API key of theirs bound to the organization
     (critique #28), and deletes the organization's unused invitations they sent
     or that are addressed to them: a link minted before the removal would
-    otherwise let them back in, at the role they had. Their account and their
-    other organizations are untouched.
+    otherwise let them back in, at the role they had. They leave every group of
+    the organization too. Their account and their other organizations are
+    untouched.
 
     The actor's role is re-read under the owner-set lock (see
     :func:`user_service.update_org_role`). Raises :class:`MemberNotFoundError`,
@@ -285,6 +288,7 @@ async def remove_member(
     invitations = await invitation_service.drop_pending_invitations(
         session, org_id, invited_by_user_id=user_id, email=target.email
     )
+    groups = await org_group_service.drop_user_from_org_groups(session, org_id, user_id)
     await session.delete(membership)
     await session.flush()
     return RemovedMember(
@@ -293,6 +297,7 @@ async def remove_member(
         project_memberships=removed,
         api_keys=revoked,
         invitations=invitations,
+        group_memberships=groups,
     )
 
 

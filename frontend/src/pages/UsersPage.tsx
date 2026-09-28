@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 
 import { invitationsApi, type Invitation, type InvitationCreated } from '@/api/invitations'
+import { orgGroupsKey, orgMembersKey } from '@/api/orgGroups'
 import { orgsApi, type OrgMemberRemoved } from '@/api/orgs'
 import { usersApi } from '@/api/users'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
@@ -415,6 +416,9 @@ function removalSummary(who: string, removed: OrgMemberRemoved): string {
   }
   if (removed.api_keys_revoked > 0) parts.push(count(removed.api_keys_revoked, 'API key', 'API keys'))
   if (removed.invitations_revoked > 0) parts.push(count(removed.invitations_revoked, 'invitation', 'invitations'))
+  if (removed.group_memberships_removed > 0) {
+    parts.push(count(removed.group_memberships_removed, 'group membership', 'group memberships'))
+  }
   return parts.length > 0 ? `Removed ${who}, with ${parts.join(', ')}.` : `Removed ${who}.`
 }
 
@@ -443,6 +447,18 @@ export default function UsersPage() {
     queryKey: usersKey(),
     queryFn: () => (org ? orgsApi.members(org) : usersApi.list()),
   })
+  // The roster changed: refresh it, and the Groups page's copies of it (its
+  // member picker and the groups a removed member has just left).
+  const invalidateMembers = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: usersKey() }),
+      ...(org
+        ? [
+            qc.invalidateQueries({ queryKey: orgGroupsKey(org) }),
+            qc.invalidateQueries({ queryKey: orgMembersKey(org) }),
+          ]
+        : []),
+    ])
   const updateMut = useMutation({
     // The failure is shown on the row it belongs to, below.
     meta: SILENT_ERROR_META,
@@ -451,7 +467,7 @@ export default function UsersPage() {
     onMutate: clearRoleUpdated,
     onSuccess: () => {
       markRoleUpdated()
-      return qc.invalidateQueries({ queryKey: usersKey() })
+      return invalidateMembers()
     },
   })
   const removeMut = useMutation({
@@ -460,7 +476,7 @@ export default function UsersPage() {
     onMutate: () => setRemovedNote(null),
     onSuccess: (removed, member) => {
       setRemovedNote(removalSummary(member.name ?? member.email, removed))
-      return qc.invalidateQueries({ queryKey: usersKey() })
+      return invalidateMembers()
     },
   })
   const transferMut = useMutation({
@@ -469,7 +485,7 @@ export default function UsersPage() {
     onSuccess: () => {
       // The caller is an admin now: the session's role changes with it.
       void qc.invalidateQueries({ queryKey: AUTH_QUERY_KEY })
-      return qc.invalidateQueries({ queryKey: usersKey() })
+      return invalidateMembers()
     },
   })
 

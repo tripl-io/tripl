@@ -190,6 +190,12 @@ PATH_ORG_ADMIN_ROUTES = {
     # The organization's Jira/Linear defaults (F20 PR12): owner/admin of THAT org.
     "GET /api/v1/orgs/{org}/settings/trackers",
     "PATCH /api/v1/orgs/{org}/settings/trackers",
+    # Organization groups: owner/admin of THAT org manage them; any member reads.
+    "POST /api/v1/orgs/{org}/groups",
+    "PATCH /api/v1/orgs/{org}/groups/{group_id}",
+    "DELETE /api/v1/orgs/{org}/groups/{group_id}",
+    "POST /api/v1/orgs/{org}/groups/{group_id}/members",
+    "DELETE /api/v1/orgs/{org}/groups/{group_id}/members/{user_id}",
 }
 PATH_ORG_OWNER_ROUTES = {
     "DELETE /api/v1/orgs/{org}",

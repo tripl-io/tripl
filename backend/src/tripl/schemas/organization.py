@@ -92,3 +92,5 @@ class OrgMemberRemoved(BaseModel):
     #: Unused invitations into the organization the member sent, or that were
     #: addressed to them; each would otherwise have let them back in.
     invitations_revoked: int
+    #: The organization's groups the member was in (F20 groups).
+    group_memberships_removed: int

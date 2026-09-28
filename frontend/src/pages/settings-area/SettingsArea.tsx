@@ -32,6 +32,7 @@ const InstanceSection = lazyWithReload(() => import('./InstanceSection'))
 const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSection'))
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
+const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
 
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
@@ -208,6 +209,7 @@ function isProjectScopedSection(section: string): boolean {
 
 const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   'organization/general',
+  'organization/groups',
   'members',
   'invitations',
   'data-sources',
@@ -242,6 +244,7 @@ function renderSection({
   onRetryProjects: () => void
 }) {
   if (section === 'organization/general') return <OrganizationGeneralSection />
+  if (section === 'organization/groups') return <OrgGroupsSection />
   if (section === 'members') return <MembersSection />
   if (section === 'invitations') return <InvitationsSection />
   if (section === 'data-sources') return <DataSourcesSection />

@@ -34,6 +34,7 @@ from tripl.api.v1.meta_fields import router as meta_fields_router
 from tripl.api.v1.metrics import router as metrics_router
 from tripl.api.v1.metrics_catalog import router as metrics_catalog_router
 from tripl.api.v1.notifications import router as notifications_router
+from tripl.api.v1.org_groups import router as org_groups_router
 from tripl.api.v1.org_settings import router as org_settings_router
 from tripl.api.v1.orgs import router as orgs_router
 from tripl.api.v1.plan_branches import router as plan_branches_router
@@ -116,4 +117,5 @@ router.include_router(notifications_router, dependencies=protected_dependencies)
 # Organization management (F20 PR6): real ``/orgs`` routes, never rewritten.
 router.include_router(orgs_router, dependencies=protected_dependencies)
 router.include_router(org_settings_router, dependencies=protected_dependencies)
+router.include_router(org_groups_router, dependencies=protected_dependencies)
 router.include_router(platform_settings_router, dependencies=protected_dependencies)
