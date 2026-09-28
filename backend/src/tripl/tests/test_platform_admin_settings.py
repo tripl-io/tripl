@@ -80,7 +80,8 @@ async def stand() -> AsyncIterator[Stand]:
 # F20 PR9 (owner decision 4): mail, AI chat and the row-limit defaults are an
 # organization's own, and PR10 adds the search embeddings (switch, provider,
 # model, key; the endpoint too, which is env-only for the operator and so not
-# an editable field at all). Storage (PR11) stays the operator's.
+# an editable field at all). PR11 adds photo storage, minus the two server paths
+# (critique #12), plus the organization-only service-account JSON.
 _ORG_FIELDS = {
     "scan_row_limit_default",
     "metrics_row_limit_default",
@@ -103,6 +104,12 @@ _ORG_FIELDS = {
     "search_embedding_provider",
     "search_embedding_model",
     "search_embedding_api_key",
+    "photo_storage_backend",
+    "photo_max_size_mb",
+    "photo_allowed_mime",
+    "gcs_photo_bucket",
+    "gcs_photo_public",
+    "gcs_photo_signed_url_ttl_seconds",
 }
 
 
@@ -110,20 +117,28 @@ def test_every_editable_field_is_classified_exactly_once() -> None:
     operator = app_settings_service.OPERATOR_FIELDS
     assert operator.isdisjoint(_ORG_FIELDS)
     assert operator | _ORG_FIELDS == app_settings_service.EDITABLE_FIELDS
-    # The org-only field: an organization's own embedding endpoint (PR10).
-    assert _ORG_FIELDS | {"search_embedding_base_url"} == app_settings_service.ORG_FIELDS
-    assert "search_embedding_base_url" not in app_settings_service.EDITABLE_FIELDS
+    # The org-only fields: an organization's own embedding endpoint (PR10) and
+    # the service-account JSON of its own bucket (PR11).
+    org_only = {"search_embedding_base_url", "gcs_photo_credentials_json"}
+    assert _ORG_FIELDS | org_only == app_settings_service.ORG_FIELDS
+    assert org_only.isdisjoint(app_settings_service.EDITABLE_FIELDS)
     assert set(app_settings_service.SECURITY_FIELDS) <= operator
     assert set(app_settings_service.OBSERVABILITY_FIELDS) <= operator
-    # Still one shared value per instance: every storage field (PR11), which
-    # routes every organization's photos.
-    assert set(app_settings_service.STORAGE_FIELDS) <= operator
+    # The storage server paths stay the operator's (critique #12): an
+    # organization naming a file on the server could read the operator's key.
+    assert set(app_settings_service.STORAGE_FIELDS) & app_settings_service.ORG_FIELDS == {
+        "photo_storage_backend",
+        "photo_max_size_mb",
+        "photo_allowed_mime",
+        "gcs_photo_bucket",
+        "gcs_photo_public",
+        "gcs_photo_signed_url_ttl_seconds",
+    }
     assert {
         "app_base_url",
         "registration_mode",
         "photo_local_dir",
         "gcs_photo_credentials_path",
-        "photo_max_size_mb",
     } <= operator
 
 
@@ -136,7 +151,9 @@ def test_touches_operator_fields() -> None:
     assert not app_settings_service.touches_operator_fields(
         {"scan_row_limit_default": 10, "ai_model": "m", "ai_api_key": "k"}
     )
-    assert app_settings_service.touches_operator_fields({"photo_allowed_mime": "image/png"})
+    assert app_settings_service.touches_operator_fields({"gcs_photo_credentials_path": "/x"})
+    # An organization's own allow-list (PR11), narrowed to the operator's.
+    assert not app_settings_service.touches_operator_fields({"photo_allowed_mime": "image/png"})
     assert not app_settings_service.touches_operator_fields({})
 
 

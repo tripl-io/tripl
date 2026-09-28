@@ -45,7 +45,11 @@ from tripl.services._event_reference_cleanup import drop_dangling_event_referenc
 from tripl.services._plan_branch_locks import lock_main_plan_for_merge
 from tripl.services._plan_branch_renames import pair_renames, rekey_in_place
 from tripl.services._plan_merge_slots import merge_slots
-from tripl.services.event_photo_service import PHOTO_KIND_PHOTO, delete_unreferenced_blobs
+from tripl.services.event_photo_service import (
+    PHOTO_KIND_PHOTO,
+    BlobRef,
+    delete_unreferenced_blobs,
+)
 from tripl.services.event_type_owner_service import load_owner_user_ids
 from tripl.services.plan_branch_conflicts import (
     _ET_CHANGE_KEYS,
@@ -585,9 +589,7 @@ async def _merge_photo_comments(
     await session.flush()
 
 
-async def _blob_keys_of(
-    session: AsyncSession, event_ids: Sequence[uuid.UUID]
-) -> set[tuple[str, str]]:
+async def _blob_keys_of(session: AsyncSession, event_ids: Sequence[uuid.UUID]) -> set[BlobRef]:
     """Every uploaded blob the given events' attachments point at.
 
     Read BEFORE the rows go, because they go by FK cascade: ``EventPhoto``
@@ -605,14 +607,16 @@ async def _blob_keys_of(
     if not event_ids:
         return set()
     rows = await session.execute(
-        select(EventPhoto.storage_backend, EventPhoto.storage_key).where(
+        select(
+            EventPhoto.storage_backend, EventPhoto.storage_key, EventPhoto.storage_config_id
+        ).where(
             EventPhoto.event_id.in_(event_ids),
             EventPhoto.kind == PHOTO_KIND_PHOTO,
             EventPhoto.storage_backend.is_not(None),
             EventPhoto.storage_key.is_not(None),
         )
     )
-    return {(str(backend), key) for backend, key in rows.all()}
+    return {(str(backend), key, config_id) for backend, key, config_id in rows.all()}
 
 
 async def _event_thread_twins(
@@ -738,7 +742,7 @@ async def _apply_merge(
     *,
     resolutions: dict[tuple[str, str, str], str] | None = None,
     base_payload: dict[str, Any] | None = None,
-) -> frozenset[tuple[str, str]]:
+) -> frozenset[BlobRef]:
     """Apply the branch's plan onto main with upsert-by-natural-key.
 
     Matched event_type/event rows are updated in place (id preserved) so
@@ -766,7 +770,7 @@ async def _apply_merge(
             select(PlanBranch.origin_ids_complete).where(PlanBranch.id == branch_id)
         )
     )
-    released_blobs: set[tuple[str, str]] = set()
+    released_blobs: set[BlobRef] = set()
     base_et_by_name: dict[str, dict[str, Any]] = {
         e["name"]: e for e in (base_payload or {}).get("event_types", [])
     }
@@ -1573,7 +1577,9 @@ async def _apply_merge(
             doomed_photo_ids.extend(m_ph.id for m_ph in doomed_rows)
             for m_ph in doomed_rows:
                 if m_ph.kind == PHOTO_KIND_PHOTO and m_ph.storage_backend and m_ph.storage_key:
-                    released_blobs.add((str(m_ph.storage_backend), m_ph.storage_key))
+                    released_blobs.add(
+                        (str(m_ph.storage_backend), m_ph.storage_key, m_ph.storage_config_id)
+                    )
             base_sort_orders = {base_photo.get("sort_order") for base_photo in base_rows}
             for main_photo, bp in pairs:
                 # Position is left out of the identity so that re-ordering a
@@ -1604,6 +1610,8 @@ async def _apply_merge(
                     external_url=bp.external_url,
                     storage_backend=bp.storage_backend,
                     storage_key=bp.storage_key,
+                    storage_org_id=bp.storage_org_id,
+                    storage_config_id=bp.storage_config_id,
                     sort_order=bp.sort_order,
                 )
             )
@@ -2096,13 +2104,14 @@ async def _lock_branch_for_merge(
 class _MergeOutcome(NamedTuple):
     # The post-merge snapshot of the live plan.
     post_payload: dict[str, Any]
-    # ``(storage_backend, storage_key)`` of every uploaded photo the merge
-    # deleted from main, for ``_release_photo_blobs`` (tripl-0zpq.146).
-    released_blobs: frozenset[tuple[str, str]]
+    # ``(storage_backend, storage_key, storage_config_id)`` of every uploaded
+    # photo the merge deleted from main, for ``_release_photo_blobs``
+    # (tripl-0zpq.146, F20 PR11).
+    released_blobs: frozenset[BlobRef]
 
 
 async def _release_photo_blobs(
-    session: AsyncSession, *, branch_id: uuid.UUID, blobs: frozenset[tuple[str, str]]
+    session: AsyncSession, *, branch_id: uuid.UUID, blobs: frozenset[BlobRef]
 ) -> None:
     """Best-effort: delete the blobs the committed merge left no row pointing at.
 

@@ -4,10 +4,12 @@ import {
   AI_ENDPOINT_GROUP,
   EMBEDDING_GROUP,
   SMTP_GROUP,
+  STORAGE_GROUP,
   buildOrgUpdate,
   clearGroup,
   displayValue,
   draftInvalid,
+  mimeListError,
   groupWarning,
   hasChanges,
   numberError,
@@ -127,5 +129,32 @@ describe('orgSettingsModel', () => {
       sources: { ...settings.sources, 'search.search_embedding_model': 'org' },
     })
     expect(clearGroup({}, owned, 'search', EMBEDDING_GROUP)).toEqual({ search_embedding_model: null })
+  })
+
+  it('treats photo storage as one group with a write-only key, within the operator limits (F20 PR11)', () => {
+    const settings = orgSettingsFixture()
+    expect(orgSectionForPath('organization/storage')).toBe('storage')
+    expect(groupWarning(settings, { gcs_photo_bucket: 'acme-photos' }, 'storage')).toEqual({
+      starting: true,
+      missingSecret: true,
+    })
+    expect(
+      groupWarning(settings, { gcs_photo_bucket: 'acme-photos', gcs_photo_credentials_json: '{}' }, 'storage'),
+    ).toEqual({ starting: true, missingSecret: false })
+    // The size cap and content types are not part of the group.
+    expect(groupWarning(settings, { photo_max_size_mb: '5' }, 'storage')).toBeNull()
+    expect(buildOrgUpdate('storage', { gcs_photo_credentials_json: '', photo_max_size_mb: '5' })).toEqual({
+      storage: { photo_max_size_mb: 5 },
+    })
+    expect(draftInvalid(settings, { photo_max_size_mb: '11' })).toBe(true)
+    expect(draftInvalid(settings, { gcs_photo_signed_url_ttl_seconds: '30' })).toBe(true)
+    expect(draftInvalid(settings, { photo_allowed_mime: 'image/png' })).toBe(false)
+    expect(draftInvalid(settings, { photo_allowed_mime: 'image/svg+xml' })).toBe(true)
+    expect(mimeListError(' , ', ['image/png'])).toMatch(/at least one/)
+    expect(mimeListError('IMAGE/PNG', ['image/png'])).toBeNull()
+    const owned = orgSettingsFixture({
+      sources: { ...settings.sources, 'storage.gcs_photo_bucket': 'org' },
+    })
+    expect(clearGroup({}, owned, 'storage', STORAGE_GROUP)).toEqual({ gcs_photo_bucket: null })
   })
 })

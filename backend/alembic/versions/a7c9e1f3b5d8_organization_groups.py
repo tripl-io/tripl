@@ -8,7 +8,7 @@ user). That a group member is a member of the group's organization is enforced
 by ``org_group_service``, not by a constraint.
 
 Revision ID: a7c9e1f3b5d8
-Revises: d4e8f1a2b3c5
+Revises: f6c8a0b2d4e7
 Create Date: 2026-09-28 22:00:00.000000
 
 """
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a7c9e1f3b5d8"
-down_revision: str | None = "d4e8f1a2b3c5"
+down_revision: str | None = "f6c8a0b2d4e7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

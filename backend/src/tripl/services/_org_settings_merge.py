@@ -1,4 +1,4 @@
-"""How an organization's own settings combine with the operator's (F20 PR9, PR10).
+"""How an organization's own settings combine with the operator's (F20 PR9-PR11).
 
 Pure: no database, no ``settings`` singleton. ``app_settings_service`` reads the
 two override documents and hands this module the operator's EFFECTIVE values
@@ -23,6 +23,14 @@ The rules (design section 5, critique #13 and #15):
   while the policy withholds its group.
 * The **ceiling** fields protect worker memory and the process: an organization
   may lower them, never raise them above the operator's effective value.
+* The **narrowing** fields are allow-lists (F20 PR11, critique #15): the
+  organization's list is intersected with the operator's, so it can drop a
+  content type the operator allows but never add one (SVG, HTML).
+* The storage group (F20 PR11) is a credential group that the fallback policy
+  never withholds: an organization without storage of its own keeps the
+  operator's (under its own ``orgs/{id}/`` key prefix), because photos off is
+  not a safe default the way "AI off" is — nothing of the operator's is sent to
+  a server the organization chose.
 """
 
 from __future__ import annotations
@@ -54,7 +62,27 @@ EMBEDDING_GROUP: tuple[str, ...] = (
     "search_embedding_base_url",
     "search_embedding_api_key",
 )
-CREDENTIAL_GROUPS: tuple[tuple[str, ...], ...] = (AI_ENDPOINT_GROUP, SMTP_GROUP, EMBEDDING_GROUP)
+#: Where an organization's photo blobs are written (F20 PR11): the backend, the
+#: bucket, the service-account JSON that writes to it and how URLs are made.
+#: One unit: an organization naming its own bucket never has the operator's
+#: credentials (the server's credential file or its ambient identity) used on
+#: it. The server paths (``photo_local_dir``, ``gcs_photo_credentials_path``)
+#: are operator-only and not part of it (critique #12).
+STORAGE_GROUP: tuple[str, ...] = (
+    "photo_storage_backend",
+    "gcs_photo_bucket",
+    "gcs_photo_credentials_json",
+    "gcs_photo_public",
+    "gcs_photo_signed_url_ttl_seconds",
+)
+CREDENTIAL_GROUPS: tuple[tuple[str, ...], ...] = (
+    AI_ENDPOINT_GROUP,
+    SMTP_GROUP,
+    EMBEDDING_GROUP,
+    STORAGE_GROUP,
+)
+#: Groups inherited whole whatever ``ORG_SETTINGS_OPERATOR_FALLBACK`` says.
+POLICY_EXEMPT_GROUPS: frozenset[tuple[str, ...]] = frozenset({STORAGE_GROUP})
 
 #: A group's on/off switch, forced off when the fallback policy withholds the
 #: group: an organization with no endpoint of its own under
@@ -69,7 +97,12 @@ CEILING_FIELDS: tuple[str, ...] = (
     "ai_max_output_tokens",
     "scan_row_limit_default",
     "metrics_row_limit_default",
+    "photo_max_size_mb",
 )
+
+#: Comma-separated allow-lists: an organization's value is narrowed to the
+#: operator's (F20 PR11). Matching is case-insensitive.
+NARROWING_FIELDS: tuple[str, ...] = ("photo_allowed_mime",)
 
 #: Hosts an organization can point tripl at. An organization-set value (every
 #: organization scope, hosted or self-hosted) is refused when it is (or resolves
@@ -98,6 +131,21 @@ class OrgMerge:
     provenance: dict[str, Provenance]
     #: The guarded host fields whose value the ORGANIZATION supplied.
     org_hosts: frozenset[str]
+
+
+def split_list(value: Any) -> list[str]:
+    """``"a, B,,c"`` -> ``["a", "b", "c"]``: a comma-separated allow-list, normalised."""
+    return [item.strip().lower() for item in str(value or "").split(",") if item.strip()]
+
+
+def narrow_list(org_value: Any, operator_value: Any) -> str:
+    """The organization's list, keeping only what the operator's list allows."""
+    allowed = set(split_list(operator_value))
+    kept: list[str] = []
+    for item in split_list(org_value):
+        if item in allowed and item not in kept:
+            kept.append(item)
+    return ",".join(kept)
 
 
 def _blank(field: str, secret_fields: frozenset[str], code_default: Callable[[str], Any]) -> Any:
@@ -136,7 +184,7 @@ def merge_org_values(
                 else:
                     values[field] = _blank(field, secret_fields, code_default)
                     provenance[field] = "group_default"
-        elif inherit_groups:
+        elif inherit_groups or group in POLICY_EXEMPT_GROUPS:
             for field in members:
                 provenance[field] = "inherited"
         else:
@@ -165,6 +213,10 @@ def merge_org_values(
     for field in CEILING_FIELDS:
         if provenance.get(field) == "org":
             values[field] = min(int(values[field]), int(base[field]))
+
+    for field in NARROWING_FIELDS:
+        if provenance.get(field) == "org":
+            values[field] = narrow_list(values[field], base[field])
 
     org_hosts = frozenset(
         field for field in GUARDED_HOST_FIELDS if provenance.get(field) == "org" and values[field]

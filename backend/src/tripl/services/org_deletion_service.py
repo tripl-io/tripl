@@ -10,11 +10,14 @@ reference the organization ``ON DELETE RESTRICT`` on purpose. So:
    404 (``org_resolution.ORG_IS_ACTIVE``): its URLs, its API keys, its members'
    ``/auth/me`` list, its invitation links.
 2. :func:`purge_organization` (the ``org_delete.purge_organization`` task) purges
-   each project through ``purge_project_rows`` and deletes its photo blobs, then
-   the organization's data sources, API keys, invitations, docs, settings rows
-   and memberships, then the row, and files ``org.delete_complete`` at platform
-   scope (``organization_id`` NULL, the slug in the payload): the organization
-   the row would belong to no longer exists.
+   each project through ``purge_project_rows`` and deletes its photo blobs,
+   then every blob left under its ``orgs/{id}/events/`` prefix (in the
+   operator's store and its own), then the organization's data sources, API
+   keys, invitations, docs, settings rows and memberships, then the row, and
+   files ``org.delete_complete`` at platform scope (``organization_id`` NULL,
+   the slug in the payload): the organization the row would belong to no
+   longer exists. While a blob under the prefix cannot be deleted, the row and
+   its storage versions stay (``deleting``), so the prefix is not forgotten.
 
 The purge is idempotent: a job that died half-way is simply run again, each
 project committed as it goes. A job that ran out of retries, or a message the
@@ -24,10 +27,13 @@ the ``org_delete.requeue_stranded_org_deletions`` beat task.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,10 +47,20 @@ from tripl.models.domain_enums import EventPhotoKind, OrganizationStatus
 from tripl.models.event_photo import EventPhoto
 from tripl.models.invitation import Invitation
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
+from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.services import audit_service, org_group_service, project_service
-from tripl.storage import storage_for
+from tripl.services.event_photo_service import BlobRef
+from tripl.services.photo_storage_service import (
+    driver_for_blob,
+    group_org_stores,
+    list_first,
+    operator_photo_backends,
+    operator_store_identity,
+    org_key_prefix,
+)
+from tripl.storage import PhotoStorage, storage_for
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +86,14 @@ class PurgeResult:
     projects: int
     blobs_deleted: int
     blobs_failed: int
+    #: Blobs (or whole stores) under ``orgs/{id}/events/`` the final pass could
+    #: not delete or list. Non-zero: the organization row and its storage
+    #: versions are kept, still ``deleting``, and the chaser runs the purge again.
+    leftovers_failed: int = 0
+
+    @property
+    def complete(self) -> bool:
+        return self.leftovers_failed == 0
 
 
 async def request_deletion(
@@ -141,10 +165,18 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
         await project_service.purge_project_rows(session, project)
         await _touch(session, org_id)
         await session.commit()
-        deleted, failed = await _delete_blobs(blobs)
+        deleted, failed = await _delete_blobs(session, blobs)
         blobs_deleted += deleted
         blobs_failed += failed
         await _forget_project(project_id)
+
+    # Every blob still under the organization's prefix, in the operator's store
+    # and in each store of its own: what the loop above could not delete, and
+    # what an upload racing the deletion wrote. The rows naming them are gone,
+    # and once the organization row is gone too no sweep lists this prefix
+    # again, so the organization stays until the prefix is empty.
+    blobs_cleared, leftovers_failed = await _clear_org_prefix(session, org_id)
+    blobs_deleted += blobs_cleared
 
     # Workspace-wide sources (project-owned ones went with their project), then
     # the RESTRICT references, then what would cascade anyway, spelled out.
@@ -156,6 +188,29 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
     await org_group_service.delete_org_groups(session, org_id)
     await session.execute(
         delete(OrganizationMember).where(OrganizationMember.organization_id == org_id)
+    )
+    if leftovers_failed:
+        # Kept: the row (``deleting``, so still 404 everywhere) and the storage
+        # versions whose credentials reach the organization's own bucket. The
+        # stranded-deletion chaser runs this purge again after its grace.
+        await _touch(session, org_id)
+        await session.commit()
+        await _forget_org_lists()
+        logger.warning(
+            "org purge: %d photo blob(s) of organization %s could not be deleted; "
+            "the organization is kept until a later run deletes them",
+            leftovers_failed,
+            org_id,
+        )
+        return PurgeResult(
+            slug=slug,
+            projects=len(projects),
+            blobs_deleted=blobs_deleted,
+            blobs_failed=blobs_failed,
+            leftovers_failed=leftovers_failed,
+        )
+    await session.execute(
+        delete(PhotoStorageConfig).where(PhotoStorageConfig.organization_id == org_id)
     )
     await session.execute(delete(Organization).where(Organization.id == org_id))
     await audit_service.record(
@@ -215,35 +270,118 @@ async def _touch(session: AsyncSession, org_id: uuid.UUID) -> None:
     )
 
 
-async def _photo_blobs(session: AsyncSession, project_id: uuid.UUID) -> set[tuple[str, str]]:
-    """``(backend, key)`` of every stored photo of the project, read before the purge."""
+async def _photo_blobs(session: AsyncSession, project_id: uuid.UUID) -> set[BlobRef]:
+    """``(backend, key, storage version)`` of every stored photo of the project,
+    read before the purge."""
     rows = (
         await session.execute(
-            select(EventPhoto.storage_backend, EventPhoto.storage_key).where(
+            select(
+                EventPhoto.storage_backend, EventPhoto.storage_key, EventPhoto.storage_config_id
+            ).where(
                 EventPhoto.project_id == project_id,
                 EventPhoto.kind == _PHOTO_KIND,
                 EventPhoto.storage_key.is_not(None),
             )
         )
     ).all()
-    return {(str(backend), str(key)) for backend, key in rows if backend and key}
+    return {
+        (str(backend), str(key), config_id) for backend, key, config_id in rows if backend and key
+    }
 
 
-async def _delete_blobs(blobs: set[tuple[str, str]]) -> tuple[int, int]:
-    """Delete each blob through the backend its row named. Best-effort.
+async def _driver(session: AsyncSession, backend: str, config_id: uuid.UUID | None) -> PhotoStorage:
+    """The operator's store by backend name, or the organization storage version.
 
-    The rows are already gone, so a blob that cannot be deleted now is an
-    orphan the maintenance sweep (``sweep_orphan_photo_blobs``) removes later.
+    The organization's own versions are still readable here: they are deleted
+    with the organization row, after every project's blobs (F20 PR11).
+    """
+    if config_id is None:
+        return storage_for(backend)
+    return await driver_for_blob(session, backend, config_id)
+
+
+async def _delete_blobs(session: AsyncSession, blobs: set[BlobRef]) -> tuple[int, int]:
+    """Delete each blob through the store its row named. Best-effort.
+
+    An organization's own bucket is reached with ITS credentials (the storage
+    version the blob was written with), the operator's store by backend name.
+    The rows are already gone, so a blob that cannot be deleted now is retried
+    by :func:`_clear_org_prefix`, which keeps the organization (and so its
+    prefix and storage versions) until it succeeds. A legacy ``events/`` key
+    in the operator's store is left to the maintenance sweep, which always
+    lists that prefix.
     """
     deleted = failed = 0
-    for backend, key in sorted(blobs):
+    for backend, key, config_id in sorted(blobs, key=lambda ref: (ref[0], ref[1])):
         try:
-            storage = storage_for(backend)
+            storage = await _driver(session, backend, config_id)
             await storage.delete(key)
             deleted += 1
-        except Exception:  # noqa: BLE001 - logged; the orphan sweep retries
+        except Exception:  # noqa: BLE001 - logged; retried by _clear_org_prefix
             failed += 1
             logger.warning("org purge: could not delete photo blob %s on %s", key, backend)
+    return deleted, failed
+
+
+async def _org_stores(
+    session: AsyncSession, org_id: uuid.UUID
+) -> list[tuple[str, list[Callable[[], PhotoStorage]]]]:
+    """Every store the organization's blobs can be in, with the drivers to try.
+
+    The operator's (by backend name) and each of the organization's own, newest
+    version first: an older version's key may have been revoked since.
+    """
+    stores: list[tuple[str, list[Callable[[], PhotoStorage]]]] = []
+    operator_identities: set[tuple[str, str]] = set()
+    for backend in operator_photo_backends():
+        operator_identities.add(operator_store_identity(backend))
+        stores.append((backend, [partial(storage_for, backend)]))
+    rows = (
+        await session.scalars(
+            select(PhotoStorageConfig)
+            .where(PhotoStorageConfig.organization_id == org_id)
+            .order_by(PhotoStorageConfig.created_at.desc())
+        )
+    ).all()
+    for org_store in group_org_stores(rows, skip=operator_identities):
+        stores.append((f"org:{org_store.backend}:{org_store.identity[1]}", org_store.builders()))
+    return stores
+
+
+async def _clear_org_prefix(session: AsyncSession, org_id: uuid.UUID) -> tuple[int, int]:
+    """Delete every unreferenced blob under ``orgs/{org_id}/events/``: (deleted, failed).
+
+    A store that cannot be listed counts as one failure. One with no listing
+    API at all is skipped: nothing here could ever list it.
+    """
+    prefix = org_key_prefix(org_id)
+    referenced = set(
+        (
+            await session.scalars(
+                select(EventPhoto.storage_key).where(EventPhoto.storage_key.startswith(prefix))
+            )
+        ).all()
+    )
+    deleted = failed = 0
+    for label, builders in await _org_stores(session, org_id):
+        try:
+            storage, listed = await asyncio.to_thread(list_first, builders, [prefix])
+        except NotImplementedError:
+            logger.warning("org purge: the %s photo store cannot be listed; skipped", label)
+            continue
+        except Exception:  # noqa: BLE001 - retried by the next purge run
+            logger.warning("org purge: cannot list the %s photo store", label, exc_info=True)
+            failed += 1
+            continue
+        for obj in listed:
+            if obj.key in referenced:
+                continue
+            try:
+                await storage.delete(obj.key)
+                deleted += 1
+            except Exception:  # noqa: BLE001 - retried by the next purge run
+                failed += 1
+                logger.warning("org purge: could not delete photo blob %s on %s", obj.key, label)
     return deleted, failed
 
 

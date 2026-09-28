@@ -39,8 +39,15 @@ const DIST = path.resolve(import.meta.dirname, '..', 'dist')
 // the account menu in the sidebar footer, and the branch strip under the top
 // bar. The activity rail moved out of the entry to pay for part of it
 // (entry 145 367).
-const ENTRY_BUDGET = 152_600
-const CRITICAL_PATH_BUDGET = 761_000
+// Raised by the owner's decision (2026-09-28, F20 organizations): the budgets
+// had been set a few KB above the last measurement with no benchmark behind
+// them, and recent changes spent effort trimming search keywords to fit a
+// menu entry. The critical path is capped at 1 MB and the entry at 200 KB;
+// both still fail a change that accidentally pulls a lazy chunk onto the first
+// load, which is what the check exists to catch (entry 152 649, critical path
+// 758 961 at the time of the change).
+const ENTRY_BUDGET = 200_000
+const CRITICAL_PATH_BUDGET = 1_000_000
 
 // Chunks that are split out so that only the pages using them pay for them:
 // the SQL editor, its formatter (fetched on the first Format click) and

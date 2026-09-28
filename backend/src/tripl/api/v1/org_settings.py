@@ -1,5 +1,5 @@
 """An organization's own settings: mail, AI chat, search embeddings, row limits
-(F20 PR9, PR10) and issue-tracker defaults (PR12).
+(F20 PR9, PR10), photo storage (PR11) and issue-tracker defaults (PR12).
 
 Real routes under ``/api/v1/orgs/{org}/settings``: ``settings`` is not in
 ``ORG_REWRITE_PREFIXES``, so ``OrgPathRewriteMiddleware`` never rewrites them to
@@ -11,9 +11,19 @@ organization (``deps._resolve_path_org``: a stranger gets 404 before any 403).
   field is a 422 (the update model forbids unknown keys).
 * ``GET /orgs/{org}/settings/row-limits`` — any member (the scan form quotes the
   caps to whoever fills it in, as ``/settings/row-limits`` does).
+* ``GET /orgs/{org}/settings/photo-limits`` — any member: the organization's
+  upload cap and content types, which the photo drop zone checks before an
+  upload (as ``/settings/photo-limits`` does).
 * ``GET/PATCH /orgs/{org}/settings/trackers`` — owner or admin: the Jira and
   Linear defaults every project's tracker config falls back to
   (``org_tracker_defaults_service``). Secrets are never returned.
+
+A save of the ``storage`` section is refused (422) unless the organization's
+own storage is a GCS bucket with a service-account JSON of its own (the JSON is
+write-only, stored encrypted) or — self-hosted only — the local backend; its
+content types must all be on the operator's list, and its cap is at most the
+operator's. The server paths (the local directory, the operator's credential
+file) are not organization settings at all.
 
 A save of the ``search`` section is refused (422) unless the organization's own
 embedding model answers a test embedding with vectors of the operator's width,
@@ -51,12 +61,14 @@ from tripl.schemas.app_settings import (
     RowLimitDefaultsResponse,
     SettingsTestResponse,
 )
+from tripl.schemas.event_photo import PhotoLimitsResponse
 from tripl.services import (
     _settings_probe,
     app_settings_service,
     audit_service,
     org_settings_service,
     org_tracker_defaults_service,
+    photo_storage_service,
 )
 
 router = APIRouter(prefix="/orgs/{org}/settings", tags=["organizations"])
@@ -127,6 +139,19 @@ async def get_org_row_limits(
     return RowLimitDefaultsResponse(
         scan_row_limit_default=config.scan_row_limit_default,
         metrics_row_limit_default=config.metrics_row_limit_default,
+    )
+
+
+@router.get("/photo-limits", response_model=PhotoLimitsResponse)
+async def get_org_photo_limits(
+    session: SessionDep,
+    _current_user: PathOrgMemberUserDep,
+    org: ManagedOrgDep,
+) -> PhotoLimitsResponse:
+    """The organization's photo upload limits (F20 PR11), readable by every member."""
+    policy = await photo_storage_service.policy_for_org(session, org.id)
+    return PhotoLimitsResponse(
+        photo_max_size_mb=policy.max_size_mb, photo_allowed_mime=list(policy.allowed_mime)
     )
 
 
