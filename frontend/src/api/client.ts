@@ -24,6 +24,11 @@ export class ApiError extends Error {
   requestId?: string
   /** Raw structured `detail` body (e.g. merge-gate 409 payloads), when not a string. */
   detail?: unknown
+  /**
+   * Where to begin single sign-on, when an organization that requires it
+   * refused this session (`sso_start` beside the 403's `detail`, F20).
+   */
+  ssoStart?: string
 
   constructor(message: string, status: number, requestId?: string) {
     super(message)
@@ -154,6 +159,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const error = new ApiError(detail || `${res.status} ${res.statusText}`, res.status, requestId)
     if (detail === undefined && body.detail !== undefined) {
       error.detail = body.detail
+    }
+    if (typeof body.sso_start === 'string') {
+      error.ssoStart = body.sso_start
     }
     throw error
   }

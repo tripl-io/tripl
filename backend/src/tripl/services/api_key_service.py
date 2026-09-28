@@ -71,12 +71,14 @@ async def create_key(
     scope: str,
     expires_in_days: int | None,
     project_id: uuid.UUID | None = None,
+    created_with_sso_org_id: uuid.UUID | None = None,
 ) -> tuple[ApiKey, str]:
     """Create a key row and return ``(row, raw_token)``.
 
     The raw token is only ever surfaced once — the row carries the prefix
     plus the hash, so callers should display the raw token to the operator
-    immediately and never again.
+    immediately and never again. ``created_with_sso_org_id`` is the
+    organization whose SSO session mints the key (F20), if any.
     """
     if scope not in ALLOWED_SCOPES:
         raise HTTPException(status_code=422, detail=f"scope must be one of {list(ALLOWED_SCOPES)}")
@@ -103,6 +105,7 @@ async def create_key(
         key_hash=_hash_token(raw),
         scope=scope,
         expires_at=expires_at,
+        created_with_sso_org_id=created_with_sso_org_id,
         created_at=created_at,
         updated_at=created_at,
     )

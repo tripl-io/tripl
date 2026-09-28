@@ -34,6 +34,7 @@ import NotFoundPage from './pages/NotFoundPage'
 const AuthPage = lazyWithReload(() => import('./pages/AuthPage'))
 const InvitePage = lazyWithReload(() => import('./pages/InvitePage'))
 const VerifyEmailPage = lazyWithReload(() => import('./pages/VerifyEmailPage'))
+const SsoLinkPage = lazyWithReload(() => import('./pages/SsoLinkPage'))
 const MainPage = lazyWithReload(() => import('./pages/ProjectsPage'))
 const EventsPage = lazyWithReload(() => import('./pages/EventsPage'))
 const EventEditPage = lazyWithReload(() => import('./pages/events/EventForm'))
@@ -629,6 +630,10 @@ export default function App() {
                   out, and signed in it is how an unverified account gets past
                   "Check your inbox". */}
               <Route path="/verify-email" element={withSuspense('verify-email', <VerifyEmailPage />, 'form')} />
+              {/* Confirming that a single sign-on may attach to an existing account
+                  (F20). Public: the ticket comes from the identity provider's
+                  callback, before any session exists. */}
+              <Route path="/sso/link" element={withSuspense('sso-link', <SsoLinkPage />, 'form')} />
               {/* Full-takeover Settings area — its own viewport shell, so each route
                   mounts OUTSIDE the app Layout (no app sidebar) but requires auth. */}
               <Route path="/settings" element={<SettingsIndexRedirect />} />

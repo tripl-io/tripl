@@ -6,6 +6,7 @@ import {
   Cpu,
   Database,
   Key,
+  KeyRound,
   Ticket,
   Lock,
   Mail,
@@ -214,6 +215,16 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         ownerOnly: true,
       },
       {
+        id: 'org-sso',
+        label: 'Single sign-on',
+        icon: KeyRound,
+        path: 'organization/sso',
+        // Listed for owners and admins alike; the page itself is an owner's
+        // (F20): only an owner changes how the organization signs in.
+        ownerOnly: true,
+        keywords: ['sso', 'oidc', 'openid', 'identity provider', 'domain verification'],
+      },
+      {
         id: 'org-limits',
         label: 'Limits',
         icon: SlidersHorizontal,
@@ -318,7 +329,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         icon: Shield,
         path: 'instance/security',
         platformOnly: true,
-        keywords: ['registration', 'sign up', 'sso', 'access'],
+        keywords: ['registration', 'sign up', 'access'],
       },
       {
         id: 'storage',

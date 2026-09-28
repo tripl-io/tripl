@@ -26,9 +26,10 @@ import { DemoBannerPlaceholder } from '@/demo/DemoBannerPlaceholder'
 import { ShellSkeleton } from '@/components/states/skeletons'
 import { ProjectNotFound } from '@/components/states/project-not-found'
 import { OrgSuspendedState } from '@/components/states/org-suspended'
+import { SsoRequiredState } from '@/components/states/sso-required'
 import { StepInBanner } from '@/components/shell/step-in-banner'
 import { useActiveOrg } from '@/components/active-org-context'
-import { orgIsSuspended } from '@/lib/orgStatus'
+import { findSsoRequiredError, orgIsSuspended, ssoStartFromError } from '@/lib/orgStatus'
 import {
   DocumentEntityTitleContext,
   EDIT_PAGE_TITLE_PREFIX,
@@ -513,6 +514,24 @@ export default function Layout() {
     return (
       <OrgSuspendedState
         orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
+        otherOrgs={activeOrg.orgs.filter(
+          (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
+        )}
+      />
+    )
+  }
+
+  // An organization that requires single sign-on (F20) refuses a session that
+  // did not come through its identity provider, on every request inside it:
+  // offer the sign-in it would accept instead of a wall of failing panels.
+  const ssoRefusal = findSsoRequiredError(projectsQuery.error, confirmProject.error)
+  if (ssoRefusal) {
+    return (
+      <SsoRequiredState
+        orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
+        orgSlug={activeOrg.slug}
+        serverStart={ssoStartFromError(ssoRefusal)}
+        returnTo={`${location.pathname}${location.search}${location.hash}`}
         otherOrgs={activeOrg.orgs.filter(
           (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
         )}

@@ -338,8 +338,8 @@ async def test_members_api_sets_none_for_a_member_and_refuses_it_for_an_admin(
 # ── the migration ───────────────────────────────────────────────────────────
 
 
-def test_migration_is_the_newest_later_migration() -> None:
-    assert LATER_MIGRATIONS[0] == MIGRATION
+def test_migration_is_in_the_later_migration_chain() -> None:
+    index = LATER_MIGRATIONS.index(MIGRATION)
     migration = _load_migration("default_project_role_migration", MIGRATION)
     assert migration.revision == "d2f4a6c8e0b1"
-    assert migration.down_revision == LATER_MIGRATIONS[1].split("_", 1)[0]
+    assert migration.down_revision == LATER_MIGRATIONS[index + 1].split("_", 1)[0]

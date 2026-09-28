@@ -408,6 +408,13 @@ export const authStatusKey = () => ['auth', 'status'] as const
 /** One redemption of an emailed verification token — `POST /auth/verify-email/confirm`.
  * Under `auth` so signing in or out never drops the answer the page is showing. */
 export const verifyEmailKey = (token: string) => ['auth', 'verify-email', token] as const
+/** What an SSO link ticket would do (F20), shown before the user confirms it. Not
+ * under `auth`: confirming refreshes the session, and must not re-ask about the
+ * ticket it just spent. */
+export const ssoLinkPreviewKey = (ticket: string) => ['sso-link', ticket] as const
+/** An organization's single sign-on configuration and its claimed domains (F20). */
+export const orgSsoKey = (org: string) => [org, 'orgSso'] as const
+export const orgSsoDomainsKey = (org: string) => [org, 'orgSso', 'domains'] as const
 
 export const usersKey = () => [...orgRoot(), 'users'] as const
 /** Who belongs to one project — `GET /projects/{slug}/members`. The reviewer

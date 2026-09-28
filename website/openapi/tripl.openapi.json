@@ -374,6 +374,276 @@
         }
       }
     },
+    "/api/v1/auth/sso/discover": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Discover",
+        "description": "The organizations with SSO enabled that own this address's verified domain.",
+        "operationId": "discover_api_v1_auth_sso_discover_get",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 320,
+              "title": "Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoDiscoverResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso/link": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Preview Link",
+        "description": "The account and organization a link ticket names; 400 when it is not live.\n\n``sign_in_required``: this browser must sign in to the account before it\ncan confirm.",
+        "operationId": "preview_link_api_v1_auth_sso_link_get",
+        "parameters": [
+          {
+            "name": "ticket",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "title": "Ticket"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoLinkPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Confirm Link",
+        "description": "Link the identity to the existing account and sign in with an SSO session.\n\nNeeds a browser session OF THAT ACCOUNT (401 otherwise, the ticket stays\nusable): the ticket proves only the provider sign-in, and whoever runs a\nverified domain's provider can name any of its addresses. The exception is\nan account whose address was never verified (hosted sign-up): it is taken\nover clean, its password, sessions and keys dropped. The account joins the\norganization as ``member`` when it is not in it yet, and its address counts\nas verified. 400 for an unknown, used or expired ticket; 403 for an account\nremoved from the organization; 409 when the organization no longer signs in\nthrough SSO.",
+        "operationId": "confirm_link_api_v1_auth_sso_link_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SsoLinkConfirm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SsoLinkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso/{org_slug}/start": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Start",
+        "description": "Send the browser to the organization's identity provider.",
+        "operationId": "start_api_v1_auth_sso__org_slug__start_get",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Slug"
+            }
+          },
+          {
+            "name": "next",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2048
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Next"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sso/{org_slug}/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Callback",
+        "description": "The provider's redirect back; see the module docstring for where it lands.",
+        "operationId": "callback_api_v1_auth_sso__org_slug__callback_get",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Slug"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 4096
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/activity": {
       "get": {
         "tags": [
@@ -19766,6 +20036,235 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/sso": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Get Sso",
+        "operationId": "get_sso_api_v1_orgs__org__sso_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSsoConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Put Sso",
+        "description": "Save the provider settings. 422 for a bad issuer (a private host, hosted)\nor a missing secret; 409 when enabling without a verified domain.",
+        "operationId": "put_sso_api_v1_orgs__org__sso_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSsoConfigUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSsoConfigSaved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/sso/test": {
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Probe Sso",
+        "description": "Fetch the configured issuer's discovery document and check it. Changes nothing.\n\n``ok`` false with a code when the issuer is unreachable, private (hosted),\nnames another issuer, or lacks an https endpoint. On a small rate-limit\nbucket of its own (it makes tripl call out).",
+        "operationId": "probe_sso_api_v1_orgs__org__sso_test_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSsoTestResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/sso/domains": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "List Domains",
+        "operationId": "list_domains_api_v1_orgs__org__sso_domains_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrgSsoDomainResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Domains Api V1 Orgs  Org  Sso Domains Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Add Domain",
+        "description": "Claim a domain, unverified; the answer names the TXT record to publish.\n\n409 when this organization already has it or another one verified it.",
+        "operationId": "add_domain_api_v1_orgs__org__sso_domains_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgSsoDomainCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSsoDomainResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/sso/domains/{domain_id}": {
+      "delete": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Remove Domain",
+        "description": "Remove a domain. 409 for the last verified one while SSO is enabled.",
+        "operationId": "remove_domain_api_v1_orgs__org__sso_domains__domain_id__delete",
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Domain Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/orgs/{org}/sso/domains/{domain_id}/verify": {
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Verify Domain",
+        "description": "Look the TXT record up now.\n\n200 with ``verified`` true once it holds the token (audited the first\ntime), ``verified`` false while it does not; 409 when another organization\nverified the domain first.",
+        "operationId": "verify_domain_api_v1_orgs__org__sso_domains__domain_id__verify_post",
+        "parameters": [
+          {
+            "name": "domain_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Domain Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgSsoDomainResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -39595,6 +40094,311 @@
         ],
         "title": "OrgSettingsValues"
       },
+      "OrgSsoConfigResponse": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "issuer": {
+            "type": "string",
+            "title": "Issuer"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "client_secret_configured": {
+            "type": "boolean",
+            "title": "Client Secret Configured"
+          },
+          "scopes": {
+            "type": "string",
+            "title": "Scopes"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "sso_required": {
+            "type": "boolean",
+            "title": "Sso Required"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "title": "Redirect Uri"
+          },
+          "login_url": {
+            "type": "string",
+            "title": "Login Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "issuer",
+          "client_id",
+          "client_secret_configured",
+          "scopes",
+          "enabled",
+          "sso_required",
+          "redirect_uri",
+          "login_url"
+        ],
+        "title": "OrgSsoConfigResponse"
+      },
+      "OrgSsoConfigSaved": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "issuer": {
+            "type": "string",
+            "title": "Issuer"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "client_secret_configured": {
+            "type": "boolean",
+            "title": "Client Secret Configured"
+          },
+          "scopes": {
+            "type": "string",
+            "title": "Scopes"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "sso_required": {
+            "type": "boolean",
+            "title": "Sso Required"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "title": "Redirect Uri"
+          },
+          "login_url": {
+            "type": "string",
+            "title": "Login Url"
+          },
+          "revoked_api_keys": {
+            "type": "integer",
+            "title": "Revoked Api Keys",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "issuer",
+          "client_id",
+          "client_secret_configured",
+          "scopes",
+          "enabled",
+          "sso_required",
+          "redirect_uri",
+          "login_url"
+        ],
+        "title": "OrgSsoConfigSaved"
+      },
+      "OrgSsoConfigUpdate": {
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Issuer"
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "scopes": {
+            "type": "string",
+            "maxLength": 512,
+            "title": "Scopes",
+            "default": "openid email profile"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": false
+          },
+          "sso_required": {
+            "type": "boolean",
+            "title": "Sso Required",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "issuer",
+          "client_id"
+        ],
+        "title": "OrgSsoConfigUpdate",
+        "description": "``PUT /orgs/{org}/sso``. ``client_secret`` omitted or null keeps the stored one."
+      },
+      "OrgSsoDomainCreate": {
+        "properties": {
+          "domain": {
+            "type": "string",
+            "maxLength": 253,
+            "minLength": 1,
+            "title": "Domain"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "domain"
+        ],
+        "title": "OrgSsoDomainCreate"
+      },
+      "OrgSsoDomainResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "domain": {
+            "type": "string",
+            "title": "Domain"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "txt_record_name": {
+            "type": "string",
+            "title": "Txt Record Name"
+          },
+          "txt_record_value": {
+            "type": "string",
+            "title": "Txt Record Value"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "domain",
+          "verified",
+          "verified_at",
+          "txt_record_name",
+          "txt_record_value",
+          "created_at"
+        ],
+        "title": "OrgSsoDomainResponse"
+      },
+      "OrgSsoTestResult": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "authorization_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Endpoint"
+          },
+          "token_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Endpoint"
+          },
+          "jwks_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jwks Uri"
+          },
+          "token_endpoint_auth_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Endpoint Auth Method"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "title": "OrgSsoTestResult"
+      },
       "OrgStorageLimits": {
         "properties": {
           "operator_allowed_mime": {
@@ -48564,6 +49368,112 @@
         ],
         "title": "SqlMetricDefinition",
         "description": "Kind + collection config for a ``sql`` metric: SELECT + its data source."
+      },
+      "SsoDiscoverOrg": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "login_url": {
+            "type": "string",
+            "title": "Login Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "login_url"
+        ],
+        "title": "SsoDiscoverOrg"
+      },
+      "SsoDiscoverResponse": {
+        "properties": {
+          "orgs": {
+            "items": {
+              "$ref": "#/components/schemas/SsoDiscoverOrg"
+            },
+            "type": "array",
+            "title": "Orgs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "orgs"
+        ],
+        "title": "SsoDiscoverResponse"
+      },
+      "SsoLinkConfirm": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Ticket"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ticket"
+        ],
+        "title": "SsoLinkConfirm"
+      },
+      "SsoLinkPreview": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "org_slug": {
+            "type": "string",
+            "title": "Org Slug"
+          },
+          "org_name": {
+            "type": "string",
+            "title": "Org Name"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "sign_in_required": {
+            "type": "boolean",
+            "title": "Sign In Required"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "org_slug",
+          "org_name",
+          "expires_at",
+          "sign_in_required"
+        ],
+        "title": "SsoLinkPreview"
+      },
+      "SsoLinkResult": {
+        "properties": {
+          "next": {
+            "type": "string",
+            "title": "Next"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUserResponse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "next",
+          "user"
+        ],
+        "title": "SsoLinkResult"
       },
       "StepInRequest": {
         "properties": {

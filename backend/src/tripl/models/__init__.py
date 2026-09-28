@@ -46,6 +46,14 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.notification import Notification
+from tripl.models.org_sso import (
+    OrgSsoConfig,
+    OrgSsoDomain,
+    SsoLinkTicket,
+    SsoLoginState,
+    SsoMembershipBlock,
+    UserSsoIdentity,
+)
 from tripl.models.organization import Organization, OrganizationMember
 from tripl.models.organization_group import OrganizationGroup, OrganizationGroupMember
 from tripl.models.password_reset_token import PasswordResetToken
@@ -129,6 +137,12 @@ __all__ = [
     "Organization",
     "OrganizationGroup",
     "OrganizationGroupMember",
+    "OrgSsoConfig",
+    "OrgSsoDomain",
+    "SsoLinkTicket",
+    "SsoLoginState",
+    "SsoMembershipBlock",
+    "UserSsoIdentity",
     "OrganizationMember",
     "PhotoStorageConfig",
     "PlatformStepIn",

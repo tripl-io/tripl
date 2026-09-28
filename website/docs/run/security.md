@@ -31,6 +31,7 @@ Both default to an empty string, and in a non-debug deploy an empty value (or, f
 - **Warehouse/data-source passwords** — `datasource_service.py` stores `password_encrypted`; the value is decrypted when the connection is used.
 - **Alert-destination secrets** — `_alerting_destinations.py` encrypts the secret on write; the alert worker decrypts it at send time.
 - **Instance-settings secrets** — `app_settings_service.py` encrypts the fields `ai_api_key`, `search_embedding_api_key`, and `smtp_password` when they are set through the admin settings UI.
+- **Single sign-on** — an organization's OpenID Connect client secret (`org_sso_configs.client_secret_encrypted`) and each sign-in attempt's PKCE code verifier are encrypted with the operator key.
 
 Behavior of the Fernet layer:
 
@@ -153,6 +154,11 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `POST /api/v1/auth/invitations/{token}/accept` | `RATE_LIMIT_REGISTER_PER_HOUR` | 3 / hour |
 | `POST /api/v1/auth/verify-email/request` | Own verification limiter (fixed, not configurable) | 10 / hour |
 | `POST /api/v1/auth/verify-email/confirm` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
+| `GET /api/v1/auth/sso/discover` | Shared status limiter | 30 / minute |
+| `GET /api/v1/auth/sso/{org}/start` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
+| `GET /api/v1/auth/sso/{org}/callback` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
+| `GET /api/v1/auth/sso/link` | Shared status limiter | 30 / minute |
+| `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 
 The verification-link request has a bucket of its own, so resending a link does
 not use up the login or sign-up quota, and a signed-in caller cannot turn the
@@ -326,6 +332,28 @@ the flag and blocks nothing.
 | Invitations | On a hosted instance, redeeming an invitation into a **new** account does not verify the address: the inviter received the raw link in the API response, so using it proves nothing about who reads that mailbox. The new account is sent a verification link (a failed send is logged) and must confirm it like a sign-up before it can use the app. A signed-in account accepts an invitation only once verified. |
 | Platform admin | Granted only when an account whose address is listed in `PLATFORM_ADMIN_EMAILS` confirms the emailed verification link while signed in as itself. Sign-up, invitations and password reset never grant it, so the grant always follows proof that the person controls both the address and the account. |
 
+### Single sign-on (OIDC)
+
+An organization owner can connect the organization to an OpenID Connect
+identity provider (see [Single sign-on](../administer/admin-guide.md#single-sign-on)).
+The controls that matter for security:
+
+| Property | Behaviour |
+|---|---|
+| Who configures it | Organization **owners** only, from a browser session. Admins, members and API keys get `403`. Every change is audited (`org.sso.*`) without the secret. |
+| Outbound requests | Discovery, key (JWKS) and token requests go only to `https` URLs, follow no redirects, time out after 10 seconds and cap the response size. On a hosted instance a host that resolves to a private, loopback or link-local address is refused, and checked again when the request is made, as for organization mail and AI endpoints; the request then connects to the very address that was checked (TLS and `Host` keep the hostname), so a name that re-resolves between the check and the connection (DNS rebinding) cannot reach an internal address. The owner's connection test answers a fixed text per error code, and it and domain verification are rate-limited. The discovery document's `issuer` must equal the configured issuer, and the token and key endpoints are taken from it. |
+| Domains | Only addresses at a domain the organization proved with a DNS TXT record (`_tripl-verification.<domain>` = `tripl-verification=<token>`) are accepted. A domain can be verified by one organization per instance. |
+| Login state | Each attempt stores a keyed HMAC digest of its `state` (like session tokens), a `nonce` and an encrypted PKCE (S256) verifier. The state is single use, bound to the organization and expires after 10 minutes. The return address (`next`) must be a relative path on the same origin. |
+| ID token | Verified with the provider's published keys: `RS256` or `ES256` only (the algorithm comes from the key, `none` is refused), issuer, audience = client ID, `azp` = client ID whenever present (and required with several audiences), expiry, issued-at with 60 seconds of leeway, and the nonce. The token must carry `email` with `email_verified: true`, at one of the organization's verified domains. |
+| Errors | A failed sign-in returns to `/auth?sso_error=<code>` with a fixed code. The provider's error text is never echoed. |
+| New accounts | Created with a verified address, as organization **members**, never as platform admins. Their password is a scrypt hash of a random secret, so password sign-in takes the same time for them as for any account. |
+| Existing accounts | Never linked or signed in automatically. The browser gets a single-use link request (10 minutes), and confirming it on `/sso/link` needs a **session of that account** (`401` otherwise): the provider's sign-in alone proves nothing about the account, since whoever runs a verified domain's provider can name any of its addresses. Only then is the identity linked, and the proving session is replaced by the single sign-on one. |
+| Unverified accounts | An account whose address was never verified (a hosted sign-up) is not anyone's yet, so the provider's verified address takes it over clean: the password becomes unusable and every session, API key and pending reset or verification token of the account is dropped before linking. Platform admins are never treated this way. |
+| Sessions | A session records how it signed in (`password` or `sso`) and, for single sign-on, which organization. |
+| Requiring SSO | With **Require single sign-on**, a session that did not sign in through the organization's provider gets `403 This organization requires single sign-on` inside it. Organization owners' browser sessions are exempt (break-glass), as is a platform admin's read-only step-in. Turning it on revokes **every** organization API key that was not created from a single sign-on session of the organization, owners' included, and such keys are refused with `403`; new keys need such a session, for owners too. |
+| Removing a member | Also deletes their single sign-on identities for the organization, and signing in through the provider again does not re-add them until they accept a new invitation. |
+| Rate limits | Start and callback share their own bucket (20 a minute per address), apart from password sign-in; an empty bucket redirects to `/auth?sso_error=rate_limited`. Confirming a link is on the login bucket. |
+
 ### Passwords
 
 Passwords are hashed with **scrypt** (`backend/src/tripl/auth_utils.py`): `N=2^16`, `r=8`, `p=1`, 16-byte random salt, verified with a constant-time comparison (`hmac.compare_digest`). The cost was chosen to harden against offline cracking while still running on a constrained ARM SBC. On a successful login, a hash produced with an older (lower) `N` is opportunistically re-hashed to the current parameters.
@@ -360,7 +388,7 @@ Sessions are server-side records (`user_sessions`): each carries an expiry, expi
 
 For non-browser clients, tripl issues personal API keys (`api_key_service.py`). The raw token has the shape `tk_<scope-letter>_<random>` (e.g. `tk_r_…` / `tk_w_…`); only its SHA-256 hash is stored, so a leaked DB dump cannot replay tokens. Keys carry a scope (`read` / `write`), an optional expiry, and an optional project binding. They are presented as `Authorization: Bearer <token>` and are resolved before cookie auth. See the [Agent API Guide](../integrate/agent-api-guide.md).
 
-Creating and revoking keys requires an interactive user session. A Bearer key cannot mint a successor or revoke another key, even when it has write scope and no project binding.
+Creating and revoking keys requires an interactive user session. A Bearer key cannot mint a successor or revoke another key, even when it has write scope and no project binding. In an organization that [requires single sign-on](#single-sign-on-oidc), a key works only if it was created from a single sign-on session of that organization, and creating one needs such a session (owners may create keys from any session).
 
 ## Roles and access control (RBAC)
 

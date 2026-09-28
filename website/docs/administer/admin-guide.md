@@ -628,7 +628,9 @@ stops working at once, and every unused invitation into it that they sent or
 that is addressed to them, so no link minted earlier can bring them back. Their
 account, and their memberships of other organizations, are untouched. They
 also leave every [group](#groups) of the organization. The response says how
-many project memberships, keys, invitations and group memberships went.
+many project memberships, keys, invitations and group memberships went. Their
+[single sign-on](#single-sign-on) identities for the organization are removed
+too.
 
 A demotion drops the member's unused invitations at roles they can no longer
 grant: an owner who becomes an admin loses their pending `owner` invitations
@@ -729,7 +731,9 @@ rename as `org.rename`),
 `org.member_remove`, `org.transfer_ownership`, for groups `org.group.create`,
 `org.group.update`, `org.group.delete`, `org.group.member_add` and
 `org.group.member_remove`, and for invitations
-`user.invite`, `user.invite_revoke` and `user.invite_accept`. They appear under
+`user.invite`, `user.invite_revoke` and `user.invite_accept`, and for
+[single sign-on](#single-sign-on) `org.sso.*`, `user.sso_login`,
+`user.sso_provision` and `user.sso_link`. They appear under
 **Organization** and **Workspace** in the Audit tab's action filter.
 
 The [platform console](#platform-console)'s six actions have a filter group of
@@ -738,6 +742,165 @@ their own, **Platform**: `org.suspend`, `org.unsuspend`, `platform.step_in`,
 Suspension and a platform admin's [read-only step-in](#read-only-step-in) are
 recorded in the organization's own log; the two grant actions belong to no
 organization (see [Users](#platform-users)).
+
+## Single sign-on (OIDC) {#single-sign-on}
+
+An organization can let its people sign in through its own identity provider
+(IdP) over **OpenID Connect**, and can require it. Single sign-on is set up per
+organization, under **Settings → Organization → Single sign-on**, and only an
+organization **owner** can see or change it (an admin gets a notice; the API
+answers `403`). It needs a browser session: an API key cannot read or change
+it. No environment variable is involved.
+
+### Set up the identity provider
+
+In your IdP, register tripl as a **web application** that uses the
+authorization code flow (any standards-compliant OpenID Connect provider
+works). Use this redirect URI, shown on the settings page:
+
+```
+{APP_BASE_URL}/api/v1/auth/sso/{org}/callback
+```
+
+where `{APP_BASE_URL}` is the instance's public address (see
+[Configuration](../run/configuration.md)) and `{org}` is the organization's
+slug, for example `https://tripl.example.com/api/v1/auth/sso/acme/callback`.
+The IdP must send the `email` claim and `email_verified: true` in the ID token.
+
+Then fill in, on the settings page:
+
+| Field | Value |
+|---|---|
+| **Issuer URL** | The IdP's issuer, for example `https://idp.example.com`. It must use `https` and, on a hosted instance, resolve to a public address. tripl reads `{issuer}/.well-known/openid-configuration`, and the document's `issuer` must equal this value exactly. |
+| **Client ID** | The client ID the IdP issued for tripl. |
+| **Client secret** | The client secret. It is stored encrypted with the operator's `ENCRYPTION_KEY`, is write-only (the page and the API only say whether one is stored) and never appears in audit entries. Type a new one to replace it. |
+| **Scopes** | `openid email profile` by default. `openid` is required. |
+
+**Test connection** fetches the discovery document and checks that the issuer
+matches and the authorization, token and key endpoints are there. The token and
+key endpoints are always taken from the discovery document. A failed test
+answers a short code and a fixed text, never what the host answered. The test
+and domain verification share a small rate limit (10 a minute).
+
+API: `GET` and `PUT /api/v1/orgs/{org}/sso` (the response carries
+`client_secret_configured`, never the secret) and `POST /api/v1/orgs/{org}/sso/test`.
+
+### Verify your email domains
+
+Single sign-on accepts only addresses at the organization's **verified**
+domains. Add a domain (for example `example.com`) under **Email domains**; the
+page shows a DNS TXT record to publish:
+
+| Name | Value |
+|---|---|
+| `_tripl-verification.example.com` | `tripl-verification=<token>` |
+
+Publish it with your DNS provider, wait for it to propagate, and press
+**Verify**. tripl looks the record up and marks the domain verified when one of
+its values matches. A domain can be verified by only one organization on the
+instance: adding or verifying a domain another organization has already
+verified is refused with `409`. Removing a domain stops single sign-on for its
+addresses.
+
+API: `GET`/`POST /api/v1/orgs/{org}/sso/domains`,
+`DELETE /api/v1/orgs/{org}/sso/domains/{id}` and
+`POST /api/v1/orgs/{org}/sso/domains/{id}/verify`.
+
+### Turn it on
+
+**Enable single sign-on** is available once the issuer, client ID and client
+secret are saved and at least one domain is verified (the API refuses it
+otherwise). From then on, the sign-in page's **Sign in with SSO** asks for the
+work email, finds the organization whose verified domain it is, and sends the
+browser to the IdP. The redirect carries a single-use `state`, a `nonce` and a
+PKCE (S256) challenge, and comes back within ten minutes or not at all.
+
+When the IdP sends the user back, tripl checks the ID token: its signature
+against the IdP's published keys (RS256 or ES256), issuer, audience (the
+client ID), expiry, and nonce. The email must be verified by the IdP and belong
+to one of the organization's verified domains. Then:
+
+- **A known identity** (the same IdP subject was linked to an account before)
+  signs that account in.
+- **A new address** gets an account created on the spot (just-in-time
+  provisioning), with the address marked verified. It joins the organization as
+  a **member**, so the organization's
+  [default access to projects](#default-access-to-projects) applies. It never
+  becomes a platform admin. The account has no usable password until its owner
+  sets one with **Forgot your password?**.
+- **An address that already has an account** is not signed in straight away.
+  The browser goes to a confirmation page, **Link your account to single
+  sign-on?**, and the person must **sign in to that account first** (with its
+  password, or however they usually sign in), then confirm. Signing in at the
+  IdP alone is not enough: whoever runs the IdP of a verified domain could
+  otherwise name any address of that domain and take the account over, a
+  platform admin's included. Confirming links the identity to the account, adds
+  the organization membership (as a member) if it is missing, marks the address
+  verified and replaces the password session with a single sign-on session.
+  Cancelling changes nothing, and the request expires after ten minutes. An
+  existing account is therefore linked only for a DNS-verified domain and only
+  after its owner confirms it.
+- **An account whose address was never verified** (on a hosted instance, a
+  sign-up that never confirmed its email) belongs to nobody yet: anyone can
+  register any address there. The IdP's verified address is the first proof,
+  so confirming the link needs no sign-in and **takes the account over clean**:
+  its password stops working, and all of its sessions, API keys and pending
+  reset or verification links are dropped. Whoever registered the address
+  first keeps nothing. A platform admin's account is never treated this way.
+
+A failed sign-in comes back to the sign-in page with a short reason (the
+attempt expired, the IdP refused, the address is missing or not verified, the
+domain is not the organization's, the token did not verify, the account was
+removed from the organization, too many attempts, or single sign-on is off).
+The IdP's own error text is never shown. Sign-in through the IdP has its own
+rate limit (20 requests a minute per address, two per sign-in), separate from
+password sign-in.
+
+A session opened this way is marked as a single sign-on session for that
+organization. Signing in with a password still works where single sign-on is
+not required.
+
+### Require single sign-on {#sso-required}
+
+**Require single sign-on** makes the organization usable only from a session
+that signed in through its IdP. Any other session gets
+`403 This organization requires single sign-on` inside the organization (the
+app shows a **Sign in with SSO** button instead), whether it signed in with a
+password or through another organization's single sign-on. The `/auth/*`
+routes stay open.
+
+- **Owners' sessions are exempt (break-glass).** An organization owner can
+  always sign in with a password and use the organization, so a broken IdP
+  never locks the organization out: the owner signs in and fixes or turns off
+  the setting. Keep owner passwords strong. The exemption covers browser
+  sessions only, not API keys.
+- **A platform admin's [read-only step-in](#read-only-step-in)** is exempt.
+- **API keys are revoked, owners' included.** Turning the setting on revokes
+  every key bound to the organization that was not created from a single
+  sign-on session of this organization, whoever holds it. The response and the
+  audit entry say how many. Such keys are refused with `403` from then on as
+  well.
+- **New keys need a single sign-on session.** While the setting is on, keys for
+  the organization are created only from a session that signed in through its
+  IdP. An owner signed in with a password (break-glass) gets `403` there too.
+
+Turning single sign-on off also stops requiring it.
+
+### Members and identities
+
+Removing a member from the organization also removes the single sign-on
+identities that linked their account to this organization, besides the rest of
+what [removing a member](#members-and-roles) takes away. Signing in through the
+IdP again does **not** bring them back: the sign-in is refused
+(`membership_removed`) until they accept a new invitation to the organization.
+
+### Single sign-on audit
+
+Every change is recorded in the organization's audit log, without secrets:
+`org.sso.*` for the configuration, domains and the two switches, and
+`user.sso_login`, `user.sso_provision` (a new account) and `user.sso_link` (an
+existing account linked after confirmation; `reclaimed_unverified_account` says
+whether it was an unverified account taken over) for sign-ins.
 
 ## Platform console
 

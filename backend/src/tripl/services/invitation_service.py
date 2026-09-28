@@ -16,7 +16,7 @@ from tripl.models.domain_enums import OrganizationRole
 from tripl.models.invitation import Invitation
 from tripl.models.organization import Organization, OrganizationMember
 from tripl.models.user import User
-from tripl.services import auth_service, email_verification_service
+from tripl.services import auth_service, email_verification_service, org_sso_service
 from tripl.services.org_resolution import ORG_IS_ACTIVE
 
 # Long enough that an owner can hand the link over out of band (SMTP is
@@ -328,6 +328,8 @@ async def accept_as_signed_in(session: AsyncSession, *, raw_token: str, user: Us
         organization_id=invitation.organization_id,
         org_role=OrganizationRole(invitation.org_role or OrganizationRole.member.value),
     )
+    # Invited back after a removal: an SSO sign-in may add them again (F20).
+    await org_sso_service.lift_membership_block(session, invitation.organization_id, user.id)
     invitation.used_at = datetime.now(UTC)
     await session.flush()
     return invitation

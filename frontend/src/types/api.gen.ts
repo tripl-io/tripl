@@ -289,6 +289,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/sso/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover
+         * @description The organizations with SSO enabled that own this address's verified domain.
+         */
+        get: operations["discover_api_v1_auth_sso_discover_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Link
+         * @description The account and organization a link ticket names; 400 when it is not live.
+         *
+         *     ``sign_in_required``: this browser must sign in to the account before it
+         *     can confirm.
+         */
+        get: operations["preview_link_api_v1_auth_sso_link_get"];
+        put?: never;
+        /**
+         * Confirm Link
+         * @description Link the identity to the existing account and sign in with an SSO session.
+         *
+         *     Needs a browser session OF THAT ACCOUNT (401 otherwise, the ticket stays
+         *     usable): the ticket proves only the provider sign-in, and whoever runs a
+         *     verified domain's provider can name any of its addresses. The exception is
+         *     an account whose address was never verified (hosted sign-up): it is taken
+         *     over clean, its password, sessions and keys dropped. The account joins the
+         *     organization as ``member`` when it is not in it yet, and its address counts
+         *     as verified. 400 for an unknown, used or expired ticket; 403 for an account
+         *     removed from the organization; 409 when the organization no longer signs in
+         *     through SSO.
+         */
+        post: operations["confirm_link_api_v1_auth_sso_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Callback
+         * @description The provider's redirect back; see the module docstring for where it lands.
+         */
+        get: operations["callback_api_v1_auth_sso__org_slug__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start
+         * @description Send the browser to the organization's identity provider.
+         */
+        get: operations["start_api_v1_auth_sso__org_slug__start_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/status": {
         parameters: {
             query?: never;
@@ -881,6 +978,119 @@ export interface paths {
          * @description Set or clear (``null`` / ``""``) the organization's tracker defaults.
          */
         patch: operations["patch_org_tracker_defaults_api_v1_orgs__org__settings_trackers_patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sso */
+        get: operations["get_sso_api_v1_orgs__org__sso_get"];
+        /**
+         * Put Sso
+         * @description Save the provider settings. 422 for a bad issuer (a private host, hosted)
+         *     or a missing secret; 409 when enabling without a verified domain.
+         */
+        put: operations["put_sso_api_v1_orgs__org__sso_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Domains */
+        get: operations["list_domains_api_v1_orgs__org__sso_domains_get"];
+        put?: never;
+        /**
+         * Add Domain
+         * @description Claim a domain, unverified; the answer names the TXT record to publish.
+         *
+         *     409 when this organization already has it or another one verified it.
+         */
+        post: operations["add_domain_api_v1_orgs__org__sso_domains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/domains/{domain_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Domain
+         * @description Remove a domain. 409 for the last verified one while SSO is enabled.
+         */
+        delete: operations["remove_domain_api_v1_orgs__org__sso_domains__domain_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/domains/{domain_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Domain
+         * @description Look the TXT record up now.
+         *
+         *     200 with ``verified`` true once it holds the token (audited the first
+         *     time), ``verified`` false while it does not; 409 when another organization
+         *     verified the domain first.
+         */
+        post: operations["verify_domain_api_v1_orgs__org__sso_domains__domain_id__verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe Sso
+         * @description Fetch the configured issuer's discovery document and check it. Changes nothing.
+         *
+         *     ``ok`` false with a code when the issuer is unreachable, private (hosted),
+         *     names another issuer, or lacks an https endpoint. On a small rate-limit
+         *     bucket of its own (it makes tripl call out).
+         */
+        post: operations["probe_sso_api_v1_orgs__org__sso_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/orgs/{org}/transfer-ownership": {
@@ -12572,6 +12782,125 @@ export interface components {
             search: components["schemas"]["OrgSearchSettings"];
             storage: components["schemas"]["OrgStorageSettings"];
         };
+        /** OrgSsoConfigResponse */
+        OrgSsoConfigResponse: {
+            /** Client Id */
+            client_id: string;
+            /** Client Secret Configured */
+            client_secret_configured: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Issuer */
+            issuer: string;
+            /** Login Url */
+            login_url: string;
+            /** Redirect Uri */
+            redirect_uri: string;
+            /** Scopes */
+            scopes: string;
+            /** Sso Required */
+            sso_required: boolean;
+        };
+        /** OrgSsoConfigSaved */
+        OrgSsoConfigSaved: {
+            /** Client Id */
+            client_id: string;
+            /** Client Secret Configured */
+            client_secret_configured: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Issuer */
+            issuer: string;
+            /** Login Url */
+            login_url: string;
+            /** Redirect Uri */
+            redirect_uri: string;
+            /**
+             * Revoked Api Keys
+             * @default 0
+             */
+            revoked_api_keys: number;
+            /** Scopes */
+            scopes: string;
+            /** Sso Required */
+            sso_required: boolean;
+        };
+        /**
+         * OrgSsoConfigUpdate
+         * @description ``PUT /orgs/{org}/sso``. ``client_secret`` omitted or null keeps the stored one.
+         */
+        OrgSsoConfigUpdate: {
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Issuer */
+            issuer: string;
+            /**
+             * Scopes
+             * @default openid email profile
+             */
+            scopes: string;
+            /**
+             * Sso Required
+             * @default false
+             */
+            sso_required: boolean;
+        };
+        /** OrgSsoDomainCreate */
+        OrgSsoDomainCreate: {
+            /** Domain */
+            domain: string;
+        };
+        /** OrgSsoDomainResponse */
+        OrgSsoDomainResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Domain */
+            domain: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Txt Record Name */
+            txt_record_name: string;
+            /** Txt Record Value */
+            txt_record_value: string;
+            /** Verified */
+            verified: boolean;
+            /** Verified At */
+            verified_at: string | null;
+        };
+        /** OrgSsoTestResult */
+        OrgSsoTestResult: {
+            /** Authorization Endpoint */
+            authorization_endpoint?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Jwks Uri */
+            jwks_uri?: string | null;
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
+            /** Token Endpoint */
+            token_endpoint?: string | null;
+            /** Token Endpoint Auth Method */
+            token_endpoint_auth_method?: string | null;
+        };
         /**
          * OrgStorageLimits
          * @description What the operator allows an organization's storage (F20 PR11).
@@ -16101,6 +16430,47 @@ export interface components {
             kind: "sql";
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
         };
+        /** SsoDiscoverOrg */
+        SsoDiscoverOrg: {
+            /** Login Url */
+            login_url: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** SsoDiscoverResponse */
+        SsoDiscoverResponse: {
+            /** Orgs */
+            orgs: components["schemas"]["SsoDiscoverOrg"][];
+        };
+        /** SsoLinkConfirm */
+        SsoLinkConfirm: {
+            /** Ticket */
+            ticket: string;
+        };
+        /** SsoLinkPreview */
+        SsoLinkPreview: {
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Org Name */
+            org_name: string;
+            /** Org Slug */
+            org_slug: string;
+            /** Sign In Required */
+            sign_in_required: boolean;
+        };
+        /** SsoLinkResult */
+        SsoLinkResult: {
+            /** Next */
+            next: string;
+            user: components["schemas"]["AuthUserResponse"];
+        };
         /**
          * StepInRequest
          * @description Start a read-only step-in: a mandatory reason and a time limit in minutes.
@@ -17165,6 +17535,165 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuthUserResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discover_api_v1_auth_sso_discover_get: {
+        parameters: {
+            query: {
+                email: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoDiscoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_link_api_v1_auth_sso_link_get: {
+        parameters: {
+            query: {
+                ticket: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoLinkPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_link_api_v1_auth_sso_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoLinkConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoLinkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    callback_api_v1_auth_sso__org_slug__callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_v1_auth_sso__org_slug__start_get: {
+        parameters: {
+            query?: {
+                next?: string | null;
+            };
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -18434,6 +18963,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sso_api_v1_orgs__org__sso_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoConfigResponse"];
+                };
+            };
+        };
+    };
+    put_sso_api_v1_orgs__org__sso_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSsoConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoConfigSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_domains_api_v1_orgs__org__sso_domains_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoDomainResponse"][];
+                };
+            };
+        };
+    };
+    add_domain_api_v1_orgs__org__sso_domains_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSsoDomainCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoDomainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_domain_api_v1_orgs__org__sso_domains__domain_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_domain_api_v1_orgs__org__sso_domains__domain_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoDomainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    probe_sso_api_v1_orgs__org__sso_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoTestResult"];
                 };
             };
         };

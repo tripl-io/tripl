@@ -21,6 +21,7 @@ from tripl.services.app_settings_service import apply_startup_service_overrides
 # those overrides "take effect on the next deploy", as the settings UI states.
 apply_startup_service_overrides()
 
+from tripl.api.deps import SsoRequiredError  # noqa: E402
 from tripl.api.v1.router import router as v1_router  # noqa: E402
 from tripl.database import engine  # noqa: E402
 from tripl.logging_config import configure_logging  # noqa: E402
@@ -202,6 +203,15 @@ app.include_router(v1_router)
 # and BrotliMiddleware like any other. Off in dev (Vite serves the SPA with HMR).
 if settings.serve_frontend and settings.frontend_dist_dir:
     app.frontend("/", directory=settings.frontend_dist_dir, fallback="index.html")
+
+
+@app.exception_handler(SsoRequiredError)
+async def sso_required_handler(request: Request, exc: SsoRequiredError) -> JSONResponse:
+    """An organization requiring SSO refused this session (F20): name where to sign in."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "sso_start": exc.sso_start},
+    )
 
 
 @app.exception_handler(Exception)

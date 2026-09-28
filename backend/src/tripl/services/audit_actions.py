@@ -248,6 +248,21 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
+        # F20: an organization's OIDC single sign-on — its settings and domains
+        # (``org.sso.*``) and the sign-ins through it (``user.sso_*``), all
+        # filed in the organization.
+        "Single sign-on",
+        (
+            "org.sso.update",
+            "org.sso.domain_add",
+            "org.sso.domain_verify",
+            "org.sso.domain_remove",
+            "user.sso_login",
+            "user.sso_provision",
+            "user.sso_link",
+        ),
+    ),
+    (
         # F20 PR14: the platform console. Suspension and step-ins are filed in
         # the TARGET organization, so its owners read them in their own feed;
         # platform-admin grants have no organization (platform scope).
