@@ -1368,7 +1368,10 @@ async def test_metric_and_fact_table_creation_indexes_them_for_search(
     assert metric_items[0]["title"] == "Revenue Total"
     assert metric_items[0]["subtitle"] == "revenue_total"
     assert metric_items[0]["description"] == "Sum of order amounts"
-    assert metric_items[0]["route_path"] == f"/p/search-catalog/monitoring/metric/{metric['id']}"
+    assert (
+        metric_items[0]["route_path"]
+        == f"/o/default/p/search-catalog/monitoring/metric/{metric['id']}"
+    )
 
     # The metric is also reachable through its internal name (keywords).
     by_name = await client.get("/api/v1/projects/search-catalog/search?q=revenue_total")
@@ -1383,7 +1386,7 @@ async def test_metric_and_fact_table_creation_indexes_them_for_search(
     assert ft_items[0]["title"] == "Orders Fact"
     assert (
         ft_items[0]["route_path"]
-        == f"/p/search-catalog/metrics/fact-tables/{fact_table['id']}/edit"
+        == f"/o/default/p/search-catalog/metrics/fact-tables/{fact_table['id']}/edit"
     )
 
 
@@ -1551,9 +1554,12 @@ async def test_scan_configs_and_alert_rules_are_searchable(client: AsyncClient) 
     assert ("alert_rule", "Checkout rule of another project") not in hits
 
     assert hits[("scan_config", "Nightly checkout scan")]["route_path"].startswith(
-        "/p/recall/scans/"
+        "/o/default/p/recall/scans/"
     )
-    assert hits[("alert_rule", "Checkout collapse watch")]["route_path"] == "/p/recall/alerting"
+    assert (
+        hits[("alert_rule", "Checkout collapse watch")]["route_path"]
+        == "/o/default/p/recall/alerting"
+    )
 
     # The rule's template is human-written text, so it is searchable on its own.
     by_template = await client.get("/api/v1/projects/recall/search?q=funnel&limit=50")

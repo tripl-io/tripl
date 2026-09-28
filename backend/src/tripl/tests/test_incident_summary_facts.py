@@ -91,12 +91,15 @@ def test_redaction_copies_and_never_mutates_the_payload() -> None:
     assert payload["columns"][0]["values"][0]["value"] == SENSITIVE_VALUE
 
 
-def test_hash_depends_on_kind_text_and_href_only() -> None:
+def test_hash_depends_on_kind_and_text_only() -> None:
     one = [SummaryFact(1, "incident", "A drop.", "/p/x/alerting?incident=1")]
     renumbered = [SummaryFact(7, "incident", "A drop.", "/p/x/alerting?incident=1")]
     changed = [SummaryFact(1, "incident", "A spike.", "/p/x/alerting?incident=1")]
+    # F20 PR8 (critique #21): a new link shape must not make a summary stale.
+    relinked = [SummaryFact(1, "incident", "A drop.", "/o/acme/p/x/alerting?incident=1")]
     assert compute_facts_hash(one) == compute_facts_hash(renumbered)
     assert compute_facts_hash(one) != compute_facts_hash(changed)
+    assert compute_facts_hash(one) == compute_facts_hash(relinked)
     assert len(compute_facts_hash(one)) == 64
 
 
@@ -113,9 +116,9 @@ async def test_facts_are_numbered_ordered_and_stable(client: AsyncClient) -> Non
     assert first.facts == second.facts
     assert [fact.id for fact in first.facts] == list(range(1, len(first.facts) + 1))
     assert first.facts[0].kind == "incident"
-    assert first.facts[0].href == f"/p/{seeded.slug}/alerting?incident={seeded.group_id}"
+    assert first.facts[0].href == f"/o/default/p/{seeded.slug}/alerting?incident={seeded.group_id}"
     scope = next(fact for fact in first.facts if fact.kind == "scope")
-    assert scope.href == f"/p/{seeded.slug}/monitoring/event/{seeded.event_id}"
+    assert scope.href == f"/o/default/p/{seeded.slug}/monitoring/event/{seeded.event_id}"
     # Absolute UTC timestamps only.
     assert BUCKET.strftime("%Y-%m-%d %H:%M UTC") in scope.text
     assert "ago" not in " ".join(fact.text for fact in first.facts)
@@ -149,7 +152,7 @@ async def test_comments_become_facts_and_change_the_hash(client: AsyncClient) ->
     assert before.facts_hash != after.facts_hash
     comment = next(fact for fact in after.facts if fact.kind == "comment")
     assert "checkout release" in comment.text
-    assert comment.href == f"/p/{seeded.slug}/events/detail/{seeded.event_id}"
+    assert comment.href == f"/o/default/p/{seeded.slug}/events/detail/{seeded.event_id}"
 
 
 @pytest.mark.asyncio
@@ -203,5 +206,5 @@ async def test_note_and_past_resolved_incident_on_the_scope(client: AsyncClient)
     assert "Looking into it." in note.text
     similar = [fact for fact in gathered.facts if fact.kind == "similar"]
     past = next(fact for fact in similar if "verdict expected" in fact.text)
-    assert past.href == f"/p/{seeded.slug}/alerting?incident={past_group}"
+    assert past.href == f"/o/default/p/{seeded.slug}/alerting?incident={past_group}"
     assert any("false positive 2 times" in fact.text for fact in similar)

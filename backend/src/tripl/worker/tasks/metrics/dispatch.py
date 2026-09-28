@@ -46,6 +46,7 @@ from tripl.worker.tasks.metrics.signals import (
 )
 from tripl.worker.tasks.metrics.urls import (
     _build_item_paths,
+    _get_org_slug,
     _get_project_slug,
 )
 
@@ -1153,6 +1154,9 @@ def _create_deliveries(
     # delivery's typed items and its frozen ``payload_snapshot`` disagree about
     # the same item's link, with nothing but a warning in the log to say why.
     app_base_url = app_settings_service.get_runtime_config_sync(session).app_base_url
+    # The organization every link of this delivery names (F20 PR8): a project
+    # slug alone is unique only inside its organization. Once, like the base.
+    org_slug = _get_org_slug(session, config.project_id)
     # One read for every chunk, before any delivery row is added (GH #255).
     attribution_lines = _build_attribution_lines(session, config, list(anomalies))
     delivery_ids: list[uuid.UUID] = []
@@ -1178,6 +1182,7 @@ def _create_deliveries(
             config,
             project_slug=project_slug,
             app_base_url=app_base_url,
+            org_slug=org_slug,
             rule=rule,
             destination=destination,
             anomalies=chunk,
@@ -1248,6 +1253,7 @@ def _create_deliveries(
             percent_delta = percent_delta_of(anomaly.actual_count, anomaly.expected_count)
             details_path, monitoring_path = _build_item_paths(
                 project_slug,
+                org_slug=org_slug,
                 app_base_url=app_base_url,
                 scope_type=anomaly.scope_type,
                 scope_ref=anomaly.scope_ref,

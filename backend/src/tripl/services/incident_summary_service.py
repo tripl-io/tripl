@@ -51,6 +51,7 @@ from tripl.services.incident_summary_facts import (
     as_utc,
     gather_incident_facts,
 )
+from tripl.services.project_links import qualify_project_path
 from tripl.services.project_lookup import resolve_project
 
 logger = logging.getLogger(__name__)
@@ -122,10 +123,23 @@ async def _load_row(
     return row
 
 
-def _body_from_row(row: IncidentSummary) -> IncidentSummaryBody:
+def _stored_fact(item: dict[str, Any], org_slug: str | None) -> IncidentSummaryFact:
+    """A stored fact, its href org-qualified when it predates F20 PR8.
+
+    Rows written before org-qualified links hold ``/p/{slug}/...`` hrefs. They
+    are completed on read instead of rewritten: the organization slug is
+    immutable, and the hash never covered hrefs after ``d4e8f1a2b3c5``.
+    """
+    fact = IncidentSummaryFact.model_validate(item)
+    if org_slug is None or fact.href is None:
+        return fact
+    return fact.model_copy(update={"href": qualify_project_path(org_slug, fact.href)})
+
+
+def _body_from_row(row: IncidentSummary, org_slug: str | None) -> IncidentSummaryBody:
     return IncidentSummaryBody(
         sentences=[IncidentSummarySentence.model_validate(item) for item in row.sentences or []],
-        facts=[IncidentSummaryFact.model_validate(item) for item in row.facts or []],
+        facts=[_stored_fact(item, org_slug) for item in row.facts or []],
         cause_known=row.cause_known,
         facts_hash=row.facts_hash,
         generated_at=as_utc(row.generated_at),
@@ -219,7 +233,7 @@ async def get_summary(
         correlation_group_id=correlation_group_id,
         state="ready" if row.facts_hash == facts.facts_hash else "stale",
         current_facts_hash=facts.facts_hash,
-        summary=_body_from_row(row),
+        summary=_body_from_row(row, facts.org_slug),
     )
 
 
@@ -248,7 +262,7 @@ async def ensure_summary(
             correlation_group_id=correlation_group_id,
             state="ready",
             current_facts_hash=facts.facts_hash,
-            summary=_body_from_row(row),
+            summary=_body_from_row(row, facts.org_slug),
         )
     return await _generate(session, facts, correlation_group_id, user_id=user.id, config=config)
 
@@ -295,7 +309,7 @@ async def _generate(
             correlation_group_id=correlation_group_id,
             state="ready",
             current_facts_hash=newer.facts_hash,
-            summary=_body_from_row(newer),
+            summary=_body_from_row(newer, facts.org_slug),
         )
     generated_at = datetime.now(UTC)
     body = _body(parsed, facts.facts, facts.facts_hash, generated_at)

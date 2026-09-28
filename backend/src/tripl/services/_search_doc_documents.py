@@ -17,6 +17,7 @@ from tripl.models.project import Project
 from tripl.services._search_documents import BuiltDocument, _join, _spaced_identifiers
 from tripl.services.docs_frontmatter import split_frontmatter
 from tripl.services.docs_links import rewrite_links_as_text
+from tripl.services.project_links import legacy_project_path
 
 #: How much of a note's body is indexed. The embed text is capped separately
 #: (``EMBED_TEXT_MAX_CHARS``); this keeps the stored tsvector bounded too.
@@ -84,7 +85,7 @@ async def build_doc_documents(
                         doc.audience,
                     ]
                 ),
-                route_path=f"/p/{slug}/docs/{scope}/{doc.path}",
+                route_path=legacy_project_path(slug, f"/docs/{scope}/{doc.path}"),
             )
         )
     return documents

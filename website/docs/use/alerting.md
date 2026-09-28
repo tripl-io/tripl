@@ -1034,9 +1034,16 @@ same member, email and SMTP conditions apply, and two more limits:
 Messages are rendered from templates using `${variable}` placeholders (an unknown
 variable is rejected, so a typo fails fast rather than sending a broken message).
 
-- **Message-level:** `${project_name}`, `${project_slug}`, `${channel}`,
-  `${destination_name}`, `${rule_name}`, `${scan_name}`, `${matched_count}`,
-  `${items_count}`, `${items_text}`.
+- **Message-level:** `${project_name}`, `${project_slug}`, `${org_slug}`,
+  `${channel}`, `${destination_name}`, `${rule_name}`, `${scan_name}`,
+  `${matched_count}`, `${items_count}`, `${items_text}`.
+
+  `${org_slug}` is the slug of the organization the project belongs to.
+  `${project_slug}` is still the bare project slug, and a project slug is unique
+  only inside its organization, so a template that builds its own link into
+  tripl should write `/o/${org_slug}/p/${project_slug}/...`. The links tripl
+  puts in the message itself (`${details_url}`, `${monitoring_url}` and their
+  `*_line` variants) already have that form.
 - **Per matched item:** `${scope_name}`, `${scope_type}`, `${scope_label}`,
   `${direction}`, `${direction_label}`, `${actual_count}`, `${expected_count}`,
   `${expected_basis}`,
@@ -1074,7 +1081,7 @@ variable is rejected, so a typo fails fast rather than sending a broken message)
   [Release-regression items](#release-regression-items) below for why it is
   there.
 - **Email subject** supports a smaller set: `${project_name}`, `${project_slug}`,
-  `${rule_name}`, `${destination_name}`, `${matched_count}`.
+  `${org_slug}`, `${rule_name}`, `${destination_name}`, `${matched_count}`.
 
 An optional **AI explanation** can be appended to messages; it is off by default
 and does nothing unless an AI provider is configured — see
@@ -1265,7 +1272,7 @@ volume over the rollout-overlap window — so the message writes it as
 ```
 - Release regression home:open:map:: down, actual=345, expected=715.7 (adoption-adjusted), delta=370.7 (51.8%)
   release: dropped in 15.7.5 vs 15.7.4 over the 51h rollout overlap; 715.7 is 15.7.4's share of this event at 15.7.5's own volume, so 51.8% is share-for-share
-  details: https://your-tripl/p/shop-ios/alerting/<delivery-id>?item=release_regression:<scope-ref>
+  details: https://your-tripl/o/acme/p/shop-ios/alerting/<delivery-id>?item=release_regression:<scope-ref>
 ```
 
 This answers the obvious objection before you raise it: *"the release only just

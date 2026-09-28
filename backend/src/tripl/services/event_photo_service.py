@@ -20,6 +20,7 @@ from tripl.models.user import User
 from tripl.services import notification_announce, project_access, subscription_service
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.mentions import excerpt, mentioned_user_ids
+from tripl.services.project_links import project_link
 from tripl.services.project_lookup import resolve_project_id
 from tripl.storage import PhotoStorage, get_photo_storage, storage_for
 
@@ -508,7 +509,7 @@ async def _announce_photo_comment_mentions(
             "project_id": event.project_id,
             "entity_type": subscription_service.EVENT,
             "entity_id": home_id,
-            "url": f"/p/{slug}/events/detail/{home_id}",
+            "url": await project_link(session, event.project_id, f"/events/detail/{home_id}"),
             "body": excerpt(comment.body),
             "actor_user_id": comment.user_id,
         },
@@ -656,13 +657,23 @@ async def read_blob(photo: EventPhoto) -> bytes:
     return await storage.read(photo.storage_key)
 
 
-async def url_for(photo: EventPhoto, slug: str) -> str:
+async def url_for(photo: EventPhoto, slug: str, org_slug: str | None = None) -> str:
     """Build the URL surfaced to clients for this photo.
 
     GCS returns a signed (or public) URL the browser can fetch directly.
     Local backend defers to the authenticated download endpoint exposed under
     the project router. Figma-kind rows simply return the embed URL the
     frontend iframes.
+
+    The download endpoint is org-qualified — ``/api/v1/orgs/{org}/projects/...``
+    — whenever the organization is known (tripl-0chm, F20 PR8): a project slug
+    is unique only inside its organization, so the legacy
+    ``/api/v1/projects/{slug}/...`` form resolves in whatever organization the
+    FETCHING request lands in, which for a multi-org user is not necessarily
+    the photo's. The callers pass the organization the listing request itself
+    resolved the slug in, so the URL answers in exactly that organization. The
+    legacy form still works (``OrgPathRewriteMiddleware`` keeps it) and is only
+    emitted when no organization is bound.
     """
     if photo.kind == PHOTO_KIND_FIGMA:
         return photo.external_url or ""
@@ -690,4 +701,7 @@ async def url_for(photo: EventPhoto, slug: str) -> str:
             if external:
                 return external
 
-    return f"/api/v1/projects/{slug}/events/{photo.event_id}/photos/{photo.id}/file"
+    path = f"/projects/{slug}/events/{photo.event_id}/photos/{photo.id}/file"
+    if org_slug:
+        return f"/api/v1/orgs/{org_slug}{path}"
+    return f"/api/v1{path}"

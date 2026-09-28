@@ -443,11 +443,14 @@ async def test_a_url_that_cannot_be_signed_falls_back_to_the_api(
     assert first.status_code == 201, first.text
     assert second.status_code == 201, second.text
     assert first.json()["storage_backend"] == "gcs"
-    assert first.json()["url"] == f"{base}/{first.json()['id']}/file"
+    # Org-qualified (tripl-0chm): the URL names the organization the listing
+    # request resolved the slug in, and the legacy request above ran in default.
+    served_base = base.replace("/api/v1/", "/api/v1/orgs/default/", 1)
+    assert first.json()["url"] == f"{served_base}/{first.json()['id']}/file"
     assert listed.status_code == 200
     assert len(listed.json()) == 2
     for row in listed.json():
-        assert row["url"] == f"{base}/{row['id']}/file"
+        assert row["url"] == f"{served_base}/{row['id']}/file"
         served = await client.get(row["url"])
         assert served.status_code == 200
         assert served.content == _PNG

@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import Response
 
 from tripl.api.deps import EditorUserDep, SessionDep
+from tripl.middleware.org_context import current_org
 from tripl.schemas.event_photo import (
     EventPhotoCommentCreate,
     EventPhotoCommentResponse,
@@ -23,7 +24,10 @@ router = APIRouter(
 
 
 async def _to_response(photo, slug: str) -> EventPhotoResponse:  # type: ignore[no-untyped-def]
-    url = await event_photo_service.url_for(photo, slug)
+    # The organization this request resolved ``slug`` in (tripl-0chm): the file
+    # URL names it, so a later fetch cannot land in another organization.
+    org = current_org()
+    url = await event_photo_service.url_for(photo, slug, org.slug if org is not None else None)
     return EventPhotoResponse(
         id=photo.id,
         event_id=photo.event_id,

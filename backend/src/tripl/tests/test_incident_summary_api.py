@@ -74,7 +74,9 @@ async def test_get_missing_then_post_generates_with_cited_facts(
         if sentence["generated"]:
             assert sentence["fact_ids"]
             assert set(sentence["fact_ids"]) <= fact_ids
-    assert summary["facts"][0]["href"] == (f"/p/{seeded.slug}/alerting?incident={seeded.group_id}")
+    assert summary["facts"][0]["href"] == (
+        f"/o/default/p/{seeded.slug}/alerting?incident={seeded.group_id}"
+    )
     assert summary["facts_hash"] == body["current_facts_hash"]
 
     cached = await client.post(seeded.summary_url)

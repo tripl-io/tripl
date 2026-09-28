@@ -101,6 +101,7 @@ from tripl.services.alerting_rendering import (
 from tripl.services.alerting_rendering import (
     trim_alert_text as _trim_alert_text,
 )
+from tripl.services.project_links import project_org_slugs
 from tripl.services.project_lookup import resolve_project as _get_project
 
 # The one scope family whose label is a CONSTANT rather than a row lookup.
@@ -923,6 +924,7 @@ async def simulate_rule(
         destination=destination,
         project=project,
         metric_units=metric_units,
+        org_slug=(await project_org_slugs(session, [project.id])).get(project.id, ""),
     )
     for firing, rendered_item in zip(firings, rendered_items, strict=True):
         firing.rendered_item = rendered_item or None

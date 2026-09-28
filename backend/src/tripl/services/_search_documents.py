@@ -36,6 +36,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue
 from tripl.schemas.search import SearchEntityType
+from tripl.services.project_links import legacy_project_path
 
 
 def _clean(value: object | None) -> str:
@@ -154,6 +155,10 @@ class BuiltDocument:
     subtitle: str
     body: str
     keywords: str
+    # ORG-LESS on purpose: ``/p/{slug}/...`` (critique #21, F20 PR8). It is part
+    # of ``content_hash``, so writing the organization into it would change every
+    # stored hash and re-embed the whole corpus. ``search_service`` completes it
+    # to ``/o/{org}/p/{slug}/...`` when it serves a result.
     route_path: str
     description: str = ""
     archived: bool = False
@@ -447,7 +452,7 @@ def _event_type_document(event_type: EventType, slug: str) -> BuiltDocument:
                 _spaced_identifiers([event_type.name]),
             ]
         ),
-        route_path=f"/p/{slug}/events/{event_type.name}",
+        route_path=legacy_project_path(slug, f"/events/{event_type.name}"),
     )
 
 
@@ -477,7 +482,7 @@ def _field_document(field: FieldDefinition, event_type: EventType, slug: str) ->
                 _spaced_identifiers([field.name, event_type.name]),
             ]
         ),
-        route_path=f"/p/{slug}/event-types",
+        route_path=legacy_project_path(slug, "/event-types"),
     )
 
 
@@ -504,7 +509,7 @@ def _meta_field_document(meta_field: MetaFieldDefinition, slug: str) -> BuiltDoc
                 _spaced_identifiers([meta_field.name]),
             ]
         ),
-        route_path=f"/p/{slug}/meta-fields",
+        route_path=legacy_project_path(slug, "/meta-fields"),
     )
 
 
@@ -680,7 +685,7 @@ def _event_document(
                 _spaced_identifiers([event.name, event.source_name]),
             ]
         ),
-        route_path=f"/p/{slug}/monitoring/event/{event.id}",
+        route_path=legacy_project_path(slug, f"/monitoring/event/{event.id}"),
         archived=(event.status == "archived"),
     )
 
@@ -711,7 +716,7 @@ def _tag_document(
         # 4.0 "keywords ARE the query" tier compares for equality. Appending an
         # alias here would delete that tier for every tag.
         keywords=tag.name,
-        route_path=f"/p/{slug}/monitoring/event/{event.id}",
+        route_path=legacy_project_path(slug, f"/monitoring/event/{event.id}"),
         archived=(event.status == "archived"),
     )
 
@@ -781,7 +786,7 @@ def _variable_document(
                 _spaced_identifiers([variable.name, variable.source_name]),
             ]
         ),
-        route_path=f"/p/{slug}/variables",
+        route_path=legacy_project_path(slug, "/variables"),
     )
 
 
@@ -866,7 +871,7 @@ def _relation_document(relation: EventTypeRelation, slug: str) -> BuiltDocument:
                 _spaced_identifiers([source_field.name, target_field.name]),
             ]
         ),
-        route_path=f"/p/{slug}/relations",
+        route_path=legacy_project_path(slug, "/relations"),
     )
 
 
@@ -895,7 +900,7 @@ def _scan_config_document(scan_config: ScanConfig, slug: str) -> BuiltDocument:
             ]
         ),
         keywords=_join([scan_config.name, _spaced_identifiers([scan_config.name])]),
-        route_path=f"/p/{slug}/scans/{scan_config.id}",
+        route_path=legacy_project_path(slug, f"/scans/{scan_config.id}"),
         archived=False,
     )
 
@@ -929,7 +934,7 @@ def _alert_rule_document(
         description="",
         body=_join([alert_rule.message_template, alert_rule.items_template]),
         keywords=_join([alert_rule.name, _spaced_identifiers([alert_rule.name])]),
-        route_path=f"/p/{slug}/alerting",
+        route_path=legacy_project_path(slug, "/alerting"),
         archived=False,
     )
 
@@ -963,7 +968,7 @@ def _metric_document(metric: MetricDefinition, slug: str) -> BuiltDocument:
                 _spaced_identifiers([metric.name]),
             ]
         ),
-        route_path=f"/p/{slug}/monitoring/metric/{metric.id}",
+        route_path=legacy_project_path(slug, f"/monitoring/metric/{metric.id}"),
         archived=(metric.status == "archived"),
     )
 
@@ -1003,5 +1008,5 @@ def _fact_table_document(fact_table: FactTable, slug: str) -> BuiltDocument:
                 _spaced_identifiers([fact_table.name, *column_names]),
             ]
         ),
-        route_path=f"/p/{slug}/metrics/fact-tables/{fact_table.id}/edit",
+        route_path=legacy_project_path(slug, f"/metrics/fact-tables/{fact_table.id}/edit"),
     )

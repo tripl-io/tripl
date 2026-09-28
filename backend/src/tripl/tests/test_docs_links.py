@@ -75,11 +75,11 @@ async def test_links_resolve_against_the_main_plan(client: AsyncClient) -> None:
 
     assert by_raw["[[event:purchase]]"]["status"] == "resolved"
     assert by_raw["[[event:purchase]]"]["route_path"] == (
-        f"/p/linked/monitoring/event/{ids['event_id']}"
+        f"/o/default/p/linked/monitoring/event/{ids['event_id']}"
     )
-    assert by_raw["[[event-type:checkout]]"]["route_path"] == "/p/linked/events/checkout"
+    assert by_raw["[[event-type:checkout]]"]["route_path"] == "/o/default/p/linked/events/checkout"
     assert by_raw["[[field:checkout/amount]]"]["route_path"] == (
-        f"/p/linked/event-types/{ids['event_type_id']}"
+        f"/o/default/p/linked/event-types/{ids['event_type_id']}"
     )
     assert by_raw["[[field:checkout/amount]]"]["entity_id"] == ids["field_id"]
     assert by_raw["[[field:amount]]"]["status"] == "resolved"

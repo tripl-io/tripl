@@ -71,6 +71,7 @@ from tripl.services._search_query import (
 from tripl.services.app_settings_service import AiConfig
 from tripl.services.embedding_service import embedding_provenance, sanitize_embedding
 from tripl.services.plan_branch_service import resolve_branch_id
+from tripl.services.project_links import project_org_slugs, qualify_project_path
 from tripl.services.project_lookup import resolve_project_id
 
 logger = logging.getLogger(__name__)
@@ -568,6 +569,9 @@ async def search_project(
         project_id=project_id,
         branch_id=resolved_branch_id,
     )
+    org_slug = (await project_org_slugs(session, [project_id])).get(project_id)
+    if org_slug is not None:
+        items = [qualify_result_routes(item, org_slug) for item in items]
     return SearchResponse(
         items=items,
         total=len(items),
@@ -864,6 +868,34 @@ async def _group_event_variants(
         event_types=event_types,
         name_formats=sorted(name_format for name_format in name_formats if name_format),
     )
+
+
+def qualify_result_routes(result: SearchResult, org_slug: str) -> SearchResult:
+    """``result`` with its route paths org-qualified (F20 PR8, critique #21).
+
+    A stored document keeps the org-less ``/p/{slug}/...`` route it was built
+    with: ``route_path`` is part of ``content_hash``, so writing the
+    organization into it would change every hash and re-embed the whole corpus
+    once, for a link that can be completed here for free. The organization slug
+    is immutable, so completing it at read time is exact. Returns a copy; the
+    folded variants are qualified the same way.
+    """
+    group = result.variant_group
+    update: dict[str, object] = {
+        "route_path": qualify_project_path(org_slug, result.route_path),
+    }
+    if group is not None:
+        update["variant_group"] = group.model_copy(
+            update={
+                "variants": [
+                    variant.model_copy(
+                        update={"route_path": qualify_project_path(org_slug, variant.route_path)}
+                    )
+                    for variant in group.variants
+                ]
+            }
+        )
+    return result.model_copy(update=update)
 
 
 async def _project_slug(session: AsyncSession, project_id: uuid.UUID) -> str:

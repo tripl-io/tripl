@@ -54,7 +54,7 @@ async def test_get_dependencies_shape_and_counts(client: AsyncClient) -> None:
         "name": "Purchases",
         "relation": "metric uses event in its composition",
         "certainty": "direct",
-        "url_hint": f"/p/{s.slug}/monitoring/metric/{s.composition_metric}",
+        "url_hint": f"/o/default/p/{s.slug}/monitoring/metric/{s.composition_metric}",
         "depth": 1,
     }
     assert any(e["kind"] == "event_type" for e in body["upstream"])

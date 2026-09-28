@@ -270,7 +270,7 @@ async def test_catalog_metric_anomaly_reaches_the_rail(client: AsyncClient) -> N
         assert item["title"] == "Drop on Checkout rate"
         assert item["project_slug"] == slug
         assert item["detail"].startswith("0.04 actual vs 0.25 expected")
-        assert item["target_path"] == f"/p/{slug}/monitoring/metric/{metric_id}"
+        assert item["target_path"] == f"/o/default/p/{slug}/monitoring/metric/{metric_id}"
 
 
 @pytest.mark.asyncio
@@ -331,7 +331,7 @@ async def test_rail_keeps_weekly_anomalies_on_their_own_grid(client: AsyncClient
     # stays outside its 7-day window.
     assert details == ["5", "700"], anomalies
     assert {item["target_path"] for item in anomalies} >= {
-        f"/p/{slug}/monitoring/metric/{metric_id}"
+        f"/o/default/p/{slug}/monitoring/metric/{metric_id}"
     }
 
 
