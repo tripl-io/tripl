@@ -82,6 +82,18 @@ post a message; **Webhook** POSTs a JSON payload. **MarkdownV2** falls back to
 plain text automatically if a message can't be rendered safely.
 :::
 
+An email destination's **From** address is used only if the mail goes out
+through your organization's own SMTP relay. If your organization has no SMTP
+settings of its own, the mail goes out through the operator's relay and uses
+that relay's configured sender, and the destination's From address is ignored.
+Entering the operator's own SMTP host in your organization's settings does not
+count as your own relay. On a hosted instance a From address can only be saved
+if your organization has its own SMTP relay, even when its domain is one of your
+verified single sign-on domains, because the operator's relay would not use it.
+Otherwise the save fails with a 422 error. On a self-hosted instance the default
+organization uses the operator's settings, so its From address works as it did
+before.
+
 Credentials are write-only. When you edit a destination, a secret box left empty
 keeps the stored value. The webhook's custom header is a pair: a new header name
 needs its value. To stop sending a stored header, use **Remove secret header**

@@ -428,7 +428,10 @@ def _send_digest_to_destination(
     if destination.type == AlertDestinationType.email.value:
         recipients = _parse_email_recipients(destination.email_recipients)
         validate_email_recipients(destination.email_recipients)
-        from_address = destination.email_from_address or email_config.smtp_from_address
+        # The override only on the organization's own relay (critique #16).
+        from_address = app_settings_service.email_sender_for(
+            destination.email_from_address, email_config
+        )
         if not from_address:
             raise ValueError(f"Email destination {destination.name!r} requires a From address")
         # The same helper the per-delivery path resolves with

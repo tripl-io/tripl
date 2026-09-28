@@ -148,6 +148,7 @@ async def _combined_payload(session: AsyncSession, org_id: uuid.UUID | None) -> 
             org_scope=resolved.org_scope,
             overridden_fields=tuple(sorted(overridden)),
             guarded_hosts=resolved.guarded_hosts,
+            operator_smtp_host=resolved.operator_smtp_host,
         )
     return await app_settings_service.resolved_settings_payload(session, resolved)
 
