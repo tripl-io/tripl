@@ -38,6 +38,7 @@ from tripl.schemas.docs import (
     DocLimits,
     DocLinkKind,
     DocLinkResolution,
+    DocLinkSuggestion,
     DocMovedPath,
     DocMoveRequest,
     DocMoveResponse,
@@ -47,8 +48,16 @@ from tripl.schemas.docs import (
     DocWriteRequest,
     DocWriteResponse,
 )
+from tripl.services import (
+    _docs_link_targets,
+    audit_service,
+    docs_folders,
+    docs_link_suggestions,
+    docs_links,
+    docs_mentions,
+    project_lookup,
+)
 from tripl.services import _docs_store as store
-from tripl.services import audit_service, docs_folders, docs_links, project_lookup
 from tripl.services.docs_access import (
     NOTE_NOT_EDITABLE,
     DocAccess,
@@ -63,6 +72,7 @@ from tripl.services.docs_access import (
     require_editable,
     require_org_bulk_delete,
     require_readable,
+    visible_docs_clause,
 )
 from tripl.services.docs_frontmatter import DocContentError, parse_frontmatter
 from tripl.services.docs_paths import (
@@ -170,13 +180,18 @@ async def file_response_for(
         access=access,
         permission=permission,
         break_glass=break_glass,
+        viewer_id=caller.user.id,
     )
 
 
 async def resolve_refs(
-    session: AsyncSession, slug: str, refs: list[str]
+    session: AsyncSession, slug: str, refs: list[str], caller: DocCaller
 ) -> list[DocLinkResolution]:
-    """``GET /docs/links``: resolve ``kind:name`` refs for the editor's live preview."""
+    """``GET /docs/links``: resolve ``kind:target`` refs for the editor's live preview.
+
+    As the caller reads them: a note link to a note they cannot see is
+    ``unavailable``.
+    """
     project = await _resolve_project(session, slug)
     parsed: list[docs_links.LinkRef] = []
     for ref in refs:
@@ -185,7 +200,7 @@ async def resolve_refs(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         parsed.append(docs_links.LinkRef(kind, target, qualifier))
-    return await docs_links.resolve_links(session, project, parsed)
+    return await docs_links.resolve_links(session, project, parsed, user_id=caller.user.id)
 
 
 async def backlinks(
@@ -196,11 +211,51 @@ async def backlinks(
     qualifier: str | None,
     caller: DocCaller,
 ) -> DocBacklinksResponse:
+    """Notes linking to ``kind:name`` that the caller can see.
+
+    For a note (``kind=doc``, ``name`` its id) this is its "Linked from" list,
+    and it is empty unless the caller may see the note itself: a hidden note's
+    id says nothing about who links to it.
+    """
     project = await _resolve_project(session, slug)
+    if kind == "doc" and not await _can_see_doc_id(session, project, name, caller):
+        return DocBacklinksResponse(kind=kind, name=name, qualifier=qualifier, items=[])
     items = await docs_links.backlinks(
         session, project, kind, name, qualifier, user_id=caller.user.id
     )
     return DocBacklinksResponse(kind=kind, name=name, qualifier=qualifier, items=items)
+
+
+async def _can_see_doc_id(
+    session: AsyncSession, project: Project, raw_id: str, caller: DocCaller
+) -> bool:
+    doc_id = docs_links.canonical_id(raw_id)
+    if doc_id is None:
+        return False
+    found = await session.scalar(
+        select(DocFile.id).where(
+            DocFile.id == uuid.UUID(doc_id),
+            store.any_scope_filter(project),
+            visible_docs_clause(caller.user.id),
+        )
+    )
+    return found is not None
+
+
+async def link_suggestions(
+    session: AsyncSession,
+    slug: str,
+    caller: DocCaller,
+    *,
+    q: str,
+    kind: DocLinkKind | None,
+    limit: int,
+) -> list[DocLinkSuggestion]:
+    """``GET /docs/link-suggestions``: the editor's ``[[`` and ``@`` picker."""
+    project = await _resolve_project(session, slug)
+    return await docs_link_suggestions.suggest(
+        session, project, caller.user, q=q, kind=kind, limit=limit
+    )
 
 
 def _warnings(response: DocFileResponse) -> list[str]:
@@ -245,6 +300,11 @@ async def write_file(
 
     The note is read ``FOR UPDATE``, and a unique-index clash from a racing
     create (or a writer on a database without row locks) answers 409, never 500.
+
+    Two steps belong to this save and to no other write (F24 part 2): a
+    hand-typed ``[[doc:path]]`` naming a note the author can read is stored in
+    its id form, and the people newly @mentioned are notified
+    (``docs_mentions``). An import, a restore or a move does neither.
     """
     project = await _resolve_project(session, slug)
     await require_doc_writer(session, caller, scope, project.organization_id)
@@ -254,8 +314,13 @@ async def write_file(
         raise HTTPException(
             status_code=413, detail=f"Doc is larger than {MAX_FILE_BYTES // 1024} KiB"
         )
+    content = await _docs_link_targets.normalize_doc_links(session, project, body.content, user.id)
+    if content_bytes(content) > MAX_FILE_BYTES:
+        raise HTTPException(
+            status_code=413, detail=f"Doc is larger than {MAX_FILE_BYTES // 1024} KiB"
+        )
     try:
-        parsed = parse_frontmatter(body.content, normalized)
+        parsed = parse_frontmatter(content, normalized)
     except DocContentError as exc:
         raise store.unprocessable(exc) from exc
 
@@ -282,14 +347,15 @@ async def write_file(
                 detail=f"This scope already holds {MAX_FILES_PER_SCOPE} docs, the maximum",
             )
         doc = store.new_doc(project, scope, normalized)
-    elif doc.content == body.content:
+    elif doc.content == content:
         return await _write_response(session, project, doc, caller, created=False, changed=False)
 
+    before = None if created else doc.content
     try:
         await store.apply_content(
             session,
             doc,
-            content=body.content,
+            content=content,
             parsed=parsed,
             action="create" if created else "update",
             user=user,
@@ -307,6 +373,7 @@ async def write_file(
             commit=False,
         )
         await session.flush()
+        await docs_mentions.announce(session, project, doc, before=before, actor=user)
         await store.reindex_after_write(session, project, scope, [doc.id])
     except IntegrityError as exc:
         await session.rollback()

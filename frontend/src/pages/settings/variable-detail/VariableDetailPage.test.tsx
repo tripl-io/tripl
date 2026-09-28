@@ -34,6 +34,13 @@ vi.mock('@/api/events', () => ({
   eventsApi: { list: vi.fn() },
 }))
 
+// The Notes card (F24) asks which docs link to the variable.
+vi.mock('@/api/docs', () => ({
+  docsApi: {
+    backlinks: vi.fn(() => Promise.resolve({ kind: 'variable', name: '', qualifier: null, items: [] })),
+  },
+}))
+
 function makeVariable(overrides: Partial<Variable> & { id: string; name: string }): Variable {
   return {
     project_id: 'project-1',

@@ -22,7 +22,7 @@ it. What ownership costs the fact-table doors is written down in
 import uuid
 from collections.abc import Collection
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.data_source import DataSource
@@ -120,3 +120,29 @@ async def scanning_project_ids_for(
         select(ScanConfig.project_id).where(ScanConfig.data_source_id == data_source.id)
     )
     return set(rows.scalars().all())
+
+
+def usable_by_project_clause(
+    project_id: uuid.UUID, organization_id: uuid.UUID
+) -> ColumnElement[bool]:
+    """SQL: the ``DataSource`` row is NOT out of ``project_id``'s scope.
+
+    :func:`data_source_out_of_project_scope` as a filter, for lists that pick
+    among many sources at once (the docs catalog's ``[[data-source:NAME]]``
+    links and link suggestions): the project's organization, and either owned
+    by this project, or workspace-global and scanned by this project or by no
+    project at all.
+    """
+    scanned_here = exists().where(
+        ScanConfig.data_source_id == DataSource.id, ScanConfig.project_id == project_id
+    )
+    scanned_elsewhere = exists().where(
+        ScanConfig.data_source_id == DataSource.id, ScanConfig.project_id != project_id
+    )
+    return and_(
+        DataSource.organization_id == organization_id,
+        or_(
+            DataSource.project_id == project_id,
+            and_(DataSource.project_id.is_(None), or_(scanned_here, ~scanned_elsewhere)),
+        ),
+    )

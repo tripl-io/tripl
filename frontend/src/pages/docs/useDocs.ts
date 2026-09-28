@@ -7,13 +7,14 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import {
   docFileKey,
   docLinkResolutionKey,
+  docLinkSuggestionsKey,
   docRevisionKey,
   docRevisionsKey,
   docSharingKey,
   docsKey,
   docsTreeKey,
 } from '@/lib/docsQueryKeys'
-import type { DocMoveRequest, DocScope, DocSharingUpdate, DocWriteRequest } from '@/types/docs'
+import type { DocLinkKind, DocMoveRequest, DocScope, DocSharingUpdate, DocWriteRequest } from '@/types/docs'
 
 /** The live preview asks the server to resolve links this long after typing stops. */
 export const LINK_PREVIEW_DEBOUNCE_MS = 400
@@ -75,6 +76,38 @@ export function useDraftLinkResolutions(slug: string, content: string) {
     meta: SILENT_ERROR_META,
     staleTime: 30_000,
   })
+}
+
+/** The editor's link picker waits this long after the last keystroke. */
+export const LINK_SUGGEST_DEBOUNCE_MS = 200
+/** How many rows the picker shows. */
+export const LINK_SUGGEST_LIMIT = 8
+
+/**
+ * Rows for the editor's `[[` / `@` picker (F24), debounced so typing does not
+ * fire a request per key; the last rows stay up while the next ones load.
+ */
+/**
+ * The link picker's rows. `current` is true only when `data` answers exactly
+ * the typed (kind, query): while the debounce runs or the next query loads,
+ * `keepPreviousData` keeps the previous rows, which may be of another kind (the
+ * `[[` rows after `@` or `[[metric:` is typed), and the picker must not offer
+ * them.
+ */
+export function useLinkSuggestions(slug: string, query: string, kind: DocLinkKind | null, enabled: boolean) {
+  const wanted = query.trim()
+  const debounced = useDebouncedValue(wanted, LINK_SUGGEST_DEBOUNCE_MS)
+  const result = useQuery({
+    queryKey: docLinkSuggestionsKey(slug, debounced, kind),
+    queryFn: ({ signal }) => docsApi.linkSuggestions(slug, { q: debounced, kind, limit: LINK_SUGGEST_LIMIT }, signal),
+    enabled: enabled && Boolean(slug),
+    placeholderData: keepPreviousData,
+    // A failed lookup shows "No matches" in the picker, not a toast mid-typing.
+    meta: SILENT_ERROR_META,
+    staleTime: 30_000,
+  })
+  const current = result.data !== undefined && !result.isPlaceholderData && debounced === wanted
+  return { data: result.data, isFetching: result.isFetching, current }
 }
 
 /** Every docs write refreshes the whole project's docs family. */

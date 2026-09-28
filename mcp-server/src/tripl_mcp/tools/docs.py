@@ -123,7 +123,8 @@ def with_link_warnings(data: Any) -> Any:
             "IMPORTANT_warnings": data["warnings"],
             "note": (
                 "The note was saved, but these [[links]] do not resolve to exactly one "
-                "entity on the main plan. Check the names with search_plan and write the "
+                "entity. Check the names with search_plan (a broken link's "
+                "'suggestions' in 'links' are the closest current names) and write the "
                 "note again with base_revision set to the revision below."
             ),
             "result": {k: v for k, v in data.items() if k != "warnings"},
@@ -155,8 +156,10 @@ def register(mcp: FastMCP) -> None:
             "'guides/warehouse.md'). Returns the raw Markdown 'content' with its "
             "frontmatter, the parsed title/description/tags/audience, "
             "'extra_frontmatter' for any other keys, the current 'revision', and "
-            "'links': every [[event:NAME]], [[event-type:NAME]] and [[field:NAME]] in "
-            "the note with its status on the main plan (resolved, ambiguous or broken). "
+            "'links': every [[kind:target]] link in the note with its status "
+            "(resolved, ambiguous, broken, or unavailable for a note the user cannot "
+            "see), its current 'label' and, for a broken link, up to three relink "
+            "'suggestions'. "
             "A note hidden from the key's user answers 404, except for an "
             "organization owner or admin: they may still read it, the read is "
             "recorded in the audit log, and the answer carries break_glass=true "
@@ -186,9 +189,16 @@ def register(mcp: FastMCP) -> None:
             "with YAML frontmatter (title, description, tags, audience: "
             "human|agent|both). To edit an existing note, read_doc it first and pass its "
             "'revision' as 'base_revision': if someone changed it since, the server "
-            "answers 409 instead of overwriting their edit. Link plan entities as "
-            "[[event:NAME]], [[event-type:NAME]] or [[field:EVENT_TYPE/NAME]]; links "
-            "that do not resolve come back as warnings, and the note is saved anyway. "
+            "answers 409 instead of overwriting their edit. Link by name as "
+            "[[event:NAME]], [[event-type:NAME]], [[field:EVENT_TYPE/NAME]], "
+            "[[variable:NAME]], [[metric:NAME]], [[branch:NAME]], [[scan:NAME]] or "
+            "[[data-source:NAME]]; by id as [[doc:NOTE_ID]] (optionally "
+            "[[doc:NOTE_ID#heading]]; a [[doc:path/to/note.md]] is saved as the id "
+            "form when the note exists and you can read it), [[alert-rule:RULE_ID]] "
+            "or [[user:USER_ID]] (an @mention: it notifies that person if they can "
+            "read the note and are a member of the project). Any "
+            "link takes a label: [[metric:revenue|Revenue]]. Links that do not "
+            "resolve come back as warnings, and the note is saved anyway. "
             "Notes are not branch-aware: the write is live at once. Requires a tk_w_ "
             "tripl API key backed by an editor or owner user."
         ),

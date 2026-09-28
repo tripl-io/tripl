@@ -277,9 +277,13 @@ review. That is why the toolset stops at single-note create and replace:
 
 - Pass `base_revision` from the `read_doc` you edited. If someone changed the
   note since, the server answers `409` rather than overwriting their edit.
-- A `[[event:NAME]]`, `[[event-type:NAME]]` or `[[field:TYPE/NAME]]` link that
-  does not resolve on the main plan comes back as a warning. The note is saved
-  anyway, so fix the name and write it again.
+- A `[[kind:target]]` link that does not resolve comes back as a warning. The
+  note is saved anyway, so fix the name and write it again. Plan links
+  (`[[event:NAME]]`, `[[event-type:NAME]]`, `[[field:TYPE/NAME]]`,
+  `[[variable:NAME]]`, `[[metric:NAME]]`, `[[branch:NAME]]`, `[[scan:NAME]]`,
+  `[[data-source:NAME]]`) go by name. Links to notes, alert rules and people go
+  by id: `[[doc:<id>]]`, `[[alert-rule:<id>]]` and `[[user:<id>]]` (a mention).
+  See the [link syntax](agent-api-guide.md#docs-link-syntax).
 - A `tk_r_` key, or a `tk_w_` key held by a viewer, gets a `403`.
 - A key bound to one project gets a `403` on `scope: organization` writes,
   because every project of the organization reads those notes.

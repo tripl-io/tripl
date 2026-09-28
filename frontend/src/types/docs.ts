@@ -13,8 +13,46 @@ export const DOC_SCOPES: readonly DocScope[] = ['project', 'organization']
 /** Who a note is written for. Missing frontmatter reads as `both`. */
 export type DocAudience = 'human' | 'agent' | 'both'
 
-export type DocLinkKind = 'event' | 'event_type' | 'field'
-export type DocLinkStatus = 'resolved' | 'ambiguous' | 'broken'
+/**
+ * What a `[[kind:…]]` link points at. The plan entities (event, event type,
+ * field, variable, metric, branch, scan, data source) are written by NAME and
+ * resolved on read, so a rename breaks the link; a note (`doc`), an alert rule
+ * and a person (`user`, an @-mention) are written by id and survive renames
+ * and moves (F24, GH #308).
+ */
+export type DocLinkKind =
+  | 'event'
+  | 'event_type'
+  | 'field'
+  | 'doc'
+  | 'variable'
+  | 'metric'
+  | 'alert_rule'
+  | 'branch'
+  | 'scan'
+  | 'data_source'
+  | 'user'
+export const DOC_LINK_KINDS: readonly DocLinkKind[] = [
+  'event',
+  'event_type',
+  'field',
+  'doc',
+  'variable',
+  'metric',
+  'alert_rule',
+  'branch',
+  'scan',
+  'data_source',
+  'user',
+]
+/**
+ * `unavailable`: a `[[doc:<id>]]` link to a note the reader may not see, or to
+ * no note at all: the server answers both the same (no reason, title, path or
+ * route), so a link never reveals whether a hidden note exists.
+ */
+export type DocLinkStatus = 'resolved' | 'ambiguous' | 'broken' | 'unavailable'
+/** Why a link does not resolve. */
+export type DocLinkReason = 'not_found' | 'invalid_id' | 'path_form' | 'not_a_member'
 export type DocRevisionAction = 'create' | 'update' | 'move' | 'restore' | 'import'
 export type DocImportMode = 'merge' | 'mirror'
 
@@ -82,6 +120,45 @@ export interface DocLinkResolution {
   route_path: string | null
   entity_id: string | null
   candidates: number
+  /**
+   * What the link shows now: a note's current title, `@Name` for a mention,
+   * an alert rule's current name. Null when broken or unavailable, except a
+   * hand-typed `[[doc:path]]` (reason `path_form`) with a suggestion: the
+   * title of that readable note.
+   */
+  label?: string | null
+  /** A second line, e.g. a note's current scope and path. */
+  detail?: string | null
+  reason?: DocLinkReason | null
+  /**
+   * Relink candidates for a broken link: up to 3 current targets closest to
+   * the one written (plan names; for a hand-typed `[[doc:path]]`, the id of
+   * the readable note now at that path). Each replaces the target.
+   */
+  suggestions?: string[]
+}
+
+/** One note that links to the open note, as the reader may see it (F24). */
+export interface DocLinkedFrom {
+  scope: DocScope
+  path: string
+  title: string
+}
+
+/** `GET .../docs/link-suggestions`: one row of the `[[` / `@` picker. */
+export interface DocLinkSuggestion {
+  kind: DocLinkKind
+  /** The target's id; always present. */
+  id: string
+  label: string
+  /** A second line (a note's path, an email address); `''` when there is none. */
+  detail: string
+  /** The canonical reference to insert, e.g. `[[metric:signup_rate]]`. */
+  insert: string
+}
+
+export interface DocLinkSuggestionsResponse {
+  items: DocLinkSuggestion[]
 }
 
 export interface DocFileResponse extends DocSummary {
@@ -93,6 +170,11 @@ export interface DocFileResponse extends DocSummary {
   /** Frontmatter keys tripl does not interpret, kept verbatim. */
   extra_frontmatter: Record<string, unknown>
   links: DocLinkResolution[]
+  /**
+   * Notes that link to this one by id (`[[doc:<id>]]`), readable by the caller
+   * only. Optional: a write response may leave it out.
+   */
+  linked_from?: DocLinkedFrom[]
   created_at: string
   created_by_name: string | null
   /**

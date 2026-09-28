@@ -829,6 +829,8 @@ def _query(path: str, w: World) -> dict[str, str] | None:
         return {"event_type_id": w.a.ids["event_type_id"], "names": f"{MARKER}_purchase"}
     if path.endswith("/search") or path.endswith("/docs/search"):
         return {"q": MARKER}
+    if path.endswith("/docs/link-suggestions"):
+        return {"q": MARKER}
     if path.endswith(
         ("/top-movers", "/seasonality", "/breakdown-timeline", "/distribution-drifts")
     ):
@@ -1164,6 +1166,9 @@ LIST_READS: list[tuple[str, dict[str, str] | None]] = [
     (f"/projects/{SLUG}/search", {"q": "purchase"}),
     (f"/projects/{SLUG}/docs", None),
     (f"/projects/{SLUG}/docs/search", {"q": MARKER}),
+    # The note editor's picker: notes, people and entities of B's project only.
+    (f"/projects/{SLUG}/docs/link-suggestions", {"q": MARKER}),
+    (f"/projects/{SLUG}/docs/link-suggestions", {"limit": "50"}),
     (f"/projects/{SLUG}/docs/export", {"scope": "organization"}),
     (f"/projects/{SLUG}/event-types", None),
     (f"/projects/{SLUG}/events", None),

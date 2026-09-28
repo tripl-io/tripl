@@ -147,4 +147,129 @@ describe('DocMarkdown (F22)', () => {
     expect(container.querySelector('pre code')).toHaveTextContent('select [[event:checkout_started]]')
     expect(screen.queryByRole('link')).toBeNull()
   })
+
+  describe('F24 link kinds', () => {
+    const NOTE = '0f8fad5b-d9cb-469f-a165-70867728950e'
+    const USER = '16fd2706-8baf-433b-82eb-8c7fada847da'
+    const RULE = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+
+    it("renders a note link with the target's current title and keeps the anchor", () => {
+      renderMarkdown(`See [[doc:${NOTE}#install]].`, [
+        resolution({
+          kind: 'doc',
+          target: NOTE,
+          raw: `[[doc:${NOTE}]]`,
+          route_path: '/p/demo/docs/project/guides/moved.md',
+          entity_id: NOTE,
+          label: 'Setup guide',
+        }),
+      ])
+      const link = screen.getByRole('link', { name: 'Setup guide' })
+      expect(link).toHaveAttribute('href', '/p/demo/docs/project/guides/moved.md#install')
+      expect(link).toHaveAttribute('data-doc-link-kind', 'doc')
+    })
+
+    it('keeps the author label over the current title', () => {
+      renderMarkdown(`[[doc:${NOTE}|read this]]`, [
+        resolution({ kind: 'doc', target: NOTE, route_path: '/p/demo/docs/project/a.md', label: 'Setup guide' }),
+      ])
+      expect(screen.getByRole('link', { name: 'read this' })).toBeInTheDocument()
+    })
+
+    it('renders a note the reader cannot see as a generic unavailable note', () => {
+      const { container } = renderMarkdown(`[[doc:${NOTE}|Secret plans]]`, [
+        resolution({ kind: 'doc', target: NOTE, raw: `[[doc:${NOTE}]]`, status: 'unavailable', route_path: null, entity_id: null }),
+      ])
+      const chip = container.querySelector('[data-doc-link="unavailable"]')
+      expect(chip).toHaveTextContent('Unavailable note')
+      expect(container).not.toHaveTextContent('Secret plans')
+      expect(container).not.toHaveTextContent(NOTE)
+      expect(screen.queryByRole('link')).toBeNull()
+    })
+
+    it('opens each link to one note at its own anchor', () => {
+      // One resolution serves every anchor; its route carries whichever
+      // anchor the server resolved last.
+      renderMarkdown(`[[doc:${NOTE}#a|first]] [[doc:${NOTE}#b|second]] [[doc:${NOTE}|top]]`, [
+        resolution({
+          kind: 'doc',
+          target: NOTE,
+          qualifier: 'a',
+          raw: `[[doc:${NOTE}#a]]`,
+          route_path: '/p/demo/docs/project/guides/a.md#a',
+          entity_id: NOTE,
+        }),
+      ])
+      expect(screen.getByRole('link', { name: 'first' })).toHaveAttribute('href', '/p/demo/docs/project/guides/a.md#a')
+      expect(screen.getByRole('link', { name: 'second' })).toHaveAttribute('href', '/p/demo/docs/project/guides/a.md#b')
+      expect(screen.getByRole('link', { name: 'top' })).toHaveAttribute('href', '/p/demo/docs/project/guides/a.md')
+    })
+
+    it('renders a deleted note the same way', () => {
+      const { container } = renderMarkdown(`[[doc:${NOTE}]]`, [
+        resolution({ kind: 'doc', target: NOTE, status: 'unavailable', route_path: null, entity_id: null }),
+      ])
+      expect(container.querySelector('[data-doc-link="unavailable"]')).toHaveTextContent('Unavailable note')
+    })
+
+    it('renders a mention as an @Name chip, never the id', () => {
+      const { container } = renderMarkdown(`Ping [[user:${USER}]].`, [
+        resolution({ kind: 'user', target: USER, raw: `[[user:${USER}]]`, route_path: null, label: '@Ada Example' }),
+      ])
+      // The server's label already carries the @: it is not doubled.
+      expect(container.querySelector('[data-doc-link-kind="user"]')).toHaveTextContent(/^@Ada Example$/)
+      expect(screen.queryByRole('link')).toBeNull()
+      expect(container).not.toHaveTextContent(USER)
+    })
+
+    it('strikes out a mention of someone who left the organization', () => {
+      const { container } = renderMarkdown(`[[user:${USER}]]`, [
+        resolution({ kind: 'user', target: USER, status: 'broken', route_path: null, reason: 'not_a_member' }),
+      ])
+      expect(container.querySelector('[data-doc-link="broken"]')).toHaveTextContent('@someone')
+    })
+
+    it('renders an alert rule by its current name with an icon', () => {
+      const { container } = renderMarkdown(`[[alert-rule:${RULE}]]`, [
+        resolution({ kind: 'alert_rule', target: RULE, route_path: '/p/demo/alerting/rules/r', label: 'Checkout drop' }),
+      ])
+      expect(screen.getByRole('link', { name: 'Checkout drop' })).toHaveAttribute('data-doc-link-kind', 'alert_rule')
+      expect(container.querySelector('a svg')).not.toBeNull()
+    })
+
+    it('puts relink suggestions in the broken chip title', () => {
+      const { container } = renderMarkdown('[[metric:signup_rte]]', [
+        resolution({
+          kind: 'metric',
+          target: 'signup_rte',
+          raw: '[[metric:signup_rte]]',
+          status: 'broken',
+          route_path: null,
+          suggestions: ['signup_rate'],
+        }),
+      ])
+      expect(container.querySelector('[data-doc-link="broken"]')?.getAttribute('title')).toContain(
+        'Did you mean: signup_rate?',
+      )
+    })
+
+    it('links every by-name kind to its route', () => {
+      const kinds = [
+        ['variable', 'variable', 'country'],
+        ['metric', 'metric', 'signup_rate'],
+        ['branch', 'branch', 'feature_x'],
+        ['scan', 'scan', 'nightly'],
+        ['data-source', 'data_source', 'warehouse'],
+      ] as const
+      renderMarkdown(
+        kinds.map(([syntax, , name]) => `[[${syntax}:${name}]]`).join(' '),
+        kinds.map(([syntax, kind, name]) =>
+          resolution({ kind, target: name, raw: `[[${syntax}:${name}]]`, route_path: `/p/demo/${kind}/${name}` }),
+        ),
+      )
+      for (const [, kind, name] of kinds) {
+        expect(screen.getByRole('link', { name })).toHaveAttribute('href', `/p/demo/${kind}/${name}`)
+      }
+    })
+  })
 })

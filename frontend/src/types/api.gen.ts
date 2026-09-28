@@ -2871,7 +2871,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Doc Backlinks */
+        /**
+         * Doc Backlinks
+         * @description Notes linking to ``kind:name`` that the caller can see.
+         *
+         *     ``name`` is the entity's name, or its id for ``doc`` (the note's "Linked
+         *     from"), ``alert_rule`` and ``user``.
+         */
         get: operations["doc_backlinks_api_v1_projects__slug__docs_backlinks_get"];
         put?: never;
         post?: never;
@@ -3016,6 +3022,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/docs/link-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Doc Link Suggestions
+         * @description The note editor's link and @mention picker.
+         *
+         *     Candidates the caller may link to: notes they can see, members of the
+         *     project's organization, and the project's plan entities, alert rules,
+         *     branches, scans and data sources. ``insert`` is the reference text to put
+         *     in the note. Rate-limited per user (``doc_link_suggestions_rate_limiter``).
+         */
+        get: operations["doc_link_suggestions_api_v1_projects__slug__docs_link_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/docs/links": {
         parameters: {
             query?: never;
@@ -3023,7 +3054,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Resolve Doc Links */
+        /**
+         * Resolve Doc Links
+         * @description Resolve references as the caller reads them (a note they cannot see is ``unavailable``).
+         */
         get: operations["resolve_doc_links_api_v1_projects__slug__docs_links_get"];
         put?: never;
         post?: never;
@@ -8754,7 +8788,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "event" | "event_type" | "field";
+            kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
             /** Name */
             name: string;
             /** Qualifier */
@@ -8835,6 +8869,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Linked From
+             * @default []
+             */
+            linked_from: components["schemas"]["DocBacklinkItem"][];
             /**
              * Links
              * @default []
@@ -8976,26 +9015,67 @@ export interface components {
              * @default 0
              */
             candidates: number;
+            /** Detail */
+            detail?: string | null;
             /** Entity Id */
             entity_id?: string | null;
             /**
              * Kind
              * @enum {string}
              */
-            kind: "event" | "event_type" | "field";
+            kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
+            /** Label */
+            label?: string | null;
             /** Qualifier */
             qualifier?: string | null;
             /** Raw */
             raw: string;
+            /** Reason */
+            reason?: ("not_found" | "invalid_id" | "path_form" | "not_a_member") | null;
             /** Route Path */
             route_path?: string | null;
             /**
              * Status
              * @enum {string}
              */
-            status: "resolved" | "ambiguous" | "broken";
+            status: "resolved" | "ambiguous" | "broken" | "unavailable";
+            /**
+             * Suggestions
+             * @default []
+             */
+            suggestions: string[];
             /** Target */
             target: string;
+        };
+        /**
+         * DocLinkSuggestion
+         * @description One autocomplete candidate of ``GET /docs/link-suggestions``.
+         */
+        DocLinkSuggestion: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Insert */
+            insert: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
+            /** Label */
+            label: string;
+        };
+        /** DocLinkSuggestionsResponse */
+        DocLinkSuggestionsResponse: {
+            /** Items */
+            items: components["schemas"]["DocLinkSuggestion"][];
         };
         /** DocMoveRequest */
         DocMoveRequest: {
@@ -9426,6 +9506,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Linked From
+             * @default []
+             */
+            linked_from: components["schemas"]["DocBacklinkItem"][];
             /**
              * Links
              * @default []
@@ -12921,7 +13006,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "event" | "event_type" | "metric" | "branch";
+            entity_type: "event" | "event_type" | "metric" | "branch" | "doc";
             /**
              * Id
              * Format: uuid
@@ -23493,7 +23578,7 @@ export interface operations {
     doc_backlinks_api_v1_projects__slug__docs_backlinks_get: {
         parameters: {
             query: {
-                kind: "event" | "event_type" | "field";
+                kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
                 name: string;
                 qualifier?: string | null;
             };
@@ -23940,10 +24025,46 @@ export interface operations {
             };
         };
     };
+    doc_link_suggestions_api_v1_projects__slug__docs_link_suggestions_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                /** @description Only this kind; the editor passes it once '[[kind:' is typed. */
+                kind?: ("event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user") | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocLinkSuggestionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     resolve_doc_links_api_v1_projects__slug__docs_links_get: {
         parameters: {
             query: {
-                /** @description kind:name, kind being event, event-type or field (repeatable). */
+                /** @description kind:target (repeatable). kind is event, event-type, field, doc, variable, metric, alert-rule, branch, scan, data-source or user; doc, alert-rule and user take an id. */
                 ref: string[];
             };
             header?: never;

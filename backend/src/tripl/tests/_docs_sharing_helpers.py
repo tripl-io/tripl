@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 
 from tripl.main import app
 from tripl.models.audit_log import AuditLog
-from tripl.models.organization import DEFAULT_ORG_ID
+from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.organization_group import OrganizationGroup, OrganizationGroupMember
 from tripl.models.user import User
 from tripl.tests._docs_helpers import create_project, register
@@ -25,7 +25,7 @@ class Crew:
     """``owner`` is the organization owner (the ``client`` fixture); the rest are members.
 
     ``alice``, ``bob`` and ``dave`` are project editors, ``carol`` a project
-    viewer, ``stranger`` an account outside the project.
+    viewer, ``stranger`` an account outside the project and the organization.
     """
 
     def __init__(self, owner: AsyncClient) -> None:
@@ -71,6 +71,13 @@ async def crew(client: AsyncClient) -> AsyncGenerator[Crew]:
         await add_member_by_slug(SLUG, email, role)
     await register(team.stranger, "stranger@example.com", "Stranger")
     team.ids["stranger"] = await user_id("stranger@example.com")
+    # Self-hosted sign-up joins the default organization; the stranger is
+    # outside the organization as well as the project.
+    async with TestSessionLocal() as session:
+        await session.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == team.ids["stranger"])
+        )
+        await session.commit()
     team.ids["owner"] = await user_id("test@example.com")
     yield team
     for member in team.others():

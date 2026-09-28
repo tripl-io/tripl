@@ -885,6 +885,10 @@ export default function MonitoringDetailPage() {
       {scope === 'event' && event && slug && branchId === null && (
         <DocNotesSection slug={slug} kind="event" name={event.name} />
       )}
+      {/* …and to this catalog metric (F24); metrics are project-level. */}
+      {scope === 'metric' && slug && metricDefinition && (
+        <DocNotesSection slug={slug} kind="metric" name={metricDefinition.name} />
+      )}
 
       {scope === 'event' && scopeId && (
         <EventValueDriftPanel slug={slug!} eventId={scopeId} />

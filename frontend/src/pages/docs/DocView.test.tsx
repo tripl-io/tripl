@@ -120,13 +120,65 @@ describe('DocView', () => {
   })
 })
 
+function brokenLink(name: string, overrides: Partial<DocLinkResolution> = {}): DocLinkResolution {
+  return {
+    kind: 'event',
+    target: name,
+    qualifier: null,
+    raw: `[[event:${name}]]`,
+    status: 'broken',
+    route_path: null,
+    entity_id: null,
+    candidates: 0,
+    ...overrides,
+  }
+}
+
 describe('BrokenLinksBanner', () => {
   it('shows the first 20 and counts the rest', () => {
-    render(<BrokenLinksBanner items={Array.from({ length: 23 }, (_, i) => `link ${i}`)} />)
+    render(<BrokenLinksBanner links={Array.from({ length: 23 }, (_, i) => brokenLink(`link_${i}`))} />)
     expect(screen.getByText('23 links do not resolve')).toBeInTheDocument()
-    expect(screen.getByText('link 19')).toBeInTheDocument()
-    expect(screen.queryByText('link 20')).toBeNull()
+    expect(screen.getByText(/'link_19'/)).toBeInTheDocument()
+    expect(screen.queryByText(/'link_20'/)).toBeNull()
     expect(screen.getByText('…and 3 more')).toBeInTheDocument()
+  })
+
+  it('lists relink suggestions as text when reading', () => {
+    render(<BrokenLinksBanner links={[brokenLink('checkout_strted', { suggestions: ['checkout_started'] })]} />)
+    expect(screen.getByText('checkout_started')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('offers each suggestion as a relink button when editing (F24)', () => {
+    const onRelink = vi.fn()
+    const link = brokenLink('checkout_strted', { suggestions: ['checkout_started', 'checkout_ended'] })
+    render(<BrokenLinksBanner links={[link]} onRelink={onRelink} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Relink [[event:checkout_strted]] to checkout_ended' }))
+    expect(onRelink).toHaveBeenCalledWith(link, 'checkout_ended')
+  })
+})
+
+describe('DocView linked from (F24)', () => {
+  it('lists the notes that link here', () => {
+    renderView(
+      doc({
+        linked_from: [
+          { scope: 'project', path: 'guides/intro.md', title: 'Intro' },
+          { scope: 'organization', path: 'handbook.md', title: 'Handbook' },
+        ],
+      }),
+    )
+    expect(screen.getByRole('heading', { name: 'Linked from' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Intro' })).toHaveAttribute('href', '/p/demo/docs/project/guides/intro.md')
+    expect(screen.getByRole('link', { name: 'Handbook' })).toHaveAttribute(
+      'href',
+      '/p/demo/docs/organization/handbook.md',
+    )
+  })
+
+  it('shows nothing when no note links here', () => {
+    renderView(doc({ linked_from: [] }))
+    expect(screen.queryByRole('heading', { name: 'Linked from' })).toBeNull()
   })
 })
 
