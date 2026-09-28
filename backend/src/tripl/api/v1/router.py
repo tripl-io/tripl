@@ -8,6 +8,7 @@ from tripl.api.v1.api_keys import router as api_keys_router
 from tripl.api.v1.app_settings import router as app_settings_router
 from tripl.api.v1.audit import router as audit_router
 from tripl.api.v1.auth import router as auth_router
+from tripl.api.v1.auth_sso import router as auth_sso_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
 from tripl.api.v1.data_sources import router as data_sources_router
 from tripl.api.v1.dependencies import router as dependencies_router
@@ -36,6 +37,7 @@ from tripl.api.v1.metrics_catalog import router as metrics_catalog_router
 from tripl.api.v1.notifications import router as notifications_router
 from tripl.api.v1.org_groups import router as org_groups_router
 from tripl.api.v1.org_settings import router as org_settings_router
+from tripl.api.v1.org_sso import router as org_sso_router
 from tripl.api.v1.orgs import router as orgs_router
 from tripl.api.v1.plan_branches import router as plan_branches_router
 from tripl.api.v1.plan_export import router as plan_export_router
@@ -65,6 +67,8 @@ router = APIRouter(prefix="/api/v1")
 protected_dependencies = [Depends(get_current_user), Depends(require_project_membership)]
 
 router.include_router(auth_router)
+# Signing in through an organization's identity provider (F20): unauthenticated.
+router.include_router(auth_sso_router)
 router.include_router(activity_router, dependencies=protected_dependencies)
 router.include_router(ai_router, dependencies=protected_dependencies)
 router.include_router(app_settings_router, dependencies=protected_dependencies)
@@ -119,6 +123,8 @@ router.include_router(notifications_router, dependencies=protected_dependencies)
 router.include_router(orgs_router, dependencies=protected_dependencies)
 router.include_router(org_settings_router, dependencies=protected_dependencies)
 router.include_router(org_groups_router, dependencies=protected_dependencies)
+# An organization's single sign-on settings (F20): owners of that organization.
+router.include_router(org_sso_router, dependencies=protected_dependencies)
 router.include_router(platform_settings_router, dependencies=protected_dependencies)
 # The platform console (F20 PR14): organizations, users, read-only step-ins.
 router.include_router(platform_console_router, dependencies=protected_dependencies)

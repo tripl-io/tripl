@@ -77,7 +77,7 @@ answer as for a slug that does not exist, and always before any `403`.
 | `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
 | `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role; `limit` / `offset`. |
 | `PATCH /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | `{"role": "owner" \| "admin" \| "member"}`. Only an owner manages owners; the last owner cannot be demoted (`400`). |
-| `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and their group memberships in it, and revokes their keys bound to it. |
+| `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and their group memberships in it, revokes their keys bound to it, and deletes their single sign-on identities for it. |
 | `POST /api/v1/orgs/{org}/transfer-ownership` | owner, browser session | `{"user_id"}`: that member becomes an owner, the caller an admin. |
 | `GET /api/v1/orgs/{org}/groups` | any member (or its key) | The organization's groups by name: `id`, `name`, `description`, `member_count`, `created_at`, `updated_at`. |
 | `POST /api/v1/orgs/{org}/groups` | owner or admin, browser session | `{"name", "description"?}`. `201` with the group and its (empty) `members`. `409` when the organization already has a group of that name (ignoring case); `422` for a blank name or a NUL character. |
@@ -86,6 +86,27 @@ answer as for a slug that does not exist, and always before any `403`.
 | `DELETE /api/v1/orgs/{org}/groups/{group_id}` | owner or admin, browser session | `204`. The group and its memberships go; the members stay in the organization. |
 | `POST /api/v1/orgs/{org}/groups/{group_id}/members` | owner or admin, browser session | `{"user_id"}`. `201` with the member. `404` when the user is not a member of the organization, `409` when already in the group. |
 | `DELETE /api/v1/orgs/{org}/groups/{group_id}/members/{user_id}` | owner or admin, browser session | `204`; `404` when the user is not in the group. |
+
+Single sign-on (see [the admin guide](../administer/admin-guide.md#single-sign-on))
+is configured by the organization's **owners** only, from a browser session;
+an admin, a member or any API key gets `403`:
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs/{org}/sso` | owner, browser session | `configured`, `issuer`, `client_id`, `client_secret_configured` (the secret itself is never returned), `scopes`, `enabled`, `sso_required`, `redirect_uri` (to register at the provider) and `login_url` (where members start signing in). |
+| `PUT /api/v1/orgs/{org}/sso` | owner, browser session | The whole configuration: `{"issuer", "client_id", "client_secret"?, "scopes"?, "enabled"?, "sso_required"?}`. An omitted `enabled` or `sso_required` is `false`; an omitted or `null` `client_secret` keeps the stored one, which is write-only. `scopes` defaults to `openid email profile` and must include `openid`. `enabled: true` needs a saved provider and at least one verified domain. Turning `sso_required` on revokes the organization's API keys that were not created from a single sign-on session of it, owners' included; `revoked_api_keys` in the response says how many. While it is on, such keys are refused with `403` and new keys are created only from a single sign-on session of the organization (an owner's password session gets `403` too). Audited as `org.sso.*`, without the secret. |
+| `POST /api/v1/orgs/{org}/sso/test` | owner, browser session | Fetches the issuer's discovery document and checks the issuer and endpoints: `{"ok", "message", "error_code", "authorization_endpoint", "token_endpoint", "jwks_uri", ...}`. A failure's `message` is a fixed text per `error_code`. Rate-limited to 10 a minute, shared with domain verification. |
+| `GET /api/v1/orgs/{org}/sso/domains` | owner, browser session | The claimed domains: `id`, `domain`, `verified`, `verified_at`, `txt_record_name`, `txt_record_value`, `created_at`. |
+| `POST /api/v1/orgs/{org}/sso/domains` | owner, browser session | `{"domain"}`, lowercased. `201` with the domain and the TXT record to publish. A domain another organization has verified is `409`. |
+| `DELETE /api/v1/orgs/{org}/sso/domains/{id}` | owner, browser session | Removes the claim. |
+| `POST /api/v1/orgs/{org}/sso/domains/{id}/verify` | owner, browser session | Looks up the DNS TXT record `_tripl-verification.<domain>` and marks the domain verified when it contains `tripl-verification=<token>`. Rate-limited to 10 a minute, shared with the connection test. |
+
+In an organization with `sso_required`, a request from a browser session that
+did not sign in through the organization's provider answers
+`403 {"detail": "This organization requires single sign-on", "sso_start": "/api/v1/auth/sso/<org>/start"}`
+(organization owners and a platform admin's read-only step-in excepted). An API
+key bound to it works only if it was created from a single sign-on session of
+that organization; any other key is `403`.
 
 A group id of another organization answers `404 Group not found`, like an id
 that does not exist. Every group change is audited (`org.group.create`,
@@ -224,6 +245,11 @@ address and answer `429` with `Retry-After` when exceeded.
 | `POST /api/v1/auth/password-reset/request` | anyone | Sends a reset link when the address has an account; the answer does not say whether it does. |
 | `POST /api/v1/auth/password-reset/confirm` | anyone | Sets the new password and marks the address verified. Signs the account out everywhere and revokes all of its API keys; issue new keys afterwards. Never grants platform admin. |
 | `GET /api/v1/auth/invitations/{token}` | anyone | Previews an invitation. |
+| `GET /api/v1/auth/sso/discover?email=` | anyone | `{"orgs": [{"slug", "name", "login_url"}]}`: the organizations with single sign-on turned on whose verified domain the address is at. Rate-limited like `/auth/status`. |
+| `GET /api/v1/auth/sso/{org}/start?next=` | anyone (a browser) | `302` to the organization's identity provider. `next` is where to return afterwards and must be a relative path on this origin (`/…`, not `//…`). Start and callback share a rate limit of 20 a minute per address, apart from password sign-in. |
+| `GET /api/v1/auth/sso/{org}/callback?code=&state=` | the identity provider's redirect | Finishes the sign-in and redirects: into the app with a session, to `/sso/link?ticket=…` when the address belongs to an existing account that has to confirm the link, or to `/auth?sso_error=<code>`: `sso_unavailable`, `invalid_state`, `idp_error`, `idp_denied`, `invalid_token`, `email_missing`, `email_not_verified`, `email_domain_not_allowed`, `membership_removed` (removed from the organization and not invited back), `rate_limited` or `sso_failed`. |
+| `GET /api/v1/auth/sso/link?ticket=` | anyone holding the ticket | `{"email", "org_slug", "org_name", "expires_at", "sign_in_required"}`: what confirming would link, without using the ticket; `sign_in_required` is true when this browser must first sign in to the account. `400` when the ticket is not live. |
+| `POST /api/v1/auth/sso/link` | the ticket, from a browser session of the ticket's account | `{"ticket"}`: links the identity provider's account to the existing tripl account, adds the organization membership if missing, marks the address verified and replaces the session with a single sign-on session. Answers `{"next", "user"}`. Without a session of that account: `401` and the ticket stays usable. An account whose address was never verified needs no session and is taken over clean (its password, sessions and API keys are dropped). Single use, 10 minutes; `400` for an unknown, used or expired ticket; `403` for an account removed from the organization; `409` when the organization no longer uses single sign-on. |
 | `POST /api/v1/auth/invitations/{token}/accept` | anyone, or the invited account signed in | Creates the account, or adds the organization to the signed-in account. Self-hosted: the new account is verified at creation. Hosted: the new account is **not** verified by the invitation and is sent a verification link to confirm, and a signed-in account must be verified first (`403`). Never grants platform admin. |
 
 ### Project members

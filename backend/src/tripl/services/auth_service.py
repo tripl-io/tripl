@@ -29,7 +29,7 @@ from tripl.models.organization import DEFAULT_ORG_ID, Organization, Organization
 from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.user import User
-from tripl.models.user_session import UserSession
+from tripl.models.user_session import AUTH_METHOD_PASSWORD, AUTH_METHOD_SSO, UserSession
 from tripl.schemas.auth import (
     ActiveStepInOut,
     AuthUserResponse,
@@ -106,28 +106,40 @@ async def has_any_users(session: AsyncSession) -> bool:
     return bool(user_count)
 
 
-async def _create_user_session(session: AsyncSession, user_id: uuid.UUID) -> str:
+async def _create_user_session(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    sso_organization_id: uuid.UUID | None = None,
+) -> str:
+    """A new browser session; an SSO one when ``sso_organization_id`` is given."""
     session_token = new_session_token()
     session.add(
         UserSession(
             user_id=user_id,
             session_token_hash=hash_session_token(session_token),
             expires_at=_session_expires_at(),
+            auth_method=AUTH_METHOD_PASSWORD if sso_organization_id is None else AUTH_METHOD_SSO,
+            sso_organization_id=sso_organization_id,
         )
     )
     await session.flush()
     return session_token
 
 
-async def create_session_for_user(session: AsyncSession, user_id: uuid.UUID) -> str:
+async def create_session_for_user(
+    session: AsyncSession, user_id: uuid.UUID, *, sso_organization_id: uuid.UUID | None = None
+) -> str:
     """Issue a session token for an existing user, for flows outside this module.
 
     Exists so ``invitation_service`` can log the invitee straight in after
-    redeeming, without reaching across a module boundary into a private helper
-    or growing a second copy of the TTL and hashing rules. Does not commit —
-    the caller owns the transaction.
+    redeeming, and the SSO sign-in (``sso_login_service``) can issue a session
+    of ``auth_method='sso'`` for the organization it signed in to, without
+    reaching across a module boundary into a private helper or growing a second
+    copy of the TTL and hashing rules. Does not commit — the caller owns the
+    transaction.
     """
-    return await _create_user_session(session, user_id)
+    return await _create_user_session(session, user_id, sso_organization_id=sso_organization_id)
 
 
 def owner_set_lock_key(org_id: uuid.UUID) -> int:
@@ -510,7 +522,12 @@ async def authenticate_user(session: AsyncSession, data: LoginRequest) -> tuple[
     return user, session_token
 
 
-async def get_user_by_session_token(session: AsyncSession, session_token: str) -> User | None:
+async def get_session_by_token(session: AsyncSession, session_token: str) -> UserSession | None:
+    """The live session ``session_token`` names, with its user; ``None`` when unknown or expired.
+
+    The auth dependency reads ``auth_method`` / ``sso_organization_id`` off it
+    for an organization's "SSO required" (F20).
+    """
     statement = (
         select(UserSession)
         .options(selectinload(UserSession.user))
@@ -525,7 +542,12 @@ async def get_user_by_session_token(session: AsyncSession, session_token: str) -
         await session.commit()
         return None
 
-    return db_session.user
+    return db_session
+
+
+async def get_user_by_session_token(session: AsyncSession, session_token: str) -> User | None:
+    db_session = await get_session_by_token(session, session_token)
+    return None if db_session is None else db_session.user
 
 
 async def logout_session(session: AsyncSession, session_token: str | None) -> None:

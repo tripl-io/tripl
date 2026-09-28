@@ -124,6 +124,22 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/auth/verify-email/request": _AUTH_REASON,
     f"{API}/auth/verify-email/confirm": _AUTH_REASON,
     f"{API}/auth/logout": _AUTH_REASON,
+    f"{API}/auth/sso/discover": (
+        "SSO discovery (F20): unauthenticated, answers which organizations sign an "
+        "email domain in; names organizations by their public slug and name only"
+    ),
+    f"{API}/auth/sso/{{org_slug}}/start": (
+        "SSO sign-in (F20): unauthenticated, names the organization as the SUBJECT "
+        "of a sign-in and acts in none; test_org_sso.py pins the flow"
+    ),
+    f"{API}/auth/sso/{{org_slug}}/callback": (
+        "SSO sign-in (F20): the identity provider's redirect back, authorized by a "
+        "single-use state bound to the browser; test_org_sso.py pins the flow"
+    ),
+    f"{API}/auth/sso/link": (
+        "SSO account link (F20): addressed by its secret single-use ticket; confirming "
+        "also needs a session of the ticket's account (checked in the handler)"
+    ),
     f"{API}/auth/me": _AUTH_REASON,
     f"{API}/settings": _SETTINGS_REASON,
     f"{API}/settings/photo-limits": _SETTINGS_REASON,
@@ -172,6 +188,7 @@ UNSEEDED_PARAMS: dict[str, str] = {
     "job_id": "scan, preview and dry-run jobs are Celery jobs",
     "override_id": "anomaly scope overrides are written by the detector",
     "resolution_id": "conflict resolutions need a conflicting branch merge",
+    "domain_id": "SSO domains are owner-only rows the seed does not claim",
 }
 
 #: Id-less legacy GETs whose REQUIRED query names one of A's rows (see
@@ -849,6 +866,12 @@ def _body(method: str, path: str, w: World) -> Any:
         f"{API}/orgs/{{org}}/groups": {"name": "probe"},
         f"{API}/orgs/{{org}}/groups/{{group_id}}": {"name": "probe"},
         f"{API}/orgs/{{org}}/groups/{{group_id}}/members": {"user_id": w.a.member_id},
+        f"{API}/orgs/{{org}}/sso": {
+            "issuer": "https://idp.example.com",
+            "client_id": "probe",
+            "client_secret": "probe",
+        },
+        f"{API}/orgs/{{org}}/sso/domains": {"domain": "alpha.example.com"},
     }
     return table.get(path, {})
 

@@ -39,6 +39,7 @@ from tripl.services import (
     auth_service,
     invitation_service,
     org_group_service,
+    org_sso_service,
     project_member_service,
     user_service,
 )
@@ -78,6 +79,8 @@ class RemovedMember:
     api_keys: int
     invitations: int
     group_memberships: int
+    #: The user's single sign-on identities in the organization (F20).
+    sso_identities: int = 0
 
 
 @dataclass(frozen=True)
@@ -318,8 +321,9 @@ async def remove_member(
     Deletes the membership, the user's ``project_members`` rows in every project
     of the organization (with the event-type ownerships and reviewer seats those
     carried), revokes every live API key of theirs bound to the organization
-    (critique #28), and deletes the organization's unused invitations they sent
-    or that are addressed to them: a link minted before the removal would
+    (critique #28), forgets their single sign-on identities there (and blocks an
+    SSO sign-in from re-adding them), and deletes the organization's unused
+    invitations they sent or that are addressed to them: a link minted before the removal would
     otherwise let them back in, at the role they had. They leave every group of
     the organization too. Their account and their other organizations are
     untouched.
@@ -380,6 +384,10 @@ async def remove_member(
         session, org_id, invited_by_user_id=user_id, email=target.email
     )
     groups = await org_group_service.drop_user_from_org_groups(session, org_id, user_id)
+    # Their IdP identity no longer signs them in here, and signing in through
+    # the provider again does not re-add them until they accept a new
+    # invitation (an SSO membership block).
+    identities = await org_sso_service.drop_identities(session, org_id, user_id)
     await session.delete(membership)
     await session.flush()
     return RemovedMember(
@@ -389,6 +397,7 @@ async def remove_member(
         api_keys=revoked,
         invitations=invitations,
         group_memberships=groups,
+        sso_identities=identities,
     )
 
 

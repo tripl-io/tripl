@@ -465,3 +465,43 @@ describe('AuthPage', () => {
     expect(screen.queryByLabelText('Organization URL slug')).toBeNull()
   })
 })
+
+describe('AuthPage single sign-on (F20)', () => {
+  beforeEach(() => {
+    mockStatus(true)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('shows a failed single sign-on in its own words, never the provider text', () => {
+    renderAuth('/auth?sso_error=email_not_verified')
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/did not confirm your email address/)
+  })
+
+  it.each([
+    ['email_domain_not_allowed', /domain is not one this organization signs in with/],
+    ['invalid_token', /could not be verified/],
+    ['rate_limited', /Too many sign-in attempts/],
+    ['membership_removed', /removed from this organization/],
+  ])('words the backend code %s specifically', (code, text) => {
+    renderAuth(`/auth?sso_error=${code}`)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(text)
+  })
+
+  it('opens the SSO form from sign-in and comes back to the password form', () => {
+    renderAuth()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with SSO' }))
+
+    expect(screen.getByRole('heading', { name: 'Sign in with single sign-on' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Work email')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Existing account' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a password instead' }))
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
+  })
+})

@@ -316,6 +316,7 @@ async def remove_member(
             "api_keys": removed.api_keys,
             "invitations": removed.invitations,
             "group_memberships": removed.group_memberships,
+            "sso_identities": removed.sso_identities,
         },
     )
     return OrgMemberRemoved(

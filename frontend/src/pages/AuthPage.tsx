@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, LockKeyhole, Radar, UserPlus } from 'lucide-react'
+import { ArrowRight, KeyRound, LockKeyhole, Radar, UserPlus } from 'lucide-react'
 import { authApi } from '@/api/auth'
+import { ssoErrorMessage } from '@/api/sso'
 import { FieldError } from '@/components/forms/FieldError'
 import { REQUIRED_MESSAGE, focusFirstInvalid, invalidAria } from '@/components/forms/validation'
 import { Button } from '@/components/ui/button'
@@ -19,8 +20,9 @@ import type { AuthUser } from '@/types'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { authStatusKey, projectsKey } from '@/lib/queryKeys'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
+import { SsoSignInForm } from './SsoSignInForm'
 
-type AuthMode = 'login' | 'register' | 'forgot' | 'reset'
+type AuthMode = 'login' | 'register' | 'forgot' | 'reset' | 'sso'
 
 const CARD_COPY: Record<AuthMode, { title: string; description: string }> = {
   login: {
@@ -39,6 +41,11 @@ const CARD_COPY: Record<AuthMode, { title: string; description: string }> = {
   reset: {
     title: 'Choose a new password',
     description: 'Set a new password to finish resetting your account.',
+  },
+  sso: {
+    title: 'Sign in with single sign-on',
+    description:
+      "Enter your work email and we will send you to your organization's identity provider.",
   },
 }
 
@@ -92,6 +99,9 @@ export default function AuthPage() {
   // A reset link lands on /auth?reset_token=... (the SPA has no dedicated reset
   // route), so an incoming token puts the page straight into reset mode.
   const resetToken = searchParams.get('reset_token') ?? ''
+  // A failed single sign-on comes back to /auth?sso_error=<code>. Only the
+  // code travels, never the identity provider's own words.
+  const ssoError = searchParams.get('sso_error')
   // The session-expiry dialog links to /auth?mode=forgot, so that link opens
   // the reset-request form rather than sign-in (SH-35).
   const [chosenMode, setChosenMode] = useState<AuthMode>(() =>
@@ -178,8 +188,9 @@ export default function AuthPage() {
     forgotMutation.reset()
     resetMutation.reset()
     // Drop any ?reset_token= when leaving reset mode so a refresh doesn't drop
-    // the user back into a stale reset form.
-    if (next !== 'reset' && searchParams.has('reset_token')) {
+    // the user back into a stale reset form; a single sign-on failure has been
+    // read once the user moves on.
+    if ((next !== 'reset' && searchParams.has('reset_token')) || searchParams.has('sso_error')) {
       setSearchParams({}, { replace: true })
     }
   }
@@ -288,6 +299,8 @@ export default function AuthPage() {
               <div className="rounded-full border border-accent/30 bg-accent-soft p-2 text-accent">
                 {mode === 'register' ? (
                   <UserPlus className="h-4 w-4" />
+                ) : mode === 'sso' ? (
+                  <KeyRound className="h-4 w-4" />
                 ) : (
                   <LockKeyhole className="h-4 w-4" />
                 )}
@@ -295,6 +308,15 @@ export default function AuthPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6 px-6 py-6">
+            {ssoError && (mode === 'login' || mode === 'sso') && (
+              <div
+                role="alert"
+                className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-body text-danger"
+              >
+                {ssoErrorMessage(ssoError)}
+              </div>
+            )}
+
             {isAuthTab && !registrationClosed && (
               <div className="grid grid-cols-2 gap-2 rounded-xl border border-border bg-bg-sunken p-1">
                 <button
@@ -477,6 +499,35 @@ export default function AuthPage() {
                   {!authMutation.isPending && <ArrowRight className="h-4 w-4" />}
                 </Button>
               </form>
+            )}
+
+            {mode === 'login' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-body-sm text-fg-subtle" aria-hidden="true">
+                  <span className="h-px flex-1 bg-border" />
+                  or
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  className="w-full justify-center"
+                  onClick={() => switchMode('sso')}
+                >
+                  <KeyRound className="h-4 w-4" aria-hidden="true" />
+                  Sign in with SSO
+                </Button>
+              </div>
+            )}
+
+            {mode === 'sso' && (
+              <SsoSignInForm
+                email={email}
+                onEmailChange={setEmail}
+                next={destination}
+                onBack={() => switchMode('login')}
+              />
             )}
 
             {mode === 'forgot' &&

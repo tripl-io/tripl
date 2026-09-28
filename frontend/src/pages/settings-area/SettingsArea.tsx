@@ -13,10 +13,11 @@ import { SETTINGS_STORAGE_KEY, sectionLabel } from '@/components/settings/nav'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
-import { isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
+import { activeOrgRole, isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
 import { orgStorageKey } from '@/lib/activeOrg'
 import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
 import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
+import { ORG_SSO_PATH } from './org-settings/orgSsoModel'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -33,6 +34,7 @@ const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSecti
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
+const OrgSsoSection = lazyWithReload(() => import('./OrgSsoSection'))
 // The platform console (F20): its own chunks, fetched by platform admins alone.
 const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
 const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
@@ -116,6 +118,8 @@ function StateHeader({ section }: { section: string }) {
 export default function SettingsArea({ section }: { section: string }) {
   const auth = useAuth()
   const isOwner = isOwnerRole(auth.user?.role)
+  // Single sign-on is an OWNER's alone (F20), not an admin's.
+  const isOrgOwner = activeOrgRole(auth.user) === 'owner'
   const platformAdmin = isPlatformAdmin(auth.user)
   const [pickedSlug, setPickedSlug] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -200,6 +204,7 @@ export default function SettingsArea({ section }: { section: string }) {
           section,
           slug,
           isOwner,
+          isOrgOwner,
           platformAdmin,
           projects,
           projectsStatus: projectsQuery.status,
@@ -235,12 +240,14 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   'security',
   ...Object.values(ORG_SECTION_PATHS),
   ORG_TRACKERS_PATH,
+  ORG_SSO_PATH,
 ])
 
 function renderSection({
   section,
   slug,
   isOwner,
+  isOrgOwner,
   platformAdmin,
   projects,
   projectsStatus,
@@ -252,6 +259,7 @@ function renderSection({
   section: string
   slug: string | undefined
   isOwner: boolean
+  isOrgOwner: boolean
   platformAdmin: boolean
   projects: Project[]
   projectsStatus: 'pending' | 'error' | 'success'
@@ -277,6 +285,10 @@ function renderSection({
   if (section === ORG_TRACKERS_PATH) {
     // The Jira/Linear defaults its projects inherit (F20 PR12): the same gate.
     return isOwner ? <OrgTrackersSection /> : <OwnerOnly section={section} />
+  }
+  if (section === ORG_SSO_PATH) {
+    // How the organization signs in (F20): its owners alone, not its admins.
+    return isOrgOwner ? <OrgSsoSection /> : <OrgOwnerOnly section={section} />
   }
   // One route serves every organization section; an unknown one is not a
   // project section to guess at.
@@ -424,6 +436,28 @@ function PlatformOnly({ section }: { section: string }) {
       >
         Platform admin is required to view or change platform settings: they configure the server
         itself and the defaults every organization inherits.
+      </ReadOnlyNotice>
+    </div>
+  )
+}
+
+/**
+ * A section only an organization OWNER may open (not an admin), opened by
+ * anyone else: single sign-on (F20).
+ */
+function OrgOwnerOnly({ section }: { section: string }) {
+  return (
+    <div>
+      <StateHeader section={section} />
+      <ReadOnlyNotice
+        action={
+          <Link to="/settings/profile" className="text-body-sm font-medium text-accent no-underline hover:underline">
+            Go to Profile
+          </Link>
+        }
+      >
+        Only an organization owner can view or change single sign-on: it decides how everyone in
+        the organization signs in. Ask an owner.
       </ReadOnlyNotice>
     </div>
   )

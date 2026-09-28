@@ -229,6 +229,40 @@ verify_email_rate_limiter = _limiter_for(
 )
 
 
+# SSO sign-in (F20): ``/auth/sso/{org}/start`` and ``/callback`` share this
+# bucket, apart from the password-login one, so one round trip through the
+# identity provider (two requests) never eats the 5/min a password sign-in has.
+# The callback answers an exhausted bucket with a redirect, not a 429 body
+# (:func:`allow`): the browser is mid-redirect from the provider there.
+SSO_RATE_LIMIT_PER_MINUTE = 20
+
+sso_rate_limiter = _limiter_for(SSO_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso")
+
+# An owner's SSO connection test and domain verification make tripl call out
+# (the provider's discovery document, DNS): a small bucket, so neither becomes a
+# probe of other hosts.
+SSO_PROBE_RATE_LIMIT_PER_MINUTE = 10
+
+sso_probe_rate_limiter = _limiter_for(
+    SSO_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso_probe"
+)
+
+
+async def allow(limiter: TokenBucketLimiter, request: Request) -> bool:
+    """Take a token for ``request``; ``False`` when the bucket is empty.
+
+    For a route that answers an exhausted bucket its own way (a redirect)
+    instead of :func:`enforce`'s 429.
+    """
+    if not settings.rate_limit_enabled or not limiter.enabled:
+        return True
+    try:
+        await limiter.acquire_shared(_client_key(request, limiter.name))
+    except RateLimitExceeded:
+        return False
+    return True
+
+
 def enforce(limiter: TokenBucketLimiter) -> Callable[[Request], Awaitable[None]]:
     """FastAPI dependency that applies ``limiter`` to the inbound request."""
 

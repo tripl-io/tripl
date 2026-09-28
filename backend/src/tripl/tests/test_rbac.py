@@ -129,6 +129,11 @@ READ_LIKE_MUTATING_PATHS = {
     # role to gate on: an unverified hosted account has none it may use yet.
     "/api/v1/auth/verify-email/request",
     "/api/v1/auth/verify-email/confirm",
+    # Confirming an SSO account link (F20): the single-use, 10-minute ticket
+    # minted by a verified IdP sign-in AND a browser session of the ticket's
+    # account (checked in the handler; an unverified hosted sign-up is taken
+    # over clean instead). No organization role to gate on. On the login bucket.
+    "/api/v1/auth/sso/link",
     "/api/v1/projects/{slug}/events/window-metrics",
     "/api/v1/projects/{slug}/anomalies/signals/query",
     # Read-like: row sparklines for a batch of signals; POST only to carry it.
