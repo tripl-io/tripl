@@ -28,6 +28,7 @@ from tripl.models.event import Event
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.search_document import SearchDocument
+from tripl.models.user import User
 from tripl.schemas.search import (
     SearchEntityType,
     SearchResponse,
@@ -35,7 +36,7 @@ from tripl.schemas.search import (
     SearchVariant,
     SearchVariantGroup,
 )
-from tripl.services import app_settings_service
+from tripl.services import app_settings_service, docs_access
 from tripl.services._celery_dispatch import dispatch
 from tripl.services._search_documents import (
     DOCUMENT_BUILDER_VERSION,
@@ -487,7 +488,12 @@ async def search_project(
     semantic: bool = True,
     group_variants: bool = False,
     project_id: uuid.UUID | None = None,
+    viewer: User | None = None,
 ) -> SearchResponse:
+    # ``viewer`` is who asks (F24, GH #308): docs catalog notes hidden from them
+    # are left out inside the ranking query, before the window and the page cut,
+    # so they never take a slot or show in ``truncated``. ``None`` (an internal
+    # caller) sees only notes visible at their level to everyone.
     # ``project_id`` lets a caller that has already resolved the project (the
     # docs catalog) skip a second slug lookup; ``slug`` is then ignored.
     # Sanitize here rather than in the router: this is the single funnel every
@@ -502,6 +508,12 @@ async def search_project(
         project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     await _ensure_index_exists(session, project_id, resolved_branch_id)
+
+    exclude_doc_ids: list[uuid.UUID] = []
+    if not entity_types or "doc" in entity_types:
+        exclude_doc_ids = await docs_access.hidden_doc_ids(
+            session, viewer.id if viewer is not None else None, project_id
+        )
 
     capped_limit = _safe_limit(limit)
     candidate_limit = max(capped_limit, CANDIDATE_WINDOW)
@@ -524,6 +536,7 @@ async def search_project(
             limit=retrieval_limit,
             project_is_demo=project_is_demo,
             semantic=semantic,
+            exclude_doc_ids=exclude_doc_ids,
         )
     else:
         items = await _sqlite_search(
@@ -534,6 +547,7 @@ async def search_project(
             entity_types=entity_types,
             include_archived=include_archived,
             limit=retrieval_limit,
+            exclude_doc_ids=exclude_doc_ids,
         )
         semantic_used = False
 

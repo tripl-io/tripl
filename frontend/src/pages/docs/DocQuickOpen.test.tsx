@@ -23,6 +23,9 @@ function summary(path: string, title: string, updated_at: string, scope: DocScop
     size_bytes: 1,
     updated_at,
     updated_by_name: null,
+    visibility: 'level',
+    my_permission: 'edit',
+    shared: false,
   }
 }
 

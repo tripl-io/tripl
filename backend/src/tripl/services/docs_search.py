@@ -5,6 +5,10 @@ search index (``services/_search_doc_documents.py``), so this asks
 ``search_service.search_project`` for that one kind on the MAIN branch and maps
 the hits back to notes. A hit whose note has gone since the index was built is
 dropped rather than served.
+
+Notes hidden from the caller (F24) are filtered out INSIDE the ranking query
+(``search_project(viewer=...)``), before the candidate window and the page cut,
+so neither the hits nor ``total``/``truncated`` betray them.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from tripl.models.doc_file import DocFile
 from tripl.schemas.docs import DocSearchHit, DocSearchResponse
 from tripl.services import _docs_store as store
 from tripl.services import search_service
+from tripl.services.docs_access import DocCaller, visible_docs_clause
 from tripl.services.docs_paths import DocScope
 from tripl.services.docs_service import _resolve_project
 
@@ -24,13 +29,20 @@ async def search_docs(
     session: AsyncSession,
     slug: str,
     q: str,
+    caller: DocCaller,
     *,
     scope: DocScope | None = None,
     limit: int = 20,
 ) -> DocSearchResponse:
     project = await _resolve_project(session, slug)
     found = await search_service.search_project(
-        session, project.slug, q, entity_types=["doc"], limit=limit * 2, project_id=project.id
+        session,
+        project.slug,
+        q,
+        entity_types=["doc"],
+        limit=limit * 2,
+        project_id=project.id,
+        viewer=caller.user,
     )
     ids = [item.entity_id for item in found.items]
     docs: dict[object, DocFile] = {}
@@ -38,7 +50,11 @@ async def search_docs(
         docs = {
             doc.id: doc
             for doc in await session.scalars(
-                select(DocFile).where(DocFile.id.in_(ids), store.any_scope_filter(project))
+                select(DocFile).where(
+                    DocFile.id.in_(ids),
+                    store.any_scope_filter(project),
+                    visible_docs_clause(caller.user.id),
+                )
             )
         }
     hits: list[DocSearchHit] = []

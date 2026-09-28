@@ -9,10 +9,11 @@ import {
   docLinkResolutionKey,
   docRevisionKey,
   docRevisionsKey,
+  docSharingKey,
   docsKey,
   docsTreeKey,
 } from '@/lib/docsQueryKeys'
-import type { DocMoveRequest, DocScope, DocWriteRequest } from '@/types/docs'
+import type { DocMoveRequest, DocScope, DocSharingUpdate, DocWriteRequest } from '@/types/docs'
 
 /** The live preview asks the server to resolve links this long after typing stops. */
 export const LINK_PREVIEW_DEBOUNCE_MS = 400
@@ -127,6 +128,47 @@ export function useRestoreDocRevision(slug: string) {
     mutationFn: (vars: { revisionId: string; message?: string }) =>
       docsApi.restore(slug, vars.revisionId, vars.message ?? ''),
     onSuccess: () => invalidate(),
+  })
+}
+
+/** What the Share dialog edits: one note, or one folder of a scope. */
+export interface DocSharingTarget {
+  kind: 'file' | 'folder'
+  scope: DocScope
+  /** The note's path, or the folder prefix (trailing slash) as the tree has it. */
+  path: string
+}
+
+export function useDocSharing(slug: string, target: DocSharingTarget | null) {
+  return useQuery({
+    queryKey: docSharingKey(slug, target?.kind ?? 'file', target?.scope ?? 'project', target?.path ?? ''),
+    queryFn: ({ signal }) => {
+      const t = target as DocSharingTarget
+      return t.kind === 'file'
+        ? docsApi.fileSharing(slug, t.scope, t.path, signal)
+        : docsApi.folderSharing(slug, t.scope, t.path, signal)
+    },
+    enabled: Boolean(slug && target),
+    // The dialog shows its own error state.
+    meta: SILENT_ERROR_META,
+    retry: false,
+  })
+}
+
+/**
+ * Save a note's or folder's sharing. Refreshes the whole docs family: a
+ * visibility change moves notes in and out of every list, count and search.
+ */
+export function useUpdateDocSharing(slug: string) {
+  const invalidate = useInvalidateDocs(slug)
+  return useMutation({
+    mutationFn: (vars: { target: DocSharingTarget; body: DocSharingUpdate }) =>
+      vars.target.kind === 'file'
+        ? docsApi.updateFileSharing(slug, vars.target.scope, vars.target.path, vars.body)
+        : docsApi.updateFolderSharing(slug, vars.target.scope, vars.target.path, vars.body),
+    onSuccess: () => invalidate(),
+    // The dialog shows a refusal (403) in place.
+    meta: SILENT_ERROR_META,
   })
 }
 

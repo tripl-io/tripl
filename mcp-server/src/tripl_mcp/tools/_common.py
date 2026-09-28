@@ -96,6 +96,9 @@ DOC_LIST_FIELDS = (
     "audience",
     "revision",
     "updated_at",
+    # F24: who may read the note, and what the key's user may do with it.
+    "visibility",
+    "my_permission",
 )
 
 # One note as read_doc returns it. `content` is the raw file with its
@@ -111,6 +114,10 @@ DOC_READ_FIELDS = (
     "revision",
     "updated_at",
     "updated_by_name",
+    "visibility",
+    "my_permission",
+    # True on an org owner/admin's audited break-glass read of a hidden note.
+    "break_glass",
     "extra_frontmatter",
     "links",
     "content",

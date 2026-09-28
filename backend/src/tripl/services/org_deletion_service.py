@@ -43,6 +43,7 @@ from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import AppSetting
 from tripl.models.data_source import DataSource
 from tripl.models.doc_file import DocFile
+from tripl.models.doc_share import DocFolderSetting
 from tripl.models.domain_enums import EventPhotoKind, OrganizationStatus
 from tripl.models.event_photo import EventPhoto
 from tripl.models.invitation import Invitation
@@ -222,6 +223,9 @@ async def purge_organization(session: AsyncSession, org_id: uuid.UUID) -> PurgeR
     await session.execute(delete(ApiKey).where(ApiKey.organization_id == org_id))
     await session.execute(delete(Invitation).where(Invitation.organization_id == org_id))
     await session.execute(delete(DocFile).where(DocFile.organization_id == org_id))
+    await session.execute(
+        delete(DocFolderSetting).where(DocFolderSetting.organization_id == org_id)
+    )
     await session.execute(delete(AppSetting).where(AppSetting.organization_id == org_id))
     # SCIM first: its config and group links reference the groups.
     await scim_group_service.delete_org_scim_groups(session, org_id)

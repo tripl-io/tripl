@@ -23,6 +23,12 @@ DocLinkStatus = Literal["resolved", "ambiguous", "broken"]
 DocRevisionAction = Literal["create", "update", "move", "restore", "import"]
 DocImportMode = Literal["merge", "mirror"]
 DocBundleFormat = Literal["tripl-docs/v1"]
+#: Who may read a note (F24, GH #308): its author only, its author plus the
+#: people and groups it is shared with, or everyone at its level (the default).
+DocVisibility = Literal["private", "restricted", "level"]
+#: What a share grants, and what the caller may do with a note.
+DocPermission = Literal["view", "edit"]
+DocSharePrincipalType = Literal["user", "group"]
 
 __all__ = ["DocScope"]  # re-exported: the scope literal lives next to the path rules
 
@@ -38,6 +44,12 @@ class DocSummary(BaseModel):
     size_bytes: int
     updated_at: datetime
     updated_by_name: str | None = None
+    # F24: the note's effective visibility (its own, or its folder's while it
+    # inherits), what the caller may do with it, and whether it is shared with
+    # anyone. A note the caller cannot see is never listed.
+    visibility: DocVisibility = "level"
+    my_permission: DocPermission = "view"
+    shared: bool = False
 
 
 class DocTreeProject(BaseModel):
@@ -93,6 +105,9 @@ class DocFileResponse(DocSummary):
     links: list[DocLinkResolution] = []
     created_at: datetime
     created_by_name: str | None = None
+    # F24: true when an organization owner or admin opened a note hidden from
+    # them (an audited break-glass read); such a read never grants editing.
+    break_glass: bool = False
 
 
 class DocWriteRequest(BaseModel):
@@ -237,3 +252,45 @@ class DocImportResult(BaseModel):
     deleted: list[str] = []
     skipped: list[DocImportSkipped] = []
     errors: list[DocImportError] = []
+
+
+# ── Sharing (F24, GH #308) ────────────────────────────────────────────────────
+
+
+class DocShareItem(BaseModel):
+    principal_type: DocSharePrincipalType
+    principal_id: uuid.UUID
+    #: The user's name (or email) or the group's name.
+    name: str = ""
+    permission: DocPermission = "view"
+
+
+class DocShareInput(BaseModel):
+    principal_type: DocSharePrincipalType
+    principal_id: uuid.UUID
+    permission: DocPermission = "view"
+
+
+class DocSharingResponse(BaseModel):
+    """A note's or a folder's sharing.
+
+    ``inherited`` is true when it follows the nearest folder setting above it,
+    named by ``inherited_from`` (``None`` when no folder has one and the default,
+    ``level``, applies). ``visibility`` and ``shares`` are then the folder's.
+    """
+
+    scope: DocScope
+    path: str
+    visibility: DocVisibility
+    inherited: bool
+    inherited_from: str | None = None
+    shares: list[DocShareItem] = []
+    can_manage: bool = False
+
+
+class DocSharingUpdate(BaseModel):
+    """``inherited: true`` drops the note's (or folder's) own setting and shares."""
+
+    visibility: DocVisibility = "level"
+    inherited: bool = False
+    shares: list[DocShareInput] = Field(default=[], max_length=200)

@@ -11,11 +11,11 @@ import contextlib
 import logging
 import re
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from difflib import SequenceMatcher
 from typing import cast
 
-from sqlalchemy import bindparam, select, text
+from sqlalchemy import Uuid, bindparam, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.event import Event
@@ -204,6 +204,21 @@ def _safe_limit(limit: int) -> int:
     return max(1, min(limit, 10000))
 
 
+def _doc_filter_params(exclude_doc_ids: Sequence[uuid.UUID]) -> dict[str, object]:
+    """Bind values of the notes-hidden-from-the-caller filter (F24, GH #308).
+
+    The filter runs inside each leg, before its ``LIMIT``, so a hidden note never
+    takes a candidate slot nor shows in ``truncated``. Like ``entity_types``, an
+    expanding bindparam cannot expand an empty list, so a placeholder id stands
+    in when the flag is off.
+    """
+    ids = list(exclude_doc_ids)
+    return {
+        "filter_doc_ids": bool(ids),
+        "exclude_doc_ids": ids or [uuid.UUID(int=0)],
+    }
+
+
 def _is_postgres(session: AsyncSession) -> bool:
     return session.bind.dialect.name == "postgresql"
 
@@ -219,6 +234,7 @@ async def postgres_search(
     limit: int,
     project_is_demo: bool = False,
     semantic: bool = True,
+    exclude_doc_ids: Sequence[uuid.UUID] = (),
 ) -> tuple[list[SearchResult], bool]:
     semantic_used = False
     semantic_results: list[SearchResult] = []
@@ -248,6 +264,7 @@ async def postgres_search(
         entity_types=entity_types,
         include_archived=include_archived,
         limit=limit,
+        exclude_doc_ids=exclude_doc_ids,
     )
     # The provider round trip overlaps the lexical query rather than queueing
     # behind it (tripl-2x5d). ``embed_query`` is a blocking HTTP POST handed to a
@@ -310,6 +327,7 @@ async def postgres_search(
             entity_types=entity_types,
             include_archived=include_archived,
             limit=limit,
+            exclude_doc_ids=exclude_doc_ids,
         )
 
     merged = merge_results(lexical_results, semantic_results, limit)
@@ -484,6 +502,7 @@ async def postgres_lexical_search(
     entity_types: list[SearchEntityType] | None,
     include_archived: bool,
     limit: int,
+    exclude_doc_ids: Sequence[uuid.UUID] = (),
 ) -> list[SearchResult]:
     """Rank one branch's documents: ts_rank_cd + trigram similarity + boost ladder.
 
@@ -761,6 +780,10 @@ async def postgres_lexical_search(
               AND (:include_archived OR d.archived IS FALSE)
               AND (:filter_entity_types IS FALSE OR d.entity_type IN :entity_types)
               AND (
+                :filter_doc_ids IS FALSE
+                OR NOT (d.entity_type = 'doc' AND d.entity_id IN :exclude_doc_ids)
+              )
+              AND (
                 d.text_vector @@ q.tsq
                 OR d.title % :query
                 OR d.subtitle % :query
@@ -797,8 +820,12 @@ async def postgres_lexical_search(
         """  # noqa: S608 - no user input is interpolated; the operand is a module constant
     )
     filter_entity_types = bool(entity_types)
-    statement = statement.bindparams(bindparam("entity_types", expanding=True))
+    statement = statement.bindparams(
+        bindparam("entity_types", expanding=True),
+        bindparam("exclude_doc_ids", expanding=True, type_=Uuid()),
+    )
     params: dict[str, object] = {
+        **_doc_filter_params(exclude_doc_ids),
         "project_id": project_id,
         "branch_id": branch_id,
         "query": query,
@@ -828,6 +855,7 @@ async def postgres_semantic_search(
     entity_types: list[SearchEntityType] | None,
     include_archived: bool,
     limit: int,
+    exclude_doc_ids: Sequence[uuid.UUID] = (),
 ) -> list[SearchResult]:
     """Nearest documents by cosine similarity, above a floor (tripl-txcz).
 
@@ -874,6 +902,10 @@ async def postgres_semantic_search(
           AND d.embedding_status = 'ready'
           AND d.embedding_model = :embedding_model
           AND (:filter_entity_types IS FALSE OR d.entity_type IN :entity_types)
+          AND (
+            :filter_doc_ids IS FALSE
+            OR NOT (d.entity_type = 'doc' AND d.entity_id IN :exclude_doc_ids)
+          )
           -- A nearest neighbour is not automatically a match (tripl-txcz).
           AND (1.0 - (d.embedding <=> CAST(:embedding AS vector))) >= :min_cosine
         ORDER BY d.embedding <=> CAST(:embedding AS vector)
@@ -881,8 +913,12 @@ async def postgres_semantic_search(
         """
     )
     filter_entity_types = bool(entity_types)
-    statement = statement.bindparams(bindparam("entity_types", expanding=True))
+    statement = statement.bindparams(
+        bindparam("entity_types", expanding=True),
+        bindparam("exclude_doc_ids", expanding=True, type_=Uuid()),
+    )
     params: dict[str, object] = {
+        **_doc_filter_params(exclude_doc_ids),
         "project_id": project_id,
         "branch_id": branch_id,
         "embedding": vector,
@@ -908,6 +944,7 @@ async def sqlite_search(
     entity_types: list[SearchEntityType] | None,
     include_archived: bool,
     limit: int,
+    exclude_doc_ids: Sequence[uuid.UUID] = (),
 ) -> list[SearchResult]:
     statement = select(SearchDocument).where(
         SearchDocument.project_id == project_id,
@@ -915,6 +952,13 @@ async def sqlite_search(
     )
     if entity_types:
         statement = statement.where(SearchDocument.entity_type.in_(entity_types))
+    if exclude_doc_ids:
+        statement = statement.where(
+            or_(
+                SearchDocument.entity_type != "doc",
+                SearchDocument.entity_id.not_in(list(exclude_doc_ids)),
+            )
+        )
     if not include_archived:
         statement = statement.where(SearchDocument.archived.is_(False))
     rows = list((await session.execute(statement)).scalars().all())

@@ -13,6 +13,7 @@ from tripl.middleware.org_context import require_org_id
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
+from tripl.models.user import User
 from tripl.schemas.ai import AiAskResponse, AiAskSource, AiDescribeResponse, AiFieldSuggestion
 from tripl.services import app_settings_service, llm_service, search_service
 from tripl.services.plan_branch_service import resolve_branch_id
@@ -229,13 +230,18 @@ async def ask_plan(
     slug: str,
     question: str,
     branch_id: uuid.UUID | None,
+    *,
+    viewer: User | None = None,
 ) -> AiAskResponse:
+    # ``viewer``: the context is built only from what the asker may see, so a
+    # docs catalog note hidden from them never reaches the model (F24).
     search_resp = await search_service.search_project(
         session,
         slug,
         question,
         branch_id=branch_id,
         limit=12,
+        viewer=viewer,
     )
 
     context_lines: list[str] = []

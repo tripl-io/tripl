@@ -55,6 +55,9 @@ function summary(overrides: Partial<DocSummary>): DocSummary {
     size_bytes: 10,
     updated_at: '2026-09-01T00:00:00Z',
     updated_by_name: 'Editor',
+    visibility: 'level',
+    my_permission: 'edit',
+    shared: false,
     ...overrides,
   }
 }

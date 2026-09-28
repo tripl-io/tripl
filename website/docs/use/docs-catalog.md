@@ -119,6 +119,101 @@ meantime, you get a conflict and can reload their version or overwrite it.
 
 Every change is recorded in the project's **Audit** tab, in the **Docs** group.
 
+These rules apply to notes everyone at their level can see, which is every
+note unless it is shared more narrowly. See [Sharing](#sharing).
+
+## Sharing {#sharing}
+
+Each note has a visibility. The **Share** button on a note sets it:
+
+- **Everyone in the project** (or **Everyone in the organization** for an
+  organization note). This is the default for a new note, and it is how every
+  note behaved before sharing existed. The rules in
+  [Who can read and write](#who-can-read-and-write) apply.
+- **Specific people and groups.** The author, plus the people and the
+  organization groups the note is shared with. Each share is **Can view** or
+  **Can edit**. Group membership is checked when the note is read, so adding
+  someone to a group or removing them takes effect at once.
+- **Only me.** Only the author reads and edits it.
+
+The author can always read their own note. They edit it, and change its
+sharing, while they still have write access to it: an author who is later made
+a project viewer can only read it. A share never gives access
+to a project. A person, or a group member, who is not a member of the note's
+project (or of its organization, for an organization note) still cannot see
+it. When someone leaves the organization, their shares are removed. Editing
+still needs write access: a project viewer with a **Can edit** share can only
+read the note.
+
+A note the caller cannot read does not exist for them. The tree, the note page,
+its history, search, the **Notes** card on event and event-type pages, the
+export and the counts all leave it out. Opening its link returns **Note not
+found**. Search totals and folder counts never include it.
+
+A hidden note still occupies its path, so a few write answers show that
+something exists there, never what it is or who wrote it:
+
+- Creating a note, moving a note, or importing a note (also in a dry run) at a
+  path a hidden note holds is refused with **A doc already exists at** that
+  path, or **the path is taken** in an import report.
+- The limit of notes per project or organization counts every note, hidden or
+  not, so a create or an import can be refused for the limit while the tree
+  shows fewer notes.
+
+**Folders.** A folder can have a sharing setting too: **Share** in the folder's
+menu in the tree. A note follows the setting of the nearest folder above it
+that has one, until you give the note its own setting by clearing **Follow
+the folder setting** in its Share dialog. The dialog names the folder a
+setting is inherited from.
+
+A folder has no single author, so its **Only each note's author** setting
+keeps every note in it to the person who wrote that note. It does not make the
+notes visible to the person who set the folder.
+
+**Moving notes.** A move never changes who can read a note behind its author's
+back:
+
+- When the note's author, or an organization owner or admin, moves a single
+  note that follows its folder's setting, it takes the setting of its new
+  folder. The change is recorded as `doc.share_update`.
+- When anyone else moves it (a colleague with a **Can edit** share, or a
+  project editor moving someone else's note), the note keeps the access it
+  had: its old setting is copied onto the note as its own setting.
+- A folder move keeps every moved note's access. The folder's settings go
+  with it when the target folder is new. When the target folder already
+  holds other notes or has a setting of its own, those stay as they are, and
+  each moved note keeps its old access as its own setting. A setting the
+  folder inherited from a folder above it is kept the same way.
+
+The `doc.move` audit row lists the notes whose access was kept this way.
+
+**Who changes sharing.** For a note: its author, while they have write access
+to it, or an owner or admin of the organization. A **Can edit** share lets
+someone edit a note, not change who can read it. For a folder of project
+notes: an organization owner or admin, or a project editor when every note
+that follows the folder is their own or still open to everyone in the project.
+For a folder of organization notes: an organization owner or admin. Each
+change is recorded in the audit log as `doc.share_update`, with the setting
+before and after. The note's content is not recorded.
+
+**Organization owners and admins.** They can open a note that is not shared
+with them, directly by its link or path. This is for audit and incident
+response. Each such read is recorded in the audit log as
+`doc.break_glass_read`; so is opening such a note's Share dialog, which shows
+who it is shared with. The note page tells them that the read was recorded.
+These notes still never appear in their tree, search
+or counts, and they cannot edit a note unless it is shared with them for
+editing.
+
+The tree marks an author-only note with a lock and a shared note with a people
+icon. The note header says the same, and shows **view only** when you can read
+but not edit.
+
+**Import and export.** Sharing is not part of a note's file. An export holds
+only the notes you can read, with no visibility in their frontmatter. An
+import ignores any visibility key in frontmatter: imported notes get the
+default, or their folder's setting.
+
 ## Import and export
 
 A root can be exported as a zip of `.md` files or as a JSON bundle. The export
@@ -253,3 +348,5 @@ Agents use the same notes through the API (`/projects/{slug}/docs`), the MCP
 tools `list_docs`, `read_doc`, `search_docs` and `write_doc`, and the CLI
 (`tripl docs ls`, `cat`, `pull` and `push`). See the
 [Agent API guide](../integrate/agent-api-guide.md#docs-catalog).
+An agent sees what the user behind its API key sees: notes that are not shared
+with that user are missing from every list, search and read.

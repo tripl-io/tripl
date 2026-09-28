@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
+from tripl.api.deps import BranchIdDep, CurrentUserDep, EditorUserDep, SessionDep
 from tripl.middleware.org_context import require_org_id
 from tripl.schemas.ai import (
     AiAskRequest,
@@ -71,6 +71,9 @@ async def ask_plan(
     slug: str,
     branch_id: BranchIdDep,
     payload: AiAskRequest,
+    current_user: CurrentUserDep,
 ) -> AiAskResponse:
     await _require_ai_enabled(session)
-    return await ai_service.ask_plan(session, slug, payload.question, branch_id)
+    return await ai_service.ask_plan(
+        session, slug, payload.question, branch_id, viewer=current_user
+    )

@@ -18,6 +18,19 @@ export type DocLinkStatus = 'resolved' | 'ambiguous' | 'broken'
 export type DocRevisionAction = 'create' | 'update' | 'move' | 'restore' | 'import'
 export type DocImportMode = 'merge' | 'mirror'
 
+/**
+ * Who may read a note (F24, GH #308). `level` is everyone with access to the
+ * note's project or organization (a new note's default); `restricted` is the
+ * author plus the people and groups it is shared with; `private` is the author
+ * only. Sharing never grants project access: a share to someone outside the
+ * project or organization is ignored.
+ */
+export type DocVisibility = 'private' | 'restricted' | 'level'
+export const DOC_VISIBILITIES: readonly DocVisibility[] = ['private', 'restricted', 'level']
+/** What the caller may do with a note, or what a share grants. */
+export type DocPermission = 'view' | 'edit'
+export type DocSharePrincipalType = 'user' | 'group'
+
 export interface DocSummary {
   scope: DocScope
   path: string
@@ -29,6 +42,12 @@ export interface DocSummary {
   size_bytes: number
   updated_at: string
   updated_by_name: string | null
+  /** The note's effective visibility (its own, or the nearest folder's). */
+  visibility: DocVisibility
+  /** What the caller may do with it; a note it cannot read is never listed. */
+  my_permission: DocPermission
+  /** True when the note is shared with at least one person or group. */
+  shared: boolean
 }
 
 export interface DocTreeLimits {
@@ -76,6 +95,11 @@ export interface DocFileResponse extends DocSummary {
   links: DocLinkResolution[]
   created_at: string
   created_by_name: string | null
+  /**
+   * True when an organization owner or admin opened a note hidden from them:
+   * an audited break-glass read (`doc.break_glass_read`) that never grants editing.
+   */
+  break_glass?: boolean
 }
 
 export interface DocWriteRequest {
@@ -198,4 +222,37 @@ export interface DocImportResult {
   deleted: string[]
   skipped: { path: string; reason: string }[]
   errors: { path: string; detail: string }[]
+}
+
+/** One share of a note or folder: a person or an organization group. */
+export interface DocShare {
+  principal_type: DocSharePrincipalType
+  principal_id: string
+  /** The user's name (or email) or the group's name; resolved by the server. */
+  name: string
+  permission: DocPermission
+}
+
+/**
+ * `GET .../docs/file/sharing` and `.../docs/folder/sharing`. `inherited` is
+ * true when the note (or folder) follows the nearest folder setting above it,
+ * named by `inherited_from` (a folder prefix; null when the default applies).
+ */
+export interface DocSharing {
+  visibility: DocVisibility
+  inherited: boolean
+  inherited_from: string | null
+  shares: DocShare[]
+  /**
+   * Whether the caller may change this setting. Optional: when the server
+   * omits it the page's own guess (author or organization admin) stands.
+   */
+  can_manage?: boolean
+}
+
+/** `PUT` body: the shares without their display names. */
+export interface DocSharingUpdate {
+  visibility: DocVisibility
+  inherited: boolean
+  shares: Omit<DocShare, 'name'>[]
 }

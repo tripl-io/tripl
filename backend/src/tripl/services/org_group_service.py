@@ -45,7 +45,7 @@ from tripl.schemas.organization_group import (
     OrgGroupMemberResponse,
     OrgGroupResponse,
 )
-from tripl.services import auth_service, scim_role_sync
+from tripl.services import auth_service, docs_folders, scim_role_sync
 
 _UNIQUE_VIOLATION_SQLSTATE = "23505"
 _FOREIGN_KEY_VIOLATION_SQLSTATE = "23503"
@@ -293,6 +293,8 @@ async def delete_group(
     await session.execute(
         delete(OrganizationGroupMember).where(OrganizationGroupMember.group_id == group.id)
     )
+    # Notes and folders shared with the group (F24); the FK cascades as well.
+    await docs_folders.drop_group_shares(session, [group.id])
     await session.delete(group)
     await session.flush()
     return int(members or 0)
@@ -422,6 +424,7 @@ async def delete_org_groups(session: AsyncSession, org_id: uuid.UUID) -> None:
     await session.execute(
         delete(OrganizationGroupMember).where(OrganizationGroupMember.group_id.in_(group_ids))
     )
+    await docs_folders.drop_group_shares(session, group_ids)
     await session.execute(
         delete(OrganizationGroup).where(OrganizationGroup.organization_id == org_id)
     )

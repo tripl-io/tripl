@@ -283,6 +283,15 @@ review. That is why the toolset stops at single-note create and replace:
 - A `tk_r_` key, or a `tk_w_` key held by a viewer, gets a `403`.
 - A key bound to one project gets a `403` on `scope: organization` writes,
   because every project of the organization reads those notes.
+- The tools see what the key's user sees. A note that is not shared with that
+  user (see [Sharing](../use/docs-catalog.md#sharing)) is missing from
+  `list_docs`, `search_docs` and `search_plan`, and `read_doc` answers "not
+  found" for it. The exception is a key of an organization owner or admin:
+  `read_doc` still returns such a note, flagged `break_glass: true`, and the
+  read is recorded in the audit log as `doc.break_glass_read`. It stays
+  read-only and never shows in lists or searches. A note shared with the user
+  to view only gets a `403` from `write_doc`. Sharing itself is changed in the
+  app or through the API, not through MCP.
 
 ### Names an agent does not choose
 

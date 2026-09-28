@@ -694,6 +694,35 @@ Additional guards:
 Any member of the organization (a project viewer included) can list its roster (`GET /api/v1/users`), with organization roles; a signed-in account outside the organization gets `403`. Roles gate **mutations and administration**, not visibility of who exists. Treat the roster as visible to every member.
 :::
 
+### Docs catalog: note sharing and break-glass reads {#docs-break-glass}
+
+A docs catalog note can be private to its author or shared with specific people
+and organization groups ([Sharing](../use/docs-catalog.md#sharing)). The server
+checks it on every docs route, and on the search index at query time. A note
+the caller cannot read is `404` and is left out of every list, search result,
+backlink, export and count. API keys act as their user, so MCP tools and the
+CLI follow the same rules. A share never grants project or organization
+membership. It is ignored for anyone who is not a member, and a member's
+shares are deleted when they are removed from the organization.
+
+Organization owners and admins can read a note that is not shared with them,
+but only directly, by its path. This break-glass read exists for audit and
+incident response. Each such read is written to the audit log as
+`doc.break_glass_read`, naming the note and the reader; opening the note's
+sharing settings (who it is shared with) is audited the same way. The answer
+is flagged `break_glass: true`, so the app and MCP agents can tell the reader.
+The note never appears in their tree, search or counts, and they cannot edit
+it unless it is shared with them for editing.
+
+A move cannot widen or narrow a note's readers unless the mover may change
+its sharing: a note moved by someone else keeps its previous access. A hidden
+note's path is not secret, though: writing, moving or importing onto it is
+refused with `409` ("a doc already exists"), which tells a project editor
+that something exists there, never what. Changes to sharing are audited as `doc.share_update`,
+with the setting before and after and none of the content. Review both actions
+in the audit log, or send them to a SIEM through the
+[audit webhook](#audit-webhook).
+
 ### Platform console and read-only step-in
 
 The [platform console](../administer/admin-guide.md#platform-console)

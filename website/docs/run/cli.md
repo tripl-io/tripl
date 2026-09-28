@@ -2461,6 +2461,14 @@ writes: it needs a `tk_w_` key backed by an editor or owner, and follows the
 The API will narrow organization writes to organization owners and admins once
 organization membership exists.
 
+Every verb sees what the key's user sees. A note that is not shared with that
+user (see [Sharing](../use/docs-catalog.md#sharing)) is missing from `ls`,
+`cat` and `pull`, and `cat` answers "not found" for it, exactly as for a note
+that does not exist. With a key of an organization owner or admin, `cat` still
+reads such a note by its path; that read is recorded in the audit log as
+`doc.break_glass_read`, and the note never shows in `ls` or `pull`. `push` never changes a note's sharing: frontmatter carries
+no visibility, and new notes get the default or their folder's setting.
+
 The service's limits: a note is at most **256 KiB**, and one `push` carries at
 most **2000 files** and **20 MiB** in total. `push` checks all three before it
 sends anything.
