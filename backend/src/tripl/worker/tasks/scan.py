@@ -234,7 +234,11 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
             columns = [c for c in columns if c.name != config.time_column]
         logger.info(f"Found {len(columns)} columns in base query")
         json_value_paths = group_json_value_paths(config.json_value_paths)
-        runtime_config = app_settings_service.get_runtime_config_sync(session)
+        # The project's organization's row-limit defaults, clamped to the
+        # operator's ceiling (F20 PR9).
+        runtime_config = app_settings_service.get_runtime_config_sync(
+            session, org_id=app_settings_service.project_org_id_sync(session, config.project_id)
+        )
         scan_row_limit = config.scan_row_limit or runtime_config.scan_row_limit_default
         scan_window = resolve_lookback_window(
             time_column=config.time_column,

@@ -470,10 +470,16 @@ function Takeover({ section }: { section: string }) {
   )
 }
 
-/** Instance section takeover — reads the owner-only section from the route. */
-function TakeoverInstance() {
-  const { instSection } = useParams<{ instSection: string }>()
-  return <Takeover section={`instance/${instSection ?? 'runtime'}`} />
+/** Pre-takeover `/settings/<x>` addresses of what is now `/settings/instance/<x>`. */
+const LEGACY_INSTANCE_SECTIONS = ['runtime', 'ai', 'email', 'storage', 'observability', 'system']
+
+/**
+ * A two-segment section's takeover (`instance/<x>`, `organization/<x>`): reads
+ * the section from the route. SettingsArea answers an unknown one.
+ */
+function TakeoverSub({ group }: { group: string }) {
+  const { sub } = useParams<{ sub: string }>()
+  return <Takeover section={`${group}/${sub}`} />
 }
 
 /**
@@ -577,7 +583,8 @@ export default function App() {
                   mounts OUTSIDE the app Layout (no app sidebar) but requires auth. */}
               <Route path="/settings" element={<SettingsIndexRedirect />} />
               <Route path="/o/:org/settings/*" element={<RequireAuth><OrgSettingsRedirect /></RequireAuth>} />
-              <Route path="/settings/organization/general" element={<Takeover section="organization/general" />} />
+              {/* Details, Email, AI, Limits; SettingsArea sends an unknown one to Details. */}
+              <Route path="/settings/organization/:sub" element={<TakeoverSub group="organization" />} />
               <Route path="/settings/invitations" element={<Takeover section="invitations" />} />
               <Route path="/settings/members" element={<Takeover section="members" />} />
               <Route path="/settings/api-keys" element={<Takeover section="api-keys" />} />
@@ -588,19 +595,17 @@ export default function App() {
               <Route path="/settings/project/general" element={<Takeover section="project/general" />} />
               <Route path="/settings/project/plan-rules" element={<Takeover section="project/plan-rules" />} />
               <Route path="/settings/project/members" element={<Takeover section="project/members" />} />
-              <Route path="/settings/instance/:instSection" element={<TakeoverInstance />} />
+              <Route path="/settings/instance/:sub" element={<TakeoverSub group="instance" />} />
               {/* Legacy → takeover redirects. */}
               <Route path="/settings/users" element={<Navigate to="/settings/members" replace />} />
               <Route path="/settings/account" element={<Navigate to="/settings/profile" replace />} />
-              <Route path="/settings/runtime" element={<Navigate to="/settings/instance/runtime" replace />} />
-              <Route path="/settings/ai" element={<Navigate to="/settings/instance/ai" replace />} />
-              <Route path="/settings/email" element={<Navigate to="/settings/instance/email" replace />} />
-              <Route path="/settings/storage" element={<Navigate to="/settings/instance/storage" replace />} />
-              <Route
-                path="/settings/observability"
-                element={<Navigate to="/settings/instance/observability" replace />}
-              />
-              <Route path="/settings/system" element={<Navigate to="/settings/instance/system" replace />} />
+              {LEGACY_INSTANCE_SECTIONS.map(section => (
+                <Route
+                  key={section}
+                  path={`/settings/${section}`}
+                  element={<Navigate to={`/settings/instance/${section}`} replace />}
+                />
+              ))}
               {/* Legacy project addresses: moved under the organization that
                   holds the project, query string and hash kept. Outside the
                   shell on purpose: Layout resolves `:slug` in the ACTIVE

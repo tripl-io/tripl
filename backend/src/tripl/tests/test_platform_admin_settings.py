@@ -1,12 +1,18 @@
-"""``/settings`` under organization roles and the platform admin (F20 PR4, GH #273).
+"""``/settings`` under organization roles and the platform admin (F20 PR4/PR9, GH #273).
 
 * the settings admins are a platform admin, or an owner/admin of the default
-  organization (whose values the instance scope is until PR9);
+  organization — on this self-hosted instance the default organization's scope
+  IS the operator's (PR9, critique #17), so its admins' mail and AI values are
+  the instance's;
 * a write touching an operator-only field (``OPERATOR_FIELDS``) takes a platform
   admin: an org admin gets 403 and nothing is written, even when the operator
   field rides along with org fields;
-* the ``system`` block is ``None`` for everyone but a platform admin, on reads
-  and on write answers alike;
+* on that operator alias the credential groups (SMTP relay, AI endpoint, key
+  and model) still take a platform admin: the relay carries every user's
+  password-reset mail;
+* the ``system``, ``security``, ``storage`` and ``observability`` blocks are
+  ``None`` for everyone but a platform admin, on reads and on write answers
+  alike;
 * a platform admin with no membership still operates the instance, but sees no
   project and reads every data source's connection redacted.
 """
@@ -71,18 +77,26 @@ async def stand() -> AsyncIterator[Stand]:
 # ── the field classification ────────────────────────────────────────────────
 
 # Written out, not derived: a new settings field must be classified on purpose.
+# F20 PR9 (owner decision 4): mail, AI chat and the row-limit defaults are an
+# organization's own; storage (PR11) and embeddings (PR10) stay the operator's.
 _ORG_FIELDS = {
     "scan_row_limit_default",
     "metrics_row_limit_default",
-    "photo_allowed_mime",
+    "smtp_host",
+    "smtp_port",
+    "smtp_username",
+    "smtp_password",
+    "smtp_security",
+    "smtp_from_address",
     "ai_enabled",
+    "ai_base_url",
     "ai_model",
+    "ai_api_key",
     "ai_timeout_seconds",
     "ai_max_output_tokens",
     "describe_system_prompt",
     "ask_system_prompt",
     "alert_explanation_system_prompt",
-    "search_embeddings_enabled",
 }
 
 
@@ -90,13 +104,19 @@ def test_every_editable_field_is_classified_exactly_once() -> None:
     operator = app_settings_service.OPERATOR_FIELDS
     assert operator.isdisjoint(_ORG_FIELDS)
     assert operator | _ORG_FIELDS == app_settings_service.EDITABLE_FIELDS
+    assert app_settings_service.ORG_FIELDS == _ORG_FIELDS
     assert set(app_settings_service.SECURITY_FIELDS) <= operator
     assert set(app_settings_service.OBSERVABILITY_FIELDS) <= operator
-    # One shared value per instance until PR9: whoever sets these routes every
-    # organization's mail, photos and plan text.
-    assert set(app_settings_service.EMAIL_FIELDS) <= operator
-    assert {"ai_base_url", "ai_api_key", "search_embedding_api_key"} <= operator
-    assert {"photo_storage_backend", "gcs_photo_bucket", "gcs_photo_public"} <= operator
+    # Still one shared value per instance: every storage field (PR11) and the
+    # embedding endpoint (PR10), which route every organization's photos and
+    # indexed plan text.
+    assert set(app_settings_service.STORAGE_FIELDS) <= operator
+    assert {
+        "search_embeddings_enabled",
+        "search_embedding_provider",
+        "search_embedding_model",
+        "search_embedding_api_key",
+    } <= operator
     assert {
         "app_base_url",
         "registration_mode",
@@ -111,10 +131,11 @@ def test_touches_operator_fields() -> None:
     assert app_settings_service.touches_operator_fields(
         {"smtp_host": "smtp.example.com", "photo_local_dir": "/tmp"}
     )
-    assert app_settings_service.touches_operator_fields({"smtp_host": "smtp.example.com"})
+    assert not app_settings_service.touches_operator_fields({"smtp_host": "smtp.example.com"})
     assert not app_settings_service.touches_operator_fields(
-        {"scan_row_limit_default": 10, "ai_model": "m"}
+        {"scan_row_limit_default": 10, "ai_model": "m", "ai_api_key": "k"}
     )
+    assert app_settings_service.touches_operator_fields({"photo_allowed_mime": "image/png"})
     assert not app_settings_service.touches_operator_fields({})
 
 
@@ -127,10 +148,18 @@ async def test_system_is_only_for_the_platform_admin(stand: Stand) -> None:
     assert operator.status_code == 200, operator.text
     assert operator.json()["system"] is not None
 
+    for section in ("security", "storage", "observability"):
+        assert operator.json()[section] is not None
+
     admin = await stand.admin.get("/api/v1/settings")
     assert admin.status_code == 200, admin.text
     assert admin.json()["system"] is None
-    # Everything else of the read is there for the org admin.
+    # The operator's infrastructure is withheld from an org admin...
+    for section in ("security", "storage", "observability"):
+        assert admin.json()[section] is None
+    assert admin.json()["ai"]["search_embedding_base_url"] == ""
+    assert not any(key.startswith("storage.") for key in admin.json()["sources"])
+    # ...the organization's own values are there.
     assert admin.json()["email"] == operator.json()["email"]
 
     written = await stand.admin.patch(
@@ -138,6 +167,7 @@ async def test_system_is_only_for_the_platform_admin(stand: Stand) -> None:
     )
     assert written.status_code == 200, written.text
     assert written.json()["system"] is None
+    assert written.json()["security"] is None
     assert written.json()["runtime"]["scan_row_limit_default"] == 4321
 
 
@@ -152,9 +182,9 @@ async def test_system_is_only_for_the_platform_admin(stand: Stand) -> None:
         {"storage": {"photo_max_size_mb": 4096}},
         {"storage": {"gcs_photo_bucket": "attacker-bucket"}},
         {"storage": {"gcs_photo_public": True}},
-        {"email": {"smtp_host": "smtp.example.com"}},
-        {"ai": {"ai_base_url": "https://llm.evil.example.com"}},
+        {"storage": {"photo_allowed_mime": "image/png"}},
         {"ai": {"search_embedding_api_key": "sk-x"}},
+        {"ai": {"search_embeddings_enabled": True}},
         # An operator field riding along with an org field refuses the whole write.
         {"ai": {"ai_model": "some-model"}, "security": {"registration_mode": "open"}},
     ],
@@ -175,9 +205,9 @@ async def test_org_admin_cannot_write_operator_fields(
 @pytest.mark.parametrize(
     "payload",
     [
-        {"ai": {"ai_model": "some-model"}},
         {"runtime": {"scan_row_limit_default": 1234}},
-        {"storage": {"photo_allowed_mime": "image/png"}},
+        {"ai": {"ai_timeout_seconds": 5, "describe_system_prompt": "Be brief."}},
+        {"ai": {"ai_enabled": False}},
     ],
 )
 @pytest.mark.asyncio
@@ -185,6 +215,43 @@ async def test_org_admin_writes_org_fields(stand: Stand, payload: dict[str, Any]
     for method in ("PATCH", "PUT"):
         written = await stand.admin.request(method, "/api/v1/settings", json=payload)
         assert written.status_code == 200, written.text
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"email": {"smtp_host": "smtp.attacker.example.com"}},
+        {"email": {"smtp_password": "x"}},
+        {"ai": {"ai_base_url": "https://llm.example.com/v1", "ai_api_key": "sk-org"}},
+        {"ai": {"ai_model": "some-model"}},
+        # A credential field riding along with a scalar refuses the whole write.
+        {"runtime": {"scan_row_limit_default": 99}, "email": {"smtp_host": "x.example.com"}},
+    ],
+)
+@pytest.mark.asyncio
+async def test_org_admin_cannot_rewrite_the_operator_relay_or_ai_endpoint(
+    stand: Stand, payload: dict[str, Any]
+) -> None:
+    """Self-hosted: the default organization IS the operator scope, whose SMTP
+    relay carries every account's password-reset mail and whose AI endpoint
+    other organizations inherit — a platform admin's to change, by either route."""
+    before = await stand.operator.get("/api/v1/settings")
+    for method in ("PATCH", "PUT"):
+        for path in ("/api/v1/settings", "/api/v1/orgs/default/settings"):
+            body = payload
+            if path.startswith("/api/v1/orgs") and "runtime" in payload:
+                body = {**payload, "limits": payload["runtime"]}
+                del body["runtime"]
+            refused = await stand.admin.request(method, path, json=body)
+            assert refused.status_code == 403, (path, refused.text)
+            assert refused.json()["detail"] == deps.PLATFORM_ADMIN_REQUIRED
+    after = await stand.operator.get("/api/v1/settings")
+    assert after.json()["overridden_fields"] == before.json()["overridden_fields"]
+    # The platform admin may.
+    written = await stand.operator.patch(
+        "/api/v1/orgs/default/settings", json={"email": {"smtp_host": "relay.example.com"}}
+    )
+    assert written.status_code == 200, written.text
 
 
 @pytest.mark.asyncio

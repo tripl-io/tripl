@@ -1,20 +1,33 @@
-"""Service-wide runtime settings stored in the ``app_settings`` table.
+"""Runtime settings stored in the ``app_settings`` table, per scope.
 
-The ``service`` document stores only explicit overrides for env-based defaults
-from :class:`tripl.config.Settings`. Resolution order per field is:
-DB override -> env. Secret overrides are encrypted at rest and never returned
-to clients; clients only see ``*_configured`` booleans.
+Two scopes (F20 PR9). The OPERATOR scope (``organization_id IS NULL``) stores
+explicit overrides of the env-based defaults from :class:`tripl.config.Settings`
+for every editable field. An ORGANIZATION scope stores that organization's own
+values of the :data:`ORG_FIELDS` (mail, AI chat, row limits). Resolution:
 
-Both async (API) and sync (Celery worker) accessors are provided. Sync accessors
-fall back to environment values on DB errors and count each degradation in
-``tripl_settings_read_failures_total`` so operators can detect it.
+* operator view: operator override -> env;
+* an organization: org override -> operator override -> env, with the
+  credential-group, fallback-policy and ceiling rules of
+  :mod:`tripl.services._org_settings_merge`. On a self-hosted instance the
+  default organization IS the operator scope (:func:`settings_scope_for`).
+
+Secret overrides are encrypted at rest and never returned to clients; clients
+only see ``*_configured`` booleans.
+
+Both async (API) and sync (Celery worker) accessors are provided. The operator
+scope's sync accessors fall back to environment values on DB errors; an
+organization's fail CLOSED (AI and mail off; row limits re-raise) — env holds
+the operator's keys, not the organization's (critique #19). Every degradation is
+counted in ``tripl_settings_read_failures_total``.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from typing import Any, Literal
 
 from fastapi import HTTPException
@@ -24,10 +37,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from tripl import crypto
-from tripl.config import SMTP_SECURITY_NONE, SMTP_SECURITY_STARTTLS, Settings, settings
+from tripl.alerting_validation import reject_private_host
+from tripl.config import (
+    DEPLOYMENT_SELF_HOSTED,
+    SMTP_SECURITY_NONE,
+    SMTP_SECURITY_STARTTLS,
+    Settings,
+    settings,
+)
 from tripl.models.app_setting import AI_SETTINGS_KEY, SERVICE_SETTINGS_KEY, AppSetting
+from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.observability.metrics import settings_read_failures_total
 from tripl.services import migration_status_service
+from tripl.services._org_settings_merge import merge_org_values
 from tripl.services.ai_defaults import (
     DEFAULT_ALERT_EXPLANATION_SYSTEM_PROMPT,
     DEFAULT_ASK_SYSTEM_PROMPT,
@@ -41,7 +63,12 @@ logger = logging.getLogger(__name__)
 # which made it useless as evidence: search_embedding_provider read "Env" on an
 # instance that had never been told anything about it (tripl-wkwv.2). See
 # _setting_source for what "default" does and does not claim.
-SettingSource = Literal["env", "override", "default"]
+#
+# The organization view (F20 PR9) adds two: "org" is the organization's own
+# value, "disabled" a credential group ``ORG_SETTINGS_OPERATOR_FALLBACK=none``
+# withholds from an organization that has not set its own. "override" stays
+# the OPERATOR's override in every view.
+SettingSource = Literal["env", "override", "default", "org", "disabled"]
 
 RUNTIME_FIELDS = (
     "app_base_url",
@@ -138,36 +165,41 @@ EDITABLE_FIELDS = frozenset(
 SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key", "smtp_password"})
 AI_SECRET_FIELDS = frozenset({"ai_api_key", "search_embedding_api_key"})
 
-# The fields only a PLATFORM admin may change (F20 PR4, design section 5
-# "Operator-only fields"). They configure the process and the host rather than an
-# organization: the public URL, every security and observability knob (including
-# who may register at all), the server filesystem paths (critique 12) and the
-# photo size cap, which is the process request-body limit (critique 15).
-#
-# Until PR9 gives each organization its own values, every field here is ONE
-# value shared by every organization, so the fields that route another
-# organization's data somewhere are operator-only too: where photos are stored
-# and whether they are public (every storage field but the MIME allow-list),
-# the SMTP relay that carries every user's password-reset and invitation mail,
-# and the AI / embedding endpoint and keys that receive every organization's
-# plan text. What is left (row limits, the MIME allow-list, AI model, limits
-# and prompts) is open to the settings admins (a platform admin, or an
-# owner/admin of the default organization). ``api.v1.app_settings`` refuses a
-# write touching any of these unless the caller is a platform admin.
-OPERATOR_FIELDS: frozenset[str] = frozenset(
+# The chat half of the AI section. The embedding fields stay operator-only until
+# PR10 gives each organization its own vector space.
+AI_CHAT_FIELDS: tuple[str, ...] = (
+    "ai_enabled",
+    "ai_base_url",
+    "ai_model",
+    "ai_api_key",
+    "ai_timeout_seconds",
+    "ai_max_output_tokens",
+    "describe_system_prompt",
+    "ask_system_prompt",
+    "alert_explanation_system_prompt",
+)
+
+# What an ORGANIZATION may set for itself (F20 PR9, owner decision 4): mail, AI
+# chat and the scan/metrics row-limit defaults. Resolution for an organization is
+# org override -> operator override -> env (see ``resolve_settings``), with the
+# credential-group, ceiling and fallback-policy rules of
+# :mod:`tripl.services._org_settings_merge`.
+ORG_FIELDS: frozenset[str] = frozenset(
     {
-        "app_base_url",
-        *SECURITY_FIELDS,
-        *OBSERVABILITY_FIELDS,
-        *(field for field in STORAGE_FIELDS if field != "photo_allowed_mime"),
+        "scan_row_limit_default",
+        "metrics_row_limit_default",
         *EMAIL_FIELDS,
-        "ai_base_url",
-        "ai_api_key",
-        "search_embedding_provider",
-        "search_embedding_model",
-        "search_embedding_api_key",
+        *AI_CHAT_FIELDS,
     }
 )
+
+# The fields only a PLATFORM admin may change: tripl's own infrastructure. The
+# public URL, every security and observability knob (including who may register
+# at all), storage (server filesystem paths, critique 12, and the photo size cap,
+# which is the process request-body limit, critique 15; per-org storage is
+# PR11) and the embedding endpoint (PR10). Everything editable that an
+# organization may not set for itself.
+OPERATOR_FIELDS: frozenset[str] = EDITABLE_FIELDS - ORG_FIELDS
 
 
 def touches_operator_fields(changes: Mapping[str, Any]) -> bool:
@@ -216,9 +248,13 @@ class AiConfig:
     search_embedding_provider: str
     search_embedding_model: str
     search_embedding_api_key: str
+    # True when ``ai_base_url`` came from an ORGANIZATION (any deployment mode):
+    # ``llm_service`` then re-checks the host right before the request
+    # (reject_private_host, the DNS-rebinding half of the SSRF guard).
+    host_guard: bool = False
 
 
-AI_CONFIG_FIELDS = frozenset(f.name for f in fields(AiConfig))
+AI_CONFIG_FIELDS = frozenset(f.name for f in fields(AiConfig)) - {"host_guard"}
 
 
 def default_ai_prompts() -> dict[str, str]:
@@ -338,7 +374,18 @@ def build_service_values(overrides: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_runtime_config(overrides: dict[str, Any]) -> RuntimeConfig:
-    values = build_service_values(overrides)
+    return _runtime_config_from(build_service_values(overrides))
+
+
+def build_email_config(overrides: dict[str, Any]) -> EmailConfig:
+    return _email_config_from(build_service_values(overrides))
+
+
+def build_ai_config(overrides: dict[str, Any]) -> AiConfig:
+    return _ai_config_from(build_service_values(overrides))
+
+
+def _runtime_config_from(values: Mapping[str, Any]) -> RuntimeConfig:
     return RuntimeConfig(
         app_base_url=str(values["app_base_url"]),
         scan_row_limit_default=int(values["scan_row_limit_default"]),
@@ -346,8 +393,7 @@ def build_runtime_config(overrides: dict[str, Any]) -> RuntimeConfig:
     )
 
 
-def build_email_config(overrides: dict[str, Any]) -> EmailConfig:
-    values = build_service_values(overrides)
+def _email_config_from(values: Mapping[str, Any]) -> EmailConfig:
     return EmailConfig(
         smtp_host=str(values["smtp_host"]),
         smtp_port=int(values["smtp_port"]),
@@ -358,8 +404,7 @@ def build_email_config(overrides: dict[str, Any]) -> EmailConfig:
     )
 
 
-def build_ai_config(overrides: dict[str, Any]) -> AiConfig:
-    values = build_service_values(overrides)
+def _ai_config_from(values: Mapping[str, Any], *, host_guard: bool = False) -> AiConfig:
     return AiConfig(
         ai_enabled=bool(values["ai_enabled"]),
         ai_base_url=str(values["ai_base_url"]),
@@ -374,6 +419,34 @@ def build_ai_config(overrides: dict[str, Any]) -> AiConfig:
         search_embedding_provider=str(values["search_embedding_provider"]),
         search_embedding_model=str(values["search_embedding_model"]),
         search_embedding_api_key=str(values["search_embedding_api_key"]),
+        host_guard=host_guard,
+    )
+
+
+def disabled_ai_config() -> AiConfig:
+    """What an organization gets when its settings cannot be read: no AI at all.
+
+    Built from the env values with every credential removed, so nothing in it
+    can reach the operator's provider (critique #19: fail closed in org scope).
+    """
+    return replace(
+        env_ai_config(),
+        ai_enabled=False,
+        ai_api_key="",
+        search_embeddings_enabled=False,
+        search_embedding_api_key="",
+    )
+
+
+def disabled_email_config() -> EmailConfig:
+    """What an organization gets when its settings cannot be read: no relay."""
+    return EmailConfig(
+        smtp_host="",
+        smtp_port=int(settings.smtp_port),
+        smtp_username="",
+        smtp_password="",
+        smtp_security=settings.resolved_smtp_security(),
+        smtp_from_address="",
     )
 
 
@@ -421,9 +494,15 @@ def ai_prompt_defaults() -> dict[str, str]:
     }
 
 
-async def get_row_limit_defaults(session: AsyncSession) -> RuntimeConfig:
-    """The effective instance row caps: env values with stored overrides on top."""
-    return build_runtime_config(await get_service_overrides(session))
+async def get_row_limit_defaults(
+    session: AsyncSession, *, org_id: uuid.UUID | None = None
+) -> RuntimeConfig:
+    """The effective row caps: the organization's (clamped), else operator, else env.
+
+    ``org_id`` may be omitted: row limits are not secrets, so an unscoped read
+    only answers with the operator's caps.
+    """
+    return _runtime_config_from((await resolve_for_org(session, org_id)).values)
 
 
 async def get_service_overrides(session: AsyncSession) -> dict[str, Any]:
@@ -456,61 +535,337 @@ def get_ai_overrides_sync(session: Session) -> dict[str, Any]:
     }
 
 
-async def get_ai_config(session: AsyncSession) -> AiConfig:
-    return build_ai_config(await get_service_overrides(session))
+# ── organization scope (F20 PR9) ────────────────────────────────────────────
 
 
-async def get_email_config(session: AsyncSession) -> EmailConfig:
+def settings_scope_for(org_id: uuid.UUID | None) -> uuid.UUID | None:
+    """The ``app_settings`` scope an organization's values live in; ``None`` = operator.
+
+    On a self-hosted instance the default organization IS the operator scope
+    (critique #17): its admins editing SMTP there must still change the relay
+    that password-reset mail goes through, and nothing about a single-team
+    instance changes when organizations arrive. Every other organization — and
+    the default one on a hosted instance — has its own scope.
+    """
+    if org_id is None:
+        return None
+    if settings.deployment_mode == DEPLOYMENT_SELF_HOSTED and org_id == DEFAULT_ORG_ID:
+        return None
+    return org_id
+
+
+def _org_setting(key: str, org_id: uuid.UUID) -> Select[tuple[AppSetting]]:
+    return select(AppSetting).where(AppSetting.key == key, AppSetting.organization_id == org_id)
+
+
+async def get_org_overrides(session: AsyncSession, org_id: uuid.UUID) -> dict[str, Any]:
+    """The organization's own stored overrides (raw: secrets still encrypted)."""
+    row = await session.scalar(_org_setting(SERVICE_SETTINGS_KEY, org_id))
+    if row is None or not isinstance(row.value, dict):
+        return {}
+    return {key: value for key, value in row.value.items() if key in ORG_FIELDS}
+
+
+def get_org_overrides_sync(session: Session, org_id: uuid.UUID) -> dict[str, Any]:
+    row = session.scalar(_org_setting(SERVICE_SETTINGS_KEY, org_id))
+    if row is None or not isinstance(row.value, dict):
+        return {}
+    return {key: value for key, value in row.value.items() if key in ORG_FIELDS}
+
+
+def _org_values(org_overrides: Mapping[str, Any]) -> dict[str, Any]:
+    """An organization's stored overrides, decrypted, ORG_FIELDS only.
+
+    A secret that no longer decrypts is dropped — and, being part of a
+    credential group, its group stays the organization's with an empty key,
+    never the operator's.
+    """
+    values: dict[str, Any] = {}
+    for key, value in org_overrides.items():
+        if key not in ORG_FIELDS or value is None:
+            continue
+        if key in SECRET_FIELDS:
+            decrypted = _decrypt_override(key, value)
+            values[key] = decrypted if decrypted is not None else ""
+            continue
+        values[key] = value
+    return values
+
+
+@dataclass(frozen=True)
+class ResolvedSettings:
+    """Every editable field's effective value, and where each one came from."""
+
+    values: dict[str, Any]
+    sources: dict[str, SettingSource]
+    #: ``None`` for the operator view; else the scope that was resolved.
+    org_scope: uuid.UUID | None
+    #: The raw overrides of the scope being viewed (operator or organization).
+    overridden_fields: tuple[str, ...]
+    #: Guarded host fields whose value an ORGANIZATION supplied (every organization
+    #: scope, any deployment mode); checked against private addresses at use time.
+    guarded_hosts: frozenset[str]
+
+
+def resolve_settings(
+    operator_overrides: dict[str, Any],
+    org_overrides: dict[str, Any] | None,
+    *,
+    org_scope: uuid.UUID | None = None,
+) -> ResolvedSettings:
+    """Pure resolution: operator view when ``org_overrides`` is ``None``, else the org's.
+
+    The organization view applies org override -> operator override -> env with
+    the rules of :mod:`tripl.services._org_settings_merge`.
+    """
+    base = build_service_values(operator_overrides)
+    base_sources: dict[str, SettingSource] = {
+        field: _setting_source(field, base[field], operator_overrides) for field in EDITABLE_FIELDS
+    }
+    if org_overrides is None:
+        return ResolvedSettings(
+            values=base,
+            sources=base_sources,
+            org_scope=None,
+            overridden_fields=tuple(sorted(k for k in operator_overrides if k in EDITABLE_FIELDS)),
+            guarded_hosts=frozenset(),
+        )
+    merged = merge_org_values(
+        base,
+        _org_values(org_overrides),
+        org_fields=ORG_FIELDS,
+        secret_fields=SECRET_FIELDS,
+        inherit_groups=settings.org_settings_operator_fallback == "all",
+        code_default=_group_default,
+    )
+    sources = dict(base_sources)
+    for field, provenance in merged.provenance.items():
+        if provenance == "org":
+            sources[field] = "org"
+        elif provenance == "group_default":
+            sources[field] = "default"
+        elif provenance == "disabled":
+            sources[field] = "disabled"
+    return ResolvedSettings(
+        values=merged.values,
+        sources=sources,
+        org_scope=org_scope,
+        overridden_fields=tuple(sorted(k for k in org_overrides if k in ORG_FIELDS)),
+        # Every organization scope (F20 PR9): on a self-hosted instance the
+        # operator's own team is the default organization, which resolves as
+        # the operator view above and is never guarded.
+        guarded_hosts=merged.org_hosts,
+    )
+
+
+def _group_default(field: str) -> Any:
+    default = _code_default(field)
+    return "" if default is _NO_DEFAULT else default
+
+
+async def resolve_for_org(session: AsyncSession, org_id: uuid.UUID | None) -> ResolvedSettings:
+    """The effective settings an organization runs with (``None``: the operator's).
+
+    No env fallback on a database error: the exception propagates, so an
+    organization's request fails rather than running on the operator's keys.
+    """
+    operator = await get_service_overrides(session)
+    scope = settings_scope_for(org_id)
+    if scope is None:
+        return resolve_settings(operator, None)
+    return resolve_settings(operator, await get_org_overrides(session, scope), org_scope=scope)
+
+
+def resolve_for_org_sync(session: Session, org_id: uuid.UUID | None) -> ResolvedSettings:
+    operator = get_service_overrides_sync(session)
+    scope = settings_scope_for(org_id)
+    if scope is None:
+        return resolve_settings(operator, None)
+    return resolve_settings(operator, get_org_overrides_sync(session, scope), org_scope=scope)
+
+
+def _guard_smtp_host(resolved: ResolvedSettings, config: EmailConfig) -> EmailConfig:
+    """Refuse an organization's private SMTP host (use time, every organization scope).
+
+    Blocking (DNS): async callers run it in a thread. A refused host leaves the
+    organization without a relay rather than failing the caller: mail is off,
+    which every sender already handles.
+    """
+    if "smtp_host" not in resolved.guarded_hosts or not config.smtp_host:
+        return config
+    try:
+        reject_private_host(config.smtp_host, field="SMTP host")
+    except ValueError:
+        logger.warning(
+            "Organization %s SMTP host refused by the private-address guard",
+            resolved.org_scope,
+        )
+        return replace(config, smtp_host="", smtp_password="")
+    return config
+
+
+def ai_config_for(resolved: ResolvedSettings) -> AiConfig:
+    return _ai_config_from(resolved.values, host_guard="ai_base_url" in resolved.guarded_hosts)
+
+
+def email_config_for(resolved: ResolvedSettings) -> EmailConfig:
+    """The email config of a resolution, with the hosted SMTP-host guard applied."""
+    return _guard_smtp_host(resolved, _email_config_from(resolved.values))
+
+
+async def get_ai_config(session: AsyncSession, *, org_id: uuid.UUID | None) -> AiConfig:
+    """The AI config an organization's call runs with.
+
+    ``org_id`` is required: ``None`` is the operator's own config and must be
+    asked for explicitly (embeddings, until PR10), so a call site cannot
+    forget its organization and quietly borrow the operator's key.
+    """
+    return ai_config_for(await resolve_for_org(session, org_id))
+
+
+async def get_email_config(session: AsyncSession, *, org_id: uuid.UUID | None) -> EmailConfig:
     """The async twin of ``get_email_config_sync``, for request-path callers."""
-    return build_email_config(await get_service_overrides(session))
+    resolved = await resolve_for_org(session, org_id)
+    if not resolved.guarded_hosts:
+        return _email_config_from(resolved.values)
+    return await asyncio.to_thread(email_config_for, resolved)
 
 
 async def get_service_settings(session: AsyncSession) -> dict[str, Any]:
     return await service_settings_payload(session, await get_service_overrides(session))
 
 
-def get_ai_config_sync(session: Session | None = None) -> AiConfig:
-    try:
-        if session is not None:
-            return build_ai_config(get_service_overrides_sync(session))
-        from tripl.worker.db import SyncSessionLocal
+def _open_sync_session() -> Session:
+    from tripl.worker.db import SyncSessionLocal
 
-        with SyncSessionLocal() as own_session:
-            return build_ai_config(get_service_overrides_sync(own_session))
+    return SyncSessionLocal()
+
+
+def _resolve_sync(session: Session | None, org_id: uuid.UUID | None) -> ResolvedSettings:
+    if session is not None:
+        return resolve_for_org_sync(session, org_id)
+    with _open_sync_session() as own_session:
+        return resolve_for_org_sync(own_session, org_id)
+
+
+def get_ai_config_sync(session: Session | None = None, *, org_id: uuid.UUID | None) -> AiConfig:
+    """Sync twin of :func:`get_ai_config` for workers.
+
+    On a read failure the operator scope falls back to env (the operator's own
+    configuration either way); an organization scope fails CLOSED with AI off
+    (critique #19) — env holds the operator's key, not the organization's.
+    """
+    try:
+        return ai_config_for(_resolve_sync(session, org_id))
     except Exception:  # noqa: BLE001
-        logger.warning("Falling back to env AI config: app_settings read failed", exc_info=True)
         settings_read_failures_total.labels(section="ai").inc()
+        if settings_scope_for(org_id) is not None:
+            logger.warning(
+                "AI disabled for org %s: app_settings read failed", org_id, exc_info=True
+            )
+            return disabled_ai_config()
+        logger.warning("Falling back to env AI config: app_settings read failed", exc_info=True)
         return env_ai_config()
 
 
-def get_email_config_sync(session: Session | None = None) -> EmailConfig:
+def get_email_config_sync(
+    session: Session | None = None, *, org_id: uuid.UUID | None
+) -> EmailConfig:
+    """Sync twin of :func:`get_email_config`; fails closed for an organization."""
     try:
-        if session is not None:
-            return build_email_config(get_service_overrides_sync(session))
-        from tripl.worker.db import SyncSessionLocal
-
-        with SyncSessionLocal() as own_session:
-            return build_email_config(get_service_overrides_sync(own_session))
+        return email_config_for(_resolve_sync(session, org_id))
     except Exception:  # noqa: BLE001
-        logger.warning("Falling back to env email config: app_settings read failed", exc_info=True)
         settings_read_failures_total.labels(section="email").inc()
+        if settings_scope_for(org_id) is not None:
+            logger.warning(
+                "Email disabled for org %s: app_settings read failed", org_id, exc_info=True
+            )
+            return disabled_email_config()
+        logger.warning("Falling back to env email config: app_settings read failed", exc_info=True)
         return env_email_config()
 
 
-def get_runtime_config_sync(session: Session | None = None) -> RuntimeConfig:
-    try:
-        if session is not None:
-            return build_runtime_config(get_service_overrides_sync(session))
-        from tripl.worker.db import SyncSessionLocal
+def get_runtime_config_sync(
+    session: Session | None = None, *, org_id: uuid.UUID | None = None
+) -> RuntimeConfig:
+    """``app_base_url`` (always the operator's) and the row-limit defaults.
 
-        with SyncSessionLocal() as own_session:
-            return build_runtime_config(get_service_overrides_sync(own_session))
-    except Exception:  # noqa: BLE001
+    ``org_id`` gives the organization's row limits; omitted, the operator's.
+    An organization scope re-raises a read failure instead of using env limits.
+    """
+    try:
+        return _runtime_config_from(_resolve_sync(session, org_id).values)
+    except Exception:
+        settings_read_failures_total.labels(section="runtime").inc()
+        if settings_scope_for(org_id) is not None:
+            logger.warning("Row limits for org %s unreadable: app_settings read failed", org_id)
+            raise
         logger.warning(
             "Falling back to env runtime config: app_settings read failed", exc_info=True
         )
-        settings_read_failures_total.labels(section="runtime").inc()
         return env_runtime_config()
+
+
+async def get_embedding_config(session: AsyncSession) -> AiConfig:
+    """The config search embeddings run with: the OPERATOR's, for every organization.
+
+    Embeddings are operator-only until PR10 gives each organization its own
+    vector space (one index, one provider, one dimension today). Only the
+    ``search_embedding_*`` fields of the result may be used.
+    """
+    return await get_ai_config(session, org_id=None)
+
+
+def get_embedding_config_sync(session: Session | None = None) -> AiConfig:
+    """Sync twin of :func:`get_embedding_config` for the search worker."""
+    return get_ai_config_sync(session, org_id=None)
+
+
+def project_org_id_sync(session: Session | None, project_id: uuid.UUID) -> uuid.UUID | None:
+    """The organization a project belongs to, read from the database (worker paths)."""
+    from tripl.models.project import Project
+
+    stmt = select(Project.organization_id).where(Project.id == project_id)
+    if session is not None:
+        return session.scalar(stmt)
+    with _open_sync_session() as own_session:
+        return own_session.scalar(stmt)
+
+
+def get_ai_config_for_project_sync(session: Session | None, project_id: uuid.UUID) -> AiConfig:
+    """The AI config of the organization owning ``project_id``; AI off if unknown."""
+    try:
+        org_id = project_org_id_sync(session, project_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("AI disabled: cannot read the organization of project %s", project_id)
+        return disabled_ai_config()
+    if org_id is None:
+        return disabled_ai_config()
+    return get_ai_config_sync(session, org_id=org_id)
+
+
+def get_email_config_for_project_sync(
+    session: Session | None, project_id: uuid.UUID
+) -> EmailConfig:
+    """The email config of the organization owning ``project_id``; no relay if unknown."""
+    try:
+        org_id = project_org_id_sync(session, project_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("Email disabled: cannot read the organization of project %s", project_id)
+        return disabled_email_config()
+    if org_id is None:
+        return disabled_email_config()
+    return get_email_config_sync(session, org_id=org_id)
+
+
+def get_operator_email_config_sync(session: Session | None = None) -> EmailConfig:
+    """The operator's relay: account mail (sign-up, password reset, invitations)."""
+    return get_email_config_sync(session, org_id=None)
+
+
+async def get_operator_email_config(session: AsyncSession) -> EmailConfig:
+    """The operator's relay, for account mail sent from a request."""
+    return await get_email_config(session, org_id=None)
 
 
 # Fields excluded from the startup apply below because they are resolved live
@@ -716,6 +1071,38 @@ async def update_service_overrides(
     return await get_service_overrides(session)
 
 
+async def update_org_overrides(
+    session: AsyncSession,
+    org_scope: uuid.UUID,
+    changes: dict[str, Any],
+) -> dict[str, Any]:
+    """Write an organization's own overrides (ORG_FIELDS only; the caller validates).
+
+    Same sparse semantics as the operator document: ``None`` clears a field, an
+    empty secret clears it too, anything else is stored (secrets encrypted).
+    Returns the organization's raw overrides after the write.
+    """
+    row = await session.scalar(_org_setting(SERVICE_SETTINGS_KEY, org_scope))
+    overrides: dict[str, Any] = (
+        dict(row.value) if row is not None and isinstance(row.value, dict) else {}
+    )
+    for key, value in changes.items():
+        if key not in ORG_FIELDS:
+            continue
+        if value is None or (key in SECRET_FIELDS and value == ""):
+            overrides.pop(key, None)
+            continue
+        overrides[key] = crypto.encrypt_value(str(value)) if key in SECRET_FIELDS else value
+    if row is None:
+        session.add(
+            AppSetting(key=SERVICE_SETTINGS_KEY, value=overrides, organization_id=org_scope)
+        )
+    else:
+        row.value = overrides
+    await session.commit()
+    return await get_org_overrides(session, org_scope)
+
+
 _NO_DEFAULT = object()
 
 # The three system prompts are not ``Settings`` fields at all — env_service_values
@@ -781,26 +1168,34 @@ def _setting_source(field: str, value: Any, overrides: dict[str, Any]) -> Settin
 async def service_settings_payload(
     session: AsyncSession, overrides: dict[str, Any]
 ) -> dict[str, Any]:
-    """Public settings for already-read overrides, plus live migration status.
+    """Public operator-scope settings for already-read overrides, plus migration status.
 
-    Every router path goes through here so GET and PATCH answer identically: the
-    frontend writes the PATCH response straight into its query cache, so a field
-    present on one and absent from the other blanks out on the next save.
+    Every router path goes through here (or :func:`resolved_settings_payload`) so
+    GET and PATCH answer identically: the frontend writes the PATCH response
+    straight into its query cache, so a field present on one and absent from the
+    other blanks out on the next save.
     """
+    return await resolved_settings_payload(session, resolve_settings(overrides, None))
+
+
+async def resolved_settings_payload(
+    session: AsyncSession, resolved: ResolvedSettings
+) -> dict[str, Any]:
+    """The public payload of any resolution: operator, organization or combined."""
     return public_service_settings(
-        overrides, await migration_status_service.get_migration_status(session)
+        resolved, await migration_status_service.get_migration_status(session)
     )
 
 
 def public_service_settings(
-    overrides: dict[str, Any], migration: migration_status_service.MigrationStatus
+    resolved: ResolvedSettings, migration: migration_status_service.MigrationStatus
 ) -> dict[str, Any]:
-    values = build_service_values(overrides)
-    overridden_fields = sorted(key for key in overrides if key in EDITABLE_FIELDS)
+    values = resolved.values
+    overridden_fields = list(resolved.overridden_fields)
     sources: dict[str, SettingSource] = {}
     for section, section_fields in FIELD_SECTIONS.items():
         for field in section_fields:
-            sources[f"{section}.{field}"] = _setting_source(field, values[field], overrides)
+            sources[f"{section}.{field}"] = resolved.sources[field]
     # No override can exist for these — they are outside EDITABLE_FIELDS — so the
     # only question they can answer is delivered-versus-default, which is exactly
     # the one an operator verifying SEARCH_EMBEDDING_BASE_URL is asking.

@@ -122,9 +122,19 @@ The backend gates endpoints with role/scope dependencies, not just UI hiding:
   members, roles and invitations (`403 Organization owner or admin role
   required`). On a project route the project must belong to the organization the
   request acts in.
-- **Settings admin** — a platform admin, or an owner or admin of the default
-  organization — is required for `/settings`. A write that touches an operator
-  field additionally needs the platform admin (`403 Platform admin required`).
+- **Organization settings** (`/api/v1/orgs/{org}/settings`: email, AI and
+  row limits) take an owner or admin of that organization; the row limits alone
+  are readable by every member. A body naming an operator field is refused with
+  `422`. **Platform settings** (`/api/v1/platform/settings`) take a platform
+  admin (`403 Platform admin required`).
+- **Settings admin** — a platform admin, or an owner or admin of the
+  organization the request acts in — is required for the older combined
+  `/settings`. A write that touches an operator field additionally needs the
+  platform admin (`403 Platform admin required`); organization fields land in
+  that organization's settings (on a self-hosted instance, the instance's —
+  where the SMTP relay and AI endpoint also need the platform admin, through
+  either route). Only a platform admin reads the Security, Storage,
+  Observability and system blocks of `/settings`.
 - Owner- and admin-only endpoints additionally require an **interactive
   session** — an API key does not reach them, even a write-scoped key of an
   owner (`403 Owner session required`). One route is deliberately exempt: the
@@ -350,6 +360,31 @@ The organization's own settings are in **Settings → Organization**:
 - **Invitations** — invite someone at an organization role (owner, admin or
   member), see the pending invitations and revoke them. Owners and admins only.
 - **Data sources** and **API keys** — the organization's own.
+- **Email**, **AI** and **Limits** — the organization's own SMTP relay, AI
+  chat provider (endpoint, key, model, timeout, output tokens and the three
+  prompts) and default scan/metrics row caps. Owners and admins only. Each
+  field shows where its value comes from: **Organization** (set here),
+  **Operator** or **Env** (inherited), or **Disabled by operator policy** when
+  the operator runs with `ORG_SETTINGS_OPERATOR_FALLBACK=none` and the
+  organization has not set its own relay or AI endpoint. Setting any endpoint
+  field (SMTP host, AI base URL, model or key) makes that whole group the
+  organization's, so the operator's key or password is never sent to the
+  organization's server. Limits and AI timeouts cannot exceed the operator's,
+  and the SMTP host and AI base URL must be public addresses.
+  **Send test email** and **Test AI** probe exactly what the
+  organization would use. Alerts, digests, notification emails, AI
+  descriptions and answers, alert explanations and incident summaries of the
+  organization's projects all use these values; sign-up, password-reset and
+  invitation mail always use the operator's relay. See
+  [Operator and organization settings](../run/configuration.md#operator-and-organization-settings)
+  for the full classification.
+
+The operator's own settings — public URL, security, observability, storage,
+embeddings, and the operator's defaults for every organization field — are under
+**Settings → Platform**, for platform admins only. On a self-hosted instance the
+default organization's Email, AI and Limits are the same values as the
+platform's; its owners and admins can change the limits, timeouts and prompts
+there, and only a platform admin its SMTP relay and AI endpoint.
 
 ### The organization API
 

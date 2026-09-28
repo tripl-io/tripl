@@ -27,9 +27,9 @@ class AppSetting(UUIDMixin, TimestampMixin, Base):
     ``tripl.config.Settings`` value. Secret fields inside ``value`` are
     encrypted with :mod:`tripl.crypto` before storage.
 
-    ``organization_id`` NULL is the operator (instance) scope — every row that
-    exists today, and the only scope anything reads. A non-NULL value is an
-    organization's own override, reserved for a later F20 PR. Uniqueness is per
+    ``organization_id`` NULL is the operator (instance) scope. A non-NULL value
+    is an organization's own override of the ``ORG_FIELDS`` (F20 PR9), resolved
+    org -> operator -> env by ``app_settings_service``. Uniqueness is per
     scope, so each query MUST say which scope it means: a lookup by ``key`` alone
     would pick an arbitrary row once organization rows exist.
     """

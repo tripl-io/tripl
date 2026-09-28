@@ -90,10 +90,11 @@ ORG_ADMIN_SESSION_ONLY_ROUTES = {
     "PATCH /api/v1/users/{user_id}",
 }
 
-# The org-free ``/settings`` surface (``get_settings_admin_user``): a platform
-# admin, or an owner/admin of the default organization, whose values the
-# instance scope still is until per-org settings land (PR9). Operator fields in
-# a write, and the ``system`` block, additionally need a platform admin.
+# The org-free legacy ``/settings`` surface (``get_settings_admin_user``): a
+# platform admin, or an owner/admin of the organization the legacy route
+# resolves (default org self-hosted, the user's only org hosted; F20 PR9).
+# Operator fields in a write, and the ``system`` block, additionally need a
+# platform admin.
 SETTINGS_ADMIN_ROUTES = {
     "GET /api/v1/settings",
     "PATCH /api/v1/settings",
@@ -162,8 +163,16 @@ def test_settings_routes_take_the_settings_admin_gate() -> None:
     assert _routes_carrying(require_platform_admin) <= SETTINGS_ADMIN_ROUTES | PLATFORM_ADMIN_ROUTES
 
 
+# The operator console (F20 PR9): the operator scope, whole, for platform admins.
+PLATFORM_SETTINGS_ROUTES = {
+    "GET /api/v1/platform/settings",
+    "PATCH /api/v1/platform/settings",
+    "POST /api/v1/platform/settings/ai/test",
+    "POST /api/v1/platform/settings/email/test",
+}
+
 # Routes only a platform admin reaches, beyond the operator settings.
-PLATFORM_ADMIN_ROUTES = {"POST /api/v1/orgs"}
+PLATFORM_ADMIN_ROUTES = {"POST /api/v1/orgs", *PLATFORM_SETTINGS_ROUTES}
 
 # The organization management gates (F20 PR6): a membership of the ORGANIZATION
 # THE PATH NAMES, with the owner/admin and owner gates session only. Listed, not
@@ -172,6 +181,12 @@ PATH_ORG_ADMIN_ROUTES = {
     "PATCH /api/v1/orgs/{org}",
     "PATCH /api/v1/orgs/{org}/members/{user_id}",
     "DELETE /api/v1/orgs/{org}/members/{user_id}",
+    # An organization's own settings (F20 PR9): owner/admin of THAT org.
+    "GET /api/v1/orgs/{org}/settings",
+    "PATCH /api/v1/orgs/{org}/settings",
+    "PUT /api/v1/orgs/{org}/settings",
+    "POST /api/v1/orgs/{org}/settings/ai/test",
+    "POST /api/v1/orgs/{org}/settings/email/test",
 }
 PATH_ORG_OWNER_ROUTES = {
     "DELETE /api/v1/orgs/{org}",

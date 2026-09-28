@@ -427,7 +427,7 @@ describe('Instance settings load failure (WS-1)', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText("Couldn't load instance settings")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't load platform settings")).toBeInTheDocument()
     expect(screen.getByText('Service unavailable')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))

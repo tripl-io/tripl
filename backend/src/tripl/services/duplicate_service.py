@@ -277,7 +277,7 @@ async def _stored_vector_model(session: AsyncSession, project_id: uuid.UUID) -> 
     from tripl.services.demo.search_embeddings import load_demo_embedding_fixture
     from tripl.services.embedding_service import embedding_provenance
 
-    ai_config = await app_settings_service.get_ai_config(session)
+    ai_config = await app_settings_service.get_embedding_config(session)
     if ai_config.search_embeddings_enabled:
         return embedding_provenance(ai_config)
     if await session.scalar(select(Project.is_demo).where(Project.id == project_id)):
@@ -292,7 +292,7 @@ async def _embed_candidates(
     """Live vectors for the candidates, or ``[]`` when that is not possible."""
     from tripl.services.embedding_service import embed_texts, embedding_provenance
 
-    ai_config = await app_settings_service.get_ai_config(session)
+    ai_config = await app_settings_service.get_embedding_config(session)
     if not ai_config.search_embeddings_enabled or not texts:
         return [], None
     try:

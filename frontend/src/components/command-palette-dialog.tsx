@@ -46,7 +46,7 @@ import { useAuth } from '@/components/auth-context'
 import { useCommandPalette } from '@/components/command-palette-context'
 import { PALETTE_ITEM_CLASS } from '@/components/palette-item'
 import { SearchVariantCount, SearchVariantRows } from '@/components/search-variants'
-import { PROJECT_GROUPS, WORKSPACE_GROUPS } from '@/components/settings/nav'
+import { PROJECT_GROUPS, WORKSPACE_GROUPS, itemVisible } from '@/components/settings/nav'
 import { useTheme } from '@/components/theme-provider'
 import { eventNameLabel } from '@/lib/eventName'
 import { buildNavGroups, currentOrgSlug, projectHomePath, projectPath, settingsPath, switchProjectPath, withActiveOrg, workspacePath } from '@/lib/navigation'
@@ -68,7 +68,7 @@ import {
   projectsQueryOptions,
 } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
-import { canWrite, isOwner as isOwnerRole } from '@/lib/permissions'
+import { canWrite, isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
 
 
 /**
@@ -568,6 +568,7 @@ export default function CommandPalette({
   })
 
   const isOwner = isOwnerRole(auth.user?.role)
+  const isPlatformAdmin = isPlatformAdminUser(auth.user)
   const canEdit = canWrite(auth.user?.role)
 
   // Workspace destinations: the portfolio, then every settings section the
@@ -578,7 +579,9 @@ export default function CommandPalette({
   // what a section holds are keywords.
   const settingsRows: PaletteRow[] = [...WORKSPACE_GROUPS, ...PROJECT_GROUPS].flatMap(group =>
     group.items
-      .filter(item => !item.ownerOnly || isOwner)
+      // The settings rail's own visibility rule: a Platform section is the
+      // platform admin's alone, whatever the caller's organization role.
+      .filter(item => itemVisible(item, isOwner, isPlatformAdmin))
       // Project sections are bound to a project by the address (SHELL-20);
       // with none open there is nothing for them to configure.
       .filter(item => !item.path.startsWith('project/') || !!activeProject)

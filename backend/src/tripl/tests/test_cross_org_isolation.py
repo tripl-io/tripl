@@ -87,8 +87,15 @@ _AUTH_REASON = (
     "project slug"
 )
 _SETTINGS_REASON = (
-    "instance operator settings, gated to platform admins (require_platform_admin); "
-    "no org-qualified form and no project or organization rows"
+    "legacy combined settings view (F20 PR9): operator fields gated to platform "
+    "admins; organization fields act in the caller's own resolved organization "
+    "(deps.legacy_settings_org_id, never another), whose org-qualified form is "
+    "/orgs/{org}/settings, driven by the matrix; test_org_settings.py pins that "
+    "a hosted caller's legacy write lands in their own organization only"
+)
+_PLATFORM_REASON = (
+    "the operator console (F20 PR9): the operator scope, platform admins only "
+    "(require_platform_admin); names and reads no organization"
 )
 
 #: Every route that is NOT per organization, with the reason. Keyed by path: a
@@ -116,6 +123,9 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
     f"{API}/settings/ai": _SETTINGS_REASON,
     f"{API}/settings/ai/test": _SETTINGS_REASON,
     f"{API}/settings/email/test": _SETTINGS_REASON,
+    f"{API}/platform/settings": _PLATFORM_REASON,
+    f"{API}/platform/settings/ai/test": _PLATFORM_REASON,
+    f"{API}/platform/settings/email/test": _PLATFORM_REASON,
     f"{API}/project-templates": "static instance-wide catalog of starter templates",
     f"{API}/orgs": (
         "the caller's own organizations (an API key: its own one) and, for a platform "

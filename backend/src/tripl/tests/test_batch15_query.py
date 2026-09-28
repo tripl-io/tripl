@@ -42,7 +42,7 @@ async def test_query_embed_uses_short_timeout_and_current_provenance(monkeypatch
     config = SimpleNamespace(search_embeddings_enabled=True)
     monkeypatch.setattr(
         query_module.app_settings_service,
-        "get_ai_config",
+        "get_embedding_config",
         AsyncMock(return_value=config),
     )
     monkeypatch.setattr(query_module, "embedding_provenance", lambda cfg: "current-provider")

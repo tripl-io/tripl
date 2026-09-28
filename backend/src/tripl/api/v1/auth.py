@@ -318,6 +318,8 @@ async def request_password_reset(
     # has SMTP configured AND a matching account exists; otherwise nothing is
     # stored or sent. ``email_configured`` is instance-wide, so returning it
     # (for the UI's fallback copy) does not enable enumeration.
+    # Account mail always goes through the OPERATOR's relay (F20 PR9): the
+    # operator-scope overrides below, never an organization's.
     overrides = await app_settings_service.get_service_overrides(session)
     email_config = app_settings_service.build_email_config(overrides)
     # The flag has to mean "this can actually send"; see ``email_can_send``.

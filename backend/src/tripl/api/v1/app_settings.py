@@ -1,68 +1,101 @@
 from __future__ import annotations
 
-import asyncio
 import logging
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.api.deps import PLATFORM_ADMIN_REQUIRED, SessionDep, SettingsAdminUserDep
+from tripl.api.deps import (
+    ORG_ADMIN_REQUIRED,
+    PLATFORM_ADMIN_REQUIRED,
+    CurrentUserDep,
+    SessionDep,
+    SettingsAdminUserDep,
+    legacy_settings_org_id,
+)
 from tripl.models.user import User
 from tripl.schemas.app_settings import (
     AiPromptDefaultsResponse,
     AiSettingsResponse,
     AiSettingsTestRequest,
+    CombinedSettingsResponse,
     EmailSettingsTestRequest,
     RowLimitDefaultsResponse,
-    ServiceSettingsResponse,
     ServiceSettingsUpdate,
     SettingsTestResponse,
 )
 from tripl.schemas.event_photo import PhotoLimitsResponse
 from tripl.services import (
-    _email_test_send,
+    _settings_probe,
     app_settings_service,
     audit_service,
     event_photo_service,
-    llm_service,
+    org_settings_service,
+    project_access,
 )
+from tripl.services.app_settings_service import OPERATOR_FIELDS, ORG_FIELDS
 
 logger = logging.getLogger(__name__)
 
-# Who may do what here (F20 PR4). ``/settings`` binds no organization and there
-# is no per-organization storage until PR9, so:
+# The legacy combined view (F20 PR9). ``/settings`` binds no organization; it
+# resolves one itself (``deps.legacy_settings_org_id``): the default
+# organization when self-hosted, the user's only organization when hosted.
 #
 # * every route but the two public limits takes :data:`SettingsAdminUserDep`: a
-#   platform admin, or an owner/admin of the default organization (whose values
-#   the instance scope is), from a browser session;
-# * a write touching any ``app_settings_service.OPERATOR_FIELDS`` field (the
-#   public URL, security, observability, server paths, the photo size cap)
-#   additionally needs ``users.is_platform_admin``, else 403;
-# * the ``system`` block of the read is ``None`` for anyone but a platform admin.
+#   platform admin, or an owner/admin of that organization, from a browser
+#   session;
+# * a write touching an ``OPERATOR_FIELDS`` field needs ``is_platform_admin``
+#   (403) and lands in the operator scope;
+# * a write touching an ``ORG_FIELDS`` field lands in the organization's scope —
+#   which on a self-hosted instance IS the operator scope (critique #17:
+#   password-reset mail follows the SMTP set here). On a hosted instance it
+#   needs an owner/admin role in the resolved organization, and a platform
+#   admin with no single organization writes the operator's defaults. Whenever
+#   it lands in the operator scope, its credential groups (SMTP relay, AI
+#   endpoint and key) need ``is_platform_admin`` too (403);
+# * the read is the combined view: operator fields as the operator has them,
+#   organization fields as the resolved organization runs with them. For
+#   anyone but a platform admin the operator's infrastructure is withheld:
+#   ``system``, ``security``, ``storage`` and ``observability`` are ``None``
+#   and the embedding endpoint is blank.
+#
+# The per-scope surfaces are ``/orgs/{org}/settings`` and ``/platform/settings``.
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-def _require_operator_write(user: User, changes: dict[str, Any]) -> None:
-    """403 when ``changes`` sets an operator-only field and ``user`` is not a platform admin."""
-    if app_settings_service.touches_operator_fields(changes) and not user.is_platform_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PLATFORM_ADMIN_REQUIRED)
+#: Response sections that are wholly the operator's infrastructure.
+_OPERATOR_SECTIONS: tuple[str, ...] = ("security", "storage", "observability")
 
 
-def _for_caller(payload: dict[str, Any], user: User) -> ServiceSettingsResponse:
-    """The settings response, with ``system`` hidden from a non-platform admin."""
-    response = ServiceSettingsResponse.model_validate(payload)
+def _for_caller(payload: dict[str, Any], user: User) -> CombinedSettingsResponse:
+    """The combined view, with the operator's infrastructure withheld from a
+    non-platform admin (server paths, bucket names, telemetry and embedding
+    endpoints, CORS and rate-limit policy are not an organization's business)."""
+    response = CombinedSettingsResponse.model_validate(payload)
     if user.is_platform_admin:
         return response
-    return response.model_copy(update={"system": None})
+    hidden_prefixes = tuple(f"{section}." for section in (*_OPERATOR_SECTIONS, "system"))
+    return response.model_copy(
+        update={
+            "system": None,
+            **dict.fromkeys(_OPERATOR_SECTIONS),
+            "ai": response.ai.model_copy(update={"search_embedding_base_url": ""}),
+            "overridden_fields": [
+                field for field in response.overridden_fields if field not in OPERATOR_FIELDS
+            ],
+            "sources": {
+                key: value
+                for key, value in response.sources.items()
+                if not key.startswith(hidden_prefixes) and key != "ai.search_embedding_base_url"
+            },
+        }
+    )
 
 
 def _flatten_update(payload: ServiceSettingsUpdate) -> dict[str, Any]:
-    changes: dict[str, Any] = {}
-    data = payload.model_dump(exclude_unset=True)
-    for section_value in data.values():
-        if isinstance(section_value, dict):
-            changes.update(section_value)
-    return changes
+    return org_settings_service.flatten_changes(payload.model_dump(exclude_unset=True))
 
 
 def _ai_response(payload: dict[str, Any]) -> AiSettingsResponse:
@@ -74,48 +107,112 @@ def _ai_response(payload: dict[str, Any]) -> AiSettingsResponse:
     )
 
 
-@router.get("", response_model=ServiceSettingsResponse)
+async def _legacy_org(request: Request, session: AsyncSession, user: User) -> uuid.UUID | None:
+    return await legacy_settings_org_id(request, session, user)
+
+
+async def _combined_payload(session: AsyncSession, org_id: uuid.UUID | None) -> dict[str, Any]:
+    """Operator fields from the operator scope, org fields as ``org_id`` resolves them."""
+    resolved = await app_settings_service.resolve_for_org(session, org_id)
+    if resolved.org_scope is not None:
+        operator_overrides = await app_settings_service.get_service_overrides(session)
+        overridden = {
+            *resolved.overridden_fields,
+            *(field for field in operator_overrides if field in OPERATOR_FIELDS),
+        }
+        resolved = app_settings_service.ResolvedSettings(
+            values=resolved.values,
+            sources=resolved.sources,
+            org_scope=resolved.org_scope,
+            overridden_fields=tuple(sorted(overridden)),
+            guarded_hosts=resolved.guarded_hosts,
+        )
+    return await app_settings_service.resolved_settings_payload(session, resolved)
+
+
+@router.get("", response_model=CombinedSettingsResponse)
 async def get_service_settings(
+    request: Request,
     session: SessionDep,
     current_user: SettingsAdminUserDep,
-) -> ServiceSettingsResponse:
-    return _for_caller(await app_settings_service.get_service_settings(session), current_user)
+) -> CombinedSettingsResponse:
+    org_id = await _legacy_org(request, session, current_user)
+    return _for_caller(await _combined_payload(session, org_id), current_user)
 
 
-@router.patch("", response_model=ServiceSettingsResponse)
+@router.patch("", response_model=CombinedSettingsResponse)
 async def patch_service_settings(
+    request: Request,
     session: SessionDep,
     current_user: SettingsAdminUserDep,
     payload: ServiceSettingsUpdate,
-) -> ServiceSettingsResponse:
+) -> CombinedSettingsResponse:
     changes = _flatten_update(payload)
-    _require_operator_write(current_user, changes)
-    settings_payload = await app_settings_service.service_settings_payload(
-        session,
-        await app_settings_service.update_service_overrides(session, changes),
-    )
-    await audit_service.record(
-        session,
-        user=current_user,
-        action="settings.update",
-        target_type="settings",
-        target_id=None,
-        payload={"changed_fields": sorted(changes)},
-    )
-    return _for_caller(settings_payload, current_user)
+    org_id = await _legacy_org(request, session, current_user)
+    operator_changes = {k: v for k, v in changes.items() if k in OPERATOR_FIELDS}
+    org_changes = {k: v for k, v in changes.items() if k in ORG_FIELDS}
+    if operator_changes and not current_user.is_platform_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PLATFORM_ADMIN_REQUIRED)
+    org_scope = app_settings_service.settings_scope_for(org_id)
+    if org_scope is None:
+        # Everything lands in the operator scope: its SMTP relay and AI
+        # endpoint are instance-wide (account mail, inherited AI).
+        org_settings_service.require_operator_credential_writer(
+            org_changes, is_platform_admin=current_user.is_platform_admin
+        )
+    elif org_changes:
+        role = await project_access.org_role_of(session, current_user.id, org_scope)
+        if not project_access.is_org_admin_role(role):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
+        # Checked BEFORE anything is written, so a refused org value leaves the
+        # operator half of the same save unapplied too.
+        await org_settings_service.validate_org_changes(session, org_scope, org_changes)
+
+    # (changed fields, scope written, organization feed)
+    written: list[tuple[list[str], uuid.UUID | None, uuid.UUID | None]] = []
+    if org_scope is None:
+        if changes:
+            await app_settings_service.update_service_overrides(session, changes)
+            if operator_changes:
+                written.append((sorted(operator_changes), None, None))
+            if org_changes:
+                # A self-hosted default organization's own values (the operator
+                # alias): its feed, as ``/orgs/{org}/settings`` files them.
+                written.append((sorted(org_changes), None, org_id))
+    else:
+        if operator_changes:
+            await app_settings_service.update_service_overrides(session, operator_changes)
+            written.append((sorted(operator_changes), None, None))
+        if org_changes:
+            await app_settings_service.update_org_overrides(session, org_scope, org_changes)
+            written.append((sorted(org_changes), org_scope, org_scope))
+    if not written:
+        written.append(([], None, None))
+    for changed, scope, feed in written:
+        await audit_service.record(
+            session,
+            user=current_user,
+            action="settings.update",
+            target_type="settings",
+            target_id=None,
+            payload=org_settings_service.audit_scope_payload(changed, scope),
+            organization_id=feed,
+        )
+    return _for_caller(await _combined_payload(session, org_id), current_user)
 
 
-@router.put("", response_model=ServiceSettingsResponse)
+@router.put("", response_model=CombinedSettingsResponse)
 async def put_service_settings(
+    request: Request,
     session: SessionDep,
     current_user: SettingsAdminUserDep,
     payload: ServiceSettingsUpdate,
-) -> ServiceSettingsResponse:
+) -> CombinedSettingsResponse:
     """Upsert service overrides. Intentionally identical to PATCH: unset fields
     are left untouched (partial update), not reset. Kept as a stable alias for
     clients that issue PUT; settings are a sparse override map with no full
     "replace all" semantics."""
-    return await patch_service_settings(session, current_user, payload)
+    return await patch_service_settings(request, session, current_user, payload)
 
 
 @router.get("/photo-limits", response_model=PhotoLimitsResponse)
@@ -131,14 +228,20 @@ async def get_photo_limits() -> PhotoLimitsResponse:
 
 
 @router.get("/row-limits", response_model=RowLimitDefaultsResponse)
-async def get_row_limit_defaults(session: SessionDep) -> RowLimitDefaultsResponse:
+async def get_row_limit_defaults(
+    request: Request, session: SessionDep, current_user: CurrentUserDep
+) -> RowLimitDefaultsResponse:
     """The instance row caps a scan falls back to, readable by every signed-in user.
 
     Admin-only like the rest of this router would hide the real numbers from the
     editors who fill in a scan's Limits, so the form hard-coded the shipped
     defaults instead (B15). Two integers, nothing about the connection.
+
+    The caller's organization's caps (F20 PR9), resolved like the rest of the
+    legacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.
     """
-    config = await app_settings_service.get_row_limit_defaults(session)
+    org_id = await _legacy_org(request, session, current_user)
+    config = await app_settings_service.get_row_limit_defaults(session, org_id=org_id)
     return RowLimitDefaultsResponse(
         scan_row_limit_default=config.scan_row_limit_default,
         metrics_row_limit_default=config.metrics_row_limit_default,
@@ -153,42 +256,29 @@ async def get_ai_prompt_defaults(_current_user: SettingsAdminUserDep) -> AiPromp
 
 @router.get("/ai", response_model=AiSettingsResponse)
 async def get_ai_settings(
+    request: Request,
     session: SessionDep,
-    _current_user: SettingsAdminUserDep,
+    current_user: SettingsAdminUserDep,
 ) -> AiSettingsResponse:
-    return _ai_response(await app_settings_service.get_service_settings(session))
+    org_id = await _legacy_org(request, session, current_user)
+    return _ai_response(await _combined_payload(session, org_id))
 
 
 @router.post("/ai/test", response_model=SettingsTestResponse)
 async def test_ai_settings(
+    request: Request,
     session: SessionDep,
-    _current_user: SettingsAdminUserDep,
+    current_user: SettingsAdminUserDep,
     payload: AiSettingsTestRequest,
 ) -> SettingsTestResponse:
-    config = await app_settings_service.get_ai_config(session)
-    if not llm_service.is_enabled(config):
-        return SettingsTestResponse(
-            ok=False,
-            message="AI is disabled or no API key is configured.",
-        )
-    try:
-        raw = await asyncio.to_thread(
-            llm_service.complete,
-            "You are a connection test endpoint. Keep the response short.",
-            payload.prompt,
-            max_tokens=20,
-            temperature=0,
-            config=config,
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("AI settings test failed", exc_info=True)
-        return SettingsTestResponse(ok=False, message=str(exc))
-    message = (raw or "").strip()
-    return SettingsTestResponse(ok=bool(message), message=message or "No response from provider.")
+    org_id = await _legacy_org(request, session, current_user)
+    config = await app_settings_service.get_ai_config(session, org_id=org_id)
+    return await _settings_probe.probe_ai(config, payload.prompt)
 
 
 @router.post("/email/test", response_model=SettingsTestResponse)
 async def test_email_settings(
+    request: Request,
     session: SessionDep,
     current_user: SettingsAdminUserDep,
     payload: EmailSettingsTestRequest,
@@ -196,20 +286,8 @@ async def test_email_settings(
     """Send one probe message with the saved SMTP settings and report what happened.
 
     Always 200: a relay refusing us is the answer the caller asked for, not a
-    server fault — the same reasoning the alert-destination test states. The
-    error text is passed through verbatim because a useful SMTP diagnostic is
-    the server's own words ("535 authentication failed", a connection timeout);
-    smtplib carries the relay's response in there, never the credential we sent.
+    server fault — the same reasoning the alert-destination test states.
     """
-    config = await app_settings_service.get_email_config(session)
-    recipient = payload.recipient or current_user.email
-    try:
-        await asyncio.to_thread(
-            _email_test_send.send_test_email,
-            email_config=config,
-            recipient=recipient,
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("SMTP settings test failed", exc_info=True)
-        return SettingsTestResponse(ok=False, message=str(exc))
-    return SettingsTestResponse(ok=True, message=f"Test message sent to {recipient}.")
+    org_id = await _legacy_org(request, session, current_user)
+    config = await app_settings_service.get_email_config(session, org_id=org_id)
+    return await _settings_probe.probe_email(config, payload.recipient or current_user.email)

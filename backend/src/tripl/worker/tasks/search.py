@@ -117,7 +117,7 @@ def embed_search_documents(
 ) -> dict[str, int]:
     session = _get_sync_session()
     try:
-        ai_config = app_settings_service.get_ai_config_sync(session)
+        ai_config = app_settings_service.get_embedding_config_sync(session)
         if not ai_config.search_embeddings_enabled:
             return {"embedded": 0, "failed": 0}
         if session.get_bind().dialect.name != "postgresql":
@@ -221,7 +221,7 @@ def reindex_stale_search_documents() -> dict[str, int]:
     """
     session = _get_sync_session()
     try:
-        ai_config = app_settings_service.get_ai_config_sync(session)
+        ai_config = app_settings_service.get_embedding_config_sync(session)
         stale_embedding = and_(
             SearchDocument.embedding_status == "ready",
             or_(
@@ -291,7 +291,7 @@ def requeue_stranded_search_embeddings() -> dict[str, int]:
     """
     session = _get_sync_session()
     try:
-        ai_config = app_settings_service.get_ai_config_sync(session)
+        ai_config = app_settings_service.get_embedding_config_sync(session)
         if not ai_config.search_embeddings_enabled:
             return {"branches_requeued": 0}
         cutoff = datetime.now(UTC) - timedelta(minutes=STRANDED_EMBEDDING_MINUTES)

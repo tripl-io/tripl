@@ -5,10 +5,13 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from typing import Any
+from email.message import Message
+from typing import IO, Any
+from urllib.parse import urlparse
 
+from tripl.alerting_validation import reject_private_host
 from tripl.config import settings  # noqa: F401 - kept for test monkeypatching
-from tripl.services.app_settings_service import AiConfig, env_ai_config
+from tripl.services.app_settings_service import AiConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +20,61 @@ _MAX_USER_PROMPT_CHARS = 24_000
 _MAX_PARAM_RETRIES = 4
 
 
-def is_enabled(config: AiConfig | None = None) -> bool:
-    cfg = config if config is not None else env_ai_config()
-    return cfg.ai_enabled and bool(cfg.ai_api_key)
+def is_enabled(config: AiConfig) -> bool:
+    """Whether ``config`` can make a completion.
+
+    ``config`` is required (F20 PR9): there is no env default any more, because
+    env holds the OPERATOR's key and a caller that forgot its organization's
+    config would otherwise quietly send that organization's text on it.
+    """
+    return config.ai_enabled and bool(config.ai_api_key)
+
+
+def _host_allowed(cfg: AiConfig) -> bool:
+    """The use-time half of the SSRF guard for an organization's endpoint.
+
+    Only for a config that says so (an organization's ``ai_base_url`` on a
+    hosted instance). Re-resolving right before the request catches a name that
+    pointed somewhere public when it was saved and at a private address now.
+    """
+    if not cfg.host_guard:
+        return True
+    hostname = urlparse(cfg.ai_base_url).hostname
+    if not hostname:
+        return False
+    try:
+        reject_private_host(hostname, field="AI base URL")
+    except ValueError:
+        logger.warning("AI request refused: the organization's AI host is not public")
+        return False
+    return True
+
+
+class _RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    """Never follow a redirect from a chat-completions endpoint.
+
+    urllib's default handler turns a 301/302/303 answer to our POST into a GET
+    to any host, carrying the ``Authorization`` header along — so a public
+    ``ai_base_url`` answering ``302 -> 169.254.169.254`` would send tripl into
+    the internal network past :func:`_host_allowed`, which only checks the
+    configured host. A chat-completions POST has no legitimate reason to move,
+    so the 3xx surfaces as an ``HTTPError`` (the provider-error branch below).
+    """
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: Message,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        return None
+
+
+# Not installed with install_opener: other urllib callers keep their policy.
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_RefuseRedirects)
 
 
 def _post_chat_completions(
@@ -41,7 +96,7 @@ def _post_chat_completions(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        with _NO_REDIRECT_OPENER.open(request, timeout=timeout) as response:
             return response.read().decode("utf-8"), None
     except urllib.error.HTTPError as exc:
         try:
@@ -99,10 +154,10 @@ def complete(
     max_tokens: int | None = None,
     temperature: float = 0.2,
     response_format: dict[str, Any] | None = None,
-    config: AiConfig | None = None,
+    config: AiConfig,
 ) -> str | None:
-    cfg = config if config is not None else env_ai_config()
-    if not is_enabled(cfg):
+    cfg = config
+    if not is_enabled(cfg) or not _host_allowed(cfg):
         return None
     api_key = cfg.ai_api_key
     if not api_key:

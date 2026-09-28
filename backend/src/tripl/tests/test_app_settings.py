@@ -79,7 +79,7 @@ async def test_service_settings_update_uses_env_fallback_and_encrypts_secrets(
             assert row is not None
             assert row.value["ai_api_key"] != "sk-runtime"
             assert row.value["smtp_password"] != "smtp-secret"
-            ai_config = await app_settings_service.get_ai_config(session)
+            ai_config = await app_settings_service.get_ai_config(session, org_id=None)
             assert ai_config.ai_api_key == "sk-runtime"
             assert ai_config.describe_system_prompt == "Return JSON only."
     finally:

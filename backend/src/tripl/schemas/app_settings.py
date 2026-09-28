@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from tripl.alerting_validation import validate_sender_address
 from tripl.config import validate_csp, validate_http_token
@@ -11,7 +11,10 @@ from tripl.config import validate_csp, validate_http_token
 # Mirrors app_settings_service.SettingSource. "default" means the value equals
 # the built-in default — either nothing was delivered for it, or what was
 # delivered matches it; the two are indistinguishable from here (tripl-wkwv.2).
-SettingSource = Literal["env", "override", "default"]
+# "override" is always the OPERATOR's override; "org" is an organization's own
+# value and "disabled" a credential group ORG_SETTINGS_OPERATOR_FALLBACK=none
+# withholds from an organization without its own (F20 PR9).
+SettingSource = Literal["env", "override", "default", "org", "disabled"]
 # Self-service registration policy. "open" lets anyone reaching the instance
 # create an account; "disabled" refuses new signups (the first-owner bootstrap
 # on an empty instance stays exempt so a fresh install can still be claimed).
@@ -189,6 +192,23 @@ class EmailSettingsUpdate(BaseModel):
         return validate_sender_address(value)
 
 
+def _check_ai_base_url_format(value: str | None) -> str | None:
+    # Format-only guard: must be a well-formed http(s) URL with a host. http and
+    # private/localhost hosts are allowed here so that self-hosted/local LLM
+    # endpoints (e.g. http://localhost:11434) work; an ORGANIZATION's value on a
+    # hosted instance is additionally refused when private, by the service at
+    # save time and by llm_service at use time (F20 PR9).
+    if value is None:
+        return value
+    trimmed = value.strip()
+    if not trimmed:
+        return trimmed
+    parsed = urlparse(trimmed)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("ai_base_url must be a valid http(s) URL")
+    return trimmed
+
+
 class AiSettings(BaseModel):
     ai_enabled: bool
     ai_base_url: str
@@ -221,18 +241,7 @@ class AiSettingsUpdate(BaseModel):
     @field_validator("ai_base_url")
     @classmethod
     def _check_ai_base_url(cls, value: str | None) -> str | None:
-        # Format-only guard: must be a well-formed http(s) URL with a host.
-        # We intentionally allow http and private/localhost hosts so that
-        # self-hosted/local LLM endpoints (e.g. http://localhost:11434) work.
-        if value is None:
-            return value
-        trimmed = value.strip()
-        if not trimmed:
-            return trimmed
-        parsed = urlparse(trimmed)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise ValueError("ai_base_url must be a valid http(s) URL")
-        return trimmed
+        return _check_ai_base_url_format(value)
 
     ai_timeout_seconds: int | None = Field(default=None, ge=1)
     ai_max_output_tokens: int | None = Field(default=None, ge=1)
@@ -280,6 +289,21 @@ class ServiceSettingsResponse(BaseModel):
     system: SystemSettings | None
     overridden_fields: list[str]
     sources: dict[str, SettingSource]
+
+
+class CombinedSettingsResponse(ServiceSettingsResponse):
+    """The legacy ``/settings`` view (F20 PR9).
+
+    The operator's infrastructure sections are ``None`` for everyone but a
+    platform admin: an organization admin reading its own organization's
+    values has no business with the operator's server paths, buckets,
+    telemetry endpoint or security policy. ``/platform/settings`` answers
+    :class:`ServiceSettingsResponse` with every section filled in.
+    """
+
+    security: SecuritySettings | None  # type: ignore[assignment]
+    storage: StorageSettings | None  # type: ignore[assignment]
+    observability: ObservabilitySettings | None  # type: ignore[assignment]
 
 
 class ServiceSettingsUpdate(BaseModel):
@@ -338,3 +362,99 @@ class EmailSettingsTestRequest(BaseModel):
 class SettingsTestResponse(BaseModel):
     ok: bool
     message: str
+
+
+# ── organization settings (F20 PR9) ─────────────────────────────────────────
+#
+# What an organization owner/admin may set for their own organization: mail, AI
+# chat and the row-limit defaults. The update models forbid unknown keys, so a
+# body carrying an operator field (security, storage, embeddings, the public
+# URL...) is a 422, never silently dropped.
+
+OrgSettingsScope = Literal["organization", "operator"]
+OperatorFallback = Literal["all", "none"]
+
+
+class OrgLimitSettings(BaseModel):
+    scan_row_limit_default: int
+    metrics_row_limit_default: int
+
+
+class OrgLimitSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scan_row_limit_default: int | None = Field(default=None, ge=1)
+    metrics_row_limit_default: int | None = Field(default=None, ge=1)
+
+
+class OrgEmailSettingsUpdate(EmailSettingsUpdate):
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrgAiSettings(BaseModel):
+    ai_enabled: bool
+    ai_base_url: str
+    ai_model: str
+    ai_api_key_configured: bool
+    ai_timeout_seconds: int
+    ai_max_output_tokens: int
+    describe_system_prompt: str
+    ask_system_prompt: str
+    alert_explanation_system_prompt: str
+
+
+class OrgAiSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ai_enabled: bool | None = None
+    ai_base_url: str | None = None
+    ai_model: str | None = None
+    ai_api_key: str | None = Field(default=None, max_length=4096)
+    ai_timeout_seconds: int | None = Field(default=None, ge=1)
+    ai_max_output_tokens: int | None = Field(default=None, ge=1)
+    describe_system_prompt: str | None = Field(default=None, min_length=1)
+    ask_system_prompt: str | None = Field(default=None, min_length=1)
+    alert_explanation_system_prompt: str | None = Field(default=None, min_length=1)
+
+    @field_validator("ai_base_url")
+    @classmethod
+    def _check_ai_base_url(cls, value: str | None) -> str | None:
+        return _check_ai_base_url_format(value)
+
+
+class OrgSettingsValues(BaseModel):
+    limits: OrgLimitSettings
+    email: EmailSettings
+    ai: OrgAiSettings
+
+
+class OrgSettingsCeilings(BaseModel):
+    """The operator's maxima: an organization's value above one is clamped to it."""
+
+    scan_row_limit_default: int
+    metrics_row_limit_default: int
+    ai_timeout_seconds: int
+    ai_max_output_tokens: int
+
+
+class OrgSettingsResponse(OrgSettingsValues):
+    organization: str
+    #: "operator" on a self-hosted instance's default organization, whose values
+    #: ARE the operator's (so password-reset mail follows what is set here).
+    scope: OrgSettingsScope
+    operator_fallback: OperatorFallback
+    #: What the organization would run with if it cleared every value of its
+    #: own: the operator's (fallback "all") or disabled groups (fallback "none").
+    inherited: OrgSettingsValues
+    ceilings: OrgSettingsCeilings
+    overridden_fields: list[str]
+    #: Keyed ``limits.<field>``, ``email.<field>``, ``ai.<field>``.
+    sources: dict[str, SettingSource]
+
+
+class OrgSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    limits: OrgLimitSettingsUpdate | None = None
+    email: OrgEmailSettingsUpdate | None = None
+    ai: OrgAiSettingsUpdate | None = None

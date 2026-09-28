@@ -222,7 +222,7 @@ async def postgres_search(
 ) -> tuple[list[SearchResult], bool]:
     semantic_used = False
     semantic_results: list[SearchResult] = []
-    ai_config = await app_settings_service.get_ai_config(session)
+    ai_config = await app_settings_service.get_embedding_config(session)
 
     # Resolve the query vector, then run the leg once. Two sources, in priority
     # order: the live embedding provider, and — only when that is unavailable

@@ -159,6 +159,41 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         path: 'api-keys',
         keywords: ['token', 'api key', 'integration'],
       },
+      // The organization's own settings (F20 PR9): its mail relay, AI provider
+      // and row caps, each inheriting the platform's value until it sets one.
+      {
+        id: 'org-email',
+        label: 'Email',
+        icon: Mail,
+        path: 'organization/email',
+        ownerOnly: true,
+      },
+      {
+        id: 'org-ai',
+        label: 'AI',
+        icon: Sparkles,
+        path: 'organization/ai',
+        ownerOnly: true,
+      },
+      {
+        id: 'org-limits',
+        label: 'Limits',
+        icon: SlidersHorizontal,
+        path: 'organization/limits',
+        ownerOnly: true,
+      },
+      // Not a settings form: the organization's audit feed. Its path predates
+      // the Platform group (tripl-wkwv.17); the actions it exists for — data
+      // sources, member roles, API keys, and a project's own DELETION — belong
+      // to the organization, not to any one project.
+      {
+        id: 'inst-audit',
+        label: 'Audit log',
+        icon: ScrollText,
+        path: 'instance/audit',
+        ownerOnly: true,
+        keywords: ['activity', 'who changed', 'log'],
+      },
     ],
   },
   {
@@ -186,12 +221,11 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
     ],
   },
   {
-    label: 'Instance',
-    sub: 'Owner only',
-    // "(owner only)" is the sub-label's job; saying it twice read as chrome
-    // (ST-7). "Owner" is the UI's word for an org owner or admin, who get the
-    // organization-scoped sections; the operator ones (security,
-    // email, observability, system) are the platform admin's.
+    // The operator console (F20 PR9): tripl's own infrastructure, and the mail
+    // relay and AI provider every organization without its own inherits.
+    // Platform admins only, whatever their organization role.
+    label: 'Platform',
+    sub: 'Platform admin',
     desc: 'Server-wide settings',
     items: [
       {
@@ -199,35 +233,32 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Runtime',
         icon: Cpu,
         path: 'instance/runtime',
-        ownerOnly: true,
-        settingsAdmin: true,
-        keywords: ['workers', 'scheduler', 'retention'],
+        platformOnly: true,
       },
       {
+        // Named apart from Organization › Email: this one carries account mail
+        // (sign-up, password reset, invitations) and is every organization's
+        // default relay.
         id: 'email',
-        label: 'Email',
+        label: 'Mail relay',
         icon: Mail,
         path: 'instance/email',
-        ownerOnly: true,
-        // One SMTP relay carries every organization's mail: operator-only.
         platformOnly: true,
-        keywords: ['smtp', 'mail'],
+        keywords: ['smtp', 'email'],
       },
       {
         id: 'ai',
-        label: 'AI',
+        label: 'AI & search',
         icon: Sparkles,
         path: 'instance/ai',
-        ownerOnly: true,
-        settingsAdmin: true,
-        keywords: ['llm', 'model', 'explanations'],
+        platformOnly: true,
+        keywords: ['llm', 'embeddings'],
       },
       {
         id: 'inst-security',
         label: 'Security & access',
         icon: Shield,
         path: 'instance/security',
-        ownerOnly: true,
         platformOnly: true,
         keywords: ['registration', 'sign up', 'sso', 'access'],
       },
@@ -236,15 +267,13 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Storage',
         icon: Archive,
         path: 'instance/storage',
-        ownerOnly: true,
-        settingsAdmin: true,
+        platformOnly: true,
       },
       {
         id: 'observability',
         label: 'Observability',
         icon: Activity,
         path: 'instance/observability',
-        ownerOnly: true,
         platformOnly: true,
       },
       {
@@ -252,22 +281,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'System',
         icon: Server,
         path: 'instance/system',
-        ownerOnly: true,
         platformOnly: true,
-      },
-      // The only Instance section that is not a settings form: it reads the
-      // whole audit feed rather than editing configuration. It lives here
-      // because the actions it exists for — data sources, member roles, API
-      // keys, and a project's own DELETION, which is recorded once its subject
-      // is gone — belong to no project, so the per-project tab can never show
-      // them (tripl-wkwv.17).
-      {
-        id: 'inst-audit',
-        label: 'Audit log',
-        icon: ScrollText,
-        path: 'instance/audit',
-        ownerOnly: true,
-        keywords: ['activity', 'who changed', 'log'],
       },
     ],
   },

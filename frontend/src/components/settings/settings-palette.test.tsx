@@ -9,7 +9,9 @@ const PROJECTS = [
   { name: 'Acme iOS', slug: 'acme-ios' },
 ]
 
-function renderPalette(overrides: { isOwner?: boolean; backHref?: string } = {}) {
+function renderPalette(
+  overrides: { isOwner?: boolean; isPlatformAdmin?: boolean; backHref?: string } = {},
+) {
   const onLeave = vi.fn()
   const onSignOut = vi.fn()
   render(
@@ -26,6 +28,8 @@ function renderPalette(overrides: { isOwner?: boolean; backHref?: string } = {})
         activePath="instance/ai"
         backHref={overrides.backHref ?? '/p/acme-ios/events'}
         isOwner={overrides.isOwner ?? true}
+        // The first account of a self-hosted instance also operates it.
+        isPlatformAdmin={overrides.isPlatformAdmin ?? true}
         projects={PROJECTS}
         onLeave={onLeave}
         onSignOut={onSignOut}
@@ -45,7 +49,7 @@ describe('Settings command palette destinations', () => {
     const { onLeave } = renderPalette()
 
     const palette = await openPalette()
-    for (const group of visibleGroupsAll(true)) {
+    for (const group of visibleGroupsAll(true, true)) {
       for (const item of group.items) {
         expect(within(palette).getByText(item.label)).toBeInTheDocument()
       }
@@ -59,13 +63,27 @@ describe('Settings command palette destinations', () => {
   })
 
   it('hides owner-only sections from a non-owner, exactly as the rail does', async () => {
-    renderPalette({ isOwner: false })
+    renderPalette({ isOwner: false, isPlatformAdmin: false })
 
     const palette = await openPalette()
 
     expect(within(palette).getByText('Profile')).toBeInTheDocument()
+    expect(within(palette).queryByText('Limits')).toBeNull()
     expect(within(palette).queryByText('Runtime')).toBeNull()
     expect(within(palette).queryByText('Observability')).toBeNull()
+  })
+
+  it("offers an organization owner the organization's settings and none of the Platform's (F20 PR9)", async () => {
+    renderPalette({ isOwner: true, isPlatformAdmin: false })
+
+    const palette = await openPalette()
+
+    expect(within(palette).getByText('Email')).toBeInTheDocument()
+    expect(within(palette).getByText('AI')).toBeInTheDocument()
+    expect(within(palette).getByText('Limits')).toBeInTheDocument()
+    expect(within(palette).queryByText('Mail relay')).toBeNull()
+    expect(within(palette).queryByText('AI & search')).toBeNull()
+    expect(within(palette).queryByText('Storage')).toBeNull()
   })
 
   it('goes to the project it names rather than to the first one in the list', async () => {

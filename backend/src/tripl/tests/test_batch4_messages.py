@@ -786,7 +786,7 @@ def test_the_digest_send_helper_refuses_a_demo_project_on_its_own(
     """
     with sync_session_factory() as session:
         demo, destination = _seed_egress_project(session, name="Demo", is_demo=True)
-        email_config = app_settings_service.get_email_config_sync(session)
+        email_config = app_settings_service.get_email_config_sync(session, org_id=None)
 
     sends = _capture_digest_sends(monkeypatch)
 
@@ -828,7 +828,7 @@ def test_the_backstop_refuses_egress_rather_than_refusing_demos(
         )
         session.add(sink)
         session.commit()
-        email_config = app_settings_service.get_email_config_sync(session)
+        email_config = app_settings_service.get_email_config_sync(session, org_id=None)
 
     sends = _capture_digest_sends(monkeypatch)
 

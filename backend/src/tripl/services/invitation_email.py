@@ -39,7 +39,11 @@ class InvitationMail:
 async def prepare(
     session: AsyncSession, *, recipient: str, organization_id: uuid.UUID, accept_path: str
 ) -> InvitationMail | None:
-    """The mail to send, or ``None`` when the operator has no working SMTP."""
+    """The mail to send, or ``None`` when the operator has no working SMTP.
+
+    Account mail: always the OPERATOR's relay (F20 PR9, owner decision 3), never
+    the inviting organization's — the invitee is not yet a member of it.
+    """
     overrides = await app_settings_service.get_service_overrides(session)
     email_config = app_settings_service.build_email_config(overrides)
     if not app_settings_service.email_can_send(email_config):

@@ -234,5 +234,7 @@ def test_each_sync_settings_fallback_is_counted(monkeypatch: pytest.MonkeyPatch)
     ):
         counter = settings_read_failures_total.labels(section=section)
         before = counter._value.get()
-        getter(object())  # type: ignore[arg-type]
+        # The operator scope: an organization's read fails closed instead
+        # (test_org_settings.py), still counted.
+        getter(object(), org_id=None)  # type: ignore[operator]
         assert counter._value.get() == before + 1

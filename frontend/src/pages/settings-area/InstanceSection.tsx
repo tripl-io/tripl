@@ -15,12 +15,18 @@ const META: Record<ServiceSettingsSectionKey, { title: string; description: stri
   // (tripl-tezn). Each section now states its own timing from applyNote().
   runtime: {
     title: 'Runtime',
-    description: 'Core server configuration for this tripl instance.',
+    description:
+      'Core server configuration, and the row limits organizations inherit and may not exceed.',
   },
-  email: { title: 'Email', description: 'SMTP transport for invitations, alerts and digests.' },
+  email: {
+    title: 'Mail relay',
+    description:
+      'The relay account mail (sign-up, password reset, invitations) always uses, and the one every organization without its own sends alerts and digests through.',
+  },
   ai: {
-    title: 'AI',
-    description: 'Powers anomaly explanations, schema suggestions and the assistant.',
+    title: 'AI & search',
+    description:
+      'The AI provider every organization without its own inherits, and the search embeddings every organization uses.',
   },
   security: {
     title: 'Security & access',
@@ -45,7 +51,7 @@ const VALID: ServiceSettingsSectionKey[] = [
 ]
 
 /**
- * Instance (owner-only). Mirrors the real ServiceSettings sections by reusing
+ * Platform (platform admins only, F20 PR9). Mirrors the real ServiceSettings sections by reusing
  * the ServiceSettingsSection component wholesale — it self-fetches, owner-gates,
  * and owns all field wiring and mutations. We only frame it with the takeover
  * section header.

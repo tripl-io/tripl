@@ -1044,7 +1044,10 @@ def _build_ai_explanation(
     rendering — no extra DB queries. Failure here must never block the alert,
     so any error degrades to None.
     """
-    ai_config = app_settings_service.get_ai_config_sync()
+    # The project's organization's AI (F20 PR9), read from the database: the
+    # worker has no request org. Unknown project or unreadable settings -> AI
+    # off, never the operator's key (critique #19).
+    ai_config = app_settings_service.get_ai_config_for_project_sync(session, delivery.project_id)
     lines: list[str] = [f"Project: {project_name}", f"Scan: {scan_name}", "Alert items:"]
     # The correlation id cannot answer "did this co-fire?". It is the inbox
     # handle, every item carries one, and it is keyed per SCOPE — so counting

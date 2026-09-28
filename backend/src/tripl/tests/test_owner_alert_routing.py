@@ -829,10 +829,21 @@ async def _api_world(client: AsyncClient, slug: str) -> ApiWorld:
 
 
 @pytest.fixture
-def api_mail(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
+def mail_org_ids() -> list[uuid.UUID | None]:
+    """The ``org_id`` each email-config lookup asked for, in call order."""
+    return []
+
+
+@pytest.fixture
+def api_mail(
+    monkeypatch: pytest.MonkeyPatch, mail_org_ids: list[uuid.UUID | None]
+) -> list[dict[str, object]]:
     sent: list[dict[str, object]] = []
 
-    async def config(_session: object) -> app_settings_service.EmailConfig:
+    async def config(
+        _session: object, *, org_id: uuid.UUID | None
+    ) -> app_settings_service.EmailConfig:
+        mail_org_ids.append(org_id)
         return _email_config()
 
     monkeypatch.setattr(app_settings_service, "get_email_config", config)
@@ -891,8 +902,17 @@ async def test_inbox_cards_and_delivery_detail_show_owners(client: AsyncClient) 
     assert notification["email"] == f"owner-{world.slug}@example.com"
 
 
+async def _project_org_id(project_id: uuid.UUID) -> uuid.UUID:
+    async with TestSessionLocal() as session:
+        project = await session.get(Project, project_id)
+        assert project is not None
+        return project.organization_id
+
+
 async def test_manual_incident_notify_emails_owners_and_is_audited(
-    client: AsyncClient, api_mail: list[dict[str, object]]
+    client: AsyncClient,
+    api_mail: list[dict[str, object]],
+    mail_org_ids: list[uuid.UUID | None],
 ) -> None:
     world = await _api_world(client, "owner-notify")
 
@@ -900,6 +920,8 @@ async def test_manual_incident_notify_emails_owners_and_is_audited(
         f"/api/v1/projects/{world.slug}/alert-inbox/{world.group_id}/notify-owners"
     )
     assert resp.status_code == 200, resp.text
+    # The mail relay is the project's organization's, not the instance default.
+    assert mail_org_ids == [await _project_org_id(world.project_id)]
     (owner,) = resp.json()["owners"]
     assert owner["user_id"] == str(world.owner_id)
     assert owner["status"] == "sent"
@@ -932,7 +954,12 @@ async def test_manual_notify_without_smtp_records_skipped(
 ) -> None:
     world = await _api_world(client, "owner-nosmtp")
 
-    async def no_smtp(_session: object) -> app_settings_service.EmailConfig:
+    asked: list[uuid.UUID | None] = []
+
+    async def no_smtp(
+        _session: object, *, org_id: uuid.UUID | None
+    ) -> app_settings_service.EmailConfig:
+        asked.append(org_id)
         return _email_config(host="")
 
     monkeypatch.setattr(app_settings_service, "get_email_config", no_smtp)
@@ -943,6 +970,7 @@ async def test_manual_notify_without_smtp_records_skipped(
     (owner,) = resp.json()["owners"]
     assert owner["status"] == "skipped"
     assert owner["error"] == alert_owner_routing.SMTP_NOT_CONFIGURED
+    assert asked == [await _project_org_id(world.project_id)]
 
 
 async def test_signal_notify_reaches_the_metric_owner(
