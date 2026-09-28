@@ -48,18 +48,21 @@ function orgResponse(
 
 function mockApi(org = 'acme', role: Role = 'owner') {
   const calls: Call[] = []
+  // The server's copy: a PATCH lands in it, so the refetch after a save reads it back.
+  let stored = { name: 'Acme', default_project_role: 'none' as DefaultProjectRole }
   vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     const method = (init?.method ?? 'GET').toUpperCase()
     const body = init?.body ? String(init.body) : undefined
     calls.push({ method, url, body })
     const base = `/api/v1/orgs/${org}`
-    if (url === base && method === 'GET') return Promise.resolve(jsonResponse(orgResponse(org, role)))
+    if (url === base && method === 'GET') {
+      return Promise.resolve(jsonResponse(orgResponse(org, role, stored.name, stored.default_project_role)))
+    }
     if (url === base && method === 'PATCH') {
       const patch = JSON.parse(body ?? '{}') as { name?: string; default_project_role?: DefaultProjectRole }
-      return Promise.resolve(
-        jsonResponse(orgResponse(org, role, patch.name ?? 'Acme', patch.default_project_role ?? 'none')),
-      )
+      stored = { ...stored, ...patch }
+      return Promise.resolve(jsonResponse(orgResponse(org, role, stored.name, stored.default_project_role)))
     }
     if (url === base && method === 'DELETE') {
       return Promise.resolve(jsonResponse({ ...orgResponse(org, role), status: 'deleting' }, 202))
