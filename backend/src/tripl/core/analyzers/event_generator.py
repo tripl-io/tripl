@@ -68,6 +68,7 @@ from tripl.core.analyzers._event_identity import (
     insert_event_claiming_identity,
     scan_identity_winner_order,
 )
+from tripl.core.analyzers._json_object_properties import documented_json_paths
 from tripl.core.analyzers._json_property_union import fold_json_properties
 from tripl.core.analyzers._variable_value_drift import (
     detect_variable_value_drifts as _detect_variable_value_drifts,
@@ -248,6 +249,11 @@ def generate_events(
         event_group_rules=event_group_rules,
         reserved_columns=reserved_columns,
         json_path_samples=json_path_samples,
+        # Nested objects fold into one property each; the dotted properties a
+        # person made theirs keep being named by the templates (F23).
+        documented_json_paths=documented_json_paths(
+            session, project_id=project_id, index=variable_index
+        ),
         # Deliberately uncapped. ``max_events`` bounds the events this function
         # CREATES; the planner can only bound distinct names, and a re-scan whose
         # names all exist already creates none of them. Capping in the planner
@@ -268,6 +274,7 @@ def generate_events(
             need.inferred_type,
             branch_id=main_branch_id,
             index=variable_index,
+            json_schema=need.json_schema,
         )
     col_meta = plan.col_meta
     if not col_meta:

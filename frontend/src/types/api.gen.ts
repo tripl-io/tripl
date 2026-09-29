@@ -6920,7 +6920,7 @@ export interface components {
          * AlertDriftType
          * @enum {string}
          */
-        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent";
+        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent" | "new_property" | "missing_required" | "type_change";
         /** AlertInboxActionRequest */
         AlertInboxActionRequest: {
             /**
@@ -7252,6 +7252,11 @@ export interface components {
              */
             include_project_total: boolean;
             /**
+             * Include Property Drifts
+             * @default false
+             */
+            include_property_drifts: boolean;
+            /**
              * Include Release Regressions
              * @default false
              */
@@ -7380,6 +7385,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -7497,6 +7504,8 @@ export interface components {
             include_metrics?: boolean | null;
             /** Include Project Total */
             include_project_total?: boolean | null;
+            /** Include Property Drifts */
+            include_property_drifts?: boolean | null;
             /** Include Release Regressions */
             include_release_regressions?: boolean | null;
             /** Include Schema Drifts */
@@ -13072,7 +13081,7 @@ export interface components {
          * MetricScopeType
          * @enum {string}
          */
-        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle";
+        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle" | "property_drift";
         /**
          * MetricSeriesPoint
          * @description One densified point of a catalog-metric series.
@@ -13294,6 +13303,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -13547,7 +13558,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle";
+            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle" | "property_drift";
             /**
              * Project Id
              * Format: uuid
@@ -15630,6 +15641,11 @@ export interface components {
              */
             open_incident_count: number;
             /**
+             * Open Property Drift Count
+             * @default 0
+             */
+            open_property_drift_count: number;
+            /**
              * Review Pending Event Count
              * @default 0
              */
@@ -15840,7 +15856,7 @@ export interface components {
         PropertyDriftResponse: {
             /**
              * Detail
-             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change.
+             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change. For an object property whose sampled objects disagree with its sub-schema, type_change also carries nested_changes (each a path, a change of new_key, missing_required or type_change, and for a type change the expected and observed types), and observed_schema is the stored sub-schema with those changes applied.
              * @default {}
              */
             detail: {
@@ -16370,6 +16386,8 @@ export interface components {
             distribution_drift_fields?: string[];
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16389,11 +16407,19 @@ export interface components {
             name: string;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };
@@ -16439,6 +16465,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -16486,11 +16514,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -16508,6 +16544,8 @@ export interface components {
              * Format: uuid
              */
             data_source_id: string;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /**
              * Include Json Paths
              * @default false
@@ -16520,6 +16558,8 @@ export interface components {
              * @default 10
              */
             limit: number;
+            /** Properties Column */
+            properties_column?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Time Column */
@@ -16557,6 +16597,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -16600,11 +16642,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -16635,6 +16685,8 @@ export interface components {
             distribution_drift_fields?: string[] | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][] | null;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16654,11 +16706,15 @@ export interface components {
             name?: string | null;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /** Setup Preset */
+            setup_preset?: ("custom" | "event_properties") | null;
             /** Time Column */
             time_column?: string | null;
         };
@@ -16821,6 +16877,8 @@ export interface components {
             data_source_id?: string | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16831,6 +16889,8 @@ export interface components {
             json_value_paths?: string[];
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             /**
              * Sample Row Limit
              * @default 5000
@@ -16840,6 +16900,12 @@ export interface components {
             scan_config_id?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };

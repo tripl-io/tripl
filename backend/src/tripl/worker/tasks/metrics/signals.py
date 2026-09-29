@@ -39,6 +39,10 @@ from tripl.alerting_matching import (
     SchemaDriftAlertCandidate,
     distribution_drift_scope_ref,
 )
+from tripl.alerting_property_drift import (
+    active_property_drift_filters,
+    property_drift_candidate,
+)
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
     SCOPE_EVENT_TYPE,
@@ -61,6 +65,7 @@ from tripl.models.project_anomaly_settings import (
     DEFAULT_ANOMALY_INGESTION_SETTLING_MINUTES,
     ProjectAnomalySettings,
 )
+from tripl.models.property_drift import PropertyDrift
 from tripl.models.release_regression import ReleaseRegression
 from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
@@ -588,6 +593,38 @@ def _get_active_variable_value_drift_candidates(
             drift_field=variable_name,
             drift_type="value_drift",
             sample_value=_trim_alert_text(", ".join(drift.observed_values or [])),
+        )
+        candidates[(candidate.scope_type, candidate.scope_ref)] = candidate
+    return candidates
+
+
+def _get_active_property_drift_candidates(
+    session: Session,
+    config: ScanConfig,
+) -> dict[tuple[str, str], DriftAlertCandidate]:
+    """Turn the scan's active property drifts (F23, #306) into alert candidates.
+
+    Chooses rows exactly like value drift above — this config's, inside the
+    30-day retention, active, on a property still scanned — and leaves the
+    field mapping to ``alerting_property_drift.property_drift_candidate``,
+    which the in-UI replay (``services.alerting_service``) calls too.
+    """
+    now = datetime.now(UTC)
+    retention_cutoff = now - timedelta(days=30)
+    candidates: dict[tuple[str, str], DriftAlertCandidate] = {}
+    for drift, variable_name in session.execute(
+        select(PropertyDrift, Variable.name)
+        .join(Variable, Variable.id == PropertyDrift.variable_id)
+        .where(
+            PropertyDrift.project_id == config.project_id,
+            PropertyDrift.scan_config_id == config.id,
+            PropertyDrift.detected_at >= retention_cutoff,
+            *active_property_drift_filters(now),
+        )
+        .order_by(PropertyDrift.detected_at.desc())
+    ).all():
+        candidate = property_drift_candidate(
+            drift, variable_name=variable_name, scan_config_id=config.id
         )
         candidates[(candidate.scope_type, candidate.scope_ref)] = candidate
     return candidates

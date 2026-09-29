@@ -48,12 +48,17 @@ What each component counts:
   and per field with a minimum or maximum. A rule is failing while an active
   schema drift of the matching kind (required, enum, regex, range) is open on
   that field.
-- **Drifts** adds three counts: active structural schema drifts on the event
+- **Drifts** adds four counts: active structural schema drifts on the event
   type (new field, missing field, changed type; contract violations are not
-  counted here again), active value drifts on the event itself, and the number
-  of fields of the event type with a *significant* distribution drift in the
-  last 7 days. Schema and distribution drifts are recorded per event type, so
-  every event of that type carries them.
+  counted here again), active value drifts on the event itself, active
+  [property drifts](./variables-and-templates.md#property-drift) on the event
+  itself (a new property or a missing required one; a type change is about a
+  property rather than an event and is not charged to any event), and the
+  number of fields of the event type with a *significant* distribution drift in
+  the last 7 days. Schema and distribution drifts are recorded per event type,
+  so every event of that type carries them. Each costs the same 0.25. The
+  property-drift count is the same number, by the same rule, as the project's
+  open property drifts on the sidebar and in the project summary.
 - **Signals** counts the event's open, significant event-scope signals that
   have no verdict yet: the same signals the Monitoring badge counts. Any
   verdict removes a signal from the count (including a mute or *expected*), and

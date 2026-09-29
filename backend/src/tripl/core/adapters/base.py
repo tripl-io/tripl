@@ -9,6 +9,7 @@ from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 
+from tripl.json_paths import extract_json_path, json_scalar_text, split_property_field
 from tripl.models.domain_enums import MetricAggregation
 
 logger = logging.getLogger(__name__)
@@ -219,6 +220,21 @@ def field_contract_verdict(
         threshold=threshold,
         sample_value=sample_value,
     )
+
+
+def is_breakdown_field_of(field: str, regular_columns: list[str], json_columns: list[str]) -> bool:
+    """Whether ``field`` can be a breakdown of a scan reading these columns.
+
+    A scalar column must be one of the regular columns, as it always had to be.
+    A property entry (``<json_column>.<path>``, F23 #306) must name a path of one
+    of the nested columns: the adapter extracts its value per row, so it groups
+    like a nullable scalar. Raises ``ValueError`` for an entry that breaks the
+    property path grammar.
+    """
+    prop = split_property_field(field)
+    if prop is None:
+        return field in regular_columns
+    return prop[0] in json_columns
 
 
 def rank_top_n_once(
@@ -595,12 +611,19 @@ class BaseAdapter(abc.ABC):
         path_limit: int = 1000,
         sample_limit: int = 3,
         sample_row_limit: int = 1000,
+        include_objects: bool = False,
     ) -> dict[str, dict[str, list[object]]]:
         """Best-effort JSON path discovery for adapters without native support.
 
         Concrete adapters can override this with a warehouse-side path discovery
         query. The default keeps behavior compatible by sampling more rows than
         the visible preview and flattening JSON locally.
+
+        Paths are leaves. ``include_objects`` also reports every non-empty
+        nested object at its own path, sampled whole from one row, so an object
+        property's sub-schema can be inferred (F23.4e). The scan asks for them
+        only when it holds an object property still waiting for values; the
+        preview's path picker never does.
         """
         if not json_columns or path_limit <= 0 or sample_limit <= 0 or sample_row_limit <= 0:
             return {column: {} for column in json_columns}
@@ -630,7 +653,9 @@ class BaseAdapter(abc.ABC):
                 if index is None or index >= len(row):
                     continue
                 parsed_value = decode_json_path_value(row[index])
-                for path, raw_value in flatten_json_paths(parsed_value):
+                for path, raw_value in flatten_json_paths(
+                    parsed_value, include_objects=include_objects
+                ):
                     column_samples = samples_by_column.setdefault(column, {})
                     if path not in column_samples and len(column_samples) >= path_limit:
                         continue
@@ -774,6 +799,35 @@ class BaseAdapter(abc.ABC):
             self._skip_field_contract(expectation)
         return True
 
+    def _contract_operand(
+        self, expectation: FieldContractExpectation, render: Callable[[str], str]
+    ) -> str | None:
+        """``render(field_name)``, or ``None`` for a property this engine cannot extract.
+
+        A property contract (``<json_column>.<path>``, F23 #306) is derived from
+        the plan, not typed against this warehouse's schema, so its path can be
+        one the engine cannot address — a nested path of a ClickHouse ``Map``,
+        an undeclared BigQuery STRUCT field, a column the query stopped
+        returning. That drops the one expectation, recorded as a skip, instead
+        of failing every contract riding in the same statement. A scalar
+        column's error propagates exactly as before.
+        """
+        try:
+            return render(expectation.field_name)
+        except ValueError:
+            if split_property_field(expectation.field_name) is None:
+                raise
+            logger.warning(
+                "Field contract skipped: %s cannot extract the property %r, so its %s "
+                "contract is not evaluated here. The other contracts in this scan still run.",
+                type(self).__name__,
+                expectation.field_name,
+                expectation.drift_type,
+                exc_info=True,
+            )
+            self._skip_field_contract(expectation)
+            return None
+
     def take_skipped_field_contracts(self) -> list[FieldContractExpectation]:
         """The expectations skipped since the last call, and forget them.
 
@@ -855,7 +909,11 @@ class BaseAdapter(abc.ABC):
         for expectation in expectations:
             if self._field_contract_is_inert(expectation):
                 continue
-            field_index = index_by_name.get(expectation.field_name)
+            # A property (``<json_column>.<path>``) is read out of its column's
+            # document row by row: absent or JSON null is NULL, like the SQL
+            # adapters' extraction.
+            prop = split_property_field(expectation.field_name)
+            field_index = index_by_name.get(expectation.field_name if prop is None else prop[0])
             if field_index is None:
                 self._skip_field_contract(expectation)
                 continue
@@ -897,6 +955,8 @@ class BaseAdapter(abc.ABC):
                         continue
 
                 raw_value = row[field_index]
+                if prop is not None:
+                    raw_value = json_scalar_text(extract_json_path(raw_value, prop[1]))
                 is_bad = False
                 if expectation.drift_type == "required_null_violation":
                     total_count += 1

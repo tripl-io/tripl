@@ -13,6 +13,7 @@ export type NotificationKind =
   | 'branch_approved'
   | 'branch_merged'
   | 'lifecycle'
+  | 'property_drift'
 
 export type SubscriptionEntityType = 'event' | 'event_type' | 'metric' | 'branch'
 /** What a notification is about: a subscribable entity, or a note (a docs @mention). */

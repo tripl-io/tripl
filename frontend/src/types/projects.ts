@@ -40,6 +40,10 @@ export interface ProjectSummary {
   // twin of `failing_scan_config_count`, for the Overview status line (MO-15).
   // Always sent (default 0); optional so summaries built before it still type.
   failing_alert_destination_count?: number
+  // Open property drifts (F23, #306): new, missing-required and retyped
+  // properties nobody has triaged. Kept apart from monitoring_signal_count,
+  // which equals the Anomalies page. Optional so older summaries still type.
+  open_property_drift_count?: number
   latest_scan_job: ProjectLatestScanJob | null
   latest_signal: ProjectLatestSignal | null
 }

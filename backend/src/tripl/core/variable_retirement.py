@@ -58,6 +58,7 @@ __all__ = [
     "SCAN_PROVENANCE_DESCRIPTION",
     "KeptReason",
     "RetirementPlan",
+    "human_claim",
     "is_json_derived",
     "plan_retirement",
     "referenced_tokens",
@@ -198,6 +199,16 @@ def _human_claim(variable: Variable) -> str | None:
     ):
         return KeptReason.USER_EDITED
     return None
+
+
+def human_claim(variable: Variable) -> str | None:
+    """Public face of ``_human_claim``, for readers outside the sweep.
+
+    The scan's object-property fold (``_json_object_properties``) asks the same
+    question — "did a person make this variable theirs?" — and must get the same
+    answer the sweep does, or it would fold away a property the sweep keeps.
+    """
+    return _human_claim(variable)
 
 
 def is_json_derived(variable: Variable, json_columns: Collection[str]) -> bool:

@@ -204,6 +204,24 @@ describe('buildNavGroups', () => {
     expect(items.find((i) => i.id === 'relations')!.href).toBe('/p/demo/relations')
   })
 
+  it('flags open property drift on Properties beside its count (F23)', () => {
+    const properties = (summary: ProjectSummary | undefined) =>
+      buildNavGroups('demo', summary).flatMap((g) => g.items).find((i) => i.id === 'variables')!
+    expect(properties(projectSummary()).attention).toBeUndefined()
+    // An older server's summary has no such count: nothing to flag.
+    expect(properties(projectSummary({ open_property_drift_count: undefined })).attention).toBeUndefined()
+    expect(properties(projectSummary({ open_property_drift_count: 1 })).attention).toBe('1 open property drift')
+    const flagged = properties(projectSummary({ open_property_drift_count: 3 }))
+    expect(flagged.attention).toBe('3 open property drifts')
+    // The count stays the property count; the drift is said beside it.
+    expect(flagged.count).toBe('40')
+    // Not folded into the Anomalies badge, which must equal that page.
+    const anomalies = buildNavGroups('demo', projectSummary({ open_property_drift_count: 3 }))
+      .flatMap((g) => g.items)
+      .find((i) => i.id === 'anomalies')
+    expect(anomalies?.count).toBeUndefined()
+  })
+
   it('no longer exposes a standalone Fact tables nav item', () => {
     // Fact tables now live as a tab under Metrics, not as a top-level surface.
     const items = buildNavGroups('demo', undefined).flatMap((g) => g.items)

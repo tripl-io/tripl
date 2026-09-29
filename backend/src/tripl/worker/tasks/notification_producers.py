@@ -1,4 +1,4 @@
-"""Worker-side notification producers (#259): signals and lifecycle findings.
+"""Worker-side notification producers (#259): signals, lifecycle findings, property drift.
 
 ONE public entry, :func:`produce_notifications` ``(session, source, subject)``,
 called best-effort AFTER the caller's own commit:
@@ -6,7 +6,12 @@ called best-effort AFTER the caller's own commit:
 * ``"signals"`` with a ``ScanConfig`` — from ``metrics.tasks.collect_metrics``
   once a scheduled collection has written its anomalies;
 * ``"lifecycle"`` with ``[(project_id, event_id, kind), ...]`` — from
-  ``lifecycle.check_lifecycle_findings`` for the findings it opened or reopened.
+  ``lifecycle.check_lifecycle_findings`` for the findings it opened or reopened;
+* ``"property_drifts"`` with a ``ScanConfig`` — from the same place as
+  ``"signals"``: the active per-event property drifts (F23, #306) that config
+  detected, one notification per drift per watcher of the event. The drift id
+  rides the URL (``?property_drift=<id>``) and is the dedup key, looked up over
+  the drift retention window, so a drift that stays open is announced once.
 
 Each source only turns its input into :class:`_Draft` rows (who is watching
 what, and the text); every draft goes through the same
@@ -40,6 +45,7 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from tripl.alerting_property_drift import active_property_drift_filters, property_drift_sample
 from tripl.core.bucketing import to_utc
 from tripl.models.domain_enums import MetricScopeType, SignalTriageAction
 from tripl.models.event import Event
@@ -48,9 +54,11 @@ from tripl.models.lifecycle_finding import LifecycleFindingKind
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.notification import Notification, NotificationKind
+from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
 from tripl.models.scan_config import ScanConfig
 from tripl.models.signal_triage import SignalTriage
 from tripl.models.subscription import SubscriptionEntityType
+from tripl.models.variable import Variable
 from tripl.services import notification_service
 from tripl.services.project_links import project_link_slugs_sync, project_url
 
@@ -66,6 +74,13 @@ SIGNAL_URL_PARAM = "signal"
 
 # How far back "was this exact signal already announced" looks.
 ALREADY_TOLD_WINDOW = timedelta(days=7)
+
+# The query parameter carrying a property drift's id on its notification URL.
+PROPERTY_DRIFT_URL_PARAM = "property_drift"
+# A property drift stays open until someone triages it, so its dedup looks back
+# over the whole drift retention (``variable_value_drift_service``'s 30 days)
+# rather than a week: an untriaged drift is not re-announced every run.
+PROPERTY_DRIFT_TOLD_WINDOW = timedelta(days=30)
 
 
 @dataclass(frozen=True)
@@ -218,7 +233,14 @@ def _url_forms(url: str) -> tuple[str, ...]:
 
 
 def _already_told(
-    session: Session, entity_type: str, entity_id: uuid.UUID, url: str, now: datetime
+    session: Session,
+    entity_type: str,
+    entity_id: uuid.UUID,
+    url: str,
+    now: datetime,
+    *,
+    kind: str = NotificationKind.signal.value,
+    window: timedelta = ALREADY_TOLD_WINDOW,
 ) -> frozenset[uuid.UUID]:
     """Users who already have a notification about exactly this signal.
 
@@ -232,8 +254,8 @@ def _already_told(
         select(Notification.user_id).where(
             Notification.entity_type == entity_type,
             Notification.entity_id == entity_id,
-            Notification.kind == NotificationKind.signal.value,
-            Notification.created_at >= now - ALREADY_TOLD_WINDOW,
+            Notification.kind == kind,
+            Notification.created_at >= now - window,
             Notification.url.in_(_url_forms(url)),
         )
     )
@@ -398,10 +420,85 @@ def _lifecycle_drafts(
     return drafts
 
 
-_SOURCES: dict[str, Callable[[Session, Any], list[_Draft]]] = {
-    "signals": _signal_drafts,
-    "lifecycle": _lifecycle_drafts,
+# --- source: property drift ------------------------------------------------------------
+
+_PROPERTY_DRIFT_TITLES: dict[str, str] = {
+    PropertyDriftKind.missing_required.value: "required property {prop} is missing on {name}",
+    PropertyDriftKind.new_property.value: "new property {prop} on {name}",
 }
 
 
-__all__ = ["ALREADY_TOLD_WINDOW", "SIGNAL_URL_PARAM", "produce_notifications"]
+def _property_drift_drafts(session: Session, config: ScanConfig) -> list[_Draft]:
+    """One draft per active per-event property drift this config detected.
+
+    A type change (``event_id`` NULL) is about a property, which nobody
+    watches, so it notifies no one; it still alerts through
+    ``include_property_drifts`` rules.
+    """
+    now = datetime.now(UTC)
+    rows = session.execute(
+        select(PropertyDrift, Variable.name)
+        .join(Variable, Variable.id == PropertyDrift.variable_id)
+        .where(
+            PropertyDrift.project_id == config.project_id,
+            PropertyDrift.scan_config_id == config.id,
+            PropertyDrift.event_id.is_not(None),
+            PropertyDrift.detected_at >= now - PROPERTY_DRIFT_TOLD_WINDOW,
+            *active_property_drift_filters(now),
+        )
+        .order_by(PropertyDrift.detected_at, PropertyDrift.id)
+    ).all()
+    if not rows:
+        return []
+    link_slugs = _slugs(session, [config.project_id]).get(config.project_id)
+    if link_slugs is None:
+        return []
+    events = _events(session, {drift.event_id for drift, _name in rows if drift.event_id})
+    drafts: list[_Draft] = []
+    for drift, variable_name in rows:
+        event = events.get(drift.event_id) if drift.event_id is not None else None
+        if event is None:
+            continue
+        template = _PROPERTY_DRIFT_TITLES.get(str(drift.kind), "property drift on {name}")
+        url = project_url(
+            *link_slugs,
+            f"/monitoring/event/{event.id}?{PROPERTY_DRIFT_URL_PARAM}={drift.id}",
+        )
+        sample = property_drift_sample(str(drift.kind), drift.detail or {})
+        drafts.append(
+            _Draft(
+                kind=NotificationKind.property_drift.value,
+                project_id=config.project_id,
+                entity_type=_EVENT,
+                entity_id=event.id,
+                title="Property drift: " + template.format(prop=variable_name, name=event.name),
+                body=f"{variable_name}: {sample}.",
+                url=url,
+                watchers_of=((_EVENT, event.id), (_EVENT_TYPE, event.event_type_id)),
+                exclude_user_ids=_already_told(
+                    session,
+                    _EVENT,
+                    event.id,
+                    url,
+                    now,
+                    kind=NotificationKind.property_drift.value,
+                    window=PROPERTY_DRIFT_TOLD_WINDOW,
+                ),
+            )
+        )
+    return drafts
+
+
+_SOURCES: dict[str, Callable[[Session, Any], list[_Draft]]] = {
+    "signals": _signal_drafts,
+    "lifecycle": _lifecycle_drafts,
+    "property_drifts": _property_drift_drafts,
+}
+
+
+__all__ = [
+    "ALREADY_TOLD_WINDOW",
+    "PROPERTY_DRIFT_URL_PARAM",
+    "SIGNAL_URL_PARAM",
+    "produce_notifications",
+]

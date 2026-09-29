@@ -32,6 +32,8 @@ import { DraftDiscussionNote } from './DraftDiscussionNote'
 import { EventForm } from './EventFormView'
 import { EventHealthCard } from './EventHealthCard'
 import { EventPropertiesGrid } from './EventPropertiesGrid'
+import { useEventPropertyIds } from './useEventPropertyIds'
+import { PropertyDriftList } from './PropertyDriftList'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
@@ -123,6 +125,9 @@ export default function EventEditPage() {
     queryFn: () => eventsApi.get(slug!, eventId!, branchId),
     enabled: !!slug && !!eventId && canWrite,
   })
+  // The event's property list, for the drift list's type changes (F23); the
+  // grid reads the same cached query.
+  const eventPropertyIds = useEventPropertyIds(slug, branchId, eventId)
   // The plan's branches, for two things: whether the event opened here lives
   // on the branch being edited (AU-1 / PL-2), and the branch's name in the
   // "added to branch" confirmation (JR-13). The same query the branch banner
@@ -347,6 +352,15 @@ export default function EventEditPage() {
               canWrite={canWrite && !branchMismatch}
               projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
             />
+            {/* Property drift (F23.5b): detected against main, and Accept edits main. */}
+            {branchId === null && (
+              <PropertyDriftList
+                slug={slug}
+                eventId={eventId}
+                variableIds={eventPropertyIds}
+                readOnly={!canWrite}
+              />
+            )}
           </div>
           {/* Health (F15, #268): what the event scores on the main plan and
               why. Renders nothing on a branch or for an archived event. */}

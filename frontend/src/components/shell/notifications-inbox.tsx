@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Reply,
   Sunset,
+  Shapes,
   TrendingUp,
   UserCheck,
   type LucideIcon,
@@ -29,6 +30,7 @@ const KIND_ICON: Record<NotificationKind, LucideIcon> = {
   branch_approved: UserCheck,
   branch_merged: GitMerge,
   lifecycle: Sunset,
+  property_drift: Shapes,
 }
 
 /** Only an in-app path is followed; anything else opens the bell's owner nowhere. */

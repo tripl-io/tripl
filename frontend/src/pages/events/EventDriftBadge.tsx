@@ -24,6 +24,13 @@ const DRIFT_LABEL: Record<string, string> = {
   range_violation: 'range',
 }
 
+const CONTRACT_DRIFT_TYPES: Record<string, true> = {
+  enum_violation: true,
+  required_null_violation: true,
+  regex_violation: true,
+  range_violation: true,
+}
+
 
 export function EventDriftBadge({
   slug,
@@ -146,6 +153,11 @@ export function EventDriftBadge({
                     {drift.field_name}
                   </div>
                   <div className="text-micro text-fg-tertiary">
+                    {/* A dotted name is a property's JSON path (F23): its
+                        contract comes from the property's type and values. */}
+                    {drift.field_name.includes('.') && drift.drift_type in CONTRACT_DRIFT_TYPES
+                      ? 'property '
+                      : ''}
                     {DRIFT_LABEL[drift.drift_type] ?? drift.drift_type}
                     {drift.observed_type && drift.declared_type
                       ? ` · ${drift.declared_type} → ${drift.observed_type}`

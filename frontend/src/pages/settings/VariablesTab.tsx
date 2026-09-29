@@ -36,6 +36,7 @@ import { ReadOnlyNotice } from '@/components/states'
 import { countOf, pluralize } from '@/lib/plural'
 import { projectKey, variablesKey, variablesUsagePageKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
 
 // Rows rendered at once. The whole set arrives in one request, but a governance
 // project can hold >1k variables and painting them all froze the tab for
@@ -530,6 +531,9 @@ export function VariablesTab({
         }
       />
       {!canWrite && <ReadOnlyNotice />}
+      {/* Open property drift across the project (F23): what the sidebar's
+          Properties badge counts. Detected against main, so main only. */}
+      {branchId === null && <PropertyDriftList slug={slug} readOnly={!canWrite} />}
 
       {showForm && (
         <VariablesCreateDialog

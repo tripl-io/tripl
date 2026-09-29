@@ -46,6 +46,11 @@ SCOPE_SOURCE_FRESHNESS = MetricScopeType.source_freshness.value
 # past its ``sunset_at``, or its successor receiving none. One candidate per
 # open ``lifecycle_findings`` row, ``scope_ref`` = ``"<kind>:<event id hex>"``.
 SCOPE_LIFECYCLE = MetricScopeType.lifecycle.value
+# Property drift (F23, #306): an event's property list against what a scan
+# saw. One candidate per open ``property_drifts`` row, ``scope_ref`` = the row
+# id, partitioned by the scan that detected it like value drift
+# (``alerting_property_drift`` holds the mapping).
+SCOPE_PROPERTY_DRIFT = MetricScopeType.property_drift.value
 # Scopes that belong to the PROJECT rather than to the scan that observed them.
 # Their alert state, digest buffer row and incident handle carry a NULL scan
 # config, so every config's collection converges on one state row, one
@@ -237,6 +242,8 @@ def rule_matches_anomaly(
         return False
     if anomaly.scope_type == SCOPE_VARIABLE_VALUE_DRIFT and not rule.include_variable_value_drifts:
         return False
+    if anomaly.scope_type == SCOPE_PROPERTY_DRIFT and not rule.include_property_drifts:
+        return False
     # "Data is late" alerts are opt-in like the drift families: a rule that
     # never asked for them keeps delivering exactly what it did before.
     if anomaly.scope_type == SCOPE_SOURCE_FRESHNESS and not rule.include_source_freshness:
@@ -272,6 +279,7 @@ def rule_matches_anomaly(
         SCOPE_DISTRIBUTION_DRIFT,
         SCOPE_RELEASE_REGRESSION,
         SCOPE_VARIABLE_VALUE_DRIFT,
+        SCOPE_PROPERTY_DRIFT,
         # Lag hours against the allowed hours, not a count against a baseline:
         # the volume thresholds (min_expected_count, min_percent_delta) are
         # about counts and would silently gate a delay on its hour figures.

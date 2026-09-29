@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from tripl import cache, realtime
 from tripl.core.adapters.base import rank_top_n_once
+from tripl.core.analyzers._json_object_properties import is_object_property
 from tripl.core.analyzers.cardinality import (
     _is_json_type,
     analyze_cardinality,
@@ -100,6 +101,7 @@ from tripl.worker.utils.job_status import (
 )
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_preset import preset_scan_columns
 from tripl.worker.variable_sweep import retire_unused_variables, retired_details_line
 
 logger = logging.getLogger(__name__)
@@ -673,6 +675,8 @@ def collect_metrics(
         columns = adapter.get_columns(config.base_query)
         if config.time_column:
             columns = [c for c in columns if c.name != config.time_column]
+        # The "event + properties" preset reads only the columns it needs.
+        columns = preset_scan_columns(config, columns)
         logger.info(f"Found {len(columns)} columns in base query")
 
         skip_cols = reserved_catalog_columns(config)
@@ -908,6 +912,16 @@ def collect_metrics(
                 path_limit=2000,
                 sample_limit=20,
                 sample_row_limit=5000,
+                # Whole objects only when an object property wants them, so a
+                # sampler that predates them is still called as it was.
+                **(
+                    {"include_objects": True}
+                    if any(
+                        is_object_property(variable)
+                        for variable in replay_variables_by_token.variables()
+                    )
+                    else {}
+                ),
             )
             _accumulate_replay_json_samples_from_events(
                 replay_variable_samples,
@@ -1361,6 +1375,9 @@ def collect_metrics(
                     "json_paths_sampled": catalog.json_path_sampling.paths_sampled,
                     "json_paths_with_samples": catalog.json_path_sampling.paths_with_samples,
                     "json_path_variables_typed": catalog.json_path_sampling.variables_typed,
+                    "json_path_variables_type_checked": (
+                        catalog.json_path_sampling.variables_type_checked
+                    ),
                     "property_type_drifts": catalog.json_path_sampling.type_drifts_detected,
                     "variable_values_written": variable_values_written,
                     "variable_contexts_unfilled": variable_contexts_unfilled,
@@ -1449,6 +1466,14 @@ def collect_metrics(
                 produce_notifications(session, "signals", config)
             except Exception:
                 logger.exception("Signal notifications failed for scan config %s", scan_config_id)
+            # Property drift (F23): the scan job and the catalog sync wrote the
+            # rows; this run's config tells the watchers of their events once.
+            try:
+                produce_notifications(session, "property_drifts", config)
+            except Exception:
+                logger.exception(
+                    "Property drift notifications failed for scan config %s", scan_config_id
+                )
 
         return result_summary
 

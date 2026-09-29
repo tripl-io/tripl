@@ -184,7 +184,15 @@ monitored tracking plan.
    below it can offer your real columns instead of a blank box. Nothing is
    written.
 5. Answer the questions those columns unlock, top to bottom:
-   - **Event type** — give every row the same event type, or leave it on *Name
+   - **How events are stored** — if your table has one row per event, with a
+     column naming the event and a JSON column holding its properties, choose
+     **Event + properties** and pick those two columns (**Event column** and
+     **Properties column**). Each event name becomes an event, and every key of
+     the JSON becomes one of its properties; nothing else about naming needs
+     setting. See
+     [The Event + properties setup](./use/feature-reference.md#event-properties-setup).
+     Otherwise keep **Custom** and answer **Event type** below.
+   - **Event type** (Custom) — give every row the same event type, or leave it on *Name
      events from a column* and pick the **Event type column** whose values are
      the event names. One of the two is required: a scan with neither cannot name
      a single event, and **Create scan** stays disabled until you answer.

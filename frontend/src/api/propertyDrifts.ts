@@ -4,6 +4,15 @@ import { api } from './client'
 export type PropertyDriftKind = 'new_property' | 'missing_required' | 'type_change'
 export type PropertyDriftStatus = 'open' | 'accepted' | 'snoozed' | 'false_positive'
 
+/** One nested key of an object property that its sampled objects disagree with. */
+export interface PropertyDriftNestedChange {
+  /** Dotted path inside the object; `[]` stands for an array's items. */
+  path: string
+  change: 'new_key' | 'missing_required' | 'type_change'
+  expected_type?: string
+  observed_type?: string
+}
+
 export interface PropertyDrift {
   id: string
   variable_id: string
@@ -19,6 +28,8 @@ export interface PropertyDrift {
     expected_type?: string
     observed_type?: string
     observed_schema?: Record<string, unknown> | null
+    /** An object property's sampled objects against its sub-schema: where they disagree. */
+    nested_changes?: PropertyDriftNestedChange[]
   }
   status: PropertyDriftStatus
   resolution_note: string | null

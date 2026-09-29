@@ -66,6 +66,7 @@ export type RuleFormState = {
   include_metrics: boolean
   include_source_freshness: boolean
   include_lifecycle: boolean
+  include_property_drifts: boolean
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
@@ -178,8 +179,8 @@ export const ITEM_TEMPLATE_VARIABLE_OPTIONS = [
   { name: 'monitoring_url', description: 'Monitoring URL' },
   { name: 'details_line', description: 'Rendered details line with leading newline when URL exists' },
   { name: 'monitoring_line', description: 'Rendered monitoring line with leading newline when URL exists' },
-  { name: 'drift_field', description: 'Drift field name' },
-  { name: 'drift_type', description: 'Drift type' },
+  { name: 'drift_field', description: 'Drift field name; the property for value and property drift' },
+  { name: 'drift_type', description: 'Drift type; for property drift new_property, missing_required or type_change' },
   { name: 'sample_value', description: 'Drift sample value' },
   { name: 'drift_line', description: 'Rendered schema drift line with leading newline when drift context exists' },
   { name: 'sparkline', description: 'ASCII sparkline of recent bucket counts (empty if no history)' },
@@ -388,6 +389,8 @@ export function defaultRuleForm(): RuleFormState {
     // Opt-in too: lifecycle findings (#258) are a new kind of alert, not a
     // change to what an existing rule sends.
     include_lifecycle: false,
+    // Opt-in like the other drift kinds (F23, #306).
+    include_property_drifts: false,
     notify_on_spike: true,
     notify_on_drop: true,
     ai_explanation_enabled: false,
@@ -426,6 +429,7 @@ export function ruleToForm(rule: AlertRule): RuleFormState {
     // `?? false`: a rule from a server that predates the flag reads as off.
     include_source_freshness: rule.include_source_freshness ?? false,
     include_lifecycle: rule.include_lifecycle ?? false,
+    include_property_drifts: rule.include_property_drifts ?? false,
     notify_on_spike: rule.notify_on_spike,
     notify_on_drop: rule.notify_on_drop,
     ai_explanation_enabled: rule.ai_explanation_enabled,
@@ -522,6 +526,7 @@ const SCOPE_KEYS = [
   'include_metrics',
   'include_source_freshness',
   'include_lifecycle',
+  'include_property_drifts',
 ] as const satisfies readonly (keyof RuleFormState)[]
 
 function numberProblem(text: string, { integer, min }: { integer: boolean; min: number }): string | null {
@@ -727,7 +732,7 @@ export function joinCooldown(amount: string, unit: CooldownUnit): string {
 
 // `include_lifecycle` is optional here: an `AlertRule` or monitor from a server
 // that predates the flag (#258) omits it, and every reader treats absent as off.
-type RuleScopeFlags = Partial<Pick<RuleFormState, 'include_lifecycle'>> & Pick<
+type RuleScopeFlags = Partial<Pick<RuleFormState, 'include_lifecycle' | 'include_property_drifts'>> & Pick<
   RuleFormState,
   | 'include_project_total'
   | 'include_event_types'
@@ -771,6 +776,7 @@ export const RULE_SIGNAL_GROUPS: readonly {
       { key: 'include_schema_drifts', label: 'Schema drift', short: 'schema drift', hint: 'A field appears, disappears or changes type.' },
       { key: 'include_distribution_drifts', label: 'Distribution drift', short: 'distribution drift', hint: 'The mix of values in a watched column shifts.' },
       { key: 'include_variable_value_drifts', label: 'Value drift', short: 'value drift', hint: 'A property takes a value outside its documented list.' },
+      { key: 'include_property_drifts', label: 'Property drift', short: 'property drift', hint: "An event carries a property its list does not name, a required property goes missing, or a property's values stop matching its type. One alert per drift." },
       { key: 'include_release_regressions', label: 'Release regressions', short: 'release regressions', hint: 'A new app version tracks less than the one before.' },
       { key: 'include_source_freshness', label: 'Source freshness', short: 'source freshness', hint: "A scan's newest data is later than its interval allows, or the scan stopped running. One alert per delay; drop signals are held meanwhile. Needs Drops under Notify on." },
       { key: 'include_lifecycle', label: 'Lifecycle', short: 'lifecycle', hint: 'A deprecated event still receives data after its sunset date, or its successor has received nothing for 7 days. One alert per finding, checked daily.' },
@@ -862,6 +868,7 @@ export function scopeSummary(rule: AlertRule) {
     rule.include_metrics ? 'metrics' : null,
     rule.include_source_freshness ? 'freshness' : null,
     rule.include_lifecycle ? 'lifecycle' : null,
+    rule.include_property_drifts ? 'property drift' : null,
   ].filter(Boolean).join(', ')
 }
 

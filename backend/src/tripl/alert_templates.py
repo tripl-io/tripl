@@ -144,8 +144,14 @@ ALERT_ITEM_TEMPLATE_VARIABLES: dict[str, str] = {
     "monitoring_url": "Monitoring URL",
     "details_line": "Rendered details line with leading newline when URL exists",
     "monitoring_line": "Rendered monitoring line with leading newline when URL exists",
-    "drift_field": "Drift field name (empty for metric anomalies)",
-    "drift_type": "Drift type (empty for metric anomalies)",
+    "drift_field": (
+        "Drift field name; the property name for value and property drift "
+        "(empty for metric anomalies)"
+    ),
+    "drift_type": (
+        "Drift type (empty for metric anomalies); for property drift one of new_property, "
+        "missing_required, type_change"
+    ),
     "sample_value": "Drift sample value (empty when unavailable)",
     "drift_line": "Rendered drift line with leading newline when drift context exists",
     "sparkline": "ASCII sparkline of recent bucket counts (empty if no history)",
@@ -573,6 +579,7 @@ _SCOPE_RELEASE_REGRESSION = MetricScopeType.release_regression.value
 _SCOPE_VARIABLE_VALUE_DRIFT = MetricScopeType.variable_value_drift.value
 _SCOPE_SOURCE_FRESHNESS = MetricScopeType.source_freshness.value
 _SCOPE_LIFECYCLE = MetricScopeType.lifecycle.value
+_SCOPE_PROPERTY_DRIFT = MetricScopeType.property_drift.value
 
 ALERT_SCOPE_LABELS: dict[str, str] = {
     MetricScopeType.project_total.value: "Project total",
@@ -585,6 +592,7 @@ ALERT_SCOPE_LABELS: dict[str, str] = {
     _SCOPE_RELEASE_REGRESSION: "Release regression",
     _SCOPE_SOURCE_FRESHNESS: "Source freshness",
     _SCOPE_LIFECYCLE: "Event lifecycle",
+    _SCOPE_PROPERTY_DRIFT: "Property drift",
 }
 
 
@@ -766,6 +774,30 @@ def lifecycle_line(facts: DriftLineFacts) -> str:
     return headline
 
 
+# Property drift kinds (F23, #306) -> headline, most serious first. The kind
+# rides ``drift_type`` (``AlertDriftType.missing_required`` / ``type_change`` /
+# ``new_property``, the same values as ``PropertyDriftKind``). A required
+# property going missing and a type change break consumers of the event; a new
+# property is the plan falling behind the data.
+_PROPERTY_DRIFT_KIND_LABELS = {
+    AlertDriftType.missing_required.value: "Missing required property",
+    AlertDriftType.type_change.value: "Property type changed",
+    AlertDriftType.new_property.value: "New property",
+}
+
+
+def property_drift_line(facts: DriftLineFacts) -> str:
+    """``"Missing required property ${plan}: on 40% of rows, required on 95%"``.
+
+    Built from the shared drift columns ``alerting_property_drift`` fills:
+    kind -> ``drift_type``, the property -> ``drift_field``, what the scan saw
+    -> ``sample_value``.
+    """
+    headline = _PROPERTY_DRIFT_KIND_LABELS.get(facts.drift_type or "", "Property drift")
+    subject = f"{headline} ${{{facts.drift_field}}}" if facts.drift_field else headline
+    return f"{subject}: {facts.sample_value}" if facts.sample_value else subject
+
+
 def build_drift_line(facts: DriftLineFacts) -> str:
     """``${drift_line}`` for one item — leading ``"\\n  "`` included, or ``""``.
 
@@ -791,6 +823,8 @@ def build_drift_line(facts: DriftLineFacts) -> str:
         return f"\n  {source_freshness_line(facts)}"
     if facts.scope_type == _SCOPE_LIFECYCLE:
         return f"\n  {lifecycle_line(facts)}"
+    if facts.scope_type == _SCOPE_PROPERTY_DRIFT:
+        return f"\n  {property_drift_line(facts)}"
     if facts.scope_type == _SCOPE_VARIABLE_VALUE_DRIFT:
         observed_clause = f" observed {facts.sample_value}" if facts.sample_value else ""
         return f"\n  value drift: ${{{facts.drift_field}}}{observed_clause}"
