@@ -30,6 +30,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
 from tripl.core.bucketing import to_utc
+from tripl.core.property_contracts import (
+    ListingRow,
+    property_contract_expectations,
+    typed_properties_by_type,
+)
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.domain_enums import DistributionDriftBand
 from tripl.models.event import Event, EventStatus
@@ -41,6 +46,8 @@ from tripl.models.lifecycle_finding import LifecycleFinding
 from tripl.models.project_health_snapshot import ProjectHealthSnapshot
 from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
+from tripl.models.variable import Variable
+from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value_drift import VariableValueDrift
 from tripl.schemas.health import (
     ComponentAverage,
@@ -159,6 +166,59 @@ def _contract_expectations(
     return out
 
 
+async def _property_contract_expectations(
+    session: AsyncSession, type_ids: Sequence[uuid.UUID]
+) -> dict[uuid.UUID, list[tuple[str, str]]]:
+    """``(property path, drift_type)`` per event type: the typed properties' contracts.
+
+    Mirrors ``worker.tasks.metrics.property_contracts`` minus its "JSON column
+    read in this run" filter, like ``_contract_expectations`` above.
+    """
+    events: dict[uuid.UUID, tuple[uuid.UUID, float | None]] = {}
+    for chunk in chunked(list(type_ids)):
+        result = await session.execute(
+            select(Event.id, Event.event_type_id, Event.required_presence_threshold).where(
+                Event.event_type_id.in_(list(chunk)),
+                Event.status != EventStatus.archived.value,
+            )
+        )
+        events.update(
+            {event_id: (type_id, threshold) for event_id, type_id, threshold in result.all()}
+        )
+    listing_rows: list[ListingRow] = []
+    for chunk in chunked(list(events)):
+        result = await session.execute(
+            select(
+                VariableEventValueOverride.variable_id,
+                VariableEventValueOverride.event_id,
+                VariableEventValueOverride.required,
+                VariableEventValueOverride.values,
+            ).where(VariableEventValueOverride.event_id.in_(list(chunk)))
+        )
+        listing_rows.extend(
+            (variable_id, event_id, bool(required), values)
+            for variable_id, event_id, required, values in result.all()
+        )
+    variables: list[Variable] = []
+    for chunk in chunked(list({row[0] for row in listing_rows})):
+        result = await session.execute(
+            select(Variable).where(
+                Variable.id.in_(list(chunk)), Variable.excluded_from_scans.is_(False)
+            )
+        )
+        variables.extend(result.scalars().all())
+    by_type = typed_properties_by_type(
+        events=events, listing_rows=listing_rows, variables=variables
+    )
+    return {
+        type_id: [
+            (expectation.field_name, expectation.drift_type)
+            for expectation in property_contract_expectations(props)
+        ]
+        for type_id, props in by_type.items()
+    }
+
+
 async def _load_configs(session: AsyncSession, project_id: uuid.UUID) -> list[_Config]:
     result = await session.execute(
         select(
@@ -252,6 +312,11 @@ async def load_facts(
             )
         ).all()
     )
+
+    for type_id, property_expectations in (
+        await _property_contract_expectations(session, type_ids)
+    ).items():
+        expectations[type_id].extend(property_expectations)
 
     active_schema: dict[uuid.UUID, set[tuple[str, str]]] = defaultdict(set)
     schema_rows = await session.execute(

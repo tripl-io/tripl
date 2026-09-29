@@ -1,8 +1,22 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from datetime import datetime
+
+#: How many property entries (``<json_column>.<path>``) one scan config may list
+#: in ``metric_breakdown_columns``, and separately in ``distribution_drift_fields``.
+#: A scalar breakdown reads a column the scan already groups on; a property one
+#: parses the JSON document on every row of the window, once per property, so
+#: their number is what bounds the extra cost of one collection query.
+MAX_PROPERTY_FIELDS = 10
+
+# One segment of a property path, and the column in front of it: the grammar
+# every adapter's JSON path helper already enforces before it interpolates a
+# segment into SQL. Checked at the save boundary too, so a path no warehouse
+# would accept is refused while the user is still choosing it.
+_PROPERTY_SEGMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def normalize_json_value_paths(paths: Iterable[str] | None) -> list[str]:
@@ -159,3 +173,60 @@ def flatten_json_paths(value: object, *, prefix: str = "") -> list[tuple[str, ob
     if not prefix:
         return []
     return [(prefix, value)]
+
+
+def split_property_field(entry: str) -> tuple[str, str] | None:
+    """``(json_column, path)`` of a property entry, ``None`` for a scalar column.
+
+    A property entry is ``<json_column>.<path>`` — the ``json_value_paths``
+    format — naming one JSON path of a nested column; anything without a dot is
+    a plain column. Raises ``ValueError`` for a dotted entry that breaks the
+    grammar (an empty segment, or one that is not an identifier), so no caller
+    can hand a warehouse a segment it would have to quote.
+    """
+    if "." not in entry:
+        return None
+    column, path = entry.split(".", 1)
+    segments = [column, *path.split(".")]
+    if not all(_PROPERTY_SEGMENT_RE.match(segment) for segment in segments):
+        msg = (
+            f"Invalid property path {entry!r}: use <json_column>.<path>, where every "
+            "segment is letters, digits and underscores and does not start with a digit"
+        )
+        raise ValueError(msg)
+    return column, path
+
+
+def is_property_field(entry: str) -> bool:
+    return "." in entry
+
+
+def extract_json_path(raw_value: object, path: str) -> object:
+    """The value at dotted ``path`` of a JSON document, or ``None`` if it has none.
+
+    The row-by-row counterpart of the adapters' SQL extraction, for the Python
+    fallbacks: the document may arrive decoded or as JSON text.
+    """
+    value = decode_json_path_value(raw_value)
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def json_scalar_text(value: object) -> str | None:
+    """A JSON value as the text SQL extraction yields: ``None`` for JSON null.
+
+    Strings are unquoted and booleans are ``true``/``false`` (``->>`` and
+    ``JSON_VALUE`` agree on both); containers are JSON text.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)):
+        return str(value)
+    return json.dumps(json_safe(value), ensure_ascii=False, sort_keys=True)

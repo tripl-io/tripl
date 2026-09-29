@@ -20,6 +20,7 @@ from tripl.core.adapters.base import (
     SchemaTable,
     clamp_field_contract_threshold,
     contract_bound_literal,
+    is_breakdown_field_of,
 )
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.measure_validator import (
@@ -30,6 +31,7 @@ from tripl.core.adapters.measure_validator import (
 from tripl.core.bucketing import EPOCH, format_utc_literal, to_utc
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.core.warehouse_types import ComplexKind, TimeKind, classify_complex, classify_time
+from tripl.json_paths import split_property_field
 from tripl.models.domain_enums import MetricAggregation
 from tripl.schemas.data_source import MAX_SCHEMA_DATASETS
 
@@ -592,6 +594,41 @@ class BigQueryAdapter(BaseAdapter):
             )
             raise ValueError(msg)
         return f"IFNULL(CAST(`{col}` AS STRING), '')"
+
+    def _property_value_expression(self, column: str, path: str) -> str:
+        """One property (a JSON path of a nested column) as a nullable STRING.
+
+        ``JSON_VALUE`` on a JSON column: the scalar unquoted, and NULL for an
+        absent path, a JSON null or a container — so a property behaves like a
+        nullable scalar column in breakdowns and contracts (F23, #306). A STRUCT
+        field goes through ``_struct_field_expression``, which only addresses
+        declared, non-repeated paths, and is cast like a scalar column. The JSON
+        path literal is built from segments the identifier grammar has already
+        admitted, the same way ``_json_path_expression`` builds its own.
+        """
+        parts = [part for part in path.split(".") if part]
+        if not parts or any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+            raise ValueError(f"Unsupported JSON path: {path}")
+        col = self._validate_column(column)
+        if self._complex_kind(col) is ComplexKind.struct:
+            return f"CAST({self._struct_field_expression(col, parts)} AS STRING)"
+        json_path = "$." + ".".join(parts)
+        return f"JSON_VALUE(`{col}`, {self._quote_string(json_path)})"
+
+    def _field_value_expression(self, field: str, *, role: str = "breakdown column") -> str:
+        """``_string_value_expression`` for a scalar column or a property entry."""
+        prop = split_property_field(field)
+        if prop is None:
+            return self._string_value_expression(field, role=role)
+        return f"IFNULL({self._property_value_expression(*prop)}, '')"
+
+    def _validate_breakdown_field(self, field: str) -> str:
+        """Validate a breakdown entry: a column, or a property of a known column."""
+        prop = split_property_field(field)
+        if prop is None:
+            return self._validate_column(field)
+        self._validate_column(prop[0])
+        return field
 
     def _regular_column_sql(self, column: str) -> tuple[str, str]:
         """``(select_sql, group_sql)`` for a plain (non-nested) column.
@@ -1181,8 +1218,21 @@ class BigQueryAdapter(BaseAdapter):
         if self._field_contract_is_inert(expectation):
             return None
 
-        column = self._validate_column(expectation.field_name)
-        present = f"`{column}` IS NOT NULL"
+        prop = split_property_field(expectation.field_name)
+        if prop is None:
+            column = self._validate_column(expectation.field_name)
+            operand = f"`{column}`"
+        else:
+            # A property (F23, #306): its extracted STRING is the operand, NULL
+            # when the row does not carry it, and it is never REPEATED.
+            column = expectation.field_name
+            extracted = self._contract_operand(
+                expectation, lambda field: self._property_value_expression(*prop)
+            )
+            if extracted is None:
+                return None
+            operand = extracted
+        present = f"{operand} IS NOT NULL"
         threshold = clamp_field_contract_threshold(expectation.threshold)
 
         if expectation.drift_type != "required_null_violation" and column in self._repeated_columns:
@@ -1215,17 +1265,17 @@ class BigQueryAdapter(BaseAdapter):
             # Deliberately does NOT build the STRING rendering: a required-ness check is
             # pure NULL logic and works on any column type, including one this adapter
             # refuses to stringify.
-            bad = f"`{column}` IS NULL"
+            bad = f"{operand} IS NULL"
             total = "COUNT(*)"
             sample = f"MIN(IF({bad}, '<NULL>', NULL))"
         elif expectation.drift_type == "enum_violation":
-            value_expr = self._string_value_expression(column, role="field-contract column")
+            value_expr = self._field_value_expression(column, role="field-contract column")
             options = ", ".join(self._quote_string(option) for option in expectation.enum_options)
             bad = f"{present} AND {value_expr} NOT IN ({options})"
             total = f"COUNTIF({present})"
             sample = f"MIN(IF({bad}, {value_expr}, NULL))"
         elif expectation.drift_type == "regex_violation":
-            value_expr = self._string_value_expression(column, role="field-contract column")
+            value_expr = self._field_value_expression(column, role="field-contract column")
             # The assert narrows the type; a pattern-less regex is inert above.
             assert expectation.regex is not None
             # The second reason this engine can decline an expectation the other
@@ -1241,7 +1291,7 @@ class BigQueryAdapter(BaseAdapter):
             total = f"COUNTIF({present})"
             sample = f"MIN(IF({bad}, {value_expr}, NULL))"
         elif expectation.drift_type == "range_violation":
-            value_expr = self._string_value_expression(column, role="field-contract column")
+            value_expr = self._field_value_expression(column, role="field-contract column")
             numeric = f"SAFE_CAST({value_expr} AS FLOAT64)"
             checks = [f"{numeric} IS NULL"]
             # Rendered through the shared helper rather than an f-string of the float.
@@ -1341,7 +1391,8 @@ class BigQueryAdapter(BaseAdapter):
         aggregate_parts: list[str] = []
         struct_parts: list[str] = []
         for index, expectation in enumerate(expectations):
-            if self._allowed_columns and expectation.field_name not in self._allowed_columns:
+            source_column = expectation.field_name.split(".", 1)[0]
+            if self._allowed_columns and source_column not in self._allowed_columns:
                 # The fallback skips an expectation whose field is absent from the source
                 # (`if field_index is None: continue`). Do the same rather than compiling a
                 # reference to a column that does not exist and failing the entire scan —
@@ -1946,10 +1997,10 @@ class BigQueryAdapter(BaseAdapter):
 
         self._ensure_column_types(base_query)
         where_clause = self._time_window_where_clause(time_column, time_from, time_to)
-        cols = [self._validate_column(c) for c in breakdown_columns]
+        cols = [self._validate_breakdown_field(c) for c in breakdown_columns]
 
         prepared = [
-            f"{self._string_value_expression(c)} AS `__bd_raw_{i}`" for i, c in enumerate(cols)
+            f"{self._field_value_expression(c)} AS `__bd_raw_{i}`" for i, c in enumerate(cols)
         ]
         grouping_sets = ", ".join(f"(`__bd_raw_{i}`)" for i in range(len(cols)))
         label_branches = " ".join(
@@ -2014,10 +2065,13 @@ class BigQueryAdapter(BaseAdapter):
         where_clause = self._time_window_where_clause(time_column, time_from, time_to)
         reg_cols = [self._validate_column(c) for c in regular_columns]
         json_cols = [self._validate_column(c) for c in json_columns]
-        breakdown_cols = [self._validate_column(c) for c in breakdown_columns]
-        invalid = [c for c in breakdown_cols if c not in reg_cols]
+        breakdown_cols = [self._validate_breakdown_field(c) for c in breakdown_columns]
+        invalid = [c for c in breakdown_cols if not is_breakdown_field_of(c, reg_cols, json_cols)]
         if invalid:
-            msg = f"Breakdown columns must be scalar columns: {', '.join(invalid)}"
+            msg = (
+                "Breakdown columns must be scalar columns or properties of a JSON column: "
+                f"{', '.join(invalid)}"
+            )
             raise ValueError(msg)
 
         json_value_paths = json_value_paths or {}
@@ -2064,7 +2118,7 @@ class BigQueryAdapter(BaseAdapter):
         grouping_sets: list[str] = []
 
         for idx, column in enumerate(breakdown_cols):
-            raw_expr = self._string_value_expression(column)
+            raw_expr = self._field_value_expression(column)
             value_alias = f"__bd_value_{idx}"
             other_alias = f"__bd_other_{idx}"
             top_values = (

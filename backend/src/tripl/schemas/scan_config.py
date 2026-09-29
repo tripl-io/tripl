@@ -8,7 +8,11 @@ from pydantic import BaseModel, Field, computed_field, field_validator, model_va
 from tripl.core.adapters.measure_validator import validate_select_sql_safety
 from tripl.core.intervals import get_interval
 from tripl.core.scan_setup_preset import ScanSetupPreset, apply_setup_preset
-from tripl.json_paths import normalize_json_value_paths
+from tripl.json_paths import (
+    MAX_PROPERTY_FIELDS,
+    normalize_json_value_paths,
+    split_property_field,
+)
 from tripl.models.domain_enums import ScanInterval
 from tripl.models.scan_job import ScanJobStatus
 from tripl.schemas.not_null_update import reject_explicit_nulls
@@ -228,17 +232,32 @@ class ScanConfigCreate(BaseModel):
 
 
 def _normalize_scalar_columns(value: list[str], *, field_name: str) -> list[str]:
+    """Trim and dedupe a breakdown / distribution-drift selection.
+
+    An entry is a scalar column or a property: ``<json_column>.<path>``, the
+    ``json_value_paths`` format (F23, #306). A property must follow the path
+    grammar every adapter extracts safely, and at most ``MAX_PROPERTY_FIELDS``
+    of them may be listed, since each one parses the JSON document per row.
+    """
     normalized: list[str] = []
     seen: set[str] = set()
+    properties = 0
     for item in value:
         column = item.strip()
         if not column:
             continue
-        if "." in column:
-            raise ValueError(f"{field_name} supports scalar columns only")
-        if column not in seen:
-            normalized.append(column)
-            seen.add(column)
+        try:
+            is_property = split_property_field(column) is not None
+        except ValueError as exc:
+            raise ValueError(f"{field_name}: {exc}") from exc
+        if column in seen:
+            continue
+        if is_property:
+            properties += 1
+            if properties > MAX_PROPERTY_FIELDS:
+                raise ValueError(f"{field_name} can list at most {MAX_PROPERTY_FIELDS} properties")
+        normalized.append(column)
+        seen.add(column)
     return normalized
 
 

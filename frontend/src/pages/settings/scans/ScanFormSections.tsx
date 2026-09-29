@@ -722,7 +722,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
     <CollapsibleSection
       readOnly={readOnly}
       title="Metric breakdowns and drift"
-      explanation="Extra columns to split metrics by, and columns whose value mix you want watched for drift. Leave this alone to collect one series per event."
+      explanation="Extra columns or properties (JSON paths) to split metrics by, and those whose value mix you want watched for drift. Leave this alone to collect one series per event."
       defaultOpen={defaultOpen}
     >
       {/* Field rows like the essentials card and App version, so the section
@@ -734,7 +734,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
           <Field
             label="Metric breakdowns"
             htmlFor={false}
-            hint="Each selected column gets its own series per value (e.g. one per platform), grouped in the warehouse."
+            hint="Each selected column or property gets its own series per value (e.g. one per platform), grouped in the warehouse."
           >
             <MetricBreakdownPicker
               columns={preview.columns}
@@ -744,6 +744,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
               appVersionColumn={state.appVersionColumn}
               platformColumn={state.platformColumn}
               onToggleColumn={toggleMetricBreakdownColumn}
+              jsonColumns={preview.json_columns}
             />
           </Field>
           {/* The label matches SCAN_NUMERIC_FIELD_LABEL, which the blocked-save
@@ -786,6 +787,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
               appVersionColumn={state.appVersionColumn}
               platformColumn={state.platformColumn}
               onToggleField={toggleDistributionDriftField}
+              jsonColumns={preview.json_columns}
             />
           </Field>
         </>

@@ -23,6 +23,7 @@ from tripl.core.adapters.base import (
     SchemaTable,
     contract_bound_literal,
     field_contract_verdict,
+    is_breakdown_field_of,
 )
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.measure_validator import (
@@ -32,6 +33,7 @@ from tripl.core.adapters.measure_validator import (
 )
 from tripl.core.bucketing import EPOCH, WEEK_ORIGIN, format_utc_literal
 from tripl.core.intervals import IntervalUnit, get_interval
+from tripl.json_paths import split_property_field
 from tripl.models.domain_enums import MetricAggregation
 
 logger = logging.getLogger(__name__)
@@ -686,6 +688,48 @@ class PostgresAdapter(BaseAdapter):
     def _string_value_expression(self, column: str) -> str:
         return f"COALESCE({_quote_ident(self._validate_column(column))}::text, '')"
 
+    def _property_value_expression(self, column: str, path: str) -> str:
+        """One property (a JSON path of a json/jsonb column) as nullable text.
+
+        ``#>>`` with a ``text[]`` path: the scalar unquoted, a nested value as
+        JSON text, and SQL NULL for an absent path or a JSON null — so a
+        property behaves like a nullable scalar column in breakdowns and
+        contracts (F23, #306). ``#>>`` is defined for both ``json`` and
+        ``jsonb``, so no cast is needed. Every segment is validated by
+        ``_json_path_expression``'s grammar and quoted with ``_quote_string``.
+        """
+        parts = [part for part in path.split(".") if part]
+        if not parts or any(not _IDENTIFIER_PART_RE.match(part) for part in parts):
+            raise ValueError(f"Unsupported JSON path: {path}")
+        quoted = _quote_ident(self._validate_column(column))
+        path_array = ", ".join(self._quote_string(part) for part in parts)
+        return f"({quoted} #>> ARRAY[{path_array}]::text[])"
+
+    def _field_operand(self, field: str) -> str:
+        """A breakdown / drift / contract field as a nullable SQL operand.
+
+        A scalar column is its quoted name, exactly as before; a property entry
+        (``<json_column>.<path>``) is its extracted text.
+        """
+        prop = split_property_field(field)
+        if prop is None:
+            return _quote_ident(self._validate_column(field))
+        return self._property_value_expression(*prop)
+
+    def _field_value_expression(self, field: str) -> str:
+        """``_string_value_expression`` for a scalar column or a property entry."""
+        if split_property_field(field) is None:
+            return self._string_value_expression(field)
+        return f"COALESCE({self._field_operand(field)}, '')"
+
+    def _validate_breakdown_field(self, field: str) -> str:
+        """Validate a breakdown entry: a column, or a property of a known column."""
+        prop = split_property_field(field)
+        if prop is None:
+            return self._validate_column(field)
+        self._validate_column(prop[0])
+        return field
+
     def _quote_string(self, value: str) -> str:
         return "'" + value.replace("'", "''") + "'"
 
@@ -915,7 +959,9 @@ class PostgresAdapter(BaseAdapter):
         if self._field_contract_is_inert(expectation):
             return None
 
-        quoted = _quote_ident(self._validate_column(expectation.field_name))
+        quoted = self._contract_operand(expectation, self._field_operand)
+        if quoted is None:
+            return None
         value_expr = f"COALESCE({quoted}::text, '')"
         present = f"{quoted} IS NOT NULL"
 
@@ -1026,7 +1072,7 @@ class PostgresAdapter(BaseAdapter):
         Nothing else about the expectation reaches the warehouse: the threshold
         and the comparison are ``field_contract_verdict``'s job.
         """
-        quoted = _quote_ident(self._validate_column(expectation.field_name))
+        quoted = self._field_operand(expectation.field_name)
         value_expr = f"COALESCE({quoted}::text, '')"
         is_required = expectation.drift_type == "required_null_violation"
         # required_null counts NULLs in the denominator (a NULL is the thing being
@@ -1667,11 +1713,11 @@ class PostgresAdapter(BaseAdapter):
             return {column: [] for column in breakdown_columns}
 
         tc = self._validate_column(time_column)
-        cols = [self._validate_column(c) for c in breakdown_columns]
+        cols = [self._validate_breakdown_field(c) for c in breakdown_columns]
         window = self._time_window_condition(tc, time_from, time_to)
 
         prepared = [
-            f'{self._string_value_expression(c)} AS "__bd_raw_{i}"' for i, c in enumerate(cols)
+            f'{self._field_value_expression(c)} AS "__bd_raw_{i}"' for i, c in enumerate(cols)
         ]
         # One GROUPING SETS scan: per column, GROUP BY that single label so
         # ROW_NUMBER ranks values within that column only.
@@ -1742,10 +1788,13 @@ class PostgresAdapter(BaseAdapter):
 
         reg_cols = [self._validate_column(c) for c in regular_columns]
         json_cols = [self._validate_column(c) for c in json_columns]
-        breakdown_cols = [self._validate_column(c) for c in breakdown_columns]
-        invalid = [c for c in breakdown_cols if c not in reg_cols]
+        breakdown_cols = [self._validate_breakdown_field(c) for c in breakdown_columns]
+        invalid = [c for c in breakdown_cols if not is_breakdown_field_of(c, reg_cols, json_cols)]
         if invalid:
-            msg = f"Breakdown columns must be scalar columns: {', '.join(invalid)}"
+            msg = (
+                "Breakdown columns must be scalar columns or properties of a JSON column: "
+                f"{', '.join(invalid)}"
+            )
             raise ValueError(msg)
 
         json_value_paths = json_value_paths or {}
@@ -1788,7 +1837,7 @@ class PostgresAdapter(BaseAdapter):
         grouping_sets: list[str] = []
 
         for idx, column in enumerate(breakdown_cols):
-            raw_expr = self._string_value_expression(column)
+            raw_expr = self._field_value_expression(column)
             value_alias = f"__bd_value_{idx}"
             other_alias = f"__bd_other_{idx}"
             top_values = (

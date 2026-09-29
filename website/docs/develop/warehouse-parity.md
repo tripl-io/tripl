@@ -327,6 +327,7 @@ is a shipping warehouse.
 | Structured fact filters | `AggregateSpec.filter_sql` | full | full | full | bounded [10] |
 | Schema drift | derived from scan output | full | full | full | full |
 | Value / distribution drift | derived from scan output | full | full | full | full |
+| Properties as breakdowns, drift fields and contracts (`<json_column>.<path>`, F23) | `_field_value_expression` / `_field_operand` | full: JSON subcolumn, one `Map` key, named `Tuple` element | full: `JSON_VALUE` (JSON), declared STRUCT field | full: `#>>` (`json`/`jsonb`) | **none** — no JSON columns; a property breakdown raises `SyntheticCapabilityError` [10] |
 | **Field contracts** (required/enum/regex/range) | `validate_field_contracts` | **full** | **full** (warehouse-side, full window) | **full** (warehouse-side, full window; range compares in exact decimal, see "PostgreSQL range contracts compare exactly") | bounded [10] |
 | Anomaly detection | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |
 | Alerts | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |

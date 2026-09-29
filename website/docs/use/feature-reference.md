@@ -667,7 +667,10 @@ Drift is detected when incoming data diverges from an event type's declared
 schema and is surfaced as the **schema-drift badge** beside the heading of the
 catalog. Drift kinds are `new_field`, `missing_field`, `type_changed`,
 `enum_violation`, `required_null_violation`, `regex_violation`, and
-`range_violation`. Per drift you can **accept**, **snooze** (defaults to 7 days,
+`range_violation`. The four contract kinds also come from typed properties: a
+drift whose field is a dotted JSON path (`props.plan`) is a property contract,
+labelled **property** in the badge (see
+[Properties as breakdowns, drift fields and contracts](variables-and-templates.md#properties-as-breakdowns-drift-fields-and-contracts)). Per drift you can **accept**, **snooze** (defaults to 7 days,
 and the date you pick has to be in the future), mark **false positive**, or
 **reopen**. Only a snooze takes a `snoozed_until`; sending one with any other
 action is refused with `422` rather than silently ignored. A resolution note is
