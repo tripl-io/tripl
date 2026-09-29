@@ -15711,7 +15711,7 @@ export interface components {
         PropertyDriftResponse: {
             /**
              * Detail
-             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change.
+             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change. For an object property whose sampled objects disagree with its sub-schema, type_change also carries nested_changes (each a path, a change of new_key, missing_required or type_change, and for a type change the expected and observed types), and observed_schema is the stored sub-schema with those changes applied.
              * @default {}
              */
             detail: {

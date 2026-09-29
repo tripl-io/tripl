@@ -776,7 +776,9 @@ form then shows the first one, and the next save of that event keeps only it.
 from event field and meta values. Each property separates **documented values**
 from scan-observed contexts, and can bind to one or more warehouse columns or
 dotted JSON paths. A per-event override replaces the global documented list for
-that event.
+that event. A scan turns a nested JSON object into one `json` property whose
+schema describes the object's keys, not one property per nested key — see
+[Nested objects](./variables-and-templates.md#nested-objects).
 
 The table shows documented/observed samples, binding paths, the events a
 property was **Observed in**, and open value drift; type chips show the schema

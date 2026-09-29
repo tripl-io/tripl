@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
 import uuid
@@ -114,6 +115,10 @@ class VariableIndex:
 
     def resolve(self, token: str) -> Variable | None:
         return self._by_token.get(token)
+
+    def variables(self) -> list[Variable]:
+        """Every variable some token resolves to, once each."""
+        return list({id(variable): variable for variable in self._by_token.values()}.values())
 
     def excluded_ids(self) -> set[uuid.UUID]:
         """Ids of the variables this run must not observe.
@@ -667,8 +672,12 @@ def ensure_variable(
     inferred_type: str,
     branch_id: uuid.UUID | None = None,
     index: VariableIndex | None = None,
+    json_schema: Mapping[str, Any] | None = None,
 ) -> int:
     """Create a Variable if it doesn't exist. Returns 1 if created, 0 if already exists.
+
+    ``json_schema`` is the schema a CREATED variable starts with (an object
+    property's ``{"type": "object"}``); an adopted variable keeps its own.
 
     Adoption goes through the ``VariableIndex`` (name, source_name and
     user-editable bindings), so a manually-created ``variant`` bound to
@@ -698,6 +707,7 @@ def ensure_variable(
         name=derive_display_name(name, index),
         source_name=name,
         variable_type=inferred_type,
+        json_schema=copy.deepcopy(dict(json_schema)) if json_schema is not None else None,
         description=SCAN_PROVENANCE_DESCRIPTION,
         bindings=[name],
     )

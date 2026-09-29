@@ -611,12 +611,19 @@ class BaseAdapter(abc.ABC):
         path_limit: int = 1000,
         sample_limit: int = 3,
         sample_row_limit: int = 1000,
+        include_objects: bool = False,
     ) -> dict[str, dict[str, list[object]]]:
         """Best-effort JSON path discovery for adapters without native support.
 
         Concrete adapters can override this with a warehouse-side path discovery
         query. The default keeps behavior compatible by sampling more rows than
         the visible preview and flattening JSON locally.
+
+        Paths are leaves. ``include_objects`` also reports every non-empty
+        nested object at its own path, sampled whole from one row, so an object
+        property's sub-schema can be inferred (F23.4e). The scan asks for them
+        only when it holds an object property still waiting for values; the
+        preview's path picker never does.
         """
         if not json_columns or path_limit <= 0 or sample_limit <= 0 or sample_row_limit <= 0:
             return {column: {} for column in json_columns}
@@ -646,7 +653,9 @@ class BaseAdapter(abc.ABC):
                 if index is None or index >= len(row):
                     continue
                 parsed_value = decode_json_path_value(row[index])
-                for path, raw_value in flatten_json_paths(parsed_value):
+                for path, raw_value in flatten_json_paths(
+                    parsed_value, include_objects=include_objects
+                ):
                     column_samples = samples_by_column.setdefault(column, {})
                     if path not in column_samples and len(column_samples) >= path_limit:
                         continue

@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from tripl import cache, realtime
 from tripl.core.adapters.base import rank_top_n_once
+from tripl.core.analyzers._json_object_properties import is_object_property
 from tripl.core.analyzers.cardinality import (
     _is_json_type,
     analyze_cardinality,
@@ -911,6 +912,16 @@ def collect_metrics(
                 path_limit=2000,
                 sample_limit=20,
                 sample_row_limit=5000,
+                # Whole objects only when an object property wants them, so a
+                # sampler that predates them is still called as it was.
+                **(
+                    {"include_objects": True}
+                    if any(
+                        is_object_property(variable)
+                        for variable in replay_variables_by_token.variables()
+                    )
+                    else {}
+                ),
             )
             _accumulate_replay_json_samples_from_events(
                 replay_variable_samples,
