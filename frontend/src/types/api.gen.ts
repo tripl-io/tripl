@@ -4793,6 +4793,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Event Overrides  Properties
+         * @description Add the property to many events' lists, or apply one patch to each entry:
+         *     the single PUT's semantics, all or nothing (F23.8).
+         */
+        post: operations["bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Event Overrides  Properties
+         * @description Take the property off many events' lists (F23.8). Events that do not
+         *     carry it are skipped, and the audit row names only the entries removed.
+         */
+        post: operations["bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
         parameters: {
             query?: never;
@@ -4806,6 +4848,27 @@ export interface paths {
         post?: never;
         /** Delete Event Override  Properties */
         delete: operations["delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Events  Properties
+         * @description The events whose property list carries this property, with each entry's
+         *     required flag, override and last measured presence (F23.8).
+         */
+        get: operations["list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5781,6 +5844,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Event Overrides
+         * @deprecated
+         * @description Add the property to many events' lists, or apply one patch to each entry:
+         *     the single PUT's semantics, all or nothing (F23.8).
+         */
+        post: operations["bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Event Overrides
+         * @deprecated
+         * @description Take the property off many events' lists (F23.8). Events that do not
+         *     carry it are skipped, and the audit row names only the entries removed.
+         */
+        post: operations["bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}": {
         parameters: {
             query?: never;
@@ -5800,6 +5907,28 @@ export interface paths {
          * @deprecated
          */
         delete: operations["delete_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Events
+         * @deprecated
+         * @description The events whose property list carries this property, with each entry's
+         *     required flag, override and last measured presence (F23.8).
+         */
+        get: operations["list_property_events_api_v1_projects__slug__variables__variable_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -15752,6 +15881,106 @@ export interface components {
             /** Variable Name */
             variable_name: string;
         };
+        /**
+         * PropertyEventResponse
+         * @description One event whose property list carries the property, with its entry.
+         */
+        PropertyEventResponse: {
+            /**
+             * Effective Values
+             * @description The allowed values in force for this event: the override when there is one, else the property's global list.
+             * @default []
+             */
+            effective_values: string[];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Event Name */
+            event_name: string;
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /**
+             * Presence Rate
+             * @description Share of the event's rows that carried the property at the last scan.
+             */
+            presence_rate?: number | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Required Presence Threshold
+             * @description The event's own threshold; null means the default (0.95).
+             */
+            required_presence_threshold?: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Suggested Required
+             * @description Whether presence_rate reaches the event's threshold; null when presence is unknown.
+             */
+            suggested_required?: boolean | null;
+            /**
+             * Values
+             * @description This event's override of the allowed values; null when there is none.
+             */
+            values?: string[] | null;
+        };
+        /**
+         * PropertyEventsBulkDelete
+         * @description Take the property off many events' lists (their overrides go with it).
+         */
+        PropertyEventsBulkDelete: {
+            /** Event Ids */
+            event_ids: string[];
+        };
+        /** PropertyEventsBulkResult */
+        PropertyEventsBulkResult: {
+            /**
+             * Created
+             * @description Events the property was added to.
+             */
+            created: number;
+            /**
+             * Removed
+             * @description Events the property was taken off.
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Updated
+             * @description Events whose existing entry was edited.
+             */
+            updated: number;
+        };
+        /**
+         * PropertyEventsBulkUpsert
+         * @description Add the property to many events' lists, or edit its entry on each.
+         *
+         *     The same patch as the single ``PUT .../event-overrides/{event_id}``: a field
+         *     left out keeps what each entry holds, a new entry starts with no override
+         *     and not required, and ``values: null`` drops the override.
+         */
+        PropertyEventsBulkUpsert: {
+            /** Event Ids */
+            event_ids: string[];
+            /**
+             * Required
+             * @description Whether every occurrence of each event must carry the property.
+             */
+            required?: boolean | null;
+            /**
+             * Values
+             * @description Allowed values for these events, replacing the property's global list. null: no override, the global list applies.
+             */
+            values?: string[] | null;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             /**
@@ -25502,6 +25731,8 @@ export interface operations {
                 has_open_questions?: boolean | null;
                 field_value?: string | null;
                 meta_value?: string | null;
+                /** @description Property id or name: only events whose property list carries it. */
+                property?: string | null;
                 offset?: number;
                 limit?: number;
                 order_by?: "catalog" | "volume" | "health";
@@ -28674,6 +28905,84 @@ export interface operations {
             };
         };
     };
+    bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put: {
         parameters: {
             query?: {
@@ -28736,6 +29045,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -30968,6 +31312,84 @@ export interface operations {
             };
         };
     };
+    bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put: {
         parameters: {
             query?: {
@@ -31030,6 +31452,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_events_api_v1_projects__slug__variables__variable_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {

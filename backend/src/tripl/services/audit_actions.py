@@ -81,6 +81,8 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "variable.values_clear",
             "variable.override_set",
             "variable.override_delete",
+            "variable.override_bulk_set",
+            "variable.override_bulk_delete",
             "variable.drift_action",
             "variable.property_drift_action",
         ),

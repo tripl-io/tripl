@@ -151,6 +151,12 @@ async def list_events(
     has_open_questions: bool | None = None,
     field_value: FreeTextFilter | None = None,
     meta_value: FreeTextFilter | None = None,
+    # Events whose property list carries this property (F23.8): its id or name
+    # on the branch read. A ref that names no property matches nothing.
+    property: Annotated[
+        FreeTextFilter | None,
+        Query(description="Property id or name: only events whose property list carries it."),
+    ] = None,
     offset: int = Query(0, ge=0),
     # Ceiling is 10000 because frontend/src/pages/events/useEventsQuery.ts pages
     # the whole match set at EVENTS_ID_FETCH_PAGE_SIZE = 10000 for bulk "select
@@ -182,6 +188,7 @@ async def list_events(
         has_open_questions=has_open_questions,
         branch_id=branch_id,
         order_by=order_by,
+        property_ref=property,
     )
     return EventListResponse(items=items, total=total)
 
