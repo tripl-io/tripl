@@ -130,8 +130,13 @@ of those values:
 - A sample that mixes kinds, such as `"42"` next to `42`, sets no type.
 - A sample of only nulls or only empty arrays sets no type either, so a later
   sample can still set one.
-- A property whose values were already recorded before this feature keeps
-  `string` until you set its type yourself.
+- A property whose values were already recorded before scans inferred types
+  is sampled once more, for its type alone, under the same conditions. Each
+  scheduled run checks up to 50 such properties, so a large project catches
+  up over a few runs. The check happens once per property: if the values come
+  back as text, mixed or empty, the property keeps `string` and is not sampled
+  again. Changing its bindings makes it eligible for one more check, and you
+  can always set the type yourself.
 - A schema the scan wrote does not count as your edit, so the property can
   still be retired automatically.
 

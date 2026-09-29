@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tripl.core.adapters.base import ColumnInfo
 from tripl.core.analyzers._event_generator_variables import (
+    SCAN_PROVENANCE_DESCRIPTION,
     VARIABLE_VALUE_SAMPLE_LIMIT,
     preserve_existing_variable_context_values,
 )
@@ -5370,6 +5371,152 @@ def test_inferred_types_land_only_on_untyped_scan_variables(
     assert (described.variable_type, described.json_schema) == ("string", None)
     assert (retyped.variable_type, retyped.json_schema) == ("number", None)
     assert (excluded.variable_type, excluded.json_schema) == ("string", None)
+
+
+# --- typing properties observed before F23.4 (F23.4d) ------------------------
+
+
+class _TypedSamplingAdapter:
+    """``_SamplingAdapter`` with the JSON text a real adapter returns, so the
+    kind of each value survives to type inference."""
+
+    json_path_samples_are_text = True
+
+    def __init__(self, values: list[str]) -> None:
+        self.values = values
+        self.sample_calls = 0
+
+    def get_json_path_samples(self, *args: object, **kwargs: object):
+        self.sample_calls += 1
+        return {"payload": {"user.plan": list(self.values)}}
+
+
+def _observed_before_f23(sync_session: Session) -> Variable:
+    """Two ticks mint and fill the variable; then put it back the way a scan
+    before F23.4 left it: still ``string``, never checked, context filled."""
+    variable = sync_session.execute(select(Variable)).scalar_one()
+    variable.variable_type = "string"
+    variable.json_schema = None
+    variable.type_checked_at = None
+    context = _only_context(sync_session)
+    context.values = ["7"]
+    context.observed_count = 1
+    sync_session.commit()
+    return variable
+
+
+def test_a_variable_observed_before_f23_is_typed_once(sync_session: Session, project_and_type):
+    project, _, _ = project_and_type
+    config = _seed_json_scan_config(sync_session, project, grouped=False)
+    adapter = _TypedSamplingAdapter(["2", "10"])
+    _run_scheduled_tick(sync_session, config, adapter)
+    _run_scheduled_tick(sync_session, config, adapter)
+    variable = _observed_before_f23(sync_session)
+    assert adapter.sample_calls == 1
+
+    _run_scheduled_tick(sync_session, config, adapter)
+
+    sync_session.refresh(variable)
+    assert (variable.variable_type, variable.json_schema) == ("number", None)
+    assert variable.description == SCAN_PROVENANCE_DESCRIPTION, "a scan change, not an edit"
+    assert adapter.sample_calls == 2
+    context = _only_context(sync_session)
+    assert (context.values, context.observed_count) == (["7"], 1), (
+        "the backfill samples for the type alone; the filled context is not rewritten"
+    )
+
+    _run_scheduled_tick(sync_session, config, adapter)
+    assert adapter.sample_calls == 2, "checked once: a converged project queries nothing"
+    sync_session.refresh(variable)
+    assert variable.variable_type == "number"
+
+
+@pytest.mark.parametrize(
+    "values",
+    [pytest.param(['"pro"', '"free"'], id="text"), pytest.param(['"42"', "42"], id="mixed")],
+)
+def test_a_backfilled_variable_whose_values_stay_text_leaves_the_candidates(
+    sync_session: Session, project_and_type, values: list[str]
+):
+    """The ring bloat ``_unfilled_json_path_candidates`` documents must not come
+    back: a property that samples as text or mixed is asked about once."""
+    project, _, _ = project_and_type
+    config = _seed_json_scan_config(sync_session, project, grouped=False)
+    adapter = _TypedSamplingAdapter(values)
+    _run_scheduled_tick(sync_session, config, adapter)
+    _run_scheduled_tick(sync_session, config, adapter)
+    variable = _observed_before_f23(sync_session)
+
+    _run_scheduled_tick(sync_session, config, adapter)
+    _run_scheduled_tick(sync_session, config, adapter)
+
+    sync_session.refresh(variable)
+    assert (variable.variable_type, variable.json_schema) == ("string", None)
+    assert variable.type_checked_at is not None
+    assert adapter.sample_calls == 2, "one backfill query, then none"
+
+
+def test_type_backfill_takes_only_untyped_observed_scan_variables_a_batch_at_a_time(
+    sync_session: Session, project_and_type
+):
+    from tripl.worker.tasks.metrics.catalog_sync import (
+        _mark_type_checked,
+        _type_backfill_candidates,
+    )
+
+    project, et, fds = project_and_type
+    event = _seed_event(sync_session, project, et, "Signup")
+
+    def variable(source_name: str, *, observed: int | None = 1, **overrides: object) -> Variable:
+        row = _add_path_variable(sync_session, project, source_name)
+        row.description = SCAN_PROVENANCE_DESCRIPTION
+        for key, value in overrides.items():
+            setattr(row, key, value)
+        sync_session.commit()
+        if observed is not None:
+            _seed_context_row(
+                sync_session,
+                row,
+                event,
+                fds["payload"],
+                observed_count=observed,
+                values=["x"] * observed,
+            )
+        return row
+
+    for name in ("payload.a.one", "payload.a.two", "payload.a.three"):
+        variable(name)
+    variable("payload.b.described", description="What the plan is")
+    variable("payload.b.typed", variable_type="number")
+    variable("payload.b.schema", variable_type="json", json_schema={"type": "array"})
+    variable("payload.b.excluded", excluded_from_scans=True)
+    variable("payload.b.checked", type_checked_at=datetime(2026, 9, 1, tzinfo=UTC))
+    variable("payload.b.unfilled", observed=0)
+    variable("payload.b.unused", observed=None)
+    variable("screen.b.column")
+
+    def candidates(limit: int) -> list[tuple[str, str]]:
+        return _type_backfill_candidates(
+            sync_session,
+            project_id=project.id,
+            branch_id=None,
+            json_columns={"payload"},
+            limit=limit,
+        )
+
+    assert candidates(10) == [("payload", "a.one"), ("payload", "a.three"), ("payload", "a.two")]
+
+    first = candidates(2)
+    assert first == [("payload", "a.one"), ("payload", "a.three")]
+    stamped = _mark_type_checked(
+        sync_session,
+        project_id=project.id,
+        branch_id=None,
+        tokens={f"{column}.{path}" for column, path in first},
+    )
+    sync_session.commit()
+    assert stamped == 2
+    assert candidates(2) == [("payload", "a.two")], "the next run takes the next batch"
 
 
 def test_collapsing_rows_keep_every_json_key_with_its_presence(

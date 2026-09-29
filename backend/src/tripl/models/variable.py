@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
@@ -68,6 +69,14 @@ class Variable(UUIDMixin, Base):
     # undone by the next scan).
     excluded_from_scans: Mapped[bool] = mapped_column(
         sa.Boolean, default=False, server_default="false"
+    )
+    # When a scan sampled this scan-minted JSON-path variable to type it after
+    # the fact (``catalog_sync._type_backfill_candidates``): set once, whatever
+    # the samples showed, so a property whose values stay text or mixed leaves
+    # that candidate set. Scan bookkeeping, not plan content — no API field, no
+    # branch copy, no revision snapshot. Editing the bindings clears it.
+    type_checked_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
     )
 
     project: Mapped[Project] = relationship(back_populates="variables")

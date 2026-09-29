@@ -19,10 +19,10 @@ import logging
 import uuid
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol
 
-from sqlalchemy import Text, or_, select
+from sqlalchemy import ColumnElement, Text, exists, or_, select
 from sqlalchemy import cast as sa_cast
 from sqlalchemy import func as sa_func
 from sqlalchemy.orm import Session, lazyload
@@ -81,9 +81,19 @@ _SAMPLE_VALUES_PER_PATH = VARIABLE_VALUE_SAMPLE_LIMIT
 # path leaves it once every context it hangs off holds an observation — so this
 # only decides how fast a project converges, not whether it does: the largest
 # project here (~1.8k JSON-path variables) is done in about nine ticks, after
-# which the whole sampler costs the two candidate queries per run and stops
-# there until a new event, or a newly referenced field, reopens a path.
+# which the whole sampler costs the two candidate queries, plus the type
+# backfill's one (F23.4d), per run and stops there until a new event, or a
+# newly referenced field, reopens a path.
 _SAMPLED_PATHS_PER_RUN = 200
+
+# Already-observed variables one run samples to type after the fact (F23.4d,
+# ``_type_backfill_candidates``). Their paths ride the same adapter call as the
+# unfilled ones — the adapter is asked for COLUMNS, so a few more paths in an
+# already-sampled column cost nothing in the warehouse — and each is checked
+# once, so the backlog drains and then costs one indexed query per run. Small
+# because it is a one-off catch-up, not a steady-state job: acme-ios's ~230 used
+# JSON-path variables clear in five ticks.
+_TYPE_BACKFILL_PER_RUN = 50
 
 # Paths the adapter may enumerate while looking for the ones we asked about.
 # Matches the replay sampler's limit in ``tasks``; both are a guard against a
@@ -171,6 +181,12 @@ class JsonPathSampling:
     paths_with_samples: int = 0
     variables_typed: int = 0
     type_drifts_detected: int = 0
+    # ``column.path`` of every path the adapter answered for this run, the
+    # unfilled window and the type backfill alike (F23.4d). ``sync_catalog``
+    # stamps the untyped variables on them ``type_checked_at`` after typing the
+    # ones whose samples agree, so none is asked about for its type again.
+    type_checked_paths: frozenset[str] = frozenset()
+    variables_type_checked: int = 0
 
 
 @dataclass
@@ -301,6 +317,99 @@ def _unfilled_json_path_candidates(
     return sorted(candidates)
 
 
+def _untyped_scan_variable_filters() -> tuple[ColumnElement[bool], ...]:
+    """A scan-minted variable nobody has typed yet (F23.4).
+
+    Still the scan's own ``string`` with no schema and the scan's description,
+    and not excluded. Shared by the type backfill and ``_apply_inferred_types``,
+    so the variables sampled for a type are exactly the ones a type may land on.
+    """
+    return (
+        Variable.variable_type == "string",
+        # SQL NULL, or the JSON ``null`` a row copied before the column
+        # stored None as NULL still holds.
+        or_(
+            Variable.json_schema.is_(None),
+            sa_cast(Variable.json_schema, Text) == "null",
+        ),
+        Variable.description == SCAN_PROVENANCE_DESCRIPTION,
+        Variable.excluded_from_scans.is_(False),
+    )
+
+
+def _type_backfill_candidates(
+    session: Session,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID | None,
+    json_columns: Collection[str],
+    limit: int = _TYPE_BACKFILL_PER_RUN,
+) -> list[tuple[str, str]]:
+    """``(column, path)`` pairs of untyped variables observed before F23.4.
+
+    F23.4a types a variable in the run its first samples arrive, because the
+    sampler only asks about paths with an unfilled context. A variable whose
+    contexts were all filled before scans inferred types is never asked about
+    again and keeps the placeholder ``string``; this is the catch-up for it.
+
+    A candidate is untyped and scan-owned (``_untyped_scan_variable_filters``),
+    has a JSON-path identity over this query's columns, has at least one
+    OBSERVED context — an unused variable has nothing to type, and unused ones
+    are the 1545-of-1777 bulk ``_unfilled_json_path_candidates`` documents —
+    and has never been checked: ``type_checked_at`` is NULL.
+
+    The check is one-off, not a ring. ``sync_catalog`` stamps every untyped
+    variable on a path the adapter answered for, whatever came back — a type,
+    text, mixed kinds, only nulls, or nothing — so a property whose values stay
+    text leaves the set for good instead of being resampled every run, which is
+    how the unfilled ring once ran at ten times its useful size. The unfilled
+    window's paths are stamped too: they were just sampled, and the run their
+    first values arrive is F23.4a's own chance to type them, which does not
+    consult the stamp. Editing the bindings clears it
+    (``variable_service.update_variable``), and a person can always set the type
+    by hand.
+
+    At most ``limit`` variables, in a stable order, so a capped batch never
+    skips anyone: the ones it takes are stamped and the next run takes the next.
+    """
+    observed = exists().where(
+        VariableValue.variable_id == Variable.id,
+        VariableValue.observed_count > 0,
+    )
+    query = (
+        select(Variable)
+        .where(
+            Variable.project_id == project_id,
+            Variable.type_checked_at.is_(None),
+            *_untyped_scan_variable_filters(),
+            observed,
+        )
+        .order_by(Variable.source_name, Variable.id)
+        .options(lazyload(Variable.value_contexts))
+    )
+    if branch_id is not None:
+        query = query.where(Variable.branch_id == branch_id)
+    candidates: list[tuple[str, str]] = []
+    taken = 0
+    for variable in session.execute(query).scalars():
+        paths = [
+            (column, path)
+            for column, _, path in (
+                token.partition(".") for token in VariableIndex.source_tokens_of(variable)
+            )
+            if path and column in json_columns
+        ]
+        if not paths:
+            # Not a path over this config's columns: the config that has the
+            # column checks it.
+            continue
+        candidates.extend(paths)
+        taken += 1
+        if taken >= limit:
+            break
+    return candidates
+
+
 def _scheduled_tick(config: ScanConfig, *, fallback: timedelta) -> timedelta:
     """How much wall clock one scheduled run of this config covers.
 
@@ -422,13 +531,20 @@ def _collect_json_path_samples(
     if not json_columns:
         return JsonPathSampling()
 
+    branch_id = main_branch_id(session, config.project_id)
     candidates = _unfilled_json_path_candidates(
         session,
         project_id=config.project_id,
-        branch_id=main_branch_id(session, config.project_id),
+        branch_id=branch_id,
         json_columns=json_columns,
     )
-    if not candidates:
+    backfill = _type_backfill_candidates(
+        session,
+        project_id=config.project_id,
+        branch_id=branch_id,
+        json_columns=json_columns,
+    )
+    if not candidates and not backfill:
         return JsonPathSampling()
 
     wanted: dict[str, set[str]] = {}
@@ -440,11 +556,18 @@ def _collect_json_path_samples(
     ):
         wanted.setdefault(column, set()).add(path)
     paths_sampled = sum(len(paths) for paths in wanted.values())
+    # Backfill paths are sampled for their TYPE only: their contexts are already
+    # filled, and their values reaching ``generate_events`` would rewrite
+    # observations the unfilled sampler never asked for.
+    type_only: dict[str, set[str]] = {}
+    for column, path in backfill:
+        if path not in wanted.get(column, ()):
+            type_only.setdefault(column, set()).add(path)
 
     try:
         discovered = adapter.get_json_path_samples(
             config.base_query,
-            sorted(wanted),
+            sorted(wanted.keys() | type_only.keys()),
             time_column=config.time_column if catalog_scan_window else None,
             time_from=catalog_scan_window[0] if catalog_scan_window else None,
             time_to=catalog_scan_window[1] if catalog_scan_window else None,
@@ -466,17 +589,19 @@ def _collect_json_path_samples(
         )
         # The counters still report what was attempted: a summary showing paths
         # sampled but none coming back is the signature of a failing adapter, and
-        # all-zeros would hide that behind "nothing to do".
+        # all-zeros would hide that behind "nothing to do". The backfill is not
+        # stamped, so the next run asks about the same variables again.
         return JsonPathSampling(ring_size=len(candidates), paths_sampled=paths_sampled)
 
     samples: dict[str, dict[str, list[str]]] = {}
     types: dict[str, dict[str, tuple[str, dict[str, Any] | None]]] = {}
     for column, path_samples in discovered.items():
-        paths = wanted.get(column)
-        if not paths:
+        paths = wanted.get(column, set())
+        typed_paths = type_only.get(column, set())
+        if not paths and not typed_paths:
             continue
         for path, values in path_samples.items():
-            if path not in paths:
+            if path not in paths and path not in typed_paths:
                 continue
             decoded = (
                 [decode_json_path_value(value) for value in values]
@@ -487,6 +612,8 @@ def _collect_json_path_samples(
             inferred = infer_property_type(decoded)
             if inferred is not None:
                 types.setdefault(column, {})[path] = inferred
+            if path not in paths:
+                continue
             formatted = _formatted_samples(values)
             if formatted:
                 samples.setdefault(column, {})[path] = formatted
@@ -498,6 +625,12 @@ def _collect_json_path_samples(
         # Only non-empty formatted lists are stored, so this is exactly "came
         # back with at least one value".
         paths_with_samples=sum(len(column_samples) for column_samples in samples.values()),
+        type_checked_paths=frozenset(
+            f"{column}.{path}"
+            for sent in (wanted, type_only)
+            for column, paths in sent.items()
+            for path in paths
+        ),
     )
 
 
@@ -516,9 +649,9 @@ def _apply_inferred_types(
     wrote — a later sample of another kind is drift to report (F23.5), not a
     type to rewrite silently. Returns how many variables it typed.
 
-    The sampler only asks about paths with an unfilled context, so a variable
-    is typed in the same run its first values arrive; one already observed
-    before F23 is not re-sampled and keeps ``string``.
+    A variable is typed in the run its first values arrive; one already
+    observed before F23.4 is sampled once more, for its type alone, by the
+    backfill (``_type_backfill_candidates``) and typed here the same way.
     """
     wanted = {
         f"{column}.{path}": inferred
@@ -530,18 +663,7 @@ def _apply_inferred_types(
         return 0
     query = (
         select(Variable)
-        .where(
-            Variable.project_id == project_id,
-            Variable.variable_type == "string",
-            # SQL NULL, or the JSON ``null`` a row copied before the column
-            # stored None as NULL still holds.
-            or_(
-                Variable.json_schema.is_(None),
-                sa_cast(Variable.json_schema, Text) == "null",
-            ),
-            Variable.description == SCAN_PROVENANCE_DESCRIPTION,
-            Variable.excluded_from_scans.is_(False),
-        )
+        .where(Variable.project_id == project_id, *_untyped_scan_variable_filters())
         .options(lazyload(Variable.value_contexts))
     )
     if branch_id is not None:
@@ -561,6 +683,42 @@ def _apply_inferred_types(
         variable.variable_type, variable.json_schema = inferred[0], copy.deepcopy(inferred[1])
         typed += 1
     return typed
+
+
+def _mark_type_checked(
+    session: Session,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID | None,
+    tokens: Collection[str],
+) -> int:
+    """Stamp the untyped variables on this run's sampled paths as checked.
+
+    After ``_apply_inferred_types``, so a variable typed this run has already
+    left the type backfill's candidate set, and one whose samples stayed text,
+    mixed or empty leaves it here. Only the timestamp is written, never a type
+    or a schema. Returns how many variables were stamped.
+    """
+    if not tokens:
+        return 0
+    query = (
+        select(Variable)
+        .where(
+            Variable.project_id == project_id,
+            Variable.type_checked_at.is_(None),
+            *_untyped_scan_variable_filters(),
+        )
+        .options(lazyload(Variable.value_contexts))
+    )
+    if branch_id is not None:
+        query = query.where(Variable.branch_id == branch_id)
+    now = datetime.now(UTC)
+    stamped = 0
+    for variable in session.execute(query).scalars():
+        if any(token in tokens for token in VariableIndex.source_tokens_of(variable)):
+            variable.type_checked_at = now
+            stamped += 1
+    return stamped
 
 
 def _detect_type_drifts(
@@ -675,6 +833,12 @@ def sync_catalog(
         out.json_path_sampling = dataclasses.replace(
             out.json_path_sampling,
             variables_typed=variables_typed,
+            variables_type_checked=_mark_type_checked(
+                session,
+                project_id=config.project_id,
+                branch_id=sampling_branch_id,
+                tokens=out.json_path_sampling.type_checked_paths,
+            ),
             type_drifts_detected=_detect_type_drifts(
                 session,
                 project_id=config.project_id,
