@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/empty-state'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
 import EventPhotosSection from '@/components/event-photos-section'
 import { EventValueDriftPanel } from '@/pages/events/EventValueDriftPanel'
+import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
 import { EventHealthCard } from '@/pages/events/EventHealthCard'
 import { EventSpecCard } from '@/components/EventSpecCard'
 import { MetricDefinitionCard } from '@/components/monitoring/metric-definition-card'
@@ -892,6 +893,10 @@ export default function MonitoringDetailPage() {
 
       {scope === 'event' && scopeId && (
         <EventValueDriftPanel slug={slug!} eventId={scopeId} />
+      )}
+      {/* Property drift (F23): detected against main, and Accept edits main. */}
+      {scope === 'event' && scopeId && branchId === null && (
+        <PropertyDriftList slug={slug!} eventId={scopeId} readOnly={!canWrite} />
       )}
       {scope === 'event' && scopeId && (
         <EventPhotosSection slug={slug!} eventId={scopeId} />

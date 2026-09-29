@@ -60,6 +60,8 @@ class EventHealthFacts:
     contract_violations: tuple[tuple[str, str], ...] = ()
     schema_drifts: int = 0
     value_drifts: int = 0
+    # Open per-event property drifts (F23): new property, missing required.
+    property_drifts: int = 0
     distribution_drifts: int = 0
     covered: bool = False
     detection_enabled: bool = False
@@ -161,6 +163,7 @@ def _drifts(facts: EventHealthFacts) -> _Part:
     counts = {
         "schema": facts.schema_drifts,
         "value": facts.value_drifts,
+        "property": facts.property_drifts,
         "distribution": facts.distribution_drifts,
     }
     n = sum(counts.values())
@@ -169,6 +172,7 @@ def _drifts(facts: EventHealthFacts) -> _Part:
         for label, count in (
             ("schema", facts.schema_drifts),
             ("value", facts.value_drifts),
+            ("property", facts.property_drifts),
             ("distribution", facts.distribution_drifts),
         )
         if count

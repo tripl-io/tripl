@@ -25,6 +25,16 @@ applies, in order:
 Catalog-metric signals (``scope_type = metric``, no scan config) are not handled
 here; the badge folds them in separately.
 
+Open property drifts (F23, #306) are the second population both surfaces read,
+and they have one implementation here too: :func:`open_property_drift_counts`
+(per project, the ``open_property_drift_count`` the sidebar and the bell show)
+and :func:`open_property_drift_counts_by_event` (the health score's drifts
+component). Both apply the same rule as property-drift alert candidates
+(``alerting_property_drift.active_property_drift_filters``) inside the
+value-drift retention window, so a count, a score and an alert cannot disagree
+about which drifts are open. They are NOT folded into the scan-signal count:
+that number badges the Anomalies page and must equal what it lists.
+
 Queries are batched: one for the anomalies, one for the metric buckets, one for
 scan liveness (skipped on the unrestricted three-scope badge path, where the
 metric-bucket rows already cover it), one for the recent-signal windows and the
@@ -44,6 +54,7 @@ from typing import Any
 from sqlalchemy import Select, func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.alerting_property_drift import active_property_drift_filters
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
     SCOPE_EVENT_TYPE,
@@ -51,7 +62,9 @@ from tripl.core.analyzers.anomaly_detector import (
 )
 from tripl.models.event_metric import EventMetric
 from tripl.models.metric_anomaly import MetricAnomaly
+from tripl.models.property_drift import PropertyDrift
 from tripl.models.scan_config import ScanConfig
+from tripl.models.variable import Variable
 from tripl.services import signal_triage_service
 from tripl.services._id_chunks import chunked
 from tripl.services.metrics_insights_service import is_significant_signal
@@ -61,6 +74,7 @@ from tripl.services.monitoring_utils import (
     latest_bucket_by_scan,
     scan_interval_to_timedelta,
 )
+from tripl.services.variable_value_drift_service import retention_cutoff
 
 SCAN_SCOPES: tuple[str, ...] = (SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT)
 
@@ -362,3 +376,64 @@ async def open_counted_scan_signals(
     return [
         row for row in open_rows if signal_key(row.anomaly) not in hidden.get(row.project_id, set())
     ]
+
+
+def _open_property_drifts_stmt(now: datetime) -> Select[Any]:
+    return (
+        select(PropertyDrift.project_id, PropertyDrift.event_id, func.count(PropertyDrift.id))
+        .join(Variable, Variable.id == PropertyDrift.variable_id)
+        .where(
+            PropertyDrift.detected_at >= retention_cutoff(now),
+            *active_property_drift_filters(now),
+        )
+    )
+
+
+async def open_property_drift_counts(
+    session: AsyncSession,
+    project_ids: Sequence[uuid.UUID],
+    *,
+    now: datetime | None = None,
+) -> dict[uuid.UUID, int]:
+    """Open property drifts per project, type changes included. One query."""
+    if not project_ids:
+        return {}
+    now = now or datetime.now(UTC)
+    result = await session.execute(
+        _open_property_drifts_stmt(now)
+        .where(PropertyDrift.project_id.in_(list(project_ids)))
+        .group_by(PropertyDrift.project_id, PropertyDrift.event_id)
+    )
+    counts: dict[uuid.UUID, int] = {}
+    for project_id, _event_id, count in result.all():
+        counts[project_id] = counts.get(project_id, 0) + int(count)
+    return counts
+
+
+async def open_property_drift_counts_by_event(
+    session: AsyncSession,
+    project_id: uuid.UUID,
+    event_ids: Sequence[uuid.UUID],
+    *,
+    now: datetime | None = None,
+) -> dict[uuid.UUID, int]:
+    """Open per-event property drifts (new property, missing required) per event.
+
+    A type change is per property (``event_id`` NULL) and is not charged to
+    any event: the sampler cannot say which event carried the value.
+    """
+    now = now or datetime.now(UTC)
+    counts: dict[uuid.UUID, int] = {}
+    for chunk in chunked(event_ids):
+        result = await session.execute(
+            _open_property_drifts_stmt(now)
+            .where(
+                PropertyDrift.project_id == project_id,
+                PropertyDrift.event_id.in_(list(chunk)),
+            )
+            .group_by(PropertyDrift.project_id, PropertyDrift.event_id)
+        )
+        for _project_id, event_id, count in result.all():
+            if event_id is not None:
+                counts[event_id] = int(count)
+    return counts

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CountBadge } from '@/components/primitives/count-badge'
+import { Dot } from '@/components/primitives/dot'
 import type { NavGroup, NavItem } from '@/lib/navigation'
 import type { EventType } from '@/types'
 import {
@@ -96,6 +97,7 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
         aria-hidden="true"
       />
       <span className="flex-1 truncate text-left">{item.label}</span>
+      {item.attention && <Dot tone="warning" size={6} label={item.attention} />}
       {hasNavCount(item) && <NavCount count={item.count} urgent={isUrgentCount(item)} />}
     </Link>
   )

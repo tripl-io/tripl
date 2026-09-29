@@ -57,6 +57,13 @@ export type NavItem = {
    * alone (Anomalies) stays a neutral count.
    */
   urgent?: boolean
+  /**
+   * Something on the page wants a look, said beside the count rather than
+   * instead of it: a warning dot whose label is the sentence ("3 open property
+   * drifts"). Properties sets it for open property drift (F23, #306), which
+   * the Properties page lists; its count stays the property count.
+   */
+  attention?: string
   // Hidden from non-owners by the sidebar. This mirrors a real 403 on the
   // route behind it — it is a "don't walk them into a wall" affordance, never
   // the gate itself (see settings/nav.ts for the same flag on that side).
@@ -97,6 +104,10 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
   // counts.
   const openSignals = summary?.monitoring_signal_count ?? 0
   const openIncidents = summary?.open_incident_count ?? 0
+  // Open property drift (F23): the shared count the health score also reads
+  // (`_open_signals.open_property_drift_counts`). Optional: an older server
+  // or a cached summary omits it.
+  const openPropertyDrifts = summary?.open_property_drift_count ?? 0
 
   const groups: NavGroup[] = [
     {
@@ -145,6 +156,9 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           href: `${base}/variables`,
           match: (p) => p.startsWith(`${base}/variables`),
           count: summary ? formatCount(summary.variable_count) : undefined,
+          attention: openPropertyDrifts > 0
+            ? `${openPropertyDrifts} open property ${openPropertyDrifts === 1 ? 'drift' : 'drifts'}`
+            : undefined,
         },
         {
           id: 'relations',

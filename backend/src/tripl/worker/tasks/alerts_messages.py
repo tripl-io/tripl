@@ -39,6 +39,7 @@ from tripl.alert_templates import (
     normalize_message_template,
     percent_delta_or_none,
     plain_alert_number,
+    property_drift_line,
     release_regression_basis,
     render_alert_template,
     source_freshness_line,
@@ -46,6 +47,7 @@ from tripl.alert_templates import (
 from tripl.alerting_matching import (
     SCOPE_LIFECYCLE,
     SCOPE_METRIC,
+    SCOPE_PROPERTY_DRIFT,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
 )
@@ -1083,6 +1085,13 @@ def _build_ai_explanation(
             # A catalog-lifecycle fact (GH #258), not a volume move against a
             # baseline: "actual 1240 vs expected 0" would read as a spike.
             lines.append(f"- [event lifecycle] {lifecycle_line(_drift_facts(item))}")
+            continue
+        if item.scope_type == SCOPE_PROPERTY_DRIFT:
+            # A plan-versus-data fact (F23), not a volume move: the presence
+            # rates ride actual/expected only for the audit row.
+            lines.append(
+                f"- [property drift] {item.scope_name}: {property_drift_line(_drift_facts(item))}"
+            )
             continue
         if item.scope_type in {"schema", "distribution"}:
             drift_bits = " ".join(

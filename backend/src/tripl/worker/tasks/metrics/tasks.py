@@ -1466,6 +1466,14 @@ def collect_metrics(
                 produce_notifications(session, "signals", config)
             except Exception:
                 logger.exception("Signal notifications failed for scan config %s", scan_config_id)
+            # Property drift (F23): the scan job and the catalog sync wrote the
+            # rows; this run's config tells the watchers of their events once.
+            try:
+                produce_notifications(session, "property_drifts", config)
+            except Exception:
+                logger.exception(
+                    "Property drift notifications failed for scan config %s", scan_config_id
+                )
 
         return result_summary
 

@@ -181,6 +181,9 @@ describe('query key values (SHELL-50)', () => {
     [keys.variablesUsagePageKey('demo', 'b-1', 'unused'), ['variables', 'demo', 'b-1', 'page', 'unused']],
     [keys.variableDriftsKey('demo', 'b-1', 'v-1'), ['variable-drifts', 'demo', 'b-1', 'v-1']],
     [keys.eventVariableDriftsKey('demo', 'b-1', 'e-1'), ['variable-drifts', 'demo', 'b-1', 'event', 'e-1']],
+    [keys.eventPropertyDriftsKey('demo', 'e-1'), ['property-drifts', 'demo', 'event', 'e-1']],
+    [keys.typeChangePropertyDriftsKey('demo'), ['property-drifts', 'demo', 'type_change']],
+    [keys.activePropertyDriftsKey('demo'), ['property-drifts', 'demo', 'active']],
     [keys.variableOverridesKey('demo', 'b-1', 'v-1'), ['variable-overrides', 'demo', 'b-1', 'v-1']],
     [keys.variableValuesKey('demo', 'b-1', 'v-1'), ['variable-values', 'demo', 'b-1', 'v-1']],
     [
@@ -275,6 +278,7 @@ describe('query key values (SHELL-50)', () => {
     [keys.eventTypesRootKey(), keys.eventTypesKey('demo', 'b-1')],
     [keys.projectVariablesKey('demo'), keys.variablesUsagePageKey('demo', 'b-1', 'all')],
     [keys.branchVariableDriftsKey('demo', 'b-1'), keys.eventVariableDriftsKey('demo', 'b-1', 'e-1')],
+    [keys.projectPropertyDriftsKey('demo'), keys.eventPropertyDriftsKey('demo', 'e-1')],
     [keys.branchVariableValuesKey('demo', 'b-1'), keys.variableValuesKey('demo', 'b-1', 'v-1')],
     [keys.eventsMetricsKey('demo'), keys.eventsMetricsChartKey('demo', null, {
       filterEtId: undefined,

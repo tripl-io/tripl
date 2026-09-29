@@ -465,9 +465,9 @@ their UTC date. The hour × weekday heatmap is built from UTC buckets and is
 labelled UTC.
 
 These records become the **signals** you see on the monitoring views, and they
-are the candidates the alerting layer evaluates. Schema, distribution, and
-variable-value drift plus release regression feed the same machinery as
-additional candidate types.
+are the candidates the alerting layer evaluates. Schema, distribution,
+variable-value and [property drift](./variables-and-templates.md#property-drift)
+plus release regression feed the same machinery as additional candidate types.
 
 Triaging those candidates is not symmetric. Snooze, false-positive and reopen
 only move review state, but **accepting** a schema drift edits the tracking plan

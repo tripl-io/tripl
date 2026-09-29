@@ -691,6 +691,24 @@ export const eventVariableDriftsKey = (
   eventId: string,
 ) => [...branchVariableDriftsKey(slug, branchId), 'event', eventId] as const
 
+/**
+ * Property drift (F23, #306) — `propertyDriftsApi.list`. Main-only on the
+ * server (drift is detected against main), so no branch segment. Every list
+ * extends the project prefix, so one invalidation after a triage refreshes
+ * the event page's list and the Properties page's roster together.
+ */
+export const projectPropertyDriftsKey = (slug: string | undefined) =>
+  [...orgRoot(), 'property-drifts', slug] as const
+/** The active drifts of one event. */
+export const eventPropertyDriftsKey = (slug: string | undefined, eventId: string) =>
+  [...projectPropertyDriftsKey(slug), 'event', eventId] as const
+/** The active type changes of the project (per property, no event). */
+export const typeChangePropertyDriftsKey = (slug: string | undefined) =>
+  [...projectPropertyDriftsKey(slug), 'type_change'] as const
+/** Every active drift of the project. */
+export const activePropertyDriftsKey = (slug: string | undefined) =>
+  [...projectPropertyDriftsKey(slug), 'active'] as const
+
 export const variableOverridesKey = (
   slug: string | undefined,
   branchId: string | null | undefined,
