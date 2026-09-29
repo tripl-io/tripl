@@ -82,6 +82,26 @@ describe('EventDriftBadge', () => {
     expect(screen.queryByRole('button', { name: 'Snooze' })).not.toBeInTheDocument()
   })
 
+  it('labels a contract drift on a property path as a property contract (F23)', async () => {
+    vi.mocked(eventTypesApi.listDrifts).mockResolvedValue({
+      items: [
+        {
+          ...DRIFT,
+          field_name: 'props.plan',
+          drift_type: 'enum_violation' as const,
+          observed_type: 'bad_rate=10.00%; max=0.00%; bad=1; total=10',
+          declared_type: 'enum',
+          sample_value: 'platinum',
+        },
+      ],
+      total: 1,
+    })
+    renderBadge()
+    fireEvent.click(screen.getByRole('button', { name: '1 schema drift on this event type' }))
+    expect(await screen.findByText('props.plan')).toBeInTheDocument()
+    expect(screen.getByText(/property enum/)).toBeInTheDocument()
+  })
+
   it('shows a paused note, not a red auth failure, when the drift list 401s under the sign-in dialog (SH-35)', async () => {
     vi.mocked(eventTypesApi.listDrifts).mockRejectedValue(new ApiError('Authentication required', 401))
 

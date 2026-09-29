@@ -268,7 +268,7 @@ scan's own collection run; an `overdue` alert comes from a sweep that runs every
 
 Volume detection answers "did the count spike or drop?" Distribution drift answers a different question: **"did the *mix* change even though the total stayed flat?"** — for example, 80% of an event's traffic suddenly arriving from a single platform when it used to be evenly split.
 
-Nothing is compared until a scan names the columns to watch (**Scan settings → Distribution drift**), so an alert rule subscribed to the scope stays silent until one does. The rule editor and the monitor detail mark that scope inline when no scan in the project watches a column and no drift has been collected yet — see [When a scope is on but nothing feeds it](alerting.md#when-a-scope-is-on-but-nothing-feeds-it).
+Nothing is compared until a scan names the columns to watch (**Scan settings → Distribution drift**) — a plain column, or a property of a JSON column written `<json_column>.<path>` (see [Properties as breakdowns, drift fields and contracts](variables-and-templates.md#properties-as-breakdowns-drift-fields-and-contracts)) — so an alert rule subscribed to the scope stays silent until one does. The rule editor and the monitor detail mark that scope inline when no scan in the project watches a column and no drift has been collected yet — see [When a scope is on but nothing feeds it](alerting.md#when-a-scope-is-on-but-nothing-feeds-it).
 
 When a scan designates a **platform column**, Tripl also monitors each platform's
 share of the same event total (`platform count / total count`) bucket by bucket.

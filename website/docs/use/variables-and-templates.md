@@ -339,6 +339,51 @@ GET   /api/v1/projects/{slug}/properties/property-drifts?event_id=&variable_id=&
 POST  /api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action
 ```
 
+### Properties as breakdowns, drift fields and contracts
+
+A property that lives in a JSON column can be used where a plain column can.
+Write it as `<json_column>.<path>`, the same format as the scan's JSON values to
+keep, for example `props.plan` or `props.cart.total`.
+
+**Metric breakdowns and distribution drift.** In **Scan settings → Metric
+breakdowns and drift**, both pickers list the JSON paths the preview has
+discovered, and accept a path typed by hand. The warehouse extracts the value on
+every row, and a row without the path counts as an empty value, like a NULL
+column.
+
+- Each segment is letters, digits and underscores, and does not start with a
+  digit. A path outside that grammar is refused when the scan is saved.
+- At most 10 properties per list. Each one parses the JSON on every row of the
+  window, so the cap bounds what a collection costs.
+- The JSON column has to be one the scan's query returns. A property of any
+  other column is skipped at collection time with a warning.
+- The synthetic demo warehouse has no JSON columns and cannot break down by a
+  property.
+
+**Contracts.** A typed property is checked like a field contract, in the same
+scan and with the same findings: a `SchemaDrift` row of kind
+`required_null_violation`, `enum_violation`, `regex_violation` or
+`range_violation`, named by the property's path. It shows in the event type's
+schema-drift badge, counts toward the event health score's contracts, and
+alerts like any other schema drift. The contract comes from the property:
+
+| Contract | Comes from | Allowed bad rows |
+|---|---|---|
+| Required (null rate) | The property is **required** on every non-archived event of the type. A row without the path counts as NULL. | `1 − presence threshold`, the lowest threshold among the type's events (5% by default) |
+| Enum | The documented values. An event's own override replaces the property's list for that event, and the type is checked against the union of its events' lists. | none |
+| Regex | `pattern` in the property's JSON Schema | none |
+| Range | `minimum` / `maximum` in the property's JSON Schema | none |
+
+- Contracts run per event type: the warehouse filters rows by event type, not by
+  event. A rule that differs between the type's events only becomes a check
+  when it holds for all of them. A property required on some events only, or
+  documented on some events only, is left to property drift, which judges each
+  event on its own.
+- A number is accepted in its documented spelling and its canonical one (`10`
+  for `10.0`).
+- Only properties bound to a JSON path of a column the scan read are checked,
+  and at most 50 per event type. Properties excluded from scans are not checked.
+
 ## Bind a property to warehouse data
 
 Skip this when the property's name already matches the column — a binding earns

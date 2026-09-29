@@ -83,6 +83,7 @@ from tripl.core.adapters.base import (
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.core.adapters.measure_validator import coerce_aggregation, requires_measure
 from tripl.core.bucketing import floor_to_bucket, to_utc
+from tripl.json_paths import is_property_field
 from tripl.models.domain_enums import MetricAggregation
 
 # Default deterministic seed for the synthetic dataset. Overridable per adapter so
@@ -1207,6 +1208,7 @@ class SyntheticAdapter(BaseAdapter):
         limit: int = 100000,
     ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
         self._reject_json(json_columns)
+        self._reject_property_breakdowns([breakdown_column])
         table = self._table_for_query(base_query)
         reg = [self._validate_column(table, column) for column in regular_columns]
         self._validate_column(table, time_column)
@@ -1244,6 +1246,7 @@ class SyntheticAdapter(BaseAdapter):
         limit: int = 100000,
     ) -> tuple[list[str], list[str], list[tuple[object, ...]]]:
         self._reject_json(json_columns)
+        self._reject_property_breakdowns(breakdown_columns)
         if not breakdown_columns:
             return [], [], []
         table = self._table_for_query(base_query)
@@ -1531,6 +1534,21 @@ class SyntheticAdapter(BaseAdapter):
     def _reject_json(self, json_columns: list[str]) -> None:
         if json_columns:
             msg = "The synthetic warehouse has no JSON columns"
+            raise SyntheticCapabilityError(msg)
+
+    def _reject_property_breakdowns(self, breakdown_columns: list[str]) -> None:
+        """Refuse a property breakdown (``<json_column>.<path>``, F23 #306) by name.
+
+        The SQL adapters extract one from its JSON column; this warehouse has no
+        JSON column to extract it from, and ``_validate_column`` would otherwise
+        report the entry as a column missing from the table.
+        """
+        properties = [column for column in breakdown_columns if is_property_field(column)]
+        if properties:
+            msg = (
+                "The synthetic warehouse has no JSON columns, so it cannot break down "
+                f"by the properties {', '.join(properties)}"
+            )
             raise SyntheticCapabilityError(msg)
 
     def _windowed_rows(
