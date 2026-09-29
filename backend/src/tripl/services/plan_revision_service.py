@@ -31,7 +31,10 @@ from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.plan_revision import PlanRevision
 from tripl.models.project import Project
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.schemas.plan_revision import (
     PlanDiff,
     PlanDiffEntry,
@@ -402,7 +405,8 @@ async def build_plan_snapshot(
             {
                 "event_type_name": event_type_name,
                 "event_name": event_name,
-                "values": list(override.values or []),
+                "values": copy_override_values(override.values),
+                "required": override.required,
             }
         )
     for variable_overrides in overrides_by_variable.values():
@@ -415,6 +419,7 @@ async def build_plan_snapshot(
                 override["event_type_name"],
                 override["event_name"],
                 json.dumps(override["values"], default=str),
+                override["required"],
             )
         )
 
@@ -864,6 +869,27 @@ _V2_EVENT_DEFAULTS: dict[str, Any] = {"title": "", "superseded_by": None}
 # changed. That danger is real only because the key IS diffed — which it was
 # not until tripl-0zpq.148 put it in ``_META_FIELD_CHANGE_KEYS``.
 _V2_META_FIELD_DEFAULTS: dict[str, Any] = {"allow_multiple": False}
+# F23 (#306) added ``json_schema`` to a variable and ``required`` to each of its
+# per-event entries. Without them every stored base would read each variable
+# with an override as changed, and the conflict scan would call an untouched
+# variable a conflict as soon as main edited its overrides.
+_V2_VARIABLE_DEFAULTS: dict[str, Any] = {"json_schema": None}
+_V2_OVERRIDE_DEFAULTS: dict[str, Any] = {"required": False}
+
+
+def _with_override_defaults(variable: Any) -> Any:
+    overrides = variable.get("event_value_overrides") if isinstance(variable, dict) else None
+    if not isinstance(overrides, list) or all(
+        isinstance(o, dict) and _V2_OVERRIDE_DEFAULTS.keys() <= o.keys() for o in overrides
+    ):
+        return variable
+    return {
+        **variable,
+        "event_value_overrides": [
+            {**_V2_OVERRIDE_DEFAULTS, **o} if isinstance(o, dict) else o for o in overrides
+        ],
+    }
+
 
 # Member attributes the diff does not read as a change on their own. A field
 # value's ``is_authored`` flips when a person re-saves a scan-observed value
@@ -910,6 +936,7 @@ def with_snapshot_defaults(payload: dict[str, Any]) -> dict[str, Any]:
     for key, defaults in (
         ("events", _V2_EVENT_DEFAULTS),
         ("meta_fields", _V2_META_FIELD_DEFAULTS),
+        ("variables", _V2_VARIABLE_DEFAULTS),
     ):
         items = filled.get(key)
         if not isinstance(items, list):
@@ -920,6 +947,11 @@ def with_snapshot_defaults(payload: dict[str, Any]) -> dict[str, Any]:
             **filled,
             key: [{**defaults, **item} if isinstance(item, dict) else item for item in items],
         }
+    variables = filled.get("variables")
+    if isinstance(variables, list):
+        upgraded = [_with_override_defaults(variable) for variable in variables]
+        if any(new is not old for new, old in zip(upgraded, variables, strict=True)):
+            filled = {**filled, "variables": upgraded}
     events = filled.get("events")
     if isinstance(events, list):
         ordered_events = [_with_ordered_meta_values(event) for event in events]

@@ -162,6 +162,7 @@ def build_references(
                                 f"{o.get('event_type_name') or ''}.{o.get('event_name')}",
                             ),
                             "values": o.get("values"),
+                            "required": bool(o.get("required", False)),
                         }
                         for o in overrides
                     ),

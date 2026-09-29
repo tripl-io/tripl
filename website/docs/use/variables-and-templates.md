@@ -226,6 +226,36 @@ event list is one searched page rather than the whole catalog, so on a large
 project type into the search box above it to reach the event you want — the note
 under the list says how many events it is not currently showing.
 
+### An event's property list
+
+Each event can list the variables it carries: its **properties**. Every entry
+records two things:
+
+- whether the property is **required**, meaning every occurrence of the event
+  carries it;
+- optionally, an override of its allowed values.
+
+An override is one kind of entry. So a variable with an override on an event is
+also on that event's list, and every override from before this feature appears
+in the list as an optional property.
+
+An entry without an override uses the variable's documented list. The editor's
+**Per-event overrides** section shows only entries that have their own values.
+Deleting an override from a required property keeps the property in the list
+and only removes its values.
+
+The list is read with `GET /events/{event_id}/properties`. Each entry names its
+variable with the variable's type, schema and description, and gives the
+effective values. Entries are written through the event-overrides endpoint.
+That endpoint works as a patch:
+
+- `{"required": true}` adds the variable, or marks it required;
+- `{"values": [...]}` sets the override;
+- `{"values": null}` removes the override and keeps the entry;
+- `DELETE` removes the entry.
+
+Scans do not write the list yet.
+
 ## Bind a variable to warehouse data
 
 Skip this when the variable's name already matches the column — a binding earns
@@ -547,6 +577,7 @@ POST                 /api/v1/projects/{slug}/variables/bulk-delete
 GET                  /api/v1/projects/{slug}/variables/{variable_id}/values
 GET                  /api/v1/projects/{slug}/variables/{variable_id}/event-overrides
 PUT/DELETE           /api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}
+GET                  /api/v1/projects/{slug}/events/{event_id}/properties
 GET                  /api/v1/projects/{slug}/variables/drifts
 POST                 /api/v1/projects/{slug}/variables/drifts/{drift_id}/action
 ```

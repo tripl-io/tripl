@@ -292,7 +292,7 @@ async def upsert_event_override(
         payload={
             "event_id": str(event_id),
             "event_name": override.event_name,
-            "values": data.values,
+            **data.model_dump(exclude_unset=True),
         },
     )
     return override

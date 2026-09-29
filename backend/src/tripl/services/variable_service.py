@@ -12,10 +12,14 @@ from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.models.variable_value import VariableValue
 from tripl.schemas.variable import (
     BINDING_PATTERN,
+    EventPropertyResponse,
     VariableBulkDelete,
     VariableBulkUpdate,
     VariableCreate,
@@ -633,17 +637,21 @@ async def upsert_event_override(
         )
     )
     override = existing.scalar_one_or_none()
+    patch = data.model_dump(exclude_unset=True)
     if override is None:
         override = VariableEventValueOverride(
             project_id=project_id,
             branch_id=branch_id,
             variable_id=variable_id,
             event_id=event_id,
-            values=list(data.values),
+            values=None,
+            required=False,
         )
         session.add(override)
-    else:
-        override.values = list(data.values)
+    if "values" in patch:
+        override.values = copy_override_values(patch["values"])
+    if "required" in patch:
+        override.required = patch["required"]
     await session.commit()
     await session.refresh(override)
     return override, variable.name
@@ -679,3 +687,50 @@ async def delete_event_override(
     await session.delete(override)
     await session.commit()
     return names
+
+
+async def list_event_properties(
+    session: AsyncSession,
+    slug: str,
+    event_id: uuid.UUID,
+    branch_id: uuid.UUID | None = None,
+) -> list[EventPropertyResponse]:
+    """The event's property list: every variable with an entry for it, by name."""
+    project_id = await resolve_project_id(session, slug)
+    branch_id = await resolve_branch_id(session, project_id, branch_id)
+    found = await session.scalar(
+        select(Event.id).where(
+            Event.id == event_id,
+            Event.project_id == project_id,
+            Event.branch_id == branch_id,
+        )
+    )
+    if found is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    rows = (
+        await session.execute(
+            select(VariableEventValueOverride, Variable)
+            .join(Variable, Variable.id == VariableEventValueOverride.variable_id)
+            .where(
+                VariableEventValueOverride.branch_id == branch_id,
+                VariableEventValueOverride.event_id == event_id,
+            )
+            .order_by(Variable.name)
+        )
+    ).all()
+    return [
+        EventPropertyResponse(
+            id=entry.id,
+            variable_id=variable.id,
+            name=variable.name,
+            variable_type=variable.variable_type,
+            json_schema=variable.json_schema,
+            description=variable.description,
+            required=entry.required,
+            values=copy_override_values(entry.values),
+            effective_values=list(
+                entry.values if entry.values is not None else variable.allowed_values or []
+            ),
+        )
+        for entry, variable in rows
+    ]

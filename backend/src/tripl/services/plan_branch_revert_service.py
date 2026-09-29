@@ -54,7 +54,10 @@ from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.plan_revision import PlanRevision
 from tripl.models.project import Project
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.schemas.plan_branch import BranchRevertRequest, PlanBranchDiff
 from tripl.schemas.plan_revision import PlanDiffEntry
 from tripl.services import plan_branch_service
@@ -774,7 +777,8 @@ async def _restore_variable_overrides(
                 branch_id=branch_id,
                 variable_id=variable.id,
                 event_id=found.id,
-                values=list(override.get("values") or []),
+                values=copy_override_values(override.get("values")),
+                required=bool(override.get("required", False)),
             )
         )
 

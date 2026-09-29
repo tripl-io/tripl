@@ -188,7 +188,8 @@ function VariableDetailBody({
 
   const counts: Partial<Record<VariableDetailTab, number | undefined>> = {
     drift: variable.open_drift_count,
-    overrides: overrides?.length,
+    // Property-only entries (F23) have no values of their own and are not overrides.
+    overrides: overrides?.filter(entry => entry.values !== null).length,
     observed: variable.context_count,
   }
   const saveStatus = draft.updateMut.isPending

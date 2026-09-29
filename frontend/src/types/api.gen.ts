@@ -3922,6 +3922,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/events/{event_id}/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Event Properties
+         * @description The event's property list (F23). Edit an entry through
+         *     ``PUT /variables/{variable_id}/event-overrides/{event_id}``.
+         */
+        get: operations["list_event_properties_api_v1_projects__slug__events__event_id__properties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/fact-tables": {
         parameters: {
             query?: never;
@@ -10655,6 +10676,50 @@ export interface components {
          * @enum {string}
          */
         EventPhotoStorageBackend: "local" | "gcs";
+        /**
+         * EventPropertyResponse
+         * @description One entry of an event's property list, with the variable it names.
+         */
+        EventPropertyResponse: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Effective Values
+             * @description The allowed values in force for this event: the override when there is one, else the variable's global list.
+             * @default []
+             */
+            effective_values: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Values
+             * @description This event's override of the allowed values; null when there is none.
+             */
+            values?: string[] | null;
+            /**
+             * Variable Id
+             * Format: uuid
+             */
+            variable_id: string;
+            variable_type: components["schemas"]["VariableType"];
+        };
         /** EventReorder */
         EventReorder: {
             /** Event Ids */
@@ -17711,20 +17776,37 @@ export interface components {
              */
             id: string;
             /**
-             * Values
-             * @default []
+             * Required
+             * @default false
              */
-            values: string[];
+            required: boolean;
+            /** Values */
+            values?: string[] | null;
             /**
              * Variable Id
              * Format: uuid
              */
             variable_id: string;
         };
-        /** VariableEventOverrideUpsert */
+        /**
+         * VariableEventOverrideUpsert
+         * @description Add the variable to the event's property list, or edit its entry.
+         *
+         *     A patch: a field left out keeps what the entry holds, and a new entry
+         *     starts with no override and not required. ``values: null`` removes the
+         *     override and keeps the property; deleting the entry removes both.
+         */
         VariableEventOverrideUpsert: {
-            /** Values */
-            values: string[];
+            /**
+             * Required
+             * @description Whether every occurrence of the event must carry this property.
+             */
+            required?: boolean | null;
+            /**
+             * Values
+             * @description Allowed values for this event, replacing the variable's global list. null: no override, the global list applies.
+             */
+            values?: string[] | null;
         };
         /**
          * VariableEventRef
@@ -26193,6 +26275,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_event_properties_api_v1_projects__slug__events__event_id__properties_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventPropertyResponse"][];
                 };
             };
             /** @description Validation Error */
