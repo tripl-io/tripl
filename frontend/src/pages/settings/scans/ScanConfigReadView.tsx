@@ -78,6 +78,9 @@ export function ScanConfigReadView({
         </pre>
       ),
     },
+    ...(sc.json_string_columns?.length
+      ? [{ label: 'Parsed as JSON', value: tokens(sc.json_string_columns) }]
+      : []),
     ...naming,
     { label: 'Time column', value: token(sc.time_column) },
     {

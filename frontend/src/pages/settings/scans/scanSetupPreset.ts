@@ -43,20 +43,68 @@ const PROPERTIES_COLUMN_NAMES = [
 ]
 
 /**
- * The columns a properties column can be picked from: the JSON-typed ones.
+ * The columns a properties column can be picked from: the JSON-typed ones, and
+ * the text columns the form asks to parse as JSON (`parsed`, F23.9).
  *
  * Read from `json_columns`, the backend's own classification (JSON, Map,
  * struct, jsonb…), so the form and the scan cannot disagree about what counts.
+ * A parsed column is JSON for the scan whether or not the preview on screen
+ * was loaded with it parsed, so it counts from the moment it is ticked.
  */
-export function jsonColumnNames(preview: ScanConfigPreview | null): string[] {
-  return preview?.json_columns.map(column => column.column) ?? []
+export function jsonColumnNames(
+  preview: ScanConfigPreview | null,
+  parsed: readonly string[] = [],
+): string[] {
+  if (!preview) return []
+  const json = preview.json_columns.map(column => column.column)
+  const extra = parsed.filter(
+    name => !json.includes(name) && preview.columns.some(column => column.name === name),
+  )
+  return [...json, ...extra]
 }
 
 /** The non-JSON columns, which are what an event name can be read from. */
-export function scalarColumnNames(preview: ScanConfigPreview | null): string[] {
+export function scalarColumnNames(
+  preview: ScanConfigPreview | null,
+  parsed: readonly string[] = [],
+): string[] {
   if (!preview) return []
-  const json = new Set(jsonColumnNames(preview))
+  const json = new Set(jsonColumnNames(preview, parsed))
   return preview.columns.map(column => column.name).filter(name => !json.has(name))
+}
+
+/** The data source types whose scans can parse a text column as JSON. */
+export const JSON_STRING_DB_TYPES: readonly string[] = ['clickhouse', 'bigquery']
+
+/**
+ * Whether a warehouse type names plain text: ClickHouse `String` /
+ * `FixedString(N)` under any `Nullable` / `LowCardinality` wrapper, BigQuery
+ * `STRING`. Mirrors `core.warehouse_types.is_string_type`.
+ */
+export function isTextColumnType(typeName: string): boolean {
+  let name = typeName.trim()
+  for (;;) {
+    const match = /^(?:Nullable|LowCardinality)\((.*)\)$/.exec(name)
+    if (!match) break
+    name = (match[1] ?? '').trim()
+  }
+  const lower = name.toLowerCase()
+  return lower === 'string' || lower.startsWith('fixedstring(')
+}
+
+/**
+ * The columns the form offers to parse as JSON: the preview's text columns,
+ * plus the ones already ticked (a preview loaded with them parsed reports them
+ * as JSON, and a saved config opens before any preview).
+ */
+export function textColumnNames(
+  preview: ScanConfigPreview | null,
+  parsed: readonly string[] = [],
+): string[] {
+  const text = (preview?.columns ?? [])
+    .filter(column => isTextColumnType(column.type_name))
+    .map(column => column.name)
+  return [...parsed.filter(name => !text.includes(name)), ...text]
 }
 
 function byName(candidates: string[], names: string[]): string {
@@ -69,8 +117,11 @@ function byName(candidates: string[], names: string[]): string {
 }
 
 /** A first guess at the event column, or '' when nothing looks like one. */
-export function guessEventColumn(preview: ScanConfigPreview | null): string {
-  return byName(scalarColumnNames(preview), EVENT_COLUMN_NAMES)
+export function guessEventColumn(
+  preview: ScanConfigPreview | null,
+  parsed: readonly string[] = [],
+): string {
+  return byName(scalarColumnNames(preview, parsed), EVENT_COLUMN_NAMES)
 }
 
 /**
@@ -78,8 +129,11 @@ export function guessEventColumn(preview: ScanConfigPreview | null): string {
  * JSON column there is. '' when there is none, or more than one and none named
  * like properties.
  */
-export function guessPropertiesColumn(preview: ScanConfigPreview | null): string {
-  const json = jsonColumnNames(preview)
+export function guessPropertiesColumn(
+  preview: ScanConfigPreview | null,
+  parsed: readonly string[] = [],
+): string {
+  const json = jsonColumnNames(preview, parsed)
   return byName(json, PROPERTIES_COLUMN_NAMES) || (json.length === 1 ? (json[0] ?? '') : '')
 }
 

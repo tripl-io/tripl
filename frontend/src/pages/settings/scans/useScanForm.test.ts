@@ -23,6 +23,7 @@ function formState(overrides: Partial<ScanFormState> = {}): ScanFormState {
     setupPreset: 'custom',
     eventNameColumn: '',
     propertiesColumn: '',
+    jsonStringColumns: [],
     dataSourceId: 'ds-1',
     name: 'Main scan',
     baseQuery: 'SELECT * FROM analytics.events',

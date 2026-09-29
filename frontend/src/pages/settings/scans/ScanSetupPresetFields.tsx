@@ -78,6 +78,8 @@ export function SetupPresetChoice({
 export function PresetColumnFields({
   preview,
   eventTypes,
+  jsonStringColumns = [],
+  summaryStale = false,
   eventNameColumn,
   propertiesColumn,
   eventTypeId,
@@ -87,6 +89,10 @@ export function PresetColumnFields({
 }: {
   preview: ScanConfigPreview | null
   eventTypes: EventType[]
+  /** Text columns ticked under "Parse as JSON": properties columns too (F23.9). */
+  jsonStringColumns?: string[]
+  /** The preview was loaded with other columns parsed; its summary is withheld. */
+  summaryStale?: boolean
   eventNameColumn: string
   propertiesColumn: string
   eventTypeId: string
@@ -98,11 +104,11 @@ export function PresetColumnFields({
   // choices, as the other column pickers on this form do.
   const withSaved = (saved: string, choices: string[]) =>
     saved && !choices.includes(saved) ? [saved, ...choices] : choices
-  const eventChoices = withSaved(eventNameColumn, scalarColumnNames(preview))
-  const jsonChoices = jsonColumnNames(preview)
+  const eventChoices = withSaved(eventNameColumn, scalarColumnNames(preview, jsonStringColumns))
+  const jsonChoices = jsonColumnNames(preview, jsonStringColumns)
   const propertiesChoices = withSaved(propertiesColumn, jsonChoices)
   const noJsonColumn = Boolean(preview) && jsonChoices.length === 0
-  const summary = eventPropertiesFor(preview, eventNameColumn, propertiesColumn)
+  const summary = summaryStale ? null : eventPropertiesFor(preview, eventNameColumn, propertiesColumn)
 
   return (
     <>
@@ -131,7 +137,7 @@ export function PresetColumnFields({
       <Field
         label="Properties column"
         htmlFor="scan-properties-column"
-        hint="The JSON column holding each event's properties. Every key becomes a property of the event, typed from its values and with how often the event carries it."
+        hint="The JSON column holding each event's properties, or a text column ticked under Parse as JSON. Every key becomes a property of the event, typed from its values and with how often the event carries it."
       >
         <NativeSelect
           id="scan-properties-column"
@@ -148,14 +154,14 @@ export function PresetColumnFields({
             ...propertiesChoices,
           ]}
         />
-        {/* Only JSON-typed columns are offered: a String holding JSON text is
-            not read as JSON by a scan. */}
+        {/* JSON-typed columns, and the text columns ticked under "Parse as
+            JSON": a scan reads only those as JSON. */}
         <FieldError
           inputId="scan-properties-column"
           announce
           message={
             noJsonColumn
-              ? 'This query returns no JSON column. Select the properties column in the query, or use the custom setup.'
+              ? 'This query returns no JSON column. Tick its text column under Parse as JSON, select the properties column in the query, or use the custom setup.'
               : preview && !propertiesColumn
                 ? 'Pick the JSON column your event properties are in.'
                 : null

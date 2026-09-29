@@ -2337,7 +2337,8 @@ raise a signal or send an alert. See
 **Always visible (the essentials), in the order they appear:** the mode choice,
 **Name**, **Data source**, **Base query** (used as a subquery), the **Load
 preview** button, **How events are stored** (the
-[Event + properties](#event-properties-setup) setup or **Custom**), then either
+[Event + properties](#event-properties-setup) setup or **Custom**),
+[**Parse as JSON**](#parse-as-json) (ClickHouse and BigQuery sources), then either
 **Event column**, **Properties column** and **Event type**, or **Event type**
 and **Event type column**, **Time column**
 (required in Catalog + monitoring, an optional run bound in Catalog only), — in
@@ -2365,8 +2366,8 @@ preview:
 - **Event column** — the column holding each row's event name. Every distinct
   value becomes one event. Only non-JSON columns are offered.
 - **Properties column** — the JSON column holding the event's properties.
-  Only JSON-typed columns are offered (JSON, Map, struct, `jsonb`…). A String
-  column that holds JSON text is not read as JSON.
+  JSON-typed columns are offered (JSON, Map, struct, `jsonb`…), and so is a
+  text column once you tick it under [**Parse as JSON**](#parse-as-json).
 
 Both are pre-filled when a column has a conventional name (`event`,
 `event_name`, … and `properties`, `params`, `payload`, …, or the only JSON
@@ -2402,7 +2403,8 @@ give: each event, and each of its keys with its type and the share of the
 event's sample rows that carried it. It is a sample of the preview rows; **What
 this scan would create** below it answers for the whole lookback window. If the
 event or properties column is missing from the query, or the properties column
-is not JSON, the preview, the dry run and every run say so.
+is not JSON (nor ticked under **Parse as JSON**), the preview, the dry run and
+every run say so.
 
 Through the API, send `setup_preset: "event_properties"` with
 `event_name_column` and `properties_column` on `POST`/`PATCH
@@ -2411,6 +2413,39 @@ Through the API, send `setup_preset: "event_properties"` with
 conflicting `event_name_format`, a non-empty `json_value_paths`, an
 `event_type_column` or group rules with the preset is a `422`;
 `setup_preset: "custom"` switches back.
+
+#### Parse as JSON {#parse-as-json}
+
+Some tables keep the properties as JSON *text* in a plain column: `String` on
+ClickHouse, `STRING` on BigQuery. Tick such a column under **Parse as JSON**
+(it lists the preview's text columns) and the scan reads it as a JSON column,
+in both setups:
+
+- its keys are discovered and typed, and become properties with a presence
+  rate, exactly like a JSON column's — nested objects included (see
+  [Properties](./variables-and-templates.md#text-columns-parsed-as-json));
+- the Event + properties setup offers it as the **Properties column**;
+- its properties (`<column>.<key>`) work as metric breakdowns, distribution
+  drift fields and contracts, in runs, scheduled collection, replay, the dry
+  run and the preview.
+
+A row whose text is not a JSON **object** — malformed JSON, a bare number or
+string, an array, an empty value or `NULL` — does not fail the scan: it reads
+as a row carrying none of the keys, so it lowers their presence rate. The
+column itself is no longer a plain value for the scan, so it cannot also be
+the event column, the Event type column, the time, app version or platform
+column, or a plain breakdown or drift field (pick one of its properties
+instead). After ticking or unticking a column, **Reload preview** to see it
+read the new way; the pickers count a ticked column as JSON straight away.
+
+Only ClickHouse and BigQuery sources can parse text: the scan wraps the base
+query and parses the column once per row it reads (ClickHouse
+`isValidJSON`/`JSONType` guarding a cast to `JSON`, BigQuery
+`SAFE.PARSE_JSON`), so the rows a run reads are bounded exactly as before.
+ClickHouse needs a server with the `JSON` type (25.x). PostgreSQL is not
+supported. Through the API, send `json_string_columns: ["<column>", …]` (at
+most 5 plain column names) on `POST`/`PATCH /projects/<slug>/scans`, the
+preview and the dry run; on a PostgreSQL source it is a `422`.
 
 The event-type picker uses the project's main plan even when you are viewing a
 plan branch. A scan writes catalog changes to main, so create, update and dry-run
