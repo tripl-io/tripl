@@ -81,6 +81,16 @@ async def get_event(
     return await send(client, events.get_event(slug, event_id, branch=branch_id))
 
 
+async def get_event_properties(
+    slug: str,
+    event_id: str,
+    ctx: Context,  # type: ignore[type-arg]
+    branch_id: str | None = None,
+) -> Any:
+    client = client_for(ctx)
+    return await send(client, events.get_event_properties(slug, event_id, branch=branch_id))
+
+
 async def create_event(
     slug: str,
     branch_id: str | None,
@@ -162,6 +172,17 @@ def register(mcp: FastMCP) -> None:
             "canonical. Requires a tk_r_ or tk_w_ key."
         ),
     )(get_event)
+    mcp.tool(
+        name="get_event_properties",
+        annotations=READ_ONLY,
+        description=(
+            "Fetch one event's typed property list: each variable the event carries "
+            "with its variable_type, json_schema, whether it is required, the "
+            "effective allowed values for this event, the measured presence_rate and "
+            "suggested_required. Use it to build or check an event's properties "
+            "payload. Requires a tk_r_ or tk_w_ key."
+        ),
+    )(get_event_properties)
     mcp.tool(
         name="create_event",
         annotations=WRITE,

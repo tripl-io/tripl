@@ -43,6 +43,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.core.event_properties import (
+    EventProperty,
+    event_properties,
+    leaf_schema,
+    object_schema,
+)
 from tripl.core.name_template import VARIABLE_TOKEN_PATTERN
 from tripl.core.plan_validation import (
     STATUS_ARCHIVED,
@@ -63,6 +69,7 @@ from tripl.schemas.plan_export import (
     CodegenEvent,
     CodegenEventType,
     CodegenField,
+    CodegenProperty,
     CodegenVariable,
     PlanExportCodegenModel,
     PlanExportFormat,
@@ -103,6 +110,8 @@ class VariableInfo:
     id: uuid.UUID
     name: str
     allowed_values: tuple[str, ...]
+    variable_type: str = "string"
+    json_schema: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +161,19 @@ class ExportPlan:
         if ctx is None:
             return {}
         return {token: list(ctx.overrides[token]) for token in sorted(ctx.overrides)}
+
+    def properties(self, event: PlanEvent, event_type: PlanEventType) -> list[EventProperty]:
+        """The event's typed JSON properties (F23), by field then path."""
+        ctx = self.contexts.get(event.id)
+        if ctx is None:
+            return []
+        return event_properties(
+            ctx.field_values,
+            [fd.name for fd in event_type.fields.values() if fd.field_type == "json"],
+            token_types=self.snapshot.variable_types,
+            required_tokens=ctx.required_tokens,
+            allowed_for=lambda token: self.allowed_for(event, token),
+        )
 
     def token_names(self) -> dict[str, str]:
         """Every token -> the display name of the variable that won it."""
@@ -302,10 +324,21 @@ def event_schema(plan: ExportPlan, event_type: PlanEventType, event: PlanEvent) 
     values = plan.field_values(event, event_type)
     properties: dict[str, Any] = {}
     required: list[str] = []
+    by_field: dict[str, list[EventProperty]] = {}
+    for prop in plan.properties(event, event_type):
+        by_field.setdefault(prop.field, []).append(prop)
     for fd in plan.ordered_fields(event_type):
-        properties[fd.name] = field_schema(
-            plan, event, fd, values.get(fd.name), type_meta.fields.get(fd.name, FieldMeta())
-        )
+        meta = type_meta.fields.get(fd.name, FieldMeta())
+        if fd.name in by_field:
+            # A JSON field whose template is an object: its keys are typed
+            # properties, not a free value (F23).
+            properties[fd.name] = {
+                **({"title": meta.display_name} if meta.display_name else {}),
+                **({"description": meta.description} if meta.description else {}),
+                **object_schema(by_field[fd.name]),
+            }
+        else:
+            properties[fd.name] = field_schema(plan, event, fd, values.get(fd.name), meta)
         if fd.is_required:
             required.append(fd.name)
     schema: dict[str, Any] = {
@@ -488,6 +521,10 @@ def build_codegen_model(
                         field_values=values_by_event[ev.id],
                         overrides=plan.overrides_for(ev),
                         deprecated=ev.status == STATUS_DEPRECATED,
+                        properties=[
+                            _codegen_property(prop, token_names)
+                            for prop in plan.properties(ev, event_type)
+                        ],
                     )
                     for ev in events
                 ],
@@ -498,10 +535,25 @@ def build_codegen_model(
             name=var.name,
             allowed_values=list(var.allowed_values),
             tokens=list(plan.snapshot.variable_tokens.get(var.id, ())),
+            variable_type=var.variable_type,
+            json_schema=dict(var.json_schema) if var.json_schema is not None else None,
         )
         for var in plan.variables
     ]
     return event_types, variables
+
+
+def _codegen_property(prop: EventProperty, token_names: Mapping[str, str]) -> CodegenProperty:
+    return CodegenProperty(
+        field=prop.field,
+        path=prop.path,
+        variable=token_names.get(prop.token, prop.token) if prop.token is not None else None,
+        type=prop.variable_type,
+        json_schema=leaf_schema(prop),
+        required=prop.required,
+        values=list(prop.allowed) if prop.token is not None and prop.allowed else None,
+        literal=prop.literal if prop.token is None else None,
+    )
 
 
 def content_hash(content: object) -> str:
@@ -625,10 +677,18 @@ async def load_export_plan(
             id=row.id,
             name=row.name,
             allowed_values=tuple(str(v) for v in row.allowed_values or []),
+            variable_type=str(row.variable_type),
+            json_schema=row.json_schema,
         )
         for row in (
             await session.execute(
-                select(Variable.id, Variable.name, Variable.allowed_values)
+                select(
+                    Variable.id,
+                    Variable.name,
+                    Variable.allowed_values,
+                    Variable.variable_type,
+                    Variable.json_schema,
+                )
                 .where(Variable.project_id == project_id, Variable.branch_id == branch_id)
                 .order_by(Variable.name, Variable.id)
             )

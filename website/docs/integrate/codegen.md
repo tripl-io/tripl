@@ -2026,6 +2026,38 @@ the variable's allowed values, and `pattern`, `minimum` and `maximum` from the
 field's contract. The [API guide](./agent-api-guide.md#plan-export-jsonschema)
 has the full mapping.
 
+### Typed properties {#typed-properties}
+
+A JSON field whose stored value is an object template, such as
+`{"plan": "${plan}", "amount": "${amount}"}`, is described by its keys. The
+JSON Schema export does not show it as a free value.
+
+**In the JSON Schema export**, the field becomes an object schema:
+
+- **Keys.** Each key is typed by its variable's type and
+  [JSON Schema](../use/variables-and-templates.md#refine-the-type-with-json-schema).
+- **Allowed values.** The allowed values become a typed `enum`.
+- **Literal keys.** A key the event always sends with a fixed value becomes a
+  `const`.
+- **Required keys.** Properties the event's list marks required are listed in
+  `required`. This applies to nested objects too.
+
+**In the codegen model**, each event has a `properties` list, and each entry
+holds:
+
+- `field` and `path`;
+- `variable` and `type`;
+- `json_schema`;
+- `required`;
+- `values`;
+- `literal`, for a key with a fixed value.
+
+Each variable also carries its `variable_type` and `json_schema`.
+
+**In generated code**, a property typed `number` or `boolean` with no allowed
+values becomes a `Double`/`Bool`/`number`/`boolean` parameter. Its value is
+written into the JSON unquoted: `{"amount": 3}`, not `{"amount": "3"}`.
+
 ## Related pages {#related}
 
 - [`tripl codegen`](../run/cli.md#tripl-codegen) and

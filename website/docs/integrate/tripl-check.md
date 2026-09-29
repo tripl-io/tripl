@@ -322,13 +322,25 @@ message text.
 | `unknown_event_type` | error | The config names an event type the plan does not have. |
 | `unknown_event` | error, or warning with holes | No event in the plan has this identity or name. An error when the identity is fully literal, a warning when part of it is only known at runtime. An identity of holes alone gets no finding (see [Structured events and flat names](#identity)). |
 | `deprecated_event` | warning, or error when archived | The event is `deprecated`: new code should send its successor. An `archived` event is an error. |
-| `unknown_field` | warning | A field, or a key of a literal `properties` dictionary, that the event type does not define. |
-| `missing_required_field` | error | A required field is missing. **Payload mode only**: a static call may set the field somewhere the scanner cannot see. |
+| `unknown_field` | warning | A field, or a key of a literal `properties` dictionary, that the event type does not define and that is not one of the event's typed properties. |
+| `missing_required_field` | error | A required field, or a property the event's list marks required, is missing. **Payload mode only**: a static call may set the field somewhere the scanner cannot see. |
+| `wrong_type` | error | A property's value has a different JSON type than the plan gives it, for example the string `"3"` for a `number`. |
 | `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the variable the field refers to, or the field's contract regex or min/max. |
 | `dynamic_value` | info or warning, and only with `--strict` | A value the scanner could not read, or an event name that is only partly known. It is listed so you can see what was not checked. The validator reports it as `info`; the CLI adds a `warning` for a value the validator did not already note. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
 | `no_verdict` | error | The CLI sent the item but the validator returned no verdict for it. Raised by the CLI, never by the server. |
+
+**Typed properties.** A key of `properties` is also checked against the
+event's typed properties. These are the keys of the event's JSON field
+templates.
+
+- **Nested objects.** A nested object is matched by dotted path, so
+  `{"cart": {"total": 1}}` checks `cart.total`.
+- **The JSON field's name.** The properties may be sent under the JSON field's
+  own name, as `{"properties": {...}}`, or at the top level.
+- **Allowed values.** A property's allowed values are checked the same way a
+  field's are.
 
 A `null` (dynamic) value never produces `value_not_allowed` or
 `missing_required_field`. An `info` finding does not change an item's status,

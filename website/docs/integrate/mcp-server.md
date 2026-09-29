@@ -184,6 +184,7 @@ and not by the tool schema.
 | `search_plan` | `slug, q, types?, limit?, branch_id?` | `GET /projects/{slug}/search` — `types` is [enumerated](#enumerated-arguments) |
 | `list_events` | `slug, search?, status?, tag?, field_value?, meta_value?, event_type_id?, silent_since_days?, reviewed?, offset?, limit?, order_by?, branch_id?` | `GET /projects/{slug}/events` — `status` and `order_by` are [enumerated](#enumerated-arguments) |
 | `get_event` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}` |
+| `get_event_properties` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}/properties` |
 | `list_event_types` | `slug` | `GET /projects/{slug}/event-types` |
 | `get_event_type_fields` | `slug, event_type_id` | Event type + its field definitions, merged |
 | `list_variables` | `slug, branch_id?` | `GET /projects/{slug}/variables` |

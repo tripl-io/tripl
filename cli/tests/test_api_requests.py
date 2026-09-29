@@ -70,6 +70,7 @@ def _every_builder() -> list[ApiRequest]:
         event_types.apply_drift_action("prod", "drift-1", action="false_positive"),
         events_api.list_events("prod"),
         events_api.get_event("prod", "evt-1"),
+        events_api.get_event_properties("prod", "evt-1"),
         events_api.create_event("prod", {}),
         events_api.update_event("prod", "evt-1", {}),
         variables_api.list_variables("prod"),

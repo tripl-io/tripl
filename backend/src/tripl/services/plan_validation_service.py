@@ -25,7 +25,7 @@ import asyncio
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
-from typing import cast
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -203,6 +203,8 @@ async def load_plan_snapshot(
                 Variable.source_name,
                 Variable.bindings,
                 Variable.allowed_values,
+                Variable.variable_type,
+                Variable.json_schema,
             )
             .where(Variable.project_id == project_id, Variable.branch_id == branch_id)
             .order_by(Variable.name, Variable.id)
@@ -214,6 +216,7 @@ async def load_plan_snapshot(
     # resolves to the variable the scan would have adopted for it.
     variable_allowed: dict[str, tuple[str, ...]] = {}
     variable_tokens: dict[uuid.UUID, tuple[str, ...]] = {}
+    variable_types: dict[str, tuple[str, Mapping[str, Any] | None]] = {}
     for row in variable_rows:
         allowed = tuple(str(value) for value in row.allowed_values or [])
         won: list[str] = []
@@ -221,6 +224,7 @@ async def load_plan_snapshot(
         for token in VariableIndex.tokens_of(cast(Variable, row)):
             if token not in variable_allowed:
                 variable_allowed[token] = allowed
+                variable_types[token] = (str(row.variable_type), row.json_schema)
                 won.append(token)
         variable_tokens[row.id] = tuple(won)
 
@@ -231,6 +235,7 @@ async def load_plan_snapshot(
         events=events,
         variable_allowed=variable_allowed,
         variable_tokens=variable_tokens,
+        variable_types=variable_types,
     )
 
 
@@ -262,6 +267,7 @@ async def load_event_contexts(
         return {}
     values: dict[uuid.UUID, dict[str, str]] = defaultdict(dict)
     overrides: dict[uuid.UUID, dict[str, tuple[str, ...]]] = defaultdict(dict)
+    required_tokens: dict[uuid.UUID, set[str]] = defaultdict(set)
     for chunk in _chunks(ids):
         for event_id, field_name, value in (
             await session.execute(
@@ -271,15 +277,18 @@ async def load_event_contexts(
             )
         ).all():
             values[event_id][field_name] = value or ""
-        for event_id, variable_id, override in (
+        for event_id, variable_id, override, required in (
             await session.execute(
                 select(
                     VariableEventValueOverride.event_id,
                     VariableEventValueOverride.variable_id,
                     VariableEventValueOverride.values,
+                    VariableEventValueOverride.required,
                 ).where(VariableEventValueOverride.event_id.in_(chunk))
             )
         ).all():
+            if required:
+                required_tokens[event_id].update(variable_tokens.get(variable_id, ()))
             if override is None:
                 # A property entry without an override: the global list applies.
                 continue
@@ -288,7 +297,9 @@ async def load_event_contexts(
                 overrides[event_id][token] = listed
     return {
         event_id: EventContext(
-            field_values=values.get(event_id, {}), overrides=overrides.get(event_id, {})
+            field_values=values.get(event_id, {}),
+            overrides=overrides.get(event_id, {}),
+            required_tokens=frozenset(required_tokens.get(event_id, ())),
         )
         for event_id in ids
     }

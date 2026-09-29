@@ -324,3 +324,33 @@ def test_the_document_carries_the_row_verbatim(
     tripl_api.events("prod", [row])
     assert main(["events", "list", "--project", "prod", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["items"] == [row]
+
+
+def test_show_lists_the_typed_properties(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """F23: the event's property list, with type, requiredness and presence."""
+    tripl_api.event(
+        "prod",
+        "evt-1",
+        make_event(last_seen_at=_SEEN),
+        properties=[
+            {
+                "name": "plan",
+                "variable_type": "string",
+                "required": True,
+                "presence_rate": 0.97,
+                "effective_values": ["free", "pro"],
+            },
+            {"name": "amount", "variable_type": "number", "required": False},
+        ],
+    )
+    tripl_api.fields("prod", "et-1", [make_field()])
+    assert main(["events", "show", "evt-1", "--project", "prod"]) == 0
+    out = capsys.readouterr().out
+    assert "properties:" in out
+    assert "plan    string  required  97%  free, pro" in out
+    assert "amount  number  optional  -    any" in out
+    assert main(["events", "show", "evt-1", "--project", "prod", "--json"]) == 0
+    document = json.loads(capsys.readouterr().out)
+    assert [p["name"] for p in document["items"][0]["properties"]] == ["plan", "amount"]

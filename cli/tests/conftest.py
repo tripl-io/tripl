@@ -854,7 +854,16 @@ class FakeInstance:
         )
         return self._respond(self.events_url(slug), status, body)
 
-    def event(self, slug: str, event_id: str, payload: Any, status: int = 200) -> respx.Route:
+    def event(
+        self,
+        slug: str,
+        event_id: str,
+        payload: Any,
+        status: int = 200,
+        properties: Any = None,
+    ) -> respx.Route:
+        """``GET .../events/{id}``, and its property list (F23; empty unless given)."""
+        self._respond(f"{self.event_url(slug, event_id)}/properties", 200, properties or [])
         return self._respond(self.event_url(slug, event_id), status, payload)
 
     def fields(self, slug: str, type_id: str, payload: Any, status: int = 200) -> respx.Route:

@@ -42,10 +42,11 @@ import math
 import re
 import uuid
 from bisect import bisect_left
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
+from tripl.core.event_properties import EventProperty, event_properties, kind_of, type_accepts
 from tripl.core.name_template import (
     NAME_FORMAT_PATTERN,
     VARIABLE_TOKEN_PATTERN,
@@ -65,6 +66,7 @@ CODE_MISSING_REQUIRED_FIELD: Final = "missing_required_field"
 CODE_VALUE_NOT_ALLOWED: Final = "value_not_allowed"
 CODE_DYNAMIC_VALUE: Final = "dynamic_value"
 CODE_TOO_DYNAMIC: Final = "too_dynamic"
+CODE_WRONG_TYPE: Final = "wrong_type"
 
 #: The most ``${...}`` holes one query identity may carry. Every hole is a lazy
 #: ``(.*?)`` group, and a pattern with many of them backtracks badly against a
@@ -80,6 +82,7 @@ FindingCode = Literal[
     "value_not_allowed",
     "dynamic_value",
     "too_dynamic",
+    "wrong_type",
 ]
 
 STATUS_DEPRECATED: Final = "deprecated"
@@ -154,6 +157,8 @@ class EventContext:
     field_values: Mapping[str, str] = field(default_factory=dict)
     # Variable token -> this event's override list, which REPLACES the global one.
     overrides: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    # Tokens of the variables this event's property list marks required (F23).
+    required_tokens: frozenset[str] = frozenset()
 
 
 @dataclass
@@ -385,6 +390,8 @@ class PlanSnapshot:
     # Variable id -> the tokens it WON above, so a per-event override is keyed
     # by exactly the tokens the global list is.
     variable_tokens: Mapping[uuid.UUID, tuple[str, ...]] = field(default_factory=dict)
+    # Every token above -> its variable's (variable_type, json_schema) (F23).
+    variable_types: Mapping[str, tuple[str, Mapping[str, Any] | None]] = field(default_factory=dict)
     by_type: dict[uuid.UUID, IdentityIndex] = field(init=False)
     everything: IdentityIndex = field(init=False)
     types_by_id: dict[uuid.UUID, PlanEventType] = field(init=False)
@@ -728,9 +735,15 @@ def check_item(
     values = collect_values(item)
     checked_variables: set[str] = set()
     etype = res.event_type
+    props = _properties_of(etype, ctx, plan) if event is not None else {}
+    payload, as_text = _flat_payload(item, etype, props)
     if etype is not None:
         for key, value in values.items():
             fd = etype.fields.get(key)
+            if fd is None and (key in props or any(p.startswith(f"{key}.") for p in props)):
+                # A property, or the object holding nested ones (``cart`` for
+                # ``cart.items``): checked below, path by path.
+                continue
             if fd is None:
                 findings.append(
                     Finding(
@@ -754,6 +767,17 @@ def check_item(
                 )
                 findings.extend(found)
                 checked_variables |= checked
+        findings.extend(
+            _property_findings(
+                props,
+                payload,
+                as_text=as_text,
+                ctx=ctx,
+                plan=plan,
+                checked=checked_variables,
+                strict=strict,
+            )
+        )
         if item.complete:
             for fd in etype.fields.values():
                 if fd.is_required and fd.name not in values:
@@ -763,6 +787,19 @@ def check_item(
                             "error",
                             fd.name,
                             f"Required field '{fd.name}' is missing",
+                        )
+                    )
+        # ``properties`` sent as null (the CLI's size limit) says nothing about
+        # which properties the call carried.
+        if item.complete and (item.properties is not None or as_text):
+            for path, prop in props.items():
+                if prop.required and path not in payload:
+                    findings.append(
+                        Finding(
+                            CODE_MISSING_REQUIRED_FIELD,
+                            "error",
+                            path,
+                            f"Required property '{path}' is missing",
                         )
                     )
     elif strict:
@@ -787,6 +824,113 @@ def check_item(
                 f"The event name is only partly known at scan time: '{res.identity}'",
             )
         )
+    return findings
+
+
+def _properties_of(
+    etype: PlanEventType | None, ctx: EventContext | None, plan: PlanSnapshot
+) -> dict[str, EventProperty]:
+    """The matched event's typed JSON properties by path; first field wins a path."""
+    if etype is None or ctx is None:
+        return {}
+    by_path: dict[str, EventProperty] = {}
+    for prop in event_properties(
+        ctx.field_values,
+        [fd.name for fd in etype.fields.values() if fd.field_type == "json"],
+        token_types=plan.variable_types,
+        required_tokens=ctx.required_tokens,
+        allowed_for=lambda token: allowed_for(token, ctx, plan.variable_allowed),
+    ):
+        by_path.setdefault(prop.path, prop)
+    return by_path
+
+
+def _flat_payload(
+    item: ValidationItem, etype: PlanEventType | None, props: Mapping[str, EventProperty]
+) -> tuple[dict[str, object], set[str]]:
+    """The payload's property values by dotted path, and the paths read as text.
+
+    A nested object is walked (``{"cart": {"total": 1}}`` -> ``cart.total``)
+    until it reaches a property's own path, whose value is kept whole: a
+    ``json`` property holds an object. One under a JSON FIELD's own name is
+    that field's content, so the field name is not part of the path: a payload
+    may send ``{"properties": {...}}`` or the properties at the top level.
+    A key of ``fields`` that is a property, not a field, counts too; its value
+    is warehouse text, so its type cannot be judged.
+    """
+    json_fields = (
+        {fd.name for fd in etype.fields.values() if fd.field_type == "json"} if etype else set()
+    )
+    flat: dict[str, object] = {}
+
+    def walk(prefix: str, value: object) -> None:
+        if isinstance(value, dict) and prefix not in props:
+            for key, nested in value.items():
+                walk(f"{prefix}.{key}" if prefix else str(key), nested)
+        elif prefix:
+            flat[prefix] = value
+
+    for key, raw in (item.properties or {}).items():
+        walk("" if key in json_fields and isinstance(raw, dict) else key, raw)
+    as_text: set[str] = set()
+    fields = etype.fields if etype is not None else {}
+    for key, text in item.fields.items():
+        if key not in fields and key in props and key not in flat:
+            flat[key] = text
+            as_text.add(key)
+    return flat, as_text
+
+
+def _property_findings(
+    props: Mapping[str, EventProperty],
+    payload: Mapping[str, object],
+    *,
+    as_text: Collection[str],
+    ctx: EventContext | None,
+    plan: PlanSnapshot,
+    checked: set[str],
+    strict: bool,
+) -> list[Finding]:
+    """Each payload value that is a property, against its type and allowed values."""
+    findings: list[Finding] = []
+    for path, raw in payload.items():
+        prop = props.get(path)
+        if prop is None:
+            continue
+        text = scalar_text(raw)
+        if raw is None or (text is not None and has_holes(text)):
+            if strict:
+                findings.append(_dynamic(path))
+            continue
+        if prop.template is not None and text is not None:
+            found, variables = check_template_value(
+                path, prop.template, text, ctx=ctx, variable_allowed=plan.variable_allowed
+            )
+            findings.extend(found)
+            checked |= variables
+            continue
+        if prop.token is None:
+            # A stored literal is a sample of what a scanned event sent, not a
+            # rule (``check_template_value`` says the same of fields).
+            continue
+        if path not in as_text and prop.variable_type and not type_accepts(prop.variable_type, raw):
+            findings.append(
+                Finding(
+                    CODE_WRONG_TYPE,
+                    "error",
+                    path,
+                    f"'{path}' is {kind_of(raw)}, but the plan types it as {prop.variable_type}",
+                )
+            )
+            continue
+        if text is None:
+            continue
+        checked.add(prop.token)
+        finding = check_variable_value(
+            prop.token, text, field_name=path, ctx=ctx, variable_allowed=plan.variable_allowed
+        )
+        if finding is not None:
+            findings.append(finding)
     return findings
 
 
