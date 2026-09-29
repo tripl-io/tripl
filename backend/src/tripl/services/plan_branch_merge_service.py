@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import uuid
@@ -1142,16 +1143,23 @@ async def _apply_merge(
         "allowed_values",
         "bindings",
         "excluded_from_scans",
+        "json_schema",
     )
     for name, b_v in branch_var_by_name.items():
         m_v = main_var_by_name.get(name)
         if m_v is not None:
             base_var = base_var_by_name.get(name)
+            # ``variable_type`` and ``json_schema`` are taken attribute by
+            # attribute like the rest; they cannot come from different sides,
+            # because the conflict check compares them as one value and refuses
+            # the merge when both sides changed it (``comparable_field``).
             for attr in variable_attrs:
                 branch_value = getattr(b_v, attr)
                 if base_var is None or branch_value != base_var.get(attr):
                     if attr in ("allowed_values", "bindings"):
                         branch_value = list(branch_value or [])
+                    elif attr == "json_schema":
+                        branch_value = copy.deepcopy(branch_value)
                     setattr(m_v, attr, branch_value)
         else:
             if name in base_var_by_name:
@@ -1167,6 +1175,7 @@ async def _apply_merge(
                     description=b_v.description,
                     allowed_values=list(b_v.allowed_values or []),
                     bindings=list(b_v.bindings or []),
+                    json_schema=copy.deepcopy(b_v.json_schema),
                     excluded_from_scans=b_v.excluded_from_scans,
                 )
             )

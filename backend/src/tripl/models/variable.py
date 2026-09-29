@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
@@ -58,6 +58,9 @@ class Variable(UUIDMixin, Base):
     # User-editable warehouse column / JSON-path bindings (e.g.
     # "page_data.extra.variant"); scans adopt existing variables through these.
     bindings: Mapped[list[str]] = mapped_column(sa.JSON, default=list, server_default="[]")
+    # JSON Schema fragment refining ``variable_type``; ``core.property_schema``
+    # keeps the two consistent. NULL: the type is just ``variable_type``.
+    json_schema: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
     # Tombstone: scans adopt-and-skip excluded variables — the row prevents
     # re-creation while contexts/drift stop accumulating (plain deletion is
     # undone by the next scan).

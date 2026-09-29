@@ -211,6 +211,7 @@ const STATE_KEY_LABEL: Record<string, string> = {
   meta_values: 'Meta fields',
   source_name: 'Source',
   variable_type: 'Variable type',
+  json_schema: 'JSON Schema',
 }
 
 export function stateKeyLabel(key: string): string {

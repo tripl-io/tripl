@@ -1,5 +1,5 @@
 import { api, withBranch } from './client'
-import type { Variable, VariableListPage, VariableType, VariableValueContext } from '../types'
+import type { PropertySchema, Variable, VariableListPage, VariableType, VariableValueContext } from '../types'
 
 // The list endpoint pages server-side (offset/limit, server default 200). Every
 // caller here wants the project's whole variable set in ONE round trip — the
@@ -44,6 +44,7 @@ export const variablesApi = {
       description?: string
       allowed_values?: string[]
       bindings?: string[]
+      json_schema?: PropertySchema | null
     },
     branchId?: string | null,
   ) => api.post<Variable>(withBranch(`/projects/${slug}/variables`, branchId), data),
@@ -57,6 +58,8 @@ export const variablesApi = {
       allowed_values?: string[]
       bindings?: string[]
       excluded_from_scans?: boolean
+      /** null clears the schema. */
+      json_schema?: PropertySchema | null
     },
     branchId?: string | null,
   ) => api.patch<Variable>(withBranch(`/projects/${slug}/variables/${id}`, branchId), data),

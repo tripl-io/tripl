@@ -8,6 +8,7 @@ the ``(project_id, branch_id, name)`` unique constraints are enforced on the liv
 
 from __future__ import annotations
 
+import copy
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -557,6 +558,7 @@ async def deep_copy_plan_to_branch(
                 description=var.description,
                 allowed_values=list(var.allowed_values or []),
                 bindings=list(var.bindings or []),
+                json_schema=copy.deepcopy(var.json_schema),
                 excluded_from_scans=var.excluded_from_scans,
             )
         )

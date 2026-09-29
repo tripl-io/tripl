@@ -2,9 +2,11 @@ import re
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from tripl.core.property_schema import check_schema_matches_type, validate_property_schema
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 # Warehouse column or dotted JSON path, e.g. "variant" or "page_data.extra.variant".
@@ -55,6 +57,18 @@ def _validate_update_bindings(bindings: list[str] | None) -> list[str] | None:
     return bindings
 
 
+def _validate_json_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    return None if schema is None else validate_property_schema(schema)
+
+
+_JSON_SCHEMA_DESCRIPTION = (
+    "JSON Schema fragment refining variable_type: type, format, items, properties,"
+    " required and the numeric, string and array constraints. Must agree with"
+    " variable_type (number may narrow to integer, json is an object or array)."
+    " Documented values stay in allowed_values. null: the type is just variable_type."
+)
+
+
 class VariableType(StrEnum):
     string = "string"
     number = "number"
@@ -77,8 +91,15 @@ class VariableCreate(BaseModel):
     description: str = ""
     allowed_values: list[str] = Field(default_factory=list, max_length=500)
     bindings: list[str] = Field(default_factory=list, max_length=100)
+    json_schema: dict[str, Any] | None = Field(None, description=_JSON_SCHEMA_DESCRIPTION)
 
     _check_bindings = field_validator("bindings")(_validate_bindings)
+    _check_json_schema = field_validator("json_schema")(_validate_json_schema)
+
+    @model_validator(mode="after")
+    def _schema_matches_type(self) -> VariableCreate:
+        check_schema_matches_type(self.variable_type.value, self.json_schema)
+        return self
 
 
 # Every field of VariableUpdate maps to a NOT NULL Variable column, and
@@ -110,6 +131,10 @@ class VariableUpdate(BaseModel):
     allowed_values: list[str] | None = Field(None, max_length=500)
     bindings: list[str] | None = Field(None, max_length=100)
     excluded_from_scans: bool | None = None
+    # Nullable on purpose, unlike the rest: an explicit null clears the schema.
+    # Agreement with variable_type is checked by the service, which knows the
+    # stored half of the pair.
+    json_schema: dict[str, Any] | None = Field(None, description=_JSON_SCHEMA_DESCRIPTION)
 
     @model_validator(mode="before")
     @classmethod
@@ -117,6 +142,7 @@ class VariableUpdate(BaseModel):
         return reject_explicit_nulls(data, _VARIABLE_NOT_NULL_UPDATE_FIELDS)
 
     _check_bindings = field_validator("bindings")(_validate_update_bindings)
+    _check_json_schema = field_validator("json_schema")(_validate_json_schema)
 
 
 class VariableEventRef(BaseModel):
@@ -136,6 +162,7 @@ class VariableResponse(BaseModel):
     allowed_values: list[str] = []
     bindings: list[str] = []
     excluded_from_scans: bool = False
+    json_schema: dict[str, Any] | None = None
     event_count: int = 0
     context_count: int = 0
     low_context_count: int = 0

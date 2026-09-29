@@ -175,6 +175,10 @@ def _human_claim(variable: Variable) -> str | None:
         return KeptReason.DOCUMENTED
     if variable.description != SCAN_PROVENANCE_DESCRIPTION:
         return KeptReason.USER_EDITED
+    # No scan writes a schema yet, so one is a person's. When scans infer
+    # schemas (F23.4) this arm needs the same provenance the description has.
+    if variable.json_schema:
+        return KeptReason.USER_EDITED
     # A scan writes ``bindings=[source_name]`` and never touches them again, so
     # anything else is a hand-written binding — the mechanism the whole variables
     # rework exists to support (a user binds ``variant`` to

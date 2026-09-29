@@ -30686,6 +30686,19 @@
             "title": "Description",
             "type": "string"
           },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type.",
+            "title": "Json Schema"
+          },
           "name": {
             "maxLength": 100,
             "minLength": 1,
@@ -30867,6 +30880,18 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema"
           },
           "low_context_count": {
             "default": 0,
@@ -31060,6 +31085,19 @@
               }
             ],
             "title": "Excluded From Scans"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type.",
+            "title": "Json Schema"
           },
           "name": {
             "anyOf": [

@@ -17684,6 +17684,13 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * Json Schema
+             * @description JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type.
+             */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name: string;
             /** @default string */
@@ -17790,6 +17797,10 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Low Context Count
              * @default 0
@@ -17895,6 +17906,13 @@ export interface components {
             description?: string | null;
             /** Excluded From Scans */
             excluded_from_scans?: boolean | null;
+            /**
+             * Json Schema
+             * @description JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type.
+             */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name?: string | null;
             variable_type?: components["schemas"]["VariableType"] | null;
