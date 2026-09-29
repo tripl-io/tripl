@@ -16,6 +16,7 @@ from tripl.core.adapters.base import BaseAdapter, ColumnInfo
 from tripl.core.analyzers.cardinality import _is_json_type
 from tripl.core.analyzers.event_plan import _format_value
 from tripl.core.property_schema import infer_property_type
+from tripl.core.warehouse_types import is_string_type
 from tripl.json_paths import (
     decode_json_path_value,
     flatten_json_paths,
@@ -217,8 +218,14 @@ def summarize_event_properties(
             return summary
     properties_type = by_name[properties_column].type_name
     if not _is_json_type(properties_type):
+        hint = (
+            " Tick 'Parse as JSON' to read its text as JSON."
+            if is_string_type(properties_type)
+            else ""
+        )
         summary["error"] = (
-            f"The properties column {properties_column!r} is {properties_type}, not a JSON column."
+            f"The properties column {properties_column!r} is {properties_type}, "
+            f"not a JSON column.{hint}"
         )
         return summary
 

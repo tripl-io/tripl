@@ -30,6 +30,7 @@ from tripl.core.analyzers.event_generator import (
 )
 from tripl.core.analyzers.event_plan import breakdown_row_count
 from tripl.core.analyzers.preview import build_json_paths_payload, build_preview_payload
+from tripl.core.json_string_columns import scan_source_query
 from tripl.core.scan_setup_preset import is_event_properties_preset
 from tripl.json_paths import group_json_value_paths
 from tripl.models.data_source import DataSource
@@ -231,7 +232,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         adapter.test_connection()
 
         # Get columns from base query, excluding the time column
-        columns = adapter.get_columns(config.base_query)
+        columns = adapter.get_columns(scan_source_query(adapter, config))
         if config.time_column:
             columns = [c for c in columns if c.name != config.time_column]
         # The "event + properties" preset reads only the columns it needs.
@@ -281,7 +282,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
             # Single event type scan — bulk cardinality (no grouping)
             analysis = analyze_cardinality(
                 adapter,
-                config.base_query,
+                scan_source_query(adapter, config),
                 columns,
                 threshold=config.cardinality_threshold,
                 json_value_paths=json_value_paths,
@@ -500,7 +501,7 @@ def _scan_with_grouping(
 
     group_values, grouped_results = analyze_cardinality_grouped(
         adapter,
-        config.base_query,
+        scan_source_query(adapter, config),
         columns,
         group_column=col_name,
         threshold=config.cardinality_threshold,
@@ -790,7 +791,7 @@ def preview_scan_config_async(self: object, job_id: str) -> dict[str, object]:
             # Heavy half: enumerate nested JSON keys for the source query.
             payload = build_json_paths_payload(
                 adapter,
-                job.base_query,
+                scan_source_query(adapter, job),
                 list(job.json_value_paths or []),
                 time_column=job.time_column if preview_window else None,
                 time_from=preview_window[0] if preview_window else None,
@@ -800,7 +801,7 @@ def preview_scan_config_async(self: object, job_id: str) -> dict[str, object]:
             # Fast half: columns + sample rows only, no JSON path discovery.
             payload = build_preview_payload(
                 adapter,
-                job.base_query,
+                scan_source_query(adapter, job),
                 job.row_limit,
                 time_column=job.time_column if preview_window else None,
                 time_from=preview_window[0] if preview_window else None,

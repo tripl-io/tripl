@@ -192,6 +192,35 @@ class ClickHouseAdapter(BaseAdapter):
         result = self._client.query(sql)
         return list(result.column_names), _as_rows(result.result_rows)
 
+    supports_json_string_columns = True
+
+    @override
+    def json_string_source(self, base_query: str, columns: list[str]) -> str:
+        """Parse String columns as ``JSON`` in a wrapper over ``base_query``.
+
+        ``SELECT * REPLACE`` keeps every other column, and its position, as it
+        was. The text is cast only when ``isValidJSON`` and ``JSONType`` agree
+        it is a JSON object: a cast of anything else (malformed text, a bare
+        scalar, an array, NULL) raises, so such a row reads as ``{}`` instead —
+        no paths, which the scan counts as a row missing every key. The cast is
+        one parse per row read; every statement already bounds the rows it
+        reads (sample LIMITs, the scan window), so the cost scales with those
+        and not with the table.
+        """
+        replacements: list[str] = []
+        for column in columns:
+            if not _IDENTIFIER_PART_RE.match(column):
+                msg = f"Invalid column name: {column}"
+                raise ValueError(msg)
+            text = f"ifNull(toString(`{column}`), '')"
+            replacements.append(
+                f"CAST(if(isValidJSON({text}) AND JSONType({text}) = 'Object', {text}, '{{}}'), "
+                f"'JSON') AS `{column}`"
+            )
+        if not replacements:
+            return base_query
+        return f"SELECT * REPLACE ({', '.join(replacements)}) FROM ({base_query}) AS _json_src"
+
     json_path_samples_are_text = True
 
     @override

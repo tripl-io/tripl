@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from tripl.core.adapters.base import ColumnInfo
 from tripl.core.analyzers.cardinality import _is_json_type
 from tripl.core.scan_setup_preset import PRESET_EVENT_TYPE_NAME, is_event_properties_preset
+from tripl.core.warehouse_types import is_string_type
 from tripl.models.event_type import EventType
 from tripl.models.scan_config import ScanConfig
 from tripl.worker.tasks._errors import ScanError
@@ -51,14 +52,20 @@ def preset_column_problem(config: ScanConfig, columns: list[ColumnInfo]) -> str 
             )
     assert properties_column is not None
     column = by_name[properties_column]
-    # The one place a String column is refused. A later opt-in to parse String
-    # columns as JSON (ClickHouse/BigQuery) belongs here: accept the column when
-    # the config asks for it, and have the adapters parse it.
+    # A String column the config opted into ``json_string_columns`` (F23.9) is
+    # already JSON here: ``columns`` comes from the parsed source
+    # (``core.json_string_columns``). So what reaches this refusal is text the
+    # config did not ask to parse, and the message says how to ask.
     if not _is_json_type(column.type_name):
+        hint = (
+            " or tick 'Parse as JSON' for it (ClickHouse and BigQuery)"
+            if is_string_type(column.type_name)
+            else ""
+        )
         return (
             f"Scan failed: the properties column {properties_column!r} is "
             f"{column.type_name}, not a JSON column, so its keys cannot be read. "
-            "Pick a JSON, Map or struct column."
+            f"Pick a JSON, Map or struct column{hint}."
         )
     return None
 

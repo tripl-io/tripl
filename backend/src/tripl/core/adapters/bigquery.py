@@ -915,6 +915,31 @@ class BigQueryAdapter(BaseAdapter):
         """
         return f"TO_JSON_STRING({self._json_paths_array_expression(column)})"
 
+    supports_json_string_columns = True
+
+    @override
+    def json_string_source(self, base_query: str, columns: list[str]) -> str:
+        """Parse STRING columns as ``JSON`` in a wrapper over ``base_query``.
+
+        ``SELECT * REPLACE`` keeps every other column as it was. ``SAFE.PARSE_JSON``
+        answers NULL for text that is not JSON instead of failing the job, and a
+        value that parses but is not an object (a bare scalar, an array) is
+        NULL too, so either reads as a row that carries none of the keys.
+        ``wide_number_mode => 'round'`` keeps a number too wide for a FLOAT64
+        from turning a whole valid document into NULL. The parse runs once per
+        row the statement reads, which every caller already bounds.
+        """
+        replacements: list[str] = []
+        for column in columns:
+            if not _IDENTIFIER_PART_RE.match(column):
+                msg = f"BigQuery: invalid column name {column!r}"
+                raise ValueError(msg)
+            parsed = f"SAFE.PARSE_JSON(`{column}`, wide_number_mode => 'round')"
+            replacements.append(f"IF(JSON_TYPE({parsed}) = 'object', {parsed}, NULL) AS `{column}`")
+        if not replacements:
+            return base_query
+        return f"SELECT * REPLACE ({', '.join(replacements)}) FROM ({base_query}) AS _json_src"
+
     def get_columns(self, base_query: str) -> list[ColumnInfo]:
         schema = self._run_query(f"SELECT * FROM ({base_query}) AS _src LIMIT 0").schema
         columns: list[ColumnInfo] = []

@@ -60,6 +60,9 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     setup_preset: Mapped[str] = mapped_column(String(32), default="custom", server_default="custom")
     event_name_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     properties_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # String columns every read of the source parses as JSON (F23.9,
+    # ``core.json_string_columns``); ClickHouse and BigQuery only.
+    json_string_columns: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
     event_group_rules: Mapped[list[dict[str, object]]] = mapped_column(
         JSON,
         default=list,

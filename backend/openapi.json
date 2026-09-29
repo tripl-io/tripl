@@ -25719,6 +25719,13 @@
               }
             ]
           },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
+          },
           "json_value_paths": {
             "items": {
               "type": "string"
@@ -25996,6 +26003,13 @@
               }
             ]
           },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
+          },
           "json_value_paths": {
             "items": {
               "type": "string"
@@ -26239,6 +26253,13 @@
             "title": "Include Json Paths",
             "type": "boolean"
           },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
+          },
           "json_value_paths": {
             "items": {
               "type": "string"
@@ -26441,6 +26462,13 @@
                 "type": "null"
               }
             ]
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
           },
           "json_value_paths": {
             "items": {
@@ -26792,6 +26820,20 @@
                 "type": "null"
               }
             ]
+          },
+          "json_string_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json String Columns"
           },
           "json_value_paths": {
             "anyOf": [
@@ -27354,6 +27396,13 @@
               }
             ],
             "title": "Event Type Id"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
           },
           "json_value_paths": {
             "items": {
