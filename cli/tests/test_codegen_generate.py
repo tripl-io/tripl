@@ -583,7 +583,10 @@ def test_a_typed_json_property_is_a_typed_parameter_sent_unquoted(tmp_path: Path
                 "platform": "ios",
                 "mode": "m",
                 "is_first": "true",
-                "props": '{"amount": "${amount}", "coupon": "${coupon}", "paid": "${paid}", "qty": "${qty}"}',
+                "props": (
+                    '{"amount": "${amount}", "coupon": "${coupon}", '
+                    '"paid": "${paid}", "qty": "${qty}"}'
+                ),
             },
         }
     )
@@ -609,6 +612,6 @@ def test_a_typed_json_property_is_a_typed_parameter_sent_unquoted(tmp_path: Path
     assert "readonly 'amount': number;" in ts
     # An enum of numbers is sent bare as well.
     assert (
-        """'props': '{"amount": ${amount}, "coupon": "${coupon}", "paid": ${paid}, "qty": ${qty}}'"""
-        in ts
+        """'props': '{"amount": ${amount}, "coupon": "${coupon}", """
+        """"paid": ${paid}, "qty": ${qty}}'""" in ts
     )
