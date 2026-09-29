@@ -108,6 +108,37 @@ async def list_property_events(
     ]
 
 
+async def get_listed_event_counts(
+    session: AsyncSession,
+    variables: list[Variable],
+) -> dict[uuid.UUID, tuple[int, int]]:
+    """How many events list each variable, and on how many it is required.
+
+    For the Properties list: ``(listed, required)`` per variable id, read on
+    each variable's own branch (a branch copies entries with its variables).
+    """
+    if not variables:
+        return {}
+    branch_of = {variable.id: variable.branch_id for variable in variables}
+    rows = await session.execute(
+        select(
+            VariableEventValueOverride.variable_id,
+            VariableEventValueOverride.branch_id,
+            func.count(VariableEventValueOverride.id),
+            func.count(VariableEventValueOverride.id).filter(
+                VariableEventValueOverride.required.is_(True)
+            ),
+        )
+        .where(VariableEventValueOverride.variable_id.in_(list(branch_of)))
+        .group_by(VariableEventValueOverride.variable_id, VariableEventValueOverride.branch_id)
+    )
+    return {
+        variable_id: (listed, required)
+        for variable_id, branch_id, listed, required in rows
+        if branch_of.get(variable_id) == branch_id
+    }
+
+
 async def _load_events(
     session: AsyncSession,
     project_id: uuid.UUID,

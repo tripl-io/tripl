@@ -255,3 +255,22 @@ async def test_a_viewer_can_read_but_not_bulk_edit(client: AsyncClient) -> None:
         json={"event_ids": [events["home:view"]]},
     )
     assert denied.status_code == 403, denied.text
+
+
+@pytest.mark.asyncio
+async def test_list_counts_the_events_that_list_the_property(client: AsyncClient) -> None:
+    slug = "prop-list-counts"
+    var_id, events = await _seed(client, slug)
+    resp = await _bulk(
+        client, slug, var_id, {"event_ids": [events["checkout:start"]], "required": True}
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await _bulk(client, slug, var_id, {"event_ids": [events["home:view"]]})
+    assert resp.status_code == 200, resp.text
+
+    listing = await client.get(f"/api/v1/projects/{slug}/properties")
+    assert listing.status_code == 200, listing.text
+    (row,) = [item for item in listing.json()["items"] if item["id"] == var_id]
+    assert (row["listed_event_count"], row["required_event_count"]) == (2, 1)
+    # Listing is not observing: no scan saw the property anywhere yet.
+    assert row["event_count"] == 0

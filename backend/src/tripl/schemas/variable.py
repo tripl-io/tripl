@@ -177,6 +177,17 @@ class VariableResponse(BaseModel):
         ),
     )
     open_drift_count: int = 0
+    listed_event_count: int = Field(
+        default=0,
+        description=(
+            "Events whose property list carries this property (F23), on the"
+            " property's branch; unlike 'event_count', which counts where scans saw it."
+        ),
+    )
+    required_event_count: int = Field(
+        default=0,
+        description="Of 'listed_event_count', the events that require the property.",
+    )
     event_names: list[str] = Field(
         default=[],
         max_length=SUMMARY_EVENT_LIMIT,

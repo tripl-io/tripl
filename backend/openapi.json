@@ -31566,6 +31566,12 @@
             ],
             "title": "Json Schema"
           },
+          "listed_event_count": {
+            "default": 0,
+            "description": "Events whose property list carries this property (F23), on the property's branch; unlike 'event_count', which counts where scans saw it.",
+            "title": "Listed Event Count",
+            "type": "integer"
+          },
           "low_context_count": {
             "default": 0,
             "title": "Low Context Count",
@@ -31584,6 +31590,12 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "required_event_count": {
+            "default": 0,
+            "description": "Of 'listed_event_count', the events that require the property.",
+            "title": "Required Event Count",
+            "type": "integer"
           },
           "sample_values": {
             "default": [],

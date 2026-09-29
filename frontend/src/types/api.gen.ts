@@ -18526,6 +18526,12 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
+             * Listed Event Count
+             * @description Events whose property list carries this property (F23), on the property's branch; unlike 'event_count', which counts where scans saw it.
+             * @default 0
+             */
+            listed_event_count: number;
+            /**
              * Low Context Count
              * @default 0
              */
@@ -18542,6 +18548,12 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /**
+             * Required Event Count
+             * @description Of 'listed_event_count', the events that require the property.
+             * @default 0
+             */
+            required_event_count: number;
             /**
              * Sample Values
              * @description Observed values unioned across every (variable, event, field) context, de-duplicated and capped at 20. Lets a list client render the row's value chips without one /values call per variable.
