@@ -21,7 +21,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SETTINGS_CONTENT_ID } from './landmarks'
-import { backToLabel, sectionLabel, sectionPathForUrl, visibleGroupsAll } from './nav'
+import { backToLabel, sectionIsWide, sectionLabel, sectionPathForUrl, visibleGroupsAll } from './nav'
+import { cn } from '@/lib/utils'
 import { SettingsCommandPalette } from './settings-palette'
 import {
   LEAVE_CONFIRMED,
@@ -127,6 +128,7 @@ export function SettingsLayout({
   }
   const backLabel = backToLabel(backHref, projectName)
   const sectionTitle = sectionLabel(activePath)
+  const wide = sectionIsWide(activePath)
 
   // Off-canvas rail state, used only below `md` — above it the `md:*` utilities
   // pin the rail to static flow regardless of this flag.
@@ -628,8 +630,16 @@ export function SettingsLayout({
           </Link>
         </div>
         {/* The narrow content width every form and settings page shares
-            (DS-3), left-aligned against the rail instead of floating centred. */}
-        <div className="max-w-[880px] px-4 pb-24 pt-6 sm:px-6 md:px-10 md:pt-10">
+            (DS-3), left-aligned against the rail instead of floating centred.
+            A table section takes the wide column instead, so a wide screen
+            shows its columns rather than a horizontal scroll. */}
+        <div
+          data-width={wide ? 'wide' : 'narrow'}
+          className={cn(
+            wide ? 'max-w-[1440px]' : 'max-w-[880px]',
+            'px-4 pb-24 pt-6 sm:px-6 md:px-10 md:pt-10',
+          )}
+        >
           <UnsavedChangesProvider value={unsavedChanges}>{children}</UnsavedChangesProvider>
         </div>
       </main>

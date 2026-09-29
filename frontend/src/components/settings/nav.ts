@@ -73,6 +73,13 @@ export type SettingsNavItem = {
    * #243 PL-26).
    */
   tag?: string
+  /**
+   * A section built around a wide table (members, keys, the audit log, the
+   * platform console): its content column widens to the room there is instead
+   * of the narrow form width every other section shares, so columns are not
+   * cut off behind a horizontal scroll on a wide screen.
+   */
+  wide?: boolean
 }
 
 export type SettingsNavGroup = {
@@ -104,6 +111,7 @@ export const PROJECT_GROUPS: SettingsNavGroup[] = [
         label: 'Access',
         icon: UserCog,
         path: 'project/members',
+        wide: true,
         keywords: ['members', 'people', 'team', 'roles', 'add member', 'permissions', 'who can see'],
       },
       {
@@ -143,6 +151,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Members',
         icon: Users,
         path: 'members',
+        wide: true,
         keywords: ['users', 'people', 'roles', 'team', 'remove member', 'transfer ownership'],
       },
       // Named sets of members (F20): note sharing and owner routing will name
@@ -152,12 +161,14 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Groups',
         icon: Users,
         path: 'organization/groups',
+        wide: true,
       },
       {
         id: 'invitations',
         label: 'Invitations',
         icon: UserPlus,
         path: 'invitations',
+        wide: true,
         ownerOnly: true,
         keywords: ['invite', 'add member', 'revoke'],
       },
@@ -166,6 +177,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Data sources',
         icon: Database,
         path: 'data-sources',
+        wide: true,
         keywords: ['warehouse', 'connection', 'clickhouse', 'postgres', 'bigquery', 'credentials'],
       },
       {
@@ -173,6 +185,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'API keys',
         icon: Key,
         path: 'api-keys',
+        wide: true,
         keywords: ['token', 'api key', 'integration'],
       },
       // The organization's own settings (F20 PR9-PR12): its mail relay, AI
@@ -252,6 +265,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Audit log',
         icon: ScrollText,
         path: 'instance/audit',
+        wide: true,
         ownerOnly: true,
         keywords: ['activity', 'who changed', 'log', 'export', 'csv', 'download'],
       },
@@ -309,6 +323,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'Organizations',
         icon: Building,
         path: 'platform/orgs',
+        wide: true,
         platformOnly: true,
         keywords: ['tenants', 'suspend', 'step in', 'support'],
       },
@@ -317,6 +332,7 @@ export const WORKSPACE_GROUPS: SettingsNavGroup[] = [
         label: 'User accounts',
         icon: UserCog,
         path: 'platform/users',
+        wide: true,
         platformOnly: true,
         keywords: ['accounts', 'platform admin', 'operators'],
       },
@@ -423,6 +439,17 @@ export function sectionLabel(path: string): string | undefined {
     }
   }
   return undefined
+}
+
+/** Whether the section at `path` takes the wide content column (`wide`). */
+export function sectionIsWide(path: string): boolean {
+  for (const groups of Object.values(SETTINGS_NAV)) {
+    for (const group of groups) {
+      const item = group.items.find((candidate) => candidate.path === path)
+      if (item) return item.wide === true
+    }
+  }
+  return false
 }
 
 /**

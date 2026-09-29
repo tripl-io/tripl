@@ -622,3 +622,14 @@ describe('SettingsLayout landmarks and headings', () => {
     expect(screen.getByRole('navigation', { name: 'Settings' })).toBeInTheDocument()
   })
 })
+
+describe('SettingsLayout content width', () => {
+  it('gives a table section the wide column and keeps forms narrow', () => {
+    const { container, unmount } = renderSettings('platform/orgs')
+    expect(container.querySelector('[data-width]')).toHaveAttribute('data-width', 'wide')
+    unmount()
+
+    const narrow = renderSettings('profile')
+    expect(narrow.container.querySelector('[data-width]')).toHaveAttribute('data-width', 'narrow')
+  })
+})
