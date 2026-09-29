@@ -25661,6 +25661,19 @@
             "title": "Event Group Rules",
             "type": "array"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -25763,6 +25776,19 @@
             ],
             "title": "Platform Column"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -25796,6 +25822,15 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -25897,6 +25932,17 @@
             },
             "title": "Event Group Rules",
             "type": "array"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
           },
           "event_name_format": {
             "anyOf": [
@@ -26060,6 +26106,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -26091,6 +26148,15 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -26155,6 +26221,19 @@
             "title": "Data Source Id",
             "type": "string"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "include_json_paths": {
             "default": false,
             "title": "Include Json Paths",
@@ -26173,6 +26252,19 @@
             "minimum": 1.0,
             "title": "Limit",
             "type": "integer"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
           },
           "scan_lookback_hours": {
             "anyOf": [
@@ -26286,6 +26378,17 @@
             },
             "title": "Event Group Rules",
             "type": "array"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
           },
           "event_name_format": {
             "anyOf": [
@@ -26425,6 +26528,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -26456,6 +26570,15 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -26613,6 +26736,18 @@
             ],
             "title": "Event Group Rules"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -26735,6 +26870,18 @@
             ],
             "title": "Platform Column"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -26768,6 +26915,21 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "anyOf": [
+              {
+                "enum": [
+                  "custom",
+                  "event_properties"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Preset"
           },
           "time_column": {
             "anyOf": [
@@ -27145,6 +27307,19 @@
             "title": "Event Group Rules",
             "type": "array"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -27200,6 +27375,19 @@
             ],
             "title": "Platform Column"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "sample_row_limit": {
             "default": 5000,
             "maximum": 20000.0,
@@ -27230,6 +27418,15 @@
               }
             ],
             "title": "Scan Lookback Hours"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [

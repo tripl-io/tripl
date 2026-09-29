@@ -16141,6 +16141,8 @@ export interface components {
             distribution_drift_fields?: string[];
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16160,11 +16162,19 @@ export interface components {
             name: string;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };
@@ -16210,6 +16220,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -16257,11 +16269,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -16279,6 +16299,8 @@ export interface components {
              * Format: uuid
              */
             data_source_id: string;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /**
              * Include Json Paths
              * @default false
@@ -16291,6 +16313,8 @@ export interface components {
              * @default 10
              */
             limit: number;
+            /** Properties Column */
+            properties_column?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Time Column */
@@ -16328,6 +16352,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -16371,11 +16397,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -16406,6 +16440,8 @@ export interface components {
             distribution_drift_fields?: string[] | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][] | null;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16425,11 +16461,15 @@ export interface components {
             name?: string | null;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /** Setup Preset */
+            setup_preset?: ("custom" | "event_properties") | null;
             /** Time Column */
             time_column?: string | null;
         };
@@ -16592,6 +16632,8 @@ export interface components {
             data_source_id?: string | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16602,6 +16644,8 @@ export interface components {
             json_value_paths?: string[];
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             /**
              * Sample Row Limit
              * @default 5000
@@ -16611,6 +16655,12 @@ export interface components {
             scan_config_id?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };

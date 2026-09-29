@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, computed_field, field_validator, model_va
 
 from tripl.core.adapters.measure_validator import validate_select_sql_safety
 from tripl.core.intervals import get_interval
+from tripl.core.scan_setup_preset import ScanSetupPreset, apply_setup_preset
 from tripl.json_paths import normalize_json_value_paths
 from tripl.models.domain_enums import ScanInterval
 from tripl.models.scan_job import ScanJobStatus
@@ -118,6 +119,16 @@ def validate_prerelease_pattern(value: str | None) -> str | None:
     return value
 
 
+def _apply_preset_to_model(model: BaseModel) -> None:
+    """Run ``apply_setup_preset`` on a create/dry-run payload, in place.
+
+    ``model_fields_set`` is what the caller sent: a default is never a conflict.
+    """
+    derived = apply_setup_preset(model.model_dump(), explicit=model.model_fields_set)
+    for key, value in derived.items():
+        setattr(model, key, value)
+
+
 class ScanConfigCreate(BaseModel):
     data_source_id: uuid.UUID
     event_type_id: uuid.UUID | None = None
@@ -133,6 +144,13 @@ class ScanConfigCreate(BaseModel):
     event_name_format: str | None = Field(None, max_length=500)
     json_value_paths: list[str] = Field(default_factory=list)
     event_group_rules: list[EventGroupRule] = Field(default_factory=list)
+    # "event_properties": names come from ``event_name_column`` and every key of
+    # ``properties_column`` is catalogued as a property; the name format, JSON
+    # value paths, Event type column and group rules are derived
+    # (``core.scan_setup_preset``). "custom": everything as sent.
+    setup_preset: ScanSetupPreset = "custom"
+    event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
+    properties_column: str | None = Field(default=None, min_length=1, max_length=255)
     metric_breakdown_columns: list[str] = Field(default_factory=list)
     metric_breakdown_values_limit: int | None = Field(default=None, ge=1)
     distribution_drift_fields: list[str] = Field(default_factory=list)
@@ -192,6 +210,8 @@ class ScanConfigCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_monitoring_selection(self) -> ScanConfigCreate:
+        # First: the preset decides the event type column checked below.
+        _apply_preset_to_model(self)
         check_scalar_columns_unreserved(
             metric_breakdown_columns=self.metric_breakdown_columns,
             distribution_drift_fields=self.distribution_drift_fields,
@@ -235,6 +255,7 @@ _SCAN_CONFIG_NOT_NULL_UPDATE_FIELDS = frozenset(
         "base_query",
         "json_value_paths",
         "event_group_rules",
+        "setup_preset",
         "metric_breakdown_columns",
         "distribution_drift_fields",
         "cardinality_threshold",
@@ -252,6 +273,10 @@ class ScanConfigUpdate(BaseModel):
     event_name_format: str | None = Field(None, max_length=500)
     json_value_paths: list[str] | None = None
     event_group_rules: list[EventGroupRule] | None = None
+    # Checked by ``scan_service.update_scan_config`` on the merged config.
+    setup_preset: ScanSetupPreset | None = None
+    event_name_column: str | None = Field(default=None, max_length=255)
+    properties_column: str | None = Field(default=None, max_length=255)
     metric_breakdown_columns: list[str] | None = None
     metric_breakdown_values_limit: int | None = Field(default=None, ge=1)
     distribution_drift_fields: list[str] | None = None
@@ -360,6 +385,9 @@ class ScanConfigResponse(BaseModel):
     event_name_format: str | None
     json_value_paths: list[str]
     event_group_rules: list[EventGroupRule]
+    setup_preset: ScanSetupPreset = "custom"
+    event_name_column: str | None = None
+    properties_column: str | None = None
     metric_breakdown_columns: list[str]
     metric_breakdown_values_limit: int | None
     distribution_drift_fields: list[str]
@@ -441,6 +469,10 @@ class ScanConfigPreviewRequest(BaseModel):
     scan_lookback_hours: int | None = Field(default=None, ge=1)
     # When true, run the slow JSON path discovery instead of the fast preview.
     include_json_paths: bool = False
+    # The "event + properties" preset's columns. With both, the fast preview
+    # also returns ``event_properties``: what the sample rows would yield.
+    event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
+    properties_column: str | None = Field(default=None, min_length=1, max_length=255)
 
     @field_validator("base_query")
     @classmethod
@@ -457,10 +489,44 @@ class ScanConfigPreviewRequest(BaseModel):
         return normalized
 
 
+class ScanPreviewEventProperty(BaseModel):
+    """One key of the properties column, as the preview's sample rows carry it."""
+
+    path: str
+    # Share of this event's sample rows that carried the key.
+    presence: float
+    # ``core.property_schema.infer_property_type`` over the sampled values; None
+    # when the kinds disagree or nothing typed was seen.
+    type: str | None
+    sample_values: list[str]
+
+
+class ScanPreviewEvent(BaseModel):
+    name: str
+    sample_rows: int
+    properties: list[ScanPreviewEventProperty]
+
+
+class ScanPreviewEventProperties(BaseModel):
+    """What the "event + properties" preset yields from the preview's sample.
+
+    A sample, never a census: an event or key absent here may still exist. The
+    dry run answers for the lookback window.
+    """
+
+    event_name_column: str
+    properties_column: str
+    sample_rows: int
+    events: list[ScanPreviewEvent]
+    # Why nothing could be summarised (a missing or non-JSON column), or None.
+    error: str | None = None
+
+
 class ScanConfigPreviewResponse(BaseModel):
     columns: list[ScanPreviewColumnResponse]
     rows: list[dict[str, object]]
     json_columns: list[ScanPreviewJsonColumnResponse]
+    event_properties: ScanPreviewEventProperties | None = None
 
 
 class ScanDryRunRequest(BaseModel):
@@ -486,6 +552,9 @@ class ScanDryRunRequest(BaseModel):
     event_name_format: str | None = Field(None, max_length=500)
     event_group_rules: list[EventGroupRule] = Field(default_factory=list)
     json_value_paths: list[str] = Field(default_factory=list)
+    setup_preset: ScanSetupPreset = "custom"
+    event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
+    properties_column: str | None = Field(default=None, min_length=1, max_length=255)
     cardinality_threshold: int = Field(default=100, ge=1)
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
     platform_column: str | None = Field(default=None, min_length=1, max_length=255)
@@ -518,6 +587,11 @@ class ScanDryRunRequest(BaseModel):
             raise ValueError(
                 "either scan_config_id, or both data_source_id and base_query, must be provided"
             )
+        _apply_preset_to_model(self)
+        # The preset names its events itself, and files them under the chosen
+        # event type or the one it creates.
+        if self.setup_preset == "event_properties":
+            return self
         # A draft that names neither is unanswerable, not merely empty: the
         # planner resolves event types exactly the way a real run does, and both
         # abort on this. Rejecting it here turns what was a dispatched job that

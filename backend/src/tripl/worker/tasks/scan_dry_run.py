@@ -40,6 +40,7 @@ from tripl.core.analyzers.event_plan import (
     unnamed_skip_detail,
 )
 from tripl.core.name_template import NameFormatError
+from tripl.core.scan_setup_preset import PRESET_EVENT_TYPE_NAME, is_event_properties_preset
 from tripl.core.warehouse_types import is_complex_type
 from tripl.json_paths import group_json_value_paths
 from tripl.models.data_source import DataSource
@@ -56,6 +57,7 @@ from tripl.worker.utils.event_types import event_type_name_rejection
 from tripl.worker.utils.name_warnings import dry_run_name_warnings
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_preset import preset_scan_columns
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +90,10 @@ class _DryRunTarget:
     # skipped the group outright. Nothing here changed to close that gap — the
     # runner did.
     may_create_fields: bool
+    # The only columns a field may be created for, when narrower than "every
+    # unreserved column": the preset creates the event and properties fields
+    # alone (``ensure_preset_event_type``).
+    creatable_columns: frozenset[str] | None = None
 
 
 def _dry_run_targets(
@@ -116,6 +122,40 @@ def _dry_run_targets(
         "time_to": scan_window[1] if scan_window else None,
         "row_limit": row_limit,
     }
+
+    if is_event_properties_preset(config.setup_preset):
+        # The run files the events under the chosen event type, or finds or
+        # creates the preset's own, and gives it the two fields
+        # (``ensure_preset_event_type``). A draft may name no event type yet: the
+        # API picks the preset's one when the scan is saved.
+        analysis = analyze_cardinality(adapter, config.base_query, columns, **common)  # type: ignore[arg-type]
+        preset_type = (
+            session.get(EventType, config.event_type_id)
+            if config.event_type_id is not None
+            else session.execute(
+                select(EventType).where(
+                    EventType.project_id == config.project_id,
+                    EventType.branch_id == main_branch_id(session, config.project_id),
+                    EventType.name == PRESET_EVENT_TYPE_NAME,
+                )
+            ).scalar_one_or_none()
+        )
+        return (
+            [
+                _DryRunTarget(
+                    name=preset_type.name if preset_type is not None else PRESET_EVENT_TYPE_NAME,
+                    event_type=preset_type,
+                    analysis=analysis,
+                    may_create_fields=True,
+                    creatable_columns=frozenset(
+                        column
+                        for column in (config.event_name_column, config.properties_column)
+                        if column
+                    ),
+                )
+            ],
+            [],
+        )
 
     if config.event_type_id is not None:
         analysis = analyze_cardinality(adapter, config.base_query, columns, **common)  # type: ignore[arg-type]
@@ -223,6 +263,9 @@ def build_dry_run_payload(
     columns = adapter.get_columns(config.base_query)
     if config.time_column:
         columns = [c for c in columns if c.name != config.time_column]
+    # The preset reads only its own columns, as the run does; a missing or
+    # non-JSON column fails the dry run with the run's own message.
+    columns = preset_scan_columns(config, columns)
     scan_window = resolve_lookback_window(
         time_column=config.time_column,
         lookback_hours=config.scan_lookback_hours,
@@ -282,6 +325,11 @@ def build_dry_run_payload(
         if target.may_create_fields:
             for column in columns:
                 if column.name in skip_cols or column.name in field_ids:
+                    continue
+                if (
+                    target.creatable_columns is not None
+                    and column.name not in target.creatable_columns
+                ):
                     continue
                 # A hypothetical id: nothing is written, but the planner keys
                 # field values on one, and a column with no id is dropped from
@@ -468,6 +516,9 @@ def _dry_run_config(session: Session, job: ScanDryRunJob) -> ScanConfig:
         event_name_format=job.event_name_format,
         event_group_rules=list(job.event_group_rules or []),
         json_value_paths=list(job.json_value_paths or []),
+        setup_preset=job.setup_preset,
+        event_name_column=job.event_name_column,
+        properties_column=job.properties_column,
         cardinality_threshold=job.cardinality_threshold,
         app_version_column=job.app_version_column,
         platform_column=job.platform_column,

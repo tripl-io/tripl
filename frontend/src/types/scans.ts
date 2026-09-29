@@ -136,6 +136,14 @@ export interface EventGroupRule {
   conditions: EventGroupCondition[]
 }
 
+/**
+ * How a scan was set up (F23.4c). `event_properties`: names come from
+ * `event_name_column` and every key of `properties_column` is catalogued as a
+ * property; the backend derives the name format, JSON value paths, Event type
+ * column and group rules from those two columns. `custom`: every field as set.
+ */
+export type ScanSetupPreset = 'custom' | 'event_properties'
+
 export interface ScanConfig {
   id: string
   data_source_id: string
@@ -148,6 +156,10 @@ export interface ScanConfig {
   event_name_format: string | null
   json_value_paths: string[]
   event_group_rules: EventGroupRule[]
+  /** Optional so hand-built configs (tests, older fixtures) read as `custom`. */
+  setup_preset?: ScanSetupPreset
+  event_name_column?: string | null
+  properties_column?: string | null
   metric_breakdown_columns: string[]
   metric_breakdown_values_limit: number | null
   distribution_drift_fields: string[]
@@ -216,10 +228,37 @@ export interface ScanPreviewJsonColumn {
   paths: ScanPreviewJsonPath[]
 }
 
+/** One key of the properties column, as the preview's sample rows carry it. */
+export interface ScanPreviewEventProperty {
+  path: string
+  /** Share of the event's sample rows that carried the key, 0..1. */
+  presence: number
+  /** The type a run would infer, or null when the sample's kinds disagree. */
+  type: string | null
+  sample_values: string[]
+}
+
+export interface ScanPreviewEvent {
+  name: string
+  sample_rows: number
+  properties: ScanPreviewEventProperty[]
+}
+
+/** What the "event + properties" preset yields from the preview's sample. */
+export interface ScanPreviewEventProperties {
+  event_name_column: string
+  properties_column: string
+  sample_rows: number
+  events: ScanPreviewEvent[]
+  error: string | null
+}
+
 export interface ScanConfigPreview {
   columns: ScanPreviewColumn[]
   rows: Record<string, unknown>[]
   json_columns: ScanPreviewJsonColumn[]
+  /** Present when the preview was asked with both preset columns. */
+  event_properties?: ScanPreviewEventProperties | null
 }
 
 export interface ScanPreviewJob {
@@ -441,6 +480,9 @@ export interface ScanDryRunRequest {
   event_name_format?: string | null
   event_group_rules?: EventGroupRule[]
   json_value_paths?: string[]
+  setup_preset?: ScanSetupPreset
+  event_name_column?: string | null
+  properties_column?: string | null
   cardinality_threshold?: number
   app_version_column?: string | null
   platform_column?: string | null
