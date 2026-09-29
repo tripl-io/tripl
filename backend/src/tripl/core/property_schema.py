@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 SCHEMA_MAX_BYTES = 16_384
@@ -228,3 +228,94 @@ def check_schema_matches_type(variable_type: str, schema: Mapping[str, Any] | No
         raise PropertySchemaError(
             f"json_schema does not match variable_type {variable_type}: expected {expected}"
         )
+
+
+# --- Scan-time inference (F23.4) ---------------------------------------------
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATETIME_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$"
+)
+
+# Every fragment ``infer_property_type`` can write. A scan-minted variable whose
+# schema is one of these still carries only what the scan said, so the
+# retirement sweep and diff housekeeping do not read it as a person's edit. A
+# person who types exactly one of them by hand is indistinguishable — the same
+# one-directional approximation the display-name check accepts.
+SCAN_INFERRED_SCHEMAS: tuple[dict[str, Any], ...] = (
+    {"type": "array"},
+    {"type": "object"},
+)
+
+
+def is_scan_inferred_schema(schema: Mapping[str, Any] | None) -> bool:
+    return schema is None or dict(schema) in SCAN_INFERRED_SCHEMAS
+
+
+def _kind(value: object) -> str:
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        # Never ``integer``: ClickHouse renders a Float64 ``10.0`` as ``10``, so
+        # a price sampled as 10, 20, 5 would be pinned to integer and its next
+        # 9.99 read as drift. Narrowing to integer is left to a person.
+        return "number"
+    if isinstance(value, str):
+        if _DATE_RE.match(value):
+            return "date"
+        if _DATETIME_RE.match(value):
+            return "datetime"
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return "unknown"
+
+
+def _array_type(arrays: Sequence[list[Any]]) -> tuple[str, dict[str, Any] | None]:
+    """Called with at least one non-null item, so ``item_kinds`` is not empty."""
+    item_kinds = {_kind(item) for array in arrays for item in array if item is not None}
+    if item_kinds <= {"string", "date", "datetime"}:
+        return "string_array", None
+    if item_kinds == {"number"}:
+        return "number_array", None
+    return "json", {"type": "array"}
+
+
+def infer_property_type(values: Sequence[object]) -> tuple[str, dict[str, Any] | None] | None:
+    """The ``(variable_type, json_schema)`` a sample of JSON values supports.
+
+    ``values`` are decoded JSON (``decode_json_path_value``), so a number is
+    still a number here — the one place the kind survives, since a context
+    stores every value as text. Nulls say nothing and are skipped. ``None``
+    when nothing typed was seen or the kinds disagree (a string beside a
+    number): one type per property, so a mixed sample is a conflict to report,
+    never something to guess (owner decision 4).
+
+    Dates are recognised by their ISO shape; a sample mixing dates and
+    date-times reads as ``datetime``, and either beside free text as ``string``.
+    """
+    present = [value for value in values if value is not None]
+    kinds = {_kind(value) for value in present}
+    if not kinds or "unknown" in kinds:
+        return None
+    if kinds == {"number"}:
+        return "number", None
+    if kinds == {"boolean"}:
+        return "boolean", None
+    if kinds == {"date"}:
+        return "date", None
+    if kinds <= {"date", "datetime"}:
+        return "datetime", None
+    if kinds <= {"string", "date", "datetime"}:
+        return "string", None
+    if kinds == {"array"}:
+        arrays = [value for value in present if isinstance(value, list)]
+        if not any(item is not None for array in arrays for item in array):
+            # Only empty arrays: no item type to go on, and the type is set once.
+            return None
+        return _array_type(arrays)
+    if kinds == {"object"}:
+        return "json", {"type": "object"}
+    return None

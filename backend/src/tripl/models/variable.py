@@ -60,7 +60,9 @@ class Variable(UUIDMixin, Base):
     bindings: Mapped[list[str]] = mapped_column(sa.JSON, default=list, server_default="[]")
     # JSON Schema fragment refining ``variable_type``; ``core.property_schema``
     # keeps the two consistent. NULL: the type is just ``variable_type``.
-    json_schema: Mapped[dict[str, Any] | None] = mapped_column(sa.JSON, nullable=True)
+    json_schema: Mapped[dict[str, Any] | None] = mapped_column(
+        sa.JSON(none_as_null=True), nullable=True
+    )
     # Tombstone: scans adopt-and-skip excluded variables — the row prevents
     # re-creation while contexts/drift stop accumulating (plain deletion is
     # undone by the next scan).

@@ -577,6 +577,13 @@ class BaseAdapter(abc.ABC):
         time_to: datetime | None = None,
     ) -> tuple[list[str], list[tuple[object, ...]]]: ...
 
+    #: Whether ``get_json_path_samples`` returns each value as JSON TEXT
+    #: (``'"42"'`` for a string, ``'42'`` for a number) rather than decoded.
+    #: The fallback below returns decoded values, so decoding them again would
+    #: turn the string ``"123"`` into a number; only the warehouse-side
+    #: overrides emit text (F23.4 type inference reads this).
+    json_path_samples_are_text: bool = False
+
     def get_json_path_samples(
         self,
         base_query: str,

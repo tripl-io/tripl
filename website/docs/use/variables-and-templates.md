@@ -103,7 +103,31 @@ fine.
   halves in one request, or set `json_schema` to `null` to clear it.
 - A bulk type change is refused as a whole if any selected variable has a
   schema the new type contradicts.
-- Scans do not write schemas yet.
+
+**Types a scan infers.** When a scan collects the first sample values for a
+JSON-path variable it created, it sets the variable's type from the JSON kind
+of those values:
+
+| Sample values | Type set |
+|---|---|
+| Numbers | `number`; narrow it to `integer` yourself if that is what it is |
+| `true` / `false` | `boolean` |
+| ISO dates | `date` |
+| ISO date-times, or date-times mixed with dates | `datetime` |
+| Arrays of strings | `string_array` |
+| Arrays of numbers | `number_array` |
+| Any other arrays, or objects | `json` |
+
+- A scan types a variable only once, and only while it is untouched: it still
+  has the default `string` type, no schema, and the scan's own description.
+  After that the scan never changes the type.
+- A sample that mixes kinds, such as `"42"` next to `42`, sets no type.
+- A sample of only nulls or only empty arrays sets no type either, so a later
+  sample can still set one.
+- A variable whose values were already recorded before this feature keeps
+  `string` until you set its type yourself.
+- A schema the scan wrote does not count as your edit, so the variable can
+  still be retired automatically.
 
 ### A binding and a `${token}` are not the same thing
 

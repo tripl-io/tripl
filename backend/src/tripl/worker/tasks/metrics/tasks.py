@@ -1360,6 +1360,7 @@ def collect_metrics(
                     "json_path_ring_size": catalog.json_path_sampling.ring_size,
                     "json_paths_sampled": catalog.json_path_sampling.paths_sampled,
                     "json_paths_with_samples": catalog.json_path_sampling.paths_with_samples,
+                    "json_path_variables_typed": catalog.json_path_sampling.variables_typed,
                     "variable_values_written": variable_values_written,
                     "variable_contexts_unfilled": variable_contexts_unfilled,
                 }

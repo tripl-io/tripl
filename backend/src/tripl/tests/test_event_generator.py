@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import product
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy import create_engine, func, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -5242,3 +5243,129 @@ def test_group_merge_never_leaves_the_target_superseded_by_itself(
         ).scalars()
     }
     assert stored == {"click events": None, "view:one": target.id}
+
+
+def test_json_path_sampling_reads_each_paths_type_before_the_values_turn_to_text(
+    sync_session: Session, project_and_type
+):
+    """F23.4: the decoded sample still knows 42 from "42"; the stored context
+    does not, so the type is read here or nowhere."""
+    from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
+
+    project, et, fds = project_and_type
+    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    event = _seed_event(sync_session, project, et, "Signup")
+    for source_name in ("payload.cart.qty", "payload.user.code"):
+        extra = _add_path_variable(sync_session, project, source_name)
+        _seed_context_row(sync_session, extra, event, fds["payload"], observed_count=0, values=[])
+    plan = sync_session.execute(select(Variable).where(Variable.name == "plan")).scalar_one()
+    _seed_context_row(sync_session, plan, event, fds["payload"], observed_count=0, values=[])
+
+    class _Adapter:
+        json_path_samples_are_text = True
+
+        def get_json_path_samples(self, *args: object, **kwargs: object):
+            return {
+                "payload": {
+                    "user.plan": ['"pro"', "null"],
+                    "cart.qty": ["2", "10"],
+                    "user.code": ['"42"', "42"],
+                }
+            }
+
+    sampling = _collect_json_path_samples(
+        sync_session,
+        adapter=_Adapter(),
+        config=config,
+        columns=[ColumnInfo("payload", "JSON")],
+        catalog_scan_window=None,
+        time_from_dt=datetime(2026, 8, 30, tzinfo=UTC),
+        time_to_dt=datetime(2026, 8, 30, 1, tzinfo=UTC),
+    )
+
+    # A string beside a number is a conflict, so user.code gets no type.
+    assert sampling.types == {
+        "payload": {"user.plan": ("string", None), "cart.qty": ("number", None)}
+    }
+
+
+def test_decoded_samples_are_not_decoded_twice(sync_session: Session, project_and_type):
+    """The fallback sampler (BigQuery, Synthetic) returns decoded values: the
+    string "123" is a string there, not the JSON text of a number."""
+    from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
+
+    project, et, fds = project_and_type
+    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    plan = sync_session.execute(select(Variable)).scalar_one()
+    event = _seed_event(sync_session, project, et, "Signup")
+    _seed_context_row(sync_session, plan, event, fds["payload"], observed_count=0, values=[])
+
+    class _Adapter:
+        def get_json_path_samples(self, *args: object, **kwargs: object):
+            return {"payload": {"user.plan": ["123", "true"]}}
+
+    sampling = _collect_json_path_samples(
+        sync_session,
+        adapter=_Adapter(),
+        config=config,
+        columns=[ColumnInfo("payload", "JSON")],
+        catalog_scan_window=None,
+        time_from_dt=datetime(2026, 8, 30, tzinfo=UTC),
+        time_to_dt=datetime(2026, 8, 30, 1, tzinfo=UTC),
+    )
+    assert sampling.types == {"payload": {"user.plan": ("string", None)}}
+
+
+def test_inferred_types_land_only_on_untyped_scan_variables(
+    sync_session: Session, project_and_type
+):
+    from tripl.core.analyzers._event_generator_variables import SCAN_PROVENANCE_DESCRIPTION
+    from tripl.worker.tasks.metrics.catalog_sync import _apply_inferred_types
+
+    project, _et, _fds = project_and_type
+
+    def variable(source_name: str, **overrides: object) -> Variable:
+        row = _add_path_variable(sync_session, project, source_name)
+        row.description = SCAN_PROVENANCE_DESCRIPTION
+        for key, value in overrides.items():
+            setattr(row, key, value)
+        sync_session.commit()
+        return row
+
+    fresh = variable("payload.cart.qty")
+    # A JSON ``null`` rather than SQL NULL, as a row copied before the column
+    # stored None as NULL holds it.
+    json_null = variable("payload.cart.seen")
+    sync_session.execute(
+        Variable.__table__.update()
+        .where(Variable.__table__.c.id == json_null.id)
+        .values(json_schema=sa.text("'null'"))
+    )
+    sync_session.commit()
+    described = variable("payload.cart.total", description="What the cart cost")
+    retyped = variable("payload.cart.items", variable_type="number")
+    excluded = variable("payload.cart.flag", excluded_from_scans=True)
+
+    typed = _apply_inferred_types(
+        sync_session,
+        project_id=project.id,
+        branch_id=None,
+        types={
+            "payload": {
+                "cart.qty": ("json", {"type": "array"}),
+                "cart.seen": ("boolean", None),
+                "cart.total": ("number", None),
+                "cart.items": ("json", {"type": "array"}),
+                "cart.flag": ("boolean", None),
+            }
+        },
+    )
+    sync_session.commit()
+
+    assert typed == 2
+    assert (fresh.variable_type, fresh.json_schema) == ("json", {"type": "array"})
+    sync_session.refresh(json_null)
+    assert json_null.variable_type == "boolean"
+    assert (described.variable_type, described.json_schema) == ("string", None)
+    assert (retyped.variable_type, retyped.json_schema) == ("number", None)
+    assert (excluded.variable_type, excluded.json_schema) == ("string", None)

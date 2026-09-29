@@ -13,26 +13,31 @@ hundreds of chunks cannot multiply it. See ``_collect_json_path_samples``.
 
 from __future__ import annotations
 
+import copy
+import dataclasses
 import logging
 import uuid
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
+from sqlalchemy import Text, or_, select
+from sqlalchemy import cast as sa_cast
 from sqlalchemy import func as sa_func
-from sqlalchemy import select
 from sqlalchemy.orm import Session, lazyload
 
 from tripl.core.adapters.base import BaseAdapter, ColumnInfo
 from tripl.core.analyzers._event_generator_variables import (
+    SCAN_PROVENANCE_DESCRIPTION,
     VARIABLE_VALUE_SAMPLE_LIMIT,
     VariableIndex,
 )
 from tripl.core.analyzers.cardinality import BreakdownAnalysis, _is_json_type
 from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.core.intervals import INTERVALS
-from tripl.json_paths import format_json_path_value
+from tripl.core.property_schema import infer_property_type
+from tripl.json_paths import decode_json_path_value, format_json_path_value
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
@@ -156,9 +161,13 @@ class JsonPathSampling:
     """
 
     samples: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    # ``column -> path -> (variable_type, json_schema)`` read off the decoded
+    # samples before ``_formatted_samples`` turns them into text (F23.4).
+    types: dict[str, dict[str, tuple[str, dict[str, Any] | None]]] = field(default_factory=dict)
     ring_size: int = 0
     paths_sampled: int = 0
     paths_with_samples: int = 0
+    variables_typed: int = 0
 
 
 @dataclass
@@ -458,6 +467,7 @@ def _collect_json_path_samples(
         return JsonPathSampling(ring_size=len(candidates), paths_sampled=paths_sampled)
 
     samples: dict[str, dict[str, list[str]]] = {}
+    types: dict[str, dict[str, tuple[str, dict[str, Any] | None]]] = {}
     for column, path_samples in discovered.items():
         paths = wanted.get(column)
         if not paths:
@@ -465,17 +475,89 @@ def _collect_json_path_samples(
         for path, values in path_samples.items():
             if path not in paths:
                 continue
+            decoded = (
+                [decode_json_path_value(value) for value in values]
+                # getattr: test doubles implement the sampler alone.
+                if getattr(adapter, "json_path_samples_are_text", False)
+                else list(values)
+            )
+            inferred = infer_property_type(decoded)
+            if inferred is not None:
+                types.setdefault(column, {})[path] = inferred
             formatted = _formatted_samples(values)
             if formatted:
                 samples.setdefault(column, {})[path] = formatted
     return JsonPathSampling(
         samples=samples,
+        types=types,
         ring_size=len(candidates),
         paths_sampled=paths_sampled,
         # Only non-empty formatted lists are stored, so this is exactly "came
         # back with at least one value".
         paths_with_samples=sum(len(column_samples) for column_samples in samples.values()),
     )
+
+
+def _apply_inferred_types(
+    session: Session,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID | None,
+    types: Mapping[str, Mapping[str, tuple[str, dict[str, Any] | None]]],
+) -> int:
+    """Give scan-minted JSON-path variables the type their samples show (F23.4).
+
+    Once, and only to a variable nobody has typed: still the scan's own
+    ``string`` with no schema, the scan's description, not excluded. A type a
+    person chose is never touched, and neither is one this function already
+    wrote — a later sample of another kind is drift to report (F23.5), not a
+    type to rewrite silently. Returns how many variables it typed.
+
+    The sampler only asks about paths with an unfilled context, so a variable
+    is typed in the same run its first values arrive; one already observed
+    before F23 is not re-sampled and keeps ``string``.
+    """
+    wanted = {
+        f"{column}.{path}": inferred
+        for column, paths in types.items()
+        for path, inferred in paths.items()
+        if inferred != ("string", None)
+    }
+    if not wanted:
+        return 0
+    query = (
+        select(Variable)
+        .where(
+            Variable.project_id == project_id,
+            Variable.variable_type == "string",
+            # SQL NULL, or the JSON ``null`` a row copied before the column
+            # stored None as NULL still holds.
+            or_(
+                Variable.json_schema.is_(None),
+                sa_cast(Variable.json_schema, Text) == "null",
+            ),
+            Variable.description == SCAN_PROVENANCE_DESCRIPTION,
+            Variable.excluded_from_scans.is_(False),
+        )
+        .options(lazyload(Variable.value_contexts))
+    )
+    if branch_id is not None:
+        query = query.where(Variable.branch_id == branch_id)
+    typed = 0
+    for variable in session.execute(query).scalars():
+        inferred = next(
+            (
+                wanted[token]
+                for token in VariableIndex.source_tokens_of(variable)
+                if token in wanted
+            ),
+            None,
+        )
+        if inferred is None:
+            continue
+        variable.variable_type, variable.json_schema = inferred[0], copy.deepcopy(inferred[1])
+        typed += 1
+    return typed
 
 
 def sync_catalog(
@@ -533,6 +615,15 @@ def sync_catalog(
             catalog_scan_window=catalog_scan_window,
             time_from_dt=time_from_dt,
             time_to_dt=time_to_dt,
+        )
+        out.json_path_sampling = dataclasses.replace(
+            out.json_path_sampling,
+            variables_typed=_apply_inferred_types(
+                session,
+                project_id=config.project_id,
+                branch_id=main_branch_id(session, config.project_id),
+                types=out.json_path_sampling.types,
+            ),
         )
     json_path_samples: dict[str, dict[str, list[str]]] = out.json_path_sampling.samples
 

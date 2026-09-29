@@ -9,6 +9,8 @@ from tripl.core.property_schema import (
     SCHEMA_MAX_DEPTH,
     PropertySchemaError,
     check_schema_matches_type,
+    infer_property_type,
+    is_scan_inferred_schema,
     validate_property_schema,
 )
 
@@ -410,3 +412,44 @@ async def test_reverting_either_half_restores_both(client: AsyncClient) -> None:
     assert resp.status_code == 200, resp.text
     restored = await _variable(client, slug, "amount", branch_id)
     assert (restored["variable_type"], restored["json_schema"]) == ("number", {"type": "integer"})
+
+
+# --- scan-time inference (F23.4) ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        (["pro", "free"], ("string", None)),
+        ([2, 10, None], ("number", None)),
+        ([2, 9.99], ("number", None)),
+        ([10.0], ("number", None)),
+        ([True, False], ("boolean", None)),
+        (["2026-09-29"], ("date", None)),
+        (["2026-09-29T10:00:00Z", "2026-09-29"], ("datetime", None)),
+        (["2026-09-29", "soon"], ("string", None)),
+        ([["a", "b"], []], ("string_array", None)),
+        ([[1, 2.5]], ("number_array", None)),
+        ([[], []], None),
+        ([[], ["a"]], ("string_array", None)),
+        ([[{"sku": "x"}]], ("json", {"type": "array"})),
+        ([{"a": 1}], ("json", {"type": "object"})),
+        (["42", 42], None),
+        ([None, None], None),
+        ([], None),
+    ],
+)
+def test_infer_property_type(values: list[object], expected: object) -> None:
+    assert infer_property_type(values) == expected
+
+
+def test_every_inferred_type_passes_the_agreement_check() -> None:
+    """What the scan writes must be what a person could have saved."""
+    for sample in (["x"], [1], [1.5], [True], ["2026-01-01"], [[1]], [["a"]], [[{}]], [{}]):
+        inferred = infer_property_type(sample)
+        assert inferred is not None
+        variable_type, schema = inferred
+        if schema is not None:
+            validate_property_schema(schema)
+            assert is_scan_inferred_schema(schema)
+        check_schema_matches_type(variable_type, schema)

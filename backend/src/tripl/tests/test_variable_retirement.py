@@ -186,6 +186,14 @@ def test_a_variable_with_nothing_pointing_at_it_is_retirable() -> None:
     assert plan.scanned == 1
 
 
+def test_a_type_the_scan_inferred_does_not_keep_a_variable() -> None:
+    variable = _unsaved(variable_type="json", json_schema={"type": "array"})
+    plan = plan_retirement(
+        [variable], referenced=set(), with_contexts=set(), with_drifts=set(), with_overrides=set()
+    )
+    assert plan.retirable == [variable.id]
+
+
 @pytest.mark.parametrize(
     ("overrides", "reason"),
     [
