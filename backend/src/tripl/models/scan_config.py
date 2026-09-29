@@ -51,6 +51,15 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     time_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     event_name_format: Mapped[str | None] = mapped_column(String(500), nullable=True)
     json_value_paths: Mapped[list[str]] = mapped_column(JSON, default=list, server_default="[]")
+    # How the scan was set up (F23.4c): ``custom``, or ``event_properties`` —
+    # names from ``event_name_column``, every key of ``properties_column`` a
+    # property. The preset DERIVES ``event_name_format``, ``json_value_paths``,
+    # ``event_type_column`` and ``event_group_rules``
+    # (``core.scan_setup_preset``); the two columns are stored so an edit
+    # reopens the preset. Both are NULL on a custom config.
+    setup_preset: Mapped[str] = mapped_column(String(32), default="custom", server_default="custom")
+    event_name_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    properties_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     event_group_rules: Mapped[list[dict[str, object]]] = mapped_column(
         JSON,
         default=list,

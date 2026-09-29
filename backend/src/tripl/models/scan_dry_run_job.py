@@ -54,6 +54,10 @@ class ScanDryRunJob(UUIDMixin, TimestampMixin, Base):
     event_name_format: Mapped[str | None] = mapped_column(String(500), nullable=True)
     event_group_rules: Mapped[list[dict[str, object]]] = mapped_column(sa.JSON, default=list)
     json_value_paths: Mapped[list[str]] = mapped_column(sa.JSON, default=list)
+    # The draft's setup preset (F23.4c) and its two columns; see ScanConfig.
+    setup_preset: Mapped[str] = mapped_column(String(32), default="custom", server_default="custom")
+    event_name_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    properties_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cardinality_threshold: Mapped[int] = mapped_column(Integer, default=100)
     app_version_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     platform_column: Mapped[str | None] = mapped_column(String(255), nullable=True)

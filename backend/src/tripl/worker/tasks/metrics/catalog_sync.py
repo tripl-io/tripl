@@ -38,6 +38,7 @@ from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.core.intervals import INTERVALS
 from tripl.core.property_drift import clear_stale_findings, type_findings, upsert_findings
 from tripl.core.property_schema import infer_property_type
+from tripl.core.scan_setup_preset import is_event_properties_preset
 from tripl.json_paths import decode_json_path_value, format_json_path_value
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
@@ -58,6 +59,7 @@ from tripl.worker.tasks.metrics.schema_drift import (
     _detect_event_type_drift,
     _detect_field_contract_violations,
 )
+from tripl.worker.utils.scan_preset import ensure_preset_event_type
 
 if TYPE_CHECKING:
     from tripl.worker.utils.query_windows import TimeWindow
@@ -684,6 +686,11 @@ def sync_catalog(
             ),
         )
     json_path_samples: dict[str, dict[str, list[str]]] = out.json_path_sampling.samples
+
+    if not is_replay and is_event_properties_preset(config.setup_preset):
+        # The preset's event type and its two fields; the single-type branch
+        # below then runs as for any other config.
+        ensure_preset_event_type(session, config, columns)
 
     if is_replay:
         (

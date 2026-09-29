@@ -8,6 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
 from tripl.core.bucketing import floor_to_bucket
+from tripl.core.scan_setup_preset import (
+    PRESET_EVENT_TYPE_NAME,
+    apply_setup_preset,
+    is_event_properties_preset,
+)
 from tripl.models.data_source import DataSource, DBType
 from tripl.models.event_type import EventType
 from tripl.models.project import Project
@@ -101,6 +106,48 @@ async def _verify_main_event_type(
         )
 
 
+async def _ensure_preset_event_type(
+    session: AsyncSession, project_id: uuid.UUID
+) -> tuple[uuid.UUID, bool]:
+    """The event type a preset scan with none chosen files its events under.
+
+    Found by name on the main plan, or created there, so the saved config is an
+    ordinary single-event-type config and every run, collection, replay and dry
+    run takes the path it already takes. The worker ensures the preset's two
+    fields on it at run time (``worker.utils.scan_preset``), where the columns'
+    warehouse types are known.
+
+    Returns ``(id, created)``; a caller that created it busts the event type
+    caches once its commit has landed (``_bust_event_type_caches``).
+    """
+    main_branch_id = await resolve_branch_id(session, project_id, None)
+    existing = await session.scalar(
+        select(EventType.id).where(
+            EventType.project_id == project_id,
+            EventType.branch_id == main_branch_id,
+            EventType.name == PRESET_EVENT_TYPE_NAME,
+        )
+    )
+    if existing is not None:
+        return existing, False
+    event_type = EventType(
+        project_id=project_id,
+        branch_id=main_branch_id,
+        name=PRESET_EVENT_TYPE_NAME,
+        display_name=PRESET_EVENT_TYPE_NAME,
+        description="Created for an Event + properties scan",
+    )
+    session.add(event_type)
+    await session.flush()
+    return event_type.id, True
+
+
+async def _bust_event_type_caches(project_id: uuid.UUID) -> None:
+    await cache.delete_prefix(cache.prefix_event_types(project_id))
+    # Event types feed the projects page's summary counts.
+    await cache.delete_prefix(cache.prefix_projects())
+
+
 async def _reject_duplicate_name(
     session: AsyncSession,
     data_source_id: uuid.UUID,
@@ -147,6 +194,11 @@ async def create_scan_config(
     await _reject_duplicate_name(session, data.data_source_id, data.name)
 
     payload = data.model_dump()
+    created_event_type = False
+    if is_event_properties_preset(data.setup_preset) and data.event_type_id is None:
+        payload["event_type_id"], created_event_type = await _ensure_preset_event_type(
+            session, project_id
+        )
     project_keep_releases = (
         await session.execute(
             select(Project.app_version_keep_releases).where(Project.id == project_id)
@@ -159,6 +211,8 @@ async def create_scan_config(
     session.add(config)
     await session.commit()
     await session.refresh(config)
+    if created_event_type:
+        await _bust_event_type_caches(project_id)
     await _refresh_main_search_index(session, project_id, slug)
     return config
 
@@ -190,6 +244,23 @@ async def update_scan_config(
     # PATCH semantics: merge the partial payload onto the live config first so
     # cross-field checks see the post-update state, not just the diff.
     try:
+        merged = {
+            key: update_dict.get(key, getattr(config, key))
+            for key in (
+                "setup_preset",
+                "event_name_column",
+                "properties_column",
+                "event_type_column",
+                "event_name_format",
+                "json_value_paths",
+                "event_group_rules",
+                "time_column",
+                "app_version_column",
+                "platform_column",
+            )
+        }
+        # Before the column checks: the preset decides the event type column.
+        update_dict.update(apply_setup_preset(merged, explicit=update_dict.keys()))
         check_scalar_columns_unreserved(
             metric_breakdown_columns=update_dict.get(
                 "metric_breakdown_columns", config.metric_breakdown_columns
@@ -213,10 +284,21 @@ async def update_scan_config(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    created_event_type = False
+    if (
+        is_event_properties_preset(update_dict.get("setup_preset", config.setup_preset))
+        and update_dict.get("event_type_id", config.event_type_id) is None
+    ):
+        update_dict["event_type_id"], created_event_type = await _ensure_preset_event_type(
+            session, config.project_id
+        )
+
     for key, value in update_dict.items():
         setattr(config, key, value)
     await session.commit()
     await session.refresh(config)
+    if created_event_type:
+        await _bust_event_type_caches(config.project_id)
     await _refresh_main_search_index(session, config.project_id, slug)
     return config
 
@@ -273,6 +355,8 @@ async def trigger_preview(
         time_column=data.time_column,
         scan_lookback_hours=data.scan_lookback_hours,
         include_json_paths=data.include_json_paths,
+        event_name_column=data.event_name_column,
+        properties_column=data.properties_column,
         status=ScanJobStatus.pending.value,
     )
     session.add(job)
@@ -355,6 +439,9 @@ async def trigger_dry_run(
             event_name_format=data.event_name_format,
             event_group_rules=[rule.model_dump() for rule in data.event_group_rules],
             json_value_paths=list(data.json_value_paths),
+            setup_preset=data.setup_preset,
+            event_name_column=data.event_name_column,
+            properties_column=data.properties_column,
             cardinality_threshold=data.cardinality_threshold,
             app_version_column=data.app_version_column,
             platform_column=data.platform_column,

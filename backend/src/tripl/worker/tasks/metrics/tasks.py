@@ -100,6 +100,7 @@ from tripl.worker.utils.job_status import (
 )
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_preset import preset_scan_columns
 from tripl.worker.variable_sweep import retire_unused_variables, retired_details_line
 
 logger = logging.getLogger(__name__)
@@ -673,6 +674,8 @@ def collect_metrics(
         columns = adapter.get_columns(config.base_query)
         if config.time_column:
             columns = [c for c in columns if c.name != config.time_column]
+        # The "event + properties" preset reads only the columns it needs.
+        columns = preset_scan_columns(config, columns)
         logger.info(f"Found {len(columns)} columns in base query")
 
         skip_cols = reserved_catalog_columns(config)
