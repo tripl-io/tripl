@@ -280,7 +280,10 @@ async def load_event_contexts(
                 ).where(VariableEventValueOverride.event_id.in_(chunk))
             )
         ).all():
-            listed = tuple(str(v) for v in override or [])
+            if override is None:
+                # A property entry without an override: the global list applies.
+                continue
+            listed = tuple(str(v) for v in override)
             for token in variable_tokens.get(variable_id, ()):
                 overrides[event_id][token] = listed
     return {

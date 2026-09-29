@@ -223,7 +223,7 @@ async def _authored_plan_entries(session: AsyncSession, ctx: DemoContext) -> lis
             payload={
                 "event_id": str(override.event_id),
                 "event_name": event_names.get(override.event_id, ""),
-                "values": list(override.values),
+                "values": list(override.values or []),
             },
         )
         for override in overrides

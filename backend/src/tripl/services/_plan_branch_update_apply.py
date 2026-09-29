@@ -27,7 +27,10 @@ from tripl.models.event_type_relation import EventTypeRelation
 from tripl.models.field_definition import FieldDefinition
 from tripl.models.meta_field_definition import MetaFieldDefinition
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.schemas.plan_branch import EntityChangeCount
 from tripl.services._plan_branch_three_way_model import ENTITY_TYPES, Op
 from tripl.services._plan_branch_update_contexts import copy_value_contexts
@@ -467,25 +470,25 @@ class _Applier:
                 VariableEventValueOverride.event_id.in_([uuid.UUID(str(i)) for i in only])
             )
         main_overrides = list((await self.session.execute(stmt)).scalars().all())
-        placed: list[tuple[uuid.UUID, list[Any]]] = []
+        placed: list[tuple[uuid.UUID, list[Any] | None, bool]] = []
         for override in main_overrides:
             target = await self.branch_event_for(override.event_id)
             if target is not None:
-                placed.append((target.id, list(override.values or [])))
+                placed.append((target.id, copy_override_values(override.values), override.required))
         clear = delete(VariableEventValueOverride).where(
             VariableEventValueOverride.variable_id == variable.id,
             VariableEventValueOverride.branch_id == self.branch_id,
         )
         if only is not None:
             clear = clear.where(
-                VariableEventValueOverride.event_id.in_([event_id for event_id, _ in placed])
+                VariableEventValueOverride.event_id.in_([event_id for event_id, _, _ in placed])
             )
         kept = [uuid.UUID(str(event_id)) for event_id in keep]
         if kept:
             clear = clear.where(VariableEventValueOverride.event_id.not_in(kept))
-            placed = [(event_id, values) for event_id, values in placed if event_id not in kept]
+            placed = [entry for entry in placed if entry[0] not in kept]
         await self.session.execute(clear)
-        for event_id, values in placed:
+        for event_id, values, required in placed:
             self.session.add(
                 VariableEventValueOverride(
                     id=uuid.uuid4(),
@@ -494,6 +497,7 @@ class _Applier:
                     variable_id=variable.id,
                     event_id=event_id,
                     values=values,
+                    required=required,
                 )
             )
 

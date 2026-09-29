@@ -20,7 +20,8 @@ from tripl.schemas.event import (
     EventUpdate,
 )
 from tripl.schemas.text_filters import FreeTextFilter
-from tripl.services import audit_service, event_service
+from tripl.schemas.variable import EventPropertyResponse
+from tripl.services import audit_service, event_service, variable_service
 
 router = APIRouter(prefix="/projects/{slug}/events", tags=["events"])
 # Kept for the two routes that only permute ``Event.order`` and are deliberately
@@ -344,6 +345,15 @@ async def get_event(
     session: SessionDep, slug: str, event_id: uuid.UUID, branch_id: BranchIdDep
 ) -> Event:
     return await event_service.get_event(session, slug, event_id, branch_id, strict_branch=False)
+
+
+@router.get("/{event_id}/properties", response_model=list[EventPropertyResponse])
+async def list_event_properties(
+    session: SessionDep, slug: str, event_id: uuid.UUID, branch_id: BranchIdDep
+) -> list[EventPropertyResponse]:
+    """The event's property list (F23). Edit an entry through
+    ``PUT /variables/{variable_id}/event-overrides/{event_id}``."""
+    return await variable_service.list_event_properties(session, slug, event_id, branch_id)
 
 
 @router.get("/{event_id}/history", response_model=list[EventChangeResponse])

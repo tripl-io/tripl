@@ -37,7 +37,10 @@ from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.models.variable_value import VariableValue
 from tripl.schemas.plan_branch import (
     BranchCommentCreate,
@@ -740,7 +743,8 @@ async def deep_copy_plan_to_branch(
                     branch_id=target_branch_id,
                     variable_id=override_variable_id,
                     event_id=override_event_id,
-                    values=list(override.values or []),
+                    values=copy_override_values(override.values),
+                    required=override.required,
                 )
             )
 

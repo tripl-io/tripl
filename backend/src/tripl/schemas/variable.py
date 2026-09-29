@@ -231,7 +231,27 @@ class VariableBulkDelete(BaseModel):
 
 
 class VariableEventOverrideUpsert(BaseModel):
-    values: list[str] = Field(max_length=500)
+    """Add the variable to the event's property list, or edit its entry.
+
+    A patch: a field left out keeps what the entry holds, and a new entry
+    starts with no override and not required. ``values: null`` removes the
+    override and keeps the property; deleting the entry removes both.
+    """
+
+    values: list[str] | None = Field(
+        None,
+        max_length=500,
+        description="Allowed values for this event, replacing the variable's global list."
+        " null: no override, the global list applies.",
+    )
+    required: bool | None = Field(
+        None, description="Whether every occurrence of the event must carry this property."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_required(cls, data: object) -> object:
+        return reject_explicit_nulls(data, frozenset({"required"}))
 
 
 class VariableEventOverrideResponse(BaseModel):
@@ -239,9 +259,30 @@ class VariableEventOverrideResponse(BaseModel):
     variable_id: uuid.UUID
     event_id: uuid.UUID
     event_name: str
-    values: list[str] = []
+    values: list[str] | None = None
+    required: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class EventPropertyResponse(BaseModel):
+    """One entry of an event's property list, with the variable it names."""
+
+    id: uuid.UUID
+    variable_id: uuid.UUID
+    name: str
+    variable_type: VariableType
+    json_schema: dict[str, Any] | None = None
+    description: str = ""
+    required: bool = False
+    values: list[str] | None = Field(
+        None, description="This event's override of the allowed values; null when there is none."
+    )
+    effective_values: list[str] = Field(
+        default=[],
+        description="The allowed values in force for this event: the override when there is"
+        " one, else the variable's global list.",
+    )
 
 
 class VariableValueContextResponse(BaseModel):

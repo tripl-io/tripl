@@ -36,7 +36,10 @@ from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.models.subscription import Subscription
 from tripl.models.user import User
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.schemas.plan_branch import PlanBranchDetailResponse
 from tripl.services import project_access, subscription_service
 from tripl.services._branch_counterparts import main_counterparts
@@ -1709,7 +1712,8 @@ async def _apply_merge(
                     branch_id=main_branch_id,
                     variable_id=main_var_id,
                     event_id=landed.id,
-                    values=list(override.values or []),
+                    values=copy_override_values(override.values),
+                    required=override.required,
                 )
             )
     await session.flush()

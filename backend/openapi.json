@@ -12066,6 +12066,82 @@
         "title": "EventPhotoStorageBackend",
         "type": "string"
       },
+      "EventPropertyResponse": {
+        "description": "One entry of an event's property list, with the variable it names.",
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "effective_values": {
+            "default": [],
+            "description": "The allowed values in force for this event: the override when there is one, else the variable's global list.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Effective Values",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This event's override of the allowed values; null when there is none.",
+            "title": "Values"
+          },
+          "variable_id": {
+            "format": "uuid",
+            "title": "Variable Id",
+            "type": "string"
+          },
+          "variable_type": {
+            "$ref": "#/components/schemas/VariableType"
+          }
+        },
+        "required": [
+          "id",
+          "variable_id",
+          "name",
+          "variable_type"
+        ],
+        "title": "EventPropertyResponse",
+        "type": "object"
+      },
       "EventReorder": {
         "properties": {
           "event_ids": {
@@ -30733,13 +30809,24 @@
             "title": "Id",
             "type": "string"
           },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
           "values": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Values",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
           },
           "variable_id": {
             "format": "uuid",
@@ -30757,19 +30844,37 @@
         "type": "object"
       },
       "VariableEventOverrideUpsert": {
+        "description": "Add the variable to the event's property list, or edit its entry.\n\nA patch: a field left out keeps what the entry holds, and a new entry\nstarts with no override and not required. ``values: null`` removes the\noverride and keeps the property; deleting the entry removes both.",
         "properties": {
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether every occurrence of the event must carry this property.",
+            "title": "Required"
+          },
           "values": {
-            "items": {
-              "type": "string"
-            },
-            "maxItems": 500,
-            "title": "Values",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Allowed values for this event, replacing the variable's global list. null: no override, the global list applies.",
+            "title": "Values"
           }
         },
-        "required": [
-          "values"
-        ],
         "title": "VariableEventOverrideUpsert",
         "type": "object"
       },
@@ -45675,6 +45780,81 @@
         "summary": "Download Event Photo",
         "tags": [
           "event-photos"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/events/{event_id}/properties": {
+      "get": {
+        "description": "The event's property list (F23). Edit an entry through\n``PUT /variables/{variable_id}/event-overrides/{event_id}``.",
+        "operationId": "list_event_properties_api_v1_projects__slug__events__event_id__properties_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/EventPropertyResponse"
+                  },
+                  "title": "Response List Event Properties Api V1 Projects  Slug  Events  Event Id  Properties Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Event Properties",
+        "tags": [
+          "events"
         ]
       }
     },

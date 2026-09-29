@@ -296,8 +296,10 @@ def test_variable_event_overrides_key_on_the_event_they_target() -> None:
 
     change = next(fc for fc in entries[0].field_changes if fc.field == "event_value_overrides")
     assert [(item.key, item.kind) for item in change.items] == [("track.purchase", "changed")]
-    assert change.items[0].before == ["USD"]
-    assert change.items[0].after == ["USD", "EUR"]
+    # Two attributes since F23 (the values and ``required``), so the member is
+    # shown whole rather than unwrapped; a pre-F23 payload is read as optional.
+    assert change.items[0].before == {"values": ["USD"], "required": False}
+    assert change.items[0].after == {"values": ["USD", "EUR"], "required": False}
 
 
 def test_scalar_field_change_carries_no_items() -> None:

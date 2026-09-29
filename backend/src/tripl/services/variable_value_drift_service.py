@@ -115,8 +115,12 @@ async def _apply_acceptance_to_plan(
                     values=_merge_values(list(variable.allowed_values or []), novel),
                 )
             )
+        elif override.values is None:
+            # A property entry with no override of its own: the list it starts
+            # from is the global one, as for a new row.
+            override.values = _merge_values(list(variable.allowed_values or []), novel)
         else:
-            override.values = _merge_values(list(override.values or []), novel)
+            override.values = _merge_values(list(override.values), novel)
         return
     variable.allowed_values = _merge_values(list(variable.allowed_values or []), novel)
 

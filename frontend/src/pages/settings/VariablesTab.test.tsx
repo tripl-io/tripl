@@ -39,6 +39,7 @@ vi.mock('@/api/variableOverrides', () => ({
   variableOverridesApi: {
     list: vi.fn(),
     upsert: vi.fn(),
+    clearValues: vi.fn(),
     del: vi.fn(),
   },
 }))
@@ -531,6 +532,7 @@ describe('VariablesTab', () => {
         event_id: 'ev-1',
         event_name: 'Onboarding',
         values: ['x'],
+        required: false,
       },
     ])
     vi.mocked(eventsApi.list).mockResolvedValue({
@@ -546,6 +548,7 @@ describe('VariablesTab', () => {
       event_id: 'ev-2',
       event_name: 'Checkout',
       values: ['y'],
+      required: false,
     })
 
     renderVariablesTab()
@@ -580,7 +583,7 @@ describe('VariablesTab', () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant', allowed_values: ['a'] })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableOverridesApi.list).mockResolvedValue([
-      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-blank', event_name: '', values: ['x'] },
+      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-blank', event_name: '', values: ['x'], required: false },
     ])
     vi.mocked(eventsApi.list).mockResolvedValue({
       items: [{ id: 'ev-blank', name: '' }] as never,
@@ -1019,6 +1022,7 @@ describe('VariablesTab', () => {
         event_id: 'ev-far',
         event_name: 'Checkout Completed',
         values: ['x'],
+        required: false,
       },
     ])
     vi.mocked(eventsApi.list).mockResolvedValue({
@@ -1031,6 +1035,7 @@ describe('VariablesTab', () => {
       event_id: 'ev-far',
       event_name: 'Checkout Completed',
       values: ['x'],
+      required: false,
     })
 
     renderVariablesTab()
@@ -1718,21 +1723,42 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant' })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableOverridesApi.list).mockResolvedValue([
-      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-1', event_name: 'Onboarding', values: ['x', 'y'] },
+      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-1', event_name: 'Onboarding', values: ['x', 'y'], required: false },
     ])
-    vi.mocked(variableOverridesApi.del).mockResolvedValue(undefined as never)
+    vi.mocked(variableOverridesApi.clearValues).mockResolvedValue(undefined as never)
     renderVariablesTab()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete override for Onboarding' }))
     const confirm = await screen.findByRole('alertdialog', { name: 'Delete override' })
     expect(within(confirm).getByText(/Its 2 values go with it/)).toBeInTheDocument()
-    expect(variableOverridesApi.del).not.toHaveBeenCalled()
+    expect(variableOverridesApi.clearValues).not.toHaveBeenCalled()
 
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
     await waitFor(() =>
-      expect(variableOverridesApi.del).toHaveBeenCalledWith('demo', 'var-1', 'ev-1', null),
+      expect(variableOverridesApi.clearValues).toHaveBeenCalledWith('demo', 'var-1', 'ev-1', null),
     )
+  })
+
+  it('lists only entries with their own values, and keeps the property when its override goes (F23)', async () => {
+    mockList([makeVariable({ id: 'var-1', name: 'variant' })])
+    vi.mocked(variablesApi.values).mockResolvedValue([])
+    vi.mocked(variableOverridesApi.list).mockResolvedValue([
+      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-1', event_name: 'Onboarding', values: ['x'], required: true },
+      { id: 'ovr-2', variable_id: 'var-1', event_id: 'ev-2', event_name: 'Checkout', values: null, required: true },
+    ])
+    vi.mocked(variableOverridesApi.clearValues).mockResolvedValue(undefined as never)
+    renderVariablesTab()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete override for Onboarding' }))
+    expect(screen.queryByRole('button', { name: 'Delete override for Checkout' })).not.toBeInTheDocument()
+    const confirm = await screen.findByRole('alertdialog', { name: 'Delete override' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
+    await waitFor(() =>
+      expect(variableOverridesApi.clearValues).toHaveBeenCalledWith('demo', 'var-1', 'ev-1', null),
+    )
+    expect(variableOverridesApi.del).not.toHaveBeenCalled()
   })
 
   it('reads the edited variable from the list, so a cleared one offers nothing more to clear (PLAN-29)', async () => {
@@ -1830,7 +1856,7 @@ describe('VariablesTab — review 204 follow-ups', () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant' })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     vi.mocked(variableOverridesApi.list).mockResolvedValue([
-      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-1', event_name: 'Onboarding', values: ['a', 'b'] },
+      { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-1', event_name: 'Onboarding', values: ['a', 'b'], required: false },
     ])
     renderVariablesTab()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))

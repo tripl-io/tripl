@@ -125,7 +125,7 @@ export function VariableDefinitionFields({
   // Overrides are values too, and a type change strands them the same way
   // (review 204): distinct, in the order the overrides list them.
   const invalidOverrideValues = [
-    ...new Set(invalidValuesFor(draft.type, overrides.flatMap((override) => override.values))),
+    ...new Set(invalidValuesFor(draft.type, overrides.flatMap((override) => override.values ?? []))),
   ]
 
   return (
