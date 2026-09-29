@@ -1454,6 +1454,10 @@ describe('ProjectSettingsPage', () => {
         data_source_id: 'ds-1',
         name: 'Main scan',
         base_query: 'SELECT * FROM analytics.events',
+        setup_preset: 'custom',
+        event_name_column: null,
+        properties_column: null,
+        json_string_columns: [],
         event_type_id: null,
         event_type_column: 'screen',
         time_column: 'created_at',
@@ -2329,6 +2333,7 @@ describe('ProjectSettingsPage', () => {
         json_value_paths: ['payload.extra.key'],
         time_column: null,
         scan_lookback_hours: null,
+        json_string_columns: [],
         include_json_paths: true,
       })
     })
