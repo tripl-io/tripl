@@ -614,6 +614,24 @@ class TestPresetPreview:
         assert page_view["ms"]["presence"] == 0.5
         assert page_view["ms"]["type"] == "number"
 
+    def test_summary_folds_a_nested_object_into_one_property(self) -> None:
+        """The preset catalogues a nested object as ONE property (F23.4e), so
+        the preview shows ``user`` as an object, not ``user.id``/``user.plan``."""
+        rows: list[dict[str, object]] = [
+            {"event": "signup", "properties": {"user": {"id": "u1", "plan": "pro"}, "n": 1}},
+            {"event": "signup", "properties": {"user": {"id": "u2"}}},
+        ]
+        summary = summarize_event_properties(
+            _COLUMNS, rows, event_name_column="event", properties_column="properties"
+        )
+        events = summary["events"]
+        assert isinstance(events, list)
+        signup = {prop["path"]: prop for prop in events[0]["properties"]}
+        assert set(signup) == {"user", "n"}
+        assert signup["user"]["presence"] == 1.0
+        assert signup["user"]["type"] == "json"
+        assert signup["n"]["presence"] == 0.5
+
     def test_summary_reports_a_non_json_properties_column(self) -> None:
         summary = summarize_event_properties(
             _COLUMNS, [], event_name_column="event", properties_column="user_id"

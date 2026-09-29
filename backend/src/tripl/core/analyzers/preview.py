@@ -23,6 +23,7 @@ from tripl.json_paths import (
     format_json_path_value,
     group_json_value_paths,
     json_safe,
+    object_property_paths,
 )
 
 JSON_PATH_DISCOVERY_LIMIT = 1000
@@ -184,6 +185,16 @@ def _get_json_path_samples(
     )
 
 
+def _value_at(document: object, path: str) -> object:
+    """The value at a dotted ``path`` of a decoded JSON document, or None."""
+    current = document
+    for segment in path.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(segment)
+    return current
+
+
 def summarize_event_properties(
     columns: list[ColumnInfo],
     rows: list[dict[str, object]],
@@ -200,9 +211,11 @@ def summarize_event_properties(
     the planner formats it, and a row whose name comes out empty is skipped, as
     a run skips it.
 
-    Keys are the JSON's leaf paths, the paths a run catalogues. A summary of a
-    sample: an event or key missing here may still exist, which the dry run
-    answers for the whole lookback window.
+    Keys are the properties a run catalogues: the JSON's leaf paths, with a
+    nested object folded into ONE property the way the scan folds it
+    (``object_property_paths``, F23.4e) — the preset pins no path, so every
+    object folds. A summary of a sample: an event or key missing here may still
+    exist, which the dry run answers for the whole lookback window.
     """
     summary: dict[str, object] = {
         "event_name_column": event_name_column,
@@ -229,21 +242,31 @@ def summarize_event_properties(
         )
         return summary
 
-    rows_by_event: dict[str, int] = {}
-    values_by_event: dict[str, dict[str, list[object]]] = {}
+    named_rows: list[tuple[str, object]] = []
+    leaf_paths: set[str] = set()
     for row in rows:
         name = _format_value(row.get(event_name_column))
         if not name:
             continue
+        properties = decode_json_path_value(row.get(properties_column))
+        named_rows.append((name, properties))
+        leaf_paths.update(path for path, _value in flatten_json_paths(properties))
+    folded = object_property_paths(leaf_paths)
+
+    rows_by_event: dict[str, int] = {}
+    values_by_event: dict[str, dict[str, list[object]]] = {}
+    for name, properties in named_rows:
         rows_by_event[name] = rows_by_event.get(name, 0) + 1
         paths = values_by_event.setdefault(name, {})
         seen: set[str] = set()
-        properties = decode_json_path_value(row.get(properties_column))
-        for path, value in flatten_json_paths(properties):
+        for leaf, leaf_value in flatten_json_paths(properties):
+            path = folded.get(leaf, leaf)
             paths.setdefault(path, [])
-            # Presence counts rows, so a path repeated inside one row counts once.
+            # Presence counts rows, so a property repeated inside one row (the
+            # leaves of one object) counts once.
             if path not in seen:
                 seen.add(path)
+                value = _value_at(properties, path) if path != leaf else leaf_value
                 paths[path].append(value)
 
     events: list[dict[str, object]] = []
