@@ -278,7 +278,20 @@ That endpoint works as a patch:
 - `{"values": null}` removes the override and keeps the entry;
 - `DELETE` removes the entry.
 
-Scans do not write the list yet.
+Scans do not write the list. They record what they observe instead.
+
+**How a scan records JSON keys.**
+
+- When several scanned rows collapse into one event, the event's JSON value
+  carries every key any of those rows had. Earlier, only the busiest row's keys
+  were kept, so optional properties disappeared.
+- A kept literal value that differs between rows still comes from the busiest
+  row.
+- For each JSON-path property, the scan measures a **presence rate**: the share
+  of the event's rows, weighted by their counts, that carried the key. It is
+  stored with the observed values.
+- `GET /events/{event_id}/properties` returns the rate as `presence_rate`. It
+  is `null` until a scan that returns row counts has measured it.
 
 ## Bind a variable to warehouse data
 

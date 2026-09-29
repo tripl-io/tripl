@@ -262,3 +262,42 @@ def test_a_stored_revision_from_before_f23_reads_as_unchanged() -> None:
     assert variable["event_value_overrides"][0]["required"] is False
     assert "required" not in old["variables"][0]["event_value_overrides"][0]
     assert with_snapshot_defaults(upgraded) is upgraded
+
+
+@pytest.mark.asyncio
+async def test_a_branch_copies_the_measured_presence(client: AsyncClient) -> None:
+    from tripl.models.variable_value import VariableValue
+
+    slug = "props-presence-branch"
+    var_id, event_id = await _seed(client, slug)
+    await _put(client, slug, var_id, event_id, {})
+    event = (await client.get(f"/api/v1/projects/{slug}/events/{event_id}")).json()
+    field = await client.post(
+        f"/api/v1/projects/{slug}/event-types/{event['event_type_id']}/fields",
+        json={"name": "payload", "display_name": "Payload", "field_type": "json"},
+    )
+    assert field.status_code == 201, field.text
+    async with TestSessionLocal() as session, session.begin():
+        variable = await session.get(Variable, uuid.UUID(var_id))
+        assert variable is not None
+        session.add(
+            VariableValue(
+                project_id=variable.project_id,
+                branch_id=variable.branch_id,
+                variable_id=variable.id,
+                event_id=uuid.UUID(event_id),
+                field_definition_id=uuid.UUID(field.json()["id"]),
+                source_column="payload.currency",
+                value_kind="high",
+                observed_count=1,
+                values=["USD"],
+                presence_rate=0.9,
+            )
+        )
+    [on_main] = await _properties(client, slug, event_id)
+    assert on_main["presence_rate"] == 0.9
+
+    branch_id = await _branch(client, slug)
+    b_event = await _event_id(client, slug, branch_id)
+    [copied] = await _properties(client, slug, b_event, branch_id)
+    assert copied["presence_rate"] == 0.9

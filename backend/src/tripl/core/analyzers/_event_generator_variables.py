@@ -356,6 +356,10 @@ def preserve_existing_variable_context_values(
         if context is None:
             continue
 
+        if context.get("presence_rate") is None:
+            # A run that could not measure presence (a replay, rows without
+            # counts) keeps the last measurement rather than erasing it.
+            context["presence_rate"] = existing.presence_rate
         context_values = list(context.get("values") or [])
         existing_values = list(existing.values or [])
         prior_values[key] = existing_values
@@ -462,7 +466,15 @@ def record_variable_contexts(
     field_values: Sequence[tuple[uuid.UUID, str, str]],
     col_meta: dict[str, dict[str, Any]],
     index: VariableIndex,
+    presence: Mapping[str, float] | None = None,
 ) -> None:
+    """Record one planned row's observations against ``event``.
+
+    ``presence`` (raw token -> rate) is ``fold_json_properties``' measure of
+    how often this row's identity carried each JSON path; a path it could not
+    measure is absent.
+    """
+    presence = presence or {}
     for field_definition_id, col_name, value in field_values:
         observations: list[VariableObservation] = (
             col_meta.get(col_name, {}).get("variable_observations") or []
@@ -490,6 +502,7 @@ def record_variable_contexts(
                     "value_kind": observation.value_kind,
                     "observed_count": observation.observed_count,
                     "values": list(observation.values),
+                    "presence_rate": presence.get(observation.name),
                 }
                 continue
 
@@ -536,6 +549,7 @@ def insert_variable_contexts(
             "value_kind": context["value_kind"],
             "observed_count": context["observed_count"],
             "values": context["values"],
+            "presence_rate": context.get("presence_rate"),
         }
         if branch_id is not None:
             payload["branch_id"] = branch_id

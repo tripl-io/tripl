@@ -716,6 +716,7 @@ async def deep_copy_plan_to_branch(
                     value_kind=value_context.value_kind,
                     observed_count=value_context.observed_count,
                     values=list(value_context.values or []),
+                    presence_rate=value_context.presence_rate,
                 )
             )
 
