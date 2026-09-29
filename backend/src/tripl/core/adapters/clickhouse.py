@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -29,6 +30,7 @@ from tripl.core.adapters.measure_validator import (
 from tripl.core.bucketing import format_utc_literal
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.core.warehouse_types import ComplexKind, classify_complex
+from tripl.json_paths import decode_json_path_value, json_safe, set_nested_value
 from tripl.models.domain_enums import MetricAggregation
 
 # Hard cap on rows pulled from the catalog so a warehouse with thousands of
@@ -198,6 +200,7 @@ class ClickHouseAdapter(BaseAdapter):
         path_limit: int = 1000,
         sample_limit: int = 3,
         sample_row_limit: int = 1000,
+        include_objects: bool = False,
     ) -> dict[str, dict[str, list[object]]]:
         """Discover JSON paths independently from visible preview rows.
 
@@ -283,7 +286,24 @@ class ClickHouseAdapter(BaseAdapter):
                 for index, name in enumerate(sample_result.column_names)
                 if name in path_by_alias
             }
-            seen_by_path: dict[str, set[str]] = {path: set() for path in paths}
+            # Object paths are every proper prefix of a leaf. They are not read
+            # with a query of their own: each sample row already holds all of
+            # its leaves, so one row's object is rebuilt from them here.
+            object_paths = (
+                sorted(
+                    {
+                        ".".join(path.split(".")[:take])
+                        for path in paths
+                        for take in range(1, path.count(".") + 1)
+                    }
+                    - set(paths)
+                )
+                if include_objects
+                else []
+            )
+            for path in object_paths:
+                column_samples[path] = []
+            seen_by_path: dict[str, set[str]] = {path: set() for path in column_samples}
 
             for row in sample_result.result_rows:
                 if all(len(values) >= sample_limit for values in column_samples.values()):
@@ -299,8 +319,52 @@ class ClickHouseAdapter(BaseAdapter):
                         continue
                     seen_by_path[path].add(sample_key)
                     column_samples[path].append(value)
+                if object_paths:
+                    self._sample_row_objects(
+                        row, index_to_path, object_paths, column_samples, seen_by_path, sample_limit
+                    )
 
         return samples_by_column
+
+    @staticmethod
+    def _sample_row_objects(
+        row: Sequence[object],
+        index_to_path: dict[int, str],
+        object_paths: list[str],
+        column_samples: dict[str, list[object]],
+        seen_by_path: dict[str, set[str]],
+        sample_limit: int,
+    ) -> None:
+        """Add one sample row's nested objects, as JSON text, to the samples.
+
+        A leaf the row does not carry reads back as ``null``, the same as one
+        it carries as null, so neither is a key of the rebuilt object; an
+        object with no key left is no sample.
+        """
+        leaves: dict[str, object] = {}
+        for index, path in index_to_path.items():
+            value = decode_json_path_value(row[index])
+            if value is not None:
+                leaves[path] = value
+        for object_path in object_paths:
+            if len(column_samples[object_path]) >= sample_limit:
+                continue
+            prefix = object_path + "."
+            rebuilt: dict[str, object] = {}
+            for path, value in leaves.items():
+                if path.startswith(prefix):
+                    set_nested_value(rebuilt, path.removeprefix(prefix), value)
+            if not rebuilt:
+                continue
+            # ``toJSONString``'s own spelling, so the text is the one the
+            # leaves come back in.
+            text = json.dumps(
+                json_safe(rebuilt), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+            if text in seen_by_path[object_path]:
+                continue
+            seen_by_path[object_path].add(text)
+            column_samples[object_path].append(text)
 
     def _validate_alias(self, alias: str) -> str:
         """Validate a caller-supplied output column alias before interpolation.

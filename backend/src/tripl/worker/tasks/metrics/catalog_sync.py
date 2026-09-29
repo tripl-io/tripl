@@ -33,8 +33,10 @@ from tripl.core.analyzers._event_generator_variables import (
     VARIABLE_VALUE_SAMPLE_LIMIT,
     VariableIndex,
 )
+from tripl.core.analyzers._json_object_properties import is_object_property
 from tripl.core.analyzers.cardinality import BreakdownAnalysis, _is_json_type
 from tripl.core.analyzers.event_generator import GenerationResult
+from tripl.core.analyzers.event_plan import OBJECT_PROPERTY_SCHEMA
 from tripl.core.intervals import INTERVALS
 from tripl.core.property_drift import clear_stale_findings, type_findings, upsert_findings
 from tripl.core.property_schema import infer_property_type
@@ -166,6 +168,9 @@ class JsonPathSampling:
     # ``column -> path -> (variable_type, json_schema)`` read off the decoded
     # samples before ``_formatted_samples`` turns them into text (F23.4).
     types: dict[str, dict[str, tuple[str, dict[str, Any] | None]]] = field(default_factory=dict)
+    # ``column -> path -> decoded objects`` for the paths whose samples were
+    # objects: what an object property's key drift is judged on (F23.4e).
+    objects: dict[str, dict[str, list[dict[str, Any]]]] = field(default_factory=dict)
     ring_size: int = 0
     paths_sampled: int = 0
     paths_with_samples: int = 0
@@ -440,6 +445,15 @@ def _collect_json_path_samples(
     ):
         wanted.setdefault(column, set()).add(path)
     paths_sampled = sum(len(paths) for paths in wanted.values())
+    # Whole objects are asked for only when an object property is in this
+    # run's slice: every path is a leaf otherwise, and so is every sampler that
+    # predates object properties (F23.4e).
+    object_tokens = _object_property_tokens(
+        session, project_id=config.project_id, branch_id=main_branch_id(session, config.project_id)
+    )
+    wants_objects = any(
+        f"{column}.{path}" in object_tokens for column, paths in wanted.items() for path in paths
+    )
 
     try:
         discovered = adapter.get_json_path_samples(
@@ -451,6 +465,7 @@ def _collect_json_path_samples(
             path_limit=_PATH_DISCOVERY_LIMIT,
             sample_limit=_SAMPLE_VALUES_PER_PATH,
             sample_row_limit=_SAMPLE_ROW_LIMIT,
+            **({"include_objects": True} if wants_objects else {}),
         )
     except Exception:
         # Caught here rather than left to the caller because the caller is
@@ -471,6 +486,7 @@ def _collect_json_path_samples(
 
     samples: dict[str, dict[str, list[str]]] = {}
     types: dict[str, dict[str, tuple[str, dict[str, Any] | None]]] = {}
+    objects: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for column, path_samples in discovered.items():
         paths = wanted.get(column)
         if not paths:
@@ -487,18 +503,41 @@ def _collect_json_path_samples(
             inferred = infer_property_type(decoded)
             if inferred is not None:
                 types.setdefault(column, {})[path] = inferred
+            decoded_objects = [value for value in decoded if isinstance(value, dict)]
+            if decoded_objects:
+                objects.setdefault(column, {})[path] = decoded_objects
             formatted = _formatted_samples(values)
             if formatted:
                 samples.setdefault(column, {})[path] = formatted
     return JsonPathSampling(
         samples=samples,
         types=types,
+        objects=objects,
         ring_size=len(candidates),
         paths_sampled=paths_sampled,
         # Only non-empty formatted lists are stored, so this is exactly "came
         # back with at least one value".
         paths_with_samples=sum(len(column_samples) for column_samples in samples.values()),
     )
+
+
+def _object_property_tokens(
+    session: Session, *, project_id: uuid.UUID, branch_id: uuid.UUID | None
+) -> set[str]:
+    """Warehouse tokens of the object properties (``is_object_property``)."""
+    query = (
+        select(Variable)
+        .where(Variable.project_id == project_id, Variable.variable_type == "json")
+        .options(lazyload(Variable.value_contexts))
+    )
+    if branch_id is not None:
+        query = query.where(Variable.branch_id == branch_id)
+    return {
+        token
+        for variable in session.execute(query).scalars()
+        if is_object_property(variable)
+        for token in VariableIndex.source_tokens_of(variable)
+    }
 
 
 def _apply_inferred_types(
@@ -519,6 +558,10 @@ def _apply_inferred_types(
     The sampler only asks about paths with an unfilled context, so a variable
     is typed in the same run its first values arrive; one already observed
     before F23 is not re-sampled and keeps ``string``.
+
+    An object property the scan created starts as ``json`` with the bare
+    ``{"type": "object"}`` and gets its sub-schema the same way, once, from its
+    first sampled objects (F23.4e).
     """
     wanted = {
         f"{column}.{path}": inferred
@@ -528,6 +571,9 @@ def _apply_inferred_types(
     }
     if not wanted:
         return 0
+    typed = _refine_object_properties(
+        session, project_id=project_id, branch_id=branch_id, wanted=wanted
+    )
     query = (
         select(Variable)
         .where(
@@ -546,7 +592,6 @@ def _apply_inferred_types(
     )
     if branch_id is not None:
         query = query.where(Variable.branch_id == branch_id)
-    typed = 0
     for variable in session.execute(query).scalars():
         inferred = next(
             (
@@ -563,6 +608,50 @@ def _apply_inferred_types(
     return typed
 
 
+def _refine_object_properties(
+    session: Session,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID | None,
+    wanted: Mapping[str, tuple[str, dict[str, Any] | None]],
+) -> int:
+    """Give each untouched object property the sub-schema its samples show.
+
+    Untouched: ``json`` with exactly the bare object schema, the scan's
+    description, not excluded. Once it holds a sub-schema this never runs for
+    it again; later samples that disagree are key drift (``type_findings``).
+    The schema is compared in Python: ``json = json`` has no operator on
+    PostgreSQL's ``json`` type.
+    """
+    query = (
+        select(Variable)
+        .where(
+            Variable.project_id == project_id,
+            Variable.variable_type == "json",
+            Variable.description == SCAN_PROVENANCE_DESCRIPTION,
+            Variable.excluded_from_scans.is_(False),
+        )
+        .options(lazyload(Variable.value_contexts))
+    )
+    if branch_id is not None:
+        query = query.where(Variable.branch_id == branch_id)
+    refined = 0
+    for variable in session.execute(query).scalars():
+        if variable.json_schema != OBJECT_PROPERTY_SCHEMA:
+            continue
+        inferred = next(
+            (wanted[t] for t in VariableIndex.source_tokens_of(variable) if t in wanted),
+            None,
+        )
+        if inferred is None or inferred[1] is None or inferred[1].get("type") != "object":
+            continue
+        if inferred[1] == OBJECT_PROPERTY_SCHEMA:
+            continue
+        variable.json_schema = copy.deepcopy(inferred[1])
+        refined += 1
+    return refined
+
+
 def _detect_type_drifts(
     session: Session,
     *,
@@ -570,11 +659,13 @@ def _detect_type_drifts(
     branch_id: uuid.UUID | None,
     scan_config_id: uuid.UUID,
     types: Mapping[str, Mapping[str, tuple[str, dict[str, Any] | None]]],
+    objects: Mapping[str, Mapping[str, Sequence[Mapping[str, Any]]]] | None = None,
 ) -> int:
     """Record a ``type_change`` for each typed variable its samples contradict.
 
     Runs after ``_apply_inferred_types``, so a variable typed this very run
-    agrees with its samples and is not reported.
+    agrees with its samples and is not reported. ``objects`` are the sampled
+    objects an object property's key drift is judged on.
     """
     observed = {
         f"{column}.{path}": inferred
@@ -591,7 +682,15 @@ def _detect_type_drifts(
     if branch_id is not None:
         query = query.where(Variable.branch_id == branch_id)
     variables = list(session.execute(query).scalars())
-    findings = type_findings(variables, observed)
+    findings = type_findings(
+        variables,
+        observed,
+        object_samples={
+            f"{column}.{path}": values
+            for column, paths in (objects or {}).items()
+            for path, values in paths.items()
+        },
+    )
     checked = [
         variable.id
         for variable in variables
@@ -681,6 +780,7 @@ def sync_catalog(
                 branch_id=sampling_branch_id,
                 scan_config_id=config.id,
                 types=out.json_path_sampling.types,
+                objects=out.json_path_sampling.objects,
             ),
         )
     json_path_samples: dict[str, dict[str, list[str]]] = out.json_path_sampling.samples

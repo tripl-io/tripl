@@ -20,7 +20,7 @@ accepting changes the plan so that the finding cannot recur on its own.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -33,6 +33,7 @@ from tripl.core.analyzers._event_generator_variables import (
     SCAN_PROVENANCE_DESCRIPTION,
     VariableIndex,
 )
+from tripl.core.property_schema import object_schema_changes
 from tripl.models.event import Event
 from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
 from tripl.models.schema_drift import SCHEMA_DRIFT_STATUS_ACCEPTED, SCHEMA_DRIFT_STATUS_OPEN
@@ -296,23 +297,80 @@ def clear_stale_findings(
     return len(stale)
 
 
+def _object_finding(
+    variable: Variable,
+    inferred: tuple[str, dict[str, Any] | None],
+    samples: Sequence[object],
+) -> Finding | None:
+    """Key drift of an object property's sampled objects (F23.4e), or ``None``.
+
+    A ``json`` variable admits any container, so a whole object turning into
+    an array is reported here, and so is each nested key that disagrees with
+    the sub-schema: new, missing though required, or of another type. It is a
+    ``type_change`` (the variable's schema no longer describes its values)
+    whose ``nested_changes`` say where; ``observed_schema`` is the stored one
+    with the changes applied, which accepting writes.
+    """
+    schema = variable.json_schema
+    if variable.variable_type != "json" or not schema:
+        return None
+    observed_schema = inferred[1] or {}
+    expected_kind, observed_kind = schema.get("type"), observed_schema.get("type")
+    kinds = {expected_kind, observed_kind}
+    if kinds == {"object", "array"}:
+        return Finding(
+            variable.id,
+            None,
+            PropertyDriftKind.type_change,
+            {
+                "expected_type": "json",
+                "observed_type": inferred[0],
+                "observed_schema": inferred[1],
+            },
+        )
+    if expected_kind != "object" or not samples:
+        return None
+    changes, merged = object_schema_changes(schema, samples)
+    if not changes:
+        return None
+    return Finding(
+        variable.id,
+        None,
+        PropertyDriftKind.type_change,
+        {
+            "expected_type": "json",
+            "observed_type": "json",
+            "observed_schema": merged,
+            "nested_changes": changes,
+        },
+    )
+
+
 def type_findings(
     variables: Iterable[Variable],
     observed: Mapping[str, tuple[str, dict[str, Any] | None]],
+    *,
+    object_samples: Mapping[str, Sequence[object]] | None = None,
 ) -> list[Finding]:
     """``type_change`` findings for variables whose samples disagree. Pure.
 
     ``observed``: raw token (``column.path``) -> the inferred type pair.
+    ``object_samples``: raw token -> the decoded objects sampled for it, which
+    an object property's sub-schema is checked against.
     """
+    object_samples = object_samples or {}
     findings: list[Finding] = []
     for variable in variables:
         if variable.excluded_from_scans or not is_typed_by_hand_or_scan(variable):
             continue
-        inferred = next(
-            (observed[t] for t in VariableIndex.source_tokens_of(variable) if t in observed),
-            None,
-        )
-        if inferred is None or type_admits(variable.variable_type, inferred[0]):
+        token = next((t for t in VariableIndex.source_tokens_of(variable) if t in observed), None)
+        if token is None:
+            continue
+        inferred = observed[token]
+        if type_admits(variable.variable_type, inferred[0]):
+            nested = _object_finding(variable, inferred, object_samples.get(token, ()))
+            if nested is not None:
+                findings.append(nested)
             continue
         findings.append(
             Finding(

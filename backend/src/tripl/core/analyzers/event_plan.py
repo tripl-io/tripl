@@ -46,7 +46,12 @@ from tripl.core.analyzers._event_generator_variables import (
 from tripl.core.analyzers.cardinality import BreakdownAnalysis
 from tripl.core.analyzers.variable_detector import DetectedPattern, detect_variables
 from tripl.core.name_template import NAME_FORMAT_PATTERN, NameFormatError, format_keys
-from tripl.json_paths import build_json_value, decode_json_path_value, format_json_path_value
+from tripl.json_paths import (
+    build_json_value,
+    decode_json_path_value,
+    format_json_path_value,
+    object_property_paths,
+)
 from tripl.models.variable import VARIABLE_NAME_MAX_LENGTH
 from tripl.models.variable_value import VariableValueKind
 
@@ -271,6 +276,13 @@ class VariableNeed:
 
     name: str
     inferred_type: str
+    # The schema a new variable starts with. Only an object property sets one
+    # (``{"type": "object"}``); the scan refines it from sampled objects later.
+    json_schema: Mapping[str, Any] | None = field(default=None, compare=False)
+
+
+# What a scan-created object property starts as, until its objects are sampled.
+OBJECT_PROPERTY_SCHEMA: dict[str, Any] = {"type": "object"}
 
 
 @dataclass(frozen=True)
@@ -335,6 +347,7 @@ def plan_column_meta(
     event_name_format: str | None = None,
     reserved_columns: Collection[str] | None = None,
     json_path_samples: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
+    documented_json_paths: Collection[str] = (),
 ) -> tuple[dict[str, dict[str, Any]], list[VariableNeed], list[str], int]:
     """Per-column metadata: is it JSON, is it enumerated, or is it templated.
 
@@ -367,6 +380,14 @@ def plan_column_meta(
     every added path becomes a grouping key that multiplies the result grain, and
     overflowing ``metrics_row_limit`` raises rather than degrades — it would trade
     missing values for a failed collection job.
+
+    Nested objects fold into ONE property each (owner decision 5, see
+    ``object_property_paths``): ``meta['json_object_paths']`` maps each folded
+    leaf to its object's path, and the object — not its leaves — is the
+    variable planned. The kept ``json_value_paths`` and the name format's
+    placeholders always stay dotted leaves. ``documented_json_paths`` (full
+    ``column.path`` tokens) are the JSON-path properties a person made their
+    own; the caller reads them off the catalog, and the fold keeps naming them.
     """
     col_meta: dict[str, dict[str, Any]] = {}
     variables_needed: list[VariableNeed] = []
@@ -374,7 +395,9 @@ def plan_column_meta(
     details: list[str] = []
     columns_analyzed = 0
 
-    def need_variable(name: str, inferred_type: str) -> bool:
+    def need_variable(
+        name: str, inferred_type: str, json_schema: Mapping[str, Any] | None = None
+    ) -> bool:
         # A token the variables table cannot store would fail the INSERT with a
         # DataError on PostgreSQL (SQLite ignores VARCHAR length), and that error
         # would fail the whole run on every tick while the key stays in the
@@ -392,7 +415,9 @@ def plan_column_meta(
         if key in seen_variables:
             return True
         seen_variables.add(key)
-        variables_needed.append(VariableNeed(name=name, inferred_type=inferred_type))
+        variables_needed.append(
+            VariableNeed(name=name, inferred_type=inferred_type, json_schema=json_schema)
+        )
         return True
 
     # Columns referenced by the event-name format are the event's identity, so they must be
@@ -404,6 +429,9 @@ def plan_column_meta(
         name: n_reg + len(analysis.json_names) + idx
         for idx, name in enumerate(analysis.json_value_names)
     }
+    # Full ``column.path`` tokens that must stay dotted leaves: the kept
+    # values and the name format read them one by one.
+    pinned_tokens = {*json_value_index, *name_columns}
     # Membership is tested once per column; a list argument would make the loop
     # quadratic on a wide table.
     reserved = frozenset(reserved_columns or ())
@@ -450,12 +478,35 @@ def plan_column_meta(
             for combo in card_result.json_path_combos:
                 for path in combo:
                     all_paths.add(path)
-            for path in sorted(all_paths):
+            prefix = f"{col_name}."
+            object_paths = object_property_paths(
+                all_paths,
+                pinned=[
+                    token.removeprefix(prefix)
+                    for token in pinned_tokens
+                    if token.startswith(prefix)
+                ],
+                documented=[
+                    token.removeprefix(prefix)
+                    for token in documented_json_paths
+                    if token.startswith(prefix)
+                ],
+            )
+            meta["json_object_paths"] = object_paths
+            # A folded leaf plans its object instead; each object is planned once.
+            property_paths = sorted({object_paths.get(path, path) for path in all_paths})
+            object_roots = set(object_paths.values())
+            for path in property_paths:
                 full_path = f"{col_name}.{path}"
                 if full_path in json_value_index:
                     passthrough_paths.append(full_path)
                     continue
-                if not need_variable(full_path, "string"):
+                is_object = path in object_roots
+                if not need_variable(
+                    full_path,
+                    "json" if is_object else "string",
+                    OBJECT_PROPERTY_SCHEMA if is_object else None,
+                ):
                     continue
                 # ``observed_count`` is "distinct values this SAMPLE showed", not
                 # a warehouse-wide count — the sampler stops at its own limit, so
@@ -491,7 +542,7 @@ def plan_column_meta(
             meta["variable_observations"] = variable_observations
             logger.info(
                 f"  {col_name}: JSON, {len(card_result.json_path_combos)} path combos, "
-                f"{len(all_paths) - len(passthrough_paths)} variables"
+                f"{len(property_paths) - len(passthrough_paths)} variables"
             )
         else:
             meta["is_json"] = False
@@ -543,6 +594,7 @@ def plan_events(
     reserved_columns: Collection[str] | None = None,
     max_events: int | None = None,
     json_path_samples: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
+    documented_json_paths: Collection[str] = (),
 ) -> EventPlan:
     """Resolve breakdown rows into event identities. Writes nothing.
 
@@ -552,6 +604,12 @@ def plan_events(
     on the caller's behalf would silently drop rows that would have refreshed an
     existing event's field values. The dry-run, which has no such distinction,
     passes :data:`DEFAULT_MAX_EVENTS` and reads :attr:`EventPlan.truncated`.
+
+    A JSON column's stored template folds nested objects into one token each,
+    but the event NAME is still built from the unfolded leaf template: without
+    a name format the name embeds the column's template, and it is the scan
+    identity (``source_name``) the metric collector rebuilds from leaf paths.
+    Folding it too would re-mint every such event under a new identity.
     """
     col_meta, variables_needed, details, columns_analyzed = plan_column_meta(
         analysis,
@@ -562,6 +620,7 @@ def plan_events(
         event_name_format=event_name_format,
         reserved_columns=reserved_columns,
         json_path_samples=json_path_samples,
+        documented_json_paths=documented_json_paths,
     )
     plan = EventPlan(
         col_meta=col_meta,
@@ -600,6 +659,9 @@ def plan_events(
 
         rows_examined += 1
         field_values: list[tuple[uuid.UUID, str, str]] = []
+        # What the event name reads per column: the stored value, except that a
+        # JSON column's is its unfolded leaf template (see the docstring).
+        name_values: list[tuple[str, str]] = []
         # ``apply_event_group_rules`` returns on an empty rule list without
         # reading this dict, and nothing else consumes it, so a scan with no
         # group rules skips a whole-row scan per row rather than building a dict
@@ -634,13 +696,22 @@ def plan_events(
                         for full_path in meta.get("json_passthrough_paths", [])
                         if full_path in json_value_index and full_path.startswith(f"{col_name}.")
                     }
-                    value = build_json_value(
+                    name_value = build_json_value(
                         col_name,
                         sorted_paths,
                         preserved_values=preserved_values,
                     )
+                    value = build_json_value(
+                        col_name,
+                        sorted_paths,
+                        preserved_values=preserved_values,
+                        property_paths=meta.get("json_object_paths"),
+                    )
                 else:
-                    value = "{}"
+                    value = name_value = "{}"
+                field_values.append((meta["fd_id"], col_name, value))
+                name_values.append((col_name, name_value))
+                continue
             elif meta["is_low"]:
                 i = reg_index.get(col_name)
                 if i is None:
@@ -650,11 +721,12 @@ def plan_events(
                 value = meta["template"]
 
             field_values.append((meta["fd_id"], col_name, value))
+            name_values.append((col_name, value))
 
         # Build event name
         if event_name_format:
             fmt_kwargs: dict[str, str] = {}
-            for _, col_name, value in field_values:
+            for col_name, value in name_values:
                 fmt_kwargs[col_name] = value
             # The event type column is never in ``col_meta`` — ``plan_column_meta``
             # skips it outright, and in the grouped shape ``_process_breakdown``
@@ -701,9 +773,7 @@ def plan_events(
                     fmt_kwargs[key] = ""
             event_name = _apply_name_format(event_name_format, fmt_kwargs)
         else:
-            event_name = render_default_event_name(
-                (col_name, value) for _, col_name, value in field_values
-            )
+            event_name = render_default_event_name(name_values)
 
         # Truncate event_name to respect VARCHAR(500) database limit
         event_name = truncate_event_name(event_name)

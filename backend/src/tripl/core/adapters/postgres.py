@@ -780,6 +780,7 @@ class PostgresAdapter(BaseAdapter):
         path_limit: int = 1000,
         sample_limit: int = 3,
         sample_row_limit: int = 1000,
+        include_objects: bool = False,
     ) -> dict[str, dict[str, list[object]]]:
         """Discover nested JSON paths (and samples) warehouse-side, not row-side.
 
@@ -795,12 +796,19 @@ class PostgresAdapter(BaseAdapter):
         ``decode_json_path_value`` helper parses. Paths whose keys the extraction
         expression cannot address are skipped visibly (logged), not silently
         emitted and then broken at scan time.
+
+        ``include_objects`` keeps the walk's non-empty object nodes too, each
+        one row's whole object at its own path (see ``BaseAdapter``).
         """
         if not json_columns or path_limit <= 0 or sample_limit <= 0 or sample_row_limit <= 0:
             return {column: {} for column in json_columns}
 
         where_clause = self._time_window_where_clause(time_column, time_from, time_to)
         samples_by_column: dict[str, dict[str, list[object]]] = {}
+        # An empty object has no key to type, so it is no sample of one.
+        node_filter = (
+            "_value <> '{}'::jsonb" if include_objects else "jsonb_typeof(_value) <> 'object'"
+        )
 
         for column in json_columns:
             c = self._validate_column(column)
@@ -814,7 +822,7 @@ class PostgresAdapter(BaseAdapter):
                 f"WITH RECURSIVE {_JSON_LEAF_WALK.format(seed=seed)}, "
                 "_leaf AS ("
                 "SELECT DISTINCT _path, _value::text AS _text FROM _walk "
-                "WHERE jsonb_typeof(_value) <> 'object'"
+                f"WHERE {node_filter}"
                 "), _ranked AS ("
                 "SELECT _path, _text, "
                 "DENSE_RANK() OVER (ORDER BY _path) AS _prank, "

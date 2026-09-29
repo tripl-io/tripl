@@ -433,7 +433,14 @@ async def test_reverting_either_half_restores_both(client: AsyncClient) -> None:
         ([[], []], None),
         ([[], ["a"]], ("string_array", None)),
         ([[{"sku": "x"}]], ("json", {"type": "array"})),
-        ([{"a": 1}], ("json", {"type": "object"})),
+        (
+            [{"a": 1}],
+            (
+                "json",
+                {"type": "object", "properties": {"a": {"type": "number"}}, "required": ["a"]},
+            ),
+        ),
+        ([{}], ("json", {"type": "object"})),
         (["42", 42], None),
         ([None, None], None),
         ([], None),

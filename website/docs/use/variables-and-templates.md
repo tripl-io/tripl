@@ -73,7 +73,7 @@ property can describe the keys it carries.
 ```
 
 A nested object is one property with a sub-schema, not a set of dotted
-properties.
+properties. See [Nested objects](#nested-objects) for how a scan builds one.
 
 **Supported keywords.**
 
@@ -134,6 +134,74 @@ of those values:
   `string` until you set its type yourself.
 - A schema the scan wrote does not count as your edit, so the property can
   still be retired automatically.
+
+### Nested objects
+
+A key of a JSON column whose value is an object becomes **one** property of
+type `json`, not one property per nested key. An event whose rows carry
+`{"screen": "home", "user": {"id": "u1", "plan": "pro"}}` in `properties`
+gets this template:
+
+```json
+{ "screen": "${screen}", "user": "${user}" }
+```
+
+The property `user` is bound to `properties.user`. Its schema describes the
+object, and deeper nesting lives inside that schema:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "plan": { "type": "string" }
+  },
+  "required": ["id"]
+}
+```
+
+**How a scan builds it.**
+
+- The scan creates the property with the schema `{"type": "object"}`. Once it
+  samples the property's first values, it fills in the sub-schema: every key
+  a sampled object carried, each typed the way a top-level property is. A key
+  whose sampled values mix kinds, or are only null, is left out.
+- `required` names the keys that every sampled object carried with a value.
+  How often the event carries the object itself is its presence rate, like any
+  other property.
+- Like a type, the sub-schema is written once, and only while the property is
+  untouched: still `{"type": "object"}`, with the scan's own description. After
+  that, a sampled object that disagrees with it is drift, not a rewrite.
+- A sub-schema the scan wrote does not count as your edit. It uses only
+  `type`, date `format`, `items`, `properties` and `required`. A schema with
+  anything else, such as a `description`, an `enum` or a bound, is yours. A
+  schema in which you only retyped a key or edited `required` still reads as
+  the scan's, so an unused one can be retired automatically.
+
+**What stays a dotted property.** Some nested keys keep their own property,
+because something reads their value on its own:
+
+- a path listed in the scan's **JSON values to keep as-is**
+  (`json_value_paths`), whose value the template keeps literally;
+- a path the event name format uses, such as `{properties.promo.id}` in
+  `promo_{properties.promo.id}_shown`;
+- a dotted property you made your own: you edited it (its name, description,
+  schema, bindings or documented values), or it is on an event's property
+  list.
+
+The object that contains such a key is not folded. Its other keys stay dotted
+too, except where they are objects themselves: those fold one level down. A
+dotted property you documented as an object is folded exactly where it is.
+
+A key that is an object in some rows and a plain value in others also keeps
+its dotted properties, because a property has one type.
+
+**Existing dotted properties.** Nothing is migrated in place. On the next scan,
+a JSON template the scan wrote is rewritten to reference the object, unless
+you edited that field value yourself. A dotted property that is then referenced
+by nothing, that no scan observed and that nobody edited, is retired like any
+other unused property. Event identities do not change: an event name built from
+a JSON column still reads the dotted keys, so no event is created twice.
 
 ### A binding and a `${token}` are not the same thing
 
@@ -308,7 +376,7 @@ three kinds of **property drift**:
 |---|---|---|
 | `new_property` | The event carried a JSON key whose property is not on its list. Only reported for events whose list names at least one property. | Adds the property to the event's list as an optional property. |
 | `missing_required` | A required property was carried less often than the event's threshold, including never. | Makes the property optional. |
-| `type_change` | Sample values have a type the property's type does not allow. This is reported per property, with no event. | Changes the property to the observed type. |
+| `type_change` | Sample values have a type the property's type does not allow. For an object property, sampled objects disagree with its sub-schema. This is reported per property, with no event. | Changes the property to the observed type. For an object property, applies the changes to its sub-schema. |
 
 - **Threshold.** Each event has a presence threshold,
   `required_presence_threshold`. By default it is 0.95. Set it with
@@ -322,7 +390,23 @@ three kinds of **property drift**:
 - **Allowed variations.**
   - A `string` may hold dates.
   - A `datetime` may be sampled as a bare date.
-  - `json` accepts arrays.
+  - `json` accepts arrays, unless its schema says `object`.
+- **Nested keys.** A `type_change` on an object property lists
+  `nested_changes` in its `detail`. Each one has a `path` inside the object
+  (`[]` stands for an array's items) and a `change`:
+  - `new_key`: a sampled object carried a key its sub-schema does not list.
+    An object with no `properties` in its schema allows any key.
+  - `missing_required`: a sampled object lacked a key its `required` names, or
+    carried it as null.
+  - `type_change`: a nested value has another type, with `expected_type` and
+    `observed_type`.
+
+  The `observed_schema` is the stored sub-schema with those changes applied,
+  and accepting the drift writes it, so your other annotations are kept.
+- **When types and nested keys are checked.** Only against sampled values,
+  and a scan samples a property while it has an event whose values were not
+  observed yet. `new_property` and `missing_required` are checked on every
+  scan, but only for the property itself, not for the keys inside an object.
 
 Triage works like value drift: accept, snooze, mark as a false positive, or
 reopen.
