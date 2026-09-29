@@ -3358,8 +3358,9 @@ def test_a_failing_notification_producer_never_fails_the_collection(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """#259: the signal notification hook runs last and best-effort — when it
-    raises, the job still completes and the alert deliveries are still queued."""
+    """#259: the notification hooks (signals, then property drift) run last and
+    best-effort — when they raise, the job still completes and the alert
+    deliveries are still queued."""
     config_id, queued_delivery_ids = _arrange_alerting_collection(sync_session_factory, monkeypatch)
     with sync_session_factory() as session:
         job = ScanJob(
@@ -3380,7 +3381,7 @@ def test_a_failing_notification_producer_never_fails_the_collection(
 
     result = metrics.collect_metrics.run(config_id, job_id)
 
-    assert produced == ["signals"]
+    assert produced == ["signals", "property_drifts"]
     assert result["alerts_queued"] == 1
     assert len(queued_delivery_ids) == 1
     with sync_session_factory() as session:

@@ -309,6 +309,7 @@ _NOT_NULL_PATCH_FIELDS: tuple[tuple[type[BaseModel], str, str | None], ...] = (
     (ScanConfigUpdate, "metric_breakdown_columns", None),
     (ScanConfigUpdate, "distribution_drift_fields", "event_name_format"),
     (ScanConfigUpdate, "cardinality_threshold", None),
+    (ScanConfigUpdate, "setup_preset", None),
     (DataSourceUpdate, "name", "timeout_seconds"),
     (DataSourceUpdate, "db_type", None),
     (DataSourceUpdate, "host", "password"),
