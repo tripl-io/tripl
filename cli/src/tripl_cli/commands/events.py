@@ -121,6 +121,12 @@ def _register_list(
         help="keep only events of this event type id (from `tripl plan types`)",
     )
     parser.add_argument(
+        "--property",
+        dest="property",
+        metavar="NAME_OR_ID",
+        help="keep only events whose property list carries this property (name or id)",
+    )
+    parser.add_argument(
         "--silent-since-days",
         dest="silent_since_days",
         metavar="N",
@@ -264,6 +270,7 @@ def run_list(args: argparse.Namespace, config: Config) -> int:
                     silent_since_days=args.silent_since_days,
                     reviewed=args.reviewed,
                     has_open_questions=args.has_open_questions,
+                    property=args.property,
                     offset=offset,
                     limit=limit,
                     order_by=args.order_by,
