@@ -184,6 +184,8 @@ class ClickHouseAdapter(BaseAdapter):
         result = self._client.query(sql)
         return list(result.column_names), _as_rows(result.result_rows)
 
+    json_path_samples_are_text = True
+
     @override
     def get_json_path_samples(
         self,

@@ -766,6 +766,8 @@ class PostgresAdapter(BaseAdapter):
             f"FROM jsonb_object_keys({_jsonb_object(c)}) AS _key)"
         )
 
+    json_path_samples_are_text = True
+
     @override
     def get_json_path_samples(
         self,

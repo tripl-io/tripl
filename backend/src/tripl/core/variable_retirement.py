@@ -51,6 +51,7 @@ from tripl.core.analyzers._event_generator_variables import (
     display_name_candidates,
 )
 from tripl.core.name_template import variable_tokens
+from tripl.core.property_schema import is_scan_inferred_schema
 from tripl.models.variable import Variable
 
 __all__ = [
@@ -175,9 +176,9 @@ def _human_claim(variable: Variable) -> str | None:
         return KeptReason.DOCUMENTED
     if variable.description != SCAN_PROVENANCE_DESCRIPTION:
         return KeptReason.USER_EDITED
-    # No scan writes a schema yet, so one is a person's. When scans infer
-    # schemas (F23.4) this arm needs the same provenance the description has.
-    if variable.json_schema:
+    # A schema the scan infers (F23.4) is one of a handful of fixed fragments;
+    # anything else was written by a person.
+    if not is_scan_inferred_schema(variable.json_schema):
         return KeptReason.USER_EDITED
     # A scan writes ``bindings=[source_name]`` and never touches them again, so
     # anything else is a hand-written binding — the mechanism the whole variables

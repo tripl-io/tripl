@@ -20,6 +20,7 @@ from tripl.core.analyzers._event_generator_variables import (
     SCAN_PROVENANCE_DESCRIPTION,
     display_name_candidates,
 )
+from tripl.core.property_schema import is_scan_inferred_schema
 from tripl.core.variable_retirement import referenced_tokens, tokens_of
 from tripl.models.variable import Variable
 from tripl.schemas.plan_revision import PlanDiffEntry
@@ -84,7 +85,7 @@ def _is_unused_scan_variable(before: dict[str, Any] | None) -> bool:
         and not before.get("allowed_values")
         and not before.get("event_value_overrides")
         and not before.get("excluded_from_scans")
-        and not before.get("json_schema")
+        and is_scan_inferred_schema(before.get("json_schema"))
         and _bindings_are_the_scans(before)
         and _name_is_the_scans(before)
     )
