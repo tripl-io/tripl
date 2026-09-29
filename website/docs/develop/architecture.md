@@ -174,6 +174,12 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   the review state independent from later evidence refreshes. Accepted rows are
   frozen: their stored values are the accepted set, and a scan reopens the row
   only for values outside it.
+- **Property drift** (F23) — compares each event's property list with what a
+  scan saw (new property, missing required property, per-property type
+  change). Its open rows are counted by one implementation
+  (`services/_open_signals.py`) for the project summary and the health score,
+  and become `property_drift` alert candidates through one mapping
+  (`alerting_property_drift.py`) shared by dispatch and the replay.
 - **Distribution drift** — uses **PSI** (Population Stability Index) over event
   field values.
 - **Release regression** — activation-gated comparison of the newest stable app

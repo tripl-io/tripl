@@ -17,6 +17,10 @@ export type MetricScopeType =
   // An open lifecycle finding (#258): past sunset and still sending, or a
   // silent successor. One alert per finding.
   | 'lifecycle'
+  // An open property drift (F23, #306): a new property, a missing required
+  // one, or a type change. scope_ref is the drift row id; event_id is the
+  // event, or null for a type change.
+  | 'property_drift'
 
 export interface EventMetricPoint {
   bucket: string

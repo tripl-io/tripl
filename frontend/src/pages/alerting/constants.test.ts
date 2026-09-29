@@ -363,6 +363,32 @@ describe('lifecycle scope (#258)', () => {
   })
 })
 
+describe('property drift scope (F23, #306)', () => {
+  it('is off on a new rule and carried both ways', () => {
+    expect(defaultRuleForm().include_property_drifts).toBe(false)
+    expect(ruleFormToPayload(ruleToForm(makeRule({ include_property_drifts: true }))))
+      .toMatchObject({ include_property_drifts: true })
+  })
+
+  it('reads a rule from a server that predates the flag as off', () => {
+    const legacy = makeRule()
+    delete (legacy as Partial<AlertRule>).include_property_drifts
+    expect(ruleToForm(legacy).include_property_drifts).toBe(false)
+  })
+
+  it('counts as a signal kind on its own and is named in the summaries', () => {
+    const only = form({
+      include_project_total: false,
+      include_event_types: false,
+      include_events: false,
+      include_property_drifts: true,
+    })
+    expect(ruleFormProblems(only).scopes).toBeNull()
+    expect(ruleSignalLabels(only).drift).toEqual(['Property drift'])
+    expect(scopeSummary(makeRule({ include_property_drifts: true }))).toContain('property drift')
+  })
+})
+
 describe('notify owners (F07, #260)', () => {
   it('is off on a new rule and carried both ways', () => {
     expect(defaultRuleForm().notify_owners).toBe(false)

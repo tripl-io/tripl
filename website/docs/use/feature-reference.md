@@ -2192,7 +2192,7 @@ The weights are fixed (not configurable per project in v1):
 | --- | --- | --- |
 | Implemented & seen | 25 | `implemented`/`live`: 1 if seen in the last 7 days, 0.5 within 30 days, 0 if never or older. `deprecated`: 0 with an open *sunset overdue* finding, 0.5 with *successor silent*, otherwise 1. |
 | Contract | 20 | Share of the event type's contract rules (required, enum, regex, range) without an active violation drift. |
-| Drifts | 15 | 1 − 0.25 per open drift: schema drifts (new, missing or changed field), value drifts on the event, and fields with a significant distribution drift in the last 7 days. |
+| Drifts | 15 | 1 − 0.25 per open drift: schema drifts (new, missing or changed field), value drifts on the event, property drifts on the event (a new property or a missing required one; a type change is about a property, not an event, and is not charged), and fields with a significant distribution drift in the last 7 days. |
 | Signals | 15 | 1 − 0.5 per open, significant event signal that has no verdict yet. |
 | Freshness | 10 | Worst freshness of the scans covering the event: fresh 1, late 0.5, overdue 0. |
 | Documentation | 15 | 0.5 for a description, 0.5 for an owner (on the event or its event type). |

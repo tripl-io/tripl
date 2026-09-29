@@ -42,7 +42,10 @@ bucket against a seasonal baseline and scores the gap as
 `min_expected_count` (default 50). It also emits **distribution-drift** signals
 (a value mix shifted) and **release-regression** signals (a new app version
 under-fires an event), plus **variable-value drift** when an event observes
-values outside its effective documented property list. A scan whose source is
+values outside its effective documented property list, and **property drift**
+when an event's property list and what a scan saw disagree (a new property, a
+required one going missing, a type change — see [Property drift](#property-drift)).
+A scan whose source is
 late or overdue produces one **source freshness** signal instead of a drop on
 every scope. See [Source freshness](#source-freshness). A daily lifecycle check
 adds **lifecycle** signals for retirements that are not going to plan — see
@@ -531,6 +534,7 @@ the drift/regression signals are opt-in:
 | Schema drift | off |
 | Distribution drift | off |
 | Property value drift | off |
+| Property drift | off |
 | Release regression | off |
 | Metric anomaly | off |
 | Source freshness | off |
@@ -546,7 +550,7 @@ the drift and regression signals they behave like a volume anomaly — they carr
 a real spike/drop direction and **do** honor the count thresholds below.
 
 **Direction.** *Notify on spike* and *notify on drop* (at least one must be on).
-Schema, distribution, and variable-value drift are reported as a **spike**;
+Schema, distribution, variable-value and property drift are reported as a **spike**;
 release regressions and source freshness are reported as a **drop** — so a
 drift-only rule still needs *notify on spike* enabled, and a rule that should
 hear about late data needs *notify on drop*. **Lifecycle** alerts are the
@@ -595,7 +599,7 @@ simulator to see what the new value would have sent.
 :::warning
 Thresholds apply to the volume scopes (project total / event type / event) and to
 **metric anomalies**. Schema drift, distribution drift, variable-value drift,
-release regressions and lifecycle findings **bypass** thresholds — if you enable
+property drift, release regressions and lifecycle findings **bypass** thresholds — if you enable
 those scopes, they fire regardless of the count thresholds.
 :::
 
@@ -681,6 +685,46 @@ rule editor — which is off by default.
 
 Lifecycle findings are computed on `main` only, so a retirement documented on a
 working branch is not watched until the branch merges.
+
+### Property drift {#property-drift}
+
+Scans compare each event's [property list](./variables-and-templates.md) with
+what they observe and record the difference as a **property drift**. The
+**Property drift** scope turns the open ones into alerts. It is opt-in through
+the rule's **`include_property_drifts`** field — the **Property drift** box in
+the rule editor — which is off by default.
+
+- **One candidate per open drift.** Every property drift that is open (or whose
+  snooze has run out), on a property still scanned, detected by the collecting
+  scan in the last 30 days, is one candidate with scope type `property_drift`.
+  Its kind rides `${drift_type}`, most serious first:
+  - `missing_required` — a property the event's list marks required was
+    carried on fewer rows than the event's threshold (or on none);
+  - `type_change` — a property's sampled values are of a type its declared
+    type does not admit. This one is about the property, not an event, so it
+    carries no event and passes an `event` or `event_type` filter the way a
+    schema drift does;
+  - `new_property` — the event carried a property its list does not name
+    (only for events whose list names at least one property).
+- **The message.** The drift line reads, for example,
+  `Missing required property ${plan}: on 40% of rows, required on 95%`,
+  `Property type changed ${price}: observed number, typed string` or
+  `New property ${coupon}: on 12% of rows, not on the event's property list`.
+  The item is named `<event>.<property>` (`All events.<property>` for a type
+  change). `${drift_field}` is the property, `${sample_value}` what the scan
+  saw; `${actual_count}` / `${expected_count}` hold the presence rate and the
+  threshold in percent, for the delivery's item table only.
+- **Cooldown and incidents per drift**, like value drift: a drift that stays
+  open is not re-sent inside the rule's cooldown, and each drift is its own
+  incident in the [Inbox](#the-inbox), which links to the event page, where the
+  drift can be accepted, snoozed or dismissed.
+- **Spike, no thresholds.** Property drift is reported as a spike and bypasses
+  the count thresholds; filters apply. The
+  [simulator](#replaying-a-what-if-without-saving-it) replays it.
+
+Watchers of an event are also told in the bell once per new per-event property
+drift, and the project's open property drifts are marked on the **Properties**
+item of the sidebar.
 
 ### When a scope is on but nothing feeds it
 

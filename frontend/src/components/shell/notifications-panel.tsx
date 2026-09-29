@@ -155,28 +155,33 @@ function AlertsPanel({
 }
 
 /**
- * All projects at a glance: one row per project with open incidents or
- * Significant signals, worst first ("Demo Project 2 · 1 open incident ·
- * 3 signals"). A row opens the project's inbox when something is open there,
- * else its Anomalies list (SH-17).
+ * All projects at a glance: one row per project with open incidents,
+ * Significant signals or open property drifts, worst first ("Demo Project 2 ·
+ * 1 open incident · 3 signals · 2 property drifts"). A row opens the project's
+ * inbox when something is open there, else its Anomalies list, else its
+ * Properties page, which lists the drifts (SH-17, F23).
  */
 function WorkspaceNotifications({ projects }: { projects: Project[] | undefined }) {
   if (!projects) {
     return <EmptyNotifications message="Loading projects…" />
   }
   const needing = projects
-    .filter((project) => project.summary.open_incident_count > 0 || project.summary.monitoring_signal_count > 0)
+    .filter((project) =>
+      project.summary.open_incident_count > 0
+      || project.summary.monitoring_signal_count > 0
+      || openPropertyDrifts(project) > 0)
     .sort(
       (a, b) =>
         b.summary.open_incident_count - a.summary.open_incident_count ||
         b.summary.monitoring_signal_count - a.summary.monitoring_signal_count ||
+        openPropertyDrifts(b) - openPropertyDrifts(a) ||
         a.name.localeCompare(b.name),
     )
   const shown = needing.slice(0, PROJECT_PREVIEW_LIMIT)
   return (
     <>
       {needing.length === 0 ? (
-        <EmptyNotifications message="No open incidents or signals in any project." />
+        <EmptyNotifications message="No open incidents, signals or property drifts in any project." />
       ) : (
         <div className="max-h-[420px] overflow-y-auto py-2">
           <NotificationSection title="Projects needing attention" count={needing.length}>
@@ -206,16 +211,29 @@ function WorkspaceNotifications({ projects }: { projects: Project[] | undefined 
   )
 }
 
+/** Open property drifts (F23); an older server's summary omits the count. */
+function openPropertyDrifts(project: Project): number {
+  return project.summary.open_property_drift_count ?? 0
+}
+
+function attentionPath(project: Project): string {
+  if (project.summary.open_incident_count > 0) return `${getAlertingPath(project.slug)}?section=inbox`
+  if (project.summary.monitoring_signal_count > 0) return projectPath(currentOrgSlug(), project.slug, '/anomalies')
+  return projectPath(currentOrgSlug(), project.slug, '/variables')
+}
+
 function ProjectAttentionRow({ project }: { project: Project }) {
   const incidents = project.summary.open_incident_count
   const signals = project.summary.monitoring_signal_count
+  const drifts = openPropertyDrifts(project)
   const parts = [
     incidents > 0 ? `${incidents} open ${incidents === 1 ? 'incident' : 'incidents'}` : null,
     signals > 0 ? `${signals} ${signals === 1 ? 'signal' : 'signals'}` : null,
+    drifts > 0 ? `${drifts} property ${drifts === 1 ? 'drift' : 'drifts'}` : null,
   ].filter((part): part is string => part !== null)
   return (
     <Link
-      to={incidents > 0 ? `${getAlertingPath(project.slug)}?section=inbox` : projectPath(currentOrgSlug(), project.slug, '/anomalies')}
+      to={attentionPath(project)}
       className="flex items-center gap-2 rounded-md px-1.5 py-2 no-underline transition-colors hover:bg-[var(--surface-active)] text-inherit"
     >
       <Dot tone={incidents > 0 ? 'danger' : 'warning'} size={7} />

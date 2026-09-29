@@ -69,6 +69,7 @@ export const INBOX_SCOPE_TYPES: readonly MetricScopeType[] = [
   'variable_value_drift',
   'source_freshness',
   'lifecycle',
+  'property_drift',
 ]
 
 const DIRECTIONS: readonly InboxDirection[] = ['spike', 'drop']

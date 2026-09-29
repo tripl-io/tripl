@@ -198,7 +198,7 @@ export function AppSidebar({
         ...group,
         items: group.items
           .filter((item) => !item.ownerOnly || isOwner)
-          .map((item) => (onBranch && group.label === 'Plan' ? { ...item, count: undefined } : item)),
+          .map((item) => (onBranch && group.label === 'Plan' ? { ...item, count: undefined, attention: undefined } : item)),
       }))
     : [workspaceNavGroup()]
   const eventTypesQuery = useQuery({

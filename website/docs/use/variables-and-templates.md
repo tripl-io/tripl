@@ -334,6 +334,25 @@ reopen.
 - Archived events and properties excluded from scans are not checked.
 - Drift is kept for 30 days.
 
+Where open property drift shows up:
+
+- **The event page** lists the event's open drifts with **Accept** (worded
+  for what it changes: *Add to list*, *Make optional*, *Retype to …*),
+  **Snooze 7d** and **Dismiss** (false positive).
+- **The Properties page** lists every open drift of the project, each linked
+  to its event, and the **Properties** item in the sidebar carries a warning
+  dot saying how many are open. The project summary reports the same number as
+  `open_property_drift_count`.
+- **The health score** counts an event's open drifts in its
+  [Drifts component](./feature-reference.md#health-score), like value drift.
+- **Alerts**: a rule with **Property drift** on sends one alert per open drift
+  — see [Alerting › Property drift](./alerting.md#property-drift).
+- **The bell**: people watching an event are told once about each new drift on
+  it.
+
+Open means open, or snoozed until a time that has passed, on a property that
+is still scanned. Every surface above uses that one rule.
+
 ```text
 GET   /api/v1/projects/{slug}/properties/property-drifts?event_id=&variable_id=&kind=&active_only=
 POST  /api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action

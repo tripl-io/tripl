@@ -574,10 +574,22 @@ describe('TopBar notifications — all projects (i9mt.19 / SH-17)', () => {
     ).toEqual([])
   })
 
+  it('lists a project whose only open item is property drift, linked to its Properties (F23)', async () => {
+    renderWorkspaceBar([
+      project('quiet', 'Quiet project', 0, 0),
+      { ...project('drifting', 'Drifting project', 0, 0), summary: { open_incident_count: 0, monitoring_signal_count: 0, open_property_drift_count: 2 } },
+    ])
+    fireEvent.click(await screen.findByRole('button', { name: 'Alerts' }))
+    const section = await screen.findByRole('region', { name: 'Projects needing attention' })
+    const rows = within(section).getAllByRole('link')
+    expect(rows.map((row) => row.textContent)).toEqual(['Drifting project2 property drifts'])
+    expect(rows[0]).toHaveAttribute('href', '/p/drifting/variables')
+  })
+
   it('says so when no project needs attention', async () => {
     renderWorkspaceBar([project('quiet', 'Quiet project', 0, 0)])
     fireEvent.click(screen.getByRole('button', { name: 'Alerts' }))
-    expect(await screen.findByText('No open incidents or signals in any project.')).toBeInTheDocument()
+    expect(await screen.findByText('No open incidents, signals or property drifts in any project.')).toBeInTheDocument()
   })
 })
 
