@@ -741,7 +741,7 @@ describe('MonitoringDetailPage event detail', () => {
         return mockJsonResponse([eventTypeFixture()])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/projects/demo/variables')) return mockJsonResponse([])
+      if (url.endsWith('/api/v1/projects/demo/properties')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/event-1/history')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/event-1/metrics')) {
         return mockJsonResponse({
@@ -826,7 +826,7 @@ function installEventDetailFetch(
       return mockJsonResponse([eventTypeFixture()])
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-    if (url.endsWith('/api/v1/projects/demo/variables')) return mockJsonResponse([])
+    if (url.endsWith('/api/v1/projects/demo/properties')) return mockJsonResponse([])
     if (url.includes('/api/v1/projects/demo/events/event-1/history')) {
       return mockJsonResponse(opts.history ?? [])
     }

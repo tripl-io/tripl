@@ -197,7 +197,7 @@ export function FieldTemplateHints({
         </p>
       )}
       {unknown.map(({ token }) => (
-        <p key={token} className="text-body-sm text-warning">Unknown variable token: {token}</p>
+        <p key={token} className="text-body-sm text-warning">Unknown property token: {token}</p>
       ))}
       {documented.map(variable => (
         <div key={variable.id} className="flex flex-wrap items-center gap-1">

@@ -71,7 +71,7 @@ describe('VariablesTableRow observed values cell', () => {
     expect(screen.queryByText('No values stored')).not.toBeInTheDocument()
   })
 
-  it('names the silence when the variable has contexts but no stored values', () => {
+  it('names the silence when the property has contexts but no stored values', () => {
     renderRow(makeSpeakingVariable({ sample_values: [], context_count: 2 }))
 
     expect(screen.getByText('No values stored')).toHaveAttribute(
@@ -90,7 +90,7 @@ describe('VariablesTableRow observed values cell', () => {
     )
   })
 
-  it('keeps the em-dash when no context references the variable at all', () => {
+  it('keeps the em-dash when no context references the property at all', () => {
     renderRow(makeSpeakingVariable({ sample_values: [], context_count: 0 }))
 
     expect(screen.queryByText('No values stored')).not.toBeInTheDocument()

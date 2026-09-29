@@ -144,7 +144,7 @@ async def apply_drift_action(
         )
     ).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Variable value drift not found")
+        raise HTTPException(status_code=404, detail="Value drift not found")
 
     drift, variable = row
     now = datetime.now(UTC)
@@ -172,7 +172,7 @@ async def apply_drift_action(
         drift.resolved_by = None
         drift.snoozed_until = None
     else:
-        raise HTTPException(status_code=422, detail="Unsupported variable value drift action")
+        raise HTTPException(status_code=422, detail="Unsupported value drift action")
 
     if data.action == "reopen":
         drift.resolution_note = None

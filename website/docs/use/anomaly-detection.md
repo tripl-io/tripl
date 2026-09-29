@@ -291,9 +291,9 @@ The corrected result is bucketed into interpretive bands:
 
 Only the **significant** band (PSI ≥ 0.25) is surfaced as a drift signal that alert rules can subscribe to. Alongside the score, the detector reports the handful of category values that moved the most (their before/after shares), so you can see *what* shifted, not just *that* it shifted. The sparse-window correction has no dial of its own — it is derived from the two window sizes and the number of distinct values — so the false-positive ratchet and `min_expected_count` still tune nothing on a drift scope.
 
-## Variable value drift
+## Property value drift
 
-Variable value drift compares observed values for one event with that variable's
+Property value drift compares observed values for one event with that property's
 effective documented contract: the event override when one exists, otherwise
 the global `allowed_values` list. An empty effective list means no finite value
 contract has been declared, so observations do not create drift.
@@ -313,16 +313,16 @@ Without this the single row per variable/event would quietly absorb every future
 novel value while still reading as resolved.
 
 **The first sample is a backlog, and it is reported.** The first time a
-variable is sampled for an event, the values it brings back are everything the
-column already holds, not a change. If the variable documents `allowed_values`,
+property is sampled for an event, the values it brings back are everything the
+column already holds, not a change. If the property documents `allowed_values`,
 every one of those outside the list becomes drift on that tick, as one batch.
 This is deliberate: the values really are in the data and outside the contract.
 Review them once — accept the ones that belong (globally or for that event) or
 mark the rest false positive — and later scans report only values that are new.
-Expect this batch after documenting values on a variable that is already being
-observed, or when a new event first reaches a documented variable.
+Expect this batch after documenting values on a property that is already being
+observed, or when a new event first reaches a documented property.
 
-See [Variables & templates](./variables-and-templates.md) for the authoring and
+See [Properties & templates](./variables-and-templates.md) for the authoring and
 review workflow.
 
 ## Release regression

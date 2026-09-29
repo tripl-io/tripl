@@ -63,9 +63,9 @@ const SCOPE_COPY: Record<DriftScope, ScopeCopy> = {
   },
   variable_value_drift: {
     sentence:
-      'Value drift is on, but no variable that scans observe documents an allowed-values list on the main branch — this scope cannot fire until one does.',
-    note: 'Variables opens on the branch you have selected; a list documented on a working branch counts only once it merges.',
-    linkLabel: 'Variables',
+      'Value drift is on, but no property that scans observe documents an allowed-values list on the main branch — this scope cannot fire until one does.',
+    note: 'Properties opens on the branch you have selected; a list documented on a working branch counts only once it merges.',
+    linkLabel: 'Properties',
     href: (slug) => projectPath(currentOrgSlug(), slug, '/variables'),
   },
 }

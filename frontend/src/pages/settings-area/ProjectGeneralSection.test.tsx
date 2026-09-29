@@ -430,7 +430,7 @@ describe('ProjectGeneralSection — reset preview', () => {
   })
 })
 
-describe('ProjectGeneralSection — retire unused variables', () => {
+describe('ProjectGeneralSection — retire unused properties', () => {
   it('shows a failed preview after an earlier retire, instead of the stale retire result', async () => {
     const counts = {
       scanned: 10, retirable: 4, retired: 0, kept_referenced: 0, kept_observed: 0,
@@ -458,16 +458,16 @@ describe('ProjectGeneralSection — retire unused variables', () => {
     renderSection()
 
     fireEvent.click(await screen.findByRole('button', { name: 'Preview' }))
-    expect(await screen.findByText('4 of 10 variables can be retired.')).toBeInTheDocument()
+    expect(await screen.findByText('4 of 10 properties can be retired.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Retire$/ }))
     fireEvent.click(
-      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Retire variables' }),
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Retire properties' }),
     )
-    expect(await screen.findByText('Retired 4 of 10 variables.')).toBeInTheDocument()
+    expect(await screen.findByText('Retired 4 of 10 properties.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
     expect(await screen.findByText('Preview unavailable')).toBeInTheDocument()
-    expect(screen.queryByText('Retired 4 of 10 variables.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Retired 4 of 10 properties.')).not.toBeInTheDocument()
   })
 })
 

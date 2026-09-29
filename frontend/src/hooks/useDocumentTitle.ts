@@ -57,7 +57,7 @@ const PROJECT_SURFACE_LABELS: Record<string, string> = {
   events: 'Events',
   'event-types': 'Event types',
   'meta-fields': 'Meta fields',
-  variables: 'Variables',
+  variables: 'Properties',
   relations: 'Relations',
   branches: 'Plan branches',
   history: 'Plan history',
@@ -106,7 +106,7 @@ const PROJECT_SUBSURFACE_LABELS: Record<string, Record<string, string>> = {
   settings: {
     'event-types': 'Event types',
     'meta-fields': 'Meta fields',
-    variables: 'Variables',
+    variables: 'Properties',
     relations: 'Relations',
     branches: 'Plan branches',
     history: 'Plan history',

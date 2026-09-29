@@ -86,7 +86,15 @@ _OPENAPI_TAGS = [
     {"name": "event-type-owners", "description": "Ownership assignments for event types."},
     {"name": "fields", "description": "Field definitions attached to event types."},
     {"name": "meta-fields", "description": "Project-wide meta/context fields."},
-    {"name": "variables", "description": "Reusable variables referenced by the plan."},
+    {
+        "name": "properties",
+        "description": "Event properties: typed, documented values referenced by the plan"
+        " (`${name}`), with per-event lists and drift.",
+    },
+    {
+        "name": "variables",
+        "description": "Deprecated alias of `properties` (the former name), kept for one release.",
+    },
     {"name": "relations", "description": "Relationships between plan entities."},
     {"name": "scans", "description": "Scan configs and warehouse scan/preview jobs."},
     {"name": "metrics", "description": "Computed metrics and metric definitions."},

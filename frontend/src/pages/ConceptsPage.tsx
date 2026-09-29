@@ -84,7 +84,7 @@ const AREAS: readonly Area[] = [
         path: '/meta-fields',
       },
       {
-        term: 'Variables',
+        term: 'Properties',
         definition:
           'Reusable named values (thresholds, identifiers, constants) referenced across the plan so a value is defined once and used everywhere.',
         path: '/variables',

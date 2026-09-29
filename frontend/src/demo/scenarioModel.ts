@@ -511,7 +511,7 @@ export interface ScenarioChapter {
 export const CHAPTER_TITLES: Record<ChapterId, string> = {
   'live-loop': 'Run the live loop',
   'edit-event': 'Edit an event',
-  variables: 'Variables & value drift',
+  variables: 'Properties & value drift',
   branches: 'Review a branch',
   reconcile: 'Reconcile the plan',
   alerting: 'Route an alert',
@@ -627,7 +627,7 @@ export function buildChapterSteps(
         },
         {
           id: 'edit-event/set-token',
-          title: 'Restore the variable template',
+          title: 'Restore the property template',
           instruction: `Replace ${SCENARIO_SEEDED.editedFieldValue}: type $ in Product ID, choose ${SCENARIO_SEEDED.editedFieldToken}, then follow the guide to Save.`,
           to: editor,
           ctaLabel: editorCta,
@@ -647,17 +647,17 @@ export function buildChapterSteps(
       return [
         {
           id: 'variables/open-variables',
-          title: 'Open Variables',
-          instruction: 'Open the Variables settings — the templating layer behind field values.',
+          title: 'Open Properties',
+          instruction: 'Open the Properties settings — the templating layer behind field values.',
           to: `${base}/variables`,
-          ctaLabel: 'Open Variables',
+          ctaLabel: 'Open Properties',
         },
         {
           id: 'variables/inspect-values',
           title: 'Inspect product_id',
           instruction: `Open ${SCENARIO_SEEDED.driftVariableName} to compare observed values against the documented list.`,
           to: `${base}/variables`,
-          ctaLabel: 'Open Variables',
+          ctaLabel: 'Open Properties',
           coach: { side: 'left', align: 'center', emphasis: 'ring' },
         },
         {
@@ -666,7 +666,7 @@ export function buildChapterSteps(
           instruction:
             'A scan saw prod_weekly outside the documented values — review the drift row.',
           to: `${base}/variables`,
-          ctaLabel: 'Open Variables',
+          ctaLabel: 'Open Properties',
           coach: { side: 'bottom', align: 'end', emphasis: 'ring' },
         },
       ]

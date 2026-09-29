@@ -210,7 +210,7 @@ export function FieldValuesCard({
           )}{' '}
           type; scans match the event on these.
           {nameFormat ? ` The event name is built from ${[...namingColumns].join(', ')}.` : ''}{' '}
-          Type <span className="mono">{'${'}</span> to insert a variable.
+          Type <span className="mono">{'${'}</span> to insert a property.
         </>
       }
     >

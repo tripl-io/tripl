@@ -85,7 +85,7 @@ function VariablesTableRowImpl({
         {canWrite && (
           <input
             type="checkbox"
-            aria-label={`Select variable ${variable.name}`}
+            aria-label={`Select property ${variable.name}`}
             checked={selected}
             onChange={() => onToggleSelect(variable.id)}
           />
@@ -103,7 +103,7 @@ function VariablesTableRowImpl({
             <Link
               to={detailHref(variable.id)}
               className="min-w-0 truncate rounded-sm no-underline hover:underline"
-              aria-label={`Open variable ${variable.name}`}
+              aria-label={`Open property ${variable.name}`}
             >
               <code className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary" title={`\${${variable.name}}`}>
                 {`\${${variable.name}}`}
@@ -212,16 +212,16 @@ function VariablesTableRowImpl({
             step="variables/inspect-values"
             when={variable.name === SCENARIO_SEEDED.driftVariableName}
           >
-            <IconButton variant="ghost" className="h-7 w-7" label={`Edit variable ${variable.name}`} tooltip="Edit" onClick={() => onEdit(variable)}>
+            <IconButton variant="ghost" className="h-7 w-7" label={`Edit property ${variable.name}`} tooltip="Edit" onClick={() => onEdit(variable)}>
               <Pencil className="h-3 w-3" aria-hidden="true" />
             </IconButton>
           </ScenarioCoachMark>
           {canWrite && (
             <>
-              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-warning" label={`Exclude variable ${variable.name} from scans`} tooltip="Exclude from scans" onClick={() => onExclude(variable)}>
+              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-warning" label={`Exclude property ${variable.name} from scans`} tooltip="Exclude from scans" onClick={() => onExclude(variable)}>
                 <Ban className="h-3 w-3" aria-hidden="true" />
               </IconButton>
-              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-destructive" label={`Delete variable ${variable.name}`} tooltip="Delete" onClick={() => onDelete(variable)}>
+              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-destructive" label={`Delete property ${variable.name}`} tooltip="Delete" onClick={() => onDelete(variable)}>
                 <Trash2 className="h-3 w-3" aria-hidden="true" />
               </IconButton>
             </>

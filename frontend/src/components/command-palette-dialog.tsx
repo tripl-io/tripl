@@ -90,7 +90,7 @@ const SEARCH_TYPE_META: Record<
   event_type: { heading: 'Event types', icon: Layers },
   field: { heading: 'Fields', icon: List },
   meta_field: { heading: 'Meta fields', icon: FileText },
-  variable: { heading: 'Variables', icon: Variable },
+  variable: { heading: 'Properties', icon: Variable },
   relation: { heading: 'Relations', icon: Link2 },
   tag: { heading: 'Tags', icon: Tag },
   metric: { heading: 'Metrics', icon: Gauge },

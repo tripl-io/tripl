@@ -938,7 +938,7 @@ def test_the_documented_read_limits_are_the_ones_in_the_code() -> None:
             f"How many events to ask for, `1`–`{events.LIMIT_MAX}`, "
             f"default `{events.LIMIT_DEFAULT}`.",
             f"`0`–`{events.SILENT_SINCE_DAYS_MAX}`",
-            f"How many variables to ask for, `1`–`{variables.LIMIT_MAX}`, "
+            f"How many properties to ask for, `1`–`{variables.LIMIT_MAX}`, "
             f"default `{variables.LIMIT_DEFAULT}`.",
             f"How many hits to ask for, `1`–`{search.LIMIT_MAX}`, "
             f"default `{search.LIMIT_DEFAULT}`.",
@@ -973,7 +973,13 @@ def _command_paths(parser: argparse.ArgumentParser, prefix: str = "tripl") -> li
     for action in parser._actions:
         if not isinstance(action, argparse._SubParsersAction):
             continue
+        seen: set[int] = set()
         for name, sub in action.choices.items():
+            # An alias (`plan variables` for `plan properties`) is the same
+            # parser under a second name, documented in its primary's section.
+            if id(sub) in seen:
+                continue
+            seen.add(id(sub))
             paths.append(f"{prefix} {name}")
             paths.extend(_command_paths(sub, f"{prefix} {name}"))
     return paths

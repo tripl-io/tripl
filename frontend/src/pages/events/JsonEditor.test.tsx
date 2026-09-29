@@ -17,7 +17,7 @@ const VARIABLES: Variable[] = [
 ]
 
 describe('JsonEditor template authoring', () => {
-  it('suggests canonical variables inside quoted JSON templates and accepts the value as valid JSON', () => {
+  it('suggests canonical properties inside quoted JSON templates and accepts the value as valid JSON', () => {
     const onChange = vi.fn()
     render(<JsonEditor value="" onChange={onChange} variables={VARIABLES} />)
 
@@ -32,7 +32,7 @@ describe('JsonEditor template authoring', () => {
     expect(editor).toHaveAttribute('aria-invalid', 'false')
   })
 
-  it('rejects malformed JSON even when it contains a valid variable token', () => {
+  it('rejects malformed JSON even when it contains a valid property token', () => {
     render(<JsonEditor value="" onChange={vi.fn()} variables={VARIABLES} />)
 
     const editor = screen.getByRole('combobox')
@@ -63,7 +63,7 @@ describe('JsonEditor template authoring', () => {
     expect(editor).toHaveAttribute('aria-invalid', 'false')
   })
 
-  it('rejects a variable token with JSON-breaking characters', () => {
+  it('rejects a property token with JSON-breaking characters', () => {
     render(<JsonEditor value="" onChange={vi.fn()} variables={VARIABLES} />)
 
     const editor = screen.getByRole('combobox')
@@ -72,7 +72,7 @@ describe('JsonEditor template authoring', () => {
     expect(editor).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('rejects variable templates used as object keys', () => {
+  it('rejects property templates used as object keys', () => {
     render(<JsonEditor value="" onChange={vi.fn()} variables={VARIABLES} />)
 
     const editor = screen.getByRole('combobox')
@@ -165,14 +165,14 @@ describe('JsonEditor template authoring', () => {
       '{\n  "from_profile": "${property.forecast_profile}",\n  "mode": "${property.mode}"\n}',
     )
     expect(editor).toHaveAttribute('aria-invalid', 'false')
-    expect(screen.getByText(/read 2 values as variables/)).toBeInTheDocument()
+    expect(screen.getByText(/read 2 values as properties/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     expect(editor).toHaveValue(loose)
     expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
   })
 
-  it('does not offer to repair a malformed variable token', () => {
+  it('does not offer to repair a malformed property token', () => {
     render(<JsonEditor value="" onChange={vi.fn()} variables={VARIABLES} />)
 
     const editor = screen.getByRole('combobox')

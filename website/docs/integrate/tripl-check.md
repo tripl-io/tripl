@@ -6,7 +6,7 @@ title: Check code against the plan (tripl check)
 
 The plan and the code drift apart because nothing checks one against the other.
 A misspelled event name, a field the plan does not know, or a value outside a
-variable's documented set is cheap to fix in a pull request. Found in the
+property's documented set is cheap to fix in a pull request. Found in the
 warehouse a week later, it costs a backfill and a broken chart.
 
 `tripl check` reads your tracking calls and asks the tripl instance whether each
@@ -57,7 +57,7 @@ It supports these languages, chosen by file extension:
 
 A value is **literal** when the scanner can read it from the source: a string
 literal, a number, or an enum case whose raw value it can find (see
-[Enum sources](#enum-sources)). Anything else is **dynamic**: a variable, a
+[Enum sources](#enum-sources)). Anything else is **dynamic**: a property, a
 function call, or a value computed at run time. A dynamic value is sent as
 `null`, which means "unknown at scan time". A dynamic value is never an error.
 
@@ -289,7 +289,7 @@ enum AppEvents {
   qualified form in that call, or rename one of the cases.
 - A case the sources do not declare is also dynamic.
 
-## Interpolated names become variables {#interpolation}
+## Interpolated names become properties {#interpolation}
 
 A name built with string interpolation is not a typo. The literal part is still
 checked:
@@ -301,14 +301,14 @@ checked:
 | TypeScript / JavaScript | `` `promo_sheet_${sheetId}_shown` `` | `promo_sheet_${sheetId}_shown` |
 
 Each interpolation becomes a `${…}` token, the same placeholder syntax the plan
-uses for [variables](../use/variables-and-templates.md#use-placeholders-in-event-values).
+uses for [properties](../use/variables-and-templates.md#use-placeholders-in-event-values).
 The name is then matched against plan names that have tokens in the same
-places. A token matches a token whatever its variable is called, so
+places. A token matches a token whatever its property is called, so
 `promo_sheet_${sheetId}_shown` in code matches `promo_sheet_${sheet_id}_shown` in
 the plan. The value behind the token is unknown at scan time, so it is treated
 as dynamic.
 
-A name that is not a string literal at all (a variable, or a function that
+A name that is not a string literal at all (a property, or a function that
 returns the name) is dynamic. Such a call is counted but cannot be matched to an
 event.
 
@@ -325,7 +325,7 @@ message text.
 | `unknown_field` | warning | A field, or a key of a literal `properties` dictionary, that the event type does not define and that is not one of the event's typed properties. |
 | `missing_required_field` | error | A required field, or a property the event's list marks required, is missing. **Payload mode only**: a static call may set the field somewhere the scanner cannot see. |
 | `wrong_type` | error | A property's value has a different JSON type than the plan gives it, for example the string `"3"` for a `number`. |
-| `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the variable the field refers to, or the field's contract regex or min/max. |
+| `value_not_allowed` | error | A literal value is outside what the plan allows: the field's enum options, the documented values of the property the field refers to, or the field's contract regex or min/max. |
 | `dynamic_value` | info or warning, and only with `--strict` | A value the scanner could not read, or an event name that is only partly known. It is listed so you can see what was not checked. The validator reports it as `info`; the CLI adds a `warning` for a value the validator did not already note. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match against the plan. The call is not matched to an event. |
 | `oversize_value` | warning | A name, event type, field or property was over the validator's size limits. The CLI sent the value as `null` (or dropped the key) instead of failing the batch. Raised by the CLI. |
@@ -487,5 +487,5 @@ what the app sent to `events.ndjson`:
 - [`tripl check`](../run/cli.md#tripl-check) on the CLI page: every flag.
 - [Agent API guide: plan validation](./agent-api-guide.md#plan-validation): the
   endpoint behind the check, for your own tools.
-- [Variables & templates](../use/variables-and-templates.md): documented values
+- [Properties & templates](../use/variables-and-templates.md): documented values
   and `${variable}` placeholders.

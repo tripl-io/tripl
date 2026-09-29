@@ -64,10 +64,10 @@ describe('DocNotesSection (F22)', () => {
     )
   })
 
-  it('offers a variable note pre-filled with the variable link', async () => {
+  it('offers a property note pre-filled with the property link', async () => {
     vi.mocked(docsApi.backlinks).mockResolvedValue({ kind: 'variable', name: 'country', qualifier: null, items: [] })
     renderWith(<DocNotesSection slug="demo" kind="variable" name="country" />)
-    expect(await screen.findByText(/No notes link to this variable yet/)).toBeInTheDocument()
+    expect(await screen.findByText(/No notes link to this property yet/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'New note about this' }).getAttribute('href')).toContain(
       encodeURIComponent('[[variable:country]]'),
     )

@@ -241,8 +241,8 @@ function describe(repairs: Repairs): string[] {
   if (repairs.templates) {
     fixes.push(
       repairs.templates > 1
-        ? `read ${repairs.templates} values as variables`
-        : 'read 1 value as a variable',
+        ? `read ${repairs.templates} values as properties`
+        : 'read 1 value as a property',
     )
   }
   if (repairs.trailingCommas) fixes.push('dropped a stray comma')

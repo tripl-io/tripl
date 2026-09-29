@@ -1062,20 +1062,20 @@ describe('BranchesTab', () => {
     // state is one more click, so it no longer dominates the row (PL-12).
     expect(await screen.findByText('Field changes')).toBeInTheDocument()
     expect(screen.queryByText('Full state')).not.toBeInTheDocument()
-    const fullToggle = screen.getByRole('button', { name: 'Show full variable (2 properties)' })
+    const fullToggle = screen.getByRole('button', { name: 'Show full property (2 properties)' })
     expect(fullToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(fullToggle)
     expect(screen.getByText('Full state')).toBeInTheDocument()
     // The same toggle closes it again.
     expect(fullToggle).toHaveAttribute('aria-expanded', 'true')
-    expect(fullToggle).toHaveAccessibleName('Hide full variable (2 properties)')
+    expect(fullToggle).toHaveAccessibleName('Hide full property (2 properties)')
     // Keys read as labels, with the raw key kept in the title.
-    expect(screen.getByText('Variable type')).toHaveAttribute('title', 'variable_type')
+    expect(screen.getByText('Property type')).toHaveAttribute('title', 'variable_type')
     // The before value of the changed field renders (the 'string' → 'enum' move).
     expect(screen.getByText('string')).toBeInTheDocument()
     expect(screen.getAllByText('variable_type').length).toBeGreaterThan(0)
     // The collapsed summary names the field in words, not its key (PL-12).
-    expect(screen.getByText('Variable type string → enum')).toBeInTheDocument()
+    expect(screen.getByText('Property type string → enum')).toBeInTheDocument()
 
     fireEvent.click(fullToggle)
     expect(fullToggle).toHaveAttribute('aria-expanded', 'false')
@@ -1514,7 +1514,7 @@ describe('BranchesTab', () => {
     expect(screen.queryByText('Raw backend prose.')).not.toBeInTheDocument()
   })
 
-  it('warns before merging when the diff removes variables from main', async () => {
+  it('warns before merging when the diff removes properties from main', async () => {
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
     vi.mocked(planBranchesApi.getConflicts).mockResolvedValue({ entities: [], unresolved_count: 0 })
     vi.mocked(planBranchesApi.listComments).mockResolvedValue([])
@@ -1533,8 +1533,8 @@ describe('BranchesTab', () => {
     await clickMerge()
 
     // The confirm dialog lists the doomed variable; merge waits for consent.
-    expect(await screen.findByText('Merge deletes variables from main')).toBeInTheDocument()
-    expect(screen.getByText(/removes 1 variable from main: variant/)).toBeInTheDocument()
+    expect(await screen.findByText('Merge deletes properties from main')).toBeInTheDocument()
+    expect(screen.getByText(/removes 1 property from main: variant/)).toBeInTheDocument()
     expect(planBranchesApi.merge).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Merge anyway' }))
@@ -1643,7 +1643,7 @@ describe('BranchesTab', () => {
     )
   })
 
-  it('does not warn about a variable the merge will rename rather than delete', async () => {
+  it('does not warn about a property the merge will rename rather than delete', async () => {
     mockRenamedVariableDiff()
 
     renderTab()
@@ -1657,7 +1657,7 @@ describe('BranchesTab', () => {
     expect(await screen.findByText(/1 renamed\)\?/)).toBeInTheDocument()
     await confirmMerge()
     await waitFor(() => expect(planBranchesApi.merge).toHaveBeenCalledWith('demo', 'feat-1'))
-    expect(screen.queryByText('Merge deletes variables from main')).not.toBeInTheDocument()
+    expect(screen.queryByText('Merge deletes properties from main')).not.toBeInTheDocument()
   })
 
   it('warns about a removal the backend did not pair, matching identities or not', async () => {
@@ -1672,8 +1672,8 @@ describe('BranchesTab', () => {
     // screen used to pair for itself. The merge refuses the move — main already
     // holds `experiment_variant` — so `variant` really is deleted, and only the
     // backend can know that.
-    expect(await screen.findByText('Merge deletes variables from main')).toBeInTheDocument()
-    expect(screen.getByText(/removes 1 variable from main: variant/)).toBeInTheDocument()
+    expect(await screen.findByText('Merge deletes properties from main')).toBeInTheDocument()
+    expect(screen.getByText(/removes 1 property from main: variant/)).toBeInTheDocument()
     expect(planBranchesApi.merge).not.toHaveBeenCalled()
   })
 
@@ -1690,7 +1690,7 @@ describe('BranchesTab', () => {
     // pairing already read main, so there is nothing left to be cautious about.
     await confirmMerge()
     await waitFor(() => expect(planBranchesApi.merge).toHaveBeenCalledWith('demo', 'feat-1'))
-    expect(screen.queryByText('Merge deletes variables from main')).not.toBeInTheDocument()
+    expect(screen.queryByText('Merge deletes properties from main')).not.toBeInTheDocument()
   })
 
   it('counts a paired rename once in the strip, the ahead badge and the subtitle', async () => {
@@ -2014,7 +2014,7 @@ describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
           parent: null,
           changes: [],
           field_changes: [],
-          before: { name, description: 'Auto-detected variable from data source scan' },
+          before: { name, description: 'Auto-detected property from data source scan' },
           after: null,
           housekeeping: 'unused scan variable retired',
         })),
@@ -2041,7 +2041,7 @@ describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
     expect(screen.getByText('1 change')).toBeInTheDocument()
 
     const fold = screen.getByRole('button', {
-      name: /2 unused scan variables retired · 1 removal already made on main/,
+      name: /2 unused scan properties retired · 1 removal already made on main/,
     })
     expect(fold).toHaveAttribute('aria-expanded', 'false')
     // No idref to a list that is not rendered (PLAN-20).
@@ -2052,7 +2052,7 @@ describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
     expect(fold).toHaveAttribute('aria-controls')
     expect(screen.getByText('property.adana')).toBeInTheDocument()
     expect(screen.getByText('property.city')).toBeInTheDocument()
-    expect(screen.getAllByText(/unused scan variable retired/)).toHaveLength(2)
+    expect(screen.getAllByText(/unused scan property retired/)).toHaveLength(2)
 
     // Nor does the merge confirmation list them: the dialog protects documented
     // values, overrides and drift history, none of which these rows have.
@@ -2060,7 +2060,7 @@ describe('BranchesTab housekeeping rows (tripl-kjhi.12)', () => {
     await clickMerge()
     await confirmMerge()
     await waitFor(() => expect(planBranchesApi.merge).toHaveBeenCalledWith('demo', 'feat-1'))
-    expect(screen.queryByText('Merge deletes variables from main')).not.toBeInTheDocument()
+    expect(screen.queryByText('Merge deletes properties from main')).not.toBeInTheDocument()
   })
 })
 

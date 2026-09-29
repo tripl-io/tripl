@@ -66,11 +66,11 @@ function renderTemplateValue(value: string, variables?: Variable[]): ReactNode {
       part.known === false ? (
         // Warning tone = the ${token} resolves to no variable (name,
         // source_name or binding) — it will never receive observed values.
-        <CodeToken key={i} className="text-warning" title="Unknown variable token">
+        <CodeToken key={i} className="text-warning" title="Unknown property token">
           {part.text}
         </CodeToken>
       ) : (
-        <CodeToken key={i} className="text-fg-secondary" title="Variable: filled in from observed values">
+        <CodeToken key={i} className="text-fg-secondary" title="Property: filled in from observed values">
           {part.text}
         </CodeToken>
       )

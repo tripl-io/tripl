@@ -113,7 +113,7 @@ describe('variableDetailPath', () => {
 })
 
 describe('VariableDetailPage (AU-26)', () => {
-  it('titles the page after the variable and opens on its definition', async () => {
+  it('titles the page after the property and opens on its definition', async () => {
     renderPage('/p/demo/variables/var-1')
 
     expect(await screen.findByRole('heading', { level: 1, name: '${variant}' })).toBeInTheDocument()
@@ -168,15 +168,15 @@ describe('VariableDetailPage (AU-26)', () => {
   it('offers the way back to the list, with the row focused', async () => {
     renderPage('/p/demo/variables/var-1')
 
-    fireEvent.click(await screen.findByRole('link', { name: 'Variables' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Properties' }))
     expect(await screen.findByText('list at ?focus=var-1')).toBeInTheDocument()
   })
 
-  it('says the variable is gone, with the way back, when the list has no such id', async () => {
+  it('says the property is gone, with the way back, when the list has no such id', async () => {
     renderPage('/p/demo/variables/var-missing')
 
-    expect(await screen.findByText('Variable not found')).toBeInTheDocument()
-    const back = screen.getByRole('link', { name: 'Back to variables' })
+    expect(await screen.findByText('Property not found')).toBeInTheDocument()
+    const back = screen.getByRole('link', { name: 'Back to properties' })
     expect(back).toHaveAttribute('href', '/p/demo/variables')
   })
 

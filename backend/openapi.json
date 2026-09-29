@@ -49088,6 +49088,1134 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/properties": {
+      "get": {
+        "operationId": "list_variables__properties_api_v1_projects__slug__properties_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 5000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+            "in": "query",
+            "name": "usage",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+              "enum": [
+                "all",
+                "used",
+                "unused"
+              ],
+              "title": "Usage",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Variables  Properties",
+        "tags": [
+          "properties"
+        ]
+      },
+      "post": {
+        "operationId": "create_variable__properties_api_v1_projects__slug__properties_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Variable  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/bulk-delete": {
+      "post": {
+        "operationId": "bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableBulkDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Delete Variables  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/bulk-update": {
+      "post": {
+        "operationId": "bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableBulkUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Update Variables  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/drifts": {
+      "get": {
+        "operationId": "list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variable_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variable Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableValueDriftListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Value Drifts  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/drifts/{drift_id}/action": {
+      "post": {
+        "operationId": "apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "drift_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Drift Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableValueDriftActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableValueDriftResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Value Drift Action  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/property-drifts": {
+      "get": {
+        "description": "New, missing-required and type-changed properties a scan saw (F23).",
+        "operationId": "list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variable_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variable Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PropertyDriftKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Property Drifts  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action": {
+      "post": {
+        "operationId": "apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "drift_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Drift Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyDriftActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Property Drift Action  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}": {
+      "delete": {
+        "operationId": "delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Variable  Properties",
+        "tags": [
+          "properties"
+        ]
+      },
+      "patch": {
+        "operationId": "update_variable__properties_api_v1_projects__slug__properties__variable_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Variable  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides": {
+      "get": {
+        "operationId": "list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VariableEventOverrideResponse"
+                  },
+                  "title": "Response List Event Overrides  Properties Api V1 Projects  Slug  Properties  Variable Id  Event Overrides Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Event Overrides  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
+      "delete": {
+        "operationId": "delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Event Override  Properties",
+        "tags": [
+          "properties"
+        ]
+      },
+      "put": {
+        "operationId": "upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Event Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableEventOverrideUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableEventOverrideResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Event Override  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/values": {
+      "delete": {
+        "description": "Drop the variable's observed contexts and keep the variable.\n\nDeleting the variable was the only reset available and it takes the\ndescription, documented values, bindings, overrides and drift triage with\nit \u2014 none of which a scan rebuilds.",
+        "operationId": "clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse \u2014 the same value /values already returns, so a client can scope the clear to a single (event, field).",
+            "in": "query",
+            "name": "context_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse \u2014 the same value /values already returns, so a client can scope the clear to a single (event, field).",
+              "title": "Context Id"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Variable Values  Properties",
+        "tags": [
+          "properties"
+        ]
+      },
+      "get": {
+        "operationId": "list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VariableValueContextResponse"
+                  },
+                  "title": "Response List Variable Values  Properties Api V1 Projects  Slug  Properties  Variable Id  Values Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Variable Values  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/reconciliation/coverage": {
       "get": {
         "operationId": "get_coverage_api_v1_projects__slug__reconciliation_coverage_get",
@@ -52433,6 +53561,7 @@
     },
     "/api/v1/projects/{slug}/variables": {
       "get": {
+        "deprecated": true,
         "operationId": "list_variables_api_v1_projects__slug__variables_get",
         "parameters": [
           {
@@ -52531,6 +53660,7 @@
         ]
       },
       "post": {
+        "deprecated": true,
         "operationId": "create_variable_api_v1_projects__slug__variables_post",
         "parameters": [
           {
@@ -52601,6 +53731,7 @@
     },
     "/api/v1/projects/{slug}/variables/bulk-delete": {
       "post": {
+        "deprecated": true,
         "operationId": "bulk_delete_variables_api_v1_projects__slug__variables_bulk_delete_post",
         "parameters": [
           {
@@ -52664,6 +53795,7 @@
     },
     "/api/v1/projects/{slug}/variables/bulk-update": {
       "post": {
+        "deprecated": true,
         "operationId": "bulk_update_variables_api_v1_projects__slug__variables_bulk_update_post",
         "parameters": [
           {
@@ -52727,6 +53859,7 @@
     },
     "/api/v1/projects/{slug}/variables/drifts": {
       "get": {
+        "deprecated": true,
         "operationId": "list_value_drifts_api_v1_projects__slug__variables_drifts_get",
         "parameters": [
           {
@@ -52803,6 +53936,7 @@
     },
     "/api/v1/projects/{slug}/variables/drifts/{drift_id}/action": {
       "post": {
+        "deprecated": true,
         "operationId": "apply_value_drift_action_api_v1_projects__slug__variables_drifts__drift_id__action_post",
         "parameters": [
           {
@@ -52865,6 +53999,7 @@
     },
     "/api/v1/projects/{slug}/variables/property-drifts": {
       "get": {
+        "deprecated": true,
         "description": "New, missing-required and type-changed properties a scan saw (F23).",
         "operationId": "list_property_drifts_api_v1_projects__slug__variables_property_drifts_get",
         "parameters": [
@@ -52968,6 +54103,7 @@
     },
     "/api/v1/projects/{slug}/variables/property-drifts/{drift_id}/action": {
       "post": {
+        "deprecated": true,
         "operationId": "apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post",
         "parameters": [
           {
@@ -53030,6 +54166,7 @@
     },
     "/api/v1/projects/{slug}/variables/{variable_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "delete_variable_api_v1_projects__slug__variables__variable_id__delete",
         "parameters": [
           {
@@ -53091,6 +54228,7 @@
         ]
       },
       "patch": {
+        "deprecated": true,
         "operationId": "update_variable_api_v1_projects__slug__variables__variable_id__patch",
         "parameters": [
           {
@@ -53171,6 +54309,7 @@
     },
     "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides": {
       "get": {
+        "deprecated": true,
         "operationId": "list_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_get",
         "parameters": [
           {
@@ -53245,6 +54384,7 @@
     },
     "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}": {
       "delete": {
+        "deprecated": true,
         "operationId": "delete_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__delete",
         "parameters": [
           {
@@ -53316,6 +54456,7 @@
         ]
       },
       "put": {
+        "deprecated": true,
         "operationId": "upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put",
         "parameters": [
           {
@@ -53406,6 +54547,7 @@
     },
     "/api/v1/projects/{slug}/variables/{variable_id}/values": {
       "delete": {
+        "deprecated": true,
         "description": "Drop the variable's observed contexts and keep the variable.\n\nDeleting the variable was the only reset available and it takes the\ndescription, documented values, bindings, overrides and drift triage with\nit \u2014 none of which a scan rebuilds.",
         "operationId": "clear_variable_values_api_v1_projects__slug__variables__variable_id__values_delete",
         "parameters": [
@@ -53487,6 +54629,7 @@
         ]
       },
       "get": {
+        "deprecated": true,
         "operationId": "list_variable_values_api_v1_projects__slug__variables__variable_id__values_get",
         "parameters": [
           {
@@ -54082,7 +55225,11 @@
       "name": "meta-fields"
     },
     {
-      "description": "Reusable variables referenced by the plan.",
+      "description": "Event properties: typed, documented values referenced by the plan (`${name}`), with per-event lists and drift.",
+      "name": "properties"
+    },
+    {
+      "description": "Deprecated alias of `properties` (the former name), kept for one release.",
       "name": "variables"
     },
     {

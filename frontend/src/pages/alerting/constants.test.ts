@@ -201,7 +201,7 @@ describe('unknownTemplateVariables (ALR-21)', () => {
     ).toEqual(['scope_nme', 'oops'])
   })
 
-  it('flags an item variable used in the message template, and accepts it in the items one', () => {
+  it('flags an item property used in the message template, and accepts it in the items one', () => {
     expect(unknownTemplateVariables('${scope_name}', TEMPLATE_VARIABLE_OPTIONS)).toEqual(['scope_name'])
     expect(unknownTemplateVariables('${scope_name}', ITEM_TEMPLATE_VARIABLE_OPTIONS)).toEqual([])
   })
@@ -226,11 +226,11 @@ describe('default items templates (#255)', () => {
 })
 
 describe('findTemplateVariableToken', () => {
-  it('reads the half-typed variable before the cursor', () => {
+  it('reads the half-typed property before the cursor', () => {
     expect(findTemplateVariableToken('Hi ${rule_', 10)).toEqual({ start: 3, end: 10, query: 'rule_' })
   })
 
-  it('ignores a closed variable and plain text', () => {
+  it('ignores a closed property and plain text', () => {
     expect(findTemplateVariableToken('${rule_name} x', 14)).toBeNull()
     expect(findTemplateVariableToken('no token', 8)).toBeNull()
   })

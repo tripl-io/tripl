@@ -513,7 +513,7 @@ const GROUP_LABEL: Record<PlanDiffEntityType, string> = {
   event_type: 'Event types',
   event: 'Events',
   field_definition: 'Fields',
-  variable: 'Variables',
+  variable: 'Properties',
   meta_field: 'Meta fields',
   relation: 'Relations',
 }

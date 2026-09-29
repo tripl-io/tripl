@@ -59,6 +59,7 @@ from tripl.api.v1.scans import router as scans_router
 from tripl.api.v1.scans import source_freshness_router
 from tripl.api.v1.search import router as search_router
 from tripl.api.v1.users import router as users_router
+from tripl.api.v1.variables import properties_router
 from tripl.api.v1.variables import router as variables_router
 
 router = APIRouter(prefix="/api/v1")
@@ -98,6 +99,7 @@ router.include_router(lifecycle_router, dependencies=protected_dependencies)
 router.include_router(health_router, dependencies=protected_dependencies)
 router.include_router(event_photos_router, dependencies=protected_dependencies)
 router.include_router(event_comments_router, dependencies=protected_dependencies)
+router.include_router(properties_router, dependencies=protected_dependencies)
 router.include_router(variables_router, dependencies=protected_dependencies)
 router.include_router(data_sources_router, dependencies=protected_dependencies)
 router.include_router(scans_router, dependencies=protected_dependencies)

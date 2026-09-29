@@ -19,7 +19,7 @@ export function VariableValueContextTrigger({
         <button
           type="button"
           className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-fg-tertiary hover:bg-muted hover:text-foreground"
-          aria-label="Observed variable values"
+          aria-label="Observed property values"
         >
           <Variable className="h-3.5 w-3.5" />
         </button>
@@ -109,8 +109,8 @@ export function VariableValueContextTrigger({
               {isExcluded && (
                 <div className="text-fg-tertiary">
                   {context.values.length > 0
-                    ? 'Last seen before this variable was excluded from scans — scans no longer refresh it.'
-                    : 'This variable is excluded from scans — scans no longer record values for it.'}
+                    ? 'Last seen before this property was excluded from scans — scans no longer refresh it.'
+                    : 'This property is excluded from scans — scans no longer record values for it.'}
                 </div>
               )}
             </div>

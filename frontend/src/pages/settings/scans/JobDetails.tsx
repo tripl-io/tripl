@@ -207,7 +207,7 @@ export function JobDetails({
             // with 18px bold figures.
             <MiniStatStrip boxed>
               <MiniStat label="Events created" value={summary.events_created ?? 0} valueTone="success" />
-              <MiniStat label="Variables created" value={summary.variables_created ?? 0} valueTone="info" />
+              <MiniStat label="Properties created" value={summary.variables_created ?? 0} valueTone="info" />
               <MiniStat label="Events skipped" value={summary.events_skipped ?? 0} />
               <MiniStat label="Columns analyzed" value={summary.columns_analyzed ?? 0} valueTone="accent" />
               {summary.breakdown_event_metrics != null && (
@@ -235,7 +235,7 @@ export function JobDetails({
                   both mints and retires, and the pair is the only way to tell a
                   catalog that is growing from one holding steady (tripl-bh1q). */}
               {summary.variables_retired != null && (
-                <MiniStat label="Variables retired" value={summary.variables_retired} />
+                <MiniStat label="Properties retired" value={summary.variables_retired} />
               )}
               {summary.signals_added != null && (
                 <MiniStat

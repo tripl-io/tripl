@@ -95,12 +95,12 @@ async def _check_binding_conflicts(
         if clash:
             raise HTTPException(
                 status_code=409,
-                detail=f"Binding '{sorted(clash)[0]}' is already used by variable '{other.name}'",
+                detail=f"Binding '{sorted(clash)[0]}' is already used by property '{other.name}'",
             )
         if name is not None and name in claimed:
             raise HTTPException(
                 status_code=409,
-                detail=f"Name '{name}' is already bound to variable '{other.name}'",
+                detail=f"Name '{name}' is already bound to property '{other.name}'",
             )
 
 
@@ -196,7 +196,7 @@ async def create_variable(
         )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Variable with this name already exists")
+        raise HTTPException(status_code=409, detail="Property with this name already exists")
     await _check_binding_conflicts(
         session,
         project_id=project_id,
@@ -308,7 +308,7 @@ async def update_variable(
     )
     var = result.scalar_one_or_none()
     if not var:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
     previous_name = var.name
     update_data = data.model_dump(exclude_unset=True)
     # Only what the update ADDS is judged: the edit form resends the stored
@@ -348,7 +348,7 @@ async def update_variable(
         if not _STRICT_NAME_PATTERN.match(update_data["name"]):
             raise HTTPException(
                 status_code=422,
-                detail="Variable names must be lowercase letters, digits and underscores"
+                detail="Property names must be lowercase letters, digits and underscores"
                 " (bind data paths via 'bindings' instead of dotted names)",
             )
         dup = await session.execute(
@@ -359,7 +359,7 @@ async def update_variable(
             )
         )
         if dup.scalar_one_or_none():
-            raise HTTPException(status_code=409, detail="Variable with this name already exists")
+            raise HTTPException(status_code=409, detail="Property with this name already exists")
 
         # Carry the name change through every stored ``${old_name}``. Called
         # HERE, before the ``setattr`` loop below writes the new name, because
@@ -491,7 +491,7 @@ async def _load_variables_by_ids(
     variables = list(result.scalars().all())
     missing = set(variable_ids) - {variable.id for variable in variables}
     if missing:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
     return variables
 
 
@@ -579,7 +579,7 @@ async def _get_variable_in_branch(
     )
     var = result.scalar_one_or_none()
     if not var:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
     return var
 
 

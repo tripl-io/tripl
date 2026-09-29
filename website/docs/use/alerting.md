@@ -42,7 +42,7 @@ bucket against a seasonal baseline and scores the gap as
 `min_expected_count` (default 50). It also emits **distribution-drift** signals
 (a value mix shifted) and **release-regression** signals (a new app version
 under-fires an event), plus **variable-value drift** when an event observes
-values outside its effective documented variable list. A scan whose source is
+values outside its effective documented property list. A scan whose source is
 late or overdue produces one **source freshness** signal instead of a drop on
 every scope. See [Source freshness](#source-freshness). A daily lifecycle check
 adds **lifecycle** signals for retirements that are not going to plan — see
@@ -530,7 +530,7 @@ the drift/regression signals are opt-in:
 | Event volume | on |
 | Schema drift | off |
 | Distribution drift | off |
-| Variable value drift | off |
+| Property value drift | off |
 | Release regression | off |
 | Metric anomaly | off |
 | Source freshness | off |
@@ -689,19 +689,19 @@ The two drift scopes depend on plan and scan configuration a rule does not own,
 so a rule can have one of them switched on and still be structurally unable to
 fire — no error anywhere, just permanent silence.
 
-**Variable value drift** needs some variable to document an allowed-values list
+**Property value drift** needs some property to document an allowed-values list
 on the **main** branch, *or* a value drift already collected in this project.
-Either documented source counts: the variable's own list of allowed values, or a
+Either documented source counts: the property's own list of allowed values, or a
 per-event override of it. One of them is enough. Values documented on a working
 branch change nothing until that branch merges, because detection runs against
-main, and a variable excluded from scans never drifts however full its list is.
+main, and a property excluded from scans never drifts however full its list is.
 Collected drift counts on its own for the same reason it does for distribution
 drift — candidates are built from the drift rows, so an open or snoozed row from
 the last 30 days keeps the scope live even after the documented list that
 produced it is emptied. The exclusion rule reaches those rows too: excluding a
-variable from scans keeps the drift it already had, but alerts skip that drift,
+property from scans keeps the drift it already had, but alerts skip that drift,
 so it no longer counts towards readiness either. A project whose only surviving
-value drift sits on excluded variables reads as a scope that cannot fire.
+value drift sits on excluded properties reads as a scope that cannot fire.
 
 **Distribution drift** needs a scan that names the columns to watch (**Scan
 settings → Metric breakdowns and drift → Distribution drift**), *or* a
@@ -715,11 +715,11 @@ into an alert.
 When neither source exists, the rule editor and the monitor detail say so
 inline, beside the box you just ticked:
 
-- *Value drift is on, but no variable that scans observe documents an
+- *Value drift is on, but no property that scans observe documents an
   allowed-values list on the main branch — this scope cannot fire until one
-  does.* The notice links to **Variables**, and adds that Variables opens on the
+  does.* The notice links to **Properties**, and adds that Properties opens on the
   branch you have selected — a list documented on a working branch counts only
-  once it merges. (A variable excluded from scans does not count, which is what
+  once it merges. (A property excluded from scans does not count, which is what
   "that scans observe" means.)
 - *Distribution drift is on, but no scan in this project watches a column for
   it — this scope cannot fire until one does.* The notice links to **Scan
@@ -844,7 +844,7 @@ matches at a time, so type to reach an event that isn't in the first page — th
 footer tells you how many matches are still hidden.
 
 Variable-value drift carries its affected `event_id`, so event filters apply;
-its alert item uses the variable name as `drift_field` and a bounded novel-value
+its alert item uses the property name as `drift_field` and a bounded novel-value
 sample as `sample_value`. That same `event_id` is what `details:` links to: the
 event's monitoring page carries the **Value drift** panel, which lists the full
 set of observed values the message could only sample, and lets you accept,
@@ -1044,7 +1044,7 @@ same member, email and SMTP conditions apply, and two more limits:
 ## Message templates
 
 Messages are rendered from templates using `${variable}` placeholders (an unknown
-variable is rejected, so a typo fails fast rather than sending a broken message).
+property is rejected, so a typo fails fast rather than sending a broken message).
 
 - **Message-level:** `${project_name}`, `${project_slug}`, `${org_slug}`,
   `${channel}`, `${destination_name}`, `${rule_name}`, `${scan_name}`,
@@ -1089,7 +1089,7 @@ variable is rejected, so a typo fails fast rather than sending a broken message)
   scope computes its expectation differently from all the others: a **release
   regression** compares shares, not counts, so its `${expected_count}` is
   followed by `(adoption-adjusted)`. If you write a custom item template and
-  drop this variable, release-regression items lose that qualifier — see
+  drop this property, release-regression items lose that qualifier — see
   [Release-regression items](#release-regression-items) below for why it is
   there.
 - **Email subject** supports a smaller set: `${project_name}`, `${project_slug}`,

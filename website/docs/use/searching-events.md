@@ -8,7 +8,7 @@ sidebar_position: 8
 Press ⌘K (Ctrl+K on Windows and Linux) anywhere inside a project and type at
 least two characters. Alongside the pages and commands, the palette searches the
 project's catalog on the branch you are on: events, event types, fields, meta
-fields, variables, relations, tags, metrics, fact tables, scans and alert rules.
+fields, properties, relations, tags, metrics, fact tables, scans and alert rules.
 Results come back best match first, grouped by type. The
 [feature reference](./feature-reference.md) describes the rest of the palette.
 

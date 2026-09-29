@@ -43,7 +43,7 @@ The project sidebar groups every surface into three job-based areas:
 
 | Area | Surfaces |
 |------|----------|
-| **Plan** | Events (with one entry per event type under it), Event types, Meta fields, Variables, Relations, Docs, Plan branches, Plan history |
+| **Plan** | Events (with one entry per event type under it), Event types, Meta fields, Properties, Relations, Docs, Plan branches, Plan history |
 | **Observe** | Overview, Metrics, Anomalies, Alerting |
 | **Govern** | Reconciliation, Duplicates, Coverage, Scans, Audit log |
 
@@ -64,7 +64,7 @@ offers create actions. Collapsed to an icon rail, the
 sidebar keeps the project and branch switchers, Project settings, Concepts and an
 account menu, with each icon named in a tooltip. Below 1024px the sidebar is a
 drawer opened from the top bar, and below 1600px the activity rail is too. Badge counts come from
-the cheap project summary: Events (active events), Event types, Variables,
+the cheap project summary: Events (active events), Event types, Properties,
 Anomalies (the open monitoring signals that have no
 [verdict](./anomaly-detection.md#signal-verdicts) yet — the same number the
 Anomalies page's default **Needs verdict** view shows — when any are open), and Alerting (open incidents, in solid red, when any
@@ -465,7 +465,7 @@ bulk paste — where once it happened only in the web form, so a tag written as
 label. Tags already stored keep the spelling they were given; nothing rewrites
 them. The tag filter and the tag list case-fold, so `Checkout` answers to
 `checkout` and the two show as one entry whichever way they were written.
-Field and meta values accept variable
+Field and meta values accept property
 references (`${variable}`), and `url`/`date`/`json` field types render
 type-appropriate inputs. A **meta** value is capped at 2,000 bytes once stored —
 for a field with a link template, that is only the part the template wraps, not
@@ -767,21 +767,21 @@ are dropped.
 Turning the option back off leaves values already stored on their events; the
 form then shows the first one, and the next save of that event keeps only it.
 
-### Variables
+### Properties
 
-**Where:** Plan › Variables. Typed, reusable `${name}` placeholders referenced
-from event field and meta values. Each variable separates **documented values**
+**Where:** Plan › Properties. Typed, reusable `${name}` placeholders referenced
+from event field and meta values. Each property separates **documented values**
 from scan-observed contexts, and can bind to one or more warehouse columns or
 dotted JSON paths. A per-event override replaces the global documented list for
 that event.
 
 The table shows documented/observed samples, binding paths, the events a
-variable was **Observed in**, and open value drift; type chips show the schema
+property was **Observed in**, and open value drift; type chips show the schema
 key (`string`, `number_array`). Observed samples accumulate across runs — re-sampling merges
 new values into the stored list, under a cap, instead of replacing it — so the
 observed column is a history of what has been seen, not a mirror of the latest
 scan window. It also distinguishes two silences: it reads **No
-values stored** when the variable has contexts but none of them holds a value,
+values stored** when the property has contexts but none of them holds a value,
 and shows a dash only when no context exists at all. Drift can be accepted
 globally or for one event, snoozed, marked false-positive, or reopened; rows
 that are not asking for attention sit in both panels behind a toggle named for
@@ -792,7 +792,7 @@ the existing note; send an explicit null to clear it, or reopen the drift.
 The event detail repeats the
 affected event's review panel.
 
-Each variable has its own page, `/p/:slug/variables/:id`, opened from
+Each property has its own page, `/p/:slug/variables/:id`, opened from
 the `${name}` link in its row. Its tabs are **Definition** (name, type,
 description, documented values and bindings), **Drift**, **Overrides** (the
 per-event lists) and **Observed** (the scan-observed contexts, with **Clear
@@ -803,39 +803,39 @@ the same sections for a small change.
 Selection enables a bulk bar with **Set type…**, **Set description…** and **Add
 values…** — each a popover holding its own field and its own apply button — and
 delete. A bulk type change is chosen first and applied with **Set type**, after a
-confirm that names how many selected variables have documented values the new
-type would reject. Values are checked against the variable's type wherever they
+confirm that names how many selected properties have documented values the new
+type would reject. Values are checked against the property's type wherever they
 are entered — documented values, per-event overrides and bulk-added values: a
 Number takes numbers, a Boolean `true` or `false`, a Date `YYYY-MM-DD`, a Datetime
 an ISO date-time and JSON valid JSON (array types check each value as one
-element). Changing a variable's type in its editor lists the documented values
+element). Changing a property's type in its editor lists the documented values
 the new type would reject, and holds Save until they are removed. **Exclude from scans** keeps a restorable tombstone so a deliberately
-removed scan-owned variable is not recreated. Search matches a variable's
+removed scan-owned property is not recreated. Search matches a property's
 display name and description **and** its scan source path and bindings, so a
-variable whose display name was shortened from a dotted path is still findable
+property whose display name was shortened from a dotted path is still findable
 by the data path it binds to.
 
-A catalog run can end by **retiring the scan-created variables nothing refers
+A catalog run can end by **retiring the scan-created properties nothing refers
 to any more** — no `${token}` in any stored event field or meta value, no
 observed context, no value drift, no per-event override — so a catalog stops
 accumulating rows minted from a JSON column keyed by free text. A scan you start
-by hand runs this sweep, but scalar-derived variables are deferred if any scan
+by hand runs this sweep, but scalar-derived properties are deferred if any scan
 config in the project lacks a declared lookback. A **scheduled monitoring
-collection** does it on every run for a variable minted from a path inside a
+collection** does it on every run for a property minted from a path inside a
 JSON column — a key that stopped arriving is exactly what the pass is for, and
-the key's return mints the variable again under a new id — but judges a variable
+the key's return mints the property again under a new id — but judges a property
 minted from a scalar column only when **every** scan in the project sets
 **Limits → Lookback (hours)**: with the field blank a scheduled run reads the slice it is collecting, often
 a single hour, and a scalar column that looks enumerable for one quiet hour is
 rewritten as literals in every event at once, which is not evidence that its
-variable is dead. A **metrics replay** never does it: it syncs no catalog, so it
-has no current view of which paths your rows carry at all. See [Variables &
-templates](./variables-and-templates.md#unreferenced-scan-created-variables-are-retired-automatically)
+property is dead. A **metrics replay** never does it: it syncs no catalog, so it
+has no current view of which paths your rows carry at all. See [Properties &
+templates](./variables-and-templates.md#unreferenced-scan-created-properties-are-retired-automatically)
 for what a too-narrow view actually costs.
 
 The pass is deliberately narrow: a typed display name, an edited description, a
 hand-added binding, documented values, an override, drift triage, or an
-**Exclude from scans** tombstone each keep the row, and a variable the run has just created is always
+**Exclude from scans** tombstone each keep the row, and a property the run has just created is always
 still referenced by that run's own event values. When a run retires anything it
 says so in its [details list](#scan-runs).
 
@@ -844,9 +844,9 @@ An **All / In use / Unused** control filters the table by that same rule.
 than by an "observed in no events" shortcut, so the count sitting under the
 select-all checkbox is exactly the set a run would take — never a superset that
 quietly includes rows a live event value still names. API clients pass
-`usage=all|used|unused` on `GET /api/v1/projects/{slug}/variables`; the default
+`usage=all|used|unused` on `GET /api/v1/projects/{slug}/properties`; the default
 is `all` and an unrecognised value is a `422`. See
-[Variables & templates](./variables-and-templates.md).
+[Properties & templates](./variables-and-templates.md).
 
 ### Event-type relations
 
@@ -901,7 +901,7 @@ review this?**: **Add and submit** adds the picked reviewers and submits,
 **Submit without a reviewer** submits as it is, and **Cancel** leaves the branch
 a draft.
 A viewer gets no **Edit** on change rows. Conflicts cover every entity type
-(event types, fields, events, variables, meta fields, relations), grouped by
+(event types, fields, events, properties, meta fields, relations), grouped by
 type and parent, offer **Take main** and **Keep this branch**, and list the
 values in the order **Was → Main now → This branch**; a row where one side
 deleted what the other edited says so in words instead. The note that main has
@@ -923,12 +923,12 @@ shown as one paragraph with the edits marked, not as two full copies.
 The selected branch is part of the route (`/p/:slug/branches/:branchId`),
 so a review is linkable. Each diff row expands to its field-level changes;
 collection-valued fields (an event's field values and meta values, its tags, a
-variable's documented values and per-event overrides) are broken out member by
+property's documented values and per-event overrides) are broken out member by
 member rather than dumped whole. A row also links to the entity it describes —
-the event, event type, or variable — opened in the branch, or on `main` when the
-branch deleted it. Events and variables additionally carry **Edit** on the
+the event, event type, or property — opened in the branch, or on `main` when the
+branch deleted it. Events and properties additionally carry **Edit** on the
 collapsed row, without expanding it first: an event opens its editor on that
-branch, and a variable opens its own page
+branch, and a property opens its own page
 (`/p/:slug/variables/:id`) — including a renamed row, whose Edit reaches the branch-side copy
 rather than the base one it is drawn from. A merged or closed branch offers no
 Edit, matching what its writes would be refused for: the API answers a plan
@@ -964,15 +964,15 @@ deletes both copies and authors one event in their place leaves `main` with
 just that event. Rows created on the branch are matched to `main` by name, as
 before. A branch opened before this was tracked may still hold namesakes it
 cannot tell apart; its diff row for such a name carries a warning to rename one
-of the events, or remove one of the relations, before changing either. A variable renamed on the branch onto the name of a variable the branch deleted merges as
-that rename: the deleted variable goes, and the renamed one keeps its id, its scan identity
-and its observed values. When the deleted variable has no scan identity, or `main` changed
-it after the branch was cut, the merge cannot tell the rename from an edit of that variable
+of the events, or remove one of the relations, before changing either. A property renamed on the branch onto the name of a property the branch deleted merges as
+that rename: the deleted property goes, and the renamed one keeps its id, its scan identity
+and its observed values. When the deleted property has no scan identity, or `main` changed
+it after the branch was cut, the merge cannot tell the rename from an edit of that property
 and answers `409`; rename one of them and merge again. A branch
 copy of an event reads its metrics, **last seen** and discussion through the
 `main` event it was copied from (for an event created on the branch, the `main`
 event with the same type name and identity), so the branch shows what the live
-plan collected rather than blanks. Removals that are the machine's doing — a scan-minted variable still
+plan collected rather than blanks. Removals that are the machine's doing — a scan-minted property still
 exactly as the scan wrote it being retired (no binding beyond the scan's own, no
 documented values or per-event overrides, not renamed, not excluded from scans,
 not the removed half of a rename, and not named by a `${token}` in any field or
@@ -1003,7 +1003,7 @@ A successor that no longer exists on the branch is cleared instead.
 The branch policy can require a minimum number of **distinct approvals** and can
 forbid self-approval. Approval hashes include event values, tags, photos (the
 attachments, not the comment threads under them), ownership/review state,
-variable overrides, and metric breakdown settings, so any later merge-relevant
+property overrides, and metric breakdown settings, so any later merge-relevant
 edit makes the approval stale. Discussion is not a plan change: commenting on a
 photo, on an event or on the branch leaves every approval fresh. Neither is the
 order the database returns a multi-value meta field's values in: they are
@@ -1086,22 +1086,22 @@ it. The list is at
 
 ### Dependencies & impact {#dependencies-and-impact}
 
-**Where:** a **Used by** section on the event, event type, variable, metric and
+**Where:** a **Used by** section on the event, event type, property, metric and
 fact-table pages, and on each field in the event type page; warnings in the
 delete, archive, deprecate and rename flows listed below; and an **Impact**
 panel on a plan branch's detail page. What counts as a dependency, and why most of them only warn, is
 explained in [Dependencies & impact](./dependencies-and-impact.md).
 
 **Used by** lists what depends on the entity, grouped by kind (events, metrics,
-alert rules, relations, variables, fact tables, scans), each item a link to its page
+alert rules, relations, properties, fact tables, scans), each item a link to its page
 with a short reason next to it, such as *metric uses event in its composition*
-or *variable bound to field*. Items matched only by name, without a stored id
+or *property bound to field*. Items matched only by name, without a stored id
 (a column name in SQL or a JSON-key literal, a fact-table or `fact` metric
-column, a variable binding by column name, a column on a scan with no event
+column, a property binding by column name, a column on a scan with no event
 type), are marked **possible**, with a note that the match is by name and should
 be checked. An entity
 nothing depends on says so rather than showing an empty list. On a plan branch
-the list is resolved on that branch: its own relations and variable bindings,
+the list is resolved on that branch: its own relations and property bindings,
 and the metrics and alert rules that use its counterpart on `main`.
 
 **Warnings** name the concrete dependents before you act, summarised as a count
@@ -1111,10 +1111,10 @@ it, possible matches marked the same way. They appear in:
 - the events list's bulk **Delete**, **Archive** and **Deprecate** confirm
   dialogs;
 - the delete dialogs for an event type, a field (on the event type page) and a
-  variable;
+  property;
 - the delete dialogs for a metric and a fact table;
 - inline on the event form when you rename, deprecate or archive the event, and
-  on the variable form when you rename the variable.
+  on the property form when you rename the property.
 
 Fields have no rename action, so there is no field-rename warning. A warning
 never stops you: confirming goes through even when the list is not empty, and
@@ -1125,7 +1125,7 @@ and so is an edit that would break a metric, as described under
 
 The **Impact** panel on a branch's detail takes the changes in the branch's diff
 that can break something (deleted, deprecated or archived, renamed, or otherwise
-edited events, event types, fields and variables) and lists, for each change,
+edited events, event types, fields and properties) and lists, for each change,
 the downstream objects it touches with the same count summary. A rename is shown
 once, using the same pairing as the diff; an in-place edit (a field's type, an
 event's breakdown columns) is shown as a **change**. The panel informs review; it does not stop an approval or a
@@ -1152,11 +1152,11 @@ screen of an empty workspace); editor role. The dialog asks for a name, URL
 slug and description, then offers a **Blank project** (the default) or one of
 four industry templates: **E-commerce**, **Subscriptions**, **Mobile games**
 and **B2B SaaS**. Each template card shows its description, counts (events,
-event types, variables) and version. Below the cards, a **Starter metrics and
+event types, properties) and version. Below the cards, a **Starter metrics and
 alerts** disclosure lists the chosen template's suggestions; the submit button
 reads **Create from template** once one is chosen.
 
-A template seeds its starter plan (event types with fields, variables, and
+A template seeds its starter plan (event types with fields, properties, and
 example events with the status **draft**) onto a draft working branch such as
 `template/ecommerce`, then opens that branch instead of the Overview. The
 project's main plan stays empty until the branch is merged through the normal
@@ -1183,7 +1183,7 @@ metrics alike. Renaming the slug refreshes search links for the project's plan
 branches so palette and Ask AI results point at the new route. Deleting a project
 or resetting its demo clears its slug-specific catalog and monitoring caches.
 The page has two cards below the fields: **Maintenance** holds **Rebuild
-index**, the resets and **Retire unused variables**, and **Danger zone** holds
+index**, the resets and **Retire unused properties**, and **Danger zone** holds
 only **Delete project**. A read-only user sees the values as text, with no
 **Save** or **Rebuild**. Deleting — owner-only, from this danger zone or from a
 project's menu on the workspace page — asks you to type the project's slug
@@ -1205,10 +1205,10 @@ across every scan/catalog metric. **Reset drifts**
 removes schema and distribution drift, but not variable-value drift. Both can be
 limited to a selected historical period and cannot be undone.
 
-**Retire unused variables** applies the same retirement rule a catalog run
-applies (see [Variables](#variables)) across a whole plan branch in one pass —
+**Retire unused properties** applies the same retirement rule a catalog run
+applies (see [Properties](#properties)) across a whole plan branch in one pass —
 for the backlog that accumulated before runs started sweeping, and for the
-scalar-column variables of a **Catalog + monitoring** config that sets no
+scalar-column properties of a **Catalog + monitoring** config that sets no
 **Limits → Lookback (hours)**, which its scheduled runs never judge. It is **two
 buttons, not one**: **Preview** commits nothing and reports what the pass would
 take, and **Retire** stays disabled until a preview says there is something to
@@ -1406,7 +1406,7 @@ The rule editor and the monitor detail also mark an enabled drift scope whose
 source data does not exist anywhere in the project — value drift with no
 documented allowed-values list on main and no drift collected, distribution drift
 with no scan watching a column and no significant drift collected — with an
-inline notice linking to the screen that supplies it (**Variables**, **Scan
+inline notice linking to the screen that supplies it (**Properties**, **Scan
 settings**). The toggle stays usable,
 because the missing data can arrive later; the check is project-wide, so it says
 nothing about the particular scan a rule is bound to. See
@@ -1457,7 +1457,7 @@ For an `event` scope it
 additionally renders variable-value drift review and the Photos & specs panel.
 An event that is not yet `live` also gets a **Spec** card ahead of the charts:
 the scan identity with a copy button, the fields with their required and
-**names the event** marks, documented variable values, an example payload, and
+**names the event** marks, documented property values, an example payload, and
 **Copy as JSON** / **Copy as Markdown** for pasting into a ticket. Optional
 fields with no value are folded away on the card and left out of both copies.
 The event's **Discussion** thread is on this page too.
@@ -1892,8 +1892,8 @@ by a scan-bound rule, and deleting a scan unbinds and disables the rules bound t
 it rather than widening or deleting them; filters on `event_type` / `event` /
 `direction` with operators `=`, `!=`, `IN`, `NOT IN`; thresholds for minimum
 percent delta, minimum absolute delta, and minimum expected count; an **include
-variable value drift** opt-in alongside schema, distribution, and release drift;
-and message and items templates with variables such as `${channel}`,
+property value drift** opt-in alongside schema, distribution, and release drift;
+and message and items templates with properties such as `${channel}`,
 `${destination_name}`, `${rule_name}`, `${scan_name}`, `${scope_label}`,
 `${matched_count}`, and `${items_text}`. Metric-scope anomalies are also safe-off
 and are enabled by the rule editor's **Metrics** box (`include_metrics`). A rule can be
@@ -2115,8 +2115,8 @@ so a merge does not quietly undo work you did:
   `in_review` leaves `in_review` standing, so the group is one you are asked to
   look at even though nothing it absorbed had been.
 
-Variable data moves too — see
-[Variables and templates](./variables-and-templates.md#when-a-scan-merges-events-into-a-group).
+Property data moves too — see
+[Properties and templates](./variables-and-templates.md#when-a-scan-merges-events-into-a-group).
 
 **What deleting an event clears.** A merge has a survivor to move things onto; a
 delete does not, so the same references are removed instead. Deleting an event —
@@ -2532,8 +2532,8 @@ uses elsewhere and never expects to have a plan field. A rule condition reserves
 a column only when it names one outright: a dotted condition such as
 `payload.action` reaches inside a column's JSON rather than claiming the column,
 so it reserves nothing and `payload` keeps its field. The same list reports
-variables the run retired — *Retired N unused variables no event refers to*,
-see [Variables](#variables) — and says nothing when there were none. It also
+properties the run retired — *Retired N unused properties no event refers to*,
+see [Properties](#properties) — and says nothing when there were none. It also
 reports rows the run refused to name: *Skipped N rows whose derived event name
 was empty* (singular *row* when N is 1), which means every column the **Event
 name format** refers to was NULL for those rows, so the run planned nothing for
@@ -2547,9 +2547,9 @@ run that goes on to finish the chunk it was in does not flip the row back to
 *Succeeded*, and the metric points it had already written are kept. A catalog run
 and an event-group apply each look once, at the last point before they commit:
 stopped there they write nothing at all and the plan is exactly as it was.
-Stopped after that — while the run is retiring variables or rebuilding the search
+Stopped after that — while the run is retiring properties or rebuilding the search
 index — their work is already durable and it stays: the catalog a scan wrote and
-the variables it retired, the merge an apply performed, and the rebuilt index in
+the properties it retired, the merge an apply performed, and the rebuilt index in
 either case. A stop cannot un-write a committed transaction. The **run** still
 ends **Cancelled** even so. Before it stamps *Succeeded* it re-reads its own row,
 and a stop that landed while those tails were running owns the verdict — so the
@@ -2632,7 +2632,7 @@ data, in this order, each omitted when the run has nothing to report for it.
 | *Added N events to your tracking plan.* | Events that did not exist in the plan and now do. |
 | *No new events — all N were already in your plan.* | The run discovered nothing new. Normal on an established catalog, not a failure. |
 | *N events were already in your plan and were left as they are.* | The old "Events skipped" counter, with its reason. Nothing was lost or overwritten; their field values were refreshed. |
-| *Added N variables.* | Variables the run created from the values it saw. |
+| *Added N properties.* | Properties the run created from the values it saw. |
 | *Looked at N columns in your query.* | Coverage, not a to-do list: how much of your query the run analyzed. |
 | *Recorded N metric points.* | Time-series points written. Only a monitoring scan produces these. |
 | *Raised N anomaly signals.* | Signals **this run** added. Links to [Anomalies](#anomalies) filtered to this scan. |
@@ -2650,7 +2650,7 @@ reconcile. The same delta is what the activity feed's "N new signals" reports on
 a scan card.
 
 Every counter the run reported is still there, verbatim, behind **Show raw
-counters**: *Events created*, *Variables created*, *Variables retired* (on
+counters**: *Events created*, *Properties created*, *Properties retired* (on
 every run but a replay, `0` included), *Events skipped*, *Columns analyzed*,
 *Event breakdowns*, *Distribution rows*, *Signals added*, *Alerts queued* — and,
 on a scheduled run, the variable-value sampling sweep: *Paths
@@ -2838,7 +2838,7 @@ headings and filtered by role exactly as the sidebar filters them, plus a
 **More** group for the three that are not sidebar entries (Project settings,
 Concepts, Detection settings); a **Projects** switcher; an
 **Event types** jump list; **branch-aware knowledge search** (from 2 characters)
-across events, event types, fields, meta fields, variables, relations, tags,
+across events, event types, fields, meta fields, properties, relations, tags,
 metrics, fact tables, scans and alert rules — events that differ only in one
 naming-rule placeholder are folded into one row ("+ N variants") with a
 **Show/Hide N variants** row that expands them in place (see

@@ -167,7 +167,7 @@ def register(mcp: FastMCP) -> None:
         annotations=READ_ONLY,
         description=(
             "Fetch one event's full canonical detail by id: field values, meta values, "
-            "tags, lifecycle state, event type brief, and variable value contexts. "
+            "tags, lifecycle state, event type brief, and property value contexts. "
             "Use after search_plan/list_events; treat the returned name/id as "
             "canonical. Requires a tk_r_ or tk_w_ key."
         ),
@@ -176,7 +176,7 @@ def register(mcp: FastMCP) -> None:
         name="get_event_properties",
         annotations=READ_ONLY,
         description=(
-            "Fetch one event's typed property list: each variable the event carries "
+            "Fetch one event's typed property list: each property the event carries "
             "with its variable_type, json_schema, whether it is required, the "
             "effective allowed values for this event, the measured presence_rate and "
             "suggested_required. Use it to build or check an event's properties "

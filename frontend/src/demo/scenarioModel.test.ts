@@ -119,7 +119,7 @@ describe('scenario chapter browser contracts', () => {
         'Replace the current Product ID value with prod_monthly. The guide advances automatically — do not save yet.',
     })
     expect(editSteps[2]).toMatchObject({
-      title: 'Restore the variable template',
+      title: 'Restore the property template',
       instruction:
         'Replace prod_monthly: type $ in Product ID, choose ${product_id}, then follow the guide to Save.',
     })

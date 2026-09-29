@@ -175,7 +175,7 @@ export default function EventEditPage() {
       <PageContainer width="narrow">
         {/* Names what failed, not the view (SH-33). */}
         <ErrorState
-          title="Could not load the event types, meta fields or variables"
+          title="Could not load the event types, meta fields or properties"
           error={loadError}
           onRetry={() => {
             void Promise.all([

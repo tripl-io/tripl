@@ -1,4 +1,4 @@
-"""Plan structure tools: event types, fields, variables, projects."""
+"""Plan structure tools: event types, fields, properties (variables), projects."""
 
 from __future__ import annotations
 
@@ -161,7 +161,8 @@ def register(mcp: FastMCP) -> None:
         name="list_variables",
         annotations=READ_ONLY,
         description=(
-            "List the project's variables (documented ${variable} placeholders) with "
+            "List the project's event properties (documented ${name} placeholders; the "
+            "API's former name for them is 'variables') with "
             "allowed_values, bindings, usage summaries and open drift counts. Paged: "
             "answers {items, total}; pass offset/limit to reach beyond the first "
             "page. Requires a tk_r_ or tk_w_ key."
@@ -171,7 +172,7 @@ def register(mcp: FastMCP) -> None:
         name="get_variable_values",
         annotations=READ_ONLY,
         description=(
-            "Fetch one variable's observed per-event value contexts plus its "
+            "Fetch one property's observed per-event value contexts plus its "
             "event-level overrides (overrides replace the global documented list for "
             "their event). High-cardinality contexts return bounded samples with an "
             "observed count. Requires a tk_r_ or tk_w_ key."

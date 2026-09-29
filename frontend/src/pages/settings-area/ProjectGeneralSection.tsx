@@ -150,8 +150,8 @@ function summarizeRetirement(counts: VariableRetirementCounts, committed: boolea
   ].filter(Boolean)
   const tail = kept.length ? ` Kept ${kept.join(', ')}.` : ''
   return committed
-    ? `Retired ${counts.retired} of ${counts.scanned} variables.${tail}`
-    : `${counts.retirable} of ${counts.scanned} variables can be retired.${tail}`
+    ? `Retired ${counts.retired} of ${counts.scanned} properties.${tail}`
+    : `${counts.retirable} of ${counts.scanned} properties can be retired.${tail}`
 }
 
 /**
@@ -312,9 +312,9 @@ function ProjectGeneralBody({
   const handleRetireVariables = async () => {
     const retirable = retirementPreview?.retirable ?? 0
     const ok = await confirm({
-      title: 'Retire unused variables',
-      message: `Permanently delete ${retirable} variable${retirable === 1 ? '' : 's'} that no event field value references. Variables you edited, documented, excluded from scans, or that carry observed values or drift are not touched. This cannot be undone.`,
-      confirmLabel: 'Retire variables',
+      title: 'Retire unused properties',
+      message: `Permanently delete ${retirable} ${retirable === 1 ? 'property' : 'properties'} that no event field value references. Properties you edited, documented, excluded from scans, or that carry observed values or drift are not touched. This cannot be undone.`,
+      confirmLabel: 'Retire properties',
       variant: 'danger',
     })
     if (ok) retireVariablesMut.mutate()

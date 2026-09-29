@@ -399,7 +399,7 @@ POST /api/v1/projects
 ```
 
 The `201` response is the usual project plus `template_branch_id`, the draft
-working branch holding the template's event types, fields, variables and draft
+working branch holding the template's event types, fields, properties and draft
 events. Pass it as `?branch=` to review or edit the plan, then submit, approve
 and merge it through the ordinary branch flow; main stays empty until then, so
 the project's summary counters read `0`. Without `template_id` the request is
@@ -471,7 +471,7 @@ Read the response's `renames` list before interpreting those entries. Entities a
 { "entity_type": "event", "name": "purchase:success", "parent": "track", "field": "field_values", "entity_id": "5a1f…" }
 ```
 
-Pass the entry's `entity_id` as well: when two entries share a name it is the only thing that says which one you mean, and without it such a name is refused with `409` (`More than one change on this branch is called …`). Omit `field` to revert the whole entity: an addition is deleted, an edit is written back, a deletion is rebuilt with its child rows and, for an event, its `superseded_by` successor. A revert never touches main, needs an open branch and an editor role, and answers with a `409` — rather than a partial write — when the change cannot be undone unambiguously: two entities on the branch answer to the name and nothing records which one the entry is about (`Rename one of them, then revert.`), several rows of the branch's base snapshot answer to it with none of them named by the entry or a copy's origin (`Undo it by hand instead.`), two base events share the name of an event a restored variable override points at (`Set the overrides by hand instead.`), two events answer to the `superseded_by` successor being restored, on the branch or in the base, the parent event type is still deleted, or the branch's base snapshot predates a field the entity needs. A restored `superseded_by` whose successor no longer exists on the branch is cleared instead. A merged branch answers `409` `Branch is merged, so its plan is read-only`, and a closed one `Branch is closed — reopen it before reverting changes`.
+Pass the entry's `entity_id` as well: when two entries share a name it is the only thing that says which one you mean, and without it such a name is refused with `409` (`More than one change on this branch is called …`). Omit `field` to revert the whole entity: an addition is deleted, an edit is written back, a deletion is rebuilt with its child rows and, for an event, its `superseded_by` successor. A revert never touches main, needs an open branch and an editor role, and answers with a `409` — rather than a partial write — when the change cannot be undone unambiguously: two entities on the branch answer to the name and nothing records which one the entry is about (`Rename one of them, then revert.`), several rows of the branch's base snapshot answer to it with none of them named by the entry or a copy's origin (`Undo it by hand instead.`), two base events share the name of an event a restored property override points at (`Set the overrides by hand instead.`), two events answer to the `superseded_by` successor being restored, on the branch or in the base, the parent event type is still deleted, or the branch's base snapshot predates a field the entity needs. A restored `superseded_by` whose successor no longer exists on the branch is cleared instead. A merged branch answers `409` `Branch is merged, so its plan is read-only`, and a closed one `Branch is closed — reopen it before reverting changes`.
 
 ### Updating a branch from main
 
@@ -539,10 +539,10 @@ GET /api/v1/projects/{slug}/events?search=purchase&limit=50&branch=<branch_id>
 GET /api/v1/projects/{slug}/event-types
 GET /api/v1/projects/{slug}/event-types/{event_type_id}
 GET /api/v1/projects/{slug}/event-types/{event_type_id}/fields
-GET /api/v1/projects/{slug}/variables?limit=200&offset=0&branch=<branch_id>
-GET /api/v1/projects/{slug}/variables/{variable_id}/values?branch=<branch_id>
-GET /api/v1/projects/{slug}/variables/{variable_id}/event-overrides?branch=<branch_id>
-GET /api/v1/projects/{slug}/variables/drifts?branch=<branch_id>
+GET /api/v1/projects/{slug}/properties?limit=200&offset=0&branch=<branch_id>
+GET /api/v1/projects/{slug}/properties/{variable_id}/values?branch=<branch_id>
+GET /api/v1/projects/{slug}/properties/{variable_id}/event-overrides?branch=<branch_id>
+GET /api/v1/projects/{slug}/properties/drifts?branch=<branch_id>
 ```
 
 `GET /projects/{slug}/events/{event_id}` and its `/history` answer for an event
@@ -563,7 +563,7 @@ Event responses include:
 - field values and meta values;
 - tags;
 - metric breakdown columns;
-- variable value contexts on field values that contain real `${variable}` placeholders.
+- property value contexts on field values that contain real `${variable}` placeholders.
 
 `/variables` is paginated and returns `{"items": [...], "total": <int>}`.
 `offset` defaults to `0` (minimum `0`) and `limit` defaults to `200` (`1` to
@@ -574,7 +574,7 @@ the whole catalog.
 `usage=all|used|unused` narrows the listing: `unused` returns exactly the rows a
 retirement pass would take, `used` its complement. It is answered by the same
 retirement predicate rather than by a "zero usage count" shortcut, so `unused`
-never offers up a variable that a live event value still names. The default is
+never offers up a property that a live event value still names. The default is
 `all` and an unrecognised value is a `422`. `total` reflects the filter, so it
 stays the honest count for whichever set you asked for.
 
@@ -582,11 +582,11 @@ Each item in `items` includes `allowed_values`, warehouse/JSON-path `bindings`,
 `excluded_from_scans`, usage summaries, `open_drift_count`, and two inline
 previews that spare a per-variable follow-up call: `sample_values` (observed
 values unioned across every context, de-duplicated, capped at 20) and
-`event_names` (distinct names of the events the variable was observed in,
+`event_names` (distinct names of the events the property was observed in,
 alphabetical, capped at 20 — `event_count` carries the untruncated total).
 
 `/variables/{variable_id}/values` returns the full per-event observed contexts
-for one variable: low-cardinality contexts list all observed values, while
+for one property: low-cardinality contexts list all observed values, while
 high-cardinality contexts list bounded samples and an observed count. A context
 over a plain column takes its kind and its count from a `COUNT(DISTINCT)` over
 the scanned window, but one over a JSON-path binding is always high-cardinality
@@ -595,15 +595,15 @@ Reach for it only when the inline previews are not enough. Event overrides
 replace the global documented list for their event.
 
 The catalog is not append-only. A catalog scan run can retire the scan-created
-variables nothing refers to any more — no `${token}` in any stored event field
+properties nothing refers to any more — no `${token}` in any stored event field
 or meta value, no observed context, no value drift, no per-event override — so a
-variable id cached from an earlier read can be gone by the next call. A scan
+property id cached from an earlier read can be gone by the next call. A scan
 started by hand always retires; a scheduled collection retires too, judging a
-variable minted from a path inside a JSON column on every run and one minted
+property minted from a path inside a JSON column on every run and one minted
 from a scalar column only when the config declares a lookback window, because
 one quiet interval can flip a scalar column to literals in every event at once
-and a run must not recycle the variable on that evidence; a replay never. A
-variable your agent edited, documented, bound, or excluded from scans is never
+and a run must not recycle the property on that evidence; a replay never. A
+property your agent edited, documented, bound, or excluded from scans is never
 retired, and so is one renamed to anything the scan would not have chosen for
 that path itself.
 The branch-wide version of the same pass,
@@ -663,7 +663,7 @@ through event mutations are treated as authored and are protected from later
 scan overwrite; re-sending an unchanged value keeps its flag as it was.
 
 On every partial-update body in the API — events, event types, fields, meta
-fields, scan configs, data sources, variables and projects — omitting a field is
+fields, scan configs, data sources, properties and projects — omitting a field is
 how you leave it alone, and sending it as an explicit `null` means "clear it".
 A `null` on a field whose column cannot be empty is refused with a `422` naming
 the field (`Field(s) cannot be null: status`). On `EventUpdate` those are `name`,
@@ -1386,7 +1386,7 @@ dependencies route of its own.
   in the entity's own scope) and `possible` for a match by name without a
   stored id: an SQL identifier or JSON-key literal in a `sql` metric's query,
   filter SQL or a fact table's SQL, a fact-table or `fact` metric column, a
-  variable binding by column name, a column on a scan with no event type. Treat
+  property binding by column name, a column on a scan with no event type. Treat
   `possible` as "check it", never as proof.
 - `url_hint` is the entity's path in the app, without `?branch=`. It is filled
   for every kind except a field whose event type cannot be found, where it is
@@ -1399,7 +1399,7 @@ dependencies route of its own.
 
 See [Dependencies & impact](../use/dependencies-and-impact.md#what-counts-as-a-dependency)
 for every edge, including *superseded by* links between events, detection
-overrides, variables used in field and meta values, and scan drift, platform
+overrides, properties used in field and meta values, and scan drift, platform
 and app-version columns.
 
 Ask about a set of planned changes at once:
@@ -1454,7 +1454,7 @@ GET /api/v1/projects/{slug}/branches/{branch_id}/impact
 
 The response has the same `items` shape as `POST /impact`, with the change set
 taken from the branch's diff: deleted, renamed, deprecated or archived, and
-otherwise edited events, event types, fields and variables. Here `change` can
+otherwise edited events, event types, fields and properties. Here `change` can
 also be `change`, a response-only value for an entity edited in place (a
 field's type, an event's breakdown columns) without being renamed, deprecated or
 archived. A rename appears once, paired the way the diff's `renames` list pairs
@@ -2100,7 +2100,7 @@ How an item is resolved:
 
 A hole matches whatever the plan has in that place, and the plan's own
 `${variable}` placeholders match the item's literal text (which is then checked
-against the variable's documented values). The fields an item carries are
+against the property's documented values). The fields an item carries are
 checked against the type whether or not the identity matched. When the identity
 matches no planned event:
 
@@ -2156,7 +2156,7 @@ findings. `summary` counts items by status. The finding codes are:
 | `deprecated_event` | warning, or error | The matched event is `deprecated` (warning) or `archived` (error). |
 | `unknown_field` | warning | A `fields` or `properties` key that the event type does not define. |
 | `missing_required_field` | error | Only for `complete: true`: a required field of the type is absent. |
-| `value_not_allowed` | error | A literal value is outside the field's enum options, outside the documented `allowed_values` of the variable the field refers to, or fails the field's contract regex or min/max. |
+| `value_not_allowed` | error | A literal value is outside the field's enum options, outside the documented `allowed_values` of the property the field refers to, or fails the field's contract regex or min/max. |
 | `dynamic_value` | info | Only with `"strict": true`: a field was sent as `null` or with a hole, or the identity has holes. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match. |
 
@@ -2254,7 +2254,7 @@ How a field becomes a property:
 | Field type | `string`, `enum` → `type: string`; `url` → `type: string, format: uri`; `number` → `type: number`; `boolean` → `type: boolean`; `json` → no `type` (anything). |
 | Required field | Listed in `required`. |
 | The event's value is a literal (`checkout`, `9.99`) | `const`, typed by the field type: a number field's `"9.99"` is the number `9.99`. |
-| The event's value is a whole `${variable}` | `enum` of the variable's allowed values (the event's own override list when it has one). No allowed values: no constraint. |
+| The event's value is a whole `${variable}` | `enum` of the property's allowed values (the event's own override list when it has one). No allowed values: no constraint. |
 | The event's value is a template (`item_${kind}`) on a string field | An anchored `pattern`, each hole an alternation of the allowed values, or `.*`. |
 | Enum field | `enum` of its options. |
 | Contract regex | `pattern`. Unanchored: the same partial match `tripl check` and the drift job apply. |
@@ -2271,7 +2271,7 @@ identity, name, status); a 2020-12 validator ignores it.
 ### `format=codegen_model` {#plan-export-codegen-model}
 
 The plan as the code generator needs it: every event type with its name rule,
-fields and events, and the documented variables.
+fields and events, and the documented properties.
 
 ```json
 {
@@ -2311,13 +2311,13 @@ fields and events, and the documented variables.
 |-----|---------|
 | `event_types[].name_rule` | The type's resolved event name format, or `null` for a type identified by a flat name. |
 | `fields[].type` | The plan field type: `string`, `number`, `boolean`, `json`, `enum` or `url`. |
-| `fields[].values` | The closed set of values the plan allows for the field across the type's events, or `null` when it is free. It is closed only for a string-like field that **every** exported event fills with a literal, a variable with allowed values, or a template whose holes all have them; an event that leaves the field unset makes it free. A free enum field falls back to its options. |
-| `fields[].variable` | The variable the field is bound to, or `null`. |
-| `events[].field_values` | Plan field to value. A `${token}` value is a variable placeholder; its values are in `variables`. |
+| `fields[].values` | The closed set of values the plan allows for the field across the type's events, or `null` when it is free. It is closed only for a string-like field that **every** exported event fills with a literal, a property with allowed values, or a template whose holes all have them; an event that leaves the field unset makes it free. A free enum field falls back to its options. |
+| `fields[].variable` | The property the field is bound to, or `null`. |
+| `events[].field_values` | Plan field to value. A `${token}` value is a property placeholder; its values are in `variables`. |
 | `events[].deprecated` | `true` for a deprecated event. Archived events are not listed. |
-| `events[].overrides` | The event's own allowed values for a variable, keyed by every `${token}` spelling of it, values in plan order. For that event only they replace the variable's `allowed_values`; an empty list means the event accepts any value. `{}` when the event overrides nothing. |
-| `variables[].allowed_values` | The variable's documented values. |
-| `variables[].tokens` | Every `${token}` spelling that names the variable, so a stored `field_values` template can be mapped back to it. |
+| `events[].overrides` | The event's own allowed values for a property, keyed by every `${token}` spelling of it, values in plan order. For that event only they replace the property's `allowed_values`; an empty list means the event accepts any value. `{}` when the event overrides nothing. |
+| `variables[].allowed_values` | The property's documented values. |
+| `variables[].tokens` | Every `${token}` spelling that names the property, so a stored `field_values` template can be mapped back to it. |
 
 ## Docs catalog {#docs-catalog}
 

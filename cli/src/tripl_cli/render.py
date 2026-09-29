@@ -66,6 +66,8 @@ def plural(count: int, noun: str) -> str:
     """
     if count == 1:
         return f"{count} {noun}"
+    if noun.endswith("y") and noun[-2:-1] not in "aeiou":
+        return f"{count} {noun[:-1]}ies"
     return f"{count} {noun}{'es' if noun.endswith(_SIBILANT_ENDINGS) else 's'}"
 
 

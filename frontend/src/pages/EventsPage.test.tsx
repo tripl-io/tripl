@@ -135,7 +135,7 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/scans')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       // Before the event itself: `includes` would otherwise answer the
       // discussion request with an event object.
       if (url.endsWith('/api/v1/projects/demo/events/ev-1/comments')) {
@@ -167,7 +167,7 @@ describe('EventsPage', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events')) return mockJsonResponse({ items: [], total: 0 })
       return mockJsonResponse({})
@@ -218,7 +218,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       // unreviewedCount query: exactly status=in_review with limit=1
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) {
@@ -433,7 +433,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) {
         return mockJsonResponse({ items: [], total: 0 })
@@ -513,7 +513,7 @@ describe('EventsPage', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -563,7 +563,7 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/scans')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/ev-1/comments')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/ev-1')) {
         return mockJsonResponse(makeEvent({ id: 'ev-1', name: 'checkout_started' }))
@@ -607,7 +607,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) return mockJsonResponse({ items: [], total: 0 })
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -690,7 +690,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) return mockJsonResponse({ items: [], total: 0 })
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -783,7 +783,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) return mockJsonResponse({ items: [], total: 0 })
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -878,7 +878,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) {
         return mockJsonResponse({ items: [], total: 0 })
@@ -972,7 +972,7 @@ function mockExportFetch({
       ])
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-    if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+    if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
     if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/events/window-metrics') && init?.method === 'POST') {
       return mockJsonResponse([])
@@ -1119,7 +1119,7 @@ function mockCatalogFetch({
       ])
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-    if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+    if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
     if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/events/window-metrics') && init?.method === 'POST') {

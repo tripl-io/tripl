@@ -82,7 +82,7 @@ function makeVariable(overrides: Partial<Variable> & { id: string; name: string 
 }
 
 /** The header checkbox names how many matches it selects (PLAN-33). */
-const SELECT_ALL = /^Select all \d+ matching variables$/
+const SELECT_ALL = /^Select all \d+ matching properties$/
 
 /** A bulk verb opens a popover holding its field and Apply (AU-31). */
 function openBulk(label: 'Set type…' | 'Set description…' | 'Add values…') {
@@ -183,7 +183,7 @@ describe('VariablesTab', () => {
     expect(variablesApi.list).not.toHaveBeenCalled()
   })
 
-  it('header counts distinct variables, agreeing with the sidebar badge semantics', async () => {
+  it('header counts distinct properties, agreeing with the sidebar badge semantics', async () => {
     // Two distinct variables, one of which spans two events. The header must
     // read "2 variables" (distinct) — the same count the sidebar badge derives
     // from summary.variable_count — not 3 (context rows).
@@ -200,7 +200,7 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    expect(await screen.findByText('2 variables')).toBeInTheDocument()
+    expect(await screen.findByText('2 properties')).toBeInTheDocument()
   })
 
   it('shows a loading skeleton, not the empty state, while the list is pending', async () => {
@@ -211,8 +211,8 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    expect(await screen.findByLabelText('Loading variables')).toBeInTheDocument()
-    expect(screen.queryByText('No variables yet')).not.toBeInTheDocument()
+    expect(await screen.findByLabelText('Loading properties')).toBeInTheDocument()
+    expect(screen.queryByText('No properties yet')).not.toBeInTheDocument()
     expect(screen.getByText('Loading…')).toBeInTheDocument()
   })
 
@@ -221,13 +221,13 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    expect(await screen.findByText('No variables yet')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Loading variables')).not.toBeInTheDocument()
+    expect(await screen.findByText('No properties yet')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Loading properties')).not.toBeInTheDocument()
     // Nothing to filter yet: no search or usage scope over zero rows, and the
     // empty state carries the next step (AU-34).
-    expect(screen.queryByLabelText('Filter variables')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Filter properties')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Unused' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Create your first variable' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create your first property' })).toBeInTheDocument()
   })
 
   it('renders one page of rows for a large project instead of all of them', async () => {
@@ -265,14 +265,14 @@ describe('VariablesTab', () => {
     await screen.findByText('${var_000}')
 
     // var_117 sits on page 3 — the filter must reach it from page 1.
-    fireEvent.change(screen.getByLabelText('Filter variables'), { target: { value: 'var_117' } })
+    fireEvent.change(screen.getByLabelText('Filter properties'), { target: { value: 'var_117' } })
 
     expect(await screen.findByText('${var_117}')).toBeInTheDocument()
     expect(screen.getAllByRole('row')).toHaveLength(2) // header + the single match
     expect(screen.queryByText('Page 1 of 3')).not.toBeInTheDocument()
   })
 
-  it('finds a variable by the warehouse path it binds to, not just its display name', async () => {
+  it('finds a property by the warehouse path it binds to, not just its display name', async () => {
     // derive_display_name slugs a dotted path down to its last segment, so the
     // name on screen is `${aalter}` while the only name a person knows is
     // `property.Aalter`. 576 production rows are in exactly this state.
@@ -289,7 +289,7 @@ describe('VariablesTab', () => {
     renderVariablesTab()
     await screen.findByText('${aalter}')
 
-    fireEvent.change(screen.getByLabelText('Filter variables'), { target: { value: 'property.' } })
+    fireEvent.change(screen.getByLabelText('Filter properties'), { target: { value: 'property.' } })
 
     expect(await screen.findByText('${aalter}')).toBeInTheDocument()
     expect(screen.queryByText('${user_id}')).not.toBeInTheDocument()
@@ -313,7 +313,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('paginates to the page holding the focused variable', async () => {
+  it('paginates to the page holding the focused property', async () => {
     mockList(
       Array.from({ length: 120 }, (_, index) =>
         makeVariable({ id: `var-${index}`, name: `var_${String(index).padStart(3, '0')}` }),
@@ -326,7 +326,7 @@ describe('VariablesTab', () => {
     expect(screen.getByText('Page 3 of 3')).toBeInTheDocument()
   })
 
-  it('shows all observed values when editing a variable', async () => {
+  it('shows all observed values when editing a property', async () => {
     mockList([
       makeVariable({
         id: 'var-1',
@@ -358,7 +358,7 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable user_id' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property user_id' }))
 
     const dialog = await screen.findByRole('dialog')
     await waitFor(() =>
@@ -371,7 +371,7 @@ describe('VariablesTab', () => {
     expect(within(dialog).getByRole('columnheader', { name: 'Possible values' })).toBeInTheDocument()
     // The three columns that only repeated the form above on every row are gone
     // (PLAN-30).
-    expect(within(dialog).queryByRole('columnheader', { name: 'Variable' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('columnheader', { name: 'Property' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('columnheader', { name: 'Type' })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('columnheader', { name: 'Description' })).not.toBeInTheDocument()
     // The two scan-derived facts the dialog used to fetch and discard
@@ -392,7 +392,7 @@ describe('VariablesTab', () => {
     ])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
 
     // Scoped to the "Observed at:" row rather than the whole dialog: the
@@ -411,14 +411,14 @@ describe('VariablesTab', () => {
     vi.mocked(variablesApi.values).mockResolvedValue([])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
 
     await within(dialog).findByText('Observed values')
     expect(within(dialog).queryByText('Observed at:')).not.toBeInTheDocument()
   })
 
-  it('creates a variable with documented values and bindings', async () => {
+  it('creates a property with documented values and bindings', async () => {
     mockList([])
     vi.mocked(variablesApi.create).mockResolvedValue(
       makeVariable({
@@ -430,7 +430,7 @@ describe('VariablesTab', () => {
     )
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /new variable/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /new property/i }))
     fireEvent.change(screen.getByPlaceholderText('e.g. spot_id'), { target: { value: 'variant' } })
 
     const valueInput = screen.getByLabelText('Add possible value')
@@ -458,7 +458,7 @@ describe('VariablesTab', () => {
   it('rejects an invalid binding path in the chip input', async () => {
     mockList([])
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /new variable/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /new property/i }))
 
     const bindingInput = screen.getByLabelText('Add data binding')
     fireEvent.change(bindingInput, { target: { value: 'not a path!' } })
@@ -469,11 +469,11 @@ describe('VariablesTab', () => {
 
   // AU-4: the name rule is said inline, not by the browser's
   // "Please match the requested format." bubble.
-  it('says the variable name rule inline instead of a browser bubble', async () => {
+  it('says the property name rule inline instead of a browser bubble', async () => {
     mockList([])
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /new variable/i }))
-    expect(screen.getByRole('dialog', { name: 'New variable' })).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: /new property/i }))
+    expect(screen.getByRole('dialog', { name: 'New property' })).toBeInTheDocument()
 
     const nameInput = screen.getByLabelText('Name')
     expect(nameInput).not.toHaveAttribute('pattern')
@@ -488,7 +488,7 @@ describe('VariablesTab', () => {
     expect(variablesApi.create).not.toHaveBeenCalled()
   })
 
-  it('creates a variable with neither values nor bindings', async () => {
+  it('creates a property with neither values nor bindings', async () => {
     // The whole of feedback item 6: nothing ever required them, and nothing
     // on screen said so.
     mockList([])
@@ -496,11 +496,11 @@ describe('VariablesTab', () => {
       makeVariable({ id: 'var-new', name: 'variant', allowed_values: [], bindings: [] }),
     )
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /new variable/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /new property/i }))
 
     expect(screen.getByLabelText('Possible values (optional)')).toBeInTheDocument()
     expect(screen.getByLabelText('Data bindings (optional)')).toBeInTheDocument()
-    expect(screen.getByText(/scans match this variable by its name/)).toBeInTheDocument()
+    expect(screen.getByText(/scans match this property by its name/)).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('e.g. spot_id'), { target: { value: 'variant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -552,7 +552,7 @@ describe('VariablesTab', () => {
     })
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     // Existing override renders with its event name and values.
     expect(
@@ -591,7 +591,7 @@ describe('VariablesTab', () => {
     })
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     expect(
       await screen.findByRole('button', { name: 'Edit override for (unnamed event)' }),
@@ -621,7 +621,7 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Edit variable page_data.extra.variant' }),
+      await screen.findByRole('button', { name: 'Edit property page_data.extra.variant' }),
     )
 
     const dialog = await screen.findByRole('dialog', { name: 'Edit: page_data.extra.variant' })
@@ -643,7 +643,7 @@ describe('VariablesTab', () => {
     expect(variablesApi.update).not.toHaveBeenCalled()
   })
 
-  it('bulk-updates selected variables from the bulk bar', async () => {
+  it('bulk-updates selected properties from the bulk bar', async () => {
     mockList([
       makeVariable({ id: 'var-1', name: 'one' }),
       makeVariable({ id: 'var-2', name: 'two' }),
@@ -652,8 +652,8 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByLabelText('Select variable one'))
-    fireEvent.click(screen.getByLabelText('Select variable two'))
+    fireEvent.click(await screen.findByLabelText('Select property one'))
+    fireEvent.click(screen.getByLabelText('Select property two'))
     expect(screen.getByText('2')).toBeInTheDocument()
 
     openBulk('Set type…')
@@ -686,7 +686,7 @@ describe('VariablesTab', () => {
     mockList([makeVariable({ id: 'var-1', name: 'payload', variable_type: 'json' })])
     vi.mocked(variablesApi.bulkUpdate).mockResolvedValue(undefined)
     renderVariablesTab()
-    fireEvent.click(await screen.findByLabelText('Select variable payload'))
+    fireEvent.click(await screen.findByLabelText('Select property payload'))
 
     openBulk('Add values…')
     const input = screen.getByLabelText('Bulk add values')
@@ -703,7 +703,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('select-all covers every matching variable, including off-page ones', async () => {
+  it('select-all covers every matching property, including off-page ones', async () => {
     mockList(
       Array.from({ length: 60 }, (_, index) =>
         makeVariable({ id: `var-${index}`, name: `var_${String(index).padStart(3, '0')}` }),
@@ -763,7 +763,7 @@ describe('VariablesTab', () => {
     // Row badge from open_drift_count.
     expect(await screen.findByText('1 drift')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit property variant' }))
     expect(
       await screen.findByText(/value drift — observed values outside/i),
     ).toBeInTheDocument()
@@ -811,7 +811,7 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     // The panel still renders with nothing open, otherwise the acceptance is
     // unreachable and cannot be undone.
     fireEvent.click(await screen.findByRole('button', { name: 'Show 1 resolved' }))
@@ -828,7 +828,7 @@ describe('VariablesTab', () => {
     )
   })
 
-  it('excludes a variable from scans and restores it from the excluded section', async () => {
+  it('excludes a property from scans and restores it from the excluded section', async () => {
     mockList([
       makeVariable({
         id: 'var-1',
@@ -850,10 +850,10 @@ describe('VariablesTab', () => {
     // Excluded variable lives in its own section, not the main table.
     expect(await screen.findByText('Excluded from scans')).toBeInTheDocument()
     expect(screen.getByText('${old_junk}')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit variable old_junk' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit property old_junk' })).not.toBeInTheDocument()
 
     // Exclude an active variable (confirm dialog -> update with the flag).
-    fireEvent.click(screen.getByRole('button', { name: 'Exclude variable variant from scans' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Exclude property variant from scans' }))
     expect(await screen.findByText(/future scans will NOT re-create it/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Exclude' }))
     await waitFor(() =>
@@ -866,7 +866,7 @@ describe('VariablesTab', () => {
     )
 
     // Restore from the excluded section clears the tombstone.
-    fireEvent.click(screen.getByRole('button', { name: 'Restore variable old_junk' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Restore property old_junk' }))
     await waitFor(() =>
       expect(variablesApi.update).toHaveBeenCalledWith(
         'demo',
@@ -883,7 +883,7 @@ describe('VariablesTab', () => {
     renderVariablesTab()
 
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Exclude variable variant from scans' }),
+      await screen.findByRole('button', { name: 'Exclude property variant from scans' }),
     )
 
     // What excluding does is a fact about this button; what every later scan
@@ -891,7 +891,7 @@ describe('VariablesTab', () => {
     expect(await screen.findByText(/Excluding itself deletes nothing/)).toBeInTheDocument()
     expect(screen.queryByText(/already recorded stay/)).not.toBeInTheDocument()
     // Restore clears the flag — it does not put the values back.
-    expect(screen.getByText(/Restore puts the variable back in scans/)).toBeInTheDocument()
+    expect(screen.getByText(/Restore puts the property back in scans/)).toBeInTheDocument()
   })
 
   it('names the contexts and drifts a delete destroys, not just the field text', async () => {
@@ -907,7 +907,7 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete property variant' }))
 
     // Both counts ride along on the list row, so saying this costs no request —
     // and they are the part of a delete a reader cannot rebuild afterwards.
@@ -929,12 +929,12 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete property variant' }))
 
     expect(await screen.findByText(/Its 1 open drift goes with it/)).toBeInTheDocument()
   })
 
-  it('drops the "use Exclude instead" advice for a variable already excluded', async () => {
+  it('drops the "use Exclude instead" advice for a property already excluded', async () => {
     mockList([
       makeVariable({
         id: 'var-2',
@@ -946,7 +946,7 @@ describe('VariablesTab', () => {
 
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete variable old_junk' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete property old_junk' }))
 
     // The reader took that route already. What they cannot see is that the
     // exclusion is a column on the row they are deleting.
@@ -973,7 +973,7 @@ describe('VariablesTab', () => {
     })
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     // Nothing is fetched for the picker until someone reaches for it: opening a
     // variable to fix its description used to pull 100 full event rows (PLAN-30).
@@ -1039,7 +1039,7 @@ describe('VariablesTab', () => {
     })
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     fireEvent.click(
       await screen.findByRole('button', { name: 'Edit override for Checkout Completed' }),
     )
@@ -1067,14 +1067,14 @@ describe('VariablesTab', () => {
     renderVariablesTab()
     await screen.findByText('${checkout_step}')
 
-    fireEvent.change(screen.getByLabelText('Filter variables'), { target: { value: 'checkout' } })
+    fireEvent.change(screen.getByLabelText('Filter properties'), { target: { value: 'checkout' } })
     fireEvent.click(screen.getByLabelText(SELECT_ALL))
 
     // Positive control: the bar is up, holding the three checkout rows.
     expect(screen.getByText('3')).toBeInTheDocument()
     expect(screen.getByLabelText('Clear selection')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Filter variables'), { target: { value: 'payment' } })
+    fireEvent.change(screen.getByLabelText('Filter properties'), { target: { value: 'payment' } })
 
     // Selection spans every MATCHING row rather than the page on screen, so the
     // three checkout ids used to survive a filter that hid them: the table
@@ -1089,7 +1089,7 @@ describe('VariablesTab', () => {
 
     // The guard the usage filter already carried, now shared by both controls
     // rather than copy-pasted onto one of them.
-    fireEvent.change(screen.getByLabelText('Filter variables'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Filter properties'), { target: { value: '' } })
     fireEvent.click(await screen.findByLabelText(SELECT_ALL))
     expect(screen.getByLabelText('Clear selection')).toBeInTheDocument()
 
@@ -1119,7 +1119,7 @@ describe('VariablesTab', () => {
     expect(screen.getByText('3')).toBeInTheDocument()
 
     fireEvent.click(
-      screen.getByRole('button', { name: 'Exclude variable checkout_total from scans' }),
+      screen.getByRole('button', { name: 'Exclude property checkout_total from scans' }),
     )
     fireEvent.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Exclude' }),
@@ -1158,7 +1158,7 @@ describe('VariablesTab', () => {
     renderVariablesTab()
     fireEvent.click(await screen.findByLabelText(SELECT_ALL))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete variable checkout_total' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete property checkout_total' }))
     fireEvent.click(
       within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }),
     )
@@ -1171,7 +1171,7 @@ describe('VariablesTab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(
-      await screen.findByText(/Delete 2 selected variables\?/),
+      await screen.findByText(/Delete 2 selected properties\?/),
     ).toBeInTheDocument()
     fireEvent.click(
       within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }),
@@ -1255,7 +1255,7 @@ describe('VariablesTab', () => {
     vi.mocked(variablesApi.update).mockResolvedValue({} as never)
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     const search = await screen.findByLabelText('Search events')
     fireEvent.change(search, { target: { value: 'checkout' } })
@@ -1323,7 +1323,7 @@ describe('VariablesTab', () => {
     expect(await screen.findByText('${variant}')).toBeInTheDocument()
     expect(screen.queryByText('1 drift')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit property variant' }))
     await screen.findByText(/value drift — observed values outside/i)
 
     // The dialog now says the same thing: the row is not on the active list, so
@@ -1393,7 +1393,7 @@ describe('VariablesTab', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10)
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Edit variable variant' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Edit property variant' }))
       await act(async () => {
         await vi.advanceTimersByTimeAsync(10)
       })
@@ -1413,7 +1413,7 @@ describe('VariablesTab', () => {
     }
   })
 
-  it('marks the excluded variable a branch-diff link points at (tripl-acp2)', async () => {
+  it('marks the excluded property a branch-diff link points at (tripl-acp2)', async () => {
     // `excluded_from_scans` is a tracked plan-diff key, so a diff can carry a
     // "variable X — excluded from scans" row linking here with X's id. X is
     // exactly the variable the table filters out, so `findIndex` returned -1,
@@ -1449,7 +1449,7 @@ describe('VariablesTab clear observed values (tripl-h2sx.21)', () => {
     vi.mocked(variablesApi.values).mockResolvedValue([makeContext({ id: 'ctx-1' })])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear observed values' }))
@@ -1472,7 +1472,7 @@ describe('VariablesTab clear observed values (tripl-h2sx.21)', () => {
     vi.mocked(variablesApi.values).mockResolvedValue([makeContext({ id: 'ctx-1' })])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear observed values' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
@@ -1485,7 +1485,7 @@ describe('VariablesTab clear observed values (tripl-h2sx.21)', () => {
     vi.mocked(variablesApi.values).mockResolvedValue([])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
 
     expect(within(dialog).getByRole('button', { name: 'Clear observed values' })).toBeDisabled()
@@ -1496,7 +1496,7 @@ describe('VariablesTab clear observed values (tripl-h2sx.21)', () => {
  * `?focus=<id>` only marks a row: the variable's editor is its own page now
  * (AU-26), so a link into the list never opens a dialog on its own.
  */
-describe('VariablesTab — focusing one variable from a link', () => {
+describe('VariablesTab — focusing one property from a link', () => {
   it('marks and scrolls to the linked row', async () => {
     const scrollIntoView = vi
       .spyOn(Element.prototype, 'scrollIntoView')
@@ -1531,7 +1531,7 @@ describe('VariablesTab — focusing one variable from a link', () => {
  * after `$`?" They are not, and the hard-coded example was making it worse.
  */
 describe('VariablesTab — bindings versus tokens', () => {
-  it('draws the example from the project’s own variables, showing both roles', async () => {
+  it('draws the example from the project’s own properties, showing both roles', async () => {
     mockList([
       makeVariable({
         id: 'var-1',
@@ -1542,7 +1542,7 @@ describe('VariablesTab — bindings versus tokens', () => {
     ])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /new variable/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /new property/i }))
     const dialog = await screen.findByRole('dialog')
 
     // The pair, in this project's own vocabulary: the scan reads the path, the
@@ -1558,11 +1558,11 @@ describe('VariablesTab — bindings versus tokens', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('falls back to the generic example when no variable is bound yet', async () => {
+  it('falls back to the generic example when no property is bound yet', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant' })])
 
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /new variable/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /new property/i }))
     const dialog = await screen.findByRole('dialog')
 
     expect(
@@ -1573,7 +1573,7 @@ describe('VariablesTab — bindings versus tokens', () => {
 })
 
 describe('VariablesTab — a viewer reads without write controls', () => {
-  it('hides create, select, exclude and delete, and opens the variable read-only', async () => {
+  it('hides create, select, exclude and delete, and opens the property read-only', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'user_id', event_count: 0 })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -1587,12 +1587,12 @@ describe('VariablesTab — a viewer reads without write controls', () => {
       </QueryClientProvider>,
     )
 
-    const edit = await screen.findByRole('button', { name: 'Edit variable user_id' })
+    const edit = await screen.findByRole('button', { name: 'Edit property user_id' })
     expect(screen.getByRole('note')).toHaveTextContent(/viewer role/)
-    expect(screen.queryByRole('button', { name: /New variable/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /New property/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: SELECT_ALL })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Exclude variable/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Delete variable user_id' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete property user_id' })).not.toBeInTheDocument()
 
     // Opening the variable is how its drift and observed values are read.
     fireEvent.click(edit)
@@ -1625,32 +1625,32 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(await screen.findByText('Nothing to retire')).toBeInTheDocument()
     // The All / In use / Unused group and the text filter are still there.
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Filter variables')).toBeInTheDocument()
+    expect(screen.getByLabelText('Filter properties')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show all variables' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show all properties' }))
     expect(await screen.findByText('${spot_id}')).toBeInTheDocument()
   })
 
-  it('shows a failed load as an error with a retry, not as "No variables"', async () => {
+  it('shows a failed load as an error with a retry, not as "No properties"', async () => {
     vi.mocked(variablesApi.listPage).mockRejectedValue(new Error('boom'))
     renderVariablesTab()
 
-    expect(await screen.findByText("Couldn't load variables")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't load properties")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.queryByText('No variables yet')).not.toBeInTheDocument()
+    expect(screen.queryByText('No properties yet')).not.toBeInTheDocument()
   })
 
   it('refuses a documented value the chosen type cannot hold (PLAN-24)', async () => {
     mockList([])
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: /New variable/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /New property/ }))
 
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'number' } })
     const values = screen.getByLabelText('Add possible value')
     fireEvent.change(values, { target: { value: 'abc' } })
     fireEvent.keyDown(values, { key: 'Enter' })
 
-    expect(screen.getByText(/A Number variable takes numbers/)).toBeInTheDocument()
+    expect(screen.getByText(/A Number property takes numbers/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove abc' })).not.toBeInTheDocument()
 
     fireEvent.change(values, { target: { value: '42' } })
@@ -1662,7 +1662,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     mockList([makeVariable({ id: 'var-1', name: 'variant', allowed_values: ['a', 'b'] })])
     vi.mocked(variablesApi.values).mockResolvedValue([])
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
 
     fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'number' } })
@@ -1686,7 +1686,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Set type' }))
     const confirm = await screen.findByRole('alertdialog')
-    expect(within(confirm).getByText(/Change the type of 2 selected variables to Number\?/)).toBeInTheDocument()
+    expect(within(confirm).getByText(/Change the type of 2 selected properties to Number\?/)).toBeInTheDocument()
     expect(within(confirm).getByText(/1 of them has documented values that are not valid Number values/)).toBeInTheDocument()
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
 
@@ -1696,15 +1696,15 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
 
   it('keeps a failed bulk edit\'s draft and says why (PLAN-26)', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'one' })])
-    vi.mocked(variablesApi.bulkUpdate).mockRejectedValue(new Error('Variable not found'))
+    vi.mocked(variablesApi.bulkUpdate).mockRejectedValue(new Error('Property not found'))
     renderVariablesTab()
-    fireEvent.click(await screen.findByLabelText('Select variable one'))
+    fireEvent.click(await screen.findByLabelText('Select property one'))
 
     openBulk('Add values…')
     fireEvent.change(screen.getByLabelText('Bulk add values'), { target: { value: 'a, b' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add values' }))
 
-    expect(await screen.findByText(/The bulk change failed: Variable not found/)).toBeInTheDocument()
+    expect(await screen.findByText(/The bulk change failed: Property not found/)).toBeInTheDocument()
     expect(screen.getByLabelText('Bulk add values')).toHaveValue('a, b')
   })
 
@@ -1713,10 +1713,10 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     vi.mocked(variablesApi.del).mockRejectedValue(new Error('Forbidden'))
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete variable one' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete property one' }))
     fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
 
-    expect(await screen.findByText('Could not delete the variable: Forbidden')).toBeInTheDocument()
+    expect(await screen.findByText('Could not delete the property: Forbidden')).toBeInTheDocument()
   })
 
   it('asks before deleting a per-event override (PLAN-28)', async () => {
@@ -1727,7 +1727,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     ])
     vi.mocked(variableOverridesApi.clearValues).mockResolvedValue(undefined as never)
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete override for Onboarding' }))
     const confirm = await screen.findByRole('alertdialog', { name: 'Delete override' })
@@ -1749,7 +1749,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     ])
     vi.mocked(variableOverridesApi.clearValues).mockResolvedValue(undefined as never)
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete override for Onboarding' }))
     expect(screen.queryByRole('button', { name: 'Delete override for Checkout' })).not.toBeInTheDocument()
@@ -1761,7 +1761,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     expect(variableOverridesApi.del).not.toHaveBeenCalled()
   })
 
-  it('reads the edited variable from the list, so a cleared one offers nothing more to clear (PLAN-29)', async () => {
+  it('reads the edited property from the list, so a cleared one offers nothing more to clear (PLAN-29)', async () => {
     let listed = [makeVariable({ id: 'var-1', name: 'variant', context_count: 2 })]
     vi.mocked(variablesApi.listPage).mockImplementation(async () => ({ items: listed, total: 1 }))
     vi.mocked(variablesApi.clearValues).mockImplementation(async () => {
@@ -1770,7 +1770,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     })
     vi.mocked(variablesApi.values).mockResolvedValue([])
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Clear observed values' }))
@@ -1787,7 +1787,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     vi.mocked(variablesApi.update).mockResolvedValue({} as never)
     const { queryClient } = renderVariablesTab()
     queryClient.setQueryData(['events', 'demo', null, 'list'], { items: [], total: 0 })
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Edit: variant' })
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'arm' } })
@@ -1805,13 +1805,13 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
     ])
     renderVariablesTab()
 
-    fireEvent.click(await screen.findByLabelText('Select variable one'))
+    fireEvent.click(await screen.findByLabelText('Select property one'))
 
-    const selectAll = screen.getByLabelText('Select all 2 matching variables') as HTMLInputElement
+    const selectAll = screen.getByLabelText('Select all 2 matching properties') as HTMLInputElement
     expect(selectAll.indeterminate).toBe(true)
     expect(selectAll).not.toBeChecked()
 
-    fireEvent.click(screen.getByLabelText('Select variable two'))
+    fireEvent.click(screen.getByLabelText('Select property two'))
     expect(selectAll.indeterminate).toBe(false)
     expect(selectAll).toBeChecked()
   })
@@ -1822,14 +1822,14 @@ describe('VariablesTab — review 204 follow-ups', () => {
     mockList([makeVariable({ id: 'var-1', name: 'count', variable_type: 'number' })])
     vi.mocked(variablesApi.bulkUpdate).mockResolvedValue(undefined)
     renderVariablesTab()
-    fireEvent.click(await screen.findByLabelText('Select variable count'))
+    fireEvent.click(await screen.findByLabelText('Select property count'))
 
     openBulk('Add values…')
     fireEvent.change(screen.getByLabelText('Bulk add values'), { target: { value: 'abc, 2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add values' }))
 
     const confirm = await screen.findByRole('alertdialog', { name: 'Add values that do not fit' })
-    expect(within(confirm).getByText(/1 selected variable is typed Number/)).toBeInTheDocument()
+    expect(within(confirm).getByText(/1 selected property is typed Number/)).toBeInTheDocument()
     fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
 
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
@@ -1841,7 +1841,7 @@ describe('VariablesTab — review 204 follow-ups', () => {
   it('keeps the staged type when the confirm is cancelled', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'one' })])
     renderVariablesTab()
-    fireEvent.click(await screen.findByLabelText('Select variable one'))
+    fireEvent.click(await screen.findByLabelText('Select property one'))
 
     openBulk('Set type…')
     fireEvent.change(screen.getByLabelText('Bulk set type'), { target: { value: 'number' } })
@@ -1859,7 +1859,7 @@ describe('VariablesTab — review 204 follow-ups', () => {
       { id: 'ovr-1', variable_id: 'var-1', event_id: 'ev-1', event_name: 'Onboarding', values: ['a', 'b'], required: false },
     ])
     renderVariablesTab()
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit variable variant' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit property variant' }))
     const dialog = await screen.findByRole('dialog')
     await within(dialog).findByRole('button', { name: 'Edit override for Onboarding' })
 

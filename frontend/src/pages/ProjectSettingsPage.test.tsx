@@ -754,7 +754,7 @@ describe('ProjectSettingsPage', () => {
     expect(await screen.findByText('chat -100123')).toBeInTheDocument()
   })
 
-  it('prefills a new alert rule with the default template and list variable help', async () => {
+  it('prefills a new alert rule with the default template and list property help', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
 

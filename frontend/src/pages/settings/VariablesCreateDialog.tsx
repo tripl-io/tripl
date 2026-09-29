@@ -108,7 +108,7 @@ export function VariablesCreateDialog({
             if (invalidValues.length === 0) createMut.mutate()
           }}
         >
-          <DialogHeader><DialogTitle>New variable</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>New property</DialogTitle></DialogHeader>
           <DialogBody className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor={nameId}>Name</Label>
@@ -163,7 +163,7 @@ export function VariablesCreateDialog({
                   named after its column needs none. */}
               <Label htmlFor={bindingsId} optional>Data bindings</Label>
               <ChipListInput inputId={bindingsId} values={bindings} onChange={setBindings} placeholder={`e.g. ${example.binding}`} ariaLabel="Add data binding" validate={isValidBinding} invalidMessage={INVALID_BINDING_MESSAGE} />
-              <p className="text-caption text-fg-tertiary">Leave it empty and scans match this variable by its name. Add a binding only when the warehouse column or JSON path is spelled differently.</p>
+              <p className="text-caption text-fg-tertiary">Leave it empty and scans match this property by its name. Add a binding only when the warehouse column or JSON path is spelled differently.</p>
               <BindingVersusTokenNote example={example} />
             </div>
             {createMut.isError && <p className="text-body text-destructive">{getErrorMessage(createMut.error)}</p>}

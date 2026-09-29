@@ -335,7 +335,7 @@ describe('EventForm template authoring', () => {
     )
 
     fireEvent.change(input, { target: { value: '${missing}' } })
-    expect(screen.getByText('Unknown variable token: ${missing}')).toBeInTheDocument()
+    expect(screen.getByText('Unknown property token: ${missing}')).toBeInTheDocument()
 
     fireEvent.change(input, { target: { value: '${variant}' } })
     const copyChip = screen.getByRole('button', { name: 'Copy documented value control' })
@@ -904,7 +904,7 @@ describe('EventForm — coached demo scenario (tripl-odrj.4)', () => {
     window.localStorage.clear()
   })
 
-  it('coaches a documented Product ID and then restores the seeded variable token', async () => {
+  it('coaches a documented Product ID and then restores the seeded property token', async () => {
     writeScenarioState(SLUG, chapterState('edit-event', 'edit-event/set-value'))
 
     renderCoachedEditEvent()
@@ -1659,7 +1659,7 @@ describe('EventForm templated number fields (EVT-23)', () => {
     )
   })
 
-  it('opens the variable autocomplete on a number field', () => {
+  it('opens the property autocomplete on a number field', () => {
     renderForm(null, { eventTypes: [NUMBER_EVENT_TYPE], projectVariables: [PRICE_VARIABLE] })
     fireEvent.change(screen.getByLabelText('Price'), { target: { value: '${' } })
     expect(screen.getByRole('option', { name: /\$\{price\}/ })).toBeInTheDocument()
@@ -1679,7 +1679,7 @@ describe('EventForm templated number fields (EVT-23)', () => {
     expect(input).toHaveAccessibleDescription(/Enter a number or a \$\{variable\} token/)
     expect(screen.getByRole('button', { name: /Create event/i })).toBeDisabled()
     // Beside Save, in the save bar, in the blocking (red) tone (AU-5 / AU-6).
-    expect(screen.getByText('Enter a number or a variable in: Price')).toBeInTheDocument()
+    expect(screen.getByText('Enter a number or a property in: Price')).toBeInTheDocument()
   })
 
   it('does not hold the event hostage to a stored value that is not a number', async () => {

@@ -163,7 +163,7 @@ describe('Instance settings destructive actions', () => {
     })
   })
 
-  it('does not promise the AI prompts an environment variable that cannot exist', async () => {
+  it('does not promise the AI prompts an environment property that cannot exist', async () => {
     // The dialog names "all three system prompts" in its own stakes line, and
     // none of the three has an environment variable — a reset returns them to a
     // built-in constant. Said in front of an irreversible write (tripl-wkwv.2).
@@ -382,7 +382,7 @@ describe('Instance settings save row', () => {
    * gained a third state in this same change; this sentence never caught up
    * (tripl-wkwv.2).
    */
-  it('does not promise an environment fallback for fields that have no variable', async () => {
+  it('does not promise an environment fallback for fields that have no property', async () => {
     renderSection('ai')
 
     const legend = await screen.findByText(/Fields marked Override are stored here/)

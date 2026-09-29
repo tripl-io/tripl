@@ -106,7 +106,7 @@ def test_variables_page_and_report_what_they_left_behind(
     assert main(["plan", "variables", "--project", "prod", "--limit", "1"]) == 0
     out = capsys.readouterr().out
     assert "var-1  cart_value  number  12 events  1 open drift" in out
-    assert "1 of 3 variables shown; raise --limit or pass --offset to read the rest." in out
+    assert "1 of 3 properties shown; raise --limit or pass --offset to read the rest." in out
 
 
 def test_branches_names_the_one_that_is_behind_its_base(

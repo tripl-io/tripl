@@ -364,7 +364,7 @@ describe('AppSidebar', () => {
     expect(alertingLink).not.toHaveTextContent('3')
   })
 
-  it('surfaces Variables and Relations as discoverable Plan nav items (M6)', async () => {
+  it('surfaces Properties and Relations as discoverable Plan nav items (M6)', async () => {
     mockProjectsFetch()
 
     renderSidebar('/p/demo/events')
@@ -372,7 +372,7 @@ describe('AppSidebar', () => {
 
     // M6: Variables and Relations must be reachable from the sidebar (not only
     // via the command palette), pointing at their project-scoped routes.
-    const variables = await screen.findByRole('link', { name: /Variables/ })
+    const variables = await screen.findByRole('link', { name: /Properties/ })
     expect(variables).toHaveAttribute('href', '/p/demo/variables')
     const relations = screen.getByRole('link', { name: /Relations/ })
     expect(relations).toHaveAttribute('href', '/p/demo/relations')

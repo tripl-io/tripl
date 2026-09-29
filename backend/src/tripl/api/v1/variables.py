@@ -2,6 +2,7 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
+from fastapi.routing import APIRoute
 
 from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
 from tripl.models.property_drift import PropertyDriftKind
@@ -446,3 +447,32 @@ async def delete_variable(
         target_name=name,
         project_slug=slug,
     )
+
+
+def _properties_router() -> APIRouter:
+    """Every route above again under ``/properties``, the name the product uses (F23).
+
+    A property IS a variable (owner decision 1); only the word changed. The
+    ``/variables`` paths stay for one release, marked deprecated in the OpenAPI
+    document, so an older CLI or an agent pinned to them keeps working.
+    """
+    aliased = APIRouter()
+    for route in list(router.routes):
+        assert isinstance(route, APIRoute)
+        aliased.add_api_route(
+            route.path.replace("/projects/{slug}/variables", "/projects/{slug}/properties", 1),
+            route.endpoint,
+            methods=sorted(route.methods or ()),
+            response_model=route.response_model,
+            status_code=route.status_code,
+            summary=route.summary,
+            description=route.description,
+            response_description=route.response_description,
+            name=f"{route.name}__properties",
+            tags=["properties"],
+        )
+        route.deprecated = True
+    return aliased
+
+
+properties_router = _properties_router()

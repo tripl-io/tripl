@@ -61,7 +61,7 @@ export const DOC_LINK_KIND_NOUN: Record<DocLinkKind, string> = {
   event_type: 'event type',
   field: 'field',
   doc: 'note',
-  variable: 'variable',
+  variable: 'property',
   metric: 'metric',
   alert_rule: 'alert rule',
   branch: 'branch',

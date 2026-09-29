@@ -268,7 +268,7 @@ export function summarizeScanChanges(job: ScanJob | null): ScanChange[] {
   // though it had just defined two thousand metrics (tripl-2gtk). One formula,
   // shared with the detail page's stat card.
   push(jobMetricPoints(job) || undefined, 'metric point', 'metric points', 'info')
-  push(summary.variables_created, 'variable', 'variables', 'info')
+  push(summary.variables_created, 'property', 'properties', 'info')
   push(summary.signals_added, 'signal', 'signals', 'danger')
   push(summary.alerts_queued, 'alert', 'alerts', 'warning')
   return changes

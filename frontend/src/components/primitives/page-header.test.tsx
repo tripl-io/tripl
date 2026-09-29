@@ -40,10 +40,10 @@ describe('PageHeader', () => {
     const { container } = render(
       <PageHeader
         eyebrow="Plan"
-        title="Variables"
+        title="Properties"
         count={4}
         description="Template placeholders used in event field values."
-        actions={<button type="button">Add variable</button>}
+        actions={<button type="button">Add property</button>}
         stats={<span>Stat row</span>}
       />,
     )

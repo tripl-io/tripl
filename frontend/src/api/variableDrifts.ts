@@ -42,7 +42,7 @@ export const variableDriftsApi = {
     if (filters?.variableId) params.set('variable_id', filters.variableId)
     if (filters?.eventId) params.set('event_id', filters.eventId)
     const query = params.toString()
-    const path = `/projects/${slug}/variables/drifts${query ? `?${query}` : ''}`
+    const path = `/projects/${slug}/properties/drifts${query ? `?${query}` : ''}`
     return api.get<VariableValueDriftList>(withBranch(path, branchId))
   },
   action: (
@@ -52,7 +52,7 @@ export const variableDriftsApi = {
     branchId?: string | null,
   ) =>
     api.post<VariableValueDrift>(
-      withBranch(`/projects/${slug}/variables/drifts/${driftId}/action`, branchId),
+      withBranch(`/projects/${slug}/properties/drifts/${driftId}/action`, branchId),
       data,
     ),
 }

@@ -13,7 +13,7 @@ function Controlled({ variables, type }: { variables: VariableSuggestion[]; type
 }
 
 describe('VariableInput suggestions (EVT-24)', () => {
-  it('caps a long variable list instead of running past the viewport', () => {
+  it('caps a long property list instead of running past the viewport', () => {
     render(<Controlled variables={MANY} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '$' } })
 
@@ -51,7 +51,7 @@ describe('VariableInput suggestions (EVT-24)', () => {
     }
   })
 
-  it('inserts the chosen variable', () => {
+  it('inserts the chosen property', () => {
     render(<Controlled variables={[{ name: 'price' }]} />)
     const input = screen.getByRole('combobox')
     fireEvent.change(input, { target: { value: '${pr' } })

@@ -1,4 +1,4 @@
-"""``tripl plan`` — read the shape of the tracking plan: types, fields, variables, branches, search.
+"""``tripl plan`` — read the tracking plan: types, fields, properties, branches, search.
 
 READ ONLY. Every write route behind these reads either edits the live plan or
 needs a branch to land on, and both decisions stay with a human in the tripl UI
@@ -69,7 +69,7 @@ def register(
     parser = subparsers.add_parser(
         "plan",
         parents=[parent],
-        help="read the tracking plan: event types, fields, variables, branches, search",
+        help="read the tracking plan: event types, fields, properties, branches, search",
         description=(
             "Read the structure a project's events are described by. Needs a tk_r_ key. "
             "Every verb except `branches` takes --branch to read a plan branch instead of "
@@ -134,13 +134,16 @@ def _register_variables(
     parent: argparse.ArgumentParser,
 ) -> None:
     parser = verbs.add_parser(
-        "variables",
+        "properties",
+        # The former name, kept so scripts written against it keep working (F23).
+        aliases=["variables"],
         parents=[parent],
-        help="list the documented ${variable} placeholders",
+        help="list the event properties (the documented ${name} placeholders)",
         description=(
-            "List the project's variables with their type, how many events use them and "
+            "List the project's properties with their type, how many events use them and "
             "how many open value drifts they carry. ONE page per invocation: the footer "
-            "says when there are more and --offset walks them."
+            "says when there are more and --offset walks them. `tripl plan variables` is "
+            "the same command under its former name."
         ),
     )
     add_project(parser, single=True)
@@ -151,7 +154,7 @@ def _register_variables(
         metavar="N",
         type=nonneg_int("--offset"),
         default=0,
-        help="skip this many variables, to read the next page (default: 0)",
+        help="skip this many properties, to read the next page (default: 0)",
     )
     parser.add_argument(
         "--limit",
@@ -160,7 +163,7 @@ def _register_variables(
         type=bounded_int("--limit", 1, variables_api.LIMIT_MAX),
         default=variables_api.LIMIT_DEFAULT,
         help=(
-            f"how many variables to ask for, 1..{variables_api.LIMIT_MAX} "
+            f"how many properties to ask for, 1..{variables_api.LIMIT_MAX} "
             f"(default: {variables_api.LIMIT_DEFAULT})"
         ),
     )
@@ -329,8 +332,8 @@ def run_variables(args: argparse.Namespace, config: Config) -> int:
         )
         return context.read(
             reader,
-            command="plan variables",
-            kind="variable",
+            command="plan properties",
+            kind="property",
             project=slug,
             branch=branch,
             items=page_items(payload),
@@ -347,7 +350,7 @@ def run_variables(args: argparse.Namespace, config: Config) -> int:
         human=render_plan_read(
             read,
             variable_rows(read.items),
-            empty="no variables",
+            empty="no properties",
         ),
     )
     return EXIT_OK
