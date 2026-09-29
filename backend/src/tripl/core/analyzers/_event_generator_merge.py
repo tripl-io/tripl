@@ -723,6 +723,9 @@ def _reconcile_pending_variable_contexts(
         prior["value_kind"] = folded.value_kind
         prior["observed_count"] = folded.observed_count
         prior["values"] = folded.values
+        prior["presence_rate"] = _fold_presence(
+            prior.get("presence_rate"), context.get("presence_rate")
+        )
 
 
 def _move_variable_contexts(
@@ -812,7 +815,23 @@ def _move_variable_contexts(
         prior.value_kind = folded.value_kind
         prior.observed_count = folded.observed_count
         prior.values = folded.values
+        prior.presence_rate = _fold_presence(prior.presence_rate, context.presence_rate)
         session.delete(context)
+
+
+def _fold_presence(prior: float | None, incoming: float | None) -> float | None:
+    """The presence rate of two contexts folded into one event (F23).
+
+    The row counts behind each rate are gone by now, so the exact weighted
+    share cannot be rebuilt. The higher rate is kept: the merged event carried
+    the path at least that often in the rows that rate was measured over, and
+    a measured rate beats none.
+    """
+    if prior is None:
+        return incoming
+    if incoming is None:
+        return prior
+    return max(prior, incoming)
 
 
 def _move_variable_event_overrides(session: Session, *, source: Event, target: Event) -> None:

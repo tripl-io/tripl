@@ -53,6 +53,10 @@ class VariableValue(UUIDMixin, TimestampMixin, Base):
     )
     observed_count: Mapped[int] = mapped_column(Integer, default=0)
     values: Mapped[list[str]] = mapped_column(sa.JSON, default=list, server_default="[]")
+    # Share of the event's breakdown rows (weighted by their counts) that carried
+    # this JSON path, from the last scan that could tell (F23). NULL: unknown —
+    # a regular column, a replay, or rows that came back without counts.
+    presence_rate: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
 
     project: Mapped[Project] = relationship()
     variable: Mapped[Variable] = relationship(back_populates="value_contexts")

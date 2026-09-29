@@ -283,6 +283,11 @@ class EventPropertyResponse(BaseModel):
         description="The allowed values in force for this event: the override when there is"
         " one, else the variable's global list.",
     )
+    presence_rate: float | None = Field(
+        None,
+        description="Share of this event's scanned rows that carried the property, from the"
+        " last scan that measured it; null when unknown.",
+    )
 
 
 class VariableValueContextResponse(BaseModel):

@@ -1,5 +1,6 @@
 """Unit tests for the event generator module."""
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from itertools import product
@@ -5369,3 +5370,64 @@ def test_inferred_types_land_only_on_untyped_scan_variables(
     assert (described.variable_type, described.json_schema) == ("string", None)
     assert (retyped.variable_type, retyped.json_schema) == ("number", None)
     assert (excluded.variable_type, excluded.json_schema) == ("string", None)
+
+
+def test_collapsing_rows_keep_every_json_key_with_its_presence(
+    sync_session: Session, project_and_type
+):
+    """F23: an optional property used to vanish when the busiest row lacked it.
+    The event now carries the union of the keys, and each path's context says
+    how often the event carried it."""
+    project, et, fds = project_and_type
+    analysis = BreakdownAnalysis(
+        results={
+            "action": CardinalityResult(
+                column=ColumnInfo("action", "String"),
+                count=1,
+                is_low=True,
+                sample_values=["purchase"],
+            ),
+            "payload": CardinalityResult(
+                column=ColumnInfo("payload", "JSON"),
+                count=2,
+                is_low=True,
+                json_path_combos=[("amount", "currency"), ("amount", "coupon")],
+            ),
+        },
+        rows=[
+            ("purchase", ("amount", "currency"), 90),
+            ("purchase", ("amount", "coupon"), 10),
+        ],
+        reg_names=["action"],
+        json_names=["payload"],
+    )
+
+    result = generate_events(
+        sync_session, project.id, et.id, analysis, fds, event_name_format="{action}"
+    )
+    sync_session.commit()
+
+    assert result.events_created == 1
+    payload_value = sync_session.execute(
+        select(EventFieldValue.value).where(
+            EventFieldValue.field_definition_id == fds["payload"].id
+        )
+    ).scalar_one()
+    assert json.loads(payload_value) == {
+        "amount": "${amount}",
+        "coupon": "${coupon}",
+        "currency": "${currency}",
+    }
+    presence = {
+        variable.source_name: context.presence_rate
+        for context, variable in sync_session.execute(
+            select(VariableValue, Variable).join(Variable, Variable.id == VariableValue.variable_id)
+        ).all()
+    }
+    assert presence == {
+        "payload.amount": 1.0,
+        "payload.currency": 0.9,
+        "payload.coupon": 0.1,
+    }
+    # The JSON column no longer reports a collapse: every row carries the union.
+    assert not any("payload" in detail and "values)" in detail for detail in result.details)

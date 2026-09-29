@@ -10704,6 +10704,11 @@ export interface components {
             /** Name */
             name: string;
             /**
+             * Presence Rate
+             * @description Share of this event's scanned rows that carried the property, from the last scan that measured it; null when unknown.
+             */
+            presence_rate?: number | null;
+            /**
              * Required
              * @default false
              */

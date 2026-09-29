@@ -68,6 +68,7 @@ from tripl.core.analyzers._event_identity import (
     insert_event_claiming_identity,
     scan_identity_winner_order,
 )
+from tripl.core.analyzers._json_property_union import fold_json_properties
 from tripl.core.analyzers._variable_value_drift import (
     detect_variable_value_drifts as _detect_variable_value_drifts,
 )
@@ -315,8 +316,15 @@ def generate_events(
     # discarded; the run summary says so rather than leaving it silent.
     values_seen: dict[tuple[str, str], set[str]] = {}
 
+    # Every row of an identity carries the union of its JSON keys, and each key
+    # its presence rate, instead of the busiest row's keys alone (F23).
+    ordered, presence = fold_json_properties(
+        _rows_most_frequent_last(plan.events),
+        [column for column, meta in col_meta.items() if meta.get("is_json")],
+    )
+
     # Materialise the plan — one planned entry per breakdown row.
-    for planned in _rows_most_frequent_last(plan.events):
+    for planned in ordered:
         if result.events_created >= max_events:
             result.details.append(f"Reached max_events limit ({max_events})")
             break
@@ -361,6 +369,7 @@ def generate_events(
                     field_values=field_values,
                     col_meta=col_meta,
                     index=variable_index,
+                    presence=presence.get(planned.name),
                 )
                 existing_by_identity[event_name] = event
                 result.events_created += 1
@@ -389,6 +398,7 @@ def generate_events(
             field_values=field_values,
             col_meta=col_meta,
             index=variable_index,
+            presence=presence.get(planned.name),
         )
         result.events_skipped += 1
 

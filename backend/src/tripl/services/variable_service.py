@@ -718,6 +718,17 @@ async def list_event_properties(
             .order_by(Variable.name)
         )
     ).all()
+    presence: dict[uuid.UUID, float] = {}
+    for variable_id, rate in await session.execute(
+        select(VariableValue.variable_id, func.max(VariableValue.presence_rate))
+        .where(
+            VariableValue.branch_id == branch_id,
+            VariableValue.event_id == event_id,
+            VariableValue.presence_rate.is_not(None),
+        )
+        .group_by(VariableValue.variable_id)
+    ):
+        presence[variable_id] = rate
     return [
         EventPropertyResponse(
             id=entry.id,
@@ -731,6 +742,7 @@ async def list_event_properties(
             effective_values=list(
                 entry.values if entry.values is not None else variable.allowed_values or []
             ),
+            presence_rate=presence.get(variable.id),
         )
         for entry, variable in rows
     ]
