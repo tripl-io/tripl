@@ -84,6 +84,9 @@ MIGRATED: dict[tuple[str, str], str] = {
     ("variable_value_drifts", "event_id"): (
         "_move_variable_value_drifts: re-points, target wins on uq_variable_value_drift_context"
     ),
+    ("property_drifts", "event_id"): (
+        "_move_property_drifts: re-points, target wins on uq_property_drift"
+    ),
     ("metric_definitions", "numerator_event_id"): (
         "_move_metric_composition_operands: re-points. No fold — nothing constrains the operand "
         "columns, and two metrics may legally name the same event. When BOTH operands of a ratio "
