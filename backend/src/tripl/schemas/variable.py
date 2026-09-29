@@ -288,6 +288,12 @@ class EventPropertyResponse(BaseModel):
         description="Share of this event's scanned rows that carried the property, from the"
         " last scan that measured it; null when unknown.",
     )
+    suggested_required: bool | None = Field(
+        None,
+        description="Whether presence_rate reaches the event's required_presence_threshold"
+        " (default 0.95); null when presence is unknown. A suggestion: 'required' is only"
+        " ever set by a person.",
+    )
 
 
 class VariableValueContextResponse(BaseModel):

@@ -75,6 +75,7 @@ from tripl.models.project_branch_settings import ProjectBranchSettings
 from tripl.models.project_health_snapshot import ProjectHealthSnapshot
 from tripl.models.project_member import ProjectMember
 from tripl.models.project_tracker_config import ProjectTrackerConfig
+from tripl.models.property_drift import PropertyDrift
 from tripl.models.release_regression import ReleaseComparability, ReleaseRegression
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_dry_run_job import ScanDryRunJob
@@ -197,4 +198,5 @@ __all__ = [
     "VariableEventValueOverride",
     "VariableValue",
     "VariableValueDrift",
+    "PropertyDrift",
 ]

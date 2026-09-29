@@ -10435,6 +10435,19 @@
             ],
             "title": "Owner Id"
           },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
+          },
           "reviewed": {
             "default": false,
             "title": "Reviewed",
@@ -10964,6 +10977,17 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
           },
           "reviewed": {
             "default": false,
@@ -11673,6 +11697,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
+          },
           "reviewed": {
             "default": false,
             "title": "Reviewed",
@@ -12121,6 +12156,18 @@
             "title": "Required",
             "type": "boolean"
           },
+          "suggested_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether presence_rate reaches the event's required_presence_threshold (default 0.95); null when presence is unknown. A suggestion: 'required' is only ever set by a person.",
+            "title": "Suggested Required"
+          },
           "values": {
             "anyOf": [
               {
@@ -12305,6 +12352,17 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
           },
           "reviewed": {
             "default": false,
@@ -12859,6 +12917,19 @@
               }
             ],
             "title": "Owner Id"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
           },
           "reviewed": {
             "anyOf": [
@@ -24411,6 +24482,208 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "PropertyDriftActionRequest": {
+        "description": "Triage one property drift.\n\n``accept`` changes the plan to match what the scan saw: a new property\njoins the event's property list, a missing one stops being required, and\na type change retypes the variable to the observed type.",
+        "properties": {
+          "action": {
+            "enum": [
+              "accept",
+              "snooze",
+              "false_positive",
+              "reopen"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "snoozed_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snoozed Until"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "PropertyDriftActionRequest",
+        "type": "object"
+      },
+      "PropertyDriftKind": {
+        "enum": [
+          "new_property",
+          "missing_required",
+          "type_change"
+        ],
+        "title": "PropertyDriftKind",
+        "type": "string"
+      },
+      "PropertyDriftListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PropertyDriftResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PropertyDriftListResponse",
+        "type": "object"
+      },
+      "PropertyDriftResponse": {
+        "properties": {
+          "detail": {
+            "additionalProperties": true,
+            "default": {},
+            "description": "What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change.",
+            "title": "Detail",
+            "type": "object"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "event_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PropertyDriftKind"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By"
+          },
+          "scan_config_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Id"
+          },
+          "snoozed_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snoozed Until"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SchemaDriftStatus",
+            "default": "open"
+          },
+          "variable_id": {
+            "format": "uuid",
+            "title": "Variable Id",
+            "type": "string"
+          },
+          "variable_name": {
+            "title": "Variable Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "variable_id",
+          "variable_name",
+          "kind",
+          "detected_at"
+        ],
+        "title": "PropertyDriftResponse",
         "type": "object"
       },
       "RegisterRequest": {
@@ -52492,6 +52765,171 @@
           }
         },
         "summary": "Apply Value Drift Action",
+        "tags": [
+          "variables"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/variables/property-drifts": {
+      "get": {
+        "description": "New, missing-required and type-changed properties a scan saw (F23).",
+        "operationId": "list_property_drifts_api_v1_projects__slug__variables_property_drifts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "variable_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variable Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PropertyDriftKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "active_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Active Only",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Property Drifts",
+        "tags": [
+          "variables"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/variables/property-drifts/{drift_id}/action": {
+      "post": {
+        "operationId": "apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "drift_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Drift Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyDriftActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Property Drift Action",
         "tags": [
           "variables"
         ]

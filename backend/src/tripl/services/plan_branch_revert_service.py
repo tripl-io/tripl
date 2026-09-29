@@ -93,6 +93,7 @@ _PLAIN_ATTRS: dict[str, tuple[str, ...]] = {
         "status",
         "reviewed",
         "metric_breakdown_columns",
+        "required_presence_threshold",
     ),
     "variable": (
         "variable_type",
@@ -1073,6 +1074,7 @@ async def _recreate_entity(
             owner_id=uuid.UUID(owner_id) if owner_id else None,
             reviewed=base_item.get("reviewed", False),
             metric_breakdown_columns=list(base_item.get("metric_breakdown_columns") or []),
+            required_presence_threshold=base_item.get("required_presence_threshold"),
             # Linked back to the main row it stands for, so the diff and the
             # merge pair the rebuilt row with that row again rather than with
             # whichever namesake the key finds (tripl-0zpq.292).

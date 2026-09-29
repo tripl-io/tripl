@@ -86,6 +86,7 @@ _TRACKED_FIELDS = (
     "name",
     "title",
     "description",
+    "required_presence_threshold",
     "sunset_at",
     "superseded_by_event_id",
 )
@@ -1590,6 +1591,7 @@ async def create_event(
         event_type_id=data.event_type_id,
         name=display_name,
         title=data.title.strip(),
+        required_presence_threshold=data.required_presence_threshold,
         # Scan dedup keys on source_name: stamping the generated identity here
         # is what makes the manual event merge with its scanned counterpart.
         source_name=generated_name,
@@ -1780,6 +1782,8 @@ async def update_event(
         event.name = update_data["name"]
     if "title" in update_data:
         event.title = (update_data["title"] or "").strip()
+    if "required_presence_threshold" in update_data:
+        event.required_presence_threshold = update_data["required_presence_threshold"]
     if "description" in update_data:
         event.description = update_data["description"]
     if "status" in update_data:
@@ -2347,6 +2351,7 @@ async def bulk_create_events(
                 event_type_id=data.event_type_id,
                 name=identities[i] or data.name,
                 title=data.title.strip(),
+                required_presence_threshold=data.required_presence_threshold,
                 description=data.description,
                 order=base_order + i,
                 status=data.status,

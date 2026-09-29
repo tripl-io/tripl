@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import sqlalchemy as sa
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -90,6 +91,10 @@ class Event(UUIDMixin, TimestampMixin, Base):
     # branches, where the naming rule did not reach, and the event never
     # merged with its scanned twin (tripl-kjhi.3).
     title: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    # Presence rate at or above which a scanned JSON property counts as always
+    # carried by this event (F23, owner decision 6). NULL: the default,
+    # ``core.property_drift.DEFAULT_REQUIRED_PRESENCE``.
+    required_presence_threshold: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
     # Stable scan identity: the name as derived from the source columns named in the
     # scan's ``event_name_format``. Dedup/metric matching keys on this, NOT on ``name``,
     # so users can freely rename ``name`` without the next scan creating duplicates.

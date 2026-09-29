@@ -71,7 +71,9 @@ def fold_json_properties(
     last — and the ``max_events`` cap can stop anywhere — carries all the keys.
 
     Presence is reported only for identities whose rows all carry a count; a
-    hand-built analysis without counts says nothing about how often.
+    hand-built analysis without counts says nothing about how often. Every
+    such identity with a JSON document is a key of the result, with an empty
+    map when none of its rows carried a key.
     """
     if not json_columns:
         return list(ordered), {}
@@ -79,6 +81,9 @@ def fold_json_properties(
     unions: dict[tuple[str, str], dict[str, Any]] = {}
     carried: dict[tuple[str, str], int] = {}
     totals: dict[str, int] = {}
+    # Identities with at least one JSON document: they were measured even when
+    # no row carried a key, which is what lets a required key read as absent.
+    with_json: set[str] = set()
     uncounted: set[str] = set()
     for planned in ordered:
         name = planned.name
@@ -92,6 +97,7 @@ def fold_json_properties(
             document = _parse(value)
             if document is None:
                 continue
+            with_json.add(name)
             _merge(unions.setdefault((name, column), {}), document)
             for token in _tokens(document):
                 carried[(name, token)] = carried.get((name, token), 0) + count
@@ -112,7 +118,9 @@ def fold_json_properties(
         )
         for planned in ordered
     ]
-    presence: Presence = {}
+    presence: Presence = {
+        name: {} for name in with_json if name not in uncounted and totals.get(name)
+    }
     for (name, token), count in carried.items():
         if name not in uncounted and totals.get(name):
             presence.setdefault(name, {})[token] = count / totals[name]

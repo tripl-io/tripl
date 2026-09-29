@@ -73,6 +73,7 @@ _EV_CHANGE_KEYS = (
     "owner_id",
     "reviewed",
     "metric_breakdown_columns",
+    "required_presence_threshold",
     "field_values",
     "meta_values",
     "tags",

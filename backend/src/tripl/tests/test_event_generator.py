@@ -33,7 +33,7 @@ from tripl.models.alert_rule_filter import AlertRuleFilter
 from tripl.models.anomaly_scope_override import AnomalyScopeOverride
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.domain_enums import MetricKind
-from tripl.models.event import Event
+from tripl.models.event import Event, EventStatus
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_photo_comment import EventPhotoComment
@@ -5431,3 +5431,97 @@ def test_collapsing_rows_keep_every_json_key_with_its_presence(
     }
     # The JSON column no longer reports a collapse: every row carries the union.
     assert not any("payload" in detail and "values)" in detail for detail in result.details)
+
+
+def test_property_drift_reports_new_and_missing_required_keys(
+    sync_session: Session, project_and_type
+):
+    """F23.5: a second scan reports the key the list does not name and the
+    required key the event carried too rarely, and writes no list entry."""
+    from tripl.models.property_drift import PropertyDrift
+
+    project, et, fds = project_and_type
+
+    def analysis() -> BreakdownAnalysis:
+        return BreakdownAnalysis(
+            results={
+                "action": CardinalityResult(
+                    column=ColumnInfo("action", "String"),
+                    count=1,
+                    is_low=True,
+                    sample_values=["purchase"],
+                ),
+                "payload": CardinalityResult(
+                    column=ColumnInfo("payload", "JSON"),
+                    count=2,
+                    is_low=True,
+                    json_path_combos=[("amount", "currency"), ("amount",)],
+                ),
+            },
+            rows=[
+                ("purchase", ("amount", "currency"), 90),
+                ("purchase", ("amount",), 10),
+            ],
+            reg_names=["action"],
+            json_names=["payload"],
+        )
+
+    generate_events(sync_session, project.id, et.id, analysis(), fds, event_name_format="{action}")
+    sync_session.commit()
+    event = sync_session.execute(select(Event)).scalar_one()
+    by_source = {v.source_name: v for v in sync_session.execute(select(Variable)).scalars()}
+    # The list names amount (required) and currency (required); coupon is not there.
+    for source_name in ("payload.amount", "payload.currency"):
+        sync_session.add(
+            VariableEventValueOverride(
+                project_id=project.id,
+                variable_id=by_source[source_name].id,
+                event_id=event.id,
+                values=None,
+                required=True,
+            )
+        )
+    sync_session.commit()
+    assert sync_session.execute(select(PropertyDrift)).scalars().all() == []
+
+    second = analysis()
+    second.results["payload"].json_path_combos = [("amount", "currency"), ("amount", "coupon")]
+    second.rows = [("purchase", ("amount", "currency"), 90), ("purchase", ("amount", "coupon"), 10)]
+    result = generate_events(
+        sync_session, project.id, et.id, second, fds, event_name_format="{action}"
+    )
+    sync_session.commit()
+
+    drifts = {
+        (d.variable.source_name, d.kind): d.detail
+        for d in sync_session.execute(select(PropertyDrift)).scalars()
+    }
+    assert drifts == {
+        ("payload.coupon", "new_property"): {"presence_rate": 0.1},
+        ("payload.currency", "missing_required"): {"presence_rate": 0.9, "threshold": 0.95},
+    }
+    assert result.property_drifts_detected == 2
+    # A lower threshold on the event clears the missing-required finding's cause.
+    event.required_presence_threshold = 0.8
+    sync_session.commit()
+    generate_events(sync_session, project.id, et.id, second, fds, event_name_format="{action}")
+    sync_session.commit()
+    kinds = {d.kind for d in sync_session.execute(select(PropertyDrift)).scalars()}
+    # The untriaged missing-required row went with its cause.
+    assert kinds == {"new_property"}
+    # The scan wrote no list entry for coupon.
+    listed = {
+        o.variable_id for o in sync_session.execute(select(VariableEventValueOverride)).scalars()
+    }
+    assert by_source["payload.amount"].id in listed
+    assert len(listed) == 2
+
+    # An archived event is frozen: its required keys are not judged.
+    event.required_presence_threshold = None
+    event.status = EventStatus.archived
+    for drift in sync_session.execute(select(PropertyDrift)).scalars():
+        sync_session.delete(drift)
+    sync_session.commit()
+    generate_events(sync_session, project.id, et.id, second, fds, event_name_format="{action}")
+    sync_session.commit()
+    assert sync_session.execute(select(PropertyDrift)).scalars().all() == []

@@ -211,6 +211,7 @@ _EVENT_CHANGE_KEYS = (
     "owner_id",
     "reviewed",
     "metric_breakdown_columns",
+    "required_presence_threshold",
     "field_values",
     "meta_values",
     "tags",
@@ -578,6 +579,7 @@ async def build_plan_snapshot(
             "owner_id": str(ev.owner_id) if ev.owner_id is not None else None,
             "reviewed": ev.reviewed,
             "metric_breakdown_columns": list(ev.metric_breakdown_columns or []),
+            "required_presence_threshold": ev.required_presence_threshold,
             "field_values": sorted(
                 [
                     {
@@ -861,7 +863,12 @@ def _format_change(change: PlanFieldChange) -> str:
 # payload is read as carrying. A bump would make every open branch unmergeable
 # ("recreate it from current main", plan_branch_merge_service) for the sake of
 # one optional text column, so the older shape is upgraded on read instead.
-_V2_EVENT_DEFAULTS: dict[str, Any] = {"title": "", "superseded_by": None}
+_V2_EVENT_DEFAULTS: dict[str, Any] = {
+    "title": "",
+    "superseded_by": None,
+    # F23 (#306): an older snapshot predates the per-event threshold.
+    "required_presence_threshold": None,
+}
 # Same argument for the meta field's ``allow_multiple`` (tripl-h2sx.31): an
 # older payload predates the key, and ``_field_changes_between`` refuses to
 # treat one absent from a current-version payload as skew (tripl-2d3d), so

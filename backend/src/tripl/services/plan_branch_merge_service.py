@@ -1340,6 +1340,7 @@ async def _apply_merge(
         "owner_id",
         "reviewed",
         "metric_breakdown_columns",
+        "required_presence_threshold",
     )
     for slot in event_slots.slots:
         m_ev, b_ev, base_event = slot.main, slot.branch, slot.base
@@ -1428,6 +1429,7 @@ async def _apply_merge(
             sunset_at=b_ev.sunset_at,
             last_seen_at=b_ev.last_seen_at,
             metric_breakdown_columns=list(b_ev.metric_breakdown_columns or []),
+            required_presence_threshold=b_ev.required_presence_threshold,
             owner_id=b_ev.owner_id,
             reviewed=b_ev.reviewed,
             # superseded_by_event_id is deliberately absent: the value on

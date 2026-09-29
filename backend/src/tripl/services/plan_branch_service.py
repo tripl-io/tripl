@@ -649,6 +649,7 @@ async def deep_copy_plan_to_branch(
             sunset_at=ev.sunset_at,
             last_seen_at=ev.last_seen_at,
             metric_breakdown_columns=list(ev.metric_breakdown_columns or []),
+            required_presence_threshold=ev.required_presence_threshold,
             owner_id=ev.owner_id,
             reviewed=ev.reviewed,
             # Which main row this copy is, so rows sharing a (type, name) can be

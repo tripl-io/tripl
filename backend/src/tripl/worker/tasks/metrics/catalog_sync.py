@@ -36,11 +36,13 @@ from tripl.core.analyzers._event_generator_variables import (
 from tripl.core.analyzers.cardinality import BreakdownAnalysis, _is_json_type
 from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.core.intervals import INTERVALS
+from tripl.core.property_drift import clear_stale_findings, type_findings, upsert_findings
 from tripl.core.property_schema import infer_property_type
 from tripl.json_paths import decode_json_path_value, format_json_path_value
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
 from tripl.models.field_definition import FieldDefinition
+from tripl.models.property_drift import PropertyDrift, PropertyDriftKind
 from tripl.models.scan_config import ScanConfig
 from tripl.models.variable import Variable
 from tripl.models.variable_value import VariableValue
@@ -168,6 +170,7 @@ class JsonPathSampling:
     paths_sampled: int = 0
     paths_with_samples: int = 0
     variables_typed: int = 0
+    type_drifts_detected: int = 0
 
 
 @dataclass
@@ -560,6 +563,52 @@ def _apply_inferred_types(
     return typed
 
 
+def _detect_type_drifts(
+    session: Session,
+    *,
+    project_id: uuid.UUID,
+    branch_id: uuid.UUID | None,
+    scan_config_id: uuid.UUID,
+    types: Mapping[str, Mapping[str, tuple[str, dict[str, Any] | None]]],
+) -> int:
+    """Record a ``type_change`` for each typed variable its samples contradict.
+
+    Runs after ``_apply_inferred_types``, so a variable typed this very run
+    agrees with its samples and is not reported.
+    """
+    observed = {
+        f"{column}.{path}": inferred
+        for column, paths in types.items()
+        for path, inferred in paths.items()
+    }
+    if not observed:
+        return 0
+    query = (
+        select(Variable)
+        .where(Variable.project_id == project_id)
+        .options(lazyload(Variable.value_contexts))
+    )
+    if branch_id is not None:
+        query = query.where(Variable.branch_id == branch_id)
+    variables = list(session.execute(query).scalars())
+    findings = type_findings(variables, observed)
+    checked = [
+        variable.id
+        for variable in variables
+        if any(token in observed for token in VariableIndex.source_tokens_of(variable))
+    ]
+    clear_stale_findings(
+        session,
+        project_id=project_id,
+        kinds=(PropertyDriftKind.type_change,),
+        scope=PropertyDrift.variable_id.in_(checked),
+        still_found={(f.variable_id, f.event_id, f.kind.value) for f in findings},
+    )
+    return upsert_findings(
+        session, project_id=project_id, scan_config_id=scan_config_id, findings=findings
+    )
+
+
 def sync_catalog(
     session: Session,
     *,
@@ -616,12 +665,21 @@ def sync_catalog(
             time_from_dt=time_from_dt,
             time_to_dt=time_to_dt,
         )
+        sampling_branch_id = main_branch_id(session, config.project_id)
+        variables_typed = _apply_inferred_types(
+            session,
+            project_id=config.project_id,
+            branch_id=sampling_branch_id,
+            types=out.json_path_sampling.types,
+        )
         out.json_path_sampling = dataclasses.replace(
             out.json_path_sampling,
-            variables_typed=_apply_inferred_types(
+            variables_typed=variables_typed,
+            type_drifts_detected=_detect_type_drifts(
                 session,
                 project_id=config.project_id,
-                branch_id=main_branch_id(session, config.project_id),
+                branch_id=sampling_branch_id,
+                scan_config_id=config.id,
                 types=out.json_path_sampling.types,
             ),
         )
