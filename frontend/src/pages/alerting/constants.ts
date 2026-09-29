@@ -770,7 +770,7 @@ export const RULE_SIGNAL_GROUPS: readonly {
     scopes: [
       { key: 'include_schema_drifts', label: 'Schema drift', short: 'schema drift', hint: 'A field appears, disappears or changes type.' },
       { key: 'include_distribution_drifts', label: 'Distribution drift', short: 'distribution drift', hint: 'The mix of values in a watched column shifts.' },
-      { key: 'include_variable_value_drifts', label: 'Value drift', short: 'value drift', hint: 'A variable takes a value outside its documented list.' },
+      { key: 'include_variable_value_drifts', label: 'Value drift', short: 'value drift', hint: 'A property takes a value outside its documented list.' },
       { key: 'include_release_regressions', label: 'Release regressions', short: 'release regressions', hint: 'A new app version tracks less than the one before.' },
       { key: 'include_source_freshness', label: 'Source freshness', short: 'source freshness', hint: "A scan's newest data is later than its interval allows, or the scan stopped running. One alert per delay; drop signals are held meanwhile. Needs Drops under Notify on." },
       { key: 'include_lifecycle', label: 'Lifecycle', short: 'lifecycle', hint: 'A deprecated event still receives data after its sunset date, or its successor has received nothing for 7 days. One alert per finding, checked daily.' },

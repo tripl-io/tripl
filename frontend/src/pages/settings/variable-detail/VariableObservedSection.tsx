@@ -64,13 +64,13 @@ export function VariableObservedSection({
       title: 'Clear observed values',
       message:
         `Clear the ${countOf(contextCount, 'observed value context', 'observed value contexts')} `
-        + `recorded for "${variable.name}"? The variable keeps its description, documented values, `
+        + `recorded for "${variable.name}"? The property keeps its description, documented values, `
         + 'bindings, per-event overrides and every drift verdict.\n\n'
         // Two things a person would otherwise discover the hard way. The first
         // is why this is not simply undone by re-scanning; the second is that
         // "keep the variable" is not a guarantee the sweep is bound by.
         + `A later scan re-records a context only where an event field still says \${${variable.name}}. `
-        + 'And if nothing refers to this variable any more, having no observed values makes it '
+        + 'And if nothing refers to this property any more, having no observed values makes it '
         + "retirable — the next scan's cleanup may then remove it.",
       confirmLabel: 'Clear values',
       variant: 'danger',

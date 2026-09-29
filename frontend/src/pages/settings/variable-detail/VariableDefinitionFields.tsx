@@ -204,7 +204,7 @@ export function VariableDefinitionFields({
             creation and misleading here: emptying a binding a scan filled in
             makes the row read as hand-owned to `_human_claim`, and it is then
             exempt from the retirement sweep for good. */}
-        <p className="text-caption text-fg-tertiary">Needed only where the warehouse column or JSON path is spelled differently from the name; otherwise scans match on the name. A binding a scan filled in is how it keeps finding this variable — removing it marks the variable as yours, and retirement stops considering it.</p>
+        <p className="text-caption text-fg-tertiary">Needed only where the warehouse column or JSON path is spelled differently from the name; otherwise scans match on the name. A binding a scan filled in is how it keeps finding this property — removing it marks the property as yours, and retirement stops considering it.</p>
         <BindingVersusTokenNote example={example} />
       </div>
       {draft.updateMut.isError && (

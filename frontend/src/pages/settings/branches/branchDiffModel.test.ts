@@ -81,7 +81,7 @@ describe('diffView', () => {
     expect(view.removedVariables).toEqual([])
   })
 
-  it('warns about unpaired variable removals, but not housekeeping ones', () => {
+  it('warns about unpaired property removals, but not housekeeping ones', () => {
     const view = diffView({
       behind_base: false,
       summary: { added: 0, removed: 1, changed: 0, housekeeping: 1 },
@@ -185,13 +185,13 @@ describe('mergePrompt', () => {
     expect(prompt.message).not.toContain('Main has moved on')
   })
 
-  it('carries the variable deletion and the behind-main warnings in the same dialog', () => {
+  it('carries the property deletion and the behind-main warnings in the same dialog', () => {
     const prompt = mergePrompt(pairedDiffCounts(undefined), ['variant'], true, [], 2)
 
-    expect(prompt.title).toBe('Merge deletes variables from main')
+    expect(prompt.title).toBe('Merge deletes properties from main')
     expect(prompt.confirmLabel).toBe('Merge anyway')
     expect(prompt.variant).toBe('danger')
-    expect(prompt.message).toContain('removes 1 variable from main: variant')
+    expect(prompt.message).toContain('removes 1 property from main: variant')
     expect(prompt.message).toContain('Main has moved on')
     expect(prompt.message).toContain('2 fields you changed were also changed there')
     // An action to take, not "recreate the branch" (PL-8).
@@ -365,7 +365,7 @@ describe('housekeepingLine', () => {
         entry({ housekeeping: 'unused scan variable retired' }),
         entry({ housekeeping: 'already removed on main' }),
       ]),
-    ).toBe('2 unused scan variables retired · 1 removal already made on main')
+    ).toBe('2 unused scan properties retired · 1 removal already made on main')
   })
 })
 

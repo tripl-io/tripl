@@ -196,7 +196,7 @@ describe('buildNavGroups', () => {
     )
   })
 
-  it('surfaces Variables and Relations as Plan nav items (M6)', () => {
+  it('surfaces Properties and Relations as Plan nav items (M6)', () => {
     const items = buildNavGroups('demo', undefined)
       .filter((g) => g.label === 'Plan')
       .flatMap((g) => g.items)

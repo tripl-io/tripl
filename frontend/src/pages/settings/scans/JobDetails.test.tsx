@@ -12,7 +12,7 @@ import { PersonaProject } from '@/test/PersonaProject'
 /** Every counter the panel used to BE, in the order it renders them. */
 const RAW_COUNTERS = [
   'Events created',
-  'Variables created',
+  'Properties created',
   'Events skipped',
   'Columns analyzed',
   'Event breakdowns',

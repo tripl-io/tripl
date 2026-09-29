@@ -834,7 +834,7 @@ export function EventForm({
         {invalidJsonFieldLabels.length > 0 && <>Fix the JSON in: {invalidJsonFieldLabels.join(', ')}</>}
         {invalidJsonFieldLabels.length > 0 && invalidNumberFieldLabels.length > 0 && '. '}
         {invalidNumberFieldLabels.length > 0 && (
-          <>Enter a number or a variable in: {invalidNumberFieldLabels.join(', ')}</>
+          <>Enter a number or a property in: {invalidNumberFieldLabels.join(', ')}</>
         )}
       </>
     ) : submitted ? (

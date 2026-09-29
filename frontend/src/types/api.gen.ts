@@ -4635,6 +4635,207 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Variables  Properties */
+        get: operations["list_variables__properties_api_v1_projects__slug__properties_get"];
+        put?: never;
+        /** Create Variable  Properties */
+        post: operations["create_variable__properties_api_v1_projects__slug__properties_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Delete Variables  Properties */
+        post: operations["bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/bulk-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Update Variables  Properties */
+        post: operations["bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/drifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Value Drifts  Properties */
+        get: operations["list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/drifts/{drift_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Value Drift Action  Properties */
+        post: operations["apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/property-drifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Drifts  Properties
+         * @description New, missing-required and type-changed properties a scan saw (F23).
+         */
+        get: operations["list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Property Drift Action  Properties */
+        post: operations["apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Variable  Properties */
+        delete: operations["delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Variable  Properties */
+        patch: operations["update_variable__properties_api_v1_projects__slug__properties__variable_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Event Overrides  Properties */
+        get: operations["list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upsert Event Override  Properties */
+        put: operations["upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put"];
+        post?: never;
+        /** Delete Event Override  Properties */
+        delete: operations["delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Variable Values  Properties */
+        get: operations["list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Clear Variable Values  Properties
+         * @description Drop the variable's observed contexts and keep the variable.
+         *
+         *     Deleting the variable was the only reset available and it takes the
+         *     description, documented values, bindings, overrides and drift triage with
+         *     it — none of which a scan rebuilds.
+         */
+        delete: operations["clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/reconciliation/coverage": {
         parameters: {
             query?: never;
@@ -5398,10 +5599,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variables */
+        /**
+         * List Variables
+         * @deprecated
+         */
         get: operations["list_variables_api_v1_projects__slug__variables_get"];
         put?: never;
-        /** Create Variable */
+        /**
+         * Create Variable
+         * @deprecated
+         */
         post: operations["create_variable_api_v1_projects__slug__variables_post"];
         delete?: never;
         options?: never;
@@ -5418,7 +5625,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk Delete Variables */
+        /**
+         * Bulk Delete Variables
+         * @deprecated
+         */
         post: operations["bulk_delete_variables_api_v1_projects__slug__variables_bulk_delete_post"];
         delete?: never;
         options?: never;
@@ -5435,7 +5645,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk Update Variables */
+        /**
+         * Bulk Update Variables
+         * @deprecated
+         */
         post: operations["bulk_update_variables_api_v1_projects__slug__variables_bulk_update_post"];
         delete?: never;
         options?: never;
@@ -5450,7 +5663,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Value Drifts */
+        /**
+         * List Value Drifts
+         * @deprecated
+         */
         get: operations["list_value_drifts_api_v1_projects__slug__variables_drifts_get"];
         put?: never;
         post?: never;
@@ -5469,7 +5685,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply Value Drift Action */
+        /**
+         * Apply Value Drift Action
+         * @deprecated
+         */
         post: operations["apply_value_drift_action_api_v1_projects__slug__variables_drifts__drift_id__action_post"];
         delete?: never;
         options?: never;
@@ -5486,6 +5705,7 @@ export interface paths {
         };
         /**
          * List Property Drifts
+         * @deprecated
          * @description New, missing-required and type-changed properties a scan saw (F23).
          */
         get: operations["list_property_drifts_api_v1_projects__slug__variables_property_drifts_get"];
@@ -5506,7 +5726,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply Property Drift Action */
+        /**
+         * Apply Property Drift Action
+         * @deprecated
+         */
         post: operations["apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post"];
         delete?: never;
         options?: never;
@@ -5524,11 +5747,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Variable */
+        /**
+         * Delete Variable
+         * @deprecated
+         */
         delete: operations["delete_variable_api_v1_projects__slug__variables__variable_id__delete"];
         options?: never;
         head?: never;
-        /** Update Variable */
+        /**
+         * Update Variable
+         * @deprecated
+         */
         patch: operations["update_variable_api_v1_projects__slug__variables__variable_id__patch"];
         trace?: never;
     };
@@ -5539,7 +5768,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Event Overrides */
+        /**
+         * List Event Overrides
+         * @deprecated
+         */
         get: operations["list_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_get"];
         put?: never;
         post?: never;
@@ -5557,10 +5789,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Upsert Event Override */
+        /**
+         * Upsert Event Override
+         * @deprecated
+         */
         put: operations["upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put"];
         post?: never;
-        /** Delete Event Override */
+        /**
+         * Delete Event Override
+         * @deprecated
+         */
         delete: operations["delete_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__delete"];
         options?: never;
         head?: never;
@@ -5574,12 +5812,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variable Values */
+        /**
+         * List Variable Values
+         * @deprecated
+         */
         get: operations["list_variable_values_api_v1_projects__slug__variables__variable_id__values_get"];
         put?: never;
         post?: never;
         /**
          * Clear Variable Values
+         * @deprecated
          * @description Drop the variable's observed contexts and keep the variable.
          *
          *     Deleting the variable was the only reset available and it takes the
@@ -28023,6 +28265,547 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PlanValidationResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_variables__properties_api_v1_projects__slug__properties_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+                /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0). */
+                usage?: "all" | "used" | "unused";
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_variable__properties_api_v1_projects__slug__properties_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableBulkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get: {
+        parameters: {
+            query?: {
+                variable_id?: string | null;
+                event_id?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableValueDriftListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                drift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableValueDriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableValueDriftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get: {
+        parameters: {
+            query?: {
+                variable_id?: string | null;
+                event_id?: string | null;
+                kind?: components["schemas"]["PropertyDriftKind"] | null;
+                active_only?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                drift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyDriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_variable__properties_api_v1_projects__slug__properties__variable_id__patch: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableEventOverrideResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableEventOverrideUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableEventOverrideResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableValueContextResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete: {
+        parameters: {
+            query?: {
+                /** @description Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse — the same value /values already returns, so a client can scope the clear to a single (event, field). */
+                context_id?: string | null;
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

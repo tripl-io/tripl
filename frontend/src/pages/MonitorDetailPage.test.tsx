@@ -714,7 +714,7 @@ describe('MonitorDetailPage inert scopes', () => {
     renderDetail()
 
     expect(await screen.findByText(VALUE_DRIFT_SENTENCE)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Variables' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Properties' })).toHaveAttribute(
       'href',
       '/p/demo/variables',
     )
@@ -740,7 +740,7 @@ describe('MonitorDetailPage inert scopes', () => {
 
     renderDetail()
 
-    expect(await screen.findByRole('link', { name: 'Variables' })).not.toHaveAttribute('target')
+    expect(await screen.findByRole('link', { name: 'Properties' })).not.toHaveAttribute('target')
   })
 
   it('leaves a fed scope as a plain chip with nothing appended', async () => {

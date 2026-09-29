@@ -241,7 +241,7 @@ describe('CommandPalette', () => {
     // Renamed for what it holds (#238 AU-10); the old name is a keyword.
     expect(screen.getByText('Meta fields')).toBeInTheDocument()
     expect(screen.getByText('Relations')).toBeInTheDocument()
-    expect(screen.getByText('Variables')).toBeInTheDocument()
+    expect(screen.getByText('Properties')).toBeInTheDocument()
     expect(screen.getByText('Detection settings')).toBeInTheDocument()
     expect(screen.getByText('Alerting')).toBeInTheDocument()
     expect(screen.getByText('Scans')).toBeInTheDocument()

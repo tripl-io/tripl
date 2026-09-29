@@ -42,14 +42,14 @@ const SENTINEL_BASE = '__TRIPL_VAR_'
 export function templateJsonError(text: string): string | null {
   const tokens = [...text.matchAll(TEMPLATE_TOKEN_PATTERN)].map(match => match[1] ?? '')
   if (tokens.some(token => !JSON_TEMPLATE_TOKEN_NAME_PATTERN.test(token))) {
-    return 'A ${...} token must name a variable and cannot contain a quote, a backslash or a control character.'
+    return 'A ${...} token must name a property and cannot contain a quote, a backslash or a control character.'
   }
   const templateValues = text.match(JSON_TEMPLATE_VALUE_PATTERN) ?? []
   if (templateValues.length !== tokens.length) {
-    return 'Variable templates must occupy a complete JSON value.'
+    return 'Property templates must occupy a complete JSON value.'
   }
   if (JSON_TEMPLATE_KEY_PATTERN.test(text)) {
-    return 'Variable templates cannot be JSON object keys.'
+    return 'Property templates cannot be JSON object keys.'
   }
   return null
 }

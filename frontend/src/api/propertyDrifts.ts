@@ -49,9 +49,9 @@ export const propertyDriftsApi = {
     if (filters.activeOnly) params.set('active_only', 'true')
     const query = params.toString()
     return api.get<PropertyDriftList>(
-      `/projects/${slug}/variables/property-drifts${query ? `?${query}` : ''}`,
+      `/projects/${slug}/properties/property-drifts${query ? `?${query}` : ''}`,
     )
   },
   act: (slug: string, driftId: string, body: PropertyDriftAction) =>
-    api.post<PropertyDrift>(`/projects/${slug}/variables/property-drifts/${driftId}/action`, body),
+    api.post<PropertyDrift>(`/projects/${slug}/properties/property-drifts/${driftId}/action`, body),
 }

@@ -137,7 +137,7 @@ async def list_variable_values(
         )
     )
     if variable is None:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
 
     rows = await session.execute(
         select(VariableValue)

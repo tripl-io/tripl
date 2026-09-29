@@ -398,7 +398,7 @@ describe('EventRow name and type cells', () => {
 })
 
 describe('EventRow template token rendering', () => {
-  it('keeps known variable tokens quiet and tints unknown tokens amber', () => {
+  it('keeps known property tokens quiet and tints unknown tokens amber', () => {
     renderRow(
       makeEvent({
         field_values: [{ id: 'fv-1', field_definition_id: TEMPLATE_FIELD.id, value: '${variant}/${missing}' }],
@@ -491,7 +491,7 @@ describe('EventRow observed-values popover', () => {
     // The value itself always rendered — the name fallback found it. Only the
     // trigger beside it went missing, which is what made the loss invisible.
     expect(screen.getByText('/checkout')).toBeInTheDocument()
-    expect(screen.getByLabelText('Observed variable values')).toBeInTheDocument()
+    expect(screen.getByLabelText('Observed property values')).toBeInTheDocument()
   })
 
   // A control, not the guard: the id lookup already matched here, so this passed
@@ -501,7 +501,7 @@ describe('EventRow observed-values popover', () => {
       makeEvent({ field_values: [pageValue(PAGE_FIELD_PV.id, [OBSERVED_PAGES])] }),
     )
 
-    expect(screen.getByLabelText('Observed variable values')).toBeInTheDocument()
+    expect(screen.getByLabelText('Observed property values')).toBeInTheDocument()
   })
 
   // The negative control, and likewise green before the fix: the trigger appears
@@ -512,7 +512,7 @@ describe('EventRow observed-values popover', () => {
     )
 
     expect(screen.getByText('/checkout')).toBeInTheDocument()
-    expect(screen.queryByLabelText('Observed variable values')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Observed property values')).not.toBeInTheDocument()
   })
 })
 
@@ -709,7 +709,7 @@ describe('EventRow row click (EV-27)', () => {
       getFieldValueRow: () => valueRow,
     })
     const before = screen.getByTestId('row-location').textContent
-    fireEvent.click(screen.getByRole('button', { name: 'Observed variable values' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Observed property values' }))
     const dialog = screen.getByRole('dialog')
     // Plain text inside the popover, not a control: it bubbles to the row
     // through the React tree but is not in the row's DOM.

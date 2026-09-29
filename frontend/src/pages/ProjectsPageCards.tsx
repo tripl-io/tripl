@@ -435,7 +435,7 @@ function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boole
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Event types" value={String(summary.event_type_count)} />
             <Metric label="Active events" value={String(summary.active_event_count)} />
-            <Metric label="Variables" value={String(summary.variable_count)} />
+            <Metric label="Properties" value={String(summary.variable_count)} />
             {/* Incidents awaiting triage, as the sidebar's Alerting badge
                 counts them. "Alerts" used to show the destination count, so
                 the sidebar could say 1 while this said 2 (SH-26). */}

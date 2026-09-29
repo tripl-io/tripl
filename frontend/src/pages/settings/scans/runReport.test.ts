@@ -157,7 +157,7 @@ describe('buildRunReport — the counters that read as bad news', () => {
       'Read 1 distinct column combination (grouped in the warehouse).',
       'Added 1 event to your tracking plan.',
       '1 event was already in your plan and was left as it is.',
-      'Added 1 variable.',
+      'Added 1 property.',
       'Looked at 1 column in your query.',
       'Catalog-only scan — no metric points, so no signals and no alerts.',
     ])

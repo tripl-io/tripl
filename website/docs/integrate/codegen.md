@@ -57,9 +57,9 @@ In every style:
 
 - The **raw value is always the exact plan string**. Only the identifier is
   derived from it (see [Identifier naming](#identifier-naming)).
-- A value that is a `${variable}` placeholder contributes the variable's
+- A value that is a `${variable}` placeholder contributes the property's
   **allowed values**. An event can override them for itself, and then its own
-  list is used. A variable with no allowed values (or an empty override) is
+  list is used. A property with no allowed values (or an empty override) is
   free text, so the field stays a `String`.
 - A field defined as an enum in the plan becomes an enum of its options.
 - A required field is a non-optional parameter. An optional field is an
@@ -75,7 +75,7 @@ In the `named` and `self_describing` styles:
   is not a parameter. On a boolean or number field it is sent typed (`true`,
   `4.5`); every other fixed value is sent as a string.
 - A `${token}` in an event's name or in a fixed value becomes a parameter,
-  typed by the variable's allowed values (`promo_sheet_${sheet_id}_shown` takes
+  typed by the property's allowed values (`promo_sheet_${sheet_id}_shown` takes
   `sheetId: SheetId`). The generated code fills it into the name.
 - Deprecated events are generated and marked deprecated
   (`@available(*, deprecated)`, `@Deprecated`, `@deprecated`), so existing
@@ -168,7 +168,7 @@ are copied from `cli/tests/codegen/golden/`. The fixture plan has:
 - `se` (name rule `{category}:{action}:{label}`), with the events
   `home:open:card`, `1st run:open:card`, the deprecated `default:open:card`,
   `checkout:${checkout_step}:promo_sheet` and `checkout:tap:${promo_id}`. The
-  variable `checkout_step` allows `start` and `confirm`; `promo_id` has no
+  property `checkout_step` allows `start` and `confirm`; `promo_id` has no
   allowed values.
 - `screen` (name rule `{type}`), with the screen types `HomeView` (id `home`)
   and `Checkout Start` (id `checkout:start`).
@@ -2022,7 +2022,7 @@ schema registry, quicktype):
 
 Each schema lists the event type's fields as properties, with required fields in
 `required`, the event's own values as `const`, enums from the field's options or
-the variable's allowed values, and `pattern`, `minimum` and `maximum` from the
+the property's allowed values, and `pattern`, `minimum` and `maximum` from the
 field's contract. The [API guide](./agent-api-guide.md#plan-export-jsonschema)
 has the full mapping.
 
@@ -2034,7 +2034,7 @@ JSON Schema export does not show it as a free value.
 
 **In the JSON Schema export**, the field becomes an object schema:
 
-- **Keys.** Each key is typed by its variable's type and
+- **Keys.** Each key is typed by its property's type and
   [JSON Schema](../use/variables-and-templates.md#refine-the-type-with-json-schema).
 - **Allowed values.** The allowed values become a typed `enum`.
 - **Literal keys.** A key the event always sends with a fixed value becomes a
@@ -2052,7 +2052,7 @@ holds:
 - `values`;
 - `literal`, for a key with a fixed value.
 
-Each variable also carries its `variable_type` and `json_schema`.
+Each property also carries its `variable_type` and `json_schema`.
 
 **In generated code**, a property typed `number` or `boolean` with no allowed
 values becomes a `Double`/`Bool`/`number`/`boolean` parameter. Its value is
@@ -2067,5 +2067,5 @@ written into the JSON unquoted: `{"amount": 3}`, not `{"amount": "3"}`.
   not.
 - [Agent API guide: plan export](./agent-api-guide.md#plan-export): the endpoint
   behind both commands, including the `codegen_model` format.
-- [Variables & templates](../use/variables-and-templates.md): documented values
+- [Properties & templates](../use/variables-and-templates.md): documented values
   and `${variable}` placeholders, which become enums in generated code.

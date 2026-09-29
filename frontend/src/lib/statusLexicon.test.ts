@@ -116,8 +116,8 @@ describe('coverageTone — good coverage is green (success), never accent', () =
   })
 })
 
-describe('toneVar — tone to CSS variable', () => {
-  it('resolves the semantic CSS variable for a tone', () => {
+describe('toneVar — tone to CSS property', () => {
+  it('resolves the semantic CSS property for a tone', () => {
     expect(toneVar('success')).toBe('var(--success)')
     expect(toneVar('warning')).toBe('var(--warning)')
     expect(toneVar('danger')).toBe('var(--danger)')

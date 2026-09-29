@@ -140,7 +140,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
         },
         {
           id: 'variables',
-          label: 'Variables',
+          label: 'Properties',
           icon: Variable,
           href: `${base}/variables`,
           match: (p) => p.startsWith(`${base}/variables`),

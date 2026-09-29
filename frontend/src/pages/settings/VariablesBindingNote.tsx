@@ -14,7 +14,7 @@ export function BindingVersusTokenNote({ example }: { example: BindingExample })
   return (
     <p className="text-caption text-fg-tertiary">
       A binding is where the value lives in the warehouse. It is not what you type in a field
-      value — that is the variable&apos;s name.{' '}
+      value — that is the property&apos;s name.{' '}
       {example.fromProject ? 'In this project, for instance, scans read' : 'For instance, scans read'}{' '}
       <code className="rounded-sm bg-muted px-1">{example.binding}</code> and you write{' '}
       <code className="rounded-sm bg-muted px-1">{'${' + example.name + '}'}</code>.

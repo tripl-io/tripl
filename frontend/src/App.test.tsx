@@ -296,7 +296,7 @@ describe('App', () => {
     expect(decodeURIComponent(window.location.search)).toBe(search)
   })
 
-  it('serves /p/:slug/variables/:id as the variable page, not a redirect', async () => {
+  it('serves /p/:slug/variables/:id as the property page, not a redirect', async () => {
     // #245 JR-10 kept this address alive as a redirect into /settings; it is
     // the canonical variable page now (JR-25).
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
@@ -312,7 +312,7 @@ describe('App', () => {
 
     // The variable page itself has mounted (its fetch 404s here, so it shows its
     // own error state), which means any redirect would already have committed.
-    expect(await screen.findByRole('heading', { name: /load this variable/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /load this property/ })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/p/demo/variables/var-how')
   })
 

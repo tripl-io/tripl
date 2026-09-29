@@ -1892,34 +1892,36 @@ would otherwise resolve against the wrong name.
 **Cost:** two requests — the event-type listing, to resolve `<event-type>`, then
 the fields — plus one to resolve `--branch` when you pass it.
 
-### `tripl plan variables`
+### `tripl plan properties`
 
 ```
-usage: tripl plan variables [-h] [--url URL] [--api-key KEY] [--config PATH]
-                            [--project SLUG] [--branch REF] [--offset N]
-                            [--limit N] [--json] [--timeout SECONDS]
+usage: tripl plan properties [-h] [--url URL] [--api-key KEY] [--config PATH]
+                             [--project SLUG] [--branch REF] [--offset N]
+                             [--limit N] [--json] [--timeout SECONDS]
 ```
+
+`tripl plan variables` is the same command under its former name.
 
 | Flag | Meaning |
 |------|---------|
 | `--project SLUG` | **Required**, exactly once. |
 | `--branch REF` | Read a plan branch instead of the live main plan. |
-| `--offset N` | Skip N variables, to read the next page. Default `0`. |
-| `--limit N` | How many variables to ask for, `1`–`5000`, default `200`. |
+| `--offset N` | Skip N properties, to read the next page. Default `0`. |
+| `--limit N` | How many properties to ask for, `1`–`5000`, default `200`. |
 | `--json` | One JSON document on stdout, every human line on stderr. |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
 
 ```text
-tripl plan variables - https://tripl.example.com (from $TRIPL_BASE_URL)
+tripl plan properties - https://tripl.example.com (from $TRIPL_BASE_URL)
 
 prod
   var-1  cart_value  number  12 events  1 open drift
   var-2  screen      string  40 events
 
-2 variables.
+2 properties.
 ```
 
-Variables are the documented `${placeholder}` tokens an event name or field
+Properties are the documented `${placeholder}` tokens an event name or field
 value may carry. The columns are the id, the name, the declared type, how many
 events use it, and its open **value drift** count — a variable observed carrying
 a value outside its documented set. A non-zero count there is the same class of
@@ -4427,7 +4429,7 @@ tripl plan types --project prod --json | jq -r '.items[].name' \
     done
 
 # Variables carrying values outside their documented set.
-tripl plan variables --project prod --json \
+tripl plan properties --project prod --json \
   | jq -r '.items[] | select(.open_drift_count > 0) | "\(.name) \(.open_drift_count)"'
 
 # Working branches whose base has moved under them - rebase before review.

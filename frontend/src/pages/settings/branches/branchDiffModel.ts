@@ -382,7 +382,7 @@ export function mergePrompt(
     const shown = removedVariables.slice(0, 8).join(', ')
     const more = removedVariables.length > 8 ? ` and ${removedVariables.length - 8} more` : ''
     lines.push(
-      `Merging removes ${countOf(removedVariables.length, 'variable', 'variables')} from main: ${shown}${more}. Their documented values, per-event overrides and drift history are deleted with them.`,
+      `Merging removes ${countOf(removedVariables.length, 'property', 'properties')} from main: ${shown}${more}. Their documented values, per-event overrides and drift history are deleted with them.`,
     )
   }
   if (behindBase && unresolvedConflicts > 0) {
@@ -395,7 +395,7 @@ export function mergePrompt(
   )
   const deletes = removedVariables.length > 0
   return {
-    title: deletes ? 'Merge deletes variables from main' : 'Merge to main',
+    title: deletes ? 'Merge deletes properties from main' : 'Merge to main',
     message: lines.join(' '),
     confirmLabel: deletes ? 'Merge anyway' : 'Merge',
     variant: deletes ? 'danger' : 'primary',
@@ -481,8 +481,13 @@ export function describeBranchActionError(error: unknown): string {
 /** The reasons the backend stamps on `PlanDiffEntry.housekeeping`
  * (`services/_plan_diff_housekeeping.py`), and how each reads as a count:
  * "7 unused scan variables retired". */
+/** One housekeeping reason as a row says it, singular (the server's text otherwise). */
+export function housekeepingReason(reason: string): string {
+  return HOUSEKEEPING_WORDING[reason]?.[0] ?? reason
+}
+
 const HOUSEKEEPING_WORDING: Record<string, [string, string]> = {
-  'unused scan variable retired': ['unused scan variable retired', 'unused scan variables retired'],
+  'unused scan variable retired': ['unused scan property retired', 'unused scan properties retired'],
   'already removed on main': ['removal already made on main', 'removals already made on main'],
 }
 
@@ -604,7 +609,7 @@ const ENTITY_PLURAL_LABEL: Record<PlanDiffEntityType, string> = {
   event_type: 'Event types',
   field_definition: 'Fields',
   event: 'Events',
-  variable: 'Variables',
+  variable: 'Properties',
   meta_field: 'Meta fields',
   relation: 'Relations',
 }

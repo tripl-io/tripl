@@ -79,7 +79,7 @@ A note links to other notes, to plan entities and to people with
 | `[[event-type:checkout]]` | the event type named `checkout` | name |
 | `[[field:amount]]` | a field named `amount` on any event type | name |
 | `[[field:checkout/amount]]` | the field `amount` of event type `checkout` | name |
-| `[[variable:country]]` | the variable named `country` | name |
+| `[[variable:country]]` | the property named `country` | name |
 | `[[metric:signup_rate]]` | the catalog metric named `signup_rate` | name |
 | `[[alert-rule:<id>]]` | an alert rule, shown with its current name | id |
 | `[[branch:feature_x]]` | the plan branch named `feature_x` | name |
@@ -137,7 +137,7 @@ to notes you can read.
 
 On the main plan, entity pages show a **Notes** card that lists every note that
 links to the entity, from both roots. The card is on the event, event type,
-variable and metric pages. An event type's **Field notes** section lists the
+property and metric pages. An event type's **Field notes** section lists the
 notes that link to its fields. The API returns back-links for every kind (see
 the [Agent API guide](../integrate/agent-api-guide.md#docs-catalog)).
 

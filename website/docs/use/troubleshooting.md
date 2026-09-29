@@ -251,10 +251,10 @@ sends. A break anywhere in that chain produces silence.
    and show as failed.
 9. **A drift scope is on but nothing feeds it.** The two drift scopes act on
    signals another part of the project has to produce first, so a rule can have
-   one enabled and be structurally unable to fire. **Variable value drift**
-   needs some variable to document an allowed-values list on the **main**
-   branch — the variable's own list or a per-event override, either one is
-   enough — which you supply under **Variables**, *or* a value drift already
+   one enabled and be structurally unable to fire. **Property value drift**
+   needs some property to document an allowed-values list on the **main**
+   branch — the property's own list or a per-event override, either one is
+   enough — which you supply under **Properties**, *or* a value drift already
    collected in the project (an open or snoozed row from the last 30 days);
    values documented on a working branch do not count until it merges. **Distribution drift** needs a scan that
    names the columns to watch (**Scan settings → Distribution drift**), or a
@@ -798,14 +798,14 @@ scan says outright that it collects no metric points, so nothing downstream can
 fire.
 
 Every raw counter the run reported is still there under **Show raw counters**.
-Four are always shown — *Events created*, *Variables created*, *Events skipped*,
+Four are always shown — *Events created*, *Properties created*, *Events skipped*,
 *Columns analyzed*. The rest appear only when that run produced them, so the
 panel is shorter for a catalog-only scan than for a scheduled collection:
 *Event breakdowns*, *Distribution rows*, *Paths sampled*, *Paths with samples*,
-*Values written*, *Contexts unfilled*, *Variables retired*, *Signals added*,
+*Values written*, *Contexts unfilled*, *Properties retired*, *Signals added*,
 *Alerts queued*. Nothing was removed; it is one click further down. The four
 sampling counters in that second group are the ones the empty-observed-values
-answer below sends you to, and *Variables retired* read against *Variables
+answer below sends you to, and *Properties retired* read against *Properties
 created* is how you tell a growing catalog from one holding steady — it reads
 `0` rather than going missing on a run that swept and found nothing, and is
 absent only on a replay, which sweeps nothing.
@@ -903,38 +903,38 @@ transient network error is retried the same way a few times, minutes apart.
 Other delivery failures — and every Jira/Linear delivery — wait for the manual
 **Retry**.
 
-**Why did a deleted variable come back after the next scan?**
+**Why did a deleted property come back after the next scan?**
 The scan rediscovered its warehouse column or JSON-path binding. Delete removes
 the plan row, while **Exclude from scans** keeps a tombstone that prevents
-recreation and stops new contexts/drift. Open **Plan → Variables**, exclude the
-variable, and use **Restore** if the decision changes later. Automatic
+recreation and stops new contexts/drift. Open **Plan → Properties**, exclude the
+property, and use **Restore** if the decision changes later. Automatic
 retirement (below) behaves the same way — it deletes the row, it does not leave
-a tombstone — so a retired variable reappears if its source path starts
+a tombstone — so a retired property reappears if its source path starts
 arriving again. Exclusion is what makes a removal stick.
 
-**A scan-created variable vanished from the plan. Where did it go?**
+**A scan-created property vanished from the plan. Where did it go?**
 A catalog run retired it, so a catalog stops growing a permanent row per key of
 a JSON column keyed by free text. A scan you started always retires. A scheduled
 monitoring collection retires on every run too, but what it judges depends on
-the variable: one minted from a path inside a JSON column is judged on every
+the property: one minted from a path inside a JSON column is judged on every
 run, while one minted from a scalar column is judged only when the scan sets
 **Limits → Lookback (hours)** — with the field blank the run reads the slice it
 is collecting, often a single hour, and a scalar column that looks enumerable
 for one quiet hour is rewritten as literals in every event at once, which is not
-evidence its variable is dead. A metrics **replay** syncs no catalog and retires
+evidence its property is dead. A metrics **replay** syncs no catalog and retires
 nothing. A row is removed only when all of this holds: its description and
 display name are still the scan's own, its bindings are still only the source
 path the scan gave it, it documents no values, and it has no per-event override,
 no value drift, no observed context, and no stored event field or meta value
 naming any of its tokens as `${token}`. Anything you renamed, edited,
-documented, overrode, triaged, or excluded is kept — and so is a variable that a single `${token}`
+documented, overrode, triaged, or excluded is kept — and so is a property that a single `${token}`
 still names, even with no observed contexts. The run's details list reports the
-count, and **Plan → Variables** has an **Unused** filter that shows exactly what
+count, and **Plan → Properties** has an **Unused** filter that shows exactly what
 a run would take. See
-[Variables & templates](./variables-and-templates.md#unreferenced-scan-created-variables-are-retired-automatically).
+[Properties & templates](./variables-and-templates.md#unreferenced-scan-created-properties-are-retired-automatically).
 
-**A variable's observed values read "No values stored". What is it telling me?**
-That the variable has contexts — some event field does refer to it — and not one
+**A property's observed values read "No values stored". What is it telling me?**
+That the property has contexts — some event field does refer to it — and not one
 of them holds a value. It is a different state from the dash on neighbouring
 rows, which means no context exists at all. Open the event's value popover to see
 which contexts are empty and what each one binds to. An empty context is not by
@@ -943,22 +943,22 @@ to store. A JSON-path context that is merely new fills on its own — scheduled
 runs attempt every path still waiting for a first value every few runs, so
 expect first samples within hours on a regularly collecting scan. A context
 still empty after days usually means the path is not arriving — but rule out
-two other causes first: a variable excluded from scans is never sampled at
+two other causes first: a property excluded from scans is never sampled at
 all, and a sampling query that fails (a permission change, a dropped column)
 degrades silently so the run still completes — the run details' raw counters
 show it as paths sampled with none coming back with samples. Once stored,
 samples accumulate across runs, so a value does not drop off the list because
 recent scan windows stopped carrying it.
-Note also that a variable with no stored values raises no value drift,
+Note also that a property with no stored values raises no value drift,
 so an empty drift count says nothing about whether the documented contract holds.
 See
-[Variables & templates](./variables-and-templates.md#documented-observed-and-effective-values).
+[Properties & templates](./variables-and-templates.md#documented-observed-and-effective-values).
 
-**Why does a variable show value drift?**
+**Why does a property show value drift?**
 The scan observed values outside the effective documented list (the event
-override when present, otherwise the global list). Review it from Variables or
+override when present, otherwise the global list). Review it from Properties or
 the event detail: accept globally, accept for that event, snooze, or mark false
-positive. See [Variables & templates](./variables-and-templates.md).
+positive. See [Properties & templates](./variables-and-templates.md).
 
 **Why did a value drift I already accepted come back?**
 Because the scan saw a value that was *not* in the set you accepted. An

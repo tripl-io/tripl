@@ -29,7 +29,7 @@ function renderNotice(
 describe('InertScopeNotice', () => {
   it.each([
     ['distribution_drift', 'Scan settings', '/p/acme-ios/scans'],
-    ['variable_value_drift', 'Variables', '/p/acme-ios/variables'],
+    ['variable_value_drift', 'Properties', '/p/acme-ios/variables'],
   ] as const)('sends %s to the screen that supplies its data', (scope, label, href) => {
     renderNotice(scope, 'acme-ios')
 
@@ -70,7 +70,7 @@ describe('InertScopeNotice', () => {
     // both scopes.
     renderNotice('variable_value_drift', 'acme-ios', false, 'scan-42')
 
-    expect(screen.getByRole('link', { name: 'Variables' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Properties' })).toHaveAttribute(
       'href',
       '/p/acme-ios/variables',
     )
@@ -101,7 +101,7 @@ describe('InertScopeNotice', () => {
     expect(inertScopeSentence('variable_value_drift')).toContain('that scans observe')
   })
 
-  it('warns that the Variables link opens on the selected branch, not main', () => {
+  it('warns that the Properties link opens on the selected branch, not main', () => {
     // The sentence is about main; the link is about whatever branch is
     // selected. Saying so is the honest fix — a help link that reset the
     // app-wide branch selection as a side effect is not.

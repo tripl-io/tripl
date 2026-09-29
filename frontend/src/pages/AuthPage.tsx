@@ -272,7 +272,7 @@ export default function AuthPage() {
             <FeatureCard
               eyebrow="Catalog"
               title="Track intent"
-              description="Keep event definitions, variables, and metadata aligned with the real implementation surface."
+              description="Keep event definitions, properties, and metadata aligned with the real implementation surface."
             />
             <FeatureCard
               eyebrow="Monitoring"

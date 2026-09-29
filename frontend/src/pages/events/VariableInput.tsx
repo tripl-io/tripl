@@ -68,7 +68,7 @@ export function SuggestionListbox({
     active?.scrollIntoView?.({ block: 'nearest' })
   }, [id, open, highlightIdx])
   return (
-    <AnchoredListbox id={id} open={open} anchorRef={anchorRef} onDismiss={onDismiss} ariaLabel="Variables">
+    <AnchoredListbox id={id} open={open} anchorRef={anchorRef} onDismiss={onDismiss} ariaLabel="Properties">
       {suggestions.map((v, i) => (
         <button
           key={v.name}

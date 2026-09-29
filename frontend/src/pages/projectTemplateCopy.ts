@@ -19,7 +19,7 @@ export function formatTemplateCounts(counts: ProjectTemplateCounts): string {
   return [
     plural(counts.events, 'event', 'events'),
     plural(counts.event_types, 'event type', 'event types'),
-    plural(counts.variables, 'variable', 'variables'),
+    plural(counts.variables, 'property', 'properties'),
   ].join(' · ')
 }
 

@@ -65,7 +65,7 @@ export const ENTITY_LABEL: Record<PlanDiffEntityType, string> = {
   event_type: 'event type',
   field_definition: 'field',
   event: 'event',
-  variable: 'variable',
+  variable: 'property',
   meta_field: 'meta field',
   relation: 'relation',
 }
@@ -210,7 +210,7 @@ const STATE_KEY_LABEL: Record<string, string> = {
   field_values: 'Field values',
   meta_values: 'Meta fields',
   source_name: 'Source',
-  variable_type: 'Variable type',
+  variable_type: 'Property type',
   json_schema: 'JSON Schema',
 }
 

@@ -37,7 +37,7 @@ describe('ConceptsPage', () => {
       'Events',
       'Event types',
       'Meta fields',
-      'Variables',
+      'Properties',
       'Relations',
       'Alert rules',
       'Signals',

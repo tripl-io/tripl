@@ -327,7 +327,7 @@ function AuditLog({ slug }: { slug?: string }) {
   ) : (
     <>
       Compliance trail of mutation actions on this project's plan —
-      events, schema, variables, branches — and on its scans, metrics and
+      events, schema, properties, branches — and on its scans, metrics and
       alerting. Secrets are redacted in stored payloads. A branch chip
       names the working branch an entry was written through. No chip
       means the write was not branch-scoped: main, or an action with no

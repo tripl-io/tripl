@@ -28,10 +28,10 @@ Everything lands on a **draft branch** named after the template (for example
 `template/ecommerce`), not on the live plan:
 
 - **Event types** with their **fields**: types, required flags and enum options.
-- **Variables** such as `${product_id}`, `${currency}` or `${platform}`, with
+- **Properties** such as `${product_id}`, `${currency}` or `${platform}`, with
   documented values where the vocabulary is closed.
 - **Example events**, every one with the status **draft**, each with a title, a
-  description, tags and field values that reference those variables. Field
+  description, tags and field values that reference those properties. Field
   values count as authored, as if you had typed them, so a later scan never
   rewrites a documented `${variable}`.
 
@@ -51,12 +51,12 @@ addition.
 ## What each template contains
 
 All four templates are at **version 1** and share the same shape: five event
-types, a set of variables, draft example events, five starter-metric
+types, a set of properties, draft example events, five starter-metric
 suggestions and three starter-alert suggestions.
 
 ### E-commerce
 
-Branch `template/ecommerce`: 5 event types, 24 fields, 4 variables, 9 events.
+Branch `template/ecommerce`: 5 event types, 24 fields, 4 properties, 9 events.
 
 | Event type | Fields |
 | --- | --- |
@@ -66,7 +66,7 @@ Branch `template/ecommerce`: 5 event types, 24 fields, 4 variables, 9 events.
 | `checkout` | `platform`, `checkout_step`, `cart_value`, `currency`, `payment_method` |
 | `order` | `platform`, `order_id`, `revenue`, `currency`, `payment_method`, `refund_reason` |
 
-- **Variables:** `product_id`, `currency`, `order_id`, `platform`.
+- **Properties:** `product_id`, `currency`, `order_id`, `platform`.
 - **Events:** `page_viewed`, `product_list_viewed`, `product_viewed`,
   `product_added_to_cart`, `cart_viewed`, `checkout_started`,
   `payment_info_entered`, `order_completed`, `order_refunded`.
@@ -78,7 +78,7 @@ Branch `template/ecommerce`: 5 event types, 24 fields, 4 variables, 9 events.
 
 ### Subscriptions
 
-Branch `template/subscriptions`: 5 event types, 20 fields, 4 variables, 7 events.
+Branch `template/subscriptions`: 5 event types, 20 fields, 4 properties, 7 events.
 
 | Event type | Fields |
 | --- | --- |
@@ -88,7 +88,7 @@ Branch `template/subscriptions`: 5 event types, 20 fields, 4 variables, 7 events
 | `subscription` | `platform`, `plan_id`, `billing_period`, `price`, `currency`, `cancel_reason` |
 | `billing` | `platform`, `plan_id`, `failure_reason`, `retry_count` |
 
-- **Variables:** `platform`, `plan_id`, `billing_period`, `currency`.
+- **Properties:** `platform`, `plan_id`, `billing_period`, `currency`.
 - **Events:** `sign_up_completed`, `paywall_viewed`, `trial_started`,
   `subscription_started`, `subscription_renewed`, `subscription_cancelled`,
   `payment_failed`.
@@ -101,7 +101,7 @@ Branch `template/subscriptions`: 5 event types, 20 fields, 4 variables, 7 events
 
 ### Mobile games
 
-Branch `template/mobile-games`: 5 event types, 20 fields, 5 variables, 8 events.
+Branch `template/mobile-games`: 5 event types, 20 fields, 5 properties, 8 events.
 
 | Event type | Fields |
 | --- | --- |
@@ -111,7 +111,7 @@ Branch `template/mobile-games`: 5 event types, 20 fields, 5 variables, 8 events.
 | `monetization` | `platform`, `product_sku`, `price`, `currency`, `store` |
 | `ads` | `platform`, `ad_format`, `ad_network`, `placement` |
 
-- **Variables:** `platform`, `app_version`, `level_id`, `product_sku`, `currency`.
+- **Properties:** `platform`, `app_version`, `level_id`, `product_sku`, `currency`.
 - **Events:** `session_started`, `tutorial_started`, `tutorial_completed`,
   `level_started`, `level_completed`, `level_failed`, `in_app_purchase_completed`,
   `ad_impression`.
@@ -125,7 +125,7 @@ Branch `template/mobile-games`: 5 event types, 20 fields, 5 variables, 8 events.
 
 ### B2B SaaS
 
-Branch `template/b2b-saas`: 5 event types, 17 fields, 4 variables, 7 events.
+Branch `template/b2b-saas`: 5 event types, 17 fields, 4 properties, 7 events.
 
 | Event type | Fields |
 | --- | --- |
@@ -135,7 +135,7 @@ Branch `template/b2b-saas`: 5 event types, 17 fields, 4 variables, 7 events.
 | `product_usage` | `workspace_id`, `feature_name`, `user_role` |
 | `billing` | `workspace_id`, `plan_id`, `previous_plan_id`, `seats`, `billing_period`, `cancel_reason` |
 
-- **Variables:** `workspace_id`, `user_role`, `plan_id`, `feature_name`.
+- **Properties:** `workspace_id`, `user_role`, `plan_id`, `feature_name`.
 - **Events:** `sign_up_completed`, `workspace_created`, `user_invited`,
   `invite_accepted`, `feature_used`, `plan_upgraded`, `subscription_cancelled`.
 - **Starter metrics (suggested):** Workspace activation rate, Invite acceptance
@@ -176,7 +176,7 @@ The template branch uses the ordinary branch flow described in the
 2. Edit it: rename events to match your naming, drop what you don't track, and
    add what's missing. Everything stays on the branch.
 3. **Submit** it for review, get it **approved**, then **merge**. The event
-   types, fields, variables and events become the project's main plan.
+   types, fields, properties and events become the project's main plan.
 
 If you don't want the template at all, close the branch. Main was never
 touched, so you are left with a blank project.

@@ -186,7 +186,7 @@ export function buildRunReport(
   if (variablesCreated > 0) {
     lines.push({
       id: 'variables-created',
-      text: `Added ${countOf(variablesCreated, 'variable', 'variables')}.`,
+      text: `Added ${countOf(variablesCreated, 'property', 'properties')}.`,
     })
   }
 

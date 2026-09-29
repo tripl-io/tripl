@@ -23,7 +23,7 @@ Because of that, the MCP server inherits the API-key security model wholesale:
 
 The server is configured through environment variables:
 
-| Variable | Required | Meaning |
+| Property | Required | Meaning |
 |----------|----------|---------|
 | `TRIPL_BASE_URL` | yes | Base URL of the tripl instance, e.g. `https://tripl.example.com` |
 | `TRIPL_API_KEY` | stdio mode | API key (`tk_r_...` or `tk_w_...`) used for all requests |
@@ -32,7 +32,7 @@ The server is configured through environment variables:
 Give a discovery-only agent a `tk_r_` key and prefer project-scoped keys, the
 same [safe defaults](./agent-api-guide.md#safe-agent-defaults) as for raw REST.
 
-:::tip Same two variables as the CLI
+:::tip Same two properties as the CLI
 `TRIPL_BASE_URL` and `TRIPL_API_KEY` are read identically by the
 [operator CLI](../run/cli.md), and the two tools share one HTTP client (the MCP
 server imports it from the `tripl` distribution in `cli/`). A shell configured
@@ -187,8 +187,8 @@ and not by the tool schema.
 | `get_event_properties` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}/properties` |
 | `list_event_types` | `slug` | `GET /projects/{slug}/event-types` |
 | `get_event_type_fields` | `slug, event_type_id` | Event type + its field definitions, merged |
-| `list_variables` | `slug, branch_id?` | `GET /projects/{slug}/variables` |
-| `get_variable_values` | `slug, variable_id, branch_id?` | Variable values + event overrides |
+| `list_variables` | `slug, branch_id?` | `GET /projects/{slug}/properties` |
+| `get_variable_values` | `slug, variable_id, branch_id?` | Property values + event overrides |
 | `list_branches` | `slug` | `GET /projects/{slug}/branches` |
 | `get_branch_diff` | `slug, branch_id` | `GET /projects/{slug}/branches/{branch_id}/diff` |
 | `list_scans` | `slug` | `GET /projects/{slug}/scans` — **trimmed**: identity, schedule and a derived `dispatchable` flag, without `base_query` and the tuning knobs |
@@ -221,26 +221,26 @@ project the key is fenced to.
 
 :::note
 `list_variables` passes the API response straight through, so it returns the
-paged envelope `{"items": [...], "total": <int>}` — the first 200 variables of
-the project. Compare `total` against `len(items)` before concluding a variable
+paged envelope `{"items": [...], "total": <int>}` — the first 200 properties of
+the project. Compare `total` against `len(items)` before concluding a property
 does not exist; on a large catalog, fall back to `search_plan` with
 `types=variable` to find a specific one.
 
-A missing variable is not always a paging artefact either: a catalog scan run
-can retire the scan-created variables nothing refers to any more, so an id from
+A missing property is not always a paging artefact either: a catalog scan run
+can retire the scan-created properties nothing refers to any more, so an id from
 an earlier listing can stop resolving. A scan started by hand always does this;
-a scheduled collection does too, judging a variable minted from a path inside a
+a scheduled collection does too, judging a property minted from a path inside a
 JSON column on every run and one minted from a scalar column only when the
-config declares a lookback window; a replay never. Variables that were edited, documented,
+config declares a lookback window; a replay never. Properties that were edited, documented,
 bound, or excluded from scans are never retired, and neither is one renamed to
 anything the scan would not have chosen for that path itself — see
-[Variables & templates](../use/variables-and-templates.md#unreferenced-scan-created-variables-are-retired-automatically).
+[Properties & templates](../use/variables-and-templates.md#unreferenced-scan-created-properties-are-retired-automatically).
 
 The REST endpoint's `usage=all|used|unused` filter — `unused` being exactly the
 set a retirement pass would take — is **not** plumbed through this tool, which
 passes only `slug`, `branch_id`, `offset` and `limit`. An agent that needs
-"which variables does nothing reference" has to call
-`GET /api/v1/projects/{slug}/variables?usage=unused` over HTTP.
+"which properties does nothing reference" has to call
+`GET /api/v1/projects/{slug}/properties?usage=unused` over HTTP.
 :::
 
 ### Write tools

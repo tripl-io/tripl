@@ -30,7 +30,7 @@ describe('shared query keys (tripl-jfm3.115, tripl-jfm3.116)', () => {
     expect(variablesKey('demo', 'branch-1')).toEqual(['variables', 'demo', 'branch-1'])
   })
 
-  it('keeps the two variable shapes in separate caches, page nested under items', () => {
+  it('keeps the two property shapes in separate caches, page nested under items', () => {
     // The items key holds an array and the page key holds {items, total}. Sharing
     // one key handed the events rows an object and crashed the page in
     // production (tripl-lqxb) — so they must differ...
