@@ -55,6 +55,7 @@ from tripl.services import health_weights as hw
 from tripl.services import schema_drift_service, variable_value_drift_service
 from tripl.services._id_chunks import chunked
 from tripl.services._open_event_signals import open_unverdicted_event_signals
+from tripl.services._open_signals import open_property_drift_counts_by_event
 from tripl.services.health_score import EventHealthFacts, grade_for, score_event
 from tripl.services.health_weights import HealthComponentKey
 from tripl.services.plan_branch_service import ensure_main_branch_id
@@ -330,6 +331,9 @@ async def load_facts(
     open_signals = await open_unverdicted_event_signals(
         session, project_id, signal_candidates, now=now
     )
+    property_drifts = await open_property_drift_counts_by_event(
+        session, project_id, event_ids, now=now
+    )
 
     facts: dict[uuid.UUID, EventHealthFacts] = {}
     for event in events:
@@ -353,6 +357,7 @@ async def load_facts(
                 1 for _field, kind in drifts_on_type if kind in STRUCTURAL_DRIFT_TYPES
             ),
             value_drifts=value_drifts.get(event.id, 0),
+            property_drifts=property_drifts.get(event.id, 0),
             distribution_drifts=distribution.get(event.event_type_id, 0),
             covered=bool(event_configs),
             detection_enabled=any(config.anomaly_detection_enabled for config in event_configs),

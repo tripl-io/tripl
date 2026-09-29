@@ -129,6 +129,14 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
         default=False,
         server_default="false",
     )
+    # Opt-in to property drift (F23, #306): one ``property_drift`` candidate per
+    # open ``PropertyDrift`` — a new property, a missing required one, or a
+    # type change. Off by default like the other drift families.
+    include_property_drifts: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     # Append an LLM-generated explanation paragraph to delivered alert
     # messages. Off by default; a no-op unless AI features are enabled in
     # instance settings.

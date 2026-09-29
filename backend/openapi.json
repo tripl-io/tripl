@@ -2182,7 +2182,10 @@
           "source_late",
           "source_overdue",
           "sunset_overdue",
-          "successor_silent"
+          "successor_silent",
+          "new_property",
+          "missing_required",
+          "type_change"
         ],
         "title": "AlertDriftType",
         "type": "string"
@@ -2852,6 +2855,11 @@
             "title": "Include Project Total",
             "type": "boolean"
           },
+          "include_property_drifts": {
+            "default": false,
+            "title": "Include Property Drifts",
+            "type": "boolean"
+          },
           "include_release_regressions": {
             "default": false,
             "title": "Include Release Regressions",
@@ -3091,6 +3099,10 @@
             "title": "Include Project Total",
             "type": "boolean"
           },
+          "include_property_drifts": {
+            "title": "Include Property Drifts",
+            "type": "boolean"
+          },
           "include_release_regressions": {
             "title": "Include Release Regressions",
             "type": "boolean"
@@ -3237,6 +3249,7 @@
           "include_metrics",
           "include_source_freshness",
           "include_lifecycle",
+          "include_property_drifts",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -3499,6 +3512,17 @@
               }
             ],
             "title": "Include Project Total"
+          },
+          "include_property_drifts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Property Drifts"
           },
           "include_release_regressions": {
             "anyOf": [
@@ -17526,7 +17550,8 @@
           "metric",
           "variable_value_drift",
           "source_freshness",
-          "lifecycle"
+          "lifecycle",
+          "property_drift"
         ],
         "title": "MetricScopeType",
         "type": "string"
@@ -18142,6 +18167,10 @@
             "title": "Include Project Total",
             "type": "boolean"
           },
+          "include_property_drifts": {
+            "title": "Include Property Drifts",
+            "type": "boolean"
+          },
           "include_release_regressions": {
             "title": "Include Release Regressions",
             "type": "boolean"
@@ -18322,6 +18351,7 @@
           "include_metrics",
           "include_source_freshness",
           "include_lifecycle",
+          "include_property_drifts",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -18876,7 +18906,8 @@
               "branch_review_requested",
               "branch_approved",
               "branch_merged",
-              "lifecycle"
+              "lifecycle",
+              "property_drift"
             ],
             "title": "Kind",
             "type": "string"
@@ -24101,6 +24132,11 @@
           "open_incident_count": {
             "default": 0,
             "title": "Open Incident Count",
+            "type": "integer"
+          },
+          "open_property_drift_count": {
+            "default": 0,
+            "title": "Open Property Drift Count",
             "type": "integer"
           },
           "review_pending_event_count": {

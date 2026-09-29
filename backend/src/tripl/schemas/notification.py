@@ -23,6 +23,7 @@ NotificationKindLiteral = Literal[
     "branch_approved",
     "branch_merged",
     "lifecycle",
+    "property_drift",
 ]
 EmailModeLiteral = Literal["off", "instant", "daily", "weekly"]
 

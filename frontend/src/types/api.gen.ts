@@ -6791,7 +6791,7 @@ export interface components {
          * AlertDriftType
          * @enum {string}
          */
-        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent";
+        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent" | "new_property" | "missing_required" | "type_change";
         /** AlertInboxActionRequest */
         AlertInboxActionRequest: {
             /**
@@ -7123,6 +7123,11 @@ export interface components {
              */
             include_project_total: boolean;
             /**
+             * Include Property Drifts
+             * @default false
+             */
+            include_property_drifts: boolean;
+            /**
              * Include Release Regressions
              * @default false
              */
@@ -7251,6 +7256,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -7368,6 +7375,8 @@ export interface components {
             include_metrics?: boolean | null;
             /** Include Project Total */
             include_project_total?: boolean | null;
+            /** Include Property Drifts */
+            include_property_drifts?: boolean | null;
             /** Include Release Regressions */
             include_release_regressions?: boolean | null;
             /** Include Schema Drifts */
@@ -12943,7 +12952,7 @@ export interface components {
          * MetricScopeType
          * @enum {string}
          */
-        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle";
+        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle" | "property_drift";
         /**
          * MetricSeriesPoint
          * @description One densified point of a catalog-metric series.
@@ -13165,6 +13174,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -13418,7 +13429,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle";
+            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle" | "property_drift";
             /**
              * Project Id
              * Format: uuid
@@ -15500,6 +15511,11 @@ export interface components {
              * @default 0
              */
             open_incident_count: number;
+            /**
+             * Open Property Drift Count
+             * @default 0
+             */
+            open_property_drift_count: number;
             /**
              * Review Pending Event Count
              * @default 0

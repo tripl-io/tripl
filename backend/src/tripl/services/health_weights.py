@@ -31,7 +31,10 @@ WEIGHT_SIGNALS: Final = 15
 WEIGHT_FRESHNESS: Final = 10
 WEIGHT_DOCUMENTATION: Final = 15
 
-# Each open drift costs this share of the drifts component.
+# Each open drift costs this share of the drifts component. Schema, value,
+# property (F23: a new property or a missing required one on the event; a type
+# change is per property and charged to no event) and distribution drifts all
+# count alike: each is one thing the plan and the data disagree on.
 DRIFT_PENALTY: Final = 0.25
 # Each open, unverdicted signal costs this share of the signals component.
 SIGNAL_PENALTY: Final = 0.5
