@@ -16395,6 +16395,8 @@ export interface components {
             /** Event Type Id */
             event_type_id?: string | null;
             interval?: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /** Metric Breakdown Columns */
@@ -16480,6 +16482,8 @@ export interface components {
              */
             id: string;
             interval: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths: string[];
             /** Last Collection At */
@@ -16551,6 +16555,8 @@ export interface components {
              * @default false
              */
             include_json_paths: boolean;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /**
@@ -16612,6 +16618,8 @@ export interface components {
              */
             id: string;
             interval: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths: string[];
             /** Last Collection At */
@@ -16694,6 +16702,8 @@ export interface components {
             /** Event Type Id */
             event_type_id?: string | null;
             interval?: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[] | null;
             /** Json Value Paths */
             json_value_paths?: string[] | null;
             /** Metric Breakdown Columns */
@@ -16885,6 +16895,8 @@ export interface components {
             event_type_column?: string | null;
             /** Event Type Id */
             event_type_id?: string | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /** Platform Column */

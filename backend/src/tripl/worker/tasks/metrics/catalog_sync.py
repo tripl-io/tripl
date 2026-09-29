@@ -38,6 +38,7 @@ from tripl.core.analyzers.cardinality import BreakdownAnalysis, _is_json_type
 from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.core.analyzers.event_plan import OBJECT_PROPERTY_SCHEMA
 from tripl.core.intervals import INTERVALS
+from tripl.core.json_string_columns import scan_source_query
 from tripl.core.property_drift import clear_stale_findings, type_findings, upsert_findings
 from tripl.core.property_schema import infer_property_type
 from tripl.core.scan_setup_preset import is_event_properties_preset
@@ -582,7 +583,7 @@ def _collect_json_path_samples(
 
     try:
         discovered = adapter.get_json_path_samples(
-            config.base_query,
+            scan_source_query(adapter, config),
             sorted(wanted.keys() | type_only.keys()),
             time_column=config.time_column if catalog_scan_window else None,
             time_from=catalog_scan_window[0] if catalog_scan_window else None,
@@ -993,7 +994,7 @@ def sync_catalog(
         # Grouped scan: same as _scan_with_grouping in scan.py
         group_values, grouped_analyses = analyze_cardinality_grouped_fn(
             adapter,
-            config.base_query,
+            scan_source_query(adapter, config),
             columns,
             group_column=config.event_type_column,
             threshold=config.cardinality_threshold,
@@ -1040,7 +1041,7 @@ def sync_catalog(
                 session,
                 adapter=adapter,
                 event_type=existing_et,
-                base_query=config.base_query,
+                base_query=scan_source_query(adapter, config),
                 columns=columns,
                 skip_columns=skip_cols,
                 scan_config_id=config.id,
@@ -1092,7 +1093,7 @@ def sync_catalog(
         # Single event type: same as run_scan single-type path
         analysis = analyze_cardinality_fn(
             adapter,
-            config.base_query,
+            scan_source_query(adapter, config),
             columns,
             threshold=config.cardinality_threshold,
             json_value_paths=json_value_path_map,
@@ -1125,7 +1126,7 @@ def sync_catalog(
             session,
             adapter=adapter,
             event_type=event_type,
-            base_query=config.base_query,
+            base_query=scan_source_query(adapter, config),
             columns=columns,
             skip_columns=skip_cols,
             scan_config_id=config.id,

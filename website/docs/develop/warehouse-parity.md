@@ -328,6 +328,7 @@ is a shipping warehouse.
 | Schema drift | derived from scan output | full | full | full | full |
 | Value / distribution drift | derived from scan output | full | full | full | full |
 | Properties as breakdowns, drift fields and contracts (`<json_column>.<path>`, F23) | `_field_value_expression` / `_field_operand` | full: JSON subcolumn, one `Map` key, named `Tuple` element | full: `JSON_VALUE` (JSON), declared STRUCT field | full: `#>>` (`json`/`jsonb`) | **none** — no JSON columns; a property breakdown raises `SyntheticCapabilityError` [10] |
+| Text columns parsed as JSON (`json_string_columns`, F23.9) | `json_string_source`, resolved once per adapter by `core.json_string_columns` | full: `SELECT * REPLACE (CAST(if(isValidJSON(s) AND JSONType(s) = 'Object', s, '{}'), 'JSON') AS c)` — needs the `JSON` type (25.x) | full: `SELECT * REPLACE (IF(JSON_TYPE(SAFE.PARSE_JSON(c, wide_number_mode => 'round')) = 'object', …, NULL) AS c)` | **none** — no non-failing text→`jsonb` cast before PG 16; the API refuses the setting (`422`) and the adapter raises `WarehouseCapabilityError` | **none** — refused like PostgreSQL |
 | **Field contracts** (required/enum/regex/range) | `validate_field_contracts` | **full** | **full** (warehouse-side, full window) | **full** (warehouse-side, full window; range compares in exact decimal, see "PostgreSQL range contracts compare exactly") | bounded [10] |
 | Anomaly detection | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |
 | Alerts | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |

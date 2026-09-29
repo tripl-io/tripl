@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Play } from 'lucide-react'
-import type { DataSource, EventType, IntervalCode } from '@/types'
+import type { DataSource, EventType, IntervalCode, ScanConfigPreview } from '@/types'
 import { useDataSourceSchema } from '@/hooks/useDataSourceSchema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,7 @@ import { MetricBreakdownPicker } from './MetricBreakdownPicker'
 import { ScanCausalNote } from './ScanCausalNote'
 import { ScanPreviewPanel } from './ScanPreviewPanel'
 import { PresetColumnFields, SetupPresetChoice } from './ScanSetupPresetFields'
+import { JsonStringColumnsPicker } from './JsonStringColumnsPicker'
 import { LazySqlEditor } from '@/components/sql-editor-lazy'
 import { Field, NativeSelect, SCard } from '@/components/settings/kit'
 import { FieldError } from '@/components/forms/FieldError'
@@ -176,6 +177,14 @@ function CollapsibleSection({
 const NAMING_TOGGLE_ID = 'scan-naming-toggle'
 
 /**
+ * The preview's columns without the ones parsed as JSON: a parsed column is a
+ * document, never a plain breakdown or drift value (its properties are).
+ */
+function textFreeColumns(preview: ScanConfigPreview, parsed: readonly string[]) {
+  return preview.columns.filter(column => !parsed.includes(column.name))
+}
+
+/**
  * Open "Event names and grouping" and put the reader on the control the dry
  * run's flood warning named: the fix sat in a collapsed section below, and
  * nothing pointed at it (#247 DA-1).
@@ -218,7 +227,7 @@ export function ScanEssentialsSection({
   const {
     state, set, preview, dryRun, dryRunStale,
     setBaseQuery, setDataSourceId, setEventTypeColumn, setTimeColumn, setInterval, setSetupPreset,
-    previewMut, dryRunMut, loadPreview, runDryRun,
+    previewMut, dryRunMut, loadPreview, runDryRun, previewParseStale, toggleJsonStringColumn,
   } = form
   const monitoring = state.mode === 'monitoring'
   const preset = state.setupPreset === 'event_properties'
@@ -379,10 +388,21 @@ export function ScanEssentialsSection({
       {/* How the table lays events out, before the naming questions: the
           Event + properties preset asks two columns instead of all of them. */}
       <SetupPresetChoice value={state.setupPreset} onChange={setSetupPreset} />
+      {/* Both setups: a ticked text column is a JSON column from here on, so
+          the preset's properties picker below offers it too. */}
+      <JsonStringColumnsPicker
+        preview={preview}
+        selected={state.jsonStringColumns}
+        dbType={selectedSource?.db_type}
+        stale={previewParseStale}
+        onToggle={toggleJsonStringColumn}
+      />
       {preset && (
         <PresetColumnFields
           preview={preview}
           eventTypes={eventTypes}
+          jsonStringColumns={state.jsonStringColumns}
+          summaryStale={previewParseStale}
           eventNameColumn={state.eventNameColumn}
           propertiesColumn={state.propertiesColumn}
           eventTypeId={state.eventTypeId}
@@ -737,7 +757,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
             hint="Each selected column or property gets its own series per value (e.g. one per platform), grouped in the warehouse."
           >
             <MetricBreakdownPicker
-              columns={preview.columns}
+              columns={textFreeColumns(preview, state.jsonStringColumns)}
               selectedColumns={state.metricBreakdownColumns}
               eventTypeColumn={state.eventTypeColumn}
               timeColumn={state.timeColumn}
@@ -780,7 +800,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
             last
           >
             <DistributionDriftPicker
-              columns={preview.columns}
+              columns={textFreeColumns(preview, state.jsonStringColumns)}
               selectedFields={state.distributionDriftFields}
               eventTypeColumn={state.eventTypeColumn}
               timeColumn={state.timeColumn}

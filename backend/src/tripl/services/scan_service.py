@@ -8,6 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
 from tripl.core.bucketing import floor_to_bucket
+from tripl.core.json_string_columns import (
+    check_json_string_columns_roles,
+    check_json_string_db_type,
+)
 from tripl.core.scan_setup_preset import (
     PRESET_EVENT_TYPE_NAME,
     apply_setup_preset,
@@ -85,6 +89,14 @@ async def _verify_data_source(
             ),
         )
     return ds
+
+
+def _verify_json_string_db_type(ds: DataSource, json_string_columns: list[str]) -> None:
+    """422 when a scan asks a data source that cannot parse text to parse it."""
+    try:
+        check_json_string_db_type(ds.db_type, json_string_columns)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 async def _verify_main_event_type(
@@ -189,7 +201,8 @@ async def create_scan_config(
     session: AsyncSession, slug: str, data: ScanConfigCreate
 ) -> ScanConfig:
     project_id = await resolve_project_id(session, slug)
-    await _verify_data_source(session, data.data_source_id, project_id)
+    ds = await _verify_data_source(session, data.data_source_id, project_id)
+    _verify_json_string_db_type(ds, data.json_string_columns)
     await _verify_main_event_type(session, project_id, data.event_type_id)
     await _reject_duplicate_name(session, data.data_source_id, data.name)
 
@@ -275,6 +288,22 @@ async def update_scan_config(
             app_version_column=update_dict.get("app_version_column", config.app_version_column),
             platform_column=update_dict.get("platform_column", config.platform_column),
         )
+        check_json_string_columns_roles(
+            update_dict.get("json_string_columns", config.json_string_columns) or [],
+            event_type_column=update_dict.get("event_type_column", config.event_type_column),
+            time_column=update_dict.get("time_column", config.time_column),
+            app_version_column=update_dict.get("app_version_column", config.app_version_column),
+            platform_column=update_dict.get("platform_column", config.platform_column),
+            event_name_column=update_dict.get("event_name_column", config.event_name_column),
+            metric_breakdown_columns=update_dict.get(
+                "metric_breakdown_columns", config.metric_breakdown_columns
+            )
+            or [],
+            distribution_drift_fields=update_dict.get(
+                "distribution_drift_fields", config.distribution_drift_fields
+            )
+            or [],
+        )
         check_replay_chunk_against_interval(
             interval=update_dict.get("interval", config.interval),
             replay_chunk_interval=update_dict.get(
@@ -283,6 +312,10 @@ async def update_scan_config(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if update_dict.get("json_string_columns"):
+        ds = await session.get(DataSource, config.data_source_id)
+        if ds is not None:
+            _verify_json_string_db_type(ds, update_dict["json_string_columns"])
 
     created_event_type = False
     if (
@@ -344,7 +377,8 @@ async def trigger_preview(
     work runs in the worker; the client polls ``get_preview_job`` for the result.
     """
     project_id = await resolve_project_id(session, slug)
-    await _verify_data_source(session, data.data_source_id, project_id)
+    ds = await _verify_data_source(session, data.data_source_id, project_id)
+    _verify_json_string_db_type(ds, data.json_string_columns)
 
     job = ScanPreviewJob(
         project_id=project_id,
@@ -357,6 +391,7 @@ async def trigger_preview(
         include_json_paths=data.include_json_paths,
         event_name_column=data.event_name_column,
         properties_column=data.properties_column,
+        json_string_columns=list(data.json_string_columns),
         status=ScanJobStatus.pending.value,
     )
     session.add(job)
@@ -427,7 +462,8 @@ async def trigger_dry_run(
             detail="either scan_config_id, or both data_source_id and base_query, must be provided",
         )
     else:
-        await _verify_data_source(session, data.data_source_id, project_id)
+        ds = await _verify_data_source(session, data.data_source_id, project_id)
+        _verify_json_string_db_type(ds, data.json_string_columns)
         await _verify_main_event_type(session, project_id, data.event_type_id)
         job = ScanDryRunJob(
             project_id=project_id,
@@ -442,6 +478,7 @@ async def trigger_dry_run(
             setup_preset=data.setup_preset,
             event_name_column=data.event_name_column,
             properties_column=data.properties_column,
+            json_string_columns=list(data.json_string_columns),
             cardinality_threshold=data.cardinality_threshold,
             app_version_column=data.app_version_column,
             platform_column=data.platform_column,

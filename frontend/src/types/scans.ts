@@ -160,6 +160,12 @@ export interface ScanConfig {
   setup_preset?: ScanSetupPreset
   event_name_column?: string | null
   properties_column?: string | null
+  /**
+   * String (ClickHouse) / STRING (BigQuery) columns every read of the source
+   * parses as JSON (F23.9), so their keys become properties like a JSON
+   * column's. Optional so hand-built configs (tests, older fixtures) parse none.
+   */
+  json_string_columns?: string[]
   metric_breakdown_columns: string[]
   metric_breakdown_values_limit: number | null
   distribution_drift_fields: string[]
@@ -483,6 +489,7 @@ export interface ScanDryRunRequest {
   setup_preset?: ScanSetupPreset
   event_name_column?: string | null
   properties_column?: string | null
+  json_string_columns?: string[]
   cardinality_threshold?: number
   app_version_column?: string | null
   platform_column?: string | null

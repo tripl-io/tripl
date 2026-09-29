@@ -27,6 +27,7 @@ from tripl.core.analyzers.event_generator import (
     truncate_event_name,
 )
 from tripl.core.bucketing import stored_bucket, to_utc
+from tripl.core.json_string_columns import scan_source_query
 from tripl.json_paths import (
     MAX_PROPERTY_FIELDS,
     build_json_value,
@@ -833,7 +834,7 @@ def _collect_metric_breakdown_rows(
         breakdown_json_value_names,
         rows,
     ) = adapter.get_time_bucketed_breakdown_counts_multi(
-        config.base_query,
+        scan_source_query(adapter, config),
         config.time_column or "",
         interval_code,
         breakdown_columns,
@@ -1156,7 +1157,7 @@ def _collect_distribution_drift_rows(
     history_from = time_from - interval_delta * baseline_window_buckets
 
     _col_names, _json_value_names, rows = adapter.get_time_bucketed_breakdown_counts_multi(
-        config.base_query,
+        scan_source_query(adapter, config),
         config.time_column or "",
         interval_code,
         distribution_fields,

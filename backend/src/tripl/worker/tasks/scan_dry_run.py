@@ -39,6 +39,7 @@ from tripl.core.analyzers.event_plan import (
     plan_events,
     unnamed_skip_detail,
 )
+from tripl.core.json_string_columns import scan_source_query
 from tripl.core.name_template import NameFormatError
 from tripl.core.scan_setup_preset import PRESET_EVENT_TYPE_NAME, is_event_properties_preset
 from tripl.core.warehouse_types import is_complex_type
@@ -114,6 +115,7 @@ def _dry_run_targets(
     already files a ``NameFormatError``.
     """
     json_value_paths = group_json_value_paths(config.json_value_paths)
+    source = scan_source_query(adapter, config)
     common = {
         "threshold": config.cardinality_threshold,
         "json_value_paths": json_value_paths,
@@ -128,7 +130,7 @@ def _dry_run_targets(
         # creates the preset's own, and gives it the two fields
         # (``ensure_preset_event_type``). A draft may name no event type yet: the
         # API picks the preset's one when the scan is saved.
-        analysis = analyze_cardinality(adapter, config.base_query, columns, **common)  # type: ignore[arg-type]
+        analysis = analyze_cardinality(adapter, source, columns, **common)  # type: ignore[arg-type]
         preset_type = (
             session.get(EventType, config.event_type_id)
             if config.event_type_id is not None
@@ -158,7 +160,7 @@ def _dry_run_targets(
         )
 
     if config.event_type_id is not None:
-        analysis = analyze_cardinality(adapter, config.base_query, columns, **common)  # type: ignore[arg-type]
+        analysis = analyze_cardinality(adapter, source, columns, **common)  # type: ignore[arg-type]
         event_type = session.get(EventType, config.event_type_id)
         if event_type is None:
             msg = f"EventType {config.event_type_id} not found"
@@ -182,7 +184,7 @@ def _dry_run_targets(
 
     group_values, grouped = analyze_cardinality_grouped(
         adapter,
-        config.base_query,
+        source,
         columns,
         group_column=config.event_type_column,
         **common,  # type: ignore[arg-type]
@@ -260,7 +262,7 @@ def build_dry_run_payload(
     over: the lookback window, the sample cap, and the event cap. None of them is
     extrapolated to a table-wide total.
     """
-    columns = adapter.get_columns(config.base_query)
+    columns = adapter.get_columns(scan_source_query(adapter, config))
     if config.time_column:
         columns = [c for c in columns if c.name != config.time_column]
     # The preset reads only its own columns, as the run does; a missing or
@@ -519,6 +521,7 @@ def _dry_run_config(session: Session, job: ScanDryRunJob) -> ScanConfig:
         setup_preset=job.setup_preset,
         event_name_column=job.event_name_column,
         properties_column=job.properties_column,
+        json_string_columns=list(job.json_string_columns or []),
         cardinality_threshold=job.cardinality_threshold,
         app_version_column=job.app_version_column,
         platform_column=job.platform_column,

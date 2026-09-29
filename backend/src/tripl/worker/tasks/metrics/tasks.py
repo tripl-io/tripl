@@ -38,6 +38,7 @@ from tripl.core.analyzers.event_generator import generate_events
 from tripl.core.bucketing import to_utc
 from tripl.core.collection_progress import collection_progress_to
 from tripl.core.intervals import get_interval
+from tripl.core.json_string_columns import scan_source_query
 from tripl.models.data_source import DataSource
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
@@ -672,7 +673,7 @@ def collect_metrics(
         adapter.test_connection()
 
         # Get columns (same as scan task)
-        columns = adapter.get_columns(config.base_query)
+        columns = adapter.get_columns(scan_source_query(adapter, config))
         if config.time_column:
             columns = [c for c in columns if c.name != config.time_column]
         # The "event + properties" preset reads only the columns it needs.
@@ -904,7 +905,7 @@ def collect_metrics(
             and hasattr(adapter, "get_json_path_samples")
         ):
             replay_json_samples = adapter.get_json_path_samples(
-                config.base_query,
+                scan_source_query(adapter, config),
                 json_cols,
                 time_column=config.time_column,
                 time_from=time_from_dt,

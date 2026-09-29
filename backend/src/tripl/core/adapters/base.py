@@ -9,6 +9,7 @@ from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 
+from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.json_paths import extract_json_path, json_scalar_text, split_property_field
 from tripl.models.domain_enums import MetricAggregation
 
@@ -592,6 +593,30 @@ class BaseAdapter(abc.ABC):
         time_from: datetime | None = None,
         time_to: datetime | None = None,
     ) -> tuple[list[str], list[tuple[object, ...]]]: ...
+
+    #: Whether :meth:`json_string_source` is implemented (F23.9, #306).
+    supports_json_string_columns: bool = False
+
+    def json_string_source(self, base_query: str, columns: list[str]) -> str:
+        """``base_query`` with each of ``columns`` (String-typed) parsed as JSON.
+
+        The opt-in behind a scan config's ``json_string_columns``: the returned
+        query projects every column of ``base_query`` unchanged except these,
+        which become the dialect's JSON type. Everything downstream then reads
+        them as it reads a native JSON column — type introspection reports JSON,
+        so path discovery, sampling, the breakdown's shape column, property
+        extraction and contracts need no second code path. A row whose text is
+        not a JSON object must not fail the query: it reads as an empty (or
+        NULL) document, i.e. as a row that carries none of the keys.
+
+        Callers go through ``core.json_string_columns``, which checks the
+        columns' types first and caches the result per adapter.
+        """
+        msg = (
+            "This data source cannot parse String columns as JSON; "
+            "only ClickHouse and BigQuery can."
+        )
+        raise WarehouseCapabilityError(msg)
 
     #: Whether ``get_json_path_samples`` returns each value as JSON TEXT
     #: (``'"42"'`` for a string, ``'42'`` for a number) rather than decoded.

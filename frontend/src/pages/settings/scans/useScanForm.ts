@@ -37,6 +37,7 @@ export interface ScanFormPayload {
   setup_preset: ScanSetupPreset
   event_name_column: string | null
   properties_column: string | null
+  json_string_columns: string[]
   metric_breakdown_columns: string[]
   metric_breakdown_values_limit: number | null
   distribution_drift_fields: string[]
@@ -69,6 +70,11 @@ export interface ScanFormState {
   /** The preset's event-name column and JSON properties column. */
   eventNameColumn: string
   propertiesColumn: string
+  /**
+   * Text columns every read of the source parses as JSON (F23.9), in both
+   * setups: their keys become properties like a JSON column's.
+   */
+  jsonStringColumns: string[]
   dataSourceId: string
   name: string
   baseQuery: string
@@ -101,6 +107,7 @@ function initialState(scanConfig: ScanConfig | null): ScanFormState {
     setupPreset: scanConfig?.setup_preset ?? 'custom',
     eventNameColumn: scanConfig?.event_name_column ?? '',
     propertiesColumn: scanConfig?.properties_column ?? '',
+    jsonStringColumns: scanConfig?.json_string_columns ?? [],
     dataSourceId: scanConfig?.data_source_id ?? '',
     name: scanConfig?.name ?? '',
     baseQuery: scanConfig?.base_query ?? '',
@@ -170,6 +177,7 @@ export function toBackendPayload(state: ScanFormState): ScanFormPayload {
     setup_preset: state.setupPreset,
     event_name_column: preset ? state.eventNameColumn || null : null,
     properties_column: preset ? state.propertiesColumn || null : null,
+    json_string_columns: state.jsonStringColumns,
     metric_breakdown_columns: state.metricBreakdownColumns,
     metric_breakdown_values_limit: parseOptionalPositiveInt(state.metricBreakdownValuesLimit),
     distribution_drift_fields: state.distributionDriftFields,
@@ -217,6 +225,7 @@ export function toDryRunRequest(state: ScanFormState): ScanDryRunRequest {
     setup_preset: payload.setup_preset,
     event_name_column: payload.event_name_column,
     properties_column: payload.properties_column,
+    json_string_columns: payload.json_string_columns,
     cardinality_threshold: payload.cardinality_threshold,
     app_version_column: payload.app_version_column,
     platform_column: payload.platform_column,
@@ -343,6 +352,11 @@ export interface PreviewVariables {
   signal: AbortSignal
 }
 
+/** Whether two column lists name the same columns, in any order. */
+function sameColumns(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every(column => b.includes(column))
+}
+
 /** Save gate shared by create and edit. */
 export function canSubmitScanForm(state: ScanFormState): boolean {
   return scanFormBlocker(state) === null
@@ -353,6 +367,12 @@ export interface UseScanFormResult {
   set: <K extends keyof ScanFormState>(key: K, value: ScanFormState[K]) => void
   /** The loaded preview, or null when none was loaded for the draft as it stands. */
   preview: ScanConfigPreview | null
+  /**
+   * True when the "Parse as JSON" columns changed since the preview was loaded:
+   * its column types and summary describe the source parsed the old way. The
+   * pickers already count a ticked column as JSON; a reload fills its keys in.
+   */
+  previewParseStale: boolean
   /** "What this scan would create", or null before the first check. */
   dryRun: ScanDryRunResponse | null
   /**
@@ -386,6 +406,7 @@ export interface UseScanFormResult {
   toggleJsonValuePath: (path: string) => void
   toggleMetricBreakdownColumn: (column: string) => void
   toggleDistributionDriftField: (field: string) => void
+  toggleJsonStringColumn: (column: string) => void
   toBackendPayload: () => ScanFormPayload
 }
 
@@ -401,7 +422,7 @@ export function useScanForm(
   // only while the draft still matches, so a query edit hides it without
   // anything having to remember to clear it.
   const [previewResult, setPreviewResult] = useState<
-    { preview: ScanConfigPreview; requestKey: string } | null
+    { preview: ScanConfigPreview; requestKey: string; parsed: string[] } | null
   >(null)
   // The answer AND the draft it answers for, so staleness is a fact rather than
   // a guess. Serializing the request is enough: it is exactly the set of inputs
@@ -431,6 +452,8 @@ export function useScanForm(
 
   const preview =
     previewResult && previewResult.requestKey === previewDraftKey(state) ? previewResult.preview : null
+  const previewParseStale =
+    preview !== null && !sameColumns(previewResult?.parsed ?? [], state.jsonStringColumns)
 
   const set = <K extends keyof ScanFormState>(key: K, value: ScanFormState[K]) =>
     setState(current => ({ ...current, [key]: value }))
@@ -447,6 +470,9 @@ export function useScanForm(
     base_query: state.baseQuery,
     time_column: state.timeColumn || null,
     scan_lookback_hours: parseOptionalPositiveInt(state.scanLookbackHours),
+    // Read the source the way the saved scan will, so a ticked text column
+    // comes back as JSON and its keys can be discovered.
+    json_string_columns: state.jsonStringColumns,
     // With both, the preview also says which events and properties the sample
     // rows would yield (`event_properties`).
     ...presetColumns,
@@ -456,9 +482,9 @@ export function useScanForm(
     // Rendered inline as "Preview failed".
     meta: SILENT_ERROR_META,
     mutationFn: ({ request, signal }) => scansApi.preview(slug, request, signal),
-    onSuccess: (data, { key }) => {
+    onSuccess: (data, { key, request }) => {
       if (key !== latestPreviewKeyRef.current) return
-      setPreviewResult({ preview: data, requestKey: key })
+      setPreviewResult({ preview: data, requestKey: key, parsed: request.json_string_columns ?? [] })
       const has = (name: string) => data.columns.some(column => column.name === name)
       setState(current => {
         // Columns of a query the user has since edited say nothing about the
@@ -468,22 +494,26 @@ export function useScanForm(
         const timeColumn = has(current.timeColumn) ? current.timeColumn : ''
         const appVersionColumn = has(current.appVersionColumn) ? current.appVersionColumn : ''
         const platformColumn = has(current.platformColumn) ? current.platformColumn : ''
+        // A parsed column the query no longer returns is not parsed.
+        const jsonStringColumns = current.jsonStringColumns.filter(has)
         // The preset's columns: kept while the query still returns them (the
-        // properties column only while it is still JSON), else guessed from the
-        // column names so the common layout needs no picking at all.
-        const jsonColumns = jsonColumnNames(data)
+        // properties column only while it is still JSON, or parsed as JSON),
+        // else guessed from the column names so the common layout needs no
+        // picking at all.
+        const jsonColumns = jsonColumnNames(data, jsonStringColumns)
         const eventNameColumn = has(current.eventNameColumn) && !jsonColumns.includes(current.eventNameColumn)
           ? current.eventNameColumn
-          : guessEventColumn(data)
+          : guessEventColumn(data, jsonStringColumns)
         const propertiesColumn = jsonColumns.includes(current.propertiesColumn)
           ? current.propertiesColumn
-          : guessPropertiesColumn(data)
+          : guessPropertiesColumn(data, jsonStringColumns)
         const reserved = new Set(
           [eventTypeColumn, timeColumn, appVersionColumn, platformColumn].filter(Boolean),
         )
         return {
           ...current,
           eventTypeColumn,
+          jsonStringColumns,
           eventNameColumn: eventNameColumn === propertiesColumn ? '' : eventNameColumn,
           propertiesColumn,
           timeColumn,
@@ -684,10 +714,36 @@ export function useScanForm(
         : [...current.distributionDriftFields, field],
     }))
 
+  /**
+   * Parse a text column as JSON, or stop. A parsed column is a JSON document
+   * for the whole scan, so ticking it drops it from the settings that read it
+   * as text (the event column, scalar breakdowns and drift fields — the
+   * backend refuses those); unticking the preset's properties column clears
+   * it, since it is no longer JSON.
+   */
+  const toggleJsonStringColumn = (column: string) =>
+    setState(current => {
+      if (current.jsonStringColumns.includes(column)) {
+        return {
+          ...current,
+          jsonStringColumns: current.jsonStringColumns.filter(item => item !== column),
+          propertiesColumn: current.propertiesColumn === column ? '' : current.propertiesColumn,
+        }
+      }
+      return {
+        ...current,
+        jsonStringColumns: [...current.jsonStringColumns, column],
+        eventNameColumn: current.eventNameColumn === column ? '' : current.eventNameColumn,
+        metricBreakdownColumns: current.metricBreakdownColumns.filter(item => item !== column),
+        distributionDriftFields: current.distributionDriftFields.filter(item => item !== column),
+      }
+    })
+
   return {
     state,
     set,
     preview,
+    previewParseStale,
     dryRun: dryRunResult?.answer ?? null,
     dryRunStale: dryRunResult != null && dryRunResult.requestKey !== JSON.stringify(toDryRunRequest(state)),
     previewMut,
@@ -708,6 +764,7 @@ export function useScanForm(
     toggleJsonValuePath,
     toggleMetricBreakdownColumn,
     toggleDistributionDriftField,
+    toggleJsonStringColumn,
     toBackendPayload: () => toBackendPayload(state),
   }
 }

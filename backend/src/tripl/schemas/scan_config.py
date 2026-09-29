@@ -7,6 +7,10 @@ from pydantic import BaseModel, Field, computed_field, field_validator, model_va
 
 from tripl.core.adapters.measure_validator import validate_select_sql_safety
 from tripl.core.intervals import get_interval
+from tripl.core.json_string_columns import (
+    check_json_string_columns_roles,
+    normalize_json_string_columns,
+)
 from tripl.core.scan_setup_preset import ScanSetupPreset, apply_setup_preset
 from tripl.json_paths import (
     MAX_PROPERTY_FIELDS,
@@ -155,6 +159,9 @@ class ScanConfigCreate(BaseModel):
     setup_preset: ScanSetupPreset = "custom"
     event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
     properties_column: str | None = Field(default=None, min_length=1, max_length=255)
+    # String (ClickHouse) / STRING (BigQuery) columns to parse as JSON, so their
+    # keys become properties like a JSON column's (``core.json_string_columns``).
+    json_string_columns: list[str] = Field(default_factory=list)
     metric_breakdown_columns: list[str] = Field(default_factory=list)
     metric_breakdown_values_limit: int | None = Field(default=None, ge=1)
     distribution_drift_fields: list[str] = Field(default_factory=list)
@@ -196,6 +203,11 @@ class ScanConfigCreate(BaseModel):
             raise ValueError("json_value_paths must use <json_column>.<nested.path> format")
         return normalized
 
+    @field_validator("json_string_columns")
+    @classmethod
+    def validate_json_string_columns(cls, value: list[str]) -> list[str]:
+        return normalize_json_string_columns(value)
+
     @field_validator("metric_breakdown_columns")
     @classmethod
     def validate_metric_breakdown_columns(cls, value: list[str]) -> list[str]:
@@ -223,6 +235,16 @@ class ScanConfigCreate(BaseModel):
             time_column=self.time_column,
             app_version_column=self.app_version_column,
             platform_column=self.platform_column,
+        )
+        check_json_string_columns_roles(
+            self.json_string_columns,
+            event_type_column=self.event_type_column,
+            time_column=self.time_column,
+            app_version_column=self.app_version_column,
+            platform_column=self.platform_column,
+            event_name_column=self.event_name_column,
+            metric_breakdown_columns=self.metric_breakdown_columns,
+            distribution_drift_fields=self.distribution_drift_fields,
         )
         check_replay_chunk_against_interval(
             interval=self.interval,
@@ -275,6 +297,7 @@ _SCAN_CONFIG_NOT_NULL_UPDATE_FIELDS = frozenset(
         "json_value_paths",
         "event_group_rules",
         "setup_preset",
+        "json_string_columns",
         "metric_breakdown_columns",
         "distribution_drift_fields",
         "cardinality_threshold",
@@ -296,6 +319,7 @@ class ScanConfigUpdate(BaseModel):
     setup_preset: ScanSetupPreset | None = None
     event_name_column: str | None = Field(default=None, max_length=255)
     properties_column: str | None = Field(default=None, max_length=255)
+    json_string_columns: list[str] | None = None
     metric_breakdown_columns: list[str] | None = None
     metric_breakdown_values_limit: int | None = Field(default=None, ge=1)
     distribution_drift_fields: list[str] | None = None
@@ -343,6 +367,11 @@ class ScanConfigUpdate(BaseModel):
         if invalid:
             raise ValueError("json_value_paths must use <json_column>.<nested.path> format")
         return normalized
+
+    @field_validator("json_string_columns")
+    @classmethod
+    def validate_json_string_columns(cls, value: list[str] | None) -> list[str] | None:
+        return value if value is None else normalize_json_string_columns(value)
 
     @field_validator("metric_breakdown_columns")
     @classmethod
@@ -407,6 +436,7 @@ class ScanConfigResponse(BaseModel):
     setup_preset: ScanSetupPreset = "custom"
     event_name_column: str | None = None
     properties_column: str | None = None
+    json_string_columns: list[str] = Field(default_factory=list)
     metric_breakdown_columns: list[str]
     metric_breakdown_values_limit: int | None
     distribution_drift_fields: list[str]
@@ -492,11 +522,19 @@ class ScanConfigPreviewRequest(BaseModel):
     # also returns ``event_properties``: what the sample rows would yield.
     event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
     properties_column: str | None = Field(default=None, min_length=1, max_length=255)
+    # The draft's String columns to parse as JSON: the preview reads the source
+    # the way the saved scan will, so their keys are discovered too.
+    json_string_columns: list[str] = Field(default_factory=list)
 
     @field_validator("base_query")
     @classmethod
     def validate_base_query(cls, value: str) -> str:
         return validate_select_sql_safety(value)
+
+    @field_validator("json_string_columns")
+    @classmethod
+    def validate_json_string_columns(cls, value: list[str]) -> list[str]:
+        return normalize_json_string_columns(value)
 
     @field_validator("json_value_paths")
     @classmethod
@@ -574,6 +612,7 @@ class ScanDryRunRequest(BaseModel):
     setup_preset: ScanSetupPreset = "custom"
     event_name_column: str | None = Field(default=None, min_length=1, max_length=255)
     properties_column: str | None = Field(default=None, min_length=1, max_length=255)
+    json_string_columns: list[str] = Field(default_factory=list)
     cardinality_threshold: int = Field(default=100, ge=1)
     app_version_column: str | None = Field(default=None, min_length=1, max_length=255)
     platform_column: str | None = Field(default=None, min_length=1, max_length=255)
@@ -588,6 +627,11 @@ class ScanDryRunRequest(BaseModel):
         # The same gate ScanConfigCreate applies. Reused, never re-implemented:
         # this endpoint executes free-text SQL against a stored credential.
         return value if value is None else validate_select_sql_safety(value)
+
+    @field_validator("json_string_columns")
+    @classmethod
+    def validate_json_string_columns(cls, value: list[str]) -> list[str]:
+        return normalize_json_string_columns(value)
 
     @field_validator("json_value_paths")
     @classmethod
@@ -607,6 +651,14 @@ class ScanDryRunRequest(BaseModel):
                 "either scan_config_id, or both data_source_id and base_query, must be provided"
             )
         _apply_preset_to_model(self)
+        check_json_string_columns_roles(
+            self.json_string_columns,
+            event_type_column=self.event_type_column,
+            time_column=self.time_column,
+            app_version_column=self.app_version_column,
+            platform_column=self.platform_column,
+            event_name_column=self.event_name_column,
+        )
         # The preset names its events itself, and files them under the chosen
         # event type or the one it creates.
         if self.setup_preset == "event_properties":

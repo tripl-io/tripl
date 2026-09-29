@@ -564,6 +564,20 @@ alerts like any other schema drift. The contract comes from the property:
 - Only properties bound to a JSON path of a column the scan read are checked,
   and at most 50 per event type. Properties excluded from scans are not checked.
 
+### Text columns parsed as JSON
+
+When a table keeps its properties as JSON text in a plain `String` (ClickHouse)
+or `STRING` (BigQuery) column, tick the column under **Parse as JSON** in the
+scan form ([Scans](./feature-reference.md#parse-as-json)). The scan then treats
+it as a JSON column: every key becomes a property with a type, a presence rate
+and sample values, a nested object becomes one object property, and
+`<column>.<key>` works as a binding, a breakdown, a drift field and a contract,
+the same as for a native JSON column.
+
+A row whose text is not a JSON object (malformed, a bare value, an array,
+empty) counts as a row that carried none of the keys: it lowers each key's
+presence instead of failing the scan. PostgreSQL text columns are not parsed.
+
 ## Bind a property to warehouse data
 
 Skip this when the property's name already matches the column — a binding earns
