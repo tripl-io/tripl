@@ -5950,6 +5950,13 @@
             "title": "Overrides",
             "type": "object"
           },
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenProperty"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -6069,6 +6076,74 @@
         "title": "CodegenField",
         "type": "object"
       },
+      "CodegenProperty": {
+        "description": "One typed property of an event: a leaf of one of its JSON fields (F23).",
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "json_schema": {
+            "additionalProperties": true,
+            "title": "Json Schema",
+            "type": "object"
+          },
+          "literal": {
+            "title": "Literal"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "variable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variable"
+          }
+        },
+        "required": [
+          "field",
+          "path"
+        ],
+        "title": "CodegenProperty",
+        "type": "object"
+      },
       "CodegenVariable": {
         "properties": {
           "allowed_values": {
@@ -6077,6 +6152,18 @@
             },
             "title": "Allowed Values",
             "type": "array"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema"
           },
           "name": {
             "title": "Name",
@@ -6088,6 +6175,11 @@
             },
             "title": "Tokens",
             "type": "array"
+          },
+          "variable_type": {
+            "default": "string",
+            "title": "Variable Type",
+            "type": "string"
           }
         },
         "required": [
@@ -22073,7 +22165,8 @@
               "missing_required_field",
               "value_not_allowed",
               "dynamic_value",
-              "too_dynamic"
+              "too_dynamic",
+              "wrong_type"
             ],
             "title": "Code",
             "type": "string"

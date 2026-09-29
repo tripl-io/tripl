@@ -36,7 +36,7 @@ from tripl_cli.commands import (
 from tripl_cli.commands._plan import Branch, add_branch, begin, emit, resolve_branch
 from tripl_cli.config import Config
 from tripl_cli.diagnostics.collect import Reader
-from tripl_cli.errors import EXIT_OK
+from tripl_cli.errors import EXIT_OK, TriplAPIError
 from tripl_cli.model import JsonDict, JsonList, PlanRead, as_dict, as_list, page_items, page_total
 from tripl_cli.render import event_rows, render_event_detail, render_plan_read
 from tripl_cli.runner import run_async
@@ -310,6 +310,9 @@ def run_show(args: argparse.Namespace, config: Config) -> int:
         branch = await resolve_branch(reader, slug, selector)
         event = as_dict(await reader.send(events_api.get_event(slug, event_id, branch=branch.id)))
         fields = await _fields_of(reader, slug, event, branch)
+        # The typed property list (F23), carried on the row so `--json` has it
+        # too. A server that predates the route answers 404, read as no list.
+        event = {**event, "properties": await _properties_of(reader, slug, event_id, branch)}
         return (
             context.read(
                 reader,
@@ -334,6 +337,17 @@ def run_show(args: argparse.Namespace, config: Config) -> int:
         human=render_event_detail(read, event, fields),
     )
     return EXIT_OK
+
+
+async def _properties_of(reader: Reader, slug: str, event_id: str, branch: Branch) -> JsonList:
+    try:
+        return as_list(
+            await reader.send(events_api.get_event_properties(slug, event_id, branch=branch.id))
+        )
+    except TriplAPIError as exc:
+        if exc.status_code == 404:
+            return []
+        raise
 
 
 async def _fields_of(reader: Reader, slug: str, event: JsonDict, branch: Branch) -> JsonList:

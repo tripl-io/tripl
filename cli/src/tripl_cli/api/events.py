@@ -16,12 +16,14 @@ from tripl_cli.api.request import ApiRequest
 
 LIST = "/projects/{slug}/events"
 DETAIL = "/projects/{slug}/events/{event_id}"
+PROPERTIES = "/projects/{slug}/events/{event_id}/properties"
 
 ENDPOINTS: tuple[tuple[str, str], ...] = (
     ("get", LIST),
     ("get", DETAIL),
     ("post", LIST),
     ("patch", DETAIL),
+    ("get", PROPERTIES),
 )
 
 # EventStatus, verbatim from the OpenAPI document. Spelled here rather than in
@@ -119,6 +121,13 @@ def list_events(
 
 def get_event(slug: str, event_id: str, *, branch: str | None = None) -> ApiRequest:
     return ApiRequest("GET", DETAIL.format(slug=slug, event_id=event_id), params={"branch": branch})
+
+
+def get_event_properties(slug: str, event_id: str, *, branch: str | None = None) -> ApiRequest:
+    """The event's typed property list (F23): ``[{name, variable_type, required, …}]``."""
+    return ApiRequest(
+        "GET", PROPERTIES.format(slug=slug, event_id=event_id), params={"branch": branch}
+    )
 
 
 def create_event(slug: str, body: Any, *, branch: str | None = None) -> ApiRequest:

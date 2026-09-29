@@ -8145,6 +8145,8 @@ export interface components {
             overrides?: {
                 [key: string]: string[];
             };
+            /** Properties */
+            properties?: components["schemas"]["CodegenProperty"][];
             /** Status */
             status: string;
         };
@@ -8195,14 +8197,50 @@ export interface components {
             /** Variable */
             variable?: string | null;
         };
+        /**
+         * CodegenProperty
+         * @description One typed property of an event: a leaf of one of its JSON fields (F23).
+         */
+        CodegenProperty: {
+            /** Field */
+            field: string;
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            };
+            /** Literal */
+            literal?: unknown;
+            /** Path */
+            path: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Type */
+            type?: string | null;
+            /** Values */
+            values?: string[] | null;
+            /** Variable */
+            variable?: string | null;
+        };
         /** CodegenVariable */
         CodegenVariable: {
             /** Allowed Values */
             allowed_values?: string[];
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name: string;
             /** Tokens */
             tokens?: string[];
+            /**
+             * Variable Type
+             * @default string
+             */
+            variable_type: string;
         };
         /** ColumnSchema */
         ColumnSchema: {
@@ -14416,7 +14454,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic";
+            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic" | "wrong_type";
             /** Field */
             field?: string | null;
             /** Message */

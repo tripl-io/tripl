@@ -566,3 +566,52 @@ def test_generated_typescript_compiles(tmp_path: Path) -> None:  # pragma: no co
     )
     assert bad.returncode != 0
     assert "'\"map\"' is not assignable" in bad.stdout or "map" in bad.stdout
+
+
+def test_a_typed_json_property_is_a_typed_parameter_sent_unquoted(tmp_path: Path) -> None:
+    """F23: ``{"amount": "${amount}"}`` with ``amount`` a number takes a number
+    and sends ``3``, not ``"3"``; a string property stays a quoted string."""
+    payload = json.loads((FIXTURES / "model.json").read_text(encoding="utf-8"))
+    legacy = next(t for t in payload["event_types"] if t["name"] == "legacy")
+    legacy["fields"].append({"name": "props", "type": "json", "required": True, "values": None})
+    legacy["events"].append(
+        {
+            "identity": "purchase_done",
+            "name": "purchase_done",
+            "status": "live",
+            "field_values": {
+                "platform": "ios",
+                "mode": "m",
+                "is_first": "true",
+                "props": (
+                    '{"amount": "${amount}", "coupon": "${coupon}", '
+                    '"paid": "${paid}", "qty": "${qty}"}'
+                ),
+            },
+        }
+    )
+    payload["variables"] += [
+        {"name": "amount", "allowed_values": [], "tokens": ["amount"], "variable_type": "number"},
+        {"name": "coupon", "allowed_values": [], "tokens": ["coupon"], "variable_type": "string"},
+        {"name": "paid", "allowed_values": [], "tokens": ["paid"], "variable_type": "boolean"},
+        {"name": "qty", "allowed_values": ["1", "2"], "tokens": ["qty"], "variable_type": "number"},
+    ]
+    model = parse_model(payload)
+    assert model.type_of("amount") == "number"
+    config = load(FIXTURES / "check.yml")
+    files = _by_name(generate(config, model, "demo", out=tmp_path))
+    kotlin = files["kotlin/LegacyTracking.kt"]
+    assert "val amount: Double," in kotlin
+    assert (
+        'put("props", "{\\"amount\\": ${amount.toString()}, \\"coupon\\": \\"${coupon}\\", '
+        '\\"paid\\": ${paid.toString()}, \\"qty\\": ${qty.value}}")' in kotlin
+    )
+    swift = files["swift/LegacyTracking.swift"]
+    assert "public init(amount: Double, coupon: String, paid: Bool, qty: Qty) {" in swift
+    ts = files["ts/legacyTracking.ts"]
+    assert "readonly 'amount': number;" in ts
+    # An enum of numbers is sent bare as well.
+    assert (
+        """'props': '{"amount": ${amount}, "coupon": "${coupon}", """
+        """"paid": ${paid}, "qty": ${qty}}'""" in ts
+    )

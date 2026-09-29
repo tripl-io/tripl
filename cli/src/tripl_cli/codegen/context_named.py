@@ -76,7 +76,8 @@ def _token_type(
 ) -> ValueType:
     allowed = target.model.allowed_for(event, token)
     if not allowed:
-        return STRING
+        # A typed property (F23) takes a typed parameter: a number or a flag.
+        return scalar_type(target.model.type_of(token))
     base = target.type_override(token) or naming.type_name(token, dialect.name)
     return registry.enum(base, allowed)
 
@@ -151,7 +152,7 @@ def _event_context(
     class_name: str,
 ) -> dict[str, Any]:
     lang = dialect.name
-    fixed = dict(event.field_values or {})
+    fixed = _typed_json_values(target, event)
     idents = Namer({*naming.KEYWORDS[lang], *_RESERVED_PROPS})
     props: list[_Prop] = []
     by_key: dict[str, _Prop] = {}
@@ -235,6 +236,28 @@ def _event_context(
         "tokens": [{"literal": dialect.literal(token)} for token in token_only],
         "tokens_literal": "[" + ", ".join(dialect.literal(token) for token in token_only) + "]",
     }
+
+
+def _typed_json_values(target: Target, event: EventModel) -> dict[str, str]:
+    """The event's fixed values, a JSON field's number and flag leaves unquoted.
+
+    ``{"amount": "${amount}"}`` sends the amount as a string; when the plan
+    types ``amount`` as a number (F23) the generated code must send ``3``, not
+    ``"3"``. Dropping the quotes around a whole-leaf token is enough: the
+    parameter is then interpolated as the number's or flag's own text.
+    """
+    fixed = dict(event.field_values or {})
+    for field in target.event_type.fields:
+        value = fixed.get(field.name)
+        if field.type != "json" or not value:
+            continue
+        for token in tokens(value):
+            # With or without allowed values: an enum of numbers is still sent
+            # as the number its case stands for.
+            if scalar_type(target.model.type_of(token)) is not STRING:
+                value = value.replace(f'"${{{token}}}"', f"${{{token}}}")
+        fixed[field.name] = value
+    return fixed
 
 
 def _fixed_literal(target: Target, dialect: Dialect, key: str, value: str) -> str | None:
