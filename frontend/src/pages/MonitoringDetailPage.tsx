@@ -17,6 +17,7 @@ import { EmptyState } from '@/components/empty-state'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
 import EventPhotosSection from '@/components/event-photos-section'
 import { EventValueDriftPanel } from '@/pages/events/EventValueDriftPanel'
+import { EventPropertiesGrid } from '@/pages/events/EventPropertiesGrid'
 import { EventHealthCard } from '@/pages/events/EventHealthCard'
 import { EventSpecCard } from '@/components/EventSpecCard'
 import { MetricDefinitionCard } from '@/components/monitoring/metric-definition-card'
@@ -692,6 +693,18 @@ export default function MonitoringDetailPage() {
             metaFieldMap={metaFieldMap}
           />
         </div>
+      )}
+
+      {/* The event's property list (F23), read-only here: it is edited on the
+          event's own page. */}
+      {isEventScope && event && slug && (
+        <EventPropertiesGrid
+          slug={slug}
+          branchId={branchId}
+          eventId={event.id}
+          threshold={event.required_presence_threshold ?? null}
+          canWrite={false}
+        />
       )}
 
       {isEventScope && event && slug && LIVE_STATUSES.has(event.status) && (

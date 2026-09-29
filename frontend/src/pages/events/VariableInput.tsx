@@ -103,6 +103,7 @@ export function VariableInput({
   className,
   invalid,
   describedBy: ownDescribedBy,
+  ariaLabel,
 }: {
   id?: string
   value: string
@@ -117,6 +118,8 @@ export function VariableInput({
   invalid?: boolean
   /** Ids of this control's own messages, merged with its form row's. */
   describedBy?: string
+  /** For a control with no <label> of its own (a JSON grid cell). */
+  ariaLabel?: string
 }) {
   const uid = useId()
   const listboxId = `variable-listbox-${uid}`
@@ -210,6 +213,7 @@ export function VariableInput({
         required={required}
         aria-required={ariaRequired && !required ? true : undefined}
         aria-invalid={invalid ? true : undefined}
+        aria-label={ariaLabel}
         aria-describedby={describedBy}
         type={type}
         inputMode={inputMode}

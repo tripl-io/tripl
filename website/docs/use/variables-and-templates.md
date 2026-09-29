@@ -110,6 +110,18 @@ fine.
 - A bulk type change is refused as a whole if any selected property has a
   schema the new type contradicts.
 
+**Edit it on the property's page.** The **Definition** tab has a **Schema**
+editor that follows the type you picked. A number can be narrowed to an
+integer and given a minimum and maximum. A string can get a format and a
+pattern. The date types pin their format. An array declares its item type, and
+a `json` property is an object with nested properties (each with its own type,
+and a **Required** box) or an array. The editor holds **Save** while a minimum
+is above its maximum, a pattern is not a valid regular expression, or a nested
+property has no name. When the API refuses the schema, the reason appears under
+the editor. Changing the type resets the schema to the new type's default,
+except between number and integer. A schema that says no more than the type is
+saved as no schema at all. Viewers see the schema summarised in words.
+
 **Types a scan infers.** When a scan collects the first sample values for a
 JSON-path property it created, it sets the property's type from the JSON kind
 of those values:
@@ -298,6 +310,66 @@ Scans do not write the list. They record what they observe instead.
   stored with the observed values.
 - `GET /events/{event_id}/properties` returns the rate as `presence_rate`. It
   is `null` until a scan that returns row counts has measured it.
+
+**The Properties card on the event page.** The event's page shows its property
+list as a grid, below the form. Each row has:
+
+- the property's name, which opens the property's page;
+- its type, summarised from the schema: `Integer`, `String (email)`,
+  `Object {id, price, +2}`, `String[]`, with any constraints on hover;
+- a **Required** switch;
+- the allowed values in force, marked **This event** when the event has its own
+  list;
+- the presence rate from the last scan, flagged **below threshold** when a
+  required property falls under the event's threshold, or **looks required**
+  when an optional one reaches it.
+
+Editors change each entry in place, and every change saves at once, apart from
+the form's **Save**. The pencil edits this event's allowed values, and **Use
+documented list** drops them again. **Add property** searches the project's
+properties that are not on the list yet. The card's header sets the event's own
+**Required at … % presence** threshold, or resets it to the default of 95%.
+Viewers, and anyone editing an event from another branch, see the grid
+read-only. The monitoring page of an event shows the same grid, read-only.
+
+**The event's JSON fields.** A JSON field whose value is one object, such as a
+properties payload, opens as a grid of keys and values. A value cell takes a
+`${property}` reference, with the same suggestions as any field, or a number,
+`true`, `false`, `null`, nested JSON, or plain text, which is stored as a
+string. **Edit JSON** switches to the text editor for anything else, and **Edit
+as grid** switches back when the text is one object again. Both views edit the
+same text, so they never disagree about what is saved.
+
+**The events a property is on.** The property's page has an **Events** tab
+listing every event whose property list carries it, each with its required
+flag, its own allowed values or the documented list, its presence rate, and its
+threshold. **Show in the events list** opens the events list filtered to those
+events (`?property=<name>`); the filter shows as a **Property** chip that clears
+it. The properties table says the same thing per row: **On 3 events · 1
+required** links to the tab. That count is apart from **Observed in**, which is
+where scans saw the property.
+
+Editors select events on the tab to change them together: **Mark required**,
+**Mark optional**, **Set allowed values…** (one list for every selected event),
+**Use documented values**, or **Remove from events**. **Add to events** searches
+events that do not list the property yet and adds it to the picked ones, as
+required or optional.
+
+The same edits are available through the API:
+
+- `GET /properties/{variable_id}/events` lists the property's events with their
+  entries and presence.
+- `GET /events?property=<id or name>` keeps the events whose list carries the
+  property.
+- `POST /properties/{variable_id}/event-overrides/bulk` with `event_ids` and the
+  same patch as the single write (`required`, `values`, `values: null`) applies
+  it to every listed event, adding the property where it is missing. It is all
+  or nothing: an event that is not on the branch refuses the whole request.
+- `POST /properties/{variable_id}/event-overrides/bulk-delete` with `event_ids`
+  takes the property off those events and skips the ones that do not carry it.
+
+Both writes need the editor role, work on the branch the request names, and are
+recorded in the audit log.
 
 ### Property drift
 
@@ -660,6 +732,9 @@ POST                 /api/v1/projects/{slug}/properties/bulk-delete
 GET                  /api/v1/projects/{slug}/properties/{variable_id}/values
 GET                  /api/v1/projects/{slug}/properties/{variable_id}/event-overrides
 PUT/DELETE           /api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}
+POST                 /api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk
+POST                 /api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete
+GET                  /api/v1/projects/{slug}/properties/{variable_id}/events
 GET                  /api/v1/projects/{slug}/events/{event_id}/properties
 GET                  /api/v1/projects/{slug}/properties/drifts
 POST                 /api/v1/projects/{slug}/properties/drifts/{drift_id}/action

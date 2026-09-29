@@ -101,6 +101,10 @@ export function VariablesTab({
   const eventHref = useCallback((eventId: string) => projectPath(currentOrgSlug(), slug, `/events/all/${eventId}`), [slug])
   // The `${name}` token opens the variable's own page (AU-26).
   const detailHref = useCallback((variableId: string) => variableDetailPath(slug, variableId), [slug])
+  const listedEventsHref = useCallback(
+    (variableId: string) => variableDetailPath(slug, variableId, 'events'),
+    [slug],
+  )
   const canWrite = useCanWriteProject()
   const focusRef = useRef<HTMLTableRowElement | null>(null)
   // The excluded panel renders <li>s, not table rows, so the focused variable
@@ -680,6 +684,7 @@ export function VariablesTab({
                         onDelete={handleDelete}
                         eventHref={eventHref}
                         detailHref={detailHref}
+                        listedEventsHref={listedEventsHref}
                       />
                     ))}
                     {pageVariables.length === 0 && (

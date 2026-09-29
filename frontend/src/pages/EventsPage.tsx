@@ -190,6 +190,8 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
     setFilterReviewed,
     filterOpenQuestions,
     setFilterOpenQuestions,
+    filterProperty,
+    setFilterProperty,
     sort,
     setSort,
     fieldFilters,
@@ -294,6 +296,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
     filterSilentDays,
     filterReviewed,
     filterOpenQuestions,
+    filterProperty,
     filterTag,
     hiddenColumns,
     metaFields,
@@ -804,6 +807,8 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
               onFilterReviewedChange={setFilterReviewed}
               filterOpenQuestions={filterOpenQuestions}
               onFilterOpenQuestionsChange={setFilterOpenQuestions}
+              filterProperty={filterProperty}
+              onClearFilterProperty={() => setFilterProperty('')}
               sortOrder={sort}
               onSortOrderChange={setSort}
               healthAvailable={healthAvailable && activeTab !== 'archived'}
@@ -871,6 +876,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
                 filterSilentDays,
                 filterReviewed,
                 filterOpenQuestions,
+                filterProperty,
                 hasColumnFilters:
                   Object.values(fieldFilters).some(Boolean) || Object.values(metaFilters).some(Boolean),
               })}

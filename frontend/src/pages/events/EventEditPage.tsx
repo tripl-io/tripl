@@ -31,6 +31,7 @@ import { rememberCreatedEvents } from './createdEventsHandoff'
 import { DraftDiscussionNote } from './DraftDiscussionNote'
 import { EventForm } from './EventFormView'
 import { EventHealthCard } from './EventHealthCard'
+import { EventPropertiesGrid } from './EventPropertiesGrid'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
@@ -333,6 +334,20 @@ export default function EventEditPage() {
         // Below the sticky save bar with a clear break, so the page end is not
         // mistaken for more of the form (AU-6).
         <div className="mt-10 max-w-[880px] pb-10">
+          {/* The event's property list (F23): its own card outside the form,
+              because each change saves at once, apart from Save. The open
+              property drifts (F23.5b) sit beside it. Locked when the event
+              lives on another branch than the one being edited. */}
+          <div className="mb-6 grid gap-4" data-slot="event-properties">
+            <EventPropertiesGrid
+              slug={slug}
+              branchId={branchId}
+              eventId={eventId}
+              threshold={eventQuery.data?.required_presence_threshold ?? null}
+              canWrite={canWrite && !branchMismatch}
+              projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
+            />
+          </div>
           {/* Health (F15, #268): what the event scores on the main plan and
               why. Renders nothing on a branch or for an archived event. */}
           <EventHealthCard slug={slug} eventId={eventId} className="mb-6" />

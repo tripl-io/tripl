@@ -58,6 +58,23 @@ describe('EventsToolbar sort control', () => {
   })
 })
 
+describe('EventsToolbar property filter (F23)', () => {
+  it('shows the property the list is narrowed to, and clears it', () => {
+    const onClearFilterProperty = vi.fn()
+    renderToolbar({ filterProperty: 'currency', onClearFilterProperty, hasActiveFilters: true })
+
+    const chip = screen.getByRole('button', { name: 'Property filter: currency. Clear it' })
+    expect(chip).toHaveTextContent('Property:currency')
+    fireEvent.click(chip)
+    expect(onClearFilterProperty).toHaveBeenCalled()
+  })
+
+  it('shows no chip without a property filter', () => {
+    renderToolbar()
+    expect(screen.queryByRole('button', { name: /Property filter/ })).toBeNull()
+  })
+})
+
 describe('EventsToolbar filter bar (DS-15)', () => {
   it('reads each filter as "{Label}: {value}" and offers "Clear filters" only when one is set', () => {
     renderToolbar()

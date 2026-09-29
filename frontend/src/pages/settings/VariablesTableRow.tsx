@@ -7,6 +7,7 @@ import { CodeToken } from '@/components/primitives/code-token'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
+import { countOf } from '@/lib/plural'
 import type { Variable } from '@/types'
 
 // Chips past this count collapse into a "+N" counter — a variable with dozens
@@ -35,6 +36,8 @@ export interface VariablesTableRowProps {
   /** Where the `${name}` token links: the variable's own page (AU-26). Without
    * it, or outside a router, the token is plain text. */
   detailHref?: (variableId: string) => string
+  /** Where the "On N events" line links: the property's Events tab (F23). */
+  listedEventsHref?: (variableId: string) => string
 }
 
 function VariablesTableRowImpl({
@@ -50,6 +53,7 @@ function VariablesTableRowImpl({
   onDelete,
   eventHref,
   detailHref,
+  listedEventsHref,
 }: VariablesTableRowProps) {
   // Everything the row shows ships with the list response — event names and
   // observed values included — so a row costs zero extra requests.
@@ -74,6 +78,11 @@ function VariablesTableRowImpl({
   const documentedValues = variable.allowed_values ?? []
   const bindings = variable.bindings ?? []
   const driftCount = variable.open_drift_count ?? 0
+  // The events whose property list carries it (F23), apart from where scans saw it.
+  const listedCount = variable.listed_event_count ?? 0
+  const listedLabel = listedCount > 0
+    ? `On ${countOf(listedCount, 'event', 'events')} · ${variable.required_event_count ?? 0} required`
+    : null
 
   return (
     <TableRow
@@ -125,6 +134,21 @@ function VariablesTableRowImpl({
             </Chip>
           )}
         </div>
+        {listedLabel && (
+          <div className="mt-1 font-sans text-micro text-fg-tertiary">
+            {listedEventsHref && inRouter ? (
+              <Link
+                to={listedEventsHref(variable.id)}
+                className="no-underline hover:underline"
+                title="Events whose property list carries this property"
+              >
+                {listedLabel}
+              </Link>
+            ) : (
+              listedLabel
+            )}
+          </div>
+        )}
         {bindings.length > 0 && (
           <div className="mt-1 space-y-0.5">
             {bindings.map(binding => (

@@ -698,6 +698,8 @@ describe('EventForm save and add another', () => {
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'checkout:started' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Starts checkout.' } })
     fireEvent.change(screen.getByLabelText('Variant'), { target: { value: 'b2' } })
+    // The raw JSON view: the property grid opens first (F23).
+    fireEvent.click(screen.getByRole('button', { name: 'Edit JSON' }))
     fireEvent.change(screen.getByLabelText('Payload'), { target: { value: '{"source":"cta"}' } })
     fireEvent.change(screen.getByLabelText('Tags'), { target: { value: 'critical' } })
     fireEvent.keyDown(screen.getByLabelText('Tags'), { key: 'Enter' })
@@ -1340,6 +1342,8 @@ describe('EventForm JSON validity gate (tripl-h2sx.10)', () => {
     renderForm(null, { eventTypes: [JSON_TEMPLATE_EVENT_TYPE] })
 
     fireEvent.change(screen.getByLabelText(/Name/), { target: { value: 'checkout:started' } })
+    // The raw JSON view: the property grid opens first (F23).
+    fireEvent.click(screen.getByRole('button', { name: 'Edit JSON' }))
     fireEvent.change(screen.getByLabelText('Payload'), { target: { value: '{"a":' } })
 
     expect(screen.getByText('Fix the JSON in: Payload')).toBeInTheDocument()
@@ -1943,6 +1947,8 @@ describe('EventForm event-type change (EVT-47)', () => {
   it('asks before dropping a value the new type has no field for, and keeps it on Cancel', async () => {
     renderForm(null, { eventTypes: [JSON_TEMPLATE_EVENT_TYPE, OTHER_TYPE] })
     fireEvent.change(screen.getByLabelText(/Event type/), { target: { value: 'et-1' } })
+    // The raw JSON view: the property grid opens first (F23).
+    fireEvent.click(screen.getByRole('button', { name: 'Edit JSON' }))
     fireEvent.change(screen.getByLabelText('Payload'), { target: { value: '{"a":1}' } })
 
     fireEvent.change(screen.getByLabelText(/Event type/), { target: { value: 'et-2' } })

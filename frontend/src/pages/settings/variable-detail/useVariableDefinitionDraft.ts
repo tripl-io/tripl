@@ -4,7 +4,13 @@ import { variablesApi } from '@/api/variables'
 import { REQUIRED_MESSAGE, focusFirstInvalid } from '@/components/forms/validation'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { projectEventKey, projectEventsKey, variablesKey } from '@/lib/queryKeys'
-import type { Variable, VariableType } from '@/types'
+import {
+  sameSchema,
+  schemaForType,
+  schemaProblems,
+  schemaToSave,
+} from '@/lib/propertySchema'
+import type { PropertySchema, Variable, VariableType } from '@/types'
 import { isValidVariableName, VARIABLE_NAME_RULE_MESSAGE } from '../variablesShared'
 import { invalidValuesFor, valueRuleFor } from '../variableValueValidation'
 
@@ -32,7 +38,18 @@ export function useVariableDefinitionDraft({
 }) {
   const qc = useQueryClient()
   const [name, setName] = useState(variable.name)
-  const [type, setType] = useState<VariableType>(variable.variable_type)
+  const [type, setTypeState] = useState<VariableType>(variable.variable_type)
+  // The JSON Schema fragment being edited (F23), always one that agrees with
+  // `type`: a property with no stored schema edits the type's default.
+  const [schema, setSchema] = useState<PropertySchema>(() =>
+    schemaForType(variable.variable_type, variable.json_schema),
+  )
+  // A type change carries the schema along the backend's mapping: kept when
+  // it still agrees (number <-> integer), else reset to the new type's default.
+  const setType = (next: VariableType) => {
+    setTypeState(next)
+    setSchema(current => schemaForType(next, current))
+  }
   const [description, setDescription] = useState(variable.description)
   const [allowedValues, setAllowedValues] = useState<string[]>(variable.allowed_values ?? [])
   const [bindings, setBindings] = useState<string[]>(variable.bindings ?? [])
@@ -59,8 +76,12 @@ export function useVariableDefinitionDraft({
 
   const sameList = (a: readonly string[], b: readonly string[] | null | undefined) =>
     a.length === (b ?? []).length && a.every((value, index) => value === (b ?? [])[index])
+  const schemaChanged =
+    type !== variable.variable_type || !sameSchema(type, schema, variable.json_schema)
+  const schemaIssues = schemaProblems(schema)
   const dirty =
-    name !== variable.name
+    schemaChanged
+    || name !== variable.name
     || type !== variable.variable_type
     || description !== variable.description
     || !sameList(allowedValues, variable.allowed_values)
@@ -75,6 +96,9 @@ export function useVariableDefinitionDraft({
       description,
       allowed_values: allowedValues,
       bindings,
+      // Sent only when it changed, so saving a description never rewrites a
+      // schema a scan inferred.
+      ...(schemaChanged ? { json_schema: schemaToSave(type, schema) } : {}),
     }, branchId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: variablesKey(slug, branchId) })
@@ -98,7 +122,7 @@ export function useVariableDefinitionDraft({
       requestAnimationFrame(() => focusFirstInvalid(form))
       return
     }
-    if (!typeChangeBlocked) updateMut.mutate()
+    if (!typeChangeBlocked && schemaIssues.length === 0) updateMut.mutate()
   }
 
   return {
@@ -106,6 +130,9 @@ export function useVariableDefinitionDraft({
     setName,
     type,
     setType,
+    schema,
+    setSchema,
+    schemaIssues,
     description,
     setDescription,
     allowedValues,
