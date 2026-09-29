@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 from sqlalchemy.sql.elements import ColumnElement
 
+from tripl.core.property_drift import effective_threshold
 from tripl.core.property_schema import PropertySchemaError, check_schema_matches_type
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
@@ -698,15 +699,18 @@ async def list_event_properties(
     """The event's property list: every variable with an entry for it, by name."""
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
-    found = await session.scalar(
-        select(Event.id).where(
-            Event.id == event_id,
-            Event.project_id == project_id,
-            Event.branch_id == branch_id,
+    found = (
+        await session.execute(
+            select(Event.id, Event.required_presence_threshold).where(
+                Event.id == event_id,
+                Event.project_id == project_id,
+                Event.branch_id == branch_id,
+            )
         )
-    )
+    ).first()
     if found is None:
         raise HTTPException(status_code=404, detail="Event not found")
+    threshold = effective_threshold(found.required_presence_threshold)
     rows = (
         await session.execute(
             select(VariableEventValueOverride, Variable)
@@ -743,6 +747,9 @@ async def list_event_properties(
                 entry.values if entry.values is not None else variable.allowed_values or []
             ),
             presence_rate=presence.get(variable.id),
+            suggested_required=(
+                None if variable.id not in presence else presence[variable.id] >= threshold
+            ),
         )
         for entry, variable in rows
     ]

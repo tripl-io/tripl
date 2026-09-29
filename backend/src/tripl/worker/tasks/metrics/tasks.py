@@ -1361,6 +1361,7 @@ def collect_metrics(
                     "json_paths_sampled": catalog.json_path_sampling.paths_sampled,
                     "json_paths_with_samples": catalog.json_path_sampling.paths_with_samples,
                     "json_path_variables_typed": catalog.json_path_sampling.variables_typed,
+                    "property_type_drifts": catalog.json_path_sampling.type_drifts_detected,
                     "variable_values_written": variable_values_written,
                     "variable_contexts_unfilled": variable_contexts_unfilled,
                 }

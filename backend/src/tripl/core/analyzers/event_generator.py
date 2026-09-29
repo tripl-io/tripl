@@ -90,6 +90,7 @@ from tripl.core.analyzers.event_plan import (
     render_default_event_name,
     truncate_event_name,
 )
+from tripl.core.property_drift import detect_event_property_drifts
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.field_definition import FieldDefinition
@@ -146,6 +147,7 @@ class GenerationResult:
     # ``variable_values_written`` — do not rename.
     variable_values_written: int = 0
     value_drifts_detected: int = 0
+    property_drifts_detected: int = 0
     columns_analyzed: int = 0
     details: list[str] = field(default_factory=list)
     col_meta: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -323,6 +325,11 @@ def generate_events(
         [column for column, meta in col_meta.items() if meta.get("is_json")],
     )
 
+    # Events this run recorded contexts for, among those whose presence was
+    # measured: the only ones whose ABSENT paths mean "not carried". An archived
+    # event and one past the ``max_events`` break get no contexts at all.
+    measured_events: set[uuid.UUID] = set()
+
     # Materialise the plan — one planned entry per breakdown row.
     for planned in ordered:
         if result.events_created >= max_events:
@@ -371,6 +378,8 @@ def generate_events(
                     index=variable_index,
                     presence=presence.get(planned.name),
                 )
+                if planned.name in presence:
+                    measured_events.add(event.id)
                 existing_by_identity[event_name] = event
                 result.events_created += 1
                 continue
@@ -400,6 +409,8 @@ def generate_events(
             index=variable_index,
             presence=presence.get(planned.name),
         )
+        if planned.name in presence:
+            measured_events.add(existing.id)
         result.events_skipped += 1
 
     # An event keeps one value per field, so a collapse throws the rest away.
@@ -476,6 +487,15 @@ def generate_events(
         branch_id=main_branch_id,
         scan_config_id=scan_config_id,
         contexts=variable_contexts,
+    )
+    result.property_drifts_detected = detect_event_property_drifts(
+        session,
+        project_id=project_id,
+        branch_id=main_branch_id,
+        scan_config_id=scan_config_id,
+        contexts=variable_contexts,
+        measured_events=measured_events,
+        json_columns=[column for column, meta in col_meta.items() if meta.get("is_json")],
     )
     session.flush()
     if result.events_skipped:

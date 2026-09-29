@@ -293,6 +293,46 @@ Scans do not write the list. They record what they observe instead.
 - `GET /events/{event_id}/properties` returns the rate as `presence_rate`. It
   is `null` until a scan that returns row counts has measured it.
 
+### Property drift
+
+Scans compare what they see with each event's property list, and report
+three kinds of **property drift**:
+
+| Kind | Reported when | Accepting it |
+|---|---|---|
+| `new_property` | The event carried a JSON key whose variable is not on its list. Only reported for events whose list names at least one property. | Adds the variable to the event's list as an optional property. |
+| `missing_required` | A required property was carried less often than the event's threshold, including never. | Makes the property optional. |
+| `type_change` | Sample values have a type the variable's type does not allow. This is reported per variable, with no event. | Changes the variable to the observed type. |
+
+- **Threshold.** Each event has a presence threshold,
+  `required_presence_threshold`. By default it is 0.95. Set it with
+  `PATCH /events/{event_id}`. Like the rest of the event, it is part of the
+  plan's branches.
+- **`suggested_required`.** `GET /events/{event_id}/properties` includes this
+  field. It says whether the measured presence reaches the threshold. It is
+  only a suggestion: `required` is only ever set by a person.
+- **Which variables get a `type_change`.** A scan-created variable that still
+  has the default `string` type is not checked.
+- **Allowed variations.**
+  - A `string` may hold dates.
+  - A `datetime` may be sampled as a bare date.
+  - `json` accepts arrays.
+
+Triage works like value drift: accept, snooze, mark as a false positive, or
+reopen.
+
+- An accepted drift reopens if the scan sees it again.
+- An open drift with no note disappears once a later scan no longer finds it,
+  for example when the property is back above the threshold or you added it to
+  the list yourself.
+- Archived events and variables excluded from scans are not checked.
+- Drift is kept for 30 days.
+
+```text
+GET   /api/v1/projects/{slug}/variables/property-drifts?event_id=&variable_id=&kind=&active_only=
+POST  /api/v1/projects/{slug}/variables/property-drifts/{drift_id}/action
+```
+
 ## Bind a variable to warehouse data
 
 Skip this when the variable's name already matches the column — a binding earns

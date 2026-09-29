@@ -5477,6 +5477,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/variables/property-drifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Drifts
+         * @description New, missing-required and type-changed properties a scan saw (F23).
+         */
+        get: operations["list_property_drifts_api_v1_projects__slug__variables_property_drifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/property-drifts/{drift_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Property Drift Action */
+        post: operations["apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/variables/{variable_id}": {
         parameters: {
             query?: never;
@@ -10002,6 +10039,8 @@ export interface components {
             name: string;
             /** Owner Id */
             owner_id?: string | null;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -10272,6 +10311,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -10534,6 +10575,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -10714,6 +10757,11 @@ export interface components {
              */
             required: boolean;
             /**
+             * Suggested Required
+             * @description Whether presence_rate reaches the event's required_presence_threshold (default 0.95); null when presence is unknown. A suggestion: 'required' is only ever set by a person.
+             */
+            suggested_required?: boolean | null;
+            /**
              * Values
              * @description This event's override of the allowed values; null when there is none.
              */
@@ -10794,6 +10842,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -11006,6 +11056,8 @@ export interface components {
             name?: string | null;
             /** Owner Id */
             owner_id?: string | null;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /** Reviewed */
             reviewed?: boolean | null;
             status?: components["schemas"]["EventStatus"] | null;
@@ -15343,6 +15395,82 @@ export interface components {
             slug?: string | null;
             /** Timezone */
             timezone?: string;
+        };
+        /**
+         * PropertyDriftActionRequest
+         * @description Triage one property drift.
+         *
+         *     ``accept`` changes the plan to match what the scan saw: a new property
+         *     joins the event's property list, a missing one stops being required, and
+         *     a type change retypes the variable to the observed type.
+         */
+        PropertyDriftActionRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "accept" | "snooze" | "false_positive" | "reopen";
+            /** Note */
+            note?: string | null;
+            /** Snoozed Until */
+            snoozed_until?: string | null;
+        };
+        /**
+         * PropertyDriftKind
+         * @enum {string}
+         */
+        PropertyDriftKind: "new_property" | "missing_required" | "type_change";
+        /** PropertyDriftListResponse */
+        PropertyDriftListResponse: {
+            /** Items */
+            items: components["schemas"]["PropertyDriftResponse"][];
+            /** Total */
+            total: number;
+        };
+        /** PropertyDriftResponse */
+        PropertyDriftResponse: {
+            /**
+             * Detail
+             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change.
+             * @default {}
+             */
+            detail: {
+                [key: string]: unknown;
+            };
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /** Event Id */
+            event_id?: string | null;
+            /** Event Name */
+            event_name?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["PropertyDriftKind"];
+            /** Resolution Note */
+            resolution_note?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved By */
+            resolved_by?: string | null;
+            /** Scan Config Id */
+            scan_config_id?: string | null;
+            /** Snoozed Until */
+            snoozed_until?: string | null;
+            /** @default open */
+            status: components["schemas"]["SchemaDriftStatus"];
+            /**
+             * Variable Id
+             * Format: uuid
+             */
+            variable_id: string;
+            /** Variable Name */
+            variable_name: string;
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -29827,6 +29955,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VariableValueDriftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_drifts_api_v1_projects__slug__variables_property_drifts_get: {
+        parameters: {
+            query?: {
+                variable_id?: string | null;
+                event_id?: string | null;
+                kind?: components["schemas"]["PropertyDriftKind"] | null;
+                active_only?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                drift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyDriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftResponse"];
                 };
             };
             /** @description Validation Error */

@@ -62,6 +62,9 @@ export interface Event {
   source_name: string | null
   /** Free-text label shown beside the identity; never part of it. */
   title: string
+  /** Presence at or above which a scanned JSON property counts as always carried
+   *  (F23); null: the default, 0.95. Optional: an older response omits it. */
+  required_presence_threshold?: number | null
   description: string
   order: number
   status: EventStatus

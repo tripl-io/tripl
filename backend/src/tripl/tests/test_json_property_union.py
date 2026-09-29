@@ -46,7 +46,7 @@ def test_the_busiest_row_wins_a_kept_literal() -> None:
     rows = [_row("a", {"env": "staging"}, 1), _row("a", {"env": "prod"}, 9)]
     folded, presence = fold_json_properties(rows, ["payload"])
     assert json.loads(folded[0].field_values[0][2]) == {"env": "prod"}
-    assert presence == {}
+    assert presence == {"a": {}}
 
 
 def test_a_row_without_keys_counts_as_absence() -> None:
