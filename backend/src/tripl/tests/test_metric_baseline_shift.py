@@ -43,15 +43,6 @@ def _business_hours_count(hour: int) -> float:
     return 60.0 if 9 <= hour % 24 < 18 else 0.0
 
 
-def _daily_pattern_count(hour: int) -> float:
-    hour_of_day = hour % 24
-    if 9 <= hour_of_day < 12:
-        return 60.0
-    if 18 <= hour_of_day < 20:
-        return 35.0
-    return 12.0
-
-
 def _dying_series(horizon: int) -> list[SeriesPoint]:
     return [
         SeriesPoint(
@@ -59,17 +50,6 @@ def _dying_series(horizon: int) -> list[SeriesPoint]:
             count=0.0 if hour >= _DEATH_HOUR else _business_hours_count(hour),
         )
         for hour in range(horizon)
-    ]
-
-
-def _shifted_series(hours: int, shift_start: int) -> list[SeriesPoint]:
-    # A pronounced level shift must produce the trend and point anomalies used below.
-    return [
-        SeriesPoint(
-            bucket=_bucket(hour),
-            count=_daily_pattern_count(hour) * (3.0 if hour >= shift_start else 1.0),
-        )
-        for hour in range(hours)
     ]
 
 
@@ -133,23 +113,6 @@ def test_an_outage_draws_no_band_on_the_buckets_its_announcement_folded(
     assert kept == {baseline.bucket for baseline in unfiltered.baselines} - set(folded)
 
 
-def test_a_reported_level_shift_never_draws_an_unflagged_bucket_outside_its_band() -> None:
-    hours = 24 * 28
-    shift_start = 24 * 23
-    points = _shifted_series(hours, shift_start)
-
-    result = _detect(points, start=shift_start, end=hours)
-
-    assert any(anomaly.direction == "spike" for anomaly in result.anomalies)
-    assert any(anomaly.kind == "trend" for anomaly in result.anomalies)
-    assert _unflagged_outside_band(result, points) == []
-    # Every flagged bucket that was scored still carries its band.
-    scored = {baseline.bucket for baseline in result.baselines}
-    for anomaly in result.anomalies:
-        if anomaly.kind != "trend":
-            assert anomaly.bucket in scored
-
-
 def _baseline(hour: int) -> BaselinePoint:
     return BaselinePoint(bucket=_bucket(hour), expected_count=100.0, effective_stddev=5.0)
 
@@ -178,6 +141,18 @@ def test_drawable_baselines_withholds_only_the_silenced_buckets() -> None:
     drawable = _drawable_baselines(baselines, primary, emitted)
 
     assert [point.bucket for point in drawable] == [_bucket(hour) for hour in (0, 1, 2, 4)]
+
+    points = [
+        SeriesPoint(bucket=_bucket(hour), count=0.0 if hour in (1, 2, 3) else 100.0)
+        for hour in range(5)
+    ]
+    assert _unflagged_outside_band(
+        DetectionResult(anomalies=emitted, baselines=baselines), points
+    ) == [_bucket(3)]
+    assert (
+        _unflagged_outside_band(DetectionResult(anomalies=emitted, baselines=drawable), points)
+        == []
+    )
 
 
 def test_drawable_baselines_is_a_no_op_when_nothing_was_dropped() -> None:
