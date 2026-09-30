@@ -63,10 +63,11 @@ def _dying_series(horizon: int) -> list[SeriesPoint]:
 
 
 def _shifted_series(hours: int, shift_start: int) -> list[SeriesPoint]:
+    # A pronounced level shift must produce the trend and point anomalies used below.
     return [
         SeriesPoint(
             bucket=_bucket(hour),
-            count=_daily_pattern_count(hour) * (1.35 if hour >= shift_start else 1.0),
+            count=_daily_pattern_count(hour) * (3.0 if hour >= shift_start else 1.0),
         )
         for hour in range(hours)
     ]
@@ -140,6 +141,7 @@ def test_a_reported_level_shift_never_draws_an_unflagged_bucket_outside_its_band
     result = _detect(points, start=shift_start, end=hours)
 
     assert any(anomaly.direction == "spike" for anomaly in result.anomalies)
+    assert any(anomaly.kind == "trend" for anomaly in result.anomalies)
     assert _unflagged_outside_band(result, points) == []
     # Every flagged bucket that was scored still carries its band.
     scored = {baseline.bucket for baseline in result.baselines}
