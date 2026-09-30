@@ -23,6 +23,7 @@ from tripl.core.analyzers._event_generator_variables import VariableIndex
 from tripl.core.analyzers.event_generator import GenerationResult
 from tripl.core.analyzers.event_plan import raw_values_from_row
 from tripl.core.bucketing import stored_bucket
+from tripl.core.json_string_columns import scan_source_query
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
@@ -286,7 +287,7 @@ def process_chunk(
         raise ValueError(msg)
 
     _col_names, json_value_names, rows = adapter.get_time_bucketed_counts(
-        config.base_query,
+        scan_source_query(adapter, config),
         config.time_column,
         interval_code,
         regular_cols,

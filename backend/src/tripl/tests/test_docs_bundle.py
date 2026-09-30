@@ -10,9 +10,10 @@ from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from tripl.main import app
+from tripl.services.docs_access import ORG_NOTES_ADMIN_REQUIRED
 from tripl.services.docs_bundle import parse_zip_upload
 from tripl.services.docs_paths import MAX_FILE_BYTES, MAX_ZIP_UPLOAD_BYTES
-from tripl.tests._docs_helpers import PASSWORD, create_project, get_doc, put_doc, register
+from tripl.tests._docs_helpers import create_project, get_doc, put_doc, register
 from tripl.tests._members import add_member_by_slug
 
 SKILL = (
@@ -235,28 +236,38 @@ async def test_zip_upload_endpoint(client: AsyncClient) -> None:
     assert resp.json()["skipped"] == [{"path": "pack/x.py", "reason": "not a Markdown (.md) file"}]
 
 
-async def test_mirroring_organization_notes_needs_the_owner(client: AsyncClient) -> None:
+async def test_importing_organization_notes_needs_an_org_owner_or_admin(
+    client: AsyncClient,
+) -> None:
     await create_project(client, "orgmirror")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as editor:
-        await register(editor, "editor@example.com", "Editor")
-        await editor.post(
-            "/api/v1/auth/login", json={"email": "editor@example.com", "password": PASSWORD}
-        )
+        member = await register(editor, "editor@example.com", "Editor")
         await add_member_by_slug("orgmirror", "editor@example.com", "editor")
 
+        for mode in ("merge", "mirror"):
+            refused = await editor.post(
+                "/api/v1/projects/orgmirror/docs/import",
+                params={"scope": "organization", "mode": mode},
+                json={"files": [{"path": "a.md", "content": "x"}]},
+            )
+            assert refused.status_code == 403, refused.text
+            assert refused.json()["detail"] == ORG_NOTES_ADMIN_REQUIRED
+
+        promote = await client.patch(f"/api/v1/users/{member['id']}", json={"role": "admin"})
+        assert promote.status_code == 200, promote.text
         merge = await editor.post(
             "/api/v1/projects/orgmirror/docs/import",
             params={"scope": "organization"},
             json={"files": [{"path": "a.md", "content": "x"}]},
         )
         assert merge.status_code == 200, merge.text
-        mirror = await editor.post(
+        admin_mirror = await editor.post(
             "/api/v1/projects/orgmirror/docs/import",
             params={"scope": "organization", "mode": "mirror"},
-            json={"files": []},
+            json={"files": [{"path": "b.md", "content": "y"}]},
         )
-        assert mirror.status_code == 403
-        assert mirror.json()["detail"] == "Owner role required to mirror organization notes"
+        assert admin_mirror.status_code == 200, admin_mirror.text
+        assert admin_mirror.json()["deleted"] == ["a.md"]
 
     owner_mirror = await client.post(
         "/api/v1/projects/orgmirror/docs/import",
@@ -264,4 +275,4 @@ async def test_mirroring_organization_notes_needs_the_owner(client: AsyncClient)
         json={"files": []},
     )
     assert owner_mirror.status_code == 200
-    assert owner_mirror.json()["deleted"] == ["a.md"]
+    assert owner_mirror.json()["deleted"] == ["b.md"]

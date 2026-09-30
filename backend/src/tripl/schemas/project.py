@@ -17,6 +17,41 @@ from tripl.semver import (
     MAX_APP_VERSION_KEEP_RELEASES,
 )
 
+#: Project slugs no project may take (F20 PR5). Each is a path segment that
+#: routes, or will route, as something other than a project: ``/projects/demo``
+#: is the demo API, ``/orgs/{org}`` the organization prefix, ``/p/{slug}`` and
+#: ``/o/{org}`` the web app's project and organization routes, and the rest are
+#: top-level web or API sections a project slug would shadow. Exact matches only:
+#: ``demo-3f2a1c`` (a generated demo) and ``newsletter`` are fine.
+RESERVED_PROJECT_SLUGS: frozenset[str] = frozenset(
+    {
+        "account",
+        "admin",
+        "api",
+        "auth",
+        "data-sources",
+        "demo",
+        "invite",
+        "me",
+        "new",
+        "o",
+        "orgs",
+        "p",
+        "project-templates",
+        "projects",
+        "settings",
+        "users",
+        "workspace",
+    }
+)
+
+
+def reject_reserved_slug(value: str | None) -> str | None:
+    """422 for a reserved project slug; see :data:`RESERVED_PROJECT_SLUGS`."""
+    if value is not None and value in RESERVED_PROJECT_SLUGS:
+        raise ValueError(f"'{value}' is reserved and cannot be used as a project slug")
+    return value
+
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
@@ -37,6 +72,12 @@ class ProjectCreate(BaseModel):
     # seeded onto a draft branch for review; main stays empty (F21, GH #274).
     # Not a Project column: ``create_project`` excludes it from the ORM kwargs.
     template_id: str | None = Field(None, min_length=1, max_length=64)
+
+    @field_validator("slug")
+    @classmethod
+    def check_slug_not_reserved(cls, value: str) -> str:
+        reject_reserved_slug(value)
+        return value
 
     @field_validator("timezone")
     @classmethod
@@ -89,6 +130,12 @@ class ProjectUpdate(BaseModel):
     @classmethod
     def _reject_explicit_nulls(cls, data: object) -> object:
         return reject_explicit_nulls(data, _PROJECT_NOT_NULL_UPDATE_FIELDS)
+
+    # No reserved-slug validator here, unlike ``ProjectCreate``: the schema cannot
+    # see the project's current slug, and the settings form resends it unchanged
+    # on every save, so a project that already holds a now-reserved slug could
+    # never be edited again. ``project_service.update_project`` refuses only a
+    # CHANGE to a reserved slug.
 
     @field_validator("timezone")
     @classmethod
@@ -234,6 +281,11 @@ class ProjectSummary(BaseModel):
     # deliver nothing either.
     alert_rule_count: int = 0
     monitoring_signal_count: int = 0
+    # Open property drifts (F23, #306): new properties, missing required ones
+    # and type changes nobody has triaged. Kept apart from
+    # ``monitoring_signal_count``, which must equal the Anomalies page; both
+    # this and the health score read ``_open_signals.open_property_drift_counts``.
+    open_property_drift_count: int = 0
     firing_monitor_count: int = 0
     # Incidents in the Alerting Inbox whose effective status is `open`. The
     # sidebar used to badge Alerting with ``alert_destination_count``, so it read
@@ -296,8 +348,8 @@ class ProjectResponse(BaseModel):
     # per request by ``project_service.with_can_mutate``; False until then, and
     # never stored in the shared project-list cache.
     can_mutate: bool = False
-    # THIS caller's role in the project: ``owner`` for the instance owner, else
-    # the membership role capped by the instance role (``services.project_access``).
+    # THIS caller's role in the project: ``owner`` for an owner or admin of its
+    # organization, else the membership role (``services.project_access``).
     # Per request like ``can_mutate`` — never stored in the shared project-list
     # cache, and defaulted so an entry cached by an older schema still validates.
     my_role: Literal["owner", "editor", "viewer"] = "viewer"

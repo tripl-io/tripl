@@ -24,6 +24,7 @@ import { projectsKey } from '@/lib/queryKeys'
 import { SLUG_ERROR, SLUG_HINT, isValidSlug, slugify } from '@/lib/slug'
 import { ProjectTemplatePicker } from './ProjectTemplatePicker'
 import { TEMPLATE_HINT } from './projectTemplateCopy'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const SLUG_TAKEN_MESSAGE = 'Another project already uses this URL. Choose a different one.'
 const TEMPLATE_HINT_ID = 'project-template-hint'
@@ -87,8 +88,8 @@ export function CreateProjectDialog({
       // overview would show nothing: open that branch's review instead (F21).
       void navigate(
         created.template_branch_id
-          ? `/p/${created.slug}/branches/${created.template_branch_id}`
-          : `/p/${created.slug}/overview`,
+          ? projectPath(currentOrgSlug(), created.slug, `/branches/${created.template_branch_id}`)
+          : projectPath(currentOrgSlug(), created.slug, '/overview'),
       )
       onClose()
     },

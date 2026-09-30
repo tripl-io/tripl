@@ -7,7 +7,8 @@ Three entry points, ONE delivery routine (:func:`_deliver`):
   every minute by beat with no ids as a sweep, so a lost enqueue only delays
   an email instead of dropping it. One email per notification.
 * ``send_notification_digest("daily" | "weekly")`` — the digest beat tasks.
-  One email per user, grouping what is still unread and not yet emailed.
+  One email per user and organization (each organization mails through its own
+  relay, F20 PR9), grouping what is still unread and not yet emailed.
 
 Who gets what (``UserNotificationPrefs``; no row means the defaults ``daily`` +
 mention emails on):
@@ -20,7 +21,8 @@ mention emails on):
 Guarantees, all checked at SEND time rather than when the row was written:
 
 * members only — a user who has left the project since gets nothing about it
-  (the instance owner counts, as they see every project); demo projects send
+  (owner/admin of the project's own organization counts, as they see every
+  project of it; nobody else does, platform admins included); demo projects send
   no email at all;
 * at most once — a row is CLAIMED by stamping ``emailed_at`` with a
   conditional UPDATE (``emailed_at IS NULL``) committed before the send, so two
@@ -43,10 +45,8 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import ColumnElement, and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
-from tripl.models.domain_enums import UserRole
 from tripl.models.notification import Notification, NotificationKind
 from tripl.models.project import Project
-from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.models.user_notification_prefs import (
     DEFAULT_EMAIL_MODE,
@@ -55,6 +55,8 @@ from tripl.models.user_notification_prefs import (
     UserNotificationPrefs,
 )
 from tripl.services import alert_owner_routing, app_settings_service
+from tripl.services.active_org_scope import project_in_active_org
+from tripl.services.project_access import project_member_clause
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 
@@ -90,6 +92,7 @@ class _Row:
     id: uuid.UUID
     user_id: uuid.UUID
     project_id: uuid.UUID
+    organization_id: uuid.UUID
     project_name: str
     title: str
     body: str
@@ -143,6 +146,25 @@ def enqueue_notification_emails(notification_ids: Iterable[uuid.UUID]) -> None:
 # --- the one delivery routine ----------------------------------------------------
 
 
+class _OrgSenders:
+    """Each organization's relay and From: address, read once per run (F20 PR9)."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+        self._by_org: dict[uuid.UUID, tuple[app_settings_service.EmailConfig, str] | None] = {}
+
+    def for_org(self, org_id: uuid.UUID) -> tuple[app_settings_service.EmailConfig, str] | None:
+        if org_id not in self._by_org:
+            email_config = app_settings_service.get_email_config_sync(self._session, org_id=org_id)
+            try:
+                from_address = alert_owner_routing.owner_email_sender(email_config)
+            except alert_owner_routing.OwnerEmailUnavailable:
+                self._by_org[org_id] = None
+            else:
+                self._by_org[org_id] = (email_config, from_address)
+        return self._by_org[org_id]
+
+
 def _parse_ids(values: Sequence[str]) -> list[uuid.UUID]:
     parsed: list[uuid.UUID] = []
     for value in values:
@@ -161,29 +183,34 @@ def _deliver(
     now: datetime,
 ) -> dict[str, object]:
     path = digest or "instant"
-    email_config = app_settings_service.get_email_config_sync(session)
-    try:
-        from_address = alert_owner_routing.owner_email_sender(email_config)
-    except alert_owner_routing.OwnerEmailUnavailable:
-        # SMTP missing: in-app still works, nothing to report, nothing stamped.
-        return {"status": "smtp_unavailable", "path": path}
-
     rows = _candidates(session, digest=digest, ids=ids, now=now)
     if not rows:
         return {"status": "done", "path": path, "sent": 0, "failed": 0}
+    # The link base is the operator's (one public URL); the relay and its
+    # sender are each project's ORGANIZATION's (F20 PR9), so a digest groups by
+    # (user, organization) and never mixes two organizations' mail in one email.
     base_url = app_settings_service.get_runtime_config_sync(session).app_base_url
+    senders = _OrgSenders(session)
 
     batches: list[list[_Row]]
     if digest is None:
         batches = [[row] for row in rows]
     else:
-        by_user: dict[uuid.UUID, list[_Row]] = {}
+        by_user_org: dict[tuple[uuid.UUID, uuid.UUID], list[_Row]] = {}
         for row in rows:
-            by_user.setdefault(row.user_id, []).append(row)
-        batches = list(by_user.values())
+            by_user_org.setdefault((row.user_id, row.organization_id), []).append(row)
+        batches = list(by_user_org.values())
 
     counts = {"sent": 0, "failed": 0, "already": 0}
+    unavailable = 0
     for batch in batches:
+        sender = senders.for_org(batch[0].organization_id)
+        if sender is None:
+            # SMTP missing for this organization: in-app still works, nothing
+            # to report, nothing stamped — a later run sends once it is set.
+            unavailable += 1
+            continue
+        email_config, from_address = sender
         claimed = _claim(session, [row.id for row in batch], now=now, digest=digest is not None)
         rows_to_send = [row for row in batch if row.id in claimed]
         if not rows_to_send:
@@ -209,6 +236,8 @@ def _deliver(
             session.rollback()
             _release(session, [row.id for row in rows_to_send], stamp=now)
             counts["failed"] += 1
+    if unavailable == len(batches):
+        return {"status": "smtp_unavailable", "path": path}
     return {"status": "done", "path": path, **counts}
 
 
@@ -220,18 +249,12 @@ def _candidates(
     now: datetime,
 ) -> list[_Row]:
     """Unemailed rows this path should send, members-only, oldest first."""
-    membership = (
-        select(ProjectMember.id)
-        .where(
-            ProjectMember.project_id == Notification.project_id,
-            ProjectMember.user_id == Notification.user_id,
-        )
-        .exists()
-    )
     conditions = [
         Notification.emailed_at.is_(None),
         Project.is_demo.is_(False),
-        or_(User.role == UserRole.owner.value, membership),
+        # A suspended organization's mail waits for it to be unsuspended (F20 PR14).
+        project_in_active_org(),
+        project_member_clause(Notification.user_id, Notification.project_id),
     ]
     if digest is None:
         conditions.append(
@@ -260,6 +283,7 @@ def _candidates(
             Notification.id,
             Notification.user_id,
             Notification.project_id,
+            Project.organization_id,
             Project.name,
             Notification.title,
             Notification.body,
@@ -280,6 +304,7 @@ def _candidates(
             id=row_id,
             user_id=user_id,
             project_id=project_id,
+            organization_id=organization_id,
             project_name=project_name or "tripl",
             title=title or "",
             body=body or "",
@@ -291,6 +316,7 @@ def _candidates(
             row_id,
             user_id,
             project_id,
+            organization_id,
             project_name,
             title,
             body,

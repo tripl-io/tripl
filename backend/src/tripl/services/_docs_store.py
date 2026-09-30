@@ -28,12 +28,14 @@ from tripl.models.search_document import SearchDocument
 from tripl.models.user import User
 from tripl.schemas.docs import (
     DocAudience,
+    DocBacklinkItem,
     DocFileResponse,
     DocLinkResolution,
     DocSummary,
 )
 from tripl.services import docs_links
 from tripl.services._celery_dispatch import dispatch
+from tripl.services.docs_access import DocAccess, DocPermission
 from tripl.services.docs_frontmatter import DocContentError, ParsedDoc, parse_frontmatter
 from tripl.services.docs_paths import (
     DocPathError,
@@ -129,6 +131,8 @@ def new_doc(project: Project, scope: DocScope, path: str) -> DocFile:
         path=path,
         path_key=path_key(path),
         revision=0,
+        visibility="level",
+        visibility_inherited=True,
     )
 
 
@@ -229,7 +233,13 @@ def safe_parse(doc: DocFile) -> ParsedDoc:
         )
 
 
-def summary(doc: DocFile, names: dict[uuid.UUID, str]) -> DocSummary:
+def summary(
+    doc: DocFile,
+    names: dict[uuid.UUID, str],
+    access: DocAccess | None = None,
+    permission: DocPermission = "view",
+) -> DocSummary:
+    """A note as the tree lists it; ``access`` is the caller's (F24)."""
     return DocSummary(
         scope=scope_of(doc),
         path=doc.path,
@@ -241,15 +251,28 @@ def summary(doc: DocFile, names: dict[uuid.UUID, str]) -> DocSummary:
         size_bytes=doc.size_bytes,
         updated_at=doc.updated_at,
         updated_by_name=names.get(doc.updated_by) if doc.updated_by else None,
+        visibility=access.visibility if access is not None else "level",
+        my_permission=permission,
+        shared=access.shared if access is not None else False,
     )
 
 
 async def file_response(
-    session: AsyncSession, project: Project, doc: DocFile, *, resolve: bool = True
+    session: AsyncSession,
+    project: Project,
+    doc: DocFile,
+    *,
+    resolve: bool = True,
+    access: DocAccess | None = None,
+    permission: DocPermission = "view",
+    break_glass: bool = False,
+    viewer_id: uuid.UUID | None = None,
 ) -> DocFileResponse:
+    """The note as ``viewer_id`` reads it: links to notes they cannot see say so."""
     parsed = safe_parse(doc)
     names = await user_names(session, [doc.created_by, doc.updated_by])
     links: list[DocLinkResolution] = []
+    linked_from: list[DocBacklinkItem] = []
     if resolve:
         refs: list[docs_links.LinkRef] = []
         seen: set[tuple[str, str, str | None]] = set()
@@ -258,16 +281,22 @@ async def file_response(
             if key not in seen:
                 seen.add(key)
                 refs.append(docs_links.LinkRef(link.kind, link.target, link.qualifier))
-        links = await docs_links.resolve_links(session, project, refs)
+        links = await docs_links.resolve_links(session, project, refs, user_id=viewer_id)
+        # "Linked from": the notes linking here by id, as this reader may see them.
+        linked_from = await docs_links.backlinks(
+            session, project, "doc", str(doc.id), user_id=viewer_id
+        )
     return DocFileResponse(
-        **summary(doc, names).model_dump(),
+        **summary(doc, names, access, permission).model_dump(),
         id=doc.id,
         content=doc.content,
         body=parsed.body,
         extra_frontmatter=parsed.extra,
         links=links,
+        linked_from=linked_from,
         created_at=doc.created_at,
         created_by_name=names.get(doc.created_by) if doc.created_by else None,
+        break_glass=break_glass,
     )
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import re
 import uuid
@@ -114,6 +115,10 @@ class VariableIndex:
 
     def resolve(self, token: str) -> Variable | None:
         return self._by_token.get(token)
+
+    def variables(self) -> list[Variable]:
+        """Every variable some token resolves to, once each."""
+        return list({id(variable): variable for variable in self._by_token.values()}.values())
 
     def excluded_ids(self) -> set[uuid.UUID]:
         """Ids of the variables this run must not observe.
@@ -356,6 +361,10 @@ def preserve_existing_variable_context_values(
         if context is None:
             continue
 
+        if context.get("presence_rate") is None:
+            # A run that could not measure presence (a replay, rows without
+            # counts) keeps the last measurement rather than erasing it.
+            context["presence_rate"] = existing.presence_rate
         context_values = list(context.get("values") or [])
         existing_values = list(existing.values or [])
         prior_values[key] = existing_values
@@ -462,7 +471,15 @@ def record_variable_contexts(
     field_values: Sequence[tuple[uuid.UUID, str, str]],
     col_meta: dict[str, dict[str, Any]],
     index: VariableIndex,
+    presence: Mapping[str, float] | None = None,
 ) -> None:
+    """Record one planned row's observations against ``event``.
+
+    ``presence`` (raw token -> rate) is ``fold_json_properties``' measure of
+    how often this row's identity carried each JSON path; a path it could not
+    measure is absent.
+    """
+    presence = presence or {}
     for field_definition_id, col_name, value in field_values:
         observations: list[VariableObservation] = (
             col_meta.get(col_name, {}).get("variable_observations") or []
@@ -490,6 +507,7 @@ def record_variable_contexts(
                     "value_kind": observation.value_kind,
                     "observed_count": observation.observed_count,
                     "values": list(observation.values),
+                    "presence_rate": presence.get(observation.name),
                 }
                 continue
 
@@ -536,6 +554,7 @@ def insert_variable_contexts(
             "value_kind": context["value_kind"],
             "observed_count": context["observed_count"],
             "values": context["values"],
+            "presence_rate": context.get("presence_rate"),
         }
         if branch_id is not None:
             payload["branch_id"] = branch_id
@@ -653,8 +672,12 @@ def ensure_variable(
     inferred_type: str,
     branch_id: uuid.UUID | None = None,
     index: VariableIndex | None = None,
+    json_schema: Mapping[str, Any] | None = None,
 ) -> int:
     """Create a Variable if it doesn't exist. Returns 1 if created, 0 if already exists.
+
+    ``json_schema`` is the schema a CREATED variable starts with (an object
+    property's ``{"type": "object"}``); an adopted variable keeps its own.
 
     Adoption goes through the ``VariableIndex`` (name, source_name and
     user-editable bindings), so a manually-created ``variant`` bound to
@@ -684,6 +707,7 @@ def ensure_variable(
         name=derive_display_name(name, index),
         source_name=name,
         variable_type=inferred_type,
+        json_schema=copy.deepcopy(dict(json_schema)) if json_schema is not None else None,
         description=SCAN_PROVENANCE_DESCRIPTION,
         bindings=[name],
     )

@@ -23,13 +23,10 @@ _EXCLUDED_DIRS = frozenset({"tests", "alembic"})
 #: path (relative to the package, or ``scripts/...``) -> the number of sites it
 #: may hold, or None for any number. Each entry says why.
 ALLOWLIST: dict[str, int | None] = {
-    # The one resolver.
+    # The one resolver, and project_slug_taken: create's and rename's
+    # slug-availability check, per organization like uq_projects_organization_slug
+    # (F20 PR5). project_service.py no longer compares a slug itself.
     "services/project_lookup.py": None,
-    # create_project's and update_project's slug-availability checks. They stay
-    # instance-wide while uq_projects_slug is global (until PR5 swaps it for a
-    # per-organization constraint): an org-scoped check would let a cross-org
-    # duplicate through to an IntegrityError 500.
-    "services/project_service.py": 2,
 }
 
 _MATCHER_METHODS = frozenset(

@@ -224,6 +224,7 @@ def test_the_url_builders_use_the_base_they_are_given_and_read_no_settings(
 
     paths = _build_item_paths(
         SLUG,
+        org_slug="default",
         app_base_url=GIVEN,
         scope_type=scope_type,
         scope_ref=str(uuid.uuid4()),
@@ -267,6 +268,7 @@ def test_an_unconfigured_base_url_still_emits_no_link_at_all(
     ):
         assert _build_item_paths(
             SLUG,
+            org_slug="default",
             app_base_url="",
             scope_type=scope_type,
             scope_ref=str(uuid.uuid4()),
@@ -495,7 +497,7 @@ def test_the_typed_items_and_the_frozen_snapshot_cannot_disagree_about_a_link(
         # event-details + monitoring pair for each of the two items.
         assert len(present) == 6
 
-        bases = {link.split("/p/")[0] for link in present}
+        bases = {link.split("/o/")[0] for link in present}
         # One value, and specifically the value of the FIRST read — so a revert
         # that reads again later cannot pass by coincidence.
         assert bases == {"https://read-1.example"}
@@ -1455,7 +1457,10 @@ def _buffer_metric(
             )
         },
         scan_job_id=None,
-        now=_NOW,
+        # The wall clock, not ``_NOW``: the flush tick these rows feed reads
+        # ``datetime.now`` and sweeps anything older than 14 days, so a fixed
+        # stamp turned every test here red once the calendar passed it.
+        now=datetime.now(UTC),
     )
     session.commit()
 

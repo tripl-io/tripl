@@ -111,7 +111,8 @@ async def add_owner(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     # An owner gates merges with their approval, so they must be able to see the
-    # project; the instance owner counts, as they see every project.
+    # project; an owner/admin of the project's organization counts, as they see
+    # every project of it (``member_role`` joins the org from the project row).
     if await member_role(session, user, event_type.project_id) is None:
         raise HTTPException(status_code=422, detail=NOT_A_MEMBER_DETAIL)
     existing = await session.scalar(

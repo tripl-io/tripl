@@ -35,6 +35,8 @@ import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
 import { countOf, pluralize } from '@/lib/plural'
 import { projectKey, variablesKey, variablesUsagePageKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
 
 // Rows rendered at once. The whole set arrives in one request, but a governance
 // project can hold >1k variables and painting them all froze the tab for
@@ -97,9 +99,13 @@ export function VariablesTab({
   const qc = useQueryClient()
   const branchId = useActiveBranchId()
   // Stable, so the memoized rows do not all re-render for a new function (AU-29).
-  const eventHref = useCallback((eventId: string) => `/p/${slug}/events/all/${eventId}`, [slug])
+  const eventHref = useCallback((eventId: string) => projectPath(currentOrgSlug(), slug, `/events/all/${eventId}`), [slug])
   // The `${name}` token opens the variable's own page (AU-26).
   const detailHref = useCallback((variableId: string) => variableDetailPath(slug, variableId), [slug])
+  const listedEventsHref = useCallback(
+    (variableId: string) => variableDetailPath(slug, variableId, 'events'),
+    [slug],
+  )
   const canWrite = useCanWriteProject()
   const focusRef = useRef<HTMLTableRowElement | null>(null)
   // The excluded panel renders <li>s, not table rows, so the focused variable
@@ -200,12 +206,12 @@ export function VariablesTab({
     bulkUpdateMut.reset()
     bulkDeleteMut.reset()
     const ok = await confirm({
-      title: 'Delete variables',
+      title: 'Delete properties',
       // Where the variables are bound and used, listed under the question
       // (#257); a warning, Delete stays armed.
       message: (
         <ConfirmImpactMessage
-          message={`Delete ${selectedIds.size} selected variable${selectedIds.size === 1 ? '' : 's'}? Event fields referencing them will keep the literal text.`}
+          message={`Delete ${selectedIds.size} selected ${selectedIds.size === 1 ? 'property' : 'properties'}? Event fields referencing them will keep the literal text.`}
           slug={slug}
           branchId={branchId}
           changes={[...selectedIds].map(id => ({ kind: 'variable' as const, id, change: 'delete' as const }))}
@@ -234,8 +240,8 @@ export function VariablesTab({
       ? ` ${countOf(conflicting.length, 'of them has', 'of them have')} documented values that are not valid ${TYPE_LABELS[variableType]} values, and drift will never match those.`
       : ''
     const ok = await confirm({
-      title: 'Change variable type',
-      message: `Change the type of ${countOf(selectedIds.size, 'selected variable', 'selected variables')} to ${TYPE_LABELS[variableType]}?${conflictNote}`,
+      title: 'Change property type',
+      message: `Change the type of ${countOf(selectedIds.size, 'selected property', 'selected properties')} to ${TYPE_LABELS[variableType]}?${conflictNote}`,
       confirmLabel: 'Change type',
       variant: 'primary',
     })
@@ -259,7 +265,7 @@ export function VariablesTab({
       const types = [...new Set(conflicting.map(variable => TYPE_LABELS[variable.variable_type]))]
       const ok = await confirm({
         title: 'Add values that do not fit',
-        message: `${countOf(conflicting.length, 'selected variable is', 'selected variables are')} typed ${types.join(', ')}, and some of ${values.join(', ')} are not valid values of that type. Drift will never match them. Add them anyway?`,
+        message: `${countOf(conflicting.length, 'selected property is', 'selected properties are')} typed ${types.join(', ')}, and some of ${values.join(', ')} are not valid values of that type. Drift will never match them. Add them anyway?`,
         confirmLabel: 'Add anyway',
         variant: 'danger',
       })
@@ -338,7 +344,7 @@ export function VariablesTab({
     deleteMut.reset()
     excludeMut.reset()
     const ok = await confirm({
-      title: 'Delete variable',
+      title: 'Delete property',
       message: (
         <ConfirmImpactMessage
           message={`Delete "${v.name}"?${recordedNote} Any event fields referencing \${${v.name}} will keep the literal text.${rescanNote}`}
@@ -369,7 +375,7 @@ export function VariablesTab({
     excludeMut.reset()
     const ok = await confirm({
       title: 'Exclude from scans',
-      message: `Exclude "${v.name}" from scans? Excluding itself deletes nothing — the values and drift already recorded are left where they are — but future scans will NOT re-create it, sample new values for it, or raise drift on it. Restore puts the variable back in scans.`,
+      message: `Exclude "${v.name}" from scans? Excluding itself deletes nothing — the values and drift already recorded are left where they are — but future scans will NOT re-create it, sample new values for it, or raise drift on it. Restore puts the property back in scans.`,
       confirmLabel: 'Exclude',
       // Not 'danger': a reversible flag with no data loss behind it should not
       // wear the same red confirm as Delete, which really does drop the rows.
@@ -485,9 +491,9 @@ export function VariablesTab({
 
   // Delete, Exclude and Restore used to fail in silence (PLAN-26).
   const rowActionError = deleteMut.isError
-    ? `Could not delete the variable: ${getErrorMessage(deleteMut.error)}`
+    ? `Could not delete the property: ${getErrorMessage(deleteMut.error)}`
     : excludeMut.isError
-      ? `Could not ${excludeMut.variables?.excluded ? 'exclude' : 'restore'} the variable: ${getErrorMessage(excludeMut.error)}`
+      ? `Could not ${excludeMut.variables?.excluded ? 'exclude' : 'restore'} the property: ${getErrorMessage(excludeMut.error)}`
       : null
   const bulkError = bulkUpdateMut.isError
     ? bulkUpdateMut.error
@@ -499,7 +505,7 @@ export function VariablesTab({
 
   const showAllAction = usageFilter !== 'all' ? (
     <Button type="button" size="sm" variant="outline" onClick={() => changeMatchSet(() => setUsageFilter('all'))}>
-      Show all variables
+      Show all properties
     </Button>
   ) : undefined
 
@@ -513,18 +519,21 @@ export function VariablesTab({
           opens (DS-29). */}
       <PageHeader
         eyebrow="Plan"
-        title="Variables"
+        title="Properties"
         // One sentence of purpose, like its siblings (AU-11).
         description={<>Placeholders like <CodeToken>{'${platform}'}</CodeToken> that stand in for a value family in event field values. Scans learn which values each one takes.</>}
         actions={
           canWrite && (
             <Button size="sm" onClick={() => setShowForm(true)}>
-              <Plus className="size-3.5" />New variable
+              <Plus className="size-3.5" />New property
             </Button>
           )
         }
       />
       {!canWrite && <ReadOnlyNotice />}
+      {/* Open property drift across the project (F23): what the sidebar's
+          Properties badge counts. Detected against main, so main only. */}
+      {branchId === null && <PropertyDriftList slug={slug} readOnly={!canWrite} />}
 
       {showForm && (
         <VariablesCreateDialog
@@ -548,16 +557,16 @@ export function VariablesTab({
       )}
 
       <Panel
-        title="All variables"
+        title="All properties"
         subtitle={variablesPending
           ? 'Loading…'
-          : `${activeVariables.length} variable${activeVariables.length === 1 ? '' : 's'}`}
+          : `${activeVariables.length} ${activeVariables.length === 1 ? 'property' : 'properties'}`}
       >
         {variablesPending ? (
           // A pending list is NOT an empty list — rendering the empty state here
           // made the page claim "No variables" while 1.2k were loading
           // (tripl-jfm3.52).
-          <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading variables">
+          <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading properties">
             {Array.from({ length: LOADING_SKELETON_ROWS }, (_, index) => (
               <Skeleton key={index} className="h-10 w-full" />
             ))}
@@ -567,7 +576,7 @@ export function VariablesTab({
           <div className="p-4">
             <ErrorState
               compact
-              title="Couldn't load variables"
+              title="Couldn't load properties"
               error={variablesQuery.error}
               onRetry={() => { void variablesQuery.refetch() }}
               retryLabel="Retry"
@@ -598,8 +607,8 @@ export function VariablesTab({
               }
             >
               <FilterSearch
-                things="variables"
-                aria-label="Filter variables"
+                things="properties"
+                aria-label="Filter properties"
                 value={filterText}
                 onValueChange={value => changeMatchSet(() => setFilterText(value))}
               />
@@ -615,7 +624,7 @@ export function VariablesTab({
               // Rows are still on screen from the last answer, so the failed
               // refresh is said beside them rather than replacing them.
               <p role="alert" className="px-4 pb-2 text-body-sm text-destructive">
-                Couldn't refresh variables: {getErrorMessage(variablesQuery.error)}
+                Couldn't refresh properties: {getErrorMessage(variablesQuery.error)}
               </p>
             )}
             {activeVariables.length > 0 ? (
@@ -631,7 +640,7 @@ export function VariablesTab({
                           <input
                             ref={selectAllRef}
                             type="checkbox"
-                            aria-label={`Select all ${matchingVariables.length} matching variables`}
+                            aria-label={`Select all ${matchingVariables.length} matching properties`}
                             checked={allMatchingSelected}
                             onChange={() =>
                               allMatchingSelected
@@ -647,11 +656,11 @@ export function VariablesTab({
                           held the slack (tripl-bb8m). Variable is pinned too, because
                           its pills no longer wrap and would otherwise be squeezed
                           out. Doc/Observed values share whatever is left. */}
-                      <TableHead className="w-[24%]">Variable</TableHead>
+                      <TableHead className="w-[24%]">Property</TableHead>
                       {/* The events a scan has SEEN this variable in (its value
                           contexts), not every event whose template names it:
                           "Events" read as the latter and undercounted (AU-29). */}
-                      <TableHead className="w-[13%]" title="Events a scan observed this variable in">Observed in</TableHead>
+                      <TableHead className="w-[13%]" title="Events a scan observed this property in">Observed in</TableHead>
                       <TableHead className="w-[20%]">Description</TableHead>
                       <TableHead>Documented values</TableHead>
                       <TableHead>Observed values</TableHead>
@@ -679,12 +688,13 @@ export function VariablesTab({
                         onDelete={handleDelete}
                         eventHref={eventHref}
                         detailHref={detailHref}
+                        listedEventsHref={listedEventsHref}
                       />
                     ))}
                     {pageVariables.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="py-6 text-center text-body-sm text-fg-tertiary">
-                          No variables match “{filterText}”.
+                          No properties match “{filterText}”.
                         </TableCell>
                       </TableRow>
                     )}
@@ -722,7 +732,7 @@ export function VariablesTab({
                   // Every reason the backend predicate can keep a row for. The
                   // first version named three of seven, so an operator staring at
                   // an empty list would have been told the wrong thing about why.
-                  description="Every variable here is kept by something: a field or meta value that names it, observed values, documented values, a value drift, a per-event override, an exclusion from scans, or an edit someone made."
+                  description="Every property here is kept by something: a field or meta value that names it, observed values, documented values, a value drift, a per-event override, an exclusion from scans, or an edit someone made."
                   action={showAllAction}
                 />
               </div>
@@ -730,8 +740,8 @@ export function VariablesTab({
               <div className="px-4 py-8">
                 <EmptyState
                   icon={VariableIcon}
-                  title="No variables in use"
-                  description="No variable here is referenced by an event field value or carries observed values yet."
+                  title="No properties in use"
+                  description="No property here is referenced by an event field value or carries observed values yet."
                   action={showAllAction}
                 />
               </div>
@@ -741,19 +751,19 @@ export function VariablesTab({
               <div className="px-4 py-8">
                 <EmptyState
                   icon={VariableIcon}
-                  title="Every variable is excluded from scans"
-                  description={`${countOf(excludedVariables.length, 'variable is', 'variables are')} listed under “Excluded from scans” below. Restore one to put it back in this table.`}
+                  title="Every property is excluded from scans"
+                  description={`${countOf(excludedVariables.length, 'property is', 'properties are')} listed under “Excluded from scans” below. Restore one to put it back in this table.`}
                 />
               </div>
             ) : (
               <div className="px-4 py-8">
                 <EmptyState
                   icon={VariableIcon}
-                  title="No variables yet"
+                  title="No properties yet"
                   description="Scans create them as they find value families, or define one to reuse across event field values."
                   action={canWrite ? (
                     <Button type="button" size="sm" onClick={() => setShowForm(true)}>
-                      <Plus className="size-3.5" />Create your first variable
+                      <Plus className="size-3.5" />Create your first property
                     </Button>
                   ) : undefined}
                 />
@@ -769,7 +779,7 @@ export function VariablesTab({
       {excludedVariables.length > 0 && (
         <Panel
           title="Excluded from scans"
-          subtitle={`${excludedVariables.length} variable${excludedVariables.length === 1 ? '' : 's'} — scans will not re-create these`}
+          subtitle={`${excludedVariables.length} ${excludedVariables.length === 1 ? 'property' : 'properties'} — scans will not re-create these`}
         >
           <ul className="divide-y">
             {excludedVariables.map(v => (
@@ -792,7 +802,7 @@ export function VariablesTab({
                   <Button
                     variant="ghost"
                     size="sm"
-                    aria-label={`Restore variable ${v.name}`}
+                    aria-label={`Restore property ${v.name}`}
                     disabled={excludeMut.isPending}
                     onClick={() => {
                       deleteMut.reset()
@@ -801,7 +811,7 @@ export function VariablesTab({
                   >
                     <RotateCcw className="mr-1 h-3 w-3" aria-hidden="true" />Restore
                   </Button>
-                  <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-destructive" label={`Delete variable ${v.name}`} onClick={() => handleDelete(v)}>
+                  <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-destructive" label={`Delete property ${v.name}`} onClick={() => handleDelete(v)}>
                     <Trash2 className="h-3 w-3" aria-hidden="true" />
                   </IconButton>
                 </div>}

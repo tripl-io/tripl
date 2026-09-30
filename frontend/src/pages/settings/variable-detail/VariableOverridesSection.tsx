@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Pencil, Trash2 } from 'lucide-react'
 import { eventsApi } from '@/api/events'
-import { variableOverridesApi } from '@/api/variableOverrides'
+import { type VariableEventOverride, variableOverridesApi } from '@/api/variableOverrides'
 import { ChipListInput } from '@/components/chip-list-input'
 import { CodeToken } from '@/components/primitives/code-token'
 import { NativeSelect } from '@/components/settings/kit'
@@ -19,6 +19,9 @@ import { getErrorMessage } from '@/lib/utils'
 import type { Variable, VariableType } from '@/types'
 import { TYPE_LABELS } from '../variablesShared'
 import { invalidValuesFor, valueRuleFor } from '../variableValueValidation'
+
+/** A property entry that carries its own allowed values. */
+type Override = VariableEventOverride & { values: string[] }
 
 // Events offered in the per-event override picker at once. The roster used to
 // be fetched with no params at all, which inherited the endpoint's own default
@@ -75,10 +78,16 @@ export function VariableOverridesSection({
   const [pickerActive, setPickerActive] = useState(false)
   const valueRule = valueRuleFor(variableType)
 
-  const { data: overrides = [] } = useQuery({
+  const { data: entries = [] } = useQuery({
     queryKey: variableOverridesKey(slug, branchId, variable.id),
     queryFn: () => variableOverridesApi.list(slug, variable.id, branchId),
   })
+  // The endpoint lists every property entry for this variable (F23); only the
+  // ones with their own values are overrides. The rest use the documented list.
+  const overrides = useMemo(
+    () => entries.filter((entry): entry is Override => entry.values !== null),
+    [entries],
+  )
   const invalidEditedOverrideValues = invalidValuesFor(variableType, overrideValues)
 
   // Searched SERVER-side, the way the alert-rule event picker already does it
@@ -125,13 +134,16 @@ export function VariableOverridesSection({
 
   const overrideDeleteMut = useMutation({
     meta: SILENT_ERROR_META,
-    mutationFn: (eventId: string) => variableOverridesApi.del(slug, variable.id, eventId, branchId),
+    // The row is also the event's property entry (F23): only the override
+    // goes, and the property stays on the event's list.
+    mutationFn: (eventId: string) =>
+      variableOverridesApi.clearValues(slug, variable.id, eventId, branchId),
     onSuccess: () => qc.invalidateQueries({ queryKey: variableOverridesKey(slug, branchId, variable.id) }),
   })
 
   // An override can hold many hand-curated values and has no undo, and the
   // trash icon deleted it on one click, pending or not (PLAN-28).
-  const handleOverrideDelete = async (override: { event_id: string; event_name: string; values: string[] }) => {
+  const handleOverrideDelete = async (override: Override) => {
     const ok = await confirm({
       title: 'Delete override',
       message: `Delete the override for ${eventNameLabel(override.event_name)}? Its ${countOf(override.values.length, 'value', 'values')} go with it, and the event falls back to the documented list.`,

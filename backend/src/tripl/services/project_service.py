@@ -6,16 +6,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlalchemy import case, delete, func, literal, or_, select, union_all, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache, realtime
 from tripl.core.analyzers.anomaly_detector import (
-    SCOPE_EVENT,
-    SCOPE_EVENT_TYPE,
     SCOPE_METRIC,
     SCOPE_PROJECT_TOTAL,
 )
+from tripl.middleware.org_context import require_org_id
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_destination import AlertDestination
 from tripl.models.alert_rule import AlertRule
@@ -23,7 +22,6 @@ from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.data_source import DataSource
 from tripl.models.domain_enums import MetricScopeType, ProjectGenerationStatus
 from tripl.models.event import Event
-from tripl.models.event_metric import EventMetric
 from tripl.models.event_type import EventType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
@@ -41,21 +39,22 @@ from tripl.schemas.project import (
     ProjectResponse,
     ProjectSummary,
     ProjectUpdate,
+    reject_reserved_slug,
 )
 from tripl.services import alerting_service, plan_branch_service, signal_triage_service
 from tripl.services._monitor_state_intervals import load_monitor_state_intervals
+from tripl.services._open_signals import (
+    SCAN_SCOPES,
+    open_counted_scan_signals,
+    open_property_drift_counts,
+)
 from tripl.services.metrics_insights_service import (
     _active_metric_signals_by_project,
-    is_significant_signal,
 )
-from tripl.services.metrics_service import _get_project_recent_signal_windows
 from tripl.services.monitoring_utils import (
-    classify_signal_state,
-    latest_bucket_by_scan,
-    scan_interval_to_timedelta,
     summarize_monitor_states,
 )
-from tripl.services.project_lookup import owning_org_id, resolve_project
+from tripl.services.project_lookup import project_slug_taken, resolve_project
 
 
 async def _get_project_summaries(
@@ -195,11 +194,28 @@ async def _get_project_summaries(
     await _populate_latest_scan_jobs(session, summaries)
     await _populate_failing_scan_configs(session, summaries)
     await _populate_monitoring_signals(session, summaries)
+    await _populate_open_property_drifts(session, summaries)
     await _populate_firing_monitor_counts(session, summaries)
     await _populate_open_incident_counts(session, summaries)
     await _populate_failing_alert_destinations(session, summaries)
 
     return summaries
+
+
+async def _populate_open_property_drifts(
+    session: AsyncSession,
+    summaries: dict[uuid.UUID, ProjectSummary],
+) -> None:
+    """Stamp each summary with its open property drifts (F23, #306).
+
+    The count is the shared one the health score also reads
+    (``_open_signals.open_property_drift_counts``); nothing is restated here.
+    """
+    if not summaries:
+        return
+    counts = await open_property_drift_counts(session, list(summaries))
+    for project_id, count in counts.items():
+        summaries[project_id].open_property_drift_count = count
 
 
 async def _populate_failing_alert_destinations(
@@ -469,9 +485,10 @@ async def _populate_monitoring_signals(
     project_ids = list(summaries)
 
     # Catalog-metric anomalies carry a NULL scan_config_id and are keyed by
-    # metric_definition_id, so the ScanConfig-joined query below silently drops
-    # them. Fold them into the count here by reusing the exact open-signal logic
-    # the AnomaliesPage uses (metrics_insights_service._count_active_metric_signals_by_project,
+    # metric_definition_id, so the ScanConfig-joined query in
+    # _open_signals.open_counted_scan_signals silently drops them. Fold them
+    # into the count here by reusing the exact open-signal logic the
+    # AnomaliesPage uses (metrics_insights_service._count_active_metric_signals_by_project,
     # the batched sibling of _get_active_metric_signals, which classifies each
     # metric's newest anomaly against its latest stored value bucket ON THAT
     # METRIC'S OWN GRID), so the sidebar / ProjectsPage badge agrees with the
@@ -481,7 +498,7 @@ async def _populate_monitoring_signals(
     # O(1) queries so listing N projects does not fan out to N per-project scans.
     # These signals have no scan_config_id and so cannot populate ``latest_signal``
     # (a ProjectLatestSignal requires one); they contribute to
-    # ``monitoring_signal_count`` only. This runs before the ``anomaly_rows``
+    # ``monitoring_signal_count`` only. This runs before the ``open_rows``
     # early-return so a project with only metric-scope anomalies is still counted.
     #
     # Both halves drop signals a triage verdict hides (muted scope or marked
@@ -508,208 +525,29 @@ async def _populate_monitoring_signals(
             if signal_triage_service.signal_key(None, SCOPE_METRIC, scope_ref, bucket) not in hidden
         )
 
-    latest_anomaly_keys = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            MetricAnomaly.scan_config_id.label("scan_config_id"),
-            MetricAnomaly.scope_type.label("scope_type"),
-            MetricAnomaly.scope_ref.label("scope_ref"),
-            func.max(MetricAnomaly.bucket).label("bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == MetricAnomaly.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            # The AnomaliesPage now lists EVERY open scope as a flat, magnitude-
-            # filtered list (tripl-w0ay), so the badge must count the same
-            # population — project_total + event_type + per-event — and gate on
-            # magnitude below rather than excluding the per-event scope. The
-            # "Significant" threshold (not scope exclusion) is what now keeps
-            # trivial per-event wobble out of the badge (tripl-yfsj.1, supersedes
-            # tripl-posm).
-            MetricAnomaly.scope_type.in_([SCOPE_PROJECT_TOTAL, SCOPE_EVENT_TYPE, SCOPE_EVENT]),
-        )
-        .group_by(
-            ScanConfig.project_id,
-            MetricAnomaly.scan_config_id,
-            MetricAnomaly.scope_type,
-            MetricAnomaly.scope_ref,
-        )
-        .subquery()
-    )
-
-    anomaly_rows = (
-        await session.execute(
-            select(ScanConfig.project_id, ScanConfig.name, ScanConfig.interval, MetricAnomaly)
-            .join(ScanConfig, ScanConfig.id == MetricAnomaly.scan_config_id)
-            .join(
-                latest_anomaly_keys,
-                (ScanConfig.project_id == latest_anomaly_keys.c.project_id)
-                & (MetricAnomaly.scan_config_id == latest_anomaly_keys.c.scan_config_id)
-                & (MetricAnomaly.scope_type == latest_anomaly_keys.c.scope_type)
-                & (MetricAnomaly.scope_ref == latest_anomaly_keys.c.scope_ref)
-                & (MetricAnomaly.bucket == latest_anomaly_keys.c.bucket),
-            )
-            .order_by(ScanConfig.project_id, MetricAnomaly.bucket.desc())
-        )
-    ).all()
-    if not anomaly_rows:
+    # The scan-backed half (project_total, event_type, per-event scopes) is the
+    # shared open-signal rule the F15 health score also reads
+    # (``_open_signals.open_counted_scan_signals``): latest anomaly per scope,
+    # classified against its scope's latest bucket and its scan's liveness, the
+    # "Significant" magnitude gate (every open signal across all scopes with
+    # relative effect >= 0.5, incident children INCLUDED, no incident dedup, so
+    # the badge equals the AnomaliesPage's headline open count, tripl-yfsj.1),
+    # and the triage filter. Rows come newest bucket first per project.
+    open_rows = await open_counted_scan_signals(session, project_ids, SCAN_SCOPES)
+    if not open_rows:
         return
 
-    anomalies = [anomaly for _project_id, _scan_name, _interval, anomaly in anomaly_rows]
-    event_names, event_type_names = await _load_scope_names(session, anomalies)
-
-    project_total_metrics = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            EventMetric.scan_config_id.label("scan_config_id"),
-            literal(SCOPE_PROJECT_TOTAL).label("scope_type"),
-            EventMetric.scan_config_id.label("scope_ref_uuid"),
-            func.max(EventMetric.bucket).label("latest_metric_bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            EventMetric.event_id.is_(None),
-            EventMetric.event_type_id.is_not(None),
-        )
-        .group_by(ScanConfig.project_id, EventMetric.scan_config_id)
+    event_names, event_type_names = await _load_scope_names(
+        session, [row.anomaly for row in open_rows]
     )
-    event_type_metrics = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            EventMetric.scan_config_id.label("scan_config_id"),
-            literal(SCOPE_EVENT_TYPE).label("scope_type"),
-            EventMetric.event_type_id.label("scope_ref_uuid"),
-            func.max(EventMetric.bucket).label("latest_metric_bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            EventMetric.event_id.is_(None),
-            EventMetric.event_type_id.is_not(None),
-        )
-        .group_by(ScanConfig.project_id, EventMetric.scan_config_id, EventMetric.event_type_id)
-    )
-    # Per-event branch: event-scope anomalies now flow through ``latest_anomaly_keys``
-    # (tripl-yfsj.1), so classify_signal_state needs each event's latest metric
-    # bucket to judge freshness — keyed by event_id, mirroring get_active_signals'
-    # ``_get_latest_metric_buckets_multi``.
-    event_metrics = (
-        select(
-            ScanConfig.project_id.label("project_id"),
-            EventMetric.scan_config_id.label("scan_config_id"),
-            literal(SCOPE_EVENT).label("scope_type"),
-            EventMetric.event_id.label("scope_ref_uuid"),
-            func.max(EventMetric.bucket).label("latest_metric_bucket"),
-        )
-        .join(ScanConfig, ScanConfig.id == EventMetric.scan_config_id)
-        .where(
-            ScanConfig.project_id.in_(project_ids),
-            EventMetric.event_id.is_not(None),
-        )
-        .group_by(ScanConfig.project_id, EventMetric.scan_config_id, EventMetric.event_id)
-    )
-    latest_metric_union = union_all(
-        project_total_metrics,
-        event_type_metrics,
-        event_metrics,
-    ).subquery()
-    latest_metric_rows = await session.execute(
-        select(
-            latest_metric_union.c.project_id,
-            latest_metric_union.c.scan_config_id,
-            latest_metric_union.c.scope_type,
-            latest_metric_union.c.scope_ref_uuid,
-            latest_metric_union.c.latest_metric_bucket,
-        )
-    )
-    latest_metric_buckets = {
-        (project_id, scan_config_id, scope_type, str(scope_ref_uuid)): latest_metric_bucket
-        for (
-            project_id,
-            scan_config_id,
-            scope_type,
-            scope_ref_uuid,
-            latest_metric_bucket,
-        ) in latest_metric_rows.all()
-    }
-
-    # Scan liveness, off the rows already loaded: an outage anchor stays open only
-    # while its scan is still collecting SOMETHING. Keyed on the scan config id
-    # itself, never on the stringified scope_ref. Same helper as the AnomaliesPage.
-    scan_latest_buckets = latest_bucket_by_scan(
-        (scan_config_id, bucket)
-        for (_project_id, scan_config_id, _scope_type, _scope_ref), bucket in (
-            latest_metric_buckets.items()
-        )
-    )
-
-    now = datetime.now(UTC)
-    # Same per-project open-signal window the metric-scope half above and the
-    # AnomaliesPage already honour; without it the two halves of this badge
-    # would classify against different horizons.
-    recent_windows = await _get_project_recent_signal_windows(session, project_ids)
-    open_rows: list[tuple[uuid.UUID, str, str, MetricAnomaly]] = []
-    for project_id, scan_name, scan_interval, anomaly in anomaly_rows:
-        latest_metric_bucket = latest_metric_buckets.get(
-            (project_id, anomaly.scan_config_id, anomaly.scope_type, anomaly.scope_ref)
-        )
-        state = classify_signal_state(
-            anomaly_bucket=anomaly.bucket,
-            latest_metric_bucket=latest_metric_bucket,
-            now=now,
-            interval=scan_interval_to_timedelta(scan_interval),
-            recent_window=recent_windows.get(project_id),
-            # An outage announced once and never re-emitted is re-checked against
-            # the current series rather than its own age (tripl-l429.15), and only
-            # while the anchor had volume to lose (tripl-wkwv.4). The magnitude
-            # gate below already hides a zero-versus-zero row from this count, so
-            # the expectation changes no number here today; it is passed because
-            # the badge and the page must reach ``classify_signal_state`` with the
-            # same inputs — classifying by different rules is how these two
-            # surfaces drifted apart twice before.
-            anomaly_actual_count=anomaly.actual_count,
-            anomaly_expected_count=anomaly.expected_count,
-            scan_latest_bucket=scan_latest_buckets.get(anomaly.scan_config_id),
-        )
-        if state is None:
-            continue
-        # Magnitude gate: the badge counts the AnomaliesPage's default "Significant"
-        # view — every open signal across all scopes with relative effect >= 0.5,
-        # incident children INCLUDED (the expanded page tags them, it does not drop
-        # them). No incident dedup here, so the badge equals the page's headline
-        # open count (tripl-yfsj.1).
-        if not is_significant_signal(anomaly.actual_count, anomaly.expected_count):
-            continue
-        open_rows.append((project_id, scan_name, state, anomaly))
-
-    # Triage runs over the open, significant rows only: one verdict query for
-    # every project, and one incident lookup per project with open rows.
-    hidden_keys = await signal_triage_service.uncounted_signal_keys(
-        session,
-        {
-            project_id: [
-                signal_triage_service.signal_key(
-                    anomaly.scan_config_id, anomaly.scope_type, anomaly.scope_ref, anomaly.bucket
-                )
-                for row_project_id, _scan_name, _state, anomaly in open_rows
-                if row_project_id == project_id
-            ]
-            for project_id in {row[0] for row in open_rows}
-        },
-    )
-    for project_id, scan_name, state, anomaly in open_rows:
-        if signal_triage_service.signal_key(
-            anomaly.scan_config_id, anomaly.scope_type, anomaly.scope_ref, anomaly.bucket
-        ) in hidden_keys.get(project_id, set()):
-            continue
-
-        summary = summaries[project_id]
+    for row in open_rows:
+        anomaly = row.anomaly
+        summary = summaries[row.project_id]
         summary.monitoring_signal_count += 1
 
         signal = ProjectLatestSignal(
             scan_config_id=anomaly.scan_config_id,
-            scan_name=scan_name,
+            scan_name=row.scan_name,
             scope_type=anomaly.scope_type,
             scope_ref=anomaly.scope_ref,
             scope_name=_resolve_scope_name(
@@ -717,7 +555,7 @@ async def _populate_monitoring_signals(
                 event_names=event_names,
                 event_type_names=event_type_names,
             ),
-            state=state,
+            state=row.state,
             bucket=anomaly.bucket,
             actual_count=anomaly.actual_count,
             expected_count=anomaly.expected_count,
@@ -749,18 +587,22 @@ def _serialize_projects(
 
 
 async def list_projects(session: AsyncSession, user: User) -> list[ProjectResponse]:
-    """Every listable project ``user`` is a member of (all of them for an owner).
+    """Every listable project of the bound organization ``user`` may see.
 
-    The cached list is instance-wide and shared by every caller; membership is
-    applied after the cache read, so one cache entry serves every user and a
-    membership change needs no cache invalidation.
+    Only the bound organization's projects are listed (F20 PR5); another
+    organization's projects do not exist here, whatever the caller's role
+    there. The cached list is per organization and shared by every caller in
+    it; membership is applied after the cache read, so one cache entry serves
+    every user of the organization and a membership change needs no cache
+    invalidation.
     """
     # Imported here, not at module top: project_access reads project rows and
     # must stay importable without pulling this module in first.
     from tripl.services.project_access import member_project_ids
 
-    visible = await member_project_ids(session, user)
-    return _only_visible(await _list_all_projects(session), visible)
+    organization_id = require_org_id()
+    visible = await member_project_ids(session, user, organization_id)
+    return _only_visible(await _list_org_projects(session, organization_id), visible)
 
 
 def _only_visible(
@@ -771,10 +613,12 @@ def _only_visible(
     return [response for response in responses if response.id in visible]
 
 
-async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
-    # Keyed by the bound organization (F20 PR3) so no two organizations ever
-    # share the entry; what is listed is unchanged until the list is org-scoped.
-    list_key = cache.key_projects_list(owning_org_id())
+async def _list_org_projects(
+    session: AsyncSession, organization_id: uuid.UUID
+) -> list[ProjectResponse]:
+    # Keyed and filtered by the organization (F20 PR3 keyed it, PR5 filters it),
+    # so no two organizations share the entry or see each other's projects.
+    list_key = cache.key_projects_list(organization_id)
     cached = await cache.get_json(list_key)
     if cached is not None:
         return [ProjectResponse.model_validate(item) for item in cached]
@@ -785,10 +629,11 @@ async def _list_all_projects(session: AsyncSession) -> list[ProjectResponse]:
     result = await session.execute(
         select(Project)
         .where(
+            Project.organization_id == organization_id,
             or_(
                 Project.is_demo.is_(False),
                 Project.generation_status == ProjectGenerationStatus.ready.value,
-            )
+            ),
         )
         .order_by(Project.created_at.desc())
     )
@@ -827,12 +672,12 @@ class ProjectMutationScope:
     """The caller's standing in one project, as the mutation gate reads it.
 
     ``role`` is the caller's project role from
-    :func:`tripl.services.project_access.member_role`: ``"owner"`` for the
-    instance owner, the membership role (capped by the instance role) for a
-    member, ``None`` for a non-member. Mutating a project's contents takes an
-    editing role, the same rule ``api.deps.require_project_mutation_access``
+    :func:`tripl.services.project_access.member_role`: ``"owner"`` for an
+    owner/admin of the project's organization, the membership row's role for
+    anyone else, ``None`` for a non-member. Mutating a project's contents takes
+    an editing role, the same rule ``api.deps.require_project_mutation_access``
     enforces on the routes; project-identity edits (rename, reset, delete) are
-    narrower and stay with the instance owner and the project's creator
+    narrower and stay with project role ``owner`` and the project's creator
     (``api.v1.projects._is_project_manager``).
     """
 
@@ -859,7 +704,7 @@ async def with_can_mutate(
     mutation routes enforce, not a restatement of it. ``my_role`` is the
     caller's project role; it is left at its default for a project the caller
     is not a member of, which the membership-filtered callers never pass. The
-    roles come from ONE membership query (none for an instance owner), so a
+    roles come from ONE query over the organization and membership rows, so a
     project list costs a single extra round trip. Applied after
     ``list_projects``' cache read, never before its write: both fields belong to
     the caller, the cache to everyone.
@@ -934,7 +779,8 @@ async def create_project(
 
     ``created_by`` records who made it, mirroring demo provisioning. The API
     always passes it; it stays optional so scripts/fixtures can create a
-    creator-less project (which is then owner-managed, see
+    creator-less project (which is then managed by the organization's owners
+    and admins only, see
     ``api.v1.projects._require_project_manager``).
 
     ``data.template_id`` names a built-in template (F21, GH #274). It is resolved
@@ -952,14 +798,16 @@ async def create_project(
         if data.template_id is not None
         else None
     )
-    existing = await session.execute(select(Project).where(Project.slug == data.slug))
-    if existing.scalar_one_or_none():
+    # The bound organization owns the project; with none bound this raises
+    # rather than defaulting (F20 PR5). Slugs are unique per organization.
+    organization_id = require_org_id()
+    if await project_slug_taken(session, organization_id, data.slug):
         raise HTTPException(status_code=409, detail="Project with this slug already exists")
 
     project = Project(
         **data.model_dump(exclude={"template_id"}),
         created_by_user_id=created_by,
-        organization_id=owning_org_id(),
+        organization_id=organization_id,
     )
     session.add(project)
     await session.flush()
@@ -998,11 +846,20 @@ async def update_project(session: AsyncSession, slug: str, data: ProjectUpdate) 
     update_data = data.model_dump(exclude_unset=True)
     new_slug = update_data.get("slug")
     if new_slug is not None and new_slug != project.slug:
-        existing = await session.execute(
-            select(Project).where(Project.slug == new_slug, Project.id != project.id)
+        # A change only: a project keeps a legacy slug that is now reserved, and
+        # the settings form resends it unchanged with every save.
+        try:
+            reject_reserved_slug(new_slug)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if (
+        new_slug is not None
+        and new_slug != project.slug
+        and await project_slug_taken(
+            session, project.organization_id, new_slug, exclude_project_id=project.id
         )
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=409, detail="Project with this slug already exists")
+    ):
+        raise HTTPException(status_code=409, detail="Project with this slug already exists")
     for key, value in update_data.items():
         setattr(project, key, value)
     # Keep the legacy per-scan field synchronized during the rolling-deploy
@@ -1098,6 +955,12 @@ async def delete_project(session: AsyncSession, slug: str) -> None:
     await session.commit()
     await cache.delete_prefix(cache.prefix_projects())
     await cache.delete_prefix(cache.prefix_data_sources())
+    await _invalidate_project_caches(project_id)
+    await _forget_purged_project(project_id)
+
+
+async def forget_purged_project(project_id: uuid.UUID) -> None:
+    """Every id-keyed cache and realtime key of a purged project (org deletion)."""
     await _invalidate_project_caches(project_id)
     await _forget_purged_project(project_id)
 

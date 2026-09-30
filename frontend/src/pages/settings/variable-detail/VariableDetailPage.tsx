@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { propertyEntriesApi } from '@/api/propertyEntries'
 import { variableOverridesApi } from '@/api/variableOverrides'
 import { variablesApi } from '@/api/variables'
 import { EmptyState } from '@/components/empty-state'
@@ -12,6 +13,7 @@ import { PageHeader } from '@/components/primitives/page-header'
 import { Panel } from '@/components/settings/kit'
 import { ImpactNotice } from '@/components/dependencies/ImpactNotice'
 import { UsedBySection } from '@/components/dependencies/UsedBySection'
+import { DocNotesSection } from '@/components/docs/DocNotesSection'
 import { usePageTitle } from '@/components/shell-chrome-context'
 import { EntityNotFound, PageSkeleton, ReadOnlyNotice } from '@/components/states'
 import { Button } from '@/components/ui/button'
@@ -20,7 +22,7 @@ import { useActiveBranchId } from '@/hooks/useBranch'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
-import { variableOverridesKey, variablesKey } from '@/lib/queryKeys'
+import { propertyEventsKey, variableOverridesKey, variablesKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { Variable } from '@/types'
 import { bindingExample } from '../bindingExample'
@@ -30,6 +32,7 @@ import { VariableDefinitionFields } from './VariableDefinitionFields'
 import { VariableDriftSection } from './VariableDriftSection'
 import { VariableObservedSection } from './VariableObservedSection'
 import { VariableOverridesSection } from './VariableOverridesSection'
+import { PropertyEventsSection } from './PropertyEventsSection'
 import {
   isVariableDetailTab,
   VARIABLE_DETAIL_TABS,
@@ -105,7 +108,7 @@ export function VariableDetailPage({ slug, variableId }: { slug: string; variabl
       className="inline-flex items-center gap-1 text-caption text-fg-muted transition-colors hover:text-fg"
     >
       <ArrowLeft className="size-3" aria-hidden="true" />
-      Variables
+      Properties
     </Link>
   )
 
@@ -115,7 +118,7 @@ export function VariableDetailPage({ slug, variableId }: { slug: string; variabl
         {back}
         <ErrorState
           compact
-          title="Couldn't load this variable"
+          title="Couldn't load this property"
           error={error}
           onRetry={() => { void refetch() }}
           retryLabel="Retry"
@@ -127,18 +130,18 @@ export function VariableDetailPage({ slug, variableId }: { slug: string; variabl
   if (isSuccess && !variable && !sameNameOnThisBranch) {
     return (
       <EntityNotFound
-        title="Variable not found"
+        title="Property not found"
         description={
           branchId === null
-            ? 'This variable does not exist on main. It may have been deleted, renamed or retired by a scan.'
-            : 'This variable does not exist on the selected branch. It may have been deleted, renamed, or only exist on another branch.'
+            ? 'This property does not exist on main. It may have been deleted, renamed or retired by a scan.'
+            : 'This property does not exist on the selected branch. It may have been deleted, renamed, or only exist on another branch.'
         }
-        back={{ to: variableListPath(slug), label: 'Back to variables' }}
+        back={{ to: variableListPath(slug), label: 'Back to properties' }}
       />
     )
   }
 
-  if (!variable) return redirectTo ? null : <PageSkeleton variant="detail" label="Loading variable…" />
+  if (!variable) return redirectTo ? null : <PageSkeleton variant="detail" label="Loading property…" />
 
   // Keyed by id: another variable (or the same one on another branch) starts
   // on a fresh draft.
@@ -185,9 +188,16 @@ function VariableDetailBody({
     queryFn: () => variableOverridesApi.list(slug, variable.id, branchId),
   })
 
+  const { data: propertyEvents } = useQuery({
+    queryKey: propertyEventsKey(slug, branchId, variable.id),
+    queryFn: () => propertyEntriesApi.forProperty(slug, variable.id, branchId),
+  })
+
   const counts: Partial<Record<VariableDetailTab, number | undefined>> = {
+    events: propertyEvents?.length,
     drift: variable.open_drift_count,
-    overrides: overrides?.length,
+    // Property-only entries (F23) have no values of their own and are not overrides.
+    overrides: overrides?.filter(entry => entry.values !== null).length,
     observed: variable.context_count,
   }
   const saveStatus = draft.updateMut.isPending
@@ -196,20 +206,22 @@ function VariableDetailBody({
       ? (draft.updateMut.isSuccess ? 'Saved' : 'No changes')
       : draft.typeChangeBlocked
         ? 'Fix the values the new type refuses'
-        : 'Unsaved changes'
+        : draft.schemaIssues.length > 0
+          ? 'Fix the schema'
+          : 'Unsaved changes'
 
   return (
     <PageContainer className="space-y-3.5">
       {unsaved.dialog}
       <PageHeader
         back={back}
-        eyebrow="Plan · Variable"
+        eyebrow="Plan · Property"
         title={<span className="mono">{`\${${variable.name}}`}</span>}
         titleAddon={
           <>
             <Chip variant="outline" size="xs">{TYPE_LABELS[variable.variable_type]}</Chip>
             {variable.excluded_from_scans ? (
-              <Chip tone="neutral" size="xs" title="Scans skip this variable.">Excluded from scans</Chip>
+              <Chip tone="neutral" size="xs" title="Scans skip this property.">Excluded from scans</Chip>
             ) : null}
           </>
         }
@@ -217,7 +229,7 @@ function VariableDetailBody({
       />
       {refreshError ? (
         <p role="alert" className="text-body-sm text-destructive">
-          Couldn't refresh this variable: {getErrorMessage(refreshError)}
+          Couldn't refresh this property: {getErrorMessage(refreshError)}
         </p>
       ) : null}
 
@@ -226,7 +238,7 @@ function VariableDetailBody({
         onValueChange={(next) => onTabChange(next as VariableDetailTab)}
         className="gap-[18px]"
       >
-        <TabsList aria-label="Variable sections">
+        <TabsList aria-label="Property sections">
           {VARIABLE_DETAIL_TABS.map((t) => (
             <TabsTrigger
               key={t.id}
@@ -243,7 +255,7 @@ function VariableDetailBody({
           <form noValidate onSubmit={draft.handleSubmit}>
             <Panel
               title="Definition"
-              subtitle="What the variable stands for, the values it may take, and where scans find it."
+              subtitle="What the property stands for, the values it may take, and where scans find it."
             >
               <div className="p-4">
                 <VariableDefinitionFields
@@ -274,7 +286,7 @@ function VariableDetailBody({
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={!draft.dirty || draft.updateMut.isPending || draft.typeChangeBlocked}
+                  disabled={!draft.dirty || draft.updateMut.isPending || draft.typeChangeBlocked || draft.schemaIssues.length > 0}
                 >
                   Save changes
                 </Button>
@@ -282,6 +294,13 @@ function VariableDetailBody({
             )}
           </form>
           <UsedBySection slug={slug} entity={{ kind: 'variable', id: variable.id }} branchId={branchId} />
+          {/* Docs-catalog notes that link here by name (F24). Links resolve
+              against main, so the card is for the main plan only. */}
+          {branchId === null && <DocNotesSection slug={slug} kind="variable" name={variable.name} />}
+        </TabsContent>
+
+        <TabsContent value="events" className="max-w-[1100px]">
+          <PropertyEventsSection slug={slug} branchId={branchId} variable={variable} canWrite={canWrite} />
         </TabsContent>
 
         <TabsContent value="drift" className="max-w-[880px]">

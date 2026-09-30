@@ -39,21 +39,32 @@ Invite member (owners) and the theme toggle.
 ## Before you start
 
 1. Open the app and create the first account on the sign-in screen. **The first
-   person to register becomes an owner**; everyone who registers after that
-   starts as an editor.
+   person to register becomes the owner of the organization** (and the instance's
+   platform admin); everyone who registers after that joins as a **member**, who
+   sees the projects they create or are added to.
 
    :::note Forgot your password?
    The sign-in screen has a **Forgot your password?** link. When the instance has
    email configured (see **[Email delivery](../run/security.md)** / the SMTP
    settings), it emails a single-use reset link that expires in one hour; open it
    to choose a new password. If email is **not** configured, the same screen tells
-   you to contact your instance owner, who can reset it for you. To avoid leaking
+   you to contact an owner, who can reset it for you. To avoid leaking
    who has an account, the request always shows the same confirmation regardless of
    whether the address is registered.
    :::
 2. After signing in you land on your projects. If you already have exactly one
    project, tripl takes you straight into it; otherwise you see the workspace
    dashboard.
+
+   Everything you see belongs to an **organization**, and the address says which:
+   the workspace is `/o/{org}` and a project page is `/o/{org}/p/{project}/…`
+   (for example `/o/default/p/web/events`). Older links of the form
+   `/p/{project}/…` still work and open the same page in the organization that
+   holds the project. If you belong to more than one organization, the switcher
+   above the project switcher in the sidebar moves you between them; each has
+   its own projects, data sources, API keys and members. Its settings are under
+   **Settings → Organization** (see the
+   [Administration guide](../administer/admin-guide.md#organizations-in-the-app)).
 3. From the dashboard you have two ways forward:
    - **Generate demo project** — a complete synthetic project to explore.
    - **New project** — an empty project for your real work.
@@ -65,10 +76,11 @@ needs no warehouse, so you can learn the product before wiring up any data.
 
 A **project** is one tracking plan and everything around it — its own events,
 scans, metrics, and alert rules. Each project also has its own **members**:
-only they (and instance owners) can see it, and whoever creates a project is an
-editor member of it. Add people in **Settings → Project → Access**. Instance
-roles and data-source connections are workspace-wide, although API keys can be
-bound to one project.
+only they (and the organization's owners and admins) can see it, and whoever
+creates a project is an editor member of it. Add people in **Settings → Project →
+Access**, as an **editor** or a **viewer** of that project. Organization roles
+(owner, admin, member) and data-source connections are workspace-wide, although
+API keys can be bound to one project.
 A company with an
 iOS app, an Android app, and a website that share analytics is usually *one*
 project; two unrelated products are two projects.
@@ -97,7 +109,7 @@ what is really executed, and what is intentionally unavailable.
 **Start with the coached chapters.** The welcome panel's **Start: Run the live
 loop** opens the first of them, and **Browse chapters** lists them all — short
 hands-on lessons, one per product area: run the live loop
-(scan → metric → chart), edit an event, variables & value drift, review a
+(scan → metric → chart), edit an event, properties & value drift, review a
 branch, reconcile the plan, route an alert, and a closing explore chapter. A
 strip under the demo banner tracks which chapter and step you are on and links
 to the next action, and a callout rings the button that performs it. Chapters
@@ -174,10 +186,10 @@ without checking the certificate — to also authenticate the server, choose
 `verify-full` and supply a CA certificate.
 :::
 
-:::warning Only owners manage data sources
+:::warning Only owners and admins manage data sources
 Connecting, editing, testing, and deleting data sources is restricted to the
-**owner** role. Editors and viewers can use the events that a scan produces but
-cannot change the connection itself. Data sources live in workspace settings and
+organization's **owners and admins**. Members — project editors and viewers —
+can use the events that a scan produces but cannot change the connection itself. Data sources live in workspace settings and
 are shared across the workspace rather than scoped to a single project.
 :::
 
@@ -243,16 +255,16 @@ it is what populates monitoring later.
    The title shows beside the name in lists, the diff and the event page, is
    searchable, and can be changed at any time without touching the identity.
 3. **Meta fields** — define **meta fields** that ride along with every event
-   (app version, platform, country), reusable **variables** for templates you
+   (app version, platform, country), reusable **properties** for templates you
    use in more than one place, and **relations** that record how one event is
    expected to follow another.
 
-### Reuse values with variables
+### Reuse values with properties
 
-Create a variable under **Plan → Variables**, document the values the team
+Create a property under **Plan → Properties**, document the values the team
 expects, and add the warehouse column or dotted JSON path that supplies it. Use
 `${variable_name}` in event field or meta values; the event form shows matching
-variables, documented values, and warnings for unknown tokens. A JSON field
+properties, documented values, and warnings for unknown tokens. A JSON field
 must be valid JSON; tripl saves its canonical JSON form while preserving complete
 template values such as `${variable_name}`.
 
@@ -260,16 +272,16 @@ Scans keep observed samples separate from the documented list, and the samples
 accumulate — a re-scan merges what it saw into the stored evidence instead of
 replacing it, so a value observed once does not vanish when later scan windows
 stop carrying it. If a new value
-appears, review the drift from the Variables table or the affected event: accept
+appears, review the drift from the Properties table or the affected event: accept
 it globally, accept a complete override for that event, snooze it, or mark it a
-false positive. If a scan-created variable should stay out of the plan, choose
+false positive. If a scan-created property should stay out of the plan, choose
 **Exclude from scans** instead of delete so the next scan does not recreate it.
 
-Scans also clean up after themselves: each catalog run deletes the variables it
+Scans also clean up after themselves: each catalog run deletes the properties it
 created that nothing refers to any more — no `${token}` left in any event field
 or meta value, no observed values, no drift, no override. Anything you renamed,
-edited, documented, or excluded is left alone, and so is a variable a single `${token}`
-still names. See [Variables & templates](./variables-and-templates.md) for the
+edited, documented, or excluded is left alone, and so is a property a single `${token}`
+still names. See [Properties & templates](./variables-and-templates.md) for the
 full workflow.
 
 ### Move events through their lifecycle
@@ -367,7 +379,7 @@ branch instead — the same idea as a pull request for code.
    behind, not as branch changes. Each row expands to the field-level detail:
    collections such as an event's field values, meta values and tags are broken
    down member by member (`currency: USD → EUR`), and the row links straight to
-   the event, event type, or variable it describes, opened in that branch. The
+   the event, event type, or property it describes, opened in that branch. The
    selected branch lives in the page URL, so a review can be shared as a link.
    The reviewer leaves named comments and either requests changes or approves.
 5. **Merge.** tripl matches events by name, so nothing is duplicated and the
@@ -382,7 +394,7 @@ under its change counts: neutral ("safe to merge") when main changed other
 entities only, amber when main also changed something the branch changed.
 **Update from main** brings main's newer changes into the branch without
 touching your own. The dialog lists what main brings per entity type, then
-every overlap — a field, event, variable, meta field, relation or event type
+every overlap — a field, event, property, meta field, relation or event type
 that both sides changed — with two choices each: **Keep this branch** or
 **Take main**. When one side deleted something the other side edited, the
 choice is between keeping it and deleting it (or restoring it); taking main's
@@ -399,7 +411,7 @@ rows, diff rows and the command palette keep the branch in the URL
 branch, so the developer reads the right copy rather than main's. On that
 event's monitoring page, an event that is not yet live shows a **Spec** card —
 the identity with a copy button, the fields with the ones that name the event
-marked, documented variable values and an example payload — with **Copy as
+marked, documented property values and an example payload — with **Copy as
 JSON** / **Copy as Markdown** for the ticket. If a diff row carries a warning
 that an event on the branch has **no scan identity**, fix that before merging:
 such an event would never match its traffic.
@@ -475,16 +487,16 @@ helps only when the branch itself added the duplicate.
   on; do experimental work on branches.
 - **Know which renames a merge understands.** A merge matches rows by name, so a
   rename can read as deleting one row and adding another — which strands what
-  hung off the original: its metrics, its change history, the variable values
+  hung off the original: its metrics, its change history, the property values
   observed against it, and any alert filter that named it. Spec **photos** are
   the exception, because they travel in the plan snapshot: the merge re-attaches
   them to whichever row ends up holding the name.
   - **A row a scan discovered survives it.** tripl remembers the name such a row
     arrived under, and a merge uses that remembered name to recognise a rename
     and move the existing row instead of replacing it. Renaming a scanned
-    **event** or a scanned **variable** on a branch is safe.
+    **event** or a scanned **property** on a branch is safe.
   - **A row with no remembered name does not.** An event written into the plan by
-    hand and a variable you added yourself have no scanned name behind them, so
+    hand and a property you added yourself have no scanned name behind them, so
     nothing identifies them across a rename and they still merge as a delete plus
     an add. Neither does a rename tripl cannot pin to one row — two events under
     the same event type sharing a remembered name are left alone rather than
@@ -729,7 +741,7 @@ at 30% — and a **cooldown**, entered as an amount and a unit, so the same
 problem doesn't notify you repeatedly), **Where** (the destination), and
 **Customize message**, collapsed until you want to change the template. Less
 common settings are under **Advanced**. Saving confirms with a toast. Schema drift, distribution drift,
-variable value drift, and release regressions are separate opt-in toggles; they
+property value drift, and release regressions are separate opt-in toggles; they
 stay off until the rule explicitly subscribes to them.
 
 :::tip Simulate before you switch it on
@@ -796,10 +808,14 @@ Replaying the rule against recent data is the quickest way to confirm whether it
   were written on main, or are actions that have no branch to name at all
   (alerting, scans, data sources, users, API keys). This is also your first stop
   when recovering from a mistaken change.
-- **Roles** — in workspace settings, invite teammates as **viewer** (read-only),
-  **editor** (can change the plan, scans, and alerts), or **owner** (full
-  control, including people and data sources). Owner is also the only role that
-  manages data sources.
+- **Roles** — in workspace settings, invite teammates into the organization as
+  a **member**, an **admin** or an **owner**. Owners and admins hold every
+  project and manage people, data sources and scan SQL; an admin cannot make or
+  remove owners. A member sees only the projects they are added to, as an
+  **editor** (can change the plan, and alerts) or a **viewer** (read-only) of
+  each — set per project under **Settings → Project → Access**. Instance-wide
+  operator settings (security, observability) belong to the platform admin,
+  which on a self-hosted instance is whoever registered first.
 - **API keys** — issue keys for scripts and AI agents, scoped to **read** or
   **write**, optionally locked to a single project and given an expiry. Revoke
   them at any time. See the [Agent API guide](../integrate/agent-api-guide) for
@@ -831,9 +847,9 @@ If you're rolling tripl out on real data, this order tends to work well:
 | Data source card is amber | Last successful test is stale | Click **Re-test connection** |
 | Data source card is red | Connection failed | Fix credentials, **Edit** then **Re-test** |
 | "By version" tab missing | Scan has no app-version column | Set the version column on the scan (optional) |
-| A deleted scan variable comes back | Its source binding is still present | Use **Exclude from scans**; restore it later if needed |
-| A scan-created variable disappeared | A catalog run retired it — nothing in the plan referenced it. A scheduled collection does this too (a variable minted from a scalar column only when the scan sets **Limits → Lookback (hours)**), so it can happen without anyone starting a scan | Expected cleanup; edit, document, or exclude a variable you want kept |
-| A variable value keeps showing as drift | It is outside the effective documented list | Accept it globally or for that event, or resolve/snooze the drift |
+| A deleted scan property comes back | Its source binding is still present | Use **Exclude from scans**; restore it later if needed |
+| A scan-created property disappeared | A catalog run retired it — nothing in the plan referenced it. A scheduled collection does this too (a property minted from a scalar column only when the scan sets **Limits → Lookback (hours)**), so it can happen without anyone starting a scan | Expected cleanup; edit, document, or exclude a property you want kept |
+| A property value keeps showing as drift | It is outside the effective documented list | Accept it globally or for that event, or resolve/snooze the drift |
 | Alert never arrived | No signal, rule off, threshold/cooldown, or delivery failed | Work the "alert never fired" checklist above |
 | Wrong change merged | — | Use the **Audit log** + a corrective branch through review |
 | Event deleted by mistake | Deletion is permanent | Check the **Audit log** for who deleted it and when (an `event_type.delete` row, if the whole type went with it); re-create the definition by hand — earlier metrics/history are not restored |

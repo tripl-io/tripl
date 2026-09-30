@@ -8,6 +8,7 @@ import { authAs } from '@/test/auth'
 import { ActiveProjectContext } from '@/components/active-project-context'
 import { metaFieldsApi } from '@/api/metaFields'
 import { MetaFieldsTab } from './MetaFieldsTab'
+import { personaAuth, viewerProject } from '@/test/persona'
 
 vi.mock('@/api/metaFields', () => ({
   metaFieldsApi: {
@@ -134,7 +135,7 @@ describe('MetaFieldsTab — read-only visitors', () => {
   const FIELD = metaField({ id: 'mf-1', name: 'jira_link', display_name: 'Jira link' })
 
   it('offers a viewer no write controls, and says why once', async () => {
-    renderTab([FIELD], { auth: authAs('viewer') })
+    renderTab([FIELD], { auth: personaAuth('viewer'), project: viewerProject() })
 
     expect(await screen.findByText('jira_link')).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/viewer role/)
@@ -143,17 +144,17 @@ describe('MetaFieldsTab — read-only visitors', () => {
     expect(screen.queryByRole('button', { name: 'Delete Jira link' })).not.toBeInTheDocument()
   })
 
-  it("treats an editor in another user's demo as read-only, as the API does", async () => {
+  it("treats a member in another user's demo as read-only, as the API does", async () => {
     const demo = { slug: 'demo', is_demo: true, created_by_user_id: 'someone-else' } as Project
-    renderTab([FIELD], { auth: authAs('editor'), project: demo })
+    renderTab([FIELD], { auth: authAs('member'), project: demo })
 
     expect(await screen.findByText('jira_link')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /New meta field/ })).not.toBeInTheDocument()
   })
 
-  it('lets an editor write in a demo they created', async () => {
-    const demo = { slug: 'demo', is_demo: true, created_by_user_id: 'editor-1' } as Project
-    renderTab([FIELD], { auth: authAs('editor'), project: demo })
+  it('lets a member write in a demo they created', async () => {
+    const demo = { slug: 'demo', is_demo: true, created_by_user_id: 'member-1' } as Project
+    renderTab([FIELD], { auth: authAs('member'), project: demo })
 
     expect(await screen.findByRole('button', { name: 'Edit Jira link' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /New meta field/ })).toBeInTheDocument()
@@ -184,7 +185,7 @@ describe('MetaFieldsTab — load and delete states (PLAN-41 / PLAN-54)', () => {
     vi.mocked(metaFieldsApi.del).mockRejectedValue(new Error('Field is referenced'))
     // No usage count: the confirm falls back to naming the loss in words.
     vi.mocked(metaFieldsApi.usage).mockRejectedValue(new Error('usage unavailable'))
-    renderTab([FIELD], { auth: authAs('editor') })
+    renderTab([FIELD], { auth: authAs('member') })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Jira link' }))
     // The confirm names what goes, and its button names what it deletes (AU-37).
@@ -196,7 +197,7 @@ describe('MetaFieldsTab — load and delete states (PLAN-41 / PLAN-54)', () => {
 
   it('counts the values and events a delete removes when the usage answers (AU-37)', async () => {
     vi.mocked(metaFieldsApi.usage).mockResolvedValue({ value_count: 3, event_count: 2 })
-    renderTab([FIELD], { auth: authAs('editor') })
+    renderTab([FIELD], { auth: authAs('member') })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete Jira link' }))
     expect(
@@ -209,7 +210,7 @@ describe('MetaFieldsTab — load and delete states (PLAN-41 / PLAN-54)', () => {
     // What BranchesTab reads the ticket link template from.
     queryClient.setQueryData(['metaFields', 'demo'], [FIELD])
     vi.mocked(metaFieldsApi.update).mockResolvedValue(FIELD)
-    renderTab([FIELD], { auth: authAs('editor'), queryClient })
+    renderTab([FIELD], { auth: authAs('member'), queryClient })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Jira link' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))

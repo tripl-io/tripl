@@ -26,6 +26,11 @@ from tripl.tests.test_alembic_revisions import _load_migration
 
 MIGRATION = "c3f5a7b9d1e2_docs_catalog.py"
 DOC_TABLES = ("doc_links", "doc_revisions", "doc_files")
+# Added on top by the sharing revision (c4e6a8b0d2f5, F24): dropped before the
+# F22 tables (they reference ``doc_files``) and left out of the comparison.
+SHARING_TABLES = ("doc_folder_shares", "doc_folder_settings", "doc_shares")
+SHARING_COLUMNS = {"doc_files": {"visibility", "visibility_inherited"}}
+SHARING_CHECKS = {"doc_files": {"ck_doc_files_visibility"}}
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +45,7 @@ def engine() -> Iterator[Engine]:
     Base.metadata.create_all(engine)
     with engine.begin() as connection:
         seed_default_organization(connection)
-        for table in DOC_TABLES:
+        for table in (*SHARING_TABLES, *DOC_TABLES):
             Base.metadata.tables[table].drop(connection)
     try:
         yield engine
@@ -67,8 +72,11 @@ def test_upgrade_matches_the_models(engine: Engine, migration: ModuleType) -> No
     for name in DOC_TABLES:
         model = Base.metadata.tables[name]
         columns = {column["name"]: column for column in inspector.get_columns(name)}
-        assert set(columns) == set(model.columns.keys()), name
+        later = SHARING_COLUMNS.get(name, set())
+        assert set(columns) == set(model.columns.keys()) - later, name
         for column in model.columns:
+            if column.name in later:
+                continue
             assert columns[column.name]["nullable"] == column.nullable, (name, column.name)
         migrated_indexes = {
             index["name"]: bool(index["unique"]) for index in inspector.get_indexes(name)
@@ -80,7 +88,7 @@ def test_upgrade_matches_the_models(engine: Engine, migration: ModuleType) -> No
             constraint.name
             for constraint in model.constraints
             if isinstance(constraint, sa.CheckConstraint)
-        }
+        } - SHARING_CHECKS.get(name, set())
         assert migrated_checks == model_checks, name
 
 
@@ -110,7 +118,12 @@ def _doc_row(**values: object) -> dict[str, object]:
 def test_scopes_and_uniqueness_are_enforced(engine: Engine, migration: ModuleType) -> None:
     _run(engine, migration.upgrade)
     project_id = uuid.uuid4()
-    docs = Base.metadata.tables["doc_files"]
+    # The model's column types, limited to the columns this revision creates:
+    # later revisions add more (F24 visibility), and the ORM defaults would
+    # write them into a table that does not have them yet.
+    model = Base.metadata.tables["doc_files"]
+    present = {column["name"] for column in sa.inspect(engine).get_columns("doc_files")}
+    docs = sa.table("doc_files", *(sa.column(c.name, c.type) for c in model.c if c.name in present))
     with engine.begin() as connection:
         connection.execute(
             sa.insert(Base.metadata.tables["projects"]).values(

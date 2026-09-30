@@ -65,7 +65,7 @@ function renderDialog(props: Partial<Parameters<typeof DocImportExportDialog>[0]
         open
         onOpenChange={onOpenChange}
         canEdit
-        isOwner={false}
+        isOrgAdmin={false}
         organizationName="Acme"
         limits={LIMITS}
         {...props}
@@ -320,24 +320,23 @@ describe('DocImportExportDialog import', () => {
     expect(preview()).toBeEnabled()
   })
 
-  it('lets only the instance owner mirror organization notes', () => {
-    renderDialog({ isOwner: false })
+  it('lets only an organization owner or admin import organization notes', () => {
+    renderDialog({ isOrgAdmin: false })
     pick(jsonFile(bundle()))
     fireEvent.click(screen.getByRole('button', { name: 'Organization · Acme' }))
+    expect(screen.getByText('Only organization owners and admins can import organization notes.')).toBeInTheDocument()
+    expect(preview()).toBeDisabled()
     fireEvent.click(within(screen.getByRole('group', { name: 'Import mode' })).getByRole('button', { name: 'Mirror' }))
-    expect(screen.getByText(/Mirror deletes every organization note/)).toHaveTextContent(
-      'Only the instance owner can mirror organization notes.',
-    )
     expect(preview()).toBeDisabled()
   })
 
-  it('lets the owner mirror organization notes', async () => {
+  it('lets an organization admin mirror organization notes', async () => {
     vi.mocked(docsApi.importJson).mockResolvedValue(result({ scope: 'organization', mode: 'mirror', deleted: ['x.md'] }))
-    renderDialog({ isOwner: true })
+    renderDialog({ isOrgAdmin: true })
     pick(jsonFile(bundle()))
     fireEvent.click(screen.getByRole('button', { name: 'Organization · Acme' }))
     fireEvent.click(within(screen.getByRole('group', { name: 'Import mode' })).getByRole('button', { name: 'Mirror' }))
-    expect(screen.getByText(/Mirror deletes every organization note/)).not.toHaveTextContent('Only the instance owner')
+    expect(screen.queryByText(/Only organization owners and admins/)).toBeNull()
     expect(preview()).toBeEnabled()
     fireEvent.click(preview())
     await screen.findByText('Dry run — nothing was written')

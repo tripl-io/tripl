@@ -16,6 +16,8 @@ import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { stopAllMetricCollectionWatches } from '@/hooks/useMetricCollectionWatcher'
 import MonitoringDetailPage from './MonitoringDetailPage'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 const { toastSuccess, toastError } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
@@ -739,7 +741,7 @@ describe('MonitoringDetailPage event detail', () => {
         return mockJsonResponse([eventTypeFixture()])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.endsWith('/api/v1/projects/demo/variables')) return mockJsonResponse([])
+      if (url.endsWith('/api/v1/projects/demo/properties')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/event-1/history')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/event-1/metrics')) {
         return mockJsonResponse({
@@ -824,7 +826,7 @@ function installEventDetailFetch(
       return mockJsonResponse([eventTypeFixture()])
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-    if (url.endsWith('/api/v1/projects/demo/variables')) return mockJsonResponse([])
+    if (url.endsWith('/api/v1/projects/demo/properties')) return mockJsonResponse([])
     if (url.includes('/api/v1/projects/demo/events/event-1/history')) {
       return mockJsonResponse(opts.history ?? [])
     }
@@ -1903,11 +1905,13 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     const result = render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={auth}>
-          <MemoryRouter initialEntries={['/p/demo/monitoring/metric/metric-1']}>
-            <Routes>
-              <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
-            </Routes>
-          </MemoryRouter>
+          <SessionProject session={auth}>
+            <MemoryRouter initialEntries={['/p/demo/monitoring/metric/metric-1']}>
+              <Routes>
+                <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
+              </Routes>
+            </MemoryRouter>
+          </SessionProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )
@@ -1916,21 +1920,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
 
   it('offers a viewer no edit, collect, delete or annotation controls (MON-6)', async () => {
     installMetricDetailFetch('1h')
-    renderMetricDetail({
-      user: {
-        id: 'viewer-1',
-        email: 'viewer@example.com',
-        name: 'Viewer',
-        role: 'viewer',
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      },
-      status: 'authenticated',
-      error: null,
-      isLoggingOut: false,
-      logout: async () => {},
-      refresh: () => {},
-    })
+    renderMetricDetail(personaAuth('viewer'))
 
     await screen.findByTestId('metrics-chart')
     expect(await screen.findByRole('heading', { name: 'Annotations' })).toBeInTheDocument()
@@ -1950,18 +1940,20 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={null}>
-          <MemoryRouter
-            initialEntries={[
-              {
-                pathname: '/p/demo/monitoring/metric/metric-1',
-                state: { annotateBucket: '2026-04-01T10:00:00Z' },
-              },
-            ]}
-          >
-            <Routes>
-              <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
-            </Routes>
-          </MemoryRouter>
+          <SessionProject session={null}>
+            <MemoryRouter
+              initialEntries={[
+                {
+                  pathname: '/p/demo/monitoring/metric/metric-1',
+                  state: { annotateBucket: '2026-04-01T10:00:00Z' },
+                },
+              ]}
+            >
+              <Routes>
+                <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
+              </Routes>
+            </MemoryRouter>
+          </SessionProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )
@@ -2366,29 +2358,17 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     // The definition never settles (status stays null), so the watch keeps polling.
     installMetricDetailFetch('1d')
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const viewer: AuthContextValue = {
-      user: {
-        id: 'viewer-1',
-        email: 'viewer@example.com',
-        name: 'Viewer',
-        role: 'viewer',
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      },
-      status: 'authenticated',
-      error: null,
-      isLoggingOut: false,
-      logout: async () => {},
-      refresh: () => {},
-    }
+    const viewer: AuthContextValue = personaAuth('viewer')
     const tree = (auth: AuthContextValue | null) => (
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={auth}>
-          <MemoryRouter initialEntries={['/p/demo/monitoring/metric/metric-1']}>
-            <Routes>
-              <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
-            </Routes>
-          </MemoryRouter>
+          <SessionProject session={auth}>
+            <MemoryRouter initialEntries={['/p/demo/monitoring/metric/metric-1']}>
+              <Routes>
+                <Route path="/p/:slug/monitoring/:scope/:id" element={<MonitoringDetailPage />} />
+              </Routes>
+            </MemoryRouter>
+          </SessionProject>
         </AuthContext.Provider>
       </QueryClientProvider>
     )

@@ -3,14 +3,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { eventsApi } from '@/api/events'
 import { variablesApi } from '@/api/variables'
 import { variableDriftsApi } from '@/api/variableDrifts'
 import { variableOverridesApi } from '@/api/variableOverrides'
-import type { Role, Variable } from '@/types'
+import type { Variable } from '@/types'
 import { VariableDetailPage } from './VariableDetailPage'
 import { variableDetailPath, variableListPath } from './variableDetailPath'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/variables', () => ({
   variablesApi: {
@@ -31,6 +32,13 @@ vi.mock('@/api/variableOverrides', () => ({
 
 vi.mock('@/api/events', () => ({
   eventsApi: { list: vi.fn() },
+}))
+
+// The Notes card (F24) asks which docs link to the variable.
+vi.mock('@/api/docs', () => ({
+  docsApi: {
+    backlinks: vi.fn(() => Promise.resolve({ kind: 'variable', name: '', qualifier: null, items: [] })),
+  },
 }))
 
 function makeVariable(overrides: Partial<Variable> & { id: string; name: string }): Variable {
@@ -55,17 +63,19 @@ function ListProbe() {
   return <p>list at {location.search}</p>
 }
 
-function renderPage(path: string, role: Role = 'owner') {
+function renderPage(path: string, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/p/:slug/variables/:id" element={<PageRoute />} />
-            <Route path="/p/:slug/variables" element={<ListProbe />} />
-          </Routes>
-        </MemoryRouter>
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/p/:slug/variables/:id" element={<PageRoute />} />
+              <Route path="/p/:slug/variables" element={<ListProbe />} />
+            </Routes>
+          </MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -103,7 +113,7 @@ describe('variableDetailPath', () => {
 })
 
 describe('VariableDetailPage (AU-26)', () => {
-  it('titles the page after the variable and opens on its definition', async () => {
+  it('titles the page after the property and opens on its definition', async () => {
     renderPage('/p/demo/variables/var-1')
 
     expect(await screen.findByRole('heading', { level: 1, name: '${variant}' })).toBeInTheDocument()
@@ -158,15 +168,15 @@ describe('VariableDetailPage (AU-26)', () => {
   it('offers the way back to the list, with the row focused', async () => {
     renderPage('/p/demo/variables/var-1')
 
-    fireEvent.click(await screen.findByRole('link', { name: 'Variables' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Properties' }))
     expect(await screen.findByText('list at ?focus=var-1')).toBeInTheDocument()
   })
 
-  it('says the variable is gone, with the way back, when the list has no such id', async () => {
+  it('says the property is gone, with the way back, when the list has no such id', async () => {
     renderPage('/p/demo/variables/var-missing')
 
-    expect(await screen.findByText('Variable not found')).toBeInTheDocument()
-    const back = screen.getByRole('link', { name: 'Back to variables' })
+    expect(await screen.findByText('Property not found')).toBeInTheDocument()
+    const back = screen.getByRole('link', { name: 'Back to properties' })
     expect(back).toHaveAttribute('href', '/p/demo/variables')
   })
 

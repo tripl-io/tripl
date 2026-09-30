@@ -15,6 +15,8 @@ import type { Project, Role } from '@/types'
 import { ScansTab } from './ScansTab'
 import ProjectScansPage from '../ProjectScansPage'
 import { at } from '@/test/at'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 const navigateMock = vi.fn()
 
@@ -214,6 +216,8 @@ function authAs(role: Role): AuthContextValue {
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -226,31 +230,35 @@ function authAs(role: Role): AuthContextValue {
 }
 
 /** As an owner unless a test says otherwise: authoring a scan is owner-only. */
-function renderTab(role: Role = 'owner') {
+function renderTab(role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter initialEntries={['/p/demo/scans']}>
-          <ScansTab slug="demo" />
-        </MemoryRouter>
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <MemoryRouter initialEntries={['/p/demo/scans']}>
+            <ScansTab slug="demo" />
+          </MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
 }
 
 /** The routed page, for the paths ScansTab alone cannot answer (`/scans/new`). */
-function renderRoute(path: string, role: Role = 'owner') {
+function renderRoute(path: string, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/p/:slug/scans/:scanId" element={<ProjectScansPage />} />
-            <Route path="/p/:slug/scans" element={<ProjectScansPage />} />
-          </Routes>
-        </MemoryRouter>
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/p/:slug/scans/:scanId" element={<ProjectScansPage />} />
+              <Route path="/p/:slug/scans" element={<ProjectScansPage />} />
+            </Routes>
+          </MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -265,7 +273,7 @@ afterEach(() => {
 describe('ScansTab', () => {
   it('offers an editor Run now but no scan authoring (DATA-6)', async () => {
     setupFetch()
-    renderTab('editor')
+    renderTab('member')
 
     expect(await screen.findByRole('note')).toHaveTextContent(/done by an owner/)
     expect(await screen.findByRole('button', { name: 'Run Main events scan now' })).toBeInTheDocument()
@@ -695,7 +703,7 @@ describe('ScansTab', () => {
 
   it('sends a non-owner who opens /scans/new to the list', async () => {
     setupFetch()
-    renderRoute('/p/demo/scans/new', 'editor')
+    renderRoute('/p/demo/scans/new', 'member')
 
     expect(await screen.findByText('Main events scan')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'New scan' })).not.toBeInTheDocument()

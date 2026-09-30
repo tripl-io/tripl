@@ -1,3 +1,5 @@
+import { orgStorageKey } from '@/lib/activeOrg'
+
 export type EventsSavedView = {
   name: string
   tab: string
@@ -49,7 +51,7 @@ let memoryStore: string | null = null
 function readStore(): StoredEventsSavedViews {
   let raw: string | null
   try {
-    raw = typeof localStorage.getItem === 'function' ? localStorage.getItem(STORAGE_KEY) : null
+    raw = typeof localStorage.getItem === 'function' ? localStorage.getItem(orgStorageKey(STORAGE_KEY)) : null
   } catch {
     raw = memoryStore
   }
@@ -70,7 +72,7 @@ function writeStore(store: StoredEventsSavedViews) {
   const serialized = JSON.stringify(store)
   try {
     if (typeof localStorage.setItem === 'function') {
-      localStorage.setItem(STORAGE_KEY, serialized)
+      localStorage.setItem(orgStorageKey(STORAGE_KEY), serialized)
       return
     }
   } catch {

@@ -1,7 +1,8 @@
 """F20 PR1: the organization schema, its backfill, and the settings scope.
 
 The backfill is driven through the migration's own ``backfill_organizations``
-on a SQLite schema built from the models (foreign keys enforced), the way
+on a SQLite schema built from the models as they stood before the legacy role
+was dropped (``_legacy_role_schema``; foreign keys enforced), the way
 ``test_alembic_revisions`` drives other data migrations; the PostgreSQL round
 trip of the whole revision lives in ``test_organizations_migration_pg``.
 """
@@ -21,7 +22,6 @@ from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from tripl.models import Base
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
 from tripl.models.audit_log import AuditLog
@@ -37,6 +37,11 @@ from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.services import app_settings_service
+from tripl.tests._legacy_role_schema import (
+    create_legacy_role_schema,
+    set_invitation_roles,
+    set_user_role,
+)
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
 from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_alembic_revisions import _load_migration
@@ -53,7 +58,7 @@ def migration() -> ModuleType:
 def engine() -> Iterator[Engine]:
     engine = create_engine("sqlite://")
     enable_sqlite_foreign_keys(engine)
-    Base.metadata.create_all(engine)
+    create_legacy_role_schema(engine)
     try:
         yield engine
     finally:
@@ -61,9 +66,10 @@ def engine() -> Iterator[Engine]:
 
 
 def _user(session: Session, email: str, role: str) -> uuid.UUID:
-    user = User(email=email, name=email, password_hash="x", role=role)
+    user = User(email=email, name=email, password_hash="x")
     session.add(user)
     session.flush()
+    set_user_role(session, user.id, role)
     return user.id
 
 
@@ -85,8 +91,8 @@ def _seed_instance(engine: Engine) -> dict[str, uuid.UUID]:
             [
                 ProjectMember(project_id=ids["alpha"], user_id=ids["editor"], role="editor"),
                 ProjectMember(project_id=ids["beta"], user_id=ids["editor"], role="viewer"),
-                # A viewer holding an editor grant: users.role caps it at read
-                # time, and the backfill must leave the row as it is.
+                # A viewer holding an editor grant: the PR1 backfill leaves the
+                # row as it is (PR4's c9e1a3b5d7f9 caps it; test_org_roles_migration).
                 ProjectMember(project_id=ids["alpha"], user_id=ids["viewer"], role="editor"),
                 ProjectMember(project_id=ids["beta"], user_id=ids["viewer"], role="viewer"),
             ]
@@ -233,7 +239,7 @@ def test_the_backfill_creates_the_default_org_when_it_is_missing(
         assert org is not None
         assert org.slug == DEFAULT_ORG_SLUG
         assert org.members_can_create_projects is True
-        assert org.default_project_role is None
+        assert org.default_project_role == "none"
 
 
 def test_rows_without_an_org_and_project_bound_keys_are_assigned(
@@ -247,35 +253,49 @@ def test_rows_without_an_org_and_project_bound_keys_are_assigned(
         elsewhere = Project(name="elsewhere", slug="elsewhere", organization_id=other_org)
         session.add(elsewhere)
         session.flush()
-        # Written as an old container would have: the key never named an org, so
-        # it holds the default — the backfill must move it to its project's.
-        bound = ApiKey(
-            user_id=owner,
-            project_id=elsewhere.id,
-            name="bound",
-            key_prefix="p1",
-            key_hash="a" * 64,
-            scope="read",
-        )
+        elsewhere_id = elsewhere.id
         unbound = ApiKey(
             user_id=owner, name="free", key_prefix="p2", key_hash="b" * 64, scope="read"
         )
-        session.add_all([bound, unbound])
+        session.add(unbound)
         session.add(
             AuditLog(
                 action="x", target_type="project", project_slug="elsewhere", organization_id=None
             )
         )
-        session.add(
-            Invitation(
-                email="new@example.com",
-                role="viewer",
-                token_hash="c" * 64,
-                expires_at=datetime.now(UTC) + timedelta(days=1),
+        invitation = Invitation(
+            email="new@example.com",
+            token_hash="c" * 64,
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+        session.add(invitation)
+        session.flush()
+        set_invitation_roles(session, invitation.id, "viewer", org_role=None)
+        unbound_id = unbound.id
+
+    # Written as an old container would have: the key never named an org, so it
+    # holds the default — the backfill must move it to its project's. The model
+    # schema refuses that row since F20 PR5 (fk_api_keys_project_organization),
+    # so it goes in with foreign-key checks off, as the pre-PR5 schema took it.
+    bound_id = uuid.uuid4()
+    with engine.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.execute(
+            sa.insert(ApiKey.__table__).values(
+                id=bound_id,
+                user_id=owner,
+                project_id=elsewhere_id,
+                organization_id=DEFAULT_ORG_ID,
+                name="bound",
+                key_prefix="p1",
+                key_hash="a" * 64,
+                scope="read",
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
-        session.flush()
-        bound_id, unbound_id = bound.id, unbound.id
+        connection.commit()
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
 
     _backfill(engine, migration)
 
@@ -368,9 +388,8 @@ async def test_rows_written_by_existing_services_land_in_the_default_org(
         assert set(await session.scalars(select(Project.organization_id))) == {DEFAULT_ORG_ID}
         assert set(await session.scalars(select(DataSource.organization_id))) == {DEFAULT_ORG_ID}
         assert set(await session.scalars(select(ApiKey.organization_id))) == {DEFAULT_ORG_ID}
-        # The registering first user is not made a platform admin by anything in
-        # this PR: only the migration sets the flag.
-        assert set(await session.scalars(select(User.is_platform_admin))) == {False}
+        # Since PR4 the first user of a self-hosted instance is its platform admin.
+        assert set(await session.scalars(select(User.is_platform_admin))) == {True}
 
 
 async def _put_setting(organization_id: uuid.UUID | None, value: dict[str, Any]) -> None:

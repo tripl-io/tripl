@@ -37,6 +37,7 @@ import { getErrorMessage } from '@/lib/utils'
 import { useCanWriteProject } from '@/lib/permissions'
 import { ReadOnlyNotice } from '@/components/states'
 import { metaFieldsKey, projectMetaFieldsKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * A link template as it will be saved. `{value}` without the dollar sign is
@@ -269,7 +270,7 @@ export function MetaFieldsTab({ slug }: { slug: string }) {
           <>
             Extra attributes every event carries whatever its type: owner team, Jira ticket,
             review date. Per-type fields live on each{' '}
-            <Link to={`/p/${slug}/event-types`} className="text-accent no-underline hover:underline">
+            <Link to={projectPath(currentOrgSlug(), slug, '/event-types')} className="text-accent no-underline hover:underline">
               event type
             </Link>
             .

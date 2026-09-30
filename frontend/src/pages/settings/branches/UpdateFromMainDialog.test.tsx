@@ -136,7 +136,7 @@ describe('UpdateFromMainDialog', () => {
     renderDialog()
 
     expect(await screen.findByText('Events: 3 changed, 1 added')).toBeInTheDocument()
-    expect(screen.getByText('Variables: 1 changed')).toBeInTheDocument()
+    expect(screen.getByText('Properties: 1 changed')).toBeInTheDocument()
     expect(planBranchesApi.getUpdatePreview).toHaveBeenCalledWith('demo', 'feat-1')
   })
 
@@ -144,7 +144,7 @@ describe('UpdateFromMainDialog', () => {
     renderDialog()
 
     // The group heading; the row inside it repeats the type before the name.
-    expect(await screen.findByRole('heading', { level: 3, name: 'Variable' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 3, name: 'Property' })).toBeInTheDocument()
     expect(screen.getByText('Event in checkout')).toBeInTheDocument()
     expect(screen.getByText(/Deleted on main · edited here/)).toBeInTheDocument()
     expect(screen.getByText(/Take main deletes this event on the branch/)).toBeInTheDocument()
@@ -223,7 +223,7 @@ describe('UpdateFromMainDialog', () => {
     fireEvent.click(updateButton())
 
     expect(await screen.findByText('1 left to choose')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 3, name: 'Variable' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Property' })).toBeInTheDocument()
     expect(updateButton()).toBeDisabled()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })

@@ -7,7 +7,7 @@ Shape (``GET /projects/{slug}/plan/export?format=codegen_model``)::
                     fields: [{name, required, type, values: [..] | null, variable}],
                     events: [{identity, name, status, field_values: {field: value},
                               deprecated, overrides: {token: [allowed values]}}]}],
-     variables: [{name, allowed_values, tokens}]}
+     variables: [{name, allowed_values, tokens, variable_type}]}
 
 The token grammars match the backend's exactly (``tripl.core.name_template``):
 a plan token is ``${…}`` with anything but ``}`` inside (``${}`` included, so a
@@ -95,6 +95,9 @@ class CodegenModel:
     plan_hash: str | None = None
     event_types: tuple[EventTypeModel, ...] = ()
     variables: Mapping[str, tuple[str, ...]] | None = None
+    # Token -> the variable's ``variable_type`` (F23); absent from an older
+    # server, where every token reads as text.
+    variable_types: Mapping[str, str] | None = None
 
     def event_type(self, name: str) -> EventTypeModel | None:
         return next((item for item in self.event_types if item.name == name), None)
@@ -110,6 +113,10 @@ class CodegenModel:
         if token in overrides:
             return overrides[token] or None
         return self.allowed(token)
+
+    def type_of(self, token: str) -> str:
+        """The ``variable_type`` behind a token; ``string`` when unknown."""
+        return (self.variable_types or {}).get(token) or "string"
 
 
 def rule_keys(rule: str) -> list[str]:
@@ -241,17 +248,23 @@ def parse_model(payload: Any) -> CodegenModel:
     types = [item for raw in as_list(body.get("event_types")) if (item := parse_event_type(raw))]
     variables: dict[str, tuple[str, ...]] = {}
     aliases: dict[str, tuple[str, ...]] = {}
+    variable_types: dict[str, str] = {}
     for raw in as_list(body.get("variables")):
         name = text_of(raw, "name")
         if name is None:
             continue
         allowed = _values(raw.get("allowed_values")) or ()
         variables[name] = allowed
+        variable_type = text_of(raw, "variable_type")
+        if variable_type:
+            variable_types[name] = variable_type
         # Every `${token}` spelling that resolves to the variable (its source
         # name, bindings) reads the same allowed values; its own name wins.
         for token in raw.get("tokens") or ():
             if isinstance(token, str) and token:
                 aliases.setdefault(token, allowed)
+                if variable_type:
+                    variable_types.setdefault(token, variable_type)
     for token, allowed in aliases.items():
         variables.setdefault(token, allowed)
     branch = body.get("branch")
@@ -261,4 +274,5 @@ def parse_model(payload: Any) -> CodegenModel:
         branch=(branch if isinstance(branch, str) and branch else text_of(as_dict(branch), "name")),
         event_types=tuple(sorted(types, key=lambda item: item.name)),
         variables=dict(sorted(variables.items())),
+        variable_types=dict(sorted(variable_types.items())),
     )

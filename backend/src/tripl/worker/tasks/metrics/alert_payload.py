@@ -18,11 +18,13 @@ from tripl.alerting_matching import (
     SCOPE_DISTRIBUTION_DRIFT,
     SCOPE_LIFECYCLE,
     SCOPE_METRIC,
+    SCOPE_PROPERTY_DRIFT,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
     SCOPE_VARIABLE_VALUE_DRIFT,
     AlertMatchCandidate,
 )
+from tripl.alerting_property_drift import property_drift_scope_name
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
     SCOPE_EVENT_TYPE,
@@ -114,6 +116,21 @@ def _build_alert_scope_names(
             scope_names[(SCOPE_VARIABLE_VALUE_DRIFT, anomaly.scope_ref)] = (
                 f"{event_name}.{drift_field}"
             )
+
+    # A property drift (F23) reads "<event>.<property>", or "All events.<property>"
+    # for a type change, which is per property. Same rule as the replay's
+    # (``alerting_property_drift.property_drift_scope_name``).
+    for anomaly in anomalies:
+        if anomaly.scope_type != SCOPE_PROPERTY_DRIFT:
+            continue
+        event_label = (
+            scope_names.get((SCOPE_EVENT, str(anomaly.event_id)))
+            if anomaly.event_id is not None
+            else None
+        )
+        scope_names[(SCOPE_PROPERTY_DRIFT, anomaly.scope_ref)] = property_drift_scope_name(
+            event_label, getattr(anomaly, "drift_field", None) or anomaly.scope_ref
+        )
 
     # Catalog metric anomalies resolve to the metric's display name (scope_ref is
     # the metric definition id).
@@ -274,6 +291,7 @@ def _build_delivery_snapshot(
     *,
     project_slug: str,
     app_base_url: str,
+    org_slug: str,
     rule: AlertRule,
     destination: AlertDestination,
     anomalies: list[AlertMatchCandidate],
@@ -303,7 +321,8 @@ def _build_delivery_snapshot(
     rows that have them, with nothing but a ``logger.warning`` to say why.
     ``dispatch._create_deliveries`` resolves the value once, before the chunk
     loop, and hands that one string here and to the per-item
-    ``_build_item_paths`` call that mints the rows.
+    ``_build_item_paths`` call that mints the rows. ``org_slug`` is resolved
+    once beside it, for the same reason.
 
     That buys agreement about the BASE, and deliberately nothing more. This is
     the FIRST of the two ``_build_item_paths`` calls per item — the snapshot is
@@ -322,6 +341,7 @@ def _build_delivery_snapshot(
     for anomaly in anomalies:
         details_path, monitoring_path = _build_item_paths(
             project_slug,
+            org_slug=org_slug,
             app_base_url=app_base_url,
             scope_type=anomaly.scope_type,
             scope_ref=anomaly.scope_ref,
@@ -389,6 +409,9 @@ def _build_delivery_snapshot(
         )
     return {
         "project_slug": project_slug,
+        # The organization the links above name (F20 PR8). Beside the project
+        # slug, which on its own names a project only inside one organization.
+        "org_slug": org_slug,
         "scan_name": config.name,
         "destination_name": destination.name,
         "rule_name": rule.name,

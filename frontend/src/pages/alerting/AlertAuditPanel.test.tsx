@@ -9,6 +9,8 @@ import type { AlertDelivery, AlertDeliveryListResponse, Role } from '@/types'
 
 import { AlertAuditPanel } from './AlertAuditPanel'
 import type { DeliveryFilters } from './AlertAuditPanel'
+import { type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 const NO_FILTERS: DeliveryFilters = {
   status: '',
@@ -125,6 +127,8 @@ function authValue(role: Role): AuthContextValue {
       email: 'someone@example.com',
       name: 'Someone',
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -136,17 +140,19 @@ function authValue(role: Role): AuthContextValue {
   }
 }
 
-function renderPanel(props: HarnessProps = {}, role: Role = 'editor') {
+function renderPanel(props: HarnessProps = {}, role: Persona = 'member') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   // Router and query client because each rendered row is an AlertDeliveryRow,
   // which links to the scope it fired on and lazily fetches its own detail.
   return render(
-    <AuthContext.Provider value={authValue(role)}>
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <Harness {...props} />
-        </MemoryRouter>
-      </QueryClientProvider>
+    <AuthContext.Provider value={authValue(role === 'viewer' ? 'member' : role)}>
+      <PersonaProject persona={role}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <Harness {...props} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </PersonaProject>
     </AuthContext.Provider>,
   )
 }
@@ -378,14 +384,14 @@ describe('AlertAuditPanel viewer gating (tripl-oxkt.9)', () => {
     renderPanel({ deliveries: failedPage }, 'viewer')
 
     expect(screen.queryByRole('button', { name: 'Retry delivery' })).toBeNull()
-    expect(screen.getAllByText(/your account has the viewer role/i)).toHaveLength(1)
+    expect(screen.getAllByText(/you have the viewer role in this project/i)).toHaveLength(1)
   })
 
   it('says nothing of the sort to an editor, who gets the Retry', () => {
-    renderPanel({ deliveries: failedPage }, 'editor')
+    renderPanel({ deliveries: failedPage }, 'member')
 
     expect(screen.getByRole('button', { name: 'Retry delivery' })).toBeEnabled()
-    expect(screen.queryByText(/your account has the viewer role/i)).toBeNull()
+    expect(screen.queryByText(/you have the viewer role in this project/i)).toBeNull()
   })
 })
 

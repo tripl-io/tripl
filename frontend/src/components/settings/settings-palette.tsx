@@ -8,6 +8,7 @@ import { SETTINGS_CONTENT_ID } from './landmarks'
 import { visibleGroupsAll } from './nav'
 import { projectHomePath } from '@/lib/navigation'
 import type { Project } from '@/types'
+import { stripOrgPrefix, workspacePath } from '@/lib/activeOrg'
 
 type PaletteIcon = React.ComponentType<{ className?: string; style?: React.CSSProperties }>
 
@@ -67,6 +68,7 @@ export function SettingsCommandPalette({
   backHref,
   backLabel = 'Back to project',
   isOwner,
+  isPlatformAdmin = false,
   projects,
   onLeave,
   onSwitchProject,
@@ -79,7 +81,10 @@ export function SettingsCommandPalette({
   /** The rail's words for the same link ("Back to Acme iOS"), so both name
    *  where it really goes (ST-4). */
   backLabel?: string
+  /** An owner or admin of the organization. */
   isOwner: boolean
+  /** The operator flag: the security, observability and system sections. */
+  isPlatformAdmin?: boolean
   projects: readonly Pick<Project, 'name' | 'slug'>[]
   /** Guarded navigation. `settingsPath` is null for a destination outside /settings. */
   /** Navigate away. The destination is all a caller needs: the settings
@@ -160,7 +165,7 @@ export function SettingsCommandPalette({
   }
 
   const leaveRows: PaletteRow[] = [
-    ...(backHref === '/workspace'
+    ...(stripOrgPrefix(backHref) === '/workspace'
       ? []
       : [
           {
@@ -174,16 +179,16 @@ export function SettingsCommandPalette({
     {
       value: 'nav:/workspace',
       label: 'All projects',
-      hint: '/workspace',
+      hint: workspacePath(),
       icon: LayoutDashboard,
-      onSelect: () => run(() => onLeave('/workspace')),
+      onSelect: () => run(() => onLeave(workspacePath())),
     },
   ]
 
   // The rail's own groups, in the rail's order and under its labels, so the
-  // palette reads as the same map of the area. Owner-only sections are filtered
-  // exactly as the rail filters them.
-  const sectionGroups: PaletteGroup[] = visibleGroupsAll(isOwner).map(group => ({
+  // palette reads as the same map of the area. Owner-only and platform-only
+  // sections are filtered exactly as the rail filters them.
+  const sectionGroups: PaletteGroup[] = visibleGroupsAll(isOwner, isPlatformAdmin).map(group => ({
     heading: `${group.label} settings`,
     rows: group.items.map(item => ({
       value: `section:${item.path}`,

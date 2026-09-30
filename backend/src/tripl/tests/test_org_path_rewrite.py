@@ -146,17 +146,42 @@ async def test_unknown_org_is_401_for_an_anonymous_caller(anon_client: AsyncClie
 @pytest.mark.parametrize(
     "path",
     [
-        "/api/v1/orgs/default/settings",
+        # Not rewritten to the legacy ``/settings/runtime`` (which does not
+        # exist either): ``settings`` is not a rewrite prefix.
+        "/api/v1/orgs/default/settings/runtime",
         "/api/v1/orgs/default/project-templates",
         "/api/v1/orgs/default/auth/me",
-        "/api/v1/orgs",
-        "/api/v1/orgs/default",
     ],
 )
 async def test_non_allow_listed_org_paths_reach_no_route(client: AsyncClient, path: str) -> None:
     resp = await client.get(path)
     assert resp.status_code == 404
     assert resp.json()["detail"] == "Not Found"
+
+
+async def test_org_settings_are_real_routes_not_the_legacy_view(client: AsyncClient) -> None:
+    """``/orgs/{org}/settings`` is the organization's own settings (F20 PR9,
+    critique #10): served by its own route, never rewritten to ``/settings``."""
+    assert rewrite_org_path("/api/v1/orgs/default/settings") is None
+    resp = await client.get("/api/v1/orgs/default/settings")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["organization"] == "default"
+    assert "security" not in resp.json()
+
+
+async def test_the_organization_routes_are_real_and_never_rewritten(client: AsyncClient) -> None:
+    """``/orgs`` and ``/orgs/{org}`` are the org management API (F20 PR6), and
+    ``members`` is not a rewrite prefix, so none of them is served as a legacy path."""
+    assert rewrite_org_path("/api/v1/orgs/default/members") is None
+    assert rewrite_org_path("/api/v1/orgs/default/transfer-ownership") is None
+    listed = await client.get("/api/v1/orgs")
+    assert listed.status_code == 200, listed.text
+    assert [org["slug"] for org in listed.json()] == ["default"]
+    one = await client.get("/api/v1/orgs/default")
+    assert one.status_code == 200, one.text
+    assert (one.json()["slug"], one.json()["is_default"]) == ("default", True)
+    members = await client.get("/api/v1/orgs/default/members")
+    assert members.status_code == 200, members.text
 
 
 @pytest.mark.parametrize(

@@ -17,13 +17,17 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { PASSWORD_MIN_LENGTH, PASSWORD_POLICY_HINT } from '@/lib/passwordPolicy'
 import { invitationPreviewKey } from '@/lib/queryKeys'
 import { AUTH_QUERY_KEY } from '@/components/auth-context'
+import { orgHomePath } from '@/lib/activeOrg'
 import { PasswordInput } from '@/components/ui/password-input'
 
-/** What each role can do, in the words of the Concepts page's Roles section. */
+/**
+ * What each ORGANIZATION role can do, in the words of the Concepts page's Roles
+ * section (F20 PR4).
+ */
 const ROLE_BLURB: Readonly<Record<Role, string>> = {
-  owner: 'has full control, including data sources, scans and members.',
-  editor: 'can change the tracking plan and alerts, and run scans.',
-  viewer: 'can read everything, but not change it.',
+  owner: 'has full control of the organization, including every project, data sources, members and other owners.',
+  admin: 'administers the organization — every project, data sources, scans and members — except managing owners.',
+  member: 'sees the projects they are added to, as an editor or a viewer of each.',
 }
 
 /**
@@ -37,6 +41,22 @@ function isDeadLinkError(error: unknown): boolean {
   return error instanceof ApiError && DEAD_LINK_STATUSES.has(error.status)
 }
 
+/** The signed-in account a visitor arrived with, for accepting into it. */
+export interface InviteSignedInAccount {
+  email: string
+  isSigningOut: boolean
+  signOut: () => void
+}
+
+/**
+ * The organization an acceptance added: in the account's list now, not before.
+ * `null` when it cannot tell, and the app's home picks one.
+ */
+function joinedOrgSlug(before: AuthUser | null | undefined, after: AuthUser): string | null {
+  const known = new Set((before?.orgs ?? []).map((org) => org.slug))
+  return after.orgs.find((org) => !known.has(org.slug))?.slug ?? null
+}
+
 /**
  * Redeem an invitation into an account.
  *
@@ -48,8 +68,14 @@ function isDeadLinkError(error: unknown): boolean {
  * Unknown, expired and already-used links are indistinguishable here because
  * the API answers all three identically, and this screen must not undo that by
  * guessing at a friendlier explanation.
+ *
+ * `signedIn` (F20): the visitor arrived signed in. The invitation then joins
+ * THAT account to the organization — no password — or they sign out to redeem
+ * it into another one. What the API refuses (the invitation names another
+ * address; hosted mode and this address is not verified yet) is shown in its
+ * own words.
  */
-export default function InvitePage() {
+export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAccount } = {}) {
   const { token = '' } = useParams<{ token: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -63,6 +89,16 @@ export default function InvitePage() {
     queryKey: invitationPreviewKey(token),
     queryFn: () => invitationsApi.preview(token),
     retry: false,
+  })
+
+  const joinMut = useMutation({
+    meta: SILENT_ERROR_META,
+    mutationFn: () => invitationsApi.acceptSignedIn(token),
+    onSuccess: (user: AuthUser) => {
+      const joined = joinedOrgSlug(queryClient.getQueryData<AuthUser | null>(AUTH_QUERY_KEY), user)
+      queryClient.setQueryData<AuthUser | null>(AUTH_QUERY_KEY, user)
+      void navigate(joined ? orgHomePath(joined) : '/', { replace: true })
+    },
   })
 
   const acceptMut = useMutation({
@@ -177,7 +213,50 @@ export default function InvitePage() {
             </div>
           )}
 
-          {preview && (
+          {preview && signedIn && (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-body text-fg-tertiary">
+                  You were invited as <strong>{preview.email}</strong>, joining as{' '}
+                  <strong>{roleLabel}</strong>. You are signed in as{' '}
+                  <strong>{signedIn.email}</strong>.
+                </p>
+                {roleBlurb && (
+                  <p className="text-body-sm text-fg-tertiary">
+                    {`${roleLabel} ${roleBlurb}`}
+                  </p>
+                )}
+              </div>
+
+              {joinMut.isError && (
+                <p role="alert" className="text-body-sm text-destructive">
+                  {getErrorMessage(joinMut.error)}
+                </p>
+              )}
+
+              <Button
+                type="button"
+                size="lg"
+                className="w-full justify-center"
+                disabled={joinMut.isPending}
+                onClick={() => joinMut.mutate()}
+              >
+                {joinMut.isPending ? 'Joining…' : 'Accept with this account'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className="w-full justify-center"
+                disabled={signedIn.isSigningOut}
+                onClick={signedIn.signOut}
+              >
+                {signedIn.isSigningOut ? 'Signing out…' : 'Sign out and use another account'}
+              </Button>
+            </div>
+          )}
+
+          {preview && !signedIn && (
             <>
               <div className="space-y-1">
                 <p className="text-body text-fg-tertiary">

@@ -267,13 +267,13 @@ async def test_the_query_embedding_is_fetched_while_the_lexical_leg_runs(
 
     enabled = replace(env_ai_config(), search_embeddings_enabled=True)
 
-    async def fake_ai_config(_session: object) -> AiConfig:
+    async def fake_ai_config(_session: object, **_kwargs: object) -> AiConfig:
         return enabled
 
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", fake_embed)
-    monkeypatch.setattr(app_settings_service, "get_ai_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_search_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         _, semantic_used = await _search_query.postgres_search(
@@ -493,13 +493,13 @@ async def test_the_envelope_and_the_row_may_disagree_about_the_semantic_leg(
 
     enabled = replace(env_ai_config(), search_embeddings_enabled=True)
 
-    async def fake_ai_config(_session: object) -> AiConfig:
+    async def fake_ai_config(_session: object, **_kwargs: object) -> AiConfig:
         return enabled
 
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", fake_embed)
-    monkeypatch.setattr(app_settings_service, "get_ai_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_search_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         merged, semantic_used = await _search_query.postgres_search(
@@ -1368,7 +1368,10 @@ async def test_metric_and_fact_table_creation_indexes_them_for_search(
     assert metric_items[0]["title"] == "Revenue Total"
     assert metric_items[0]["subtitle"] == "revenue_total"
     assert metric_items[0]["description"] == "Sum of order amounts"
-    assert metric_items[0]["route_path"] == f"/p/search-catalog/monitoring/metric/{metric['id']}"
+    assert (
+        metric_items[0]["route_path"]
+        == f"/o/default/p/search-catalog/monitoring/metric/{metric['id']}"
+    )
 
     # The metric is also reachable through its internal name (keywords).
     by_name = await client.get("/api/v1/projects/search-catalog/search?q=revenue_total")
@@ -1383,7 +1386,7 @@ async def test_metric_and_fact_table_creation_indexes_them_for_search(
     assert ft_items[0]["title"] == "Orders Fact"
     assert (
         ft_items[0]["route_path"]
-        == f"/p/search-catalog/metrics/fact-tables/{fact_table['id']}/edit"
+        == f"/o/default/p/search-catalog/metrics/fact-tables/{fact_table['id']}/edit"
     )
 
 
@@ -1551,9 +1554,12 @@ async def test_scan_configs_and_alert_rules_are_searchable(client: AsyncClient) 
     assert ("alert_rule", "Checkout rule of another project") not in hits
 
     assert hits[("scan_config", "Nightly checkout scan")]["route_path"].startswith(
-        "/p/recall/scans/"
+        "/o/default/p/recall/scans/"
     )
-    assert hits[("alert_rule", "Checkout collapse watch")]["route_path"] == "/p/recall/alerting"
+    assert (
+        hits[("alert_rule", "Checkout collapse watch")]["route_path"]
+        == "/o/default/p/recall/alerting"
+    )
 
     # The rule's template is human-written text, so it is searchable on its own.
     by_template = await client.get("/api/v1/projects/recall/search?q=funnel&limit=50")
@@ -1905,13 +1911,13 @@ async def test_semantic_false_never_reaches_the_embedding_provider(
 
     enabled = replace(env_ai_config(), search_embeddings_enabled=True)
 
-    async def fake_ai_config(_session: object) -> AiConfig:
+    async def fake_ai_config(_session: object, **_kwargs: object) -> AiConfig:
         return enabled
 
     monkeypatch.setattr(_search_query, "postgres_lexical_search", fake_lexical)
     monkeypatch.setattr(_search_query, "postgres_semantic_search", fake_semantic)
     monkeypatch.setattr(_search_query, "embed_query", fake_embed)
-    monkeypatch.setattr(app_settings_service, "get_ai_config", fake_ai_config)
+    monkeypatch.setattr(app_settings_service, "get_search_embedding_config", fake_ai_config)
 
     async with TestSessionLocal() as session:
         _, semantic_used = await _search_query.postgres_search(

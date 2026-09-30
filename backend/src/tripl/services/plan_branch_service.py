@@ -8,6 +8,7 @@ the ``(project_id, branch_id, name)`` unique constraints are enforced on the liv
 
 from __future__ import annotations
 
+import copy
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -36,7 +37,10 @@ from tripl.models.plan_revision import PlanRevision, PlanRevisionKind
 from tripl.models.project import Project
 from tripl.models.user import User
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.models.variable_value import VariableValue
 from tripl.schemas.plan_branch import (
     BranchCommentCreate,
@@ -66,8 +70,9 @@ from tripl.services.plan_revision_service import (
     compute_plan_diff_entries,
     plan_snapshot_hash,
 )
-from tripl.services.project_access import member_role
+from tripl.services.project_access import OWNER, member_role
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
+from tripl.services.project_links import project_link
 from tripl.services.project_lookup import resolve_project, resolve_project_id
 from tripl.services.project_member_service import NOT_A_MEMBER_DETAIL
 
@@ -556,6 +561,7 @@ async def deep_copy_plan_to_branch(
                 description=var.description,
                 allowed_values=list(var.allowed_values or []),
                 bindings=list(var.bindings or []),
+                json_schema=copy.deepcopy(var.json_schema),
                 excluded_from_scans=var.excluded_from_scans,
             )
         )
@@ -643,6 +649,7 @@ async def deep_copy_plan_to_branch(
             sunset_at=ev.sunset_at,
             last_seen_at=ev.last_seen_at,
             metric_breakdown_columns=list(ev.metric_breakdown_columns or []),
+            required_presence_threshold=ev.required_presence_threshold,
             owner_id=ev.owner_id,
             reviewed=ev.reviewed,
             # Which main row this copy is, so rows sharing a (type, name) can be
@@ -710,6 +717,7 @@ async def deep_copy_plan_to_branch(
                     value_kind=value_context.value_kind,
                     observed_count=value_context.observed_count,
                     values=list(value_context.values or []),
+                    presence_rate=value_context.presence_rate,
                 )
             )
 
@@ -737,7 +745,8 @@ async def deep_copy_plan_to_branch(
                     branch_id=target_branch_id,
                     variable_id=override_variable_id,
                     event_id=override_event_id,
-                    values=list(override.values or []),
+                    values=copy_override_values(override.values),
+                    required=override.required,
                 )
             )
 
@@ -773,6 +782,8 @@ async def deep_copy_plan_to_branch(
                     external_url=ph.external_url,
                     storage_backend=ph.storage_backend,
                     storage_key=ph.storage_key,
+                    storage_org_id=ph.storage_org_id,
+                    storage_config_id=ph.storage_config_id,
                     sort_order=ph.sort_order,
                 )
             )
@@ -1197,8 +1208,9 @@ async def transition_branch(
     return await _to_detail(session, branch)
 
 
-def _branch_url(slug: str, branch: PlanBranch) -> str:
-    return f"/p/{slug}/branches/{branch.id}"
+async def _branch_url(session: AsyncSession, branch: PlanBranch) -> str:
+    """The branch page, org-qualified (F20 PR8)."""
+    return await project_link(session, branch.project_id, f"/branches/{branch.id}")
 
 
 async def _reviewer_ids(session: AsyncSession, branch_id: uuid.UUID) -> set[uuid.UUID]:
@@ -1240,7 +1252,7 @@ async def _announce_transition(
             entity_type=subscription_service.BRANCH,
             entity_id=branch.id,
             title=f"{who} asked for your review of branch {branch.name}",
-            url=_branch_url(slug, branch),
+            url=await _branch_url(session, branch),
             actor_user_id=actor_id,
             user_ids=reviewers,
         )
@@ -1252,7 +1264,7 @@ async def _announce_transition(
         entity_type=subscription_service.BRANCH,
         entity_id=branch.id,
         title=f"{who} approved branch {branch.name}",
-        url=_branch_url(slug, branch),
+        url=await _branch_url(session, branch),
         actor_user_id=actor_id,
         user_ids={
             *(await _reviewer_ids(session, branch.id)),
@@ -1282,7 +1294,8 @@ async def add_reviewer(
     _reject_main(branch)
     reviewer_user = await _resolve_user(session, data.user_id)
     # A reviewer who cannot see the project could never open the branch to
-    # review it; the instance owner counts, as they see every project.
+    # review it; an owner/admin of the project's organization counts, as they see
+    # every project of it.
     if await member_role(session, reviewer_user, project_id) is None:
         raise HTTPException(status_code=422, detail=NOT_A_MEMBER_DETAIL)
     existing = await session.scalar(
@@ -1315,7 +1328,7 @@ async def add_reviewer(
                 entity_type=subscription_service.BRANCH,
                 entity_id=branch.id,
                 title=f"{who} asked for your review of branch {branch.name}",
-                url=_branch_url(slug, branch),
+                url=await _branch_url(session, branch),
                 actor_user_id=actor_user_id,
                 user_ids=[data.user_id],
             )
@@ -1417,7 +1430,7 @@ async def _announce_branch_comment(
             "project_id": branch.project_id,
             "entity_type": subscription_service.BRANCH,
             "entity_id": branch.id,
-            "url": _branch_url(slug, branch),
+            "url": await _branch_url(session, branch),
             "body": excerpt(comment.body),
             "actor_user_id": comment.user_id,
         }
@@ -1450,8 +1463,10 @@ async def delete_comment(
     if comment is None or comment.branch_id != branch.id:
         raise HTTPException(status_code=404, detail="Comment not found")
     # Same rule as the event and photo threads: an editor removes their own
-    # words, an owner moderates, and an orphaned comment is left to owners.
-    if user.role != "owner" and (comment.user_id is None or comment.user_id != user.id):
+    # words, a project owner (owner/admin of the project's organization)
+    # moderates, and an orphaned comment is left to owners.
+    is_author = comment.user_id is not None and comment.user_id == user.id
+    if not is_author and await member_role(session, user, project_id) != OWNER:
         raise HTTPException(
             status_code=403,
             detail="Only the comment's author or an owner can delete it",

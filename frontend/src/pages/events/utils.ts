@@ -572,16 +572,19 @@ export function unappliedChartFilters({
   filterReviewed,
   filterOpenQuestions,
   hasColumnFilters,
+  filterProperty,
 }: {
   filterSilentDays: number | undefined
   filterReviewed: boolean | undefined
   filterOpenQuestions: boolean | undefined
   hasColumnFilters: boolean
+  filterProperty?: string
 }): string[] {
   const out: string[] = []
   if (filterSilentDays !== undefined) out.push('activity')
   if (filterReviewed !== undefined) out.push('reviewed')
   if (filterOpenQuestions !== undefined) out.push('questions')
   if (hasColumnFilters) out.push('column filters')
+  if (filterProperty) out.push('property')
   return out
 }

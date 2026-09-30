@@ -10,7 +10,7 @@ a **running instance** over HTTP; two commands instead act on a **directory and
 the local Docker daemon**, and those are the ones that bring an instance into
 existence in the first place.
 
-Three commands ask a question about the instance as a whole and change nothing:
+Four commands ask a question about the instance as a whole and change nothing:
 
 - **`tripl doctor`** — runs six diagnostic checks and tells you what is broken,
   why, and what to do about it. Exits non-zero when something is wrong.
@@ -19,6 +19,8 @@ Three commands ask a question about the instance as a whole and change nothing:
 - **`tripl watch`** — follow mode. Prints what changes while you watch: replay
   chunk progress, jobs starting and finishing, signals opening, alert deliveries
   failing. Runs until you stop it. Never reports a verdict.
+- **`tripl whoami`** — which account the configured key acts as, the
+  organization it is bound to, and its scope. See [`tripl whoami`](#tripl-whoami).
 
 Two more act on a **class of objects** and are spelled `<plural-noun> <verb>`:
 
@@ -610,6 +612,49 @@ derives its own count by walking each config's job history. They normally agree.
 If they ever disagree in the field, `doctor`'s number is the one with the
 evidence attached — read the `scans` findings.
 :::
+
+## `tripl whoami`
+
+```
+usage: tripl whoami [-h] [--url URL] [--api-key KEY] [--config PATH] [--json]
+                    [--timeout SECONDS]
+```
+
+Answers "whose key is this, and where does it act?" with one read of
+`GET /api/v1/auth/me`. Nothing is written.
+
+```text
+tripl whoami - https://tripl.example.com (from $TRIPL_BASE_URL)
+
+user:  Deploy bot <deploy@example.com>
+key:   write, reaches the whole organization
+org:   acme (role: admin)
+```
+
+- **user** is the account that minted the key. A key acts as that account, with
+  its role, in one organization.
+- **key** is the key's access (`read` or `write`) and its reach: the whole
+  organization, or one project for a project-bound key.
+- **org** is the organization the key is bound to, and the account's role
+  there. A key reaches only that organization, whichever others its account
+  belongs to.
+
+A **project-bound key** cannot read `/auth/me` at all (every route without a
+project slug refuses it with 403). `whoami` reports that as the answer rather
+than as a failure, and exits 0:
+
+```text
+key:   read, bound to one project
+user:  unknown (a project-bound key cannot read /auth/me)
+```
+
+Against an instance older than organizations the access is read off the key's
+`tk_r_` / `tk_w_` prefix and `org` is `unknown`. A rejected key (401) exits 1.
+
+`--json` prints one document with `reach` (`instance` or `project`), `access`,
+`user` (`id`, `email`, `name`, or `null`), `org`, `role`, `is_platform_admin`
+and `orgs` (the slugs of every organization the account belongs to). Cost: **1
+request**.
 
 ## `tripl watch`
 
@@ -1571,7 +1616,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
                          [--project SLUG] [--branch REF] [--search TEXT]
                          [--status STATUS] [--tag TAG] [--field-value TEXT]
                          [--meta-value TEXT] [--event-type ID]
-                         [--silent-since-days N]
+                         [--property NAME_OR_ID] [--silent-since-days N]
                          [--reviewed | --unreviewed]
                          [--offset N] [--limit N] [--order-by ORDER] [--json]
                          [--timeout SECONDS]
@@ -1587,6 +1632,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--field-value TEXT` | Substring match on any field value — a screen name, typically. Case-insensitive. |
 | `--meta-value TEXT` | Substring match on any meta value — a ticket key, typically. Case-insensitive, so `--meta-value TRIPL-4` also keeps `TRIPL-412`. |
 | `--event-type ID` | Only events of this event type id, from `tripl plan types`. |
+| `--property NAME_OR_ID` | Only events whose property list carries this property, by name or id. |
 | `--silent-since-days N` | Only events the warehouse has not carried for N days, `0`–`3650`. |
 | `--reviewed` / `--unreviewed` | Only events already marked reviewed, or only those not. Mutually exclusive; omitting both asks for either. Reviewing is a separate axis from lifecycle status, so `--reviewed` and `--status in_review` can both match the same event. |
 | `--offset N` | Skip N events, to read the next page. Default `0`. |
@@ -1847,34 +1893,36 @@ would otherwise resolve against the wrong name.
 **Cost:** two requests — the event-type listing, to resolve `<event-type>`, then
 the fields — plus one to resolve `--branch` when you pass it.
 
-### `tripl plan variables`
+### `tripl plan properties`
 
 ```
-usage: tripl plan variables [-h] [--url URL] [--api-key KEY] [--config PATH]
-                            [--project SLUG] [--branch REF] [--offset N]
-                            [--limit N] [--json] [--timeout SECONDS]
+usage: tripl plan properties [-h] [--url URL] [--api-key KEY] [--config PATH]
+                             [--project SLUG] [--branch REF] [--offset N]
+                             [--limit N] [--json] [--timeout SECONDS]
 ```
+
+`tripl plan variables` is the same command under its former name.
 
 | Flag | Meaning |
 |------|---------|
 | `--project SLUG` | **Required**, exactly once. |
 | `--branch REF` | Read a plan branch instead of the live main plan. |
-| `--offset N` | Skip N variables, to read the next page. Default `0`. |
-| `--limit N` | How many variables to ask for, `1`–`5000`, default `200`. |
+| `--offset N` | Skip N properties, to read the next page. Default `0`. |
+| `--limit N` | How many properties to ask for, `1`–`5000`, default `200`. |
 | `--json` | One JSON document on stdout, every human line on stderr. |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
 
 ```text
-tripl plan variables - https://tripl.example.com (from $TRIPL_BASE_URL)
+tripl plan properties - https://tripl.example.com (from $TRIPL_BASE_URL)
 
 prod
   var-1  cart_value  number  12 events  1 open drift
   var-2  screen      string  40 events
 
-2 variables.
+2 properties.
 ```
 
-Variables are the documented `${placeholder}` tokens an event name or field
+Properties are the documented `${placeholder}` tokens an event name or field
 value may carry. The columns are the id, the name, the declared type, how many
 events use it, and its open **value drift** count — a variable observed carrying
 a value outside its documented set. A non-zero count there is the same class of
@@ -2416,6 +2464,14 @@ writes: it needs a `tk_w_` key backed by an editor or owner, and follows the
 The API will narrow organization writes to organization owners and admins once
 organization membership exists.
 
+Every verb sees what the key's user sees. A note that is not shared with that
+user (see [Sharing](../use/docs-catalog.md#sharing)) is missing from `ls`,
+`cat` and `pull`, and `cat` answers "not found" for it, exactly as for a note
+that does not exist. With a key of an organization owner or admin, `cat` still
+reads such a note by its path; that read is recorded in the audit log as
+`doc.break_glass_read`, and the note never shows in `ls` or `pull`. `push` never changes a note's sharing: frontmatter carries
+no visibility, and new notes get the default or their folder's setting.
+
 The service's limits: a note is at most **256 KiB**, and one `push` carries at
 most **2000 files** and **20 MiB** in total. `push` checks all three before it
 sends anything.
@@ -2537,7 +2593,7 @@ usage: tripl docs push [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `<dir>` | The folder to upload. |
 | `--project SLUG` | **Required**, exactly once. |
 | `--scope SCOPE` | `project` or `organization`, default `project`. |
-| `--mirror` | Also **delete** every note of the scope that the folder does not carry. On `organization` the API refuses it to every API key: only the instance owner, signed in to the web app, can mirror organization notes. |
+| `--mirror` | Also **delete** every note of the scope that the folder does not carry. On `organization` the API refuses it to every API key: only an organization owner or admin, signed in to the web app, can mirror organization notes. |
 | `--keep-root` | Prefix every path with the folder's own name: `./checkout-skill` uploads `checkout-skill/SKILL.md` instead of `SKILL.md`. |
 | `--dry-run` | Walk the folder and print the request, and send nothing. |
 | `--yes` | Skip the preview and the question. Required when stdin is not a terminal. |
@@ -4206,7 +4262,10 @@ A completed first run. Note the two absent keys — no `requests`, no `instance`
   },
   "bootstrap": {
     "has_users": false,
-    "registration_enabled": true
+    "registration_enabled": true,
+    "email_configured": false,
+    "deployment_mode": "self_hosted",
+    "email_verification_required": false
   },
   "exit_code": 0
 }
@@ -4222,7 +4281,7 @@ A completed first run. Note the two absent keys — no `requests`, no `instance`
 | `secrets_generated` | The **names** of the secrets this run produced. Empty on a re-run that left `.env` alone. There is a test asserting no generated value appears anywhere in this document. |
 | `commands[]` | Every **planned** command with `argv`, `cwd`, the env overlay, and `returncode`. A command that was never reached carries `"returncode": null` rather than being omitted — "the pull failed so `up -d` never ran" is exactly the fact you need, and an absent entry would read as "it ran and we lost the code". Empty under `--no-start`. Compose's own output is not here by construction; see [above](#what-actually-runs-and-where-its-output-goes). |
 | `health` | `null` when the run never got there (including `--dry-run`). Otherwise `status` is `ok`, `timeout` or `skipped`; `last_error` carries the last probe's own message (`"HTTP 502"`, `"ConnectError"`) and is `null` when it succeeded or was skipped. |
-| `bootstrap` | The `/auth/status` body verbatim — `has_users`, `registration_enabled` — or `null` if it could not be read. That failure never changes the exit code; it only changes the wording of the next steps. |
+| `bootstrap` | The `/auth/status` body verbatim — `has_users`, `registration_enabled`, `email_configured`, `deployment_mode`, `email_verification_required` — or `null` if it could not be read. A hosted instance always reports `has_users: true`, so the next steps never offer it a first-owner account. That failure never changes the exit code; it only changes the wording of the next steps. |
 | `exit_code` | The process exit code, in the document. |
 
 ### `upgrade` document
@@ -4371,7 +4430,7 @@ tripl plan types --project prod --json | jq -r '.items[].name' \
     done
 
 # Variables carrying values outside their documented set.
-tripl plan variables --project prod --json \
+tripl plan properties --project prod --json \
   | jq -r '.items[] | select(.open_drift_count > 0) | "\(.name) \(.open_drift_count)"'
 
 # Working branches whose base has moved under them - rebase before review.

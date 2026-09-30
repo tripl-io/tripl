@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 from html import unescape
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from tripl.alert_templates import (
     ALERT_MESSAGE_FORMAT_PLAIN,
@@ -39,6 +39,7 @@ from tripl.alert_templates import (
     normalize_message_template,
     percent_delta_or_none,
     plain_alert_number,
+    property_drift_line,
     release_regression_basis,
     render_alert_template,
     source_freshness_line,
@@ -46,6 +47,7 @@ from tripl.alert_templates import (
 from tripl.alerting_matching import (
     SCOPE_LIFECYCLE,
     SCOPE_METRIC,
+    SCOPE_PROPERTY_DRIFT,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
 )
@@ -72,6 +74,7 @@ from tripl.models.scan_config import ScanConfig
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services import app_settings_service, llm_service
 from tripl.services.attribution_text import attribution_line_for_scope
+from tripl.services.project_links import project_org_slugs_sync
 from tripl.worker.tasks.alerts_health_digest import _health_digest_lines
 
 logger = logging.getLogger(__name__)
@@ -604,6 +607,20 @@ def _build_items_text(
     return "\n\n".join(blocks)
 
 
+def _org_slug_of(project: Project | None, session: Session | None = None) -> str:
+    """The ``${org_slug}`` of ``project`` (F20 PR8); empty without a project.
+
+    Read on the session the project was loaded on when the caller has none to
+    hand (the subject builder): every caller here is a sync worker path.
+    """
+    if project is None:
+        return ""
+    bound = session if session is not None else object_session(project)
+    if bound is None:
+        return ""
+    return project_org_slugs_sync(bound, [project.id]).get(project.id, "")
+
+
 def _build_template_context(
     delivery: AlertDelivery,
     *,
@@ -654,6 +671,7 @@ def _build_template_context(
     variables = {
         "project_name": escape_alert_value(project.name if project else "", message_format),
         "project_slug": escape_alert_value(project.slug if project else "", message_format),
+        "org_slug": escape_alert_value(_org_slug_of(project, session), message_format),
         "channel": escape_alert_value(destination.type, message_format),
         "destination_name": escape_alert_value(destination.name, message_format),
         "rule_name": escape_alert_value(rule.name, message_format),
@@ -1028,7 +1046,10 @@ def _build_ai_explanation(
     rendering — no extra DB queries. Failure here must never block the alert,
     so any error degrades to None.
     """
-    ai_config = app_settings_service.get_ai_config_sync()
+    # The project's organization's AI (F20 PR9), read from the database: the
+    # worker has no request org. Unknown project or unreadable settings -> AI
+    # off, never the operator's key (critique #19).
+    ai_config = app_settings_service.get_ai_config_for_project_sync(session, delivery.project_id)
     lines: list[str] = [f"Project: {project_name}", f"Scan: {scan_name}", "Alert items:"]
     # The correlation id cannot answer "did this co-fire?". It is the inbox
     # handle, every item carries one, and it is keyed per SCOPE — so counting
@@ -1064,6 +1085,13 @@ def _build_ai_explanation(
             # A catalog-lifecycle fact (GH #258), not a volume move against a
             # baseline: "actual 1240 vs expected 0" would read as a spike.
             lines.append(f"- [event lifecycle] {lifecycle_line(_drift_facts(item))}")
+            continue
+        if item.scope_type == SCOPE_PROPERTY_DRIFT:
+            # A plan-versus-data fact (F23), not a volume move: the presence
+            # rates ride actual/expected only for the audit row.
+            lines.append(
+                f"- [property drift] {item.scope_name}: {property_drift_line(_drift_facts(item))}"
+            )
             continue
         if item.scope_type in {"schema", "distribution"}:
             drift_bits = " ".join(
@@ -1162,6 +1190,7 @@ def _build_email_subject(
     variables = {
         "project_name": escape_alert_value(project.name if project else "", message_format),
         "project_slug": escape_alert_value(project.slug if project else "", message_format),
+        "org_slug": escape_alert_value(_org_slug_of(project), message_format),
         "rule_name": escape_alert_value(name, message_format),
         "destination_name": escape_alert_value(destination.name, message_format),
         "matched_count": escape_alert_value(matched_count, message_format),

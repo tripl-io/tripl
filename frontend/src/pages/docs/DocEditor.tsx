@@ -18,13 +18,17 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
-import { describeUnresolved } from '@/lib/docLinks'
+import { relinkDocLinks, relinkWritten } from '@/lib/docLinks'
+import { applyPick, type LinkTrigger } from '@/lib/docLinkTrigger'
 import { splitFrontmatter } from '@/lib/docFrontmatter'
 import { formatBytes } from '@/lib/docTree'
 import { cn, getErrorMessage } from '@/lib/utils'
-import type { DocFileResponse, DocWriteResponse } from '@/types/docs'
+import type { DocFileResponse, DocLinkResolution, DocLinkSuggestion, DocWriteResponse } from '@/types/docs'
+import { DocLinkPickerPopup, type PickerPosition } from './DocLinkPicker'
+import { docLinkPickerExtension, insertPick, LinkPickerBridgeBox, measureTrigger } from './docLinkEditorExtension'
 import { DocMarkdown } from './DocMarkdown'
 import { BrokenLinksBanner } from './DocView'
+import { useDocLinkPicker } from './useDocLinkPicker'
 import { useDraftLinkResolutions, useWriteDoc } from './useDocs'
 
 const encoder = new TextEncoder()
@@ -40,7 +44,9 @@ const leavesEditMode: BlockerFunction = ({ currentLocation, nextLocation }) =>
 
 /**
  * The Markdown editor (F22): CodeMirror on the left, the rendered preview on
- * the right with `[[…]]` links resolved live (debounced). Saving sends the
+ * the right with `[[…]]` links resolved live (debounced). Typing `[[` opens a
+ * link picker and `@` a people picker (F24); a broken link's suggested names
+ * re-point it in one click. Saving sends the
  * revision the draft started from, so a concurrent edit comes back as a 409
  * and a choice — reload theirs, or overwrite with mine — instead of a silent
  * last-write-wins.
@@ -69,7 +75,49 @@ export function DocEditor({
   const guard = useUnsavedChangesGuard(dirty, { alsoBlock: leavesEditMode })
 
   const { resolvedTheme } = useTheme()
-  const extensions = useMemo(() => [markdown(), EditorView.lineWrapping], [])
+  const viewRef = useRef<EditorView | null>(null)
+  const [pickerPosition, setPickerPosition] = useState<PickerPosition | null>(null)
+  const onPick = useCallback((trigger: LinkTrigger, item: DocLinkSuggestion) => {
+    const view = viewRef.current
+    if (view) insertPick(view, trigger, item.insert)
+    else setDraft(prev => applyPick(prev, trigger, item.insert).text)
+  }, [])
+  const picker = useDocLinkPicker(slug, onPick)
+  const { update: updatePicker, handleKey: handlePickerKey } = picker
+  // Read by the CodeMirror extension on every event; synced after each commit.
+  const [bridge] = useState(() => new LinkPickerBridgeBox())
+  useEffect(() => {
+    bridge.set({
+      onTrigger: (trigger, view) => {
+        updatePicker(trigger)
+        if (trigger) measureTrigger(view, trigger, setPickerPosition)
+      },
+      onKey: handlePickerKey,
+    })
+  }, [bridge, updatePicker, handlePickerKey])
+  const extensions = useMemo(
+    () => [markdown(), EditorView.lineWrapping, docLinkPickerExtension(bridge)],
+    [bridge],
+  )
+  // The editor keeps focus and owns the list, the way CodeMirror's own
+  // autocompletion does: point assistive tech at the open list and its
+  // highlighted row. Set on the content element (role textbox) CodeMirror owns.
+  const pickerOpen = picker.trigger !== null && picker.items.length > 0
+  const activeOption = pickerOpen && picker.active >= 0 ? picker.optionId(picker.active) : null
+  useEffect(() => {
+    const content = viewRef.current?.contentDOM
+    if (!content) return
+    content.setAttribute('aria-autocomplete', 'list')
+    if (pickerOpen) content.setAttribute('aria-controls', picker.listId)
+    else content.removeAttribute('aria-controls')
+    if (activeOption) content.setAttribute('aria-activedescendant', activeOption)
+    else content.removeAttribute('aria-activedescendant')
+  }, [pickerOpen, activeOption, picker.listId])
+  const relink = useCallback(
+    (link: DocLinkResolution, suggestion: string) =>
+      setDraft(prev => relinkDocLinks(prev, link, relinkWritten(link, suggestion))),
+    [],
+  )
   const size = useMemo(() => encoder.encode(draft).length, [draft])
   const tooBig = size > maxBytes
   const previewBody = useMemo(() => splitFrontmatter(draft).body, [draft])
@@ -197,10 +245,13 @@ export function DocEditor({
         <div className="flex min-w-0 flex-col gap-1">
           {/* `sql-editor` is index.css's token frame for CodeMirror (border,
               focus ring, gutters, tooltips); it is not SQL-specific. */}
-          <div className="sql-editor min-w-0">
+          <div className="sql-editor relative min-w-0">
             <CodeMirror
               value={draft}
               onChange={setDraft}
+              onCreateEditor={view => {
+                viewRef.current = view
+              }}
               extensions={extensions}
               theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
               minHeight="420px"
@@ -208,16 +259,17 @@ export function DocEditor({
               aria-label="Markdown source"
               basicSetup={{ foldGutter: false, highlightActiveLine: false }}
             />
+            <DocLinkPickerPopup picker={picker} position={pickerPosition} />
           </div>
           <p className={cn('m-0 text-caption', tooBig ? 'text-danger' : 'text-fg-tertiary')}>
             {formatBytes(size)} of {formatBytes(maxBytes)}
-            {tooBig ? ' — too large to save' : ''} · Ctrl/⌘+S saves · link with [[event:name]], [[event-type:name]],
-            [[field:type/name]]
+            {tooBig ? ' — too large to save' : ''} · Ctrl/⌘+S saves · type [[ to link a note, plan entity, alert
+            rule or person ([[metric: narrows to metrics) · @ to mention someone
           </p>
         </div>
         <section className="flex min-w-0 flex-col gap-3" aria-label="Preview">
           <div className="micro-label text-fg-tertiary">Preview</div>
-          {unresolved.length > 0 && <BrokenLinksBanner items={unresolved.map(describeUnresolved)} />}
+          {unresolved.length > 0 && <BrokenLinksBanner links={unresolved} onRelink={relink} />}
           <div className="max-h-[70vh] overflow-y-auto rounded-control border border-border p-4">
             <DocMarkdown body={previewBody} slug={slug} scope={doc.scope} path={doc.path} resolutions={links.data} />
           </div>

@@ -20,6 +20,8 @@ import {
 } from '@/lib/queryKeys'
 import ReconciliationPage from './ReconciliationPage'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -135,13 +137,15 @@ function renderPage(
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <BranchContext.Provider value={{ branchId, setBranchId: () => {}, slug: 'demo' }}>
-          <MemoryRouter initialEntries={['/p/demo/reconciliation']}>
-            <Routes>
-              <Route path="/p/:slug/reconciliation" element={<ReconciliationPage />} />
-            </Routes>
-          </MemoryRouter>
-        </BranchContext.Provider>
+        <SessionProject session={auth}>
+          <BranchContext.Provider value={{ branchId, setBranchId: () => {}, slug: 'demo' }}>
+            <MemoryRouter initialEntries={['/p/demo/reconciliation']}>
+              <Routes>
+                <Route path="/p/:slug/reconciliation" element={<ReconciliationPage />} />
+              </Routes>
+            </MemoryRouter>
+          </BranchContext.Provider>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -164,21 +168,7 @@ afterEach(() => {
 describe('ReconciliationPage', () => {
   it('offers a viewer no accept, dismiss, archive or selection (DATA-7)', async () => {
     mockFetch()
-    renderPage({
-      user: {
-        id: 'viewer-1',
-        email: 'viewer@example.com',
-        name: 'Viewer',
-        role: 'viewer',
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      },
-      status: 'authenticated',
-      error: null,
-      isLoggingOut: false,
-      logout: async () => {},
-      refresh: () => {},
-    })
+    renderPage(personaAuth('viewer'))
 
     expect(await screen.findByText('legacy_banner_shown')).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/viewer role/)

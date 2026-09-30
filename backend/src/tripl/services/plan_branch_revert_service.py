@@ -30,6 +30,7 @@ says so instead of guessing.
 
 from __future__ import annotations
 
+import copy
 import logging
 import uuid
 from datetime import datetime
@@ -53,7 +54,10 @@ from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.plan_revision import PlanRevision
 from tripl.models.project import Project
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.schemas.plan_branch import BranchRevertRequest, PlanBranchDiff
 from tripl.schemas.plan_revision import PlanDiffEntry
 from tripl.services import plan_branch_service
@@ -89,6 +93,7 @@ _PLAIN_ATTRS: dict[str, tuple[str, ...]] = {
         "status",
         "reviewed",
         "metric_breakdown_columns",
+        "required_presence_threshold",
     ),
     "variable": (
         "variable_type",
@@ -97,6 +102,7 @@ _PLAIN_ATTRS: dict[str, tuple[str, ...]] = {
         "allowed_values",
         "bindings",
         "excluded_from_scans",
+        "json_schema",
     ),
     "meta_field": (
         "field_type",
@@ -772,7 +778,8 @@ async def _restore_variable_overrides(
                 branch_id=branch_id,
                 variable_id=variable.id,
                 event_id=found.id,
-                values=list(override.get("values") or []),
+                values=copy_override_values(override.get("values")),
+                required=bool(override.get("required", False)),
             )
         )
 
@@ -1067,6 +1074,7 @@ async def _recreate_entity(
             owner_id=uuid.UUID(owner_id) if owner_id else None,
             reviewed=base_item.get("reviewed", False),
             metric_breakdown_columns=list(base_item.get("metric_breakdown_columns") or []),
+            required_presence_threshold=base_item.get("required_presence_threshold"),
             # Linked back to the main row it stands for, so the diff and the
             # merge pair the rebuilt row with that row again rather than with
             # whichever namesake the key finds (tripl-0zpq.292).
@@ -1099,6 +1107,7 @@ async def _recreate_entity(
             description=base_item.get("description") or "",
             allowed_values=list(base_item.get("allowed_values") or []),
             bindings=list(base_item.get("bindings") or []),
+            json_schema=copy.deepcopy(base_item.get("json_schema")),
             excluded_from_scans=base_item.get("excluded_from_scans", False),
         )
         session.add(variable)
@@ -1183,6 +1192,14 @@ async def _restore_field(
     data: BranchRevertRequest,
     field: str,
 ) -> None:
+    if data.entity_type == "variable" and field in ("variable_type", "json_schema"):
+        # One type in two columns: writing either half writes both, since the
+        # snapshot's pair agreed and a mixed pair need not. "Update from main"
+        # reaches this through ``variable_type``, the key its three-way
+        # comparison folds the schema into.
+        entity.variable_type = _required(base_item, "variable_type")
+        entity.json_schema = copy.deepcopy(base_item.get("json_schema"))
+        return
     if field in _PLAIN_ATTRS[data.entity_type]:
         value = base_item.get(field)
         # Copy JSON list columns so the entity never aliases the snapshot payload.
@@ -1569,7 +1586,8 @@ _SNAPSHOT_WRITE_ARMS: dict[str, frozenset[str]] = {
     "event": frozenset(
         {"sunset_at", "owner_id", "superseded_by", "field_values", "meta_values", "tags"}
     ),
-    "variable": frozenset({"event_value_overrides"}),
+    # ``variable_type`` carries ``json_schema`` with it (``_restore_field``).
+    "variable": frozenset({"event_value_overrides", "variable_type"}),
 }
 
 

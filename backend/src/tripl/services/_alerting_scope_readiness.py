@@ -41,7 +41,7 @@ _DRIFT_RETENTION_DAYS = 30
 _ACTIVE_DRIFT_STATUSES = (SCHEMA_DRIFT_STATUS_OPEN, SCHEMA_DRIFT_STATUS_SNOOZED)
 
 
-def _documents_values(column: sa.SQLColumnExpression[list[str]]) -> sa.ColumnElement[bool]:
+def _documents_values(column: sa.SQLColumnExpression[list[str] | None]) -> sa.ColumnElement[bool]:
     """Does this JSON list column hold anything at all?
 
     Compared as TEXT rather than through ``json_array_length``: these columns are

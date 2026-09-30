@@ -201,7 +201,7 @@ describe('unknownTemplateVariables (ALR-21)', () => {
     ).toEqual(['scope_nme', 'oops'])
   })
 
-  it('flags an item variable used in the message template, and accepts it in the items one', () => {
+  it('flags an item property used in the message template, and accepts it in the items one', () => {
     expect(unknownTemplateVariables('${scope_name}', TEMPLATE_VARIABLE_OPTIONS)).toEqual(['scope_name'])
     expect(unknownTemplateVariables('${scope_name}', ITEM_TEMPLATE_VARIABLE_OPTIONS)).toEqual([])
   })
@@ -226,11 +226,11 @@ describe('default items templates (#255)', () => {
 })
 
 describe('findTemplateVariableToken', () => {
-  it('reads the half-typed variable before the cursor', () => {
+  it('reads the half-typed property before the cursor', () => {
     expect(findTemplateVariableToken('Hi ${rule_', 10)).toEqual({ start: 3, end: 10, query: 'rule_' })
   })
 
-  it('ignores a closed variable and plain text', () => {
+  it('ignores a closed property and plain text', () => {
     expect(findTemplateVariableToken('${rule_name} x', 14)).toBeNull()
     expect(findTemplateVariableToken('no token', 8)).toBeNull()
   })
@@ -360,6 +360,32 @@ describe('lifecycle scope (#258)', () => {
     expect(ruleFormProblems(only).scopes).toBeNull()
     expect(ruleSignalLabels(only).drift).toEqual(['Lifecycle'])
     expect(scopeSummary(makeRule({ include_lifecycle: true }))).toContain('lifecycle')
+  })
+})
+
+describe('property drift scope (F23, #306)', () => {
+  it('is off on a new rule and carried both ways', () => {
+    expect(defaultRuleForm().include_property_drifts).toBe(false)
+    expect(ruleFormToPayload(ruleToForm(makeRule({ include_property_drifts: true }))))
+      .toMatchObject({ include_property_drifts: true })
+  })
+
+  it('reads a rule from a server that predates the flag as off', () => {
+    const legacy = makeRule()
+    delete (legacy as Partial<AlertRule>).include_property_drifts
+    expect(ruleToForm(legacy).include_property_drifts).toBe(false)
+  })
+
+  it('counts as a signal kind on its own and is named in the summaries', () => {
+    const only = form({
+      include_project_total: false,
+      include_event_types: false,
+      include_events: false,
+      include_property_drifts: true,
+    })
+    expect(ruleFormProblems(only).scopes).toBeNull()
+    expect(ruleSignalLabels(only).drift).toEqual(['Property drift'])
+    expect(scopeSummary(makeRule({ include_property_drifts: true }))).toContain('property drift')
   })
 })
 

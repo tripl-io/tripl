@@ -31,6 +31,9 @@ class NotificationKind(enum.StrEnum):
     branch_approved = "branch_approved"
     branch_merged = "branch_merged"
     lifecycle = "lifecycle"
+    # A scan found a property drift on a watched event (F23, #306). Added to
+    # the check by c3e5a7b9d1f2.
+    property_drift = "property_drift"
 
 
 NOTIFICATION_KIND_CHECK = "kind IN ({})".format(
@@ -43,7 +46,7 @@ class Notification(UUIDMixin, Base):
     __table_args__ = (
         CheckConstraint(NOTIFICATION_KIND_CHECK, name="ck_notification_kind"),
         CheckConstraint(
-            "entity_type IN ('event', 'event_type', 'metric', 'branch')",
+            "entity_type IN ('event', 'event_type', 'metric', 'branch', 'doc')",
             name="ck_notification_entity_type",
         ),
         Index("ix_notification_user_read_created", "user_id", "read_at", "created_at"),

@@ -26,7 +26,6 @@ from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.models.anomaly_scope_override import AnomalyScopeOverride
 from tripl.models.audit_log import AuditLog
 from tripl.models.chart_annotation import ChartAnnotation
-from tripl.models.domain_enums import UserRole
 from tripl.models.event_metric import EventMetric
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.signal_triage import SignalTriage
@@ -726,9 +725,7 @@ async def test_chart_points_carry_the_verdict(client: AsyncClient) -> None:
 
 async def test_viewer_reads_but_cannot_set_verdicts(client: AsyncClient) -> None:
     seeded = await _seed(client, "verdict-viewer")
-    viewer = await persisted_member_user(
-        uuid.UUID(seeded.ids["project_id"]), role=UserRole.viewer.value
-    )
+    viewer = await persisted_member_user(uuid.UUID(seeded.ids["project_id"]), role="viewer")
     _as(viewer)
     try:
         posted = await client.post(seeded.verdict_url, json=seeded.event_scope(verdict="expected"))
@@ -755,7 +752,6 @@ async def test_non_member_gets_404(client: AsyncClient) -> None:
             email=f"outsider-{uuid.uuid4().hex[:8]}@example.com",
             name="Outsider",
             password_hash=PASSWORD_HASH_PLACEHOLDER,
-            role=UserRole.editor.value,
         )
         session.add(outsider)
         await session.commit()

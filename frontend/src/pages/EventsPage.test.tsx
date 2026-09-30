@@ -22,6 +22,8 @@ vi.mock('sonner', () => ({
 
 import { toast } from 'sonner'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 /**
  * Assert an accessible control is absent — searching the whole DOM, not just the
@@ -79,21 +81,7 @@ function LocationProbe() {
 }
 
 function viewerAuth(): AuthContextValue {
-  return {
-    user: {
-      id: 'viewer-1',
-      email: 'viewer@example.com',
-      name: 'Viewer',
-      role: 'viewer',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    },
-    status: 'authenticated',
-    error: null,
-    isLoggingOut: false,
-    logout: async () => {},
-    refresh: () => {},
-  }
+  return personaAuth('viewer')
 }
 
 function renderEventsPage(
@@ -106,19 +94,21 @@ function renderEventsPage(
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <TooltipProvider delayDuration={300}>
-        <MemoryRouter initialEntries={initialEntries}>
-          <LocationProbe />
-          <Routes>
-            <Route path="/p/:slug/events" element={<EventsPage />} />
-            <Route path="/p/:slug/events/:tab/new" element={<EventEditPage />} />
-            <Route path="/p/:slug/events/:tab/:eventId/edit" element={<EventEditPage />} />
-            <Route path="/p/:slug/events/:tab" element={<EventsPage />} />
-            <Route path="/p/:slug/events/:tab/:eventId" element={<EventsPage />} />
-            <Route path="/p/:slug/monitoring/event/:eventId" element={<span>Event detail</span>} />
-          </Routes>
-        </MemoryRouter>
-        </TooltipProvider>
+        <SessionProject session={auth}>
+          <TooltipProvider delayDuration={300}>
+          <MemoryRouter initialEntries={initialEntries}>
+            <LocationProbe />
+            <Routes>
+              <Route path="/p/:slug/events" element={<EventsPage />} />
+              <Route path="/p/:slug/events/:tab/new" element={<EventEditPage />} />
+              <Route path="/p/:slug/events/:tab/:eventId/edit" element={<EventEditPage />} />
+              <Route path="/p/:slug/events/:tab" element={<EventsPage />} />
+              <Route path="/p/:slug/events/:tab/:eventId" element={<EventsPage />} />
+              <Route path="/p/:slug/monitoring/event/:eventId" element={<span>Event detail</span>} />
+            </Routes>
+          </MemoryRouter>
+          </TooltipProvider>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -145,12 +135,14 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/scans')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       // Before the event itself: `includes` would otherwise answer the
       // discussion request with an event object.
       if (url.endsWith('/api/v1/projects/demo/events/ev-1/comments')) {
         return mockJsonResponse([])
       }
+      // The event's property list (F23), read by the edit page's grid.
+      if (url.includes('/api/v1/projects/demo/events/ev-1/properties')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/ev-1')) {
         return mockJsonResponse(
           makeEvent({ id: 'ev-1', name: 'checkout_started', branch_id: 'feat-1' }),
@@ -177,7 +169,7 @@ describe('EventsPage', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events')) return mockJsonResponse({ items: [], total: 0 })
       return mockJsonResponse({})
@@ -228,7 +220,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       // unreviewedCount query: exactly status=in_review with limit=1
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) {
@@ -443,7 +435,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) {
         return mockJsonResponse({ items: [], total: 0 })
@@ -523,7 +515,7 @@ describe('EventsPage', () => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -573,7 +565,7 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/projects/demo/scans')) return mockJsonResponse([])
       if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/ev-1/comments')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/ev-1')) {
         return mockJsonResponse(makeEvent({ id: 'ev-1', name: 'checkout_started' }))
@@ -617,7 +609,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) return mockJsonResponse({ items: [], total: 0 })
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -700,7 +692,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) return mockJsonResponse({ items: [], total: 0 })
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -793,7 +785,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) return mockJsonResponse({ items: [], total: 0 })
       if (url.includes('/api/v1/projects/demo/events-metrics')) {
@@ -888,7 +880,7 @@ describe('EventsPage', () => {
         ])
       }
       if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-      if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+      if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
       if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events') && url.includes('status=in_review') && url.includes('limit=1')) {
         return mockJsonResponse({ items: [], total: 0 })
@@ -982,7 +974,7 @@ function mockExportFetch({
       ])
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-    if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+    if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
     if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/events/window-metrics') && init?.method === 'POST') {
       return mockJsonResponse([])
@@ -1129,7 +1121,7 @@ function mockCatalogFetch({
       ])
     }
     if (url.endsWith('/api/v1/projects/demo/meta-fields')) return mockJsonResponse([])
-    if (url.includes('/api/v1/projects/demo/variables')) return mockJsonResponse({ items: [], total: 0 })
+    if (url.includes('/api/v1/projects/demo/properties')) return mockJsonResponse({ items: [], total: 0 })
     if (url.endsWith('/api/v1/projects/demo/events/tags')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/users')) return mockJsonResponse([])
     if (url.endsWith('/api/v1/projects/demo/events/window-metrics') && init?.method === 'POST') {

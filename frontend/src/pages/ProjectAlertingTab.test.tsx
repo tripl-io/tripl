@@ -10,6 +10,9 @@ import type { Role } from '@/types'
 
 import ProjectAlertingTab from './ProjectAlertingTab'
 import { at } from '@/test/at'
+import { viewerProject, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
+import { ActiveProjectContext } from '@/components/active-project-context'
 
 /** The Inbox's status facet is a FilterSelect chip now (DS-15), not toggle buttons. */
 async function pickInboxStatus(label: string) {
@@ -263,17 +266,19 @@ function mockAlertingFetch(
  */
 function renderTab(
   section?: 'inbox' | 'monitors' | 'destinations' | 'audit',
-  role: Role = 'editor',
+  role: Persona = 'member',
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const path = `/p/demo/alerting${section ? `?section=${section}` : ''}`
   return render(
-    <AuthContext.Provider value={authValue(role)}>
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[path]}>
-          <ProjectAlertingTab slug="demo" />
-        </MemoryRouter>
-      </QueryClientProvider>
+    <AuthContext.Provider value={authValue(role === 'viewer' ? 'member' : role)}>
+      <PersonaProject persona={role}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[path]}>
+            <ProjectAlertingTab slug="demo" />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </PersonaProject>
     </AuthContext.Provider>,
   )
 }
@@ -293,6 +298,8 @@ function authValue(role: Role): AuthContextValue {
       email: 'someone@example.com',
       name: 'Someone',
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -1129,24 +1136,32 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
    */
   // `?status=all`: these fixtures mix open and muted incidents, and the inbox
   // opens on Open by default (AL-14).
-  function renderInboxSection(role?: Role) {
+  function renderInboxSection(role?: Persona) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const treeAtRole = (current?: Role) => {
+    const treeAtRole = (current?: Persona) => {
+      // The project provider is always there, so a demotion to `viewer` (a
+      // project row, reported by the project) changes a value, not the shape.
       const tree = (
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter initialEntries={['/p/demo/alerting?section=inbox&status=all']}>
-            <ProjectAlertingTab slug="demo" />
-          </MemoryRouter>
-        </QueryClientProvider>
+        <ActiveProjectContext.Provider value={current === 'viewer' ? viewerProject() : undefined}>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/p/demo/alerting?section=inbox&status=all']}>
+              <ProjectAlertingTab slug="demo" />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </ActiveProjectContext.Provider>
       )
       return current
-        ? <AuthContext.Provider value={authValue(current)}>{tree}</AuthContext.Provider>
+        ? (
+          <AuthContext.Provider value={authValue(current === 'viewer' ? 'member' : current)}>
+            {tree}
+          </AuthContext.Provider>
+        )
         : tree
     }
     const view = render(treeAtRole(role))
     return {
       ...view,
-      setRole: (next: Role) => { view.rerender(treeAtRole(next)) },
+      setRole: (next: Persona) => { view.rerender(treeAtRole(next)) },
     }
   }
 
@@ -1332,7 +1347,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
 
   it('takes the bar away from a session demoted while a selection is live', async () => {
     mockInboxWithBulk([makeInboxGroup(), makeInboxGroup(OTHER_GROUP)])
-    const { setRole } = renderInboxSection('editor')
+    const { setRole } = renderInboxSection('member')
 
     await screen.findByText('Showing 2 of 2 · last 30 days + still silenced')
     fireEvent.click(screen.getByRole('checkbox', { name: SELECT_FIRST }))
@@ -2066,17 +2081,17 @@ describe('ProjectAlertingTab — viewer role (tripl-oxkt.9)', () => {
 
   it('gives an editor every one of them back', async () => {
     configured()
-    const { unmount } = renderTab('destinations', 'editor')
+    const { unmount } = renderTab('destinations', 'member')
 
     expect(await screen.findByRole('button', { name: 'Edit destination Main Slack' })).toBeEnabled()
-    expect(screen.queryByText(/your account has the viewer role/i)).toBeNull()
+    expect(screen.queryByText(/you have the viewer role in this project/i)).toBeNull()
     unmount()
 
     configured()
-    renderTab('monitors', 'editor')
+    renderTab('monitors', 'member')
     expect(await screen.findByRole('switch', { name: 'Toggle payment_failed spike' })).toBeEnabled()
     expect(screen.getByRole('button', { name: /Add rule/ })).toBeEnabled()
-    expect(screen.queryByText(/your account has the viewer role/i)).toBeNull()
+    expect(screen.queryByText(/you have the viewer role in this project/i)).toBeNull()
   })
 
   it('offers guided setup as an explanation, not as six dead buttons', async () => {
@@ -2146,7 +2161,7 @@ describe('ProjectAlertingTab — a config write reaches the incident views (trip
       defaultOptions: { queries: { retry: false, staleTime: 60_000 } },
     })
     return render(
-      <AuthContext.Provider value={authValue('editor')}>
+      <AuthContext.Provider value={authValue('member')}>
         <QueryClientProvider client={queryClient}>
           <MemoryRouter initialEntries={[`/p/demo/alerting?section=${section}`]}>
             <ProjectAlertingTab slug="demo" />

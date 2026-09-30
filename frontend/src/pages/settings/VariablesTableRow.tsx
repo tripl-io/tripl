@@ -7,6 +7,7 @@ import { CodeToken } from '@/components/primitives/code-token'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { ScenarioCoachMark } from '@/demo/ScenarioCoachMark'
 import { SCENARIO_SEEDED } from '@/demo/scenarioModel'
+import { countOf } from '@/lib/plural'
 import type { Variable } from '@/types'
 
 // Chips past this count collapse into a "+N" counter — a variable with dozens
@@ -35,6 +36,8 @@ export interface VariablesTableRowProps {
   /** Where the `${name}` token links: the variable's own page (AU-26). Without
    * it, or outside a router, the token is plain text. */
   detailHref?: (variableId: string) => string
+  /** Where the "On N events" line links: the property's Events tab (F23). */
+  listedEventsHref?: (variableId: string) => string
 }
 
 function VariablesTableRowImpl({
@@ -50,6 +53,7 @@ function VariablesTableRowImpl({
   onDelete,
   eventHref,
   detailHref,
+  listedEventsHref,
 }: VariablesTableRowProps) {
   // Everything the row shows ships with the list response — event names and
   // observed values included — so a row costs zero extra requests.
@@ -74,6 +78,11 @@ function VariablesTableRowImpl({
   const documentedValues = variable.allowed_values ?? []
   const bindings = variable.bindings ?? []
   const driftCount = variable.open_drift_count ?? 0
+  // The events whose property list carries it (F23), apart from where scans saw it.
+  const listedCount = variable.listed_event_count ?? 0
+  const listedLabel = listedCount > 0
+    ? `On ${countOf(listedCount, 'event', 'events')} · ${variable.required_event_count ?? 0} required`
+    : null
 
   return (
     <TableRow
@@ -85,7 +94,7 @@ function VariablesTableRowImpl({
         {canWrite && (
           <input
             type="checkbox"
-            aria-label={`Select variable ${variable.name}`}
+            aria-label={`Select property ${variable.name}`}
             checked={selected}
             onChange={() => onToggleSelect(variable.id)}
           />
@@ -103,7 +112,7 @@ function VariablesTableRowImpl({
             <Link
               to={detailHref(variable.id)}
               className="min-w-0 truncate rounded-sm no-underline hover:underline"
-              aria-label={`Open variable ${variable.name}`}
+              aria-label={`Open property ${variable.name}`}
             >
               <code className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary" title={`\${${variable.name}}`}>
                 {`\${${variable.name}}`}
@@ -125,6 +134,21 @@ function VariablesTableRowImpl({
             </Chip>
           )}
         </div>
+        {listedLabel && (
+          <div className="mt-1 font-sans text-micro text-fg-tertiary">
+            {listedEventsHref && inRouter ? (
+              <Link
+                to={listedEventsHref(variable.id)}
+                className="no-underline hover:underline"
+                title="Events whose property list carries this property"
+              >
+                {listedLabel}
+              </Link>
+            ) : (
+              listedLabel
+            )}
+          </div>
+        )}
         {bindings.length > 0 && (
           <div className="mt-1 space-y-0.5">
             {bindings.map(binding => (
@@ -212,16 +236,16 @@ function VariablesTableRowImpl({
             step="variables/inspect-values"
             when={variable.name === SCENARIO_SEEDED.driftVariableName}
           >
-            <IconButton variant="ghost" className="h-7 w-7" label={`Edit variable ${variable.name}`} tooltip="Edit" onClick={() => onEdit(variable)}>
+            <IconButton variant="ghost" className="h-7 w-7" label={`Edit property ${variable.name}`} tooltip="Edit" onClick={() => onEdit(variable)}>
               <Pencil className="h-3 w-3" aria-hidden="true" />
             </IconButton>
           </ScenarioCoachMark>
           {canWrite && (
             <>
-              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-warning" label={`Exclude variable ${variable.name} from scans`} tooltip="Exclude from scans" onClick={() => onExclude(variable)}>
+              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-warning" label={`Exclude property ${variable.name} from scans`} tooltip="Exclude from scans" onClick={() => onExclude(variable)}>
                 <Ban className="h-3 w-3" aria-hidden="true" />
               </IconButton>
-              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-destructive" label={`Delete variable ${variable.name}`} tooltip="Delete" onClick={() => onDelete(variable)}>
+              <IconButton variant="ghost" className="h-7 w-7 text-fg-tertiary hover:text-destructive" label={`Delete property ${variable.name}`} tooltip="Delete" onClick={() => onDelete(variable)}>
                 <Trash2 className="h-3 w-3" aria-hidden="true" />
               </IconButton>
             </>

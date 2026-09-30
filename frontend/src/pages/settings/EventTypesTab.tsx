@@ -61,6 +61,7 @@ import { TEXT_INPUT_CLASS } from '@/pages/events/eventFormLayout'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
 import { projectCandidates, type ProjectCandidate } from '@/lib/projectCandidates'
+import { useOrgDefaultProjectRole } from '@/hooks/useOrgDefaultProjectRole'
 import { ReadOnlyNotice } from '@/components/states'
 import {
   parseContract,
@@ -73,6 +74,7 @@ import { describedByIds, SFieldHintContext, useSFieldHintId } from './sFieldCont
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { AggregateHealthPopover } from '@/components/health/health-averages'
 import { useEventTypesHealth } from './useEventTypesHealth'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const FIELD_TYPES = ['string', 'number', 'boolean', 'json', 'enum', 'url']
 
@@ -289,7 +291,7 @@ export function EventTypesTab({ slug }: { slug: string }) {
                             its cell semantics, so a screen reader still reads the
                             column headers (PLAN-39). */}
                         <Link
-                          to={`/p/${slug}/event-types/${et.id}`}
+                          to={projectPath(currentOrgSlug(), slug, `/event-types/${et.id}`)}
                           className="text-body font-semibold hover:underline text-fg"
                         >
                           {et.display_name}
@@ -434,7 +436,7 @@ function CreateEventTypeView({ slug, branchId, onDone }: CreateEventTypeViewProp
       qc.invalidateQueries({ queryKey: projectKey(slug) })
       // A type is useful once it has fields, so it opens where they are
       // added rather than back on the list (AU-36).
-      if (created?.id) navigate(`/p/${slug}/event-types/${created.id}?tab=settings`)
+      if (created?.id) navigate(projectPath(currentOrgSlug(), slug, `/event-types/${created.id}?tab=settings`))
       else onDone()
     },
   })
@@ -1336,11 +1338,14 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
     queryKey: eventTypeOwnersKey(slug, eventType.id),
     queryFn: () => eventTypeOwnersApi.list(slug, eventType.id),
   })
-  // Only the project's members, and the instance owners who see every project
-  // without a member row, can own its event types: anyone else cannot see the
+  // Only the project's members, and the organization's owners and admins who
+  // see every project without a member row, can own its event types: anyone else cannot see the
   // project, and the server refuses them (tripl-vefw).
   const { data: members } = useQuery(projectMembersQueryOptions(slug))
   const { data: users } = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
+  // Members with no row can own event types too when the organization's
+  // default access gives them the project (F20 PR15).
+  const defaultProjectRole = useOrgDefaultProjectRole()
 
   // Both errors render in the card: an editor hitting the owner-only endpoint
   // used to get nothing at all (PLAN-42).
@@ -1381,7 +1386,7 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
   }
 
   const ownerUserIds = new Set(owners.map((o: EventTypeOwner) => o.user_id))
-  const availableUsers = projectCandidates(members, users).filter((m) => !ownerUserIds.has(m.user_id))
+  const availableUsers = projectCandidates(members, users, defaultProjectRole).filter((m) => !ownerUserIds.has(m.user_id))
   const ownerError = addMut.isError ? addMut.error : removeMut.isError ? removeMut.error : null
 
   return (

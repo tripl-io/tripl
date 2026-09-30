@@ -7,21 +7,28 @@ import uuid
 from collections.abc import Iterable
 
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import exists, func, select
+from sqlalchemy import ColumnElement, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import settings
 from tripl.models.domain_enums import EventPhotoKind
 from tripl.models.event import Event
 from tripl.models.event_photo import EventPhoto
 from tripl.models.event_photo_comment import EventPhotoComment
 from tripl.models.plan_branch import BranchKind, BranchStatus
 from tripl.models.user import User
-from tripl.services import notification_announce, subscription_service
+from tripl.services import notification_announce, project_access, subscription_service
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.mentions import excerpt, mentioned_user_ids
+from tripl.services.photo_storage_service import (
+    PhotoPolicy,
+    driver_for_blob,
+    ensure_config_row,
+    operator_policy,
+    policy_for_project,
+)
+from tripl.services.project_links import project_link
 from tripl.services.project_lookup import resolve_project_id
-from tripl.storage import PhotoStorage, get_photo_storage, storage_for
+from tripl.storage import PhotoStorage, driver_for_config, storage_for
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +42,16 @@ _FIGMA_URL_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Every blob ``upload_photo`` writes lives under this prefix, and the orphan
-# sweep lists nothing else: a bucket or directory may be shared with objects
-# tripl did not write (tripl-0zpq.291).
+# Every blob ``upload_photo`` wrote before F20 PR11 lives under this prefix;
+# since then each organization's live under ``orgs/{org_id}/events/``
+# (``photo_storage_service.org_key_prefix``). The orphan sweep lists nothing
+# else: a bucket or directory may be shared with objects tripl did not write
+# (tripl-0zpq.291).
 PHOTO_KEY_PREFIX = "events/"
+
+#: One stored blob: ``(storage_backend, storage_key, storage_config_id)``. The
+#: config id is ``None`` for the operator's store (F20 PR11).
+BlobRef = tuple[str, str, uuid.UUID | None]
 
 _EXT_BY_MIME = {
     "image/jpeg": ".jpg",
@@ -49,18 +62,20 @@ _EXT_BY_MIME = {
 }
 
 
-def _allowed_mime_types() -> set[str]:
-    raw = settings.photo_allowed_mime or ""
-    return {item.strip().lower() for item in raw.split(",") if item.strip()}
+def _policy(policy: PhotoPolicy | None) -> PhotoPolicy:
+    return policy if policy is not None else operator_policy()
 
 
-def max_size_mb() -> int:
-    """The per-file upload limit in MiB, exactly as ``read_upload`` applies it."""
-    return max(1, settings.photo_max_size_mb)
+def max_size_mb(policy: PhotoPolicy | None = None) -> int:
+    """The per-file upload limit in MiB, exactly as ``read_upload`` applies it.
+
+    ``policy`` is the organization's (F20 PR11); omitted, the operator's.
+    """
+    return _policy(policy).max_size_mb
 
 
-def _max_size_bytes() -> int:
-    return max_size_mb() * 1024 * 1024
+def _max_size_bytes(policy: PhotoPolicy | None = None) -> int:
+    return _policy(policy).max_size_bytes
 
 
 # Room for the multipart framing around the one file part: boundaries, part
@@ -71,20 +86,24 @@ _MULTIPART_OVERHEAD_BYTES = 1024 * 1024
 
 
 def upload_body_limit_bytes() -> int:
-    """The most an upload REQUEST may carry: the file limit plus its framing."""
+    """The most an upload REQUEST may carry: the OPERATOR's file limit plus framing.
+
+    The operator's, not an organization's: the body limit is applied before any
+    organization is known, and an organization may only lower its own cap.
+    """
     return _max_size_bytes() + _MULTIPART_OVERHEAD_BYTES
 
 
-def upload_too_large() -> HTTPException:
+def upload_too_large(policy: PhotoPolicy | None = None) -> HTTPException:
     return HTTPException(
         status_code=413,
-        detail=f"File too large (max {settings.photo_max_size_mb} MB)",
+        detail=f"File too large (max {max_size_mb(policy)} MB)",
     )
 
 
-def check_upload_content_type(content_type: str) -> str:
+def check_upload_content_type(content_type: str, policy: PhotoPolicy | None = None) -> str:
     """The upload's content type, normalised — or 415 when it is not allowed."""
-    allowed = _allowed_mime_types()
+    allowed = set(_policy(policy).allowed_mime)
     normalized_ct = (content_type or "").lower().split(";", 1)[0].strip()
     if normalized_ct not in allowed:
         raise HTTPException(
@@ -94,7 +113,7 @@ def check_upload_content_type(content_type: str) -> str:
     return normalized_ct
 
 
-async def read_upload(file: UploadFile) -> bytes:
+async def read_upload(file: UploadFile, policy: PhotoPolicy | None = None) -> bytes:
     """The uploaded file's bytes, refused BEFORE they are buffered when they cannot be kept.
 
     The route used to call ``await file.read()`` ahead of every check, so a
@@ -105,13 +124,13 @@ async def read_upload(file: UploadFile) -> bytes:
     for more than one byte past the limit — so a file whose size is not known
     up front still cannot buffer more than that.
     """
-    check_upload_content_type(file.content_type or "")
-    limit = _max_size_bytes()
+    check_upload_content_type(file.content_type or "", policy)
+    limit = _max_size_bytes(policy)
     if file.size is not None and file.size > limit:
-        raise upload_too_large()
+        raise upload_too_large(policy)
     data = await file.read(limit + 1)
     if len(data) > limit:
-        raise upload_too_large()
+        raise upload_too_large(policy)
     return data
 
 
@@ -175,6 +194,11 @@ async def _get_plan_writable_event(session: AsyncSession, slug: str, event_id: u
     return event
 
 
+async def policy_for_slug(session: AsyncSession, slug: str) -> PhotoPolicy:
+    """The photo policy of the organization that owns the project ``slug`` names."""
+    return await policy_for_project(session, await resolve_project_id(session, slug))
+
+
 async def list_photos(session: AsyncSession, slug: str, event_id: uuid.UUID) -> list[EventPhoto]:
     event = await _get_event(session, slug, event_id)
     rows = await session.execute(
@@ -194,19 +218,30 @@ async def upload_photo(
     content_type: str,
     original_filename: str,
     uploaded_by_user_id: uuid.UUID | None,
+    policy: PhotoPolicy | None = None,
 ) -> EventPhoto:
-    normalized_ct = check_upload_content_type(content_type)
+    """Store one upload with its organization's storage and limits (F20 PR11).
+
+    ``policy`` is the project's organization's, already resolved by the route
+    (which checked the upload against it while reading); resolved here when
+    omitted. The key is ``orgs/{org_id}/events/{event_id}/{photo_id}{ext}`` and
+    the row records the organization and the storage version it went to.
+    """
+    if policy is None:
+        policy = await policy_for_slug(session, slug)
+    normalized_ct = check_upload_content_type(content_type, policy)
     if not data:
         raise HTTPException(status_code=422, detail="Empty upload")
-    if len(data) > _max_size_bytes():
-        raise upload_too_large()
+    if len(data) > policy.max_size_bytes:
+        raise upload_too_large(policy)
 
     event = await _get_plan_writable_event(session, slug, event_id)
-    storage = get_photo_storage()
+    storage = driver_for_config(policy.storage)
+    storage_config_id = await ensure_config_row(session, policy.storage)
 
     photo_id = uuid.uuid4()
     ext = _resolve_extension(normalized_ct, original_filename)
-    storage_key = f"{PHOTO_KEY_PREFIX}{event.id}/{photo_id}{ext}"
+    storage_key = f"{policy.key_prefix}{event.id}/{photo_id}{ext}"
 
     await storage.save(storage_key, data, normalized_ct)
 
@@ -226,6 +261,8 @@ async def upload_photo(
         size_bytes=len(data),
         storage_backend=storage.backend_name,
         storage_key=storage_key,
+        storage_org_id=policy.org_id,
+        storage_config_id=storage_config_id,
         sort_order=int(next_order or 0),
     )
     session.add(photo)
@@ -267,11 +304,19 @@ async def _photo_on(session: AsyncSession, event: Event, photo_id: uuid.UUID) ->
     return photo
 
 
+def same_store_clause(config_id: uuid.UUID | None) -> ColumnElement[bool]:
+    """``storage_config_id`` equals ``config_id`` (``IS NULL`` for the operator's store)."""
+    if config_id is None:
+        return EventPhoto.storage_config_id.is_(None)
+    return EventPhoto.storage_config_id == config_id
+
+
 async def _blob_is_referenced(
     session: AsyncSession,
     *,
     storage_backend: str | None,
     storage_key: str | None,
+    storage_config_id: uuid.UUID | None,
     other_than: uuid.UUID | None = None,
 ) -> bool:
     """Whether any attachment row points at this blob, the row ``other_than`` aside.
@@ -279,11 +324,14 @@ async def _blob_is_referenced(
     One blob routinely backs several rows: branch creation copies
     ``storage_key`` onto every branch twin instead of duplicating the object,
     and a merge copies it back onto main the same way. Deliberately not scoped
-    to the project or the event — any row holding the key keeps the blob.
+    to the project or the event — any row holding the key keeps the blob. The
+    store is part of the identity (F20 PR11): the same key in another store is
+    another object.
     """
     clauses = [
         EventPhoto.storage_backend == storage_backend,
         EventPhoto.storage_key == storage_key,
+        same_store_clause(storage_config_id),
     ]
     if other_than is not None:
         clauses.append(EventPhoto.id != other_than)
@@ -296,14 +344,13 @@ async def _blob_referenced_elsewhere(session: AsyncSession, photo: EventPhoto) -
         session,
         storage_backend=photo.storage_backend,
         storage_key=photo.storage_key,
+        storage_config_id=photo.storage_config_id,
         other_than=photo.id,
     )
 
 
-async def delete_unreferenced_blobs(
-    session: AsyncSession, blobs: Iterable[tuple[str, str]]
-) -> None:
-    """Delete each ``(storage_backend, storage_key)`` blob no attachment row points at any more.
+async def delete_unreferenced_blobs(session: AsyncSession, blobs: Iterable[BlobRef]) -> None:
+    """Delete each :data:`BlobRef` blob no attachment row points at any more.
 
     For a caller that has already COMMITTED the removal of rows holding these
     keys without going through ``delete_photo`` — today the branch merge, whose
@@ -319,15 +366,16 @@ async def delete_unreferenced_blobs(
     raised. A ``delete_photo`` or a branch creation copying the same key at the
     same moment can still race this check (tripl-0zpq.291).
     """
-    released = sorted(set(blobs))
+    released = sorted(set(blobs), key=lambda ref: (ref[0], ref[1], str(ref[2] or "")))
     if not released:
         return
-    for storage_backend, storage_key in released:
+    for storage_backend, storage_key, storage_config_id in released:
         # Each key in the store it was WRITTEN to. An instance switched between
         # backends still holds rows from the other one, and the same key there
-        # names a different object, or none (tripl-0zpq.295).
+        # names a different object, or none (tripl-0zpq.295); an organization's
+        # blob is in the storage version it was written with (F20 PR11).
         try:
-            storage = storage_for(storage_backend)
+            storage = await driver_for_blob(session, storage_backend, storage_config_id)
         except Exception:
             logger.exception(
                 "Cannot reach the %s backend; released photo blob %s left behind",
@@ -337,7 +385,10 @@ async def delete_unreferenced_blobs(
             continue
         try:
             referenced = await _blob_is_referenced(
-                session, storage_backend=storage_backend, storage_key=storage_key
+                session,
+                storage_backend=storage_backend,
+                storage_key=storage_key,
+                storage_config_id=storage_config_id,
             )
         except Exception:
             # A failed read leaves the transaction unusable for the rest of the
@@ -377,7 +428,7 @@ async def delete_photo(
     ):
         # Through the backend the ROW names: after a backend switch the current
         # driver would look this key up in the wrong store (tripl-0zpq.295).
-        storage = _storage_of(photo)
+        storage = await _storage_of(session, photo)
         if storage is None:
             raise HTTPException(
                 status_code=409,
@@ -508,24 +559,28 @@ async def _announce_photo_comment_mentions(
             "project_id": event.project_id,
             "entity_type": subscription_service.EVENT,
             "entity_id": home_id,
-            "url": f"/p/{slug}/events/detail/{home_id}",
+            "url": await project_link(session, event.project_id, f"/events/detail/{home_id}"),
             "body": excerpt(comment.body),
             "actor_user_id": comment.user_id,
         },
     )
 
 
-def ensure_comment_deletable(comment: EventPhotoComment, user: User) -> None:
-    """Only the comment's author or an owner may delete it.
+async def ensure_comment_deletable(
+    session: AsyncSession, comment: EventPhotoComment, user: User, project_id: uuid.UUID
+) -> None:
+    """Only the comment's author or an owner of the project may delete it.
 
-    The editor gate on the route answers "may this user write to the project";
-    it does not make another editor's words theirs to remove. A comment whose
-    author was deleted (``user_id`` NULL) is left to owners. Shared by the event
-    and the photo threads, which are the same table.
+    "Owner" is project role ``owner``, i.e. an owner/admin of the project's own
+    organization (:func:`project_access.member_role`). The editor gate on the
+    route answers "may this user write to the project"; it does not make another
+    editor's words theirs to remove. A comment whose author was deleted
+    (``user_id`` NULL) is left to owners. Shared by the event and the photo
+    threads, which are the same table.
     """
-    if user.role == "owner":
-        return
     if comment.user_id is not None and comment.user_id == user.id:
+        return
+    if await project_access.member_role(session, user, project_id) == project_access.OWNER:
         return
     raise HTTPException(
         status_code=403,
@@ -542,11 +597,12 @@ async def delete_comment(
     *,
     user: User,
 ) -> None:
-    await get_photo(session, slug, event_id, photo_id)
+    event = await _get_event(session, slug, event_id)
+    await _photo_on(session, event, photo_id)
     comment = await session.get(EventPhotoComment, comment_id)
     if comment is None or comment.photo_id != photo_id:
         raise HTTPException(status_code=404, detail="Comment not found")
-    ensure_comment_deletable(comment, user)
+    await ensure_comment_deletable(session, comment, user, event.project_id)
     await session.delete(comment)
     await session.commit()
 
@@ -601,7 +657,7 @@ def _log_public_url_failure(backend_name: str, exc: Exception) -> None:
     )
 
 
-def _storage_of(photo: EventPhoto) -> PhotoStorage | None:
+async def _storage_of(session: AsyncSession | None, photo: EventPhoto) -> PhotoStorage | None:
     """The driver that can read this row's blob, or ``None`` if none can.
 
     ``storage_backend`` is recorded per row for exactly this: it names the store
@@ -615,11 +671,19 @@ def _storage_of(photo: EventPhoto) -> PhotoStorage | None:
     every photo list into a 500 — the shape of tripl-0zpq.213. ``url_for`` then
     hands back the ``/file`` URL and ``read_blob`` answers a 409 that names the
     backend, which is a page that loads and an error that explains itself.
+
+    A row written with an organization's own storage (F20 PR11) is read with
+    the storage VERSION it names, whatever the organization uses now; with no
+    ``session`` to load that version it has no driver here either.
     """
     if photo.kind != PHOTO_KIND_PHOTO or not photo.storage_backend:
         return None
+    if photo.storage_config_id is not None and session is None:
+        return None
     try:
-        return storage_for(photo.storage_backend)
+        if session is None:
+            return storage_for(photo.storage_backend)
+        return await driver_for_blob(session, photo.storage_backend, photo.storage_config_id)
     except Exception:
         logger.warning(
             "Photo %s names storage backend %r, which this instance cannot reach",
@@ -630,7 +694,7 @@ def _storage_of(photo: EventPhoto) -> PhotoStorage | None:
         return None
 
 
-async def read_blob(photo: EventPhoto) -> bytes:
+async def read_blob(session: AsyncSession, photo: EventPhoto) -> bytes:
     """The photo's bytes, read through the backend the ROW names.
 
     Reading through the process's current driver instead sent every row written
@@ -638,7 +702,7 @@ async def read_blob(photo: EventPhoto) -> bytes:
     404 for all of them, with no hint that the switch was the cause
     (tripl-0zpq.295).
     """
-    storage = _storage_of(photo)
+    storage = await _storage_of(session, photo)
     if storage is None or not photo.storage_key:
         raise HTTPException(
             status_code=409,
@@ -651,13 +715,29 @@ async def read_blob(photo: EventPhoto) -> bytes:
     return await storage.read(photo.storage_key)
 
 
-async def url_for(photo: EventPhoto, slug: str) -> str:
+async def url_for(
+    photo: EventPhoto,
+    slug: str,
+    org_slug: str | None = None,
+    *,
+    session: AsyncSession | None = None,
+) -> str:
     """Build the URL surfaced to clients for this photo.
 
     GCS returns a signed (or public) URL the browser can fetch directly.
     Local backend defers to the authenticated download endpoint exposed under
     the project router. Figma-kind rows simply return the embed URL the
     frontend iframes.
+
+    The download endpoint is org-qualified — ``/api/v1/orgs/{org}/projects/...``
+    — whenever the organization is known (tripl-0chm, F20 PR8): a project slug
+    is unique only inside its organization, so the legacy
+    ``/api/v1/projects/{slug}/...`` form resolves in whatever organization the
+    FETCHING request lands in, which for a multi-org user is not necessarily
+    the photo's. The callers pass the organization the listing request itself
+    resolved the slug in, so the URL answers in exactly that organization. The
+    legacy form still works (``OrgPathRewriteMiddleware`` keeps it) and is only
+    emitted when no organization is bound.
     """
     if photo.kind == PHOTO_KIND_FIGMA:
         return photo.external_url or ""
@@ -666,7 +746,7 @@ async def url_for(photo: EventPhoto, slug: str) -> str:
     # from local to GCS (or back) still holds rows from the other store, and the
     # key only means anything there (tripl-0zpq.295). A row naming a backend
     # this build has no driver for keeps the /file URL, which says so properly.
-    storage = _storage_of(photo)
+    storage = await _storage_of(session, photo)
     if photo.storage_key and storage is not None:
         try:
             external = await storage.public_url(photo.storage_key, photo.content_type)
@@ -685,4 +765,7 @@ async def url_for(photo: EventPhoto, slug: str) -> str:
             if external:
                 return external
 
-    return f"/api/v1/projects/{slug}/events/{photo.event_id}/photos/{photo.id}/file"
+    path = f"/projects/{slug}/events/{photo.event_id}/photos/{photo.id}/file"
+    if org_slug:
+        return f"/api/v1/orgs/{org_slug}{path}"
+    return f"/api/v1{path}"

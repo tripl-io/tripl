@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
+import InvitationsSection from './settings-area/InvitationsSection'
 import UsersPage from './UsersPage'
 
 /**
@@ -17,6 +18,8 @@ const OWNER: AuthContextValue = {
     email: 'owner@example.com',
     name: 'Owner',
     role: 'owner',
+    is_platform_admin: false,
+    orgs: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
@@ -29,8 +32,8 @@ const OWNER: AuthContextValue = {
 
 const USERS = [
   { id: 'owner-1', email: 'owner@example.com', name: 'Owner', role: 'owner', created_at: '2026-01-01T00:00:00Z' },
-  { id: 'ed-1', email: 'ed@example.com', name: 'Ed', role: 'editor', created_at: '2026-01-02T00:00:00Z' },
-  { id: 'vi-1', email: 'vi@example.com', name: 'Vi', role: 'viewer', created_at: '2026-01-03T00:00:00Z' },
+  { id: 'ed-1', email: 'ed@example.com', name: 'Ed', role: 'admin', created_at: '2026-01-02T00:00:00Z' },
+  { id: 'vi-1', email: 'vi@example.com', name: 'Vi', role: 'member', created_at: '2026-01-03T00:00:00Z' },
 ]
 
 function jsonResponse(data: unknown, status = 200) {
@@ -95,6 +98,9 @@ function renderUsersPage() {
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={OWNER}>
         <MemoryRouter>
+          {/* Members and Invitations are two sections since F20 PR7; the
+              invite flows here are the Invitations section's. */}
+          <InvitationsSection />
           <UsersPage />
         </MemoryRouter>
       </AuthContext.Provider>
@@ -117,7 +123,7 @@ describe('UsersPage — role changes (WS-19)', () => {
 
     const dialog = await screen.findByRole('alertdialog')
     expect(dialog).toHaveTextContent('Make Ed an owner?')
-    expect(dialog).toHaveTextContent(/settings and secrets/)
+    expect(dialog).toHaveTextContent(/data sources and secrets/)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(patches(calls)).toHaveLength(0)
@@ -135,12 +141,12 @@ describe('UsersPage — role changes (WS-19)', () => {
     const calls = mockApi()
     renderUsersPage()
 
-    fireEvent.change(await screen.findByLabelText('Role for Ed'), { target: { value: 'viewer' } })
+    fireEvent.change(await screen.findByLabelText('Role for Ed'), { target: { value: 'member' } })
 
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent('Change Ed to Viewer?')
+    expect(dialog).toHaveTextContent('Change Ed to Member?')
     expect(patches(calls)).toHaveLength(0)
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Change to Viewer' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Change to Member' }))
     await waitFor(() => expect(patches(calls)).toHaveLength(1))
   })
 
@@ -148,7 +154,7 @@ describe('UsersPage — role changes (WS-19)', () => {
     const calls = mockApi()
     renderUsersPage()
 
-    fireEvent.change(await screen.findByLabelText('Role for Vi'), { target: { value: 'editor' } })
+    fireEvent.change(await screen.findByLabelText('Role for Vi'), { target: { value: 'admin' } })
 
     await waitFor(() => expect(patches(calls)).toHaveLength(1))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -159,7 +165,7 @@ describe('UsersPage — role changes (WS-19)', () => {
     mockApi()
     renderUsersPage()
 
-    fireEvent.change(await screen.findByLabelText('Role for Vi'), { target: { value: 'editor' } })
+    fireEvent.change(await screen.findByLabelText('Role for Vi'), { target: { value: 'admin' } })
 
     expect(await screen.findByText('Role updated')).toHaveAttribute('role', 'status')
   })
@@ -178,7 +184,7 @@ describe('UsersPage — role changes (WS-19)', () => {
     mockApi({ patchStatus: 403 })
     renderUsersPage()
 
-    fireEvent.change(await screen.findByLabelText('Role for Vi'), { target: { value: 'editor' } })
+    fireEvent.change(await screen.findByLabelText('Role for Vi'), { target: { value: 'admin' } })
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/Could not change the role of Vi/)
   })
@@ -210,7 +216,7 @@ describe('UsersPage — invite links (WS-21, WS-22)', () => {
     await mint('newcomer@example.com')
 
     expect(
-      await screen.findByText(/Editor invite link for newcomer@example.com/),
+      await screen.findByText(/Member invite link for newcomer@example.com/),
     ).toBeInTheDocument()
     // Nobody copied it, so dismissing asks first (the show-once link is lost).
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
@@ -313,7 +319,7 @@ describe('UsersPage — invite links (WS-21, WS-22)', () => {
 
     const role = await screen.findByLabelText('Role')
     fireEvent.change(role, { target: { value: 'owner' } })
-    expect(role).toHaveAccessibleDescription(/administer the whole instance/)
+    expect(role).toHaveAccessibleDescription(/administer the whole organization/)
 
     await mint('boss@example.com')
     const dialog = await screen.findByRole('alertdialog')

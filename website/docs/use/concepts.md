@@ -80,21 +80,21 @@ A **meta field** is data that rides along with *every* event, not just one — t
 app version, the platform, the user's country. You define it once at the project
 level instead of repeating it on every event.
 
-### Variable
+### Property
 
-A **variable** is a typed, reusable `${placeholder}`. It separates the contract
-your team documents from the values a scan observes. A variable can hold a
+A **property** is a typed, reusable `${placeholder}`. It separates the contract
+your team documents from the values a scan observes. A property can hold a
 global documented-value list, warehouse column or dotted JSON-path bindings,
 and a complete per-event override when one event is the exception. Scans use the
-bindings to adopt the same variable, report novel values as drift, and preserve
+bindings to adopt the same property, report novel values as drift, and preserve
 hand-authored event field values instead of overwriting them. A scan-created
-variable that nothing in the plan refers to any more is retired at the end of a
+property that nothing in the plan refers to any more is retired at the end of a
 later catalog run — always by a manual scan, and by a scheduled collection too,
-which judges a variable minted from a JSON path on every run but one minted from
+which judges a property minted from a JSON path on every run but one minted from
 a scalar column only when the config declares a lookback window, since a run
 reading one interval cannot tell a quiet scalar column from an enumerable one;
 one a person renamed, edited, documented, or excluded from scans is kept. See
-[Variables & templates](./variables-and-templates.md) for the full workflow.
+[Properties & templates](./variables-and-templates.md) for the full workflow.
 
 ### Relation
 
@@ -250,9 +250,9 @@ volume: a field shows up that you never documented, one you relied on stops
 appearing, or a field starts carrying values it never used to. tripl watches for
 this and surfaces it alongside the catalog.
 
-### Variable value drift
+### Property value drift
 
-**Variable value drift** is when a bound variable starts carrying values outside
+**Property value drift** is when a bound property starts carrying values outside
 its effective documented list. It is reviewed per event: accept the new values
 globally or only for that event, snooze the evidence, mark it false-positive, or
 reopen it. Unlike observed samples, accepting a drift changes the plan contract.

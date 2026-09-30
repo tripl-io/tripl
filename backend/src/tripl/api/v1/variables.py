@@ -2,11 +2,25 @@ import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
+from fastapi.routing import APIRoute
 
 from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
+from tripl.api.v1.events import bulk_event_audit_payload
+from tripl.models.property_drift import PropertyDriftKind
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value import VariableValue
+from tripl.schemas.property_drift import (
+    PropertyDriftActionRequest,
+    PropertyDriftListResponse,
+    PropertyDriftResponse,
+)
+from tripl.schemas.property_events import (
+    PropertyEventResponse,
+    PropertyEventsBulkDelete,
+    PropertyEventsBulkResult,
+    PropertyEventsBulkUpsert,
+)
 from tripl.schemas.variable import (
     VariableBulkDelete,
     VariableBulkUpdate,
@@ -25,6 +39,8 @@ from tripl.schemas.variable_value_drift import (
 )
 from tripl.services import (
     audit_service,
+    property_drift_service,
+    property_events_service,
     variable_service,
     variable_value_drift_service,
     variable_value_service,
@@ -101,6 +117,57 @@ async def bulk_delete_variables(
         project_slug=slug,
         payload=_bulk_variable_audit_payload(deleted),
     )
+
+
+# Registered before the /{variable_id} routes, like "drifts" below.
+@router.get("/property-drifts", response_model=PropertyDriftListResponse)
+async def list_property_drifts(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID | None = None,
+    event_id: uuid.UUID | None = None,
+    kind: PropertyDriftKind | None = None,
+    active_only: bool = False,
+) -> PropertyDriftListResponse:
+    """New, missing-required and type-changed properties a scan saw (F23)."""
+    return await property_drift_service.list_property_drifts(
+        session,
+        slug,
+        variable_id=variable_id,
+        event_id=event_id,
+        kind=kind,
+        active_only=active_only,
+    )
+
+
+# No ``BranchIdDep``, for the reason ``apply_value_drift_action`` gives: the
+# drift is detected on main and accepting it writes to main.
+@router.post("/property-drifts/{drift_id}/action", response_model=PropertyDriftResponse)
+async def apply_property_drift_action(
+    session: SessionDep,
+    slug: str,
+    drift_id: uuid.UUID,
+    data: PropertyDriftActionRequest,
+    current_user: EditorUserDep,
+) -> PropertyDriftResponse:
+    result = await property_drift_service.apply_property_drift_action(
+        session, slug, drift_id, data, current_user
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="variable.property_drift_action",
+        target_type="variable",
+        target_id=result.variable_id,
+        target_name=result.variable_name,
+        project_slug=slug,
+        payload={
+            **data.model_dump(mode="json", exclude_none=True),
+            "kind": result.kind.value,
+            **({"event_name": result.event_name} if result.event_name else {}),
+        },
+    )
+    return result
 
 
 # Registered before the /{variable_id} routes so the literal "drifts" segment
@@ -262,6 +329,84 @@ async def list_event_overrides(
     return await variable_service.list_event_overrides(session, slug, variable_id, branch_id)
 
 
+@router.get("/{variable_id}/events", response_model=list[PropertyEventResponse])
+async def list_property_events(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID,
+    branch_id: BranchIdDep,
+) -> list[PropertyEventResponse]:
+    """The events whose property list carries this property, with each entry's
+    required flag, override and last measured presence (F23.8)."""
+    return await property_events_service.list_property_events(session, slug, variable_id, branch_id)
+
+
+# Registered before "/{variable_id}/event-overrides/{event_id}" so "bulk" is
+# not read as an event id.
+@router.post("/{variable_id}/event-overrides/bulk", response_model=PropertyEventsBulkResult)
+async def bulk_upsert_event_overrides(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID,
+    data: PropertyEventsBulkUpsert,
+    current_user: EditorUserDep,
+    branch_id: BranchIdDep,
+) -> PropertyEventsBulkResult:
+    """Add the property to many events' lists, or apply one patch to each entry:
+    the single PUT's semantics, all or nothing (F23.8)."""
+    variable_name, touched, result = await property_events_service.bulk_upsert_property_events(
+        session, slug, variable_id, data, branch_id
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="variable.override_bulk_set",
+        target_type="variable",
+        target_id=variable_id,
+        target_name=variable_name,
+        project_slug=slug,
+        payload=bulk_event_audit_payload(
+            [event_id for event_id, _ in touched],
+            event_names=[name for _, name in touched],
+            extra={
+                **data.model_dump(mode="json", exclude_unset=True, exclude={"event_ids"}),
+                "created": result.created,
+            },
+        ),
+    )
+    return result
+
+
+@router.post("/{variable_id}/event-overrides/bulk-delete", response_model=PropertyEventsBulkResult)
+async def bulk_delete_event_overrides(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID,
+    data: PropertyEventsBulkDelete,
+    current_user: EditorUserDep,
+    branch_id: BranchIdDep,
+) -> PropertyEventsBulkResult:
+    """Take the property off many events' lists (F23.8). Events that do not
+    carry it are skipped, and the audit row names only the entries removed."""
+    variable_name, removed, result = await property_events_service.bulk_delete_property_events(
+        session, slug, variable_id, data, branch_id
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="variable.override_bulk_delete",
+        target_type="variable",
+        target_id=variable_id,
+        target_name=variable_name,
+        project_slug=slug,
+        payload=bulk_event_audit_payload(
+            [event_id for event_id, _ in removed],
+            event_names=[name for _, name in removed],
+        ),
+    )
+    return result
+
+
 @router.put(
     "/{variable_id}/event-overrides/{event_id}",
     response_model=VariableEventOverrideResponse,
@@ -292,7 +437,7 @@ async def upsert_event_override(
         payload={
             "event_id": str(event_id),
             "event_name": override.event_name,
-            "values": data.values,
+            **data.model_dump(exclude_unset=True),
         },
     )
     return override
@@ -388,3 +533,32 @@ async def delete_variable(
         target_name=name,
         project_slug=slug,
     )
+
+
+def _properties_router() -> APIRouter:
+    """Every route above again under ``/properties``, the name the product uses (F23).
+
+    A property IS a variable (owner decision 1); only the word changed. The
+    ``/variables`` paths stay for one release, marked deprecated in the OpenAPI
+    document, so an older CLI or an agent pinned to them keeps working.
+    """
+    aliased = APIRouter()
+    for route in list(router.routes):
+        assert isinstance(route, APIRoute)
+        aliased.add_api_route(
+            route.path.replace("/projects/{slug}/variables", "/projects/{slug}/properties", 1),
+            route.endpoint,
+            methods=sorted(route.methods or ()),
+            response_model=route.response_model,
+            status_code=route.status_code,
+            summary=route.summary,
+            description=route.description,
+            response_description=route.response_description,
+            name=f"{route.name}__properties",
+            tags=["properties"],
+        )
+        route.deprecated = True
+    return aliased
+
+
+properties_router = _properties_router()

@@ -51,12 +51,14 @@ from tripl.core.analyzers._event_generator_variables import (
     display_name_candidates,
 )
 from tripl.core.name_template import variable_tokens
+from tripl.core.property_schema import is_scan_inferred_schema
 from tripl.models.variable import Variable
 
 __all__ = [
     "SCAN_PROVENANCE_DESCRIPTION",
     "KeptReason",
     "RetirementPlan",
+    "human_claim",
     "is_json_derived",
     "plan_retirement",
     "referenced_tokens",
@@ -175,6 +177,10 @@ def _human_claim(variable: Variable) -> str | None:
         return KeptReason.DOCUMENTED
     if variable.description != SCAN_PROVENANCE_DESCRIPTION:
         return KeptReason.USER_EDITED
+    # A schema the scan infers (F23.4) is one of a handful of fixed fragments;
+    # anything else was written by a person.
+    if not is_scan_inferred_schema(variable.json_schema):
+        return KeptReason.USER_EDITED
     # A scan writes ``bindings=[source_name]`` and never touches them again, so
     # anything else is a hand-written binding — the mechanism the whole variables
     # rework exists to support (a user binds ``variant`` to
@@ -193,6 +199,16 @@ def _human_claim(variable: Variable) -> str | None:
     ):
         return KeptReason.USER_EDITED
     return None
+
+
+def human_claim(variable: Variable) -> str | None:
+    """Public face of ``_human_claim``, for readers outside the sweep.
+
+    The scan's object-property fold (``_json_object_properties``) asks the same
+    question — "did a person make this variable theirs?" — and must get the same
+    answer the sweep does, or it would fold away a property the sweep keeps.
+    """
+    return _human_claim(variable)
 
 
 def is_json_derived(variable: Variable, json_columns: Collection[str]) -> bool:

@@ -36,10 +36,17 @@ from tripl.alerting_validation import (
     validate_linear_api_key,
     validate_linear_team_id,
 )
-from tripl.crypto import decrypt_value
 from tripl.models.event import Event, EventStatus, event_status_rank
 from tripl.models.implementation_ticket import ImplementationTicket
 from tripl.models.project_tracker_config import ProjectTrackerConfig
+from tripl.services.active_org_scope import in_active_org
+from tripl.services.org_tracker_defaults_service import (
+    NO_DEFAULTS,
+    OrgTrackerDefaults,
+    defaults_for_project,
+    effective_jira,
+    effective_linear,
+)
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import run_with_async_worker_session
 from tripl.worker.tasks.alerts_channels import (
@@ -106,34 +113,45 @@ async def _build_ticket_body(session: AsyncSession, event_ids: list[str]) -> str
     return "\n".join(lines)
 
 
-def _resolve_jira_config(config: ProjectTrackerConfig) -> tuple[str, str, str, str, str] | None:
+def _resolve_jira_config(
+    config: ProjectTrackerConfig, defaults: OrgTrackerDefaults = NO_DEFAULTS
+) -> tuple[str, str, str, str, str] | None:
     """Validate + decrypt a tracker config for outbound use.
 
-    Returns ``(base_url, auth_email, api_token, project_key, issue_type)`` or
-    ``None`` when the stored config is incomplete/invalid — the worker logs and
-    skips rather than crashing so one bad config can't wedge the beat sweep."""
+    The project's own values, over its organization's defaults (F20 PR12,
+    ``org_tracker_defaults_service.effective_jira``: the site, account and
+    token come whole from one side). Returns ``(base_url, auth_email,
+    api_token, project_key, issue_type)`` or ``None`` when the result is
+    incomplete/invalid — the worker logs and skips rather than crashing so one
+    bad config can't wedge the beat sweep. The site is re-checked against
+    private addresses here, whichever side it came from."""
+    target = effective_jira(config, defaults)
     try:
-        base_url = validate_jira_base_url(config.base_url)
-        auth_email = validate_jira_auth_email(config.auth_email)
-        api_token = validate_jira_api_token(decrypt_value(config.api_token_encrypted))
-        project_key = validate_jira_project_key(config.project_key)
-        issue_type = validate_jira_issue_type(config.issue_type or "Task")
+        base_url = validate_jira_base_url(target.base_url)
+        auth_email = validate_jira_auth_email(target.auth_email)
+        api_token = validate_jira_api_token(target.api_token)
+        project_key = validate_jira_project_key(target.project_key)
+        issue_type = validate_jira_issue_type(target.issue_type)
     except ValueError:
         return None
     return base_url, auth_email, api_token, project_key, issue_type
 
 
-def _resolve_linear_config(config: ProjectTrackerConfig) -> tuple[str, str] | None:
+def _resolve_linear_config(
+    config: ProjectTrackerConfig, defaults: OrgTrackerDefaults = NO_DEFAULTS
+) -> tuple[str, str] | None:
     """``(api_key, team_id)`` for a Linear tracker config, or ``None`` when invalid.
 
     The key is stored exactly as the Jira token is — ``api_token_encrypted``,
     encrypted at rest, owner-gated, never echoed — and the team id rides the
-    ``project_key`` column (``project_tracker_config_service``). Same log-and-skip
+    ``project_key`` column (``project_tracker_config_service``). Either falls
+    back to the organization's Linear default (F20 PR12). Same log-and-skip
     contract as ``_resolve_jira_config``.
     """
+    target = effective_linear(config, defaults)
     try:
-        api_key = validate_linear_api_key(decrypt_value(config.api_token_encrypted))
-        team_id = validate_linear_team_id(config.project_key)
+        api_key = validate_linear_api_key(target.api_key)
+        team_id = validate_linear_team_id(target.team_id)
     except ValueError:
         return None
     return api_key, team_id
@@ -197,11 +215,13 @@ async def _create_ticket(
     )
     if config is None or not config.enabled:
         return
+    defaults = await defaults_for_project(session, project_uuid)
 
     if config.tracker_type == TRACKER_LINEAR:
         await _create_linear_ticket(
             session,
             config,
+            defaults,
             project_uuid=project_uuid,
             branch_uuid=branch_uuid,
             event_ids=event_ids,
@@ -209,7 +229,7 @@ async def _create_ticket(
         )
         return
 
-    resolved = _resolve_jira_config(config)
+    resolved = _resolve_jira_config(config, defaults)
     if resolved is None:
         logger.warning(
             "Skipping implementation ticket for branch %s: tracker config is invalid",
@@ -274,6 +294,7 @@ async def _create_ticket(
 async def _create_linear_ticket(
     session: AsyncSession,
     config: ProjectTrackerConfig,
+    defaults: OrgTrackerDefaults,
     *,
     project_uuid: uuid.UUID,
     branch_uuid: uuid.UUID,
@@ -288,7 +309,7 @@ async def _create_linear_ticket(
     created first), and ``find_linear_issue_by_marker`` looks it up on a
     redelivery exactly as the Jira arm looks up its label.
     """
-    resolved = _resolve_linear_config(config)
+    resolved = _resolve_linear_config(config, defaults)
     if resolved is None:
         logger.warning(
             "Skipping implementation ticket for branch %s: Linear tracker config is invalid",
@@ -420,11 +441,12 @@ async def _sync_one(session: AsyncSession, ticket: ImplementationTicket) -> None
     ticket_tracker = ticket.tracker_type or TRACKER_JIRA
     if ticket_tracker != (config.tracker_type or TRACKER_JIRA):
         return
+    defaults = await defaults_for_project(session, ticket.project_id)
     if ticket_tracker == TRACKER_LINEAR:
-        if not await _linear_ticket_done(ticket, config):
+        if not await _linear_ticket_done(ticket, config, defaults):
             return
     else:
-        resolved = _resolve_jira_config(config)
+        resolved = _resolve_jira_config(config, defaults)
         if resolved is None:
             logger.warning("Skipping sync for ticket %s: tracker config is invalid", ticket.id)
             return
@@ -447,9 +469,13 @@ async def _sync_one(session: AsyncSession, ticket: ImplementationTicket) -> None
     await session.commit()
 
 
-async def _linear_ticket_done(ticket: ImplementationTicket, config: ProjectTrackerConfig) -> bool:
+async def _linear_ticket_done(
+    ticket: ImplementationTicket,
+    config: ProjectTrackerConfig,
+    defaults: OrgTrackerDefaults = NO_DEFAULTS,
+) -> bool:
     """Has the Linear issue behind ``ticket`` reached a ``completed`` state?"""
-    resolved = _resolve_linear_config(config)
+    resolved = _resolve_linear_config(config, defaults)
     if resolved is None:
         logger.warning("Skipping sync for ticket %s: Linear tracker config is invalid", ticket.id)
         return False
@@ -485,6 +511,7 @@ async def _sync_tickets(session: AsyncSession) -> None:
                 select(ImplementationTicket.id).where(
                     ImplementationTicket.status == "open",
                     ImplementationTicket.external_key.is_not(None),
+                    in_active_org(ImplementationTicket.project_id),
                 )
             )
         )

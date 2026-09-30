@@ -23,6 +23,7 @@ import { SelectControl } from './eventFormLayout'
 import { FieldError } from '@/components/forms/FieldError'
 import { CodeToken } from '@/components/primitives/code-token'
 import { isNumberFieldValue } from './eventFormValues'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Says which way a field value is heading. The two things an analyst reaches
@@ -186,7 +187,7 @@ export function FieldTemplateHints({
           This field names the event, so <span className="font-mono">{'${variable}'}</span> is
           stored literally and will not match a family of names.{' '}
           {slug ? (
-            <Link to={`/p/${slug}/settings/scans`} className="underline underline-offset-2">
+            <Link to={projectPath(currentOrgSlug(), slug, '/settings/scans')} className="underline underline-offset-2">
               Group them with a scan event rule
             </Link>
           ) : (
@@ -196,7 +197,7 @@ export function FieldTemplateHints({
         </p>
       )}
       {unknown.map(({ token }) => (
-        <p key={token} className="text-body-sm text-warning">Unknown variable token: {token}</p>
+        <p key={token} className="text-body-sm text-warning">Unknown property token: {token}</p>
       ))}
       {documented.map(variable => (
         <div key={variable.id} className="flex flex-wrap items-center gap-1">

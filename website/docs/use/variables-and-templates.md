@@ -1,26 +1,32 @@
 ---
-title: Variables & templates
+title: Properties & templates
 sidebar_position: 4
 ---
 
-# Variables & templates
+# Properties & templates
 
-Variables keep reusable values and warehouse paths consistent across the
+Properties keep reusable values and warehouse paths consistent across the
 tracking plan. An event value can contain a placeholder such as
 `${checkout_variant}` instead of copying a changing list or source path into
 every event.
 
-Use **Plan → Variables** to create and review them. Variables are part of the
+Properties are tripl's typed event properties: the keys an event's JSON carries,
+each with a type, a description and documented values. Until F23 they were
+called **variables**. The API still accepts the former `/variables` paths as a
+deprecated alias for one release, and `tripl plan variables` still works as a
+second name for `tripl plan properties`.
+
+Use **Plan → Properties** to create and review them. Properties are part of the
 active plan branch, so edits follow the same review and merge workflow as
 events, fields, and relations.
 
-## What a variable stores
+## What a property stores
 
-Each variable has:
+Each property has:
 
 - a stable, lower-case **name** used by `${name}` placeholders;
 - a **type** (`string`, `number`, `boolean`, `date`, `datetime`, `json`, or an
-  array type);
+  array type), optionally refined by a **JSON Schema** fragment;
 - a human-readable **description**;
 - optional **documented values** — the global list the team expects;
 - optional **bindings** — warehouse columns or dotted JSON paths such as
@@ -34,19 +40,185 @@ path into a short, readable `${variant}` placeholder without losing the source
 mapping.
 
 Only the name and type are required. **You do not have to fill in bindings** —
-a scan matches a variable by its name first, so a variable named after the
+a scan matches a property by its name first, so a property named after the
 column it stands for needs no binding at all.
 
-Each token belongs to one variable. Creating or editing a variable is refused
-with a conflict when a new binding is already another variable's name, binding
-or scan source, and when a new or changed name is already another variable's
-binding or scan source (a variable renamed after a scan keeps its original
-source). Editing a variable does not re-check the bindings it already has, so
+Each token belongs to one property. Creating or editing a property is refused
+with a conflict when a new binding is already another property's name, binding
+or scan source, and when a new or changed name is already another property's
+binding or scan source (a property renamed after a scan keeps its original
+source). Editing a property does not re-check the bindings it already has, so
 scan-created bindings such as `props.$os` and names such as `userId` save
 unchanged; only newly added bindings must be a column or dotted path.
 
-A scan skips, and reports in the run details, any variable token longer than
+A scan skips, and reports in the run details, any property token longer than
 100 characters, such as a JSON key typed by a user.
+
+### Refine the type with JSON Schema
+
+The type is the coarse kind. The optional `json_schema` field says more, in
+JSON Schema terms. For example, a number can be narrowed to an integer, and a
+string can get a format. An array can declare its item type, and a `json`
+property can describe the keys it carries.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "total": { "type": "number", "minimum": 0 },
+    "coupon": { "type": "string", "enum": ["SPRING", "VIP"] }
+  },
+  "required": ["total"]
+}
+```
+
+A nested object is one property with a sub-schema, not a set of dotted
+properties. See [Nested objects](#nested-objects) for how a scan builds one.
+
+**Supported keywords.**
+
+- Every node: `type` (one of `string`, `number`, `integer`, `boolean`, `array`,
+  `object`) and `description`.
+- `string`: `format`, `pattern`, `minLength` and `maxLength`.
+- `number` and `integer`: `minimum`, `maximum`, `exclusiveMinimum`,
+  `exclusiveMaximum` and `multipleOf`.
+- `array`: `items`, `minItems`, `maxItems` and `uniqueItems`.
+- `object`: `properties`, `required` and `additionalProperties` (a boolean).
+
+**What is refused.** Anything else is refused by name: `$ref`, combinators,
+and a list of types. The same goes for an `enum` at the top level, because
+documented values already hold that list. An `enum` inside a nested property is
+fine.
+
+**The schema must agree with the type.**
+
+| Type | Schema |
+|---|---|
+| `string` | `string`. Date formats are refused: use the `date` or `datetime` type. |
+| `number` | `number` or `integer` |
+| `boolean` | `boolean` |
+| `date` | `string` with `format: date` |
+| `datetime` | `string` with `format: date-time` |
+| `json` | `object` or `array` |
+| `string_array` | `array` with `items` of type `string` |
+| `number_array` | `array` with `items` of type `number` or `integer` |
+
+**When the pair disagrees.**
+
+- A change to either half that would break agreement is refused. Send both
+  halves in one request, or set `json_schema` to `null` to clear it.
+- A bulk type change is refused as a whole if any selected property has a
+  schema the new type contradicts.
+
+**Edit it on the property's page.** The **Definition** tab has a **Schema**
+editor that follows the type you picked. A number can be narrowed to an
+integer and given a minimum and maximum. A string can get a format and a
+pattern. The date types pin their format. An array declares its item type, and
+a `json` property is an object with nested properties (each with its own type,
+and a **Required** box) or an array. The editor holds **Save** while a minimum
+is above its maximum, a pattern is not a valid regular expression, or a nested
+property has no name. When the API refuses the schema, the reason appears under
+the editor. Changing the type resets the schema to the new type's default,
+except between number and integer. A schema that says no more than the type is
+saved as no schema at all. Viewers see the schema summarised in words.
+
+**Types a scan infers.** When a scan collects the first sample values for a
+JSON-path property it created, it sets the property's type from the JSON kind
+of those values:
+
+| Sample values | Type set |
+|---|---|
+| Numbers | `number`; narrow it to `integer` yourself if that is what it is |
+| `true` / `false` | `boolean` |
+| ISO dates | `date` |
+| ISO date-times, or date-times mixed with dates | `datetime` |
+| Arrays of strings | `string_array` |
+| Arrays of numbers | `number_array` |
+| Any other arrays, or objects | `json` |
+
+- A scan types a property only once, and only while it is untouched: it still
+  has the default `string` type, no schema, and the scan's own description.
+  After that the scan never changes the type.
+- A sample that mixes kinds, such as `"42"` next to `42`, sets no type.
+- A sample of only nulls or only empty arrays sets no type either, so a later
+  sample can still set one.
+- A property whose values were already recorded before scans inferred types
+  is sampled once more, for its type alone, under the same conditions. Each
+  scheduled run checks up to 50 such properties, so a large project catches
+  up over a few runs. The check happens once per property: if the values come
+  back as text, mixed or empty, the property keeps `string` and is not sampled
+  again. Changing its bindings makes it eligible for one more check, and you
+  can always set the type yourself.
+- A schema the scan wrote does not count as your edit, so the property can
+  still be retired automatically.
+
+### Nested objects
+
+A key of a JSON column whose value is an object becomes **one** property of
+type `json`, not one property per nested key. An event whose rows carry
+`{"screen": "home", "user": {"id": "u1", "plan": "pro"}}` in `properties`
+gets this template:
+
+```json
+{ "screen": "${screen}", "user": "${user}" }
+```
+
+The property `user` is bound to `properties.user`. Its schema describes the
+object, and deeper nesting lives inside that schema:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "plan": { "type": "string" }
+  },
+  "required": ["id"]
+}
+```
+
+**How a scan builds it.**
+
+- The scan creates the property with the schema `{"type": "object"}`. Once it
+  samples the property's first values, it fills in the sub-schema: every key
+  a sampled object carried, each typed the way a top-level property is. A key
+  whose sampled values mix kinds, or are only null, is left out.
+- `required` names the keys that every sampled object carried with a value.
+  How often the event carries the object itself is its presence rate, like any
+  other property.
+- Like a type, the sub-schema is written once, and only while the property is
+  untouched: still `{"type": "object"}`, with the scan's own description. After
+  that, a sampled object that disagrees with it is drift, not a rewrite.
+- A sub-schema the scan wrote does not count as your edit. It uses only
+  `type`, date `format`, `items`, `properties` and `required`. A schema with
+  anything else, such as a `description`, an `enum` or a bound, is yours. A
+  schema in which you only retyped a key or edited `required` still reads as
+  the scan's, so an unused one can be retired automatically.
+
+**What stays a dotted property.** Some nested keys keep their own property,
+because something reads their value on its own:
+
+- a path listed in the scan's **JSON values to keep as-is**
+  (`json_value_paths`), whose value the template keeps literally;
+- a path the event name format uses, such as `{properties.promo.id}` in
+  `promo_{properties.promo.id}_shown`;
+- a dotted property you made your own: you edited it (its name, description,
+  schema, bindings or documented values), or it is on an event's property
+  list.
+
+The object that contains such a key is not folded. Its other keys stay dotted
+too, except where they are objects themselves: those fold one level down. A
+dotted property you documented as an object is folded exactly where it is.
+
+A key that is an object in some rows and a plain value in others also keeps
+its dotted properties, because a property has one type.
+
+**Existing dotted properties.** Nothing is migrated in place. On the next scan,
+a JSON template the scan wrote is rewritten to reference the object, unless
+you edited that field value yourself. A dotted property that is then referenced
+by nothing, that no scan observed and that nobody edited, is retired like any
+other unused property. Event identities do not change: an event name built from
+a JSON column still reads the dotted keys, so no event is created twice.
 
 ### A binding and a `${token}` are not the same thing
 
@@ -55,24 +227,24 @@ why the question comes up. They are still two different things:
 
 - a **binding** is an address in the warehouse — a column, or a dotted path
   inside one. It tells a scan where to read.
-- a **`${token}`** is a variable's **name**. It is what the plan references, and
+- a **`${token}`** is a property's **name**. It is what the plan references, and
   it is what the suggestion list offers as you type `$` in a field value.
 
-They coincide on a variable a scan created, by construction: the scan stores the
+They coincide on a property a scan created, by construction: the scan stores the
 path it found as the binding, and derives a short name from its trailing
 segments — `variant`, then `extra_variant`, then `page_data_extra_variant` —
 falling back to the **raw path as the name** when every short candidate is
-already taken. That is why a mature project can be full of variables literally
+already taken. That is why a mature project can be full of properties literally
 named `property.forecast_profile`, whose token is that same dotted string.
 
-On a variable you create yourself they differ on purpose: name it `variant`,
+On a property you create yourself they differ on purpose: name it `variant`,
 bind it to `page_data.extra.variant`, and write `${variant}`.
 
-The example under the **Data bindings** field is taken from a variable in your
+The example under the **Data bindings** field is taken from a property in your
 own project when there is one to take it from, so the shape it shows is the
 shape your warehouse actually uses. Note also that nothing checks a binding
 against the warehouse: a path with a typo is accepted, and the only symptom is
-that the variable never collects an observed value.
+that the property never collects an observed value.
 
 ## Documented, observed, and effective values
 
@@ -118,30 +290,30 @@ order they were created.
 
 ### Clearing what a scan has recorded
 
-**Plan › Variables › open a variable › Observed › Clear observed values** (the
+**Plan › Properties › open a property › Observed › Clear observed values** (the
 quick-edit dialog has it too) drops that
-variable's contexts and keeps everything else on the row — description,
+property's contexts and keeps everything else on the row — description,
 documented values, bindings, per-event overrides, and every drift verdict. It
-is the reset that previously required deleting the whole variable, which took
+is the reset that previously required deleting the whole property, which took
 all of that with it.
 
 Two consequences worth knowing before you use it. A later scan re-records a
-context only where an event field still refers to the variable, so a context
+context only where an event field still refers to the property, so a context
 whose event has moved on does not come back. And because "has observed values"
-is one of the reasons the retirement sweep keeps a variable, clearing them can
-make an otherwise unreferenced variable retirable — the next scan's cleanup may
+is one of the reasons the retirement sweep keeps a property, clearing them can
+make an otherwise unreferenced property retirable — the next scan's cleanup may
 then remove it.
 
-A **context** is one (variable, event, field) pairing — the record that this
-event's field refers to this variable through that binding. The context and the
+A **context** is one (property, event, field) pairing — the record that this
+event's field refers to this property through that binding. The context and the
 values are separate facts, and the context comes first: it exists as soon as
-something matches the variable to the field, whether or not any value has been
+something matches the property to the field, whether or not any value has been
 stored into it. So an empty context is a real state, not a missing one, and the
-UI names it rather than showing a blank. (On the Variables table the column
-listing the events a variable was seen in is **Observed in**, and each type chip
+UI names it rather than showing a blank. (On the Properties table the column
+listing the events a property was seen in is **Observed in**, and each type chip
 shows the schema key — `string`, `number_array` — rather than a prose label.)
-The Variables table says **No values
-stored** for a variable that has contexts but no samples, and an event's value
+The Properties table says **No values
+stored** for a property that has contexts but no samples, and an event's value
 popover distinguishes a context that holds no value from one whose values were
 counted without an example being kept. Each popover line speaks for its own
 event and field, not for every context of the same binding.
@@ -152,9 +324,9 @@ has a second, temporary reason to be empty: a scheduled run samples the paths
 still waiting for their first values a slice at a time, and the rotation reaches
 every waiting path every few runs — so on a regularly collecting scan, a newly
 referenced path normally shows its first values within hours. Only paths with a
-context to fill are in that rotation: a variable whose token no event value
+context to fill are in that rotation: a property whose token no event value
 references has no context row for a sample to land in and is not sampled at
-all, and a variable a scan has just created becomes sampleable one scheduled
+all, and a property a scan has just created becomes sampleable one scheduled
 run after something references it.
 
 The global documented list applies everywhere unless an event has an override.
@@ -163,24 +335,261 @@ merged with it. This makes exceptions explicit — for example, most events may
 allow `control` and `treatment`, while one legacy event documents a different
 set.
 
-To add an override, edit the variable, choose an event under **Per-event
+To add an override, edit the property, choose an event under **Per-event
 overrides**, enter the complete effective list for that event, and save it. The
 event list is one searched page rather than the whole catalog, so on a large
 project type into the search box above it to reach the event you want — the note
 under the list says how many events it is not currently showing.
 
-## Bind a variable to warehouse data
+### An event's property list
 
-Skip this when the variable's name already matches the column — a binding earns
+Each event can list the properties it carries. Every entry
+records two things:
+
+- whether the property is **required**, meaning every occurrence of the event
+  carries it;
+- optionally, an override of its allowed values.
+
+An override is one kind of entry. So a property with an override on an event is
+also on that event's list, and every override from before this feature appears
+in the list as an optional property.
+
+An entry without an override uses the property's documented list. The editor's
+**Per-event overrides** section shows only entries that have their own values.
+Deleting an override from a required property keeps the property in the list
+and only removes its values.
+
+The list is read with `GET /events/{event_id}/properties`. Each entry names its
+property with the property's type, schema and description, and gives the
+effective values. Entries are written through the event-overrides endpoint.
+That endpoint works as a patch:
+
+- `{"required": true}` adds the property, or marks it required;
+- `{"values": [...]}` sets the override;
+- `{"values": null}` removes the override and keeps the entry;
+- `DELETE` removes the entry.
+
+Scans do not write the list. They record what they observe instead.
+
+**How a scan records JSON keys.**
+
+- When several scanned rows collapse into one event, the event's JSON value
+  carries every key any of those rows had. Earlier, only the busiest row's keys
+  were kept, so optional properties disappeared.
+- A kept literal value that differs between rows still comes from the busiest
+  row.
+- For each JSON-path property, the scan measures a **presence rate**: the share
+  of the event's rows, weighted by their counts, that carried the key. It is
+  stored with the observed values.
+- `GET /events/{event_id}/properties` returns the rate as `presence_rate`. It
+  is `null` until a scan that returns row counts has measured it.
+
+**The Properties card on the event page.** The event's page shows its property
+list as a grid, below the form. Each row has:
+
+- the property's name, which opens the property's page;
+- its type, summarised from the schema: `Integer`, `String (email)`,
+  `Object {id, price, +2}`, `String[]`, with any constraints on hover;
+- a **Required** switch;
+- the allowed values in force, marked **This event** when the event has its own
+  list;
+- the presence rate from the last scan, flagged **below threshold** when a
+  required property falls under the event's threshold, or **looks required**
+  when an optional one reaches it.
+
+Editors change each entry in place, and every change saves at once, apart from
+the form's **Save**. The pencil edits this event's allowed values, and **Use
+documented list** drops them again. **Add property** searches the project's
+properties that are not on the list yet. The card's header sets the event's own
+**Required at … % presence** threshold, or resets it to the default of 95%.
+Viewers, and anyone editing an event from another branch, see the grid
+read-only. The monitoring page of an event shows the same grid, read-only.
+
+**The event's JSON fields.** A JSON field whose value is one object, such as a
+properties payload, opens as a grid of keys and values. A value cell takes a
+`${property}` reference, with the same suggestions as any field, or a number,
+`true`, `false`, `null`, nested JSON, or plain text, which is stored as a
+string. **Edit JSON** switches to the text editor for anything else, and **Edit
+as grid** switches back when the text is one object again. Both views edit the
+same text, so they never disagree about what is saved.
+
+**The events a property is on.** The property's page has an **Events** tab
+listing every event whose property list carries it, each with its required
+flag, its own allowed values or the documented list, its presence rate, and its
+threshold. **Show in the events list** opens the events list filtered to those
+events (`?property=<name>`); the filter shows as a **Property** chip that clears
+it. The properties table says the same thing per row: **On 3 events · 1
+required** links to the tab. That count is apart from **Observed in**, which is
+where scans saw the property.
+
+Editors select events on the tab to change them together: **Mark required**,
+**Mark optional**, **Set allowed values…** (one list for every selected event),
+**Use documented values**, or **Remove from events**. **Add to events** searches
+events that do not list the property yet and adds it to the picked ones, as
+required or optional.
+
+The same edits are available through the API:
+
+- `GET /properties/{variable_id}/events` lists the property's events with their
+  entries and presence.
+- `GET /events?property=<id or name>` keeps the events whose list carries the
+  property.
+- `POST /properties/{variable_id}/event-overrides/bulk` with `event_ids` and the
+  same patch as the single write (`required`, `values`, `values: null`) applies
+  it to every listed event, adding the property where it is missing. It is all
+  or nothing: an event that is not on the branch refuses the whole request.
+- `POST /properties/{variable_id}/event-overrides/bulk-delete` with `event_ids`
+  takes the property off those events and skips the ones that do not carry it.
+
+Both writes need the editor role, work on the branch the request names, and are
+recorded in the audit log.
+
+### Property drift
+
+Scans compare what they see with each event's property list, and report
+three kinds of **property drift**:
+
+| Kind | Reported when | Accepting it |
+|---|---|---|
+| `new_property` | The event carried a JSON key whose property is not on its list. Only reported for events whose list names at least one property. | Adds the property to the event's list as an optional property. |
+| `missing_required` | A required property was carried less often than the event's threshold, including never. | Makes the property optional. |
+| `type_change` | Sample values have a type the property's type does not allow. For an object property, sampled objects disagree with its sub-schema. This is reported per property, with no event. | Changes the property to the observed type. For an object property, applies the changes to its sub-schema. |
+
+- **Threshold.** Each event has a presence threshold,
+  `required_presence_threshold`. By default it is 0.95. Set it with
+  `PATCH /events/{event_id}`. Like the rest of the event, it is part of the
+  plan's branches.
+- **`suggested_required`.** `GET /events/{event_id}/properties` includes this
+  field. It says whether the measured presence reaches the threshold. It is
+  only a suggestion: `required` is only ever set by a person.
+- **Which properties get a `type_change`.** A scan-created property that still
+  has the default `string` type is not checked.
+- **Allowed variations.**
+  - A `string` may hold dates.
+  - A `datetime` may be sampled as a bare date.
+  - `json` accepts arrays, unless its schema says `object`.
+- **Nested keys.** A `type_change` on an object property lists
+  `nested_changes` in its `detail`. Each one has a `path` inside the object
+  (`[]` stands for an array's items) and a `change`:
+  - `new_key`: a sampled object carried a key its sub-schema does not list.
+    An object with no `properties` in its schema allows any key.
+  - `missing_required`: a sampled object lacked a key its `required` names, or
+    carried it as null.
+  - `type_change`: a nested value has another type, with `expected_type` and
+    `observed_type`.
+
+  The `observed_schema` is the stored sub-schema with those changes applied,
+  and accepting the drift writes it, so your other annotations are kept.
+- **When types and nested keys are checked.** Only against sampled values,
+  and a scan samples a property while it has an event whose values were not
+  observed yet. `new_property` and `missing_required` are checked on every
+  scan, but only for the property itself, not for the keys inside an object.
+
+Triage works like value drift: accept, snooze, mark as a false positive, or
+reopen.
+
+- An accepted drift reopens if the scan sees it again.
+- An open drift with no note disappears once a later scan no longer finds it,
+  for example when the property is back above the threshold or you added it to
+  the list yourself.
+- Archived events and properties excluded from scans are not checked.
+- Drift is kept for 30 days.
+
+Where open property drift shows up:
+
+- **The event page** lists the event's open drifts with **Accept** (worded
+  for what it changes: *Add to list*, *Make optional*, *Retype to …*),
+  **Snooze 7d** and **Dismiss** (false positive).
+- **The Properties page** lists every open drift of the project, each linked
+  to its event, and the **Properties** item in the sidebar carries a warning
+  dot saying how many are open. The project summary reports the same number as
+  `open_property_drift_count`.
+- **The health score** counts an event's open drifts in its
+  [Drifts component](./feature-reference.md#health-score), like value drift.
+- **Alerts**: a rule with **Property drift** on sends one alert per open drift
+  — see [Alerting › Property drift](./alerting.md#property-drift).
+- **The bell**: people watching an event are told once about each new drift on
+  it.
+
+Open means open, or snoozed until a time that has passed, on a property that
+is still scanned. Every surface above uses that one rule.
+
+```text
+GET   /api/v1/projects/{slug}/properties/property-drifts?event_id=&variable_id=&kind=&active_only=
+POST  /api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action
+```
+
+### Properties as breakdowns, drift fields and contracts
+
+A property that lives in a JSON column can be used where a plain column can.
+Write it as `<json_column>.<path>`, the same format as the scan's JSON values to
+keep, for example `props.plan` or `props.cart.total`.
+
+**Metric breakdowns and distribution drift.** In **Scan settings → Metric
+breakdowns and drift**, both pickers list the JSON paths the preview has
+discovered, and accept a path typed by hand. The warehouse extracts the value on
+every row, and a row without the path counts as an empty value, like a NULL
+column.
+
+- Each segment is letters, digits and underscores, and does not start with a
+  digit. A path outside that grammar is refused when the scan is saved.
+- At most 10 properties per list. Each one parses the JSON on every row of the
+  window, so the cap bounds what a collection costs.
+- The JSON column has to be one the scan's query returns. A property of any
+  other column is skipped at collection time with a warning.
+- The synthetic demo warehouse has no JSON columns and cannot break down by a
+  property.
+
+**Contracts.** A typed property is checked like a field contract, in the same
+scan and with the same findings: a `SchemaDrift` row of kind
+`required_null_violation`, `enum_violation`, `regex_violation` or
+`range_violation`, named by the property's path. It shows in the event type's
+schema-drift badge, counts toward the event health score's contracts, and
+alerts like any other schema drift. The contract comes from the property:
+
+| Contract | Comes from | Allowed bad rows |
+|---|---|---|
+| Required (null rate) | The property is **required** on every non-archived event of the type. A row without the path counts as NULL. | `1 − presence threshold`, the lowest threshold among the type's events (5% by default) |
+| Enum | The documented values. An event's own override replaces the property's list for that event, and the type is checked against the union of its events' lists. | none |
+| Regex | `pattern` in the property's JSON Schema | none |
+| Range | `minimum` / `maximum` in the property's JSON Schema | none |
+
+- Contracts run per event type: the warehouse filters rows by event type, not by
+  event. A rule that differs between the type's events only becomes a check
+  when it holds for all of them. A property required on some events only, or
+  documented on some events only, is left to property drift, which judges each
+  event on its own.
+- A number is accepted in its documented spelling and its canonical one (`10`
+  for `10.0`).
+- Only properties bound to a JSON path of a column the scan read are checked,
+  and at most 50 per event type. Properties excluded from scans are not checked.
+
+### Text columns parsed as JSON
+
+When a table keeps its properties as JSON text in a plain `String` (ClickHouse)
+or `STRING` (BigQuery) column, tick the column under **Parse as JSON** in the
+scan form ([Scans](./feature-reference.md#parse-as-json)). The scan then treats
+it as a JSON column: every key becomes a property with a type, a presence rate
+and sample values, a nested object becomes one object property, and
+`<column>.<key>` works as a binding, a breakdown, a drift field and a contract,
+the same as for a native JSON column.
+
+A row whose text is not a JSON object (malformed, a bare value, an array,
+empty) counts as a row that carried none of the keys: it lowers each key's
+presence instead of failing the scan. PostgreSQL text columns are not parsed.
+
+## Bind a property to warehouse data
+
+Skip this when the property's name already matches the column — a binding earns
 its keep only when the two are spelled differently, such as
 `page_data.extra.variant` behind `${variant}`. In that one case, leaving it
 empty costs you quietly and later: the next scan does not recognize your
-variable, mints a second one beside it (`extra_variant`, say), and the one you
+property, mints a second one beside it (`extra_variant`, say), and the one you
 made by hand collects no contexts, ever. It will not show up under **Unused**
-either — a variable you described is a variable you claimed.
+either — a property you described is a property you claimed.
 
-On a variable a scan created, the binding it filled in is how it keeps finding
-that variable. Clearing it marks the variable as hand-owned, which permanently
+On a property a scan created, the binding it filled in is how it keeps finding
+that property. Clearing it marks the property as hand-owned, which permanently
 exempts it from the retirement sweep.
 
 Bindings accept a scalar column name or dotted JSON path:
@@ -190,11 +599,11 @@ experiment_variant
 page_data.extra.variant
 ```
 
-When a scan sees a matching source path, it adopts the existing variable rather
-than creating a second scan-named variable. New scan-created variables receive a
+When a scan sees a matching source path, it adopts the existing property rather
+than creating a second scan-named property. New scan-created properties receive a
 short display name where possible while retaining the raw source path as their
-binding. Search on the Variables page matches that source path and the bindings
-as well as the name and description, so a variable shortened to `${aalter}` is
+binding. Search on the Properties page matches that source path and the bindings
+as well as the name and description, so a property shortened to `${aalter}` is
 still found by searching for the `property.Aalter` it binds to.
 
 Binding rules:
@@ -207,7 +616,7 @@ Binding rules:
 ## Use placeholders in event values
 
 Event field and meta values can contain `${variable_name}`. The event editor
-offers matching variables as you type and previews their description, bindings,
+offers matching properties as you type and previews their description, bindings,
 and documented values. Long detail lines stay inside the picker on narrow
 editors and are shortened visually rather than expanding the page. Unknown
 tokens are highlighted before save; the API also returns advisory `warnings` on
@@ -220,10 +629,10 @@ ${checkout_variant}
 ```
 
 Placeholders are a documentation contract, not a runtime expression language:
-tripl stores the template and uses it to relate plan values to observed variable
+tripl stores the template and uses it to relate plan values to observed property
 contexts. It does not substitute a single global value into the event.
 
-Renaming a variable brings its references with it. Every `${old_name}` stored on
+Renaming a property brings its references with it. Every `${old_name}` stored on
 an event in the same branch is rewritten to `${new_name}` as the rename is
 saved, and both `${token}` sites are covered: an event's **field values** and
 its **meta values**.
@@ -235,18 +644,18 @@ through the event API or UI.
 ## Review value drift
 
 After a scan, tripl compares observed values with the effective documented list
-for each event. Novel values create a **variable value drift**. Open drift counts
-appear on the Variables table, and the same review panel is available on the
+for each event. Novel values create a **property value drift**. Open drift counts
+appear on the Properties table, and the same review panel is available on the
 affected event's detail page.
 
 The comparison has nothing to say about a context holding no values. No drift on
-a variable therefore means either "everything seen was documented" or "nothing
-was seen" — read the variable's observed column to tell those apart, because
+a property therefore means either "everything seen was documented" or "nothing
+was seen" — read the property's observed column to tell those apart, because
 only the first is evidence that the contract holds.
 
 It also has no sense of when a value first appeared: it weighs everything the
 context currently holds, not only what arrived since the last scan. So the first
-scan after you document a list on a variable that has been observed for a while
+scan after you document a list on a property that has been observed for a while
 reports every value already seen that falls outside it, usually as one batch.
 That is intended, not a fault. Until the list existed there was no contract, so
 none of those values had ever been judged, and passing over them silently would
@@ -257,7 +666,7 @@ investigating.
 
 Available actions:
 
-- **Accept globally** — add the novel values to the variable's global
+- **Accept globally** — add the novel values to the property's global
   documented list.
 - **Accept for this event** — create or update the event override, seeded from
   the current effective list.
@@ -280,7 +689,7 @@ A later scan **reopens an accepted drift by itself** as soon as it observes a
 value the documented list does not cover. Accepting is what puts the values in
 that list, so a value you accepted does not come back and "outside the accepted
 set" means genuinely new — the reopened row shows only the new values, and alert
-rules subscribed to variable value drift see it again. Snoozed and
+rules subscribed to property value drift see it again. Snoozed and
 false-positive rows are never reopened by a scan.
 
 The documented list is the arbiter, not the row's own history: if you later
@@ -289,18 +698,18 @@ that sees it opens a drift again. A resolved row cannot keep vouching for a
 value the plan no longer documents — and this is also what stops a row that
 silently absorbed values under an older build from suppressing them forever.
 
-Alert rules can opt into **Variable value drift**. These candidates behave like
+Alert rules can opt into **Property value drift**. These candidates behave like
 other drift signals: they use the spike direction for rule matching, carry the
-variable name and novel-value sample in the alert, and bypass numeric volume
+property name and novel-value sample in the alert, and bypass numeric volume
 thresholds.
 
-The scope produces nothing until some variable documents values, because drift
+The scope produces nothing until some property documents values, because drift
 is measured against a documented list and there is nothing to compare an
 observation with until one exists. A global documented list or a per-event
 override will do — either one is enough — but it has to be on the **main**
 branch: detection runs against main, so a list documented on a working branch
-counts only once that branch merges. A variable
-[excluded from scans](#exclude-instead-of-deleting-scan-owned-variables) never
+counts only once that branch merges. A property
+[excluded from scans](#exclude-instead-of-deleting-scan-owned-properties) never
 drifts however full its list is, because scans stop observing it. The rule
 editor and the monitor detail now say so where the scope is switched on, rather
 than leaving a rule to look enabled and stay silent — see
@@ -309,20 +718,20 @@ than leaving a rule to look enabled and stay silent — see
 ## When a scan merges events into a group
 
 Scan **event group** rules can fold several existing events into one. The
-surviving event keeps the variable data of the events it absorbed: observed
+surviving event keeps the property data of the events it absorbed: observed
 contexts, per-event documented-value overrides, and value-drift triage all move
 across rather than disappearing with the merged-away event.
 
 Two details worth knowing:
 
 - a context moves only when the surviving event's value for that field still
-  names the variable. A group rule that rewrites a field value to the pattern it
+  names the property. A group rule that rewrites a field value to the pattern it
   matched removes the reference, so the context is dropped rather than left
   asserting a reference that is no longer there. A JSON column is never
   rewritten that way: a rule condition on the column itself still groups the
   event, but its value keeps the template, so every `${column.path}` context
   moves with it;
-- where both events already carried an entry for the same variable, the
+- where both events already carried an entry for the same property, the
   surviving event's own override or drift decision wins. Observed contexts are
   combined instead: the observation count becomes the number of distinct values
   across both sides (never less than the larger of the two counts), and the
@@ -330,93 +739,93 @@ Two details worth knowing:
   union outgrows the cardinality threshold; it then becomes high-cardinality and
   its values are sampled.
 
-## Exclude instead of deleting scan-owned variables
+## Exclude instead of deleting scan-owned properties
 
-Deleting a variable removes it from the plan, but a later scan can discover the
+Deleting a property removes it from the plan, but a later scan can discover the
 same bound source path and create it again. Use **Exclude from scans** when the
 intent is “this source value must stay out of the plan.”
 
 Exclusion keeps a lightweight tombstone:
 
-- the variable moves to the **Excluded from scans** section;
+- the property moves to the **Excluded from scans** section;
 - scans do not recreate it or accumulate new contexts/drift for it;
 - **Restore** makes it active again;
 - permanent delete remains available when no scan can reintroduce it.
 
-## Unreferenced scan-created variables are retired automatically
+## Unreferenced scan-created properties are retired automatically
 
-A scan creates a variable for every placeholder it detects. On a JSON column
+A scan creates a property for every placeholder it detects. On a JSON column
 whose keys are user-typed text — a map rather than a struct — that once meant a
 permanent plan row per key. A catalog run now ends by deleting the scan-created
-variables that nothing refers to any more. **Which runs do that, and over
-which variables, is a shorter list than "all of them":**
+properties that nothing refers to any more. **Which runs do that, and over
+which properties, is a shorter list than "all of them":**
 
-| Run | Retires unused variables? |
+| Run | Retires unused properties? |
 | --- | --- |
-| A scan you start by hand | Always for JSON-path variables; for scalar-column variables, only when every scan config in the project declares **Limits → Lookback (hours)** |
-| A **scheduled monitoring collection** | Always for JSON-path variables; for scalar-column variables, only when every scan config in the project declares **Limits → Lookback (hours)** |
+| A scan you start by hand | Always for JSON-path properties; for scalar-column properties, only when every scan config in the project declares **Limits → Lookback (hours)** |
+| A **scheduled monitoring collection** | Always for JSON-path properties; for scalar-column properties, only when every scan config in the project declares **Limits → Lookback (hours)** |
 | A **metrics replay** | Never |
 
-Both exceptions are the same rule seen twice: a run only decides a variable is
+Both exceptions are the same rule seen twice: a run only decides a property is
 unused from a view it can defend.
 
 A manual scan with no lookback reads everything its base query returns, but the
-variable sweep spans the whole project. A sibling config may have rewritten a
-scalar variable using a narrow collection interval, so the manual scan alone
+property sweep spans the whole project. A sibling config may have rewritten a
+scalar property using a narrow collection interval, so the manual scan alone
 cannot justify retiring it. A scheduled
 collection has no such view. It always reads through a window, and with
 **Lookback (hours)** left blank that window is the slice it is collecting —
 usually one or two intervals, often a single hour. What that narrow view can do
-to a variable depends on where the variable came from.
+to a property depends on where the property came from.
 
-A variable minted from a **scalar column** stands, as `${token}`, in that
+A property minted from a **scalar column** stands, as `${token}`, in that
 column's value on every event of the type. A column carrying thousands of
 values across your table can carry a handful in one hour, and a run that sees a
 handful stores those values *literally* in place of the `${token}` template —
 in every event at once. That rewrite is what loses the field's observed-value
 history, and it happens with or without a sweep; what a sweep would add is
-deleting the variable row, so that the column's next busy hour mints it again
+deleting the property row, so that the column's next busy hour mints it again
 under a new id. Setting a lookback is you saying which window represents your
-tracking plan; for these variables retirement runs behind that statement and
+tracking plan; for these properties retirement runs behind that statement and
 not ahead of it.
 
-A variable minted from a **path inside a JSON column** — its scan source path is
+A property minted from a **path inside a JSON column** — its scan source path is
 `column.path`, and `column` is a JSON field of the event type — has no such
 rewrite to follow. A key missing from one hour's rows drops out of that one
 event's stored value, not out of every event, and a key nothing refers to any
 more is exactly what the sweep exists to remove. So a scheduled collection
 judges these on every run, lookback or not. When the key arrives again the next
-run mints the variable again — a new row with a new id, so anything that stored
+run mints the property again — a new row with a new id, so anything that stored
 the old id (an agent's cache, a bookmark) stops resolving.
 
 A **metrics replay** never retires anything, for the older reason: it does not
 sync the catalog at all — it recomputes counts over a past window and creates no
-events or variables — so it never sees which paths your rows currently carry and
-is in no position to call a variable unused.
+events or properties — so it never sees which paths your rows currently carry and
+is in no position to call a property unused.
 
 :::warning Scalar-column retirement needs lookbacks on every project scan
 The create page pre-fills **Limits → Lookback (hours)** with 24, but a config
 saved without one shows the field blank, and blank is a legitimate setting: each
 run reads the whole base query. It also means catalog runs across that project
-judge only the variables minted from JSON paths
+judge only the properties minted from JSON paths
 — the shape that grows a permanent row per key, a map keyed by free text
-collected hourly, is swept — and leave every variable minted from a scalar
+collected hourly, is swept — and leave every property minted from a scalar
 column alone. If those are the rows piling up, set a representative lookback on
 every project scan config or clear the backlog from the
-danger zone below. *Variables retired* on a
+danger zone below. *Properties retired* on a
 [run](./feature-reference.md#scan-runs) is present, `0` included, on every
 manual run and every scheduled collection, and absent only on a replay — so on a
-scheduled run with a blank lookback, `0` means the JSON-path variables were
+scheduled run with a blank lookback, `0` means the JSON-path properties were
 looked at and found in use, not that the scalar ones were.
 :::
 
 Retirement works on `main`, where scans write; the copies on an open working
 branch are left alone.
 
-A variable is retired only when **all** of the following are true:
+A property is retired only when **all** of the following are true:
 
 - a scan created it and its description is still the scan's own
-  (*Auto-detected variable from data source scan*);
+  (*Auto-detected property from data source scan*);
 - its display name is still one the scan itself could have given it — the scan
   names a discovered path by shortening it (`property.session_time` becomes
   `session_time`), so a name outside that shortening is one you typed;
@@ -431,7 +840,7 @@ A variable is retired only when **all** of the following are true:
 Everything a person touched is out of reach. A name you typed, an edited
 description, a binding you added, documented values, an override, a drift you
 accepted or snoozed, and an **Exclude from scans** tombstone each keep the row. So does a single
-`${token}` left in one event value, even when the variable has no observed
+`${token}` left in one event value, even when the property has no observed
 contexts at all.
 
 The one gap in that list is narrow and worth knowing: the name check asks
@@ -440,8 +849,8 @@ whether the scan *could* have chosen your name, not whether it did. Rename
 — and the row reads as the scan's own. Rename it to anything else, which is
 what a rename is usually for, and it is yours.
 
-The run that creates a variable does not normally retire it in the same pass:
-that run writes the variable's token into at least one event's field value, so
+The run that creates a property does not normally retire it in the same pass:
+that run writes the property's token into at least one event's field value, so
 the reference check keeps it. What retirement removes is the row whose token has
 since vanished from every stored value — the leftover of a key that stopped
 arriving, or of an event value that was edited to stop using it.
@@ -449,17 +858,17 @@ arriving, or of an event value that was edited to stop using it.
 One case does create and retire in the same run: a path that appears only on an
 **archived** event. A scan deliberately leaves an archived row's field values
 untouched, so the token is never written and nothing live refers to the new
-variable.
+property.
 
 When a run retires anything it says so in the run's details list: *Retired N
-unused variables no event refers to*. To see the set for yourself, the Variables
+unused properties no event refers to*. To see the set for yourself, the Properties
 table's **All / In use / Unused** filter asks the server the same question:
 **Unused** lists exactly the rows a run would take, decided by the rule above
 rather than by a "used in no events" count.
 
 :::note Clearing a backlog that predates the sweep
-An instance owner can run the same pass over a whole branch on demand, from
-**Retire unused variables** in the project's [danger
+An organization owner or admin can run the same pass over a whole branch on demand, from
+**Retire unused properties** in the project's [danger
 zone](./feature-reference.md#project-general--danger-zone) — **Preview** first,
 which commits nothing and reports what it would take, then **Retire**. The route
 behind it is `POST /api/v1/projects/{slug}/danger/retire-unused-variables`.
@@ -467,13 +876,14 @@ behind it is `POST /api/v1/projects/{slug}/danger/retire-unused-variables`.
 
 ## Bulk changes and branches
 
-Select variables in the table to change their type or description, add
+Select properties in the table to change their type or description, add
 documented values, or delete several at once. Bulk operations apply a uniform
 patch to the selection; they do not replace bindings or per-event overrides.
 
-Variables, bindings, documented values, overrides, exclusions, and drift-related
-plan changes are branch-aware. The merge dialog warns when a branch would delete
-a variable that still exists on `main`, so reviewers can catch a destructive
+Properties, bindings, schemas, documented values, overrides, exclusions, and
+drift-related plan changes are branch-aware. A merge or a revert treats the type
+and the schema as one value, so they never end up taken from different sides. The merge dialog warns when a branch would delete
+a property that still exists on `main`, so reviewers can catch a destructive
 change before it lands.
 
 ## API endpoints
@@ -482,15 +892,19 @@ The interactive [API reference](../integrate/api) is authoritative. The main
 workflow uses:
 
 ```text
-GET/POST             /api/v1/projects/{slug}/variables
-PATCH/DELETE         /api/v1/projects/{slug}/variables/{variable_id}
-POST                 /api/v1/projects/{slug}/variables/bulk-update
-POST                 /api/v1/projects/{slug}/variables/bulk-delete
-GET                  /api/v1/projects/{slug}/variables/{variable_id}/values
-GET                  /api/v1/projects/{slug}/variables/{variable_id}/event-overrides
-PUT/DELETE           /api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}
-GET                  /api/v1/projects/{slug}/variables/drifts
-POST                 /api/v1/projects/{slug}/variables/drifts/{drift_id}/action
+GET/POST             /api/v1/projects/{slug}/properties
+PATCH/DELETE         /api/v1/projects/{slug}/properties/{variable_id}
+POST                 /api/v1/projects/{slug}/properties/bulk-update
+POST                 /api/v1/projects/{slug}/properties/bulk-delete
+GET                  /api/v1/projects/{slug}/properties/{variable_id}/values
+GET                  /api/v1/projects/{slug}/properties/{variable_id}/event-overrides
+PUT/DELETE           /api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}
+POST                 /api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk
+POST                 /api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete
+GET                  /api/v1/projects/{slug}/properties/{variable_id}/events
+GET                  /api/v1/projects/{slug}/events/{event_id}/properties
+GET                  /api/v1/projects/{slug}/properties/drifts
+POST                 /api/v1/projects/{slug}/properties/drifts/{drift_id}/action
 ```
 
 Pass the current `branch` query parameter on plan-scoped calls.

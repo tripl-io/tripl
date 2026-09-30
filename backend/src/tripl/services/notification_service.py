@@ -10,8 +10,10 @@ subscribers of ``watchers_of``, then filtered, in this order:
 
 1. ``exclude_user_ids`` and the actor are dropped — nobody hears about their
    own action;
-2. only CURRENT project members survive (instance owners always do), read at
-   send time, so a grant that outlived a membership never leaks a project;
+2. only CURRENT project members survive (a membership row, or owner/admin of
+   the project's own organization), read at send time, so a grant that
+   outlived a membership never leaks a project and nobody from another
+   organization hears about it;
 3. with ``honour_mute`` (the default) anyone who muted the primary entity is
    dropped — an @mention passes ``honour_mute=False``;
 4. with ``throttle`` anyone who already got a notification of this ``kind``
@@ -41,10 +43,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from tripl.models.domain_enums import UserRole
+from tripl.middleware.org_context import require_org_id
 from tripl.models.notification import Notification, NotificationKind
+from tripl.models.organization import OrganizationMember
 from tripl.models.project import Project
-from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.models.user_notification_prefs import (
     DEFAULT_EMAIL_MODE,
@@ -61,7 +63,7 @@ from tripl.schemas.notification import (
     NotificationResponse,
 )
 from tripl.services import app_settings_service
-from tripl.services.project_access import member_project_ids
+from tripl.services.project_access import member_project_ids, members_among_stmt
 from tripl.services.subscription_service import (
     EntityRef,
     muted_user_ids_sync,
@@ -111,18 +113,10 @@ class NotifyArgs(TypedDict):
 def _members_among_sync(
     session: Session, project_id: uuid.UUID, user_ids: set[uuid.UUID]
 ) -> set[uuid.UUID]:
-    """``project_access.members_among`` on a sync session: owners plus member rows."""
+    """``project_access.members_among`` on a sync session (the same statement)."""
     if not user_ids:
         return set()
-    owners = session.scalars(
-        select(User.id).where(User.id.in_(user_ids), User.role == UserRole.owner.value)
-    )
-    members = session.scalars(
-        select(ProjectMember.user_id)
-        .join(User, User.id == ProjectMember.user_id)
-        .where(ProjectMember.project_id == project_id, ProjectMember.user_id.in_(user_ids))
-    )
-    return set(owners.all()) | set(members.all())
+    return set(session.scalars(members_among_stmt(project_id, user_ids)).all())
 
 
 def _recently_notified_sync(
@@ -230,6 +224,19 @@ _REQUIRED_NOTIFY_ARGS = frozenset(
 
 
 # ── the bell ────────────────────────────────────────────────────────────────
+#
+# Organization rule (F20 PR5): the bell is filtered by the REQUEST's
+# organization. ``/me/notifications``, the unread count and mark-read only see
+# notifications about projects of the bound organization (the path's
+# ``/orgs/{org}``, the API key's, else the session's), never another
+# organization's, so a user in two organizations reads each bell under its own
+# prefix. The organization is required: a call with none bound raises instead
+# of spanning every organization.
+
+
+async def _bell_project_ids(session: AsyncSession, user: User) -> set[uuid.UUID]:
+    """Projects of the bound organization whose notifications ``user`` may read."""
+    return await member_project_ids(session, user, require_org_id())
 
 
 def _visible(visible: set[uuid.UUID] | None) -> ColumnElement[bool] | None:
@@ -260,8 +267,11 @@ async def list_notifications(
     limit: int = 30,
     cursor: str | None = None,
 ) -> NotificationPage:
-    """The caller's notifications, newest first, only from projects they can see now."""
-    visible = await member_project_ids(session, user)
+    """The caller's notifications in the bound organization, newest first.
+
+    Only from projects of that organization the caller can see now.
+    """
+    visible = await _bell_project_ids(session, user)
     if visible is not None and not visible:
         return NotificationPage(items=[], next_cursor=None)
     limit = max(1, min(limit, MAX_NOTIFICATIONS_PAGE))
@@ -332,7 +342,7 @@ async def _unread_count(session: AsyncSession, user: User, visible: set[uuid.UUI
 
 
 async def unread_count(session: AsyncSession, user: User) -> int:
-    return await _unread_count(session, user, await member_project_ids(session, user))
+    return await _unread_count(session, user, await _bell_project_ids(session, user))
 
 
 async def mark_read(session: AsyncSession, user: User, data: MarkReadRequest) -> MarkReadResponse:
@@ -341,7 +351,7 @@ async def mark_read(session: AsyncSession, user: User, data: MarkReadRequest) ->
     Ids that are not the caller's, or already read, are ignored rather than
     refused: the bell may race another tab.
     """
-    visible = await member_project_ids(session, user)
+    visible = await _bell_project_ids(session, user)
     updated = 0
     if visible is None or visible:
         stmt = (
@@ -364,8 +374,25 @@ async def mark_read(session: AsyncSession, user: User, data: MarkReadRequest) ->
 # ── delivery preferences ────────────────────────────────────────────────────
 
 
-async def _email_available(session: AsyncSession) -> bool:
-    return app_settings_service.email_can_send(await app_settings_service.get_email_config(session))
+async def _email_available(session: AsyncSession, user: User) -> bool:
+    """Whether ANY organization the user belongs to can send them mail.
+
+    The preferences are per user and apply to every organization, while each
+    organization mails through its own relay (F20 PR9, the digest groups by
+    user and organization) — so the card's "email unavailable" notice holds
+    only when none of them can. A boolean only: nothing about any relay leaks.
+    """
+    org_ids = (
+        await session.scalars(
+            select(OrganizationMember.organization_id).where(OrganizationMember.user_id == user.id)
+        )
+    ).all()
+    for org_id in org_ids:
+        if app_settings_service.email_can_send(
+            await app_settings_service.get_email_config(session, org_id=org_id)
+        ):
+            return True
+    return False
 
 
 async def get_prefs(session: AsyncSession, user: User) -> NotificationPrefsResponse:
@@ -373,7 +400,7 @@ async def get_prefs(session: AsyncSession, user: User) -> NotificationPrefsRespo
     return NotificationPrefsResponse(
         email_mode=row.email_mode if row is not None else DEFAULT_EMAIL_MODE,
         mentions_email=row.mentions_email if row is not None else DEFAULT_MENTIONS_EMAIL,
-        email_available=await _email_available(session),
+        email_available=await _email_available(session, user),
     )
 
 

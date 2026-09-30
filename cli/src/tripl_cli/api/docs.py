@@ -14,6 +14,11 @@ against the main plan.
 The bundle builders carry ``tripl-docs/v1``, the one format both ``tripl docs
 pull``/``push`` and the app's import/export dialog speak: a flat list of
 ``{path, content}`` where ``content`` is the raw file, frontmatter included.
+
+Every answer is filtered by note visibility on the server (F24): a key acts as
+the user who minted it, so ``pull`` exports only the notes that user can see, a
+``push`` never overwrites or (``--mirror``) deletes a note they cannot edit, and
+visibility itself never travels in a bundle.
 """
 
 from __future__ import annotations

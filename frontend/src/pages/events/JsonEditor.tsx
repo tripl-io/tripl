@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { relaxedToJson } from './jsonRelaxed'
 import { formatJsonTemplate, templateJsonError, validateJsonWithVars } from './jsonTemplate'
+import { JsonTemplateGrid } from './JsonTemplateGrid'
+import { parseTemplateRows } from './jsonTemplateGrid'
 import { SuggestionListbox } from './VariableInput'
 import { filterVariableSuggestions, type VariableSuggestion } from './variableSuggestions'
 import { useEvDescribedBy } from './evFieldContext'
@@ -20,6 +22,7 @@ export function JsonEditor({
   required,
   invalid = false,
   variables = [],
+  defaultMode = 'grid',
 }: {
   id?: string
   value: string
@@ -29,6 +32,8 @@ export function JsonEditor({
   /** Flagged by the form (e.g. an empty required row) on top of the JSON check. */
   invalid?: boolean
   variables?: VariableSuggestion[]
+  /** Which view opens first when the value fits the grid. */
+  defaultMode?: 'grid' | 'json'
 }) {
   const uid = useId()
   const listboxId = `json-var-listbox-${uid}`
@@ -51,6 +56,16 @@ export function JsonEditor({
   // templated or not — arrives unbroken. Re-indent it on the way in, or every
   // edit session starts with the whole payload on line one.
   const [raw, setRaw] = useState(() => displayJson(value))
+  // The grid is the editor for the common case — an object of keys holding
+  // property references and literals (F23) — and "Edit JSON" the way to
+  // anything else. A value the grid cannot show opens as JSON.
+  // Once open, the grid stays open while it is the one writing: its own
+  // half-typed rows (two empty keys) need not parse back into rows.
+  const gridFits = parseTemplateRows(raw) !== null
+  const [mode, setMode] = useState<'grid' | 'json'>(() =>
+    defaultMode === 'grid' && parseTemplateRows(value) !== null ? 'grid' : 'json',
+  )
+  const showGrid = mode === 'grid'
   // The value this editor last saw from its parent. `raw` used to be read from
   // `value` once and never again, so a reset from outside — "Hand back to
   // scans" clearing the field — changed state the box never showed, and the
@@ -64,6 +79,7 @@ export function JsonEditor({
     setSeenValue(value)
     const echo = value === raw || (value === '' && raw.trim() === '')
     if (!echo) {
+      if (parseTemplateRows(value) === null) setMode('json')
       setRaw(displayJson(value))
       setError(validateJsonWithVars(value))
       setRepair(null)
@@ -192,6 +208,14 @@ export function JsonEditor({
     setError(templateError ?? validateJsonWithVars(raw))
   }
 
+  // The grid writes the whole template on each edit; the text is still the model.
+  const handleGridChange = (next: string) => {
+    setRaw(next)
+    setRepair(null)
+    onChange(next)
+    setError(validateJsonWithVars(next))
+  }
+
   const handleUndoRepair = () => {
     if (!repair) return
     const previous = repair.previous
@@ -206,12 +230,41 @@ export function JsonEditor({
           that covered the first line of every payload wider than the box. */}
       <div className="flex items-center justify-between gap-2">
         <span className="text-caption text-fg-tertiary">
-          JSON · <span className="mono">{'${variables}'}</span> allowed
+          {showGrid ? 'Keys and values' : 'JSON'} · <span className="mono">{'${properties}'}</span> allowed
         </span>
-        <Button type="button" variant="ghost" size="xs" onClick={handleFormat} className="shrink-0">
-          Format
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          {!showGrid && (
+            <Button type="button" variant="ghost" size="xs" onClick={handleFormat}>
+              Format
+            </Button>
+          )}
+          {showGrid ? (
+            <Button type="button" variant="ghost" size="xs" onClick={() => setMode('json')}>
+              Edit JSON
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={!gridFits}
+              title={gridFits ? undefined : 'The grid edits a JSON object; this value is edited as JSON.'}
+              onClick={() => setMode('grid')}
+            >
+              Edit as grid
+            </Button>
+          )}
+        </div>
       </div>
+      {showGrid ? (
+        <JsonTemplateGrid
+          id={id}
+          value={raw}
+          onChange={handleGridChange}
+          variables={variables}
+          invalid={!!error || invalid}
+        />
+      ) : (
       <div ref={wrapperRef} className="relative">
         {/* The form's one control style, not the shared Textarea: its border,
             background and focus colour differed from every neighbouring input
@@ -247,6 +300,7 @@ export function JsonEditor({
           onPick={insertVar}
         />
       </div>
+      )}
       <p id={errorId} className="min-w-0 text-body-sm text-destructive empty:hidden">{error}</p>
       {repair && (
         <div className="flex items-start justify-between gap-2" aria-live="polite">

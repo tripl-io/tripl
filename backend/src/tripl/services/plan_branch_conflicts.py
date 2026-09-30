@@ -73,6 +73,7 @@ _EV_CHANGE_KEYS = (
     "owner_id",
     "reviewed",
     "metric_breakdown_columns",
+    "required_presence_threshold",
     "field_values",
     "meta_values",
     "tags",
@@ -87,6 +88,10 @@ _VAR_CHANGE_KEYS = (
     "excluded_from_scans",
     "event_value_overrides",
 )
+# No ``json_schema`` key above: ``comparable_field`` folds it into
+# ``variable_type``, so the type is compared, conflicted on and resolved as one
+# value. Two keys let main's retype and the branch's new schema pass as edits
+# to different fields and land as a pair that contradicts itself.
 _MF_CHANGE_KEYS = (
     "display_name",
     "field_type",
@@ -124,6 +129,10 @@ def comparable_field(item: dict[str, Any], field: str) -> Any:
     re-sorts away.
     """
     value = item.get(field)
+    if field == "variable_type":
+        # A variable's type is ``variable_type`` refined by ``json_schema``:
+        # one value in two columns (see ``_VAR_CHANGE_KEYS``).
+        return {"variable_type": value, "json_schema": item.get("json_schema")}
     if field != "photos" or not isinstance(value, list):
         return value
     return photos_without_comments(value)

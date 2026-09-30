@@ -81,6 +81,111 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Audit
+         * @description Stream the organization's audit log for ``[from, to)`` (UTC; default the
+         *     last 30 days, at most 366). ``to`` is exclusive: to include a whole last
+         *     day, send the day after it. Rows of the organization and of its projects;
+         *     never platform-scope rows. 422 for an empty, reversed or too wide range.
+         */
+        get: operations["export_audit_api_v1_audit_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Audit Webhook */
+        get: operations["get_audit_webhook_api_v1_audit_webhook_get"];
+        /**
+         * Put Audit Webhook
+         * @description Create the webhook (the answer carries its secret, once) or change it.
+         *
+         *     422 for a URL that is not https, carries credentials, or (hosted) names a
+         *     private host.
+         */
+        put: operations["put_audit_webhook_api_v1_audit_webhook_put"];
+        post?: never;
+        /** Delete Audit Webhook */
+        delete: operations["delete_audit_webhook_api_v1_audit_webhook_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit Webhook Deliveries */
+        get: operations["list_audit_webhook_deliveries_api_v1_audit_webhook_deliveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Audit Webhook Secret
+         * @description A new signing secret, shown once; the old one stops working at once.
+         */
+        post: operations["rotate_audit_webhook_secret_api_v1_audit_webhook_rotate_secret_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/audit/webhook/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Audit Webhook Test
+         * @description Send a synthetic ``audit.webhook_test`` event now; 200 whatever the receiver said.
+         */
+        post: operations["send_audit_webhook_test_api_v1_audit_webhook_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit/{entry_id}": {
         parameters: {
             query?: never;
@@ -111,7 +216,7 @@ export interface paths {
          *
          *     Unauthenticated by necessity — the whole point is that this person cannot
          *     sign in yet. It discloses nothing the token holder does not already have:
-         *     the address it was issued to, the role it grants, and when it lapses. It
+         *     the address it was issued to, the organization role it grants, and when it lapses. It
          *     does not reveal whether the instance has other users, or who they are.
          *
          *     Shares the cheap /status bucket rather than the register bucket: previewing
@@ -138,9 +243,23 @@ export interface paths {
         put?: never;
         /**
          * Accept Invitation
-         * @description Redeem an invitation into an account, and sign the new user straight in.
+         * @description Redeem an invitation: into a new account, or into the signed-in one.
          *
-         *     Reachable regardless of ``registration_mode`` — that is the entire point:
+         *     Signed in (a browser session cookie): the invitation adds a membership of
+         *     its organization to THIS account, but only when the account's email is the
+         *     invitation's (case-insensitive) — else 403 and the invitation stays unused;
+         *     on a hosted instance the account must also have verified its address (403);
+         *     409 when the account is already a member. Answers 200 and leaves the
+         *     session as it is (F20 PR6).
+         *
+         *     Not signed in: the new-account path. ``password`` is required, the account
+         *     is created with the invitation's address and the new user is signed
+         *     straight in (201). Self-hosted the account counts as email-verified. Hosted
+         *     it starts unverified — the inviter was handed the raw link, so redeeming it
+         *     proves nothing about the address — and a verification link is mailed
+         *     through the operator relay after the commit (a failed send is logged; the
+         *     user can resend).
+         *     Reachable regardless of ``registration_mode`` —
          *     an owner-issued, single-use, expiring, address-bound invitation is a
          *     different mechanism from the instance-wide door, so a closed instance can
          *     still onboard exactly the people its owner named.
@@ -196,7 +315,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Me */
+        /**
+         * Get Me
+         * @description The signed-in account with its organization role(s) and the platform-admin flag.
+         *
+         *     For an API key it also names the key's organization (``org``) and scope
+         *     (``api_key_scope``): what ``tripl whoami`` prints. Read from the database on
+         *     every call, so a membership added, changed or removed shows at once.
+         */
         get: operations["get_me_api_v1_auth_me_get"];
         put?: never;
         post?: never;
@@ -249,8 +375,165 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register */
+        /**
+         * Register
+         * @description Self-service sign-up.
+         *
+         *     Self-hosted: into the default organization (the first account owns it and
+         *     is a platform admin); ``org_name`` / ``org_slug`` are ignored.
+         *
+         *     Hosted: ``org_name`` and ``org_slug`` are required and the account creates
+         *     and owns that organization. It starts unverified — the verification link
+         *     is mailed through the operator relay after the commit (a failed send is
+         *     logged; the user can resend) — so 503 up front when that relay cannot send.
+         */
         post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover
+         * @description The organizations with SSO enabled that own this address's verified domain.
+         */
+        get: operations["discover_api_v1_auth_sso_discover_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Link
+         * @description The account and organization a link ticket names; 400 when it is not live.
+         *
+         *     ``sign_in_required``: this browser must sign in to the account before it
+         *     can confirm.
+         */
+        get: operations["preview_link_api_v1_auth_sso_link_get"];
+        put?: never;
+        /**
+         * Confirm Link
+         * @description Link the identity to the existing account and sign in with an SSO session.
+         *
+         *     Needs a browser session OF THAT ACCOUNT (401 otherwise, the ticket stays
+         *     usable): the ticket proves only the provider sign-in, and whoever runs a
+         *     verified domain's provider can name any of its addresses. The exception is
+         *     an account whose address was never verified (hosted sign-up): it is taken
+         *     over clean, its password, sessions and keys dropped. The account joins the
+         *     organization as ``member`` when it is not in it yet, and its address counts
+         *     as verified. 400 for an unknown, used or expired ticket; 403 for an account
+         *     removed from the organization; 409 when the organization no longer signs in
+         *     through SSO.
+         */
+        post: operations["confirm_link_api_v1_auth_sso_link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Callback
+         * @description The provider's redirect back; see the module docstring for where it lands.
+         */
+        get: operations["callback_api_v1_auth_sso__org_slug__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/saml/acs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Saml Acs
+         * @description The SAML provider's HTTP-POST back; lands like the OIDC callback (303s).
+         *
+         *     Unauthenticated; authorized by the single-use state in ``RelayState``,
+         *     bound to this browser by the ``tripl_saml_state`` cookie, and by the
+         *     signed assertion answering that state's AuthnRequest. IdP-initiated
+         *     (unsolicited) responses are refused: they carry no state.
+         */
+        post: operations["saml_acs_api_v1_auth_sso__org_slug__saml_acs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/saml/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saml Metadata
+         * @description tripl's SAML SP metadata for the organization (unsigned; public by nature).
+         *
+         *     Assertions must be signed (``WantAssertionsSigned``); tripl's AuthnRequests
+         *     are not (it holds no SP key). 404 unless the organization is configured
+         *     for SAML.
+         */
+        get: operations["saml_metadata_api_v1_auth_sso__org_slug__saml_metadata_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/sso/{org_slug}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start
+         * @description Send the browser to the organization's identity provider.
+         */
+        get: operations["start_api_v1_auth_sso__org_slug__start_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -268,6 +551,61 @@ export interface paths {
         get: operations["get_status_api_v1_auth_status_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Email Verification
+         * @description Redeem a verification link, signed in as the account it was issued to.
+         *
+         *     Needs a browser session (401 without one): the link alone proves only that
+         *     someone read the mail, the session proves it is the account holder who
+         *     did. A session of a different account gets the same 400 as an unknown,
+         *     expired or used token, and the token stays usable. On success every other
+         *     session of the account is signed out, and on a hosted instance an address
+         *     listed in ``PLATFORM_ADMIN_EMAILS`` becomes a platform admin — the only
+         *     place that grant happens. On the login bucket, like the password reset
+         *     confirm, so guessing tokens costs what guessing passwords does.
+         */
+        post: operations["confirm_email_verification_api_v1_auth_verify_email_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/verify-email/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Email Verification
+         * @description Mail the signed-in account a fresh verification link (a resend).
+         *
+         *     A browser session only (an API key is 403). 204 without doing anything
+         *     when the address is already verified or the instance does not require
+         *     verification (self-hosted); 503 when the operator relay cannot send.
+         *     Otherwise every earlier link of the account stops working and the new one
+         *     goes out after the response (a failed send is logged).
+         */
+        post: operations["request_email_verification_api_v1_auth_verify_email_request_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -305,7 +643,7 @@ export interface paths {
          * Test Unsaved Data Source Connection
          * @description Test a connection before it is saved (DATA-30).
          *
-         *     The create gate (owner, browser session) and the create body's validation,
+         *     The create gate (org owner/admin, browser session) and the create body's validation,
          *     host format included; nothing is stored and no stored secret is read. Always
          *     200: a refused connection is the answer the caller asked for.
          */
@@ -484,6 +822,774 @@ export interface paths {
         get: operations["my_unread_count_api_v1_me_notifications_unread_count_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Orgs
+         * @description The organizations the caller belongs to, with their role in each.
+         *
+         *     An API key belongs to one organization and lists only that one. A
+         *     suspended organization is listed with its ``status`` (F20 PR14). A platform
+         *     admin's browser session also lists the organizations they have a live
+         *     read-only step-in to, flagged ``step_in``.
+         */
+        get: operations["list_orgs_api_v1_orgs_get"];
+        put?: never;
+        /**
+         * Create Org
+         * @description Create an organization; its creator becomes its owner.
+         */
+        post: operations["create_org_api_v1_orgs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Org */
+        get: operations["get_org_api_v1_orgs__org__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Org
+         * @description Start deleting the organization: 202, then a background job purges it.
+         *
+         *     The body must repeat the slug (``{"confirm_slug": "<slug>"}``). The default
+         *     organization cannot be deleted. From this response on the organization
+         *     answers 404 everywhere.
+         */
+        delete: operations["delete_org_api_v1_orgs__org__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Org
+         * @description Rename the organization and/or set its default project role.
+         *
+         *     The slug is permanent: a ``slug`` in the body is a 422, and so is a
+         *     ``default_project_role`` of ``owner``. Audited as ``org.update`` with the
+         *     changed fields before and after.
+         */
+        patch: operations["update_org_api_v1_orgs__org__patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Groups */
+        get: operations["list_groups_api_v1_orgs__org__groups_get"];
+        put?: never;
+        /** Create Group */
+        post: operations["create_group_api_v1_orgs__org__groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Group */
+        get: operations["get_group_api_v1_orgs__org__groups__group_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Group */
+        delete: operations["delete_group_api_v1_orgs__org__groups__group_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Group
+         * @description Rename the group and/or change its description.
+         */
+        patch: operations["update_group_api_v1_orgs__org__groups__group_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/groups/{group_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Group Member
+         * @description Add a member of the organization to the group.
+         */
+        post: operations["add_group_member_api_v1_orgs__org__groups__group_id__members_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/groups/{group_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Group Member */
+        delete: operations["remove_group_member_api_v1_orgs__org__groups__group_id__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Members */
+        get: operations["list_members_api_v1_orgs__org__members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Member
+         * @description Remove a member: their membership, project rows, keys and pending invitations here.
+         */
+        delete: operations["remove_member_api_v1_orgs__org__members__user_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Member Role
+         * @description Change a member's organization role (owner | admin | member).
+         */
+        patch: operations["update_member_role_api_v1_orgs__org__members__user_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/scim/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Scim Config */
+        get: operations["get_scim_config_api_v1_orgs__org__scim_config_get"];
+        /**
+         * Put Scim Config
+         * @description Map a group to organization role ``admin`` (null unmaps); applied at once.
+         *
+         *     404 for a group this organization does not have.
+         */
+        put: operations["put_scim_config_api_v1_orgs__org__scim_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/scim/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Scim Tokens */
+        get: operations["list_scim_tokens_api_v1_orgs__org__scim_tokens_get"];
+        put?: never;
+        /**
+         * Create Scim Token
+         * @description A new token. The answer carries it in ``token``; it is not shown again.
+         */
+        post: operations["create_scim_token_api_v1_orgs__org__scim_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/scim/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Scim Token
+         * @description Revoke a token at once. Revoking a revoked one is a no-op (204, no audit row).
+         */
+        delete: operations["revoke_scim_token_api_v1_orgs__org__scim_tokens__token_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Org Settings */
+        get: operations["get_org_settings_api_v1_orgs__org__settings_get"];
+        /**
+         * Put Org Settings
+         * @description Identical to PATCH: a sparse override map, unset fields left untouched.
+         */
+        put: operations["put_org_settings_api_v1_orgs__org__settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Org Settings */
+        patch: operations["patch_org_settings_api_v1_orgs__org__settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Org Ai Settings
+         * @description Probe the AI provider THIS organization would use, with its saved values.
+         */
+        post: operations["test_org_ai_settings_api_v1_orgs__org__settings_ai_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Org Email Settings
+         * @description Send one probe through THIS organization's relay; always 200.
+         */
+        post: operations["test_org_email_settings_api_v1_orgs__org__settings_email_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/photo-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Org Photo Limits
+         * @description The organization's photo upload limits (F20 PR11), readable by every member.
+         */
+        get: operations["get_org_photo_limits_api_v1_orgs__org__settings_photo_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/row-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Org Row Limits
+         * @description The organization's effective row caps, readable by every member.
+         */
+        get: operations["get_org_row_limits_api_v1_orgs__org__settings_row_limits_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/settings/trackers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Org Tracker Defaults
+         * @description The organization's Jira/Linear defaults (F20 PR12); secrets as ``*_configured``.
+         */
+        get: operations["get_org_tracker_defaults_api_v1_orgs__org__settings_trackers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Org Tracker Defaults
+         * @description Set or clear (``null`` / ``""``) the organization's tracker defaults.
+         */
+        patch: operations["patch_org_tracker_defaults_api_v1_orgs__org__settings_trackers_patch"];
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sso */
+        get: operations["get_sso_api_v1_orgs__org__sso_get"];
+        /**
+         * Put Sso
+         * @description Save the provider settings. 422 for a bad issuer (a private host, hosted)
+         *     or a missing secret; 409 when enabling without a verified domain.
+         */
+        put: operations["put_sso_api_v1_orgs__org__sso_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Domains */
+        get: operations["list_domains_api_v1_orgs__org__sso_domains_get"];
+        put?: never;
+        /**
+         * Add Domain
+         * @description Claim a domain, unverified; the answer names the TXT record to publish.
+         *
+         *     409 when this organization already has it or another one verified it.
+         */
+        post: operations["add_domain_api_v1_orgs__org__sso_domains_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/domains/{domain_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Domain
+         * @description Remove a domain. 409 for the last verified one while SSO is enabled.
+         */
+        delete: operations["remove_domain_api_v1_orgs__org__sso_domains__domain_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/domains/{domain_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Domain
+         * @description Look the TXT record up now.
+         *
+         *     200 with ``verified`` true once it holds the token (audited the first
+         *     time), ``verified`` false while it does not; 409 when another organization
+         *     verified the domain first.
+         */
+        post: operations["verify_domain_api_v1_orgs__org__sso_domains__domain_id__verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/saml/metadata-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Saml Metadata
+         * @description Read a pasted IdP metadata document; 422 naming what is wrong with it.
+         *
+         *     The hardened parser of ``saml_xml`` (no DOCTYPE, entities or network);
+         *     nothing it names is fetched and nothing is saved: the answer fills the
+         *     form, and the owner saves it with ``PUT /sso``.
+         */
+        post: operations["import_saml_metadata_api_v1_orgs__org__sso_saml_metadata_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/sso/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe Sso
+         * @description Check the saved provider settings. Changes nothing.
+         *
+         *     OIDC: fetch the configured issuer's discovery document; ``ok`` false with a
+         *     code when the issuer is unreachable, private (hosted), names another
+         *     issuer, or lacks an https endpoint. SAML: the SSO URL is https and every
+         *     certificate parses and is unexpired (``saml_insecure_url``,
+         *     ``saml_bad_certificate``, ``saml_certificate_expired``); nothing is
+         *     fetched. On a small rate-limit bucket of its own (OIDC makes tripl call out).
+         */
+        post: operations["probe_sso_api_v1_orgs__org__sso_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/orgs/{org}/transfer-ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Ownership
+         * @description Make another member an owner and step the caller down to admin.
+         */
+        post: operations["transfer_ownership_api_v1_orgs__org__transfer_ownership_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/orgs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Platform Orgs
+         * @description Every organization with its status, member and project counts and owners.
+         */
+        get: operations["list_platform_orgs_api_v1_platform_orgs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/orgs/{org_slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Platform Org
+         * @description One organization: its members (email, name, role) and projects (slug, name).
+         */
+        get: operations["get_platform_org_api_v1_platform_orgs__org_slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/orgs/{org_slug}/step-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Step In
+         * @description Open a read-only step-in: a reason, a time limit, audited in the organization.
+         */
+        post: operations["start_step_in_api_v1_platform_orgs__org_slug__step_in_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/orgs/{org_slug}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suspend Platform Org
+         * @description Suspend an organization: its members get 403 and its scheduled jobs stop.
+         */
+        post: operations["suspend_platform_org_api_v1_platform_orgs__org_slug__suspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/orgs/{org_slug}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unsuspend Platform Org
+         * @description Put a suspended organization back; everything resumes where it stopped.
+         */
+        post: operations["unsuspend_platform_org_api_v1_platform_orgs__org_slug__unsuspend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Platform Settings */
+        get: operations["get_platform_settings_api_v1_platform_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Platform Settings */
+        patch: operations["patch_platform_settings_api_v1_platform_settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/platform/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Platform Ai Settings
+         * @description Probe the operator's AI provider (what organizations inherit).
+         */
+        post: operations["test_platform_ai_settings_api_v1_platform_settings_ai_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/settings/email/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Platform Email Settings
+         * @description Send one probe through the operator's relay: the one account mail uses.
+         */
+        post: operations["test_platform_email_settings_api_v1_platform_settings_email_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/step-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Step Ins
+         * @description The caller's own step-ins, newest first.
+         */
+        get: operations["list_step_ins_api_v1_platform_step_ins_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/step-ins/{step_in_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End Step In
+         * @description End one of the caller's step-ins now.
+         */
+        post: operations["end_step_in_api_v1_platform_step_ins__step_in_id__end_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Platform Users
+         * @description Every account, with its platform-admin flag and organization count.
+         */
+        get: operations["list_platform_users_api_v1_platform_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/users/{user_id}/platform-admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Platform Admin
+         * @description Grant or revoke the platform-admin flag. Not yourself, not the last admin.
+         */
+        post: operations["set_platform_admin_api_v1_platform_users__user_id__platform_admin_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1765,7 +2871,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Doc Backlinks */
+        /**
+         * Doc Backlinks
+         * @description Notes linking to ``kind:name`` that the caller can see.
+         *
+         *     ``name`` is the entity's name, or its id for ``doc`` (the note's "Linked
+         *     from"), ``alert_rule`` and ``user``.
+         */
         get: operations["doc_backlinks_api_v1_projects__slug__docs_backlinks_get"];
         put?: never;
         post?: never;
@@ -1811,6 +2923,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/docs/file/sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Doc Sharing
+         * @description Who the note is shared with. 404 for a note the caller cannot see.
+         */
+        get: operations["read_doc_sharing_api_v1_projects__slug__docs_file_sharing_get"];
+        /**
+         * Update Doc Sharing
+         * @description Change the note's visibility and shares: its author, or an org owner/admin.
+         */
+        put: operations["update_doc_sharing_api_v1_projects__slug__docs_file_sharing_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/docs/folder": {
         parameters: {
             query?: never;
@@ -1823,6 +2959,30 @@ export interface paths {
         post?: never;
         /** Delete Doc Folder */
         delete: operations["delete_doc_folder_api_v1_projects__slug__docs_folder_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/folder/sharing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Folder Sharing
+         * @description A folder's setting, inherited by the notes under it that do not override it.
+         */
+        get: operations["read_folder_sharing_api_v1_projects__slug__docs_folder_sharing_get"];
+        /**
+         * Update Folder Sharing
+         * @description Set (or, with ``inherited: true``, clear) a folder's visibility and shares.
+         */
+        put: operations["update_folder_sharing_api_v1_projects__slug__docs_folder_sharing_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1862,6 +3022,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/docs/link-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Doc Link Suggestions
+         * @description The note editor's link and @mention picker.
+         *
+         *     Candidates the caller may link to: notes they can see, members of the
+         *     project's organization, and the project's plan entities, alert rules,
+         *     branches, scans and data sources. ``insert`` is the reference text to put
+         *     in the note. Rate-limited per user (``doc_link_suggestions_rate_limiter``).
+         */
+        get: operations["doc_link_suggestions_api_v1_projects__slug__docs_link_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/docs/links": {
         parameters: {
             query?: never;
@@ -1869,7 +3054,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Resolve Doc Links */
+        /**
+         * Resolve Doc Links
+         * @description Resolve references as the caller reads them (a note they cannot see is ``unavailable``).
+         */
         get: operations["resolve_doc_links_api_v1_projects__slug__docs_links_get"];
         put?: never;
         post?: never;
@@ -2734,6 +3922,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/events/{event_id}/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Event Properties
+         * @description The event's property list (F23). Edit an entry through
+         *     ``PUT /variables/{variable_id}/event-overrides/{event_id}``.
+         */
+        get: operations["list_event_properties_api_v1_projects__slug__events__event_id__properties_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/fact-tables": {
         parameters: {
             query?: never;
@@ -3421,6 +4630,270 @@ export interface paths {
          */
         post: operations["validate_plan_api_v1_projects__slug__plan_validate_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Variables  Properties */
+        get: operations["list_variables__properties_api_v1_projects__slug__properties_get"];
+        put?: never;
+        /** Create Variable  Properties */
+        post: operations["create_variable__properties_api_v1_projects__slug__properties_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Delete Variables  Properties */
+        post: operations["bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/bulk-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Update Variables  Properties */
+        post: operations["bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/drifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Value Drifts  Properties */
+        get: operations["list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/drifts/{drift_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Value Drift Action  Properties */
+        post: operations["apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/property-drifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Drifts  Properties
+         * @description New, missing-required and type-changed properties a scan saw (F23).
+         */
+        get: operations["list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Property Drift Action  Properties */
+        post: operations["apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Variable  Properties */
+        delete: operations["delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Variable  Properties */
+        patch: operations["update_variable__properties_api_v1_projects__slug__properties__variable_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Event Overrides  Properties */
+        get: operations["list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Event Overrides  Properties
+         * @description Add the property to many events' lists, or apply one patch to each entry:
+         *     the single PUT's semantics, all or nothing (F23.8).
+         */
+        post: operations["bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Event Overrides  Properties
+         * @description Take the property off many events' lists (F23.8). Events that do not
+         *     carry it are skipped, and the audit row names only the entries removed.
+         */
+        post: operations["bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upsert Event Override  Properties */
+        put: operations["upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put"];
+        post?: never;
+        /** Delete Event Override  Properties */
+        delete: operations["delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Events  Properties
+         * @description The events whose property list carries this property, with each entry's
+         *     required flag, override and last measured presence (F23.8).
+         */
+        get: operations["list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/values": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Variable Values  Properties */
+        get: operations["list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Clear Variable Values  Properties
+         * @description Drop the variable's observed contexts and keep the variable.
+         *
+         *     Deleting the variable was the only reset available and it takes the
+         *     description, documented values, bindings, overrides and drift triage with
+         *     it — none of which a scan rebuilds.
+         */
+        delete: operations["clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4189,10 +5662,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variables */
+        /**
+         * List Variables
+         * @deprecated
+         */
         get: operations["list_variables_api_v1_projects__slug__variables_get"];
         put?: never;
-        /** Create Variable */
+        /**
+         * Create Variable
+         * @deprecated
+         */
         post: operations["create_variable_api_v1_projects__slug__variables_post"];
         delete?: never;
         options?: never;
@@ -4209,7 +5688,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk Delete Variables */
+        /**
+         * Bulk Delete Variables
+         * @deprecated
+         */
         post: operations["bulk_delete_variables_api_v1_projects__slug__variables_bulk_delete_post"];
         delete?: never;
         options?: never;
@@ -4226,7 +5708,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bulk Update Variables */
+        /**
+         * Bulk Update Variables
+         * @deprecated
+         */
         post: operations["bulk_update_variables_api_v1_projects__slug__variables_bulk_update_post"];
         delete?: never;
         options?: never;
@@ -4241,7 +5726,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Value Drifts */
+        /**
+         * List Value Drifts
+         * @deprecated
+         */
         get: operations["list_value_drifts_api_v1_projects__slug__variables_drifts_get"];
         put?: never;
         post?: never;
@@ -4260,8 +5748,52 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply Value Drift Action */
+        /**
+         * Apply Value Drift Action
+         * @deprecated
+         */
         post: operations["apply_value_drift_action_api_v1_projects__slug__variables_drifts__drift_id__action_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/property-drifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Drifts
+         * @deprecated
+         * @description New, missing-required and type-changed properties a scan saw (F23).
+         */
+        get: operations["list_property_drifts_api_v1_projects__slug__variables_property_drifts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/property-drifts/{drift_id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Property Drift Action
+         * @deprecated
+         */
+        post: operations["apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4278,11 +5810,17 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Variable */
+        /**
+         * Delete Variable
+         * @deprecated
+         */
         delete: operations["delete_variable_api_v1_projects__slug__variables__variable_id__delete"];
         options?: never;
         head?: never;
-        /** Update Variable */
+        /**
+         * Update Variable
+         * @deprecated
+         */
         patch: operations["update_variable_api_v1_projects__slug__variables__variable_id__patch"];
         trace?: never;
     };
@@ -4293,10 +5831,57 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Event Overrides */
+        /**
+         * List Event Overrides
+         * @deprecated
+         */
         get: operations["list_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Event Overrides
+         * @deprecated
+         * @description Add the property to many events' lists, or apply one patch to each entry:
+         *     the single PUT's semantics, all or nothing (F23.8).
+         */
+        post: operations["bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Event Overrides
+         * @deprecated
+         * @description Take the property off many events' lists (F23.8). Events that do not
+         *     carry it are skipped, and the audit row names only the entries removed.
+         */
+        post: operations["bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4311,11 +5896,39 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Upsert Event Override */
+        /**
+         * Upsert Event Override
+         * @deprecated
+         */
         put: operations["upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put"];
         post?: never;
-        /** Delete Event Override */
+        /**
+         * Delete Event Override
+         * @deprecated
+         */
         delete: operations["delete_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Events
+         * @deprecated
+         * @description The events whose property list carries this property, with each entry's
+         *     required flag, override and last measured presence (F23.8).
+         */
+        get: operations["list_property_events_api_v1_projects__slug__variables__variable_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4328,12 +5941,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Variable Values */
+        /**
+         * List Variable Values
+         * @deprecated
+         */
         get: operations["list_variable_values_api_v1_projects__slug__variables__variable_id__values_get"];
         put?: never;
         post?: never;
         /**
          * Clear Variable Values
+         * @deprecated
          * @description Drop the variable's observed contexts and keep the variable.
          *
          *     Deleting the variable was the only reset available and it takes the
@@ -4439,10 +6056,7 @@ export interface paths {
          * @description Send one probe message with the saved SMTP settings and report what happened.
          *
          *     Always 200: a relay refusing us is the answer the caller asked for, not a
-         *     server fault — the same reasoning the alert-destination test states. The
-         *     error text is passed through verbatim because a useful SMTP diagnostic is
-         *     the server's own words ("535 authentication failed", a connection timeout);
-         *     smtplib carries the relay's response in there, never the credential we sent.
+         *     server fault — the same reasoning the alert-destination test states.
          */
         post: operations["test_email_settings_api_v1_settings_email_test_post"];
         delete?: never;
@@ -4460,12 +6074,13 @@ export interface paths {
         };
         /**
          * Get Photo Limits
-         * @description The photo upload limit, readable by every signed-in user.
+         * @description The photo upload limits, readable by every signed-in user.
          *
-         *     The rest of this router is owner-only; this one value is not, because it is
-         *     an editor's upload it refuses and the browser should say so before the
-         *     upload rather than after (EVT-28). The router's own dependency still
-         *     requires a session.
+         *     The rest of this router is for settings admins; these values are not, because it is
+         *     an editor's upload they refuse and the browser should say so before the
+         *     upload rather than after (EVT-28). The caller's organization's limits
+         *     (F20 PR11), resolved like the rest of the legacy route; the operator's when
+         *     it resolves none. ``/orgs/{org}/settings/photo-limits`` names one.
          */
         get: operations["get_photo_limits_api_v1_settings_photo_limits_get"];
         put?: never;
@@ -4487,9 +6102,12 @@ export interface paths {
          * Get Row Limit Defaults
          * @description The instance row caps a scan falls back to, readable by every signed-in user.
          *
-         *     Owner-only like the rest of this router would hide the real numbers from the
+         *     Admin-only like the rest of this router would hide the real numbers from the
          *     editors who fill in a scan's Limits, so the form hard-coded the shipped
          *     defaults instead (B15). Two integers, nothing about the connection.
+         *
+         *     The caller's organization's caps (F20 PR9), resolved like the rest of the
+         *     legacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.
          */
         get: operations["get_row_limit_defaults_api_v1_settings_row_limits_get"];
         put?: never;
@@ -4507,7 +6125,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Users */
+        /**
+         * List Users
+         * @description The members of the request's organization with their organization role.
+         *
+         *     Any member may see the roster (it feeds the member pickers); a signed-in
+         *     account outside the organization gets 403.
+         */
         get: operations["list_users_api_v1_users_get"];
         put?: never;
         post?: never;
@@ -4526,21 +6150,27 @@ export interface paths {
         };
         /**
          * List Invitations
-         * @description Outstanding invitations. Owner-only: this is the roster of pending access.
+         * @description Outstanding invitations into the organization: the roster of pending access.
          */
         get: operations["list_invitations_api_v1_users_invitations_get"];
         put?: never;
         /**
          * Create Invitation
-         * @description Invite one person, at a role the owner picks.
+         * @description Invite one person into the request's organization, at an organization role.
          *
-         *     ``OwnerUserDep`` is owner-only AND rejects API keys of any scope, so minting
-         *     an account always requires an interactive owner session — an automation
-         *     token can never conjure a new identity.
+         *     ``OwnerUserDep`` is org owner/admin-only AND rejects API keys of any scope, so
+         *     minting an account always requires an interactive session — an automation
+         *     token can never conjure a new identity. Inviting at ``owner`` takes an
+         *     owner: an admin cannot mint an account more privileged than their own.
          *
          *     The redeem link is returned in the body, not merely emailed: SMTP is
          *     optional and unconfigured on many instances, so a body-only path is the one
-         *     that always works. It appears here and nowhere else.
+         *     that always works. It appears here and nowhere else. When the operator has
+         *     SMTP configured the link is also mailed, through the operator's relay (never
+         *     an organization's), after the response.
+         *
+         *     The invitation belongs to the organization the request acts in: the one an
+         *     ``/orgs/{org}/users/invitations`` URL names, else the legacy default.
          */
         post: operations["create_invitation_api_v1_users_invitations_post"];
         delete?: never;
@@ -4561,7 +6191,7 @@ export interface paths {
         post?: never;
         /**
          * Revoke Invitation
-         * @description Revoke an invitation; its link stops working immediately.
+         * @description Revoke an invitation into the organization; its link stops working immediately.
          */
         delete: operations["revoke_invitation_api_v1_users_invitations__invitation_id__delete"];
         options?: never;
@@ -4582,7 +6212,15 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update User Role */
+        /**
+         * Update User Role
+         * @description Change a member's ORGANIZATION role (owner | admin | member).
+         *
+         *     404 for an account outside the organization, 400 when it would leave the
+         *     organization without an owner, 403 when an admin tries to make or unmake an
+         *     owner. The member stays signed in; the new role applies from their next
+         *     request.
+         */
         patch: operations["update_user_role_api_v1_users__user_id__patch"];
         trace?: never;
     };
@@ -4597,6 +6235,24 @@ export interface components {
              * @default []
              */
             event_ids: string[];
+        };
+        /**
+         * ActiveStepInOut
+         * @description A platform admin's live read-only step-in (F20 PR14), for the UI banner.
+         */
+        ActiveStepInOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Org Slug */
+            org_slug: string;
         };
         /** ActivityItemResponse */
         ActivityItemResponse: {
@@ -4741,7 +6397,7 @@ export interface components {
             overridden_fields: string[];
             /** Sources */
             sources: {
-                [key: string]: "env" | "override" | "default";
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
             };
         };
         /** AiSettingsTestRequest */
@@ -5264,7 +6920,7 @@ export interface components {
          * AlertDriftType
          * @enum {string}
          */
-        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent";
+        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent" | "new_property" | "missing_required" | "type_change";
         /** AlertInboxActionRequest */
         AlertInboxActionRequest: {
             /**
@@ -5596,6 +7252,11 @@ export interface components {
              */
             include_project_total: boolean;
             /**
+             * Include Property Drifts
+             * @default false
+             */
+            include_property_drifts: boolean;
+            /**
              * Include Release Regressions
              * @default false
              */
@@ -5724,6 +7385,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -5841,6 +7504,8 @@ export interface components {
             include_metrics?: boolean | null;
             /** Include Project Total */
             include_project_total?: boolean | null;
+            /** Include Property Drifts */
+            include_property_drifts?: boolean | null;
             /** Include Release Regressions */
             include_release_regressions?: boolean | null;
             /** Include Schema Drifts */
@@ -6323,13 +7988,158 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** AuditWebhookDeliveryResponse */
+        AuditWebhookDeliveryResponse: {
+            /** Action */
+            action: string;
+            /** Attempts */
+            attempts: number;
+            /**
+             * Audit Log Id
+             * Format: uuid
+             */
+            audit_log_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Next Attempt At
+             * Format: date-time
+             */
+            next_attempt_at: string;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "failed" | "sent" | "dead";
+        };
+        /**
+         * AuditWebhookResponse
+         * @description The webhook as its owner reads it; ``configured`` false when there is none.
+         */
+        AuditWebhookResponse: {
+            /** Configured */
+            configured: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Error At */
+            last_error_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /**
+             * Secret Configured
+             * @default false
+             */
+            secret_configured: boolean;
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /**
+         * AuditWebhookSaved
+         * @description What a create or a rotation answers: the new secret, this once.
+         */
+        AuditWebhookSaved: {
+            /** Configured */
+            configured: boolean;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Last Error */
+            last_error?: string | null;
+            /** Last Error At */
+            last_error_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Secret */
+            secret?: string | null;
+            /**
+             * Secret Configured
+             * @default false
+             */
+            secret_configured: boolean;
+            /** Updated At */
+            updated_at?: string | null;
+            /**
+             * Url
+             * @default
+             */
+            url: string;
+        };
+        /** AuditWebhookTestResult */
+        AuditWebhookTestResult: {
+            /** Error */
+            error?: string | null;
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Ok */
+            ok: boolean;
+            /** Status Code */
+            status_code?: number | null;
+        };
+        /**
+         * AuditWebhookUpdate
+         * @description ``PUT /orgs/{org}/audit/webhook``: create it, or change its URL or switch.
+         *
+         *     The secret is never sent: it is generated on create and on
+         *     ``POST .../rotate-secret``, and shown once.
+         */
+        AuditWebhookUpdate: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Url */
+            url: string;
+        };
         /** AuthStatusResponse */
         AuthStatusResponse: {
+            /**
+             * Deployment Mode
+             * @default self_hosted
+             * @enum {string}
+             */
+            deployment_mode: "self_hosted" | "hosted";
             /**
              * Email Configured
              * @default false
              */
             email_configured: boolean;
+            /**
+             * Email Verification Required
+             * @default false
+             */
+            email_verification_required: boolean;
             /** Has Users */
             has_users: boolean;
             /**
@@ -6338,8 +8148,19 @@ export interface components {
              */
             registration_enabled: boolean;
         };
-        /** AuthUserResponse */
+        /**
+         * AuthUserResponse
+         * @description The signed-in account. Built by ``auth_service.build_auth_user_response``.
+         *
+         *     ``role`` is the organization role in the organization the request acts in
+         *     (``None`` when the user belongs to none that applies); ``orgs`` lists every
+         *     membership. ``is_platform_admin`` is the operator flag, which grants the
+         *     operator settings and nothing inside any organization.
+         */
         AuthUserResponse: {
+            /** Active Step Ins */
+            active_step_ins?: components["schemas"]["ActiveStepInOut"][];
+            api_key_scope?: components["schemas"]["ApiKeyScope"] | null;
             /**
              * Created At
              * Format: date-time
@@ -6348,13 +8169,27 @@ export interface components {
             /** Email */
             email: string;
             /**
+             * Email Verified
+             * @default false
+             */
+            email_verified: boolean;
+            /**
              * Id
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Platform Admin
+             * @default false
+             */
+            is_platform_admin: boolean;
             /** Name */
             name: string | null;
-            role: components["schemas"]["UserRole"];
+            /** Org */
+            org?: string | null;
+            /** Orgs */
+            orgs?: components["schemas"]["OrgMembershipOut"][];
+            role: components["schemas"]["OrganizationRole"] | null;
             /**
              * Updated At
              * Format: date-time
@@ -6380,6 +8215,13 @@ export interface components {
              * @description A zip of .md files.
              */
             file: string;
+        };
+        /** Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post */
+        Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post: {
+            /** Relaystate */
+            RelayState?: string | null;
+            /** Samlresponse */
+            SAMLResponse?: string | null;
         };
         /** Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post */
         Body_upload_event_photo_api_v1_projects__slug__events__event_id__photos_post: {
@@ -6683,6 +8525,8 @@ export interface components {
             overrides?: {
                 [key: string]: string[];
             };
+            /** Properties */
+            properties?: components["schemas"]["CodegenProperty"][];
             /** Status */
             status: string;
         };
@@ -6733,14 +8577,50 @@ export interface components {
             /** Variable */
             variable?: string | null;
         };
+        /**
+         * CodegenProperty
+         * @description One typed property of an event: a leaf of one of its JSON fields (F23).
+         */
+        CodegenProperty: {
+            /** Field */
+            field: string;
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            };
+            /** Literal */
+            literal?: unknown;
+            /** Path */
+            path: string;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /** Type */
+            type?: string | null;
+            /** Values */
+            values?: string[] | null;
+            /** Variable */
+            variable?: string | null;
+        };
         /** CodegenVariable */
         CodegenVariable: {
             /** Allowed Values */
             allowed_values?: string[];
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name: string;
             /** Tokens */
             tokens?: string[];
+            /**
+             * Variable Type
+             * @default string
+             */
+            variable_type: string;
         };
         /** ColumnSchema */
         ColumnSchema: {
@@ -6748,6 +8628,31 @@ export interface components {
             data_type: string;
             /** Name */
             name: string;
+        };
+        /**
+         * CombinedSettingsResponse
+         * @description The legacy ``/settings`` view (F20 PR9).
+         *
+         *     The operator's infrastructure sections are ``None`` for everyone but a
+         *     platform admin: an organization admin reading its own organization's
+         *     values has no business with the operator's server paths, buckets,
+         *     telemetry endpoint or security policy. ``/platform/settings`` answers
+         *     :class:`ServiceSettingsResponse` with every section filled in.
+         */
+        CombinedSettingsResponse: {
+            ai: components["schemas"]["AiSettings"];
+            email: components["schemas"]["EmailSettings"];
+            observability: components["schemas"]["ObservabilitySettings"] | null;
+            /** Overridden Fields */
+            overridden_fields: string[];
+            runtime: components["schemas"]["RuntimeSettings"];
+            security: components["schemas"]["SecuritySettings"] | null;
+            /** Sources */
+            sources: {
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
+            };
+            storage: components["schemas"]["StorageSettings"] | null;
+            system: components["schemas"]["SystemSettings"] | null;
         };
         /**
          * ComponentAverage
@@ -7359,7 +9264,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "event" | "event_type" | "field";
+            kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
             /** Name */
             name: string;
             /** Qualifier */
@@ -7409,6 +9314,11 @@ export interface components {
             audience: "human" | "agent" | "both";
             /** Body */
             body: string;
+            /**
+             * Break Glass
+             * @default false
+             */
+            break_glass: boolean;
             /** Content */
             content: string;
             /**
@@ -7436,10 +9346,21 @@ export interface components {
              */
             id: string;
             /**
+             * Linked From
+             * @default []
+             */
+            linked_from: components["schemas"]["DocBacklinkItem"][];
+            /**
              * Links
              * @default []
              */
             links: components["schemas"]["DocLinkResolution"][];
+            /**
+             * My Permission
+             * @default view
+             * @enum {string}
+             */
+            my_permission: "view" | "edit";
             /** Path */
             path: string;
             /** Revision */
@@ -7449,6 +9370,11 @@ export interface components {
              * @enum {string}
              */
             scope: "project" | "organization";
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Size Bytes */
             size_bytes: number;
             /**
@@ -7465,6 +9391,12 @@ export interface components {
             updated_at: string;
             /** Updated By Name */
             updated_by_name?: string | null;
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
         };
         /** DocFolderDeleteResponse */
         DocFolderDeleteResponse: {
@@ -7559,26 +9491,67 @@ export interface components {
              * @default 0
              */
             candidates: number;
+            /** Detail */
+            detail?: string | null;
             /** Entity Id */
             entity_id?: string | null;
             /**
              * Kind
              * @enum {string}
              */
-            kind: "event" | "event_type" | "field";
+            kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
+            /** Label */
+            label?: string | null;
             /** Qualifier */
             qualifier?: string | null;
             /** Raw */
             raw: string;
+            /** Reason */
+            reason?: ("not_found" | "invalid_id" | "path_form" | "not_a_member") | null;
             /** Route Path */
             route_path?: string | null;
             /**
              * Status
              * @enum {string}
              */
-            status: "resolved" | "ambiguous" | "broken";
+            status: "resolved" | "ambiguous" | "broken" | "unavailable";
+            /**
+             * Suggestions
+             * @default []
+             */
+            suggestions: string[];
             /** Target */
             target: string;
+        };
+        /**
+         * DocLinkSuggestion
+         * @description One autocomplete candidate of ``GET /docs/link-suggestions``.
+         */
+        DocLinkSuggestion: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Insert */
+            insert: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
+            /** Label */
+            label: string;
+        };
+        /** DocLinkSuggestionsResponse */
+        DocLinkSuggestionsResponse: {
+            /** Items */
+            items: components["schemas"]["DocLinkSuggestion"][];
         };
         /** DocMoveRequest */
         DocMoveRequest: {
@@ -7761,6 +9734,107 @@ export interface components {
              */
             truncated: boolean;
         };
+        /** DocShareInput */
+        DocShareInput: {
+            /**
+             * Permission
+             * @default view
+             * @enum {string}
+             */
+            permission: "view" | "edit";
+            /**
+             * Principal Id
+             * Format: uuid
+             */
+            principal_id: string;
+            /**
+             * Principal Type
+             * @enum {string}
+             */
+            principal_type: "user" | "group";
+        };
+        /** DocShareItem */
+        DocShareItem: {
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Permission
+             * @default view
+             * @enum {string}
+             */
+            permission: "view" | "edit";
+            /**
+             * Principal Id
+             * Format: uuid
+             */
+            principal_id: string;
+            /**
+             * Principal Type
+             * @enum {string}
+             */
+            principal_type: "user" | "group";
+        };
+        /**
+         * DocSharingResponse
+         * @description A note's or a folder's sharing.
+         *
+         *     ``inherited`` is true when it follows the nearest folder setting above it,
+         *     named by ``inherited_from`` (``None`` when no folder has one and the default,
+         *     ``level``, applies). ``visibility`` and ``shares`` are then the folder's.
+         */
+        DocSharingResponse: {
+            /**
+             * Can Manage
+             * @default false
+             */
+            can_manage: boolean;
+            /** Inherited */
+            inherited: boolean;
+            /** Inherited From */
+            inherited_from?: string | null;
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["DocShareItem"][];
+            /**
+             * Visibility
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
+        };
+        /**
+         * DocSharingUpdate
+         * @description ``inherited: true`` drops the note's (or folder's) own setting and shares.
+         */
+        DocSharingUpdate: {
+            /**
+             * Inherited
+             * @default false
+             */
+            inherited: boolean;
+            /**
+             * Shares
+             * @default []
+             */
+            shares: components["schemas"]["DocShareInput"][];
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
+        };
         /** DocSummary */
         DocSummary: {
             /**
@@ -7774,6 +9848,12 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * My Permission
+             * @default view
+             * @enum {string}
+             */
+            my_permission: "view" | "edit";
             /** Path */
             path: string;
             /** Revision */
@@ -7783,6 +9863,11 @@ export interface components {
              * @enum {string}
              */
             scope: "project" | "organization";
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Size Bytes */
             size_bytes: number;
             /**
@@ -7799,6 +9884,12 @@ export interface components {
             updated_at: string;
             /** Updated By Name */
             updated_by_name?: string | null;
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
         };
         /** DocTreeOrganization */
         DocTreeOrganization: {
@@ -7856,6 +9947,11 @@ export interface components {
             audience: "human" | "agent" | "both";
             /** Body */
             body: string;
+            /**
+             * Break Glass
+             * @default false
+             */
+            break_glass: boolean;
             /** Changed */
             changed: boolean;
             /** Content */
@@ -7887,10 +9983,21 @@ export interface components {
              */
             id: string;
             /**
+             * Linked From
+             * @default []
+             */
+            linked_from: components["schemas"]["DocBacklinkItem"][];
+            /**
              * Links
              * @default []
              */
             links: components["schemas"]["DocLinkResolution"][];
+            /**
+             * My Permission
+             * @default view
+             * @enum {string}
+             */
+            my_permission: "view" | "edit";
             /** Path */
             path: string;
             /** Revision */
@@ -7900,6 +10007,11 @@ export interface components {
              * @enum {string}
              */
             scope: "project" | "organization";
+            /**
+             * Shared
+             * @default false
+             */
+            shared: boolean;
             /** Size Bytes */
             size_bytes: number;
             /**
@@ -7916,6 +10028,12 @@ export interface components {
             updated_at: string;
             /** Updated By Name */
             updated_by_name?: string | null;
+            /**
+             * Visibility
+             * @default level
+             * @enum {string}
+             */
+            visibility: "private" | "restricted" | "level";
             /**
              * Warnings
              * @default []
@@ -8339,6 +10457,8 @@ export interface components {
             name: string;
             /** Owner Id */
             owner_id?: string | null;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -8609,6 +10729,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -8871,6 +10993,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -9013,6 +11137,60 @@ export interface components {
          * @enum {string}
          */
         EventPhotoStorageBackend: "local" | "gcs";
+        /**
+         * EventPropertyResponse
+         * @description One entry of an event's property list, with the variable it names.
+         */
+        EventPropertyResponse: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Effective Values
+             * @description The allowed values in force for this event: the override when there is one, else the variable's global list.
+             * @default []
+             */
+            effective_values: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name: string;
+            /**
+             * Presence Rate
+             * @description Share of this event's scanned rows that carried the property, from the last scan that measured it; null when unknown.
+             */
+            presence_rate?: number | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Suggested Required
+             * @description Whether presence_rate reaches the event's required_presence_threshold (default 0.95); null when presence is unknown. A suggestion: 'required' is only ever set by a person.
+             */
+            suggested_required?: boolean | null;
+            /**
+             * Values
+             * @description This event's override of the allowed values; null when there is none.
+             */
+            values?: string[] | null;
+            /**
+             * Variable Id
+             * Format: uuid
+             */
+            variable_id: string;
+            variable_type: components["schemas"]["VariableType"];
+        };
         /** EventReorder */
         EventReorder: {
             /** Event Ids */
@@ -9082,6 +11260,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /**
              * Reviewed
              * @default false
@@ -9294,6 +11474,8 @@ export interface components {
             name?: string | null;
             /** Owner Id */
             owner_id?: string | null;
+            /** Required Presence Threshold */
+            required_presence_threshold?: number | null;
             /** Reviewed */
             reviewed?: boolean | null;
             status?: components["schemas"]["EventStatus"] | null;
@@ -10097,7 +12279,7 @@ export interface components {
             /** Name */
             name?: string | null;
             /** Password */
-            password: string;
+            password?: string | null;
         };
         /**
          * InvitationCreate
@@ -10109,8 +12291,8 @@ export interface components {
              * Format: email
              */
             email: string;
-            /** @default editor */
-            role: components["schemas"]["UserRole"];
+            /** @default member */
+            role: components["schemas"]["OrganizationRole"];
         };
         /**
          * InvitationCreatedResponse
@@ -10147,7 +12329,7 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /**
          * InvitationResponse
@@ -10186,7 +12368,7 @@ export interface components {
              *     to see that a link they sent no longer works.
              */
             readonly is_expired: boolean;
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /** LifecycleFindingListResponse */
         LifecycleFindingListResponse: {
@@ -10899,7 +13081,7 @@ export interface components {
          * MetricScopeType
          * @enum {string}
          */
-        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle";
+        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle" | "property_drift";
         /**
          * MetricSeriesPoint
          * @description One densified point of a catalog-metric series.
@@ -11121,6 +13303,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -11364,7 +13548,7 @@ export interface components {
              * Entity Type
              * @enum {string}
              */
-            entity_type: "event" | "event_type" | "metric" | "branch";
+            entity_type: "event" | "event_type" | "metric" | "branch" | "doc";
             /**
              * Id
              * Format: uuid
@@ -11374,7 +13558,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle";
+            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle" | "property_drift";
             /**
              * Project Id
              * Format: uuid
@@ -11429,6 +13613,804 @@ export interface components {
             /** Request Id Header */
             request_id_header?: string | null;
         };
+        /** OrgAiSettings */
+        OrgAiSettings: {
+            /** Ai Api Key Configured */
+            ai_api_key_configured: boolean;
+            /** Ai Base Url */
+            ai_base_url: string;
+            /** Ai Enabled */
+            ai_enabled: boolean;
+            /** Ai Max Output Tokens */
+            ai_max_output_tokens: number;
+            /** Ai Model */
+            ai_model: string;
+            /** Ai Timeout Seconds */
+            ai_timeout_seconds: number;
+            /** Alert Explanation System Prompt */
+            alert_explanation_system_prompt: string;
+            /** Ask System Prompt */
+            ask_system_prompt: string;
+            /** Describe System Prompt */
+            describe_system_prompt: string;
+        };
+        /** OrgAiSettingsUpdate */
+        OrgAiSettingsUpdate: {
+            /** Ai Api Key */
+            ai_api_key?: string | null;
+            /** Ai Base Url */
+            ai_base_url?: string | null;
+            /** Ai Enabled */
+            ai_enabled?: boolean | null;
+            /** Ai Max Output Tokens */
+            ai_max_output_tokens?: number | null;
+            /** Ai Model */
+            ai_model?: string | null;
+            /** Ai Timeout Seconds */
+            ai_timeout_seconds?: number | null;
+            /** Alert Explanation System Prompt */
+            alert_explanation_system_prompt?: string | null;
+            /** Ask System Prompt */
+            ask_system_prompt?: string | null;
+            /** Describe System Prompt */
+            describe_system_prompt?: string | null;
+        };
+        /**
+         * OrgCreate
+         * @description A new organization. The slug is permanent (owner decision 6).
+         */
+        OrgCreate: {
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /**
+         * OrgDeleteRequest
+         * @description The typed confirmation: the organization's slug, exactly.
+         */
+        OrgDeleteRequest: {
+            /** Confirm Slug */
+            confirm_slug: string;
+        };
+        /** OrgEmailSettingsUpdate */
+        OrgEmailSettingsUpdate: {
+            /** Smtp From Address */
+            smtp_from_address?: string | null;
+            /** Smtp Host */
+            smtp_host?: string | null;
+            /** Smtp Password */
+            smtp_password?: string | null;
+            /** Smtp Port */
+            smtp_port?: number | null;
+            /** Smtp Security */
+            smtp_security?: ("none" | "starttls" | "implicit_tls") | null;
+            /** Smtp Username */
+            smtp_username?: string | null;
+        };
+        /** OrgGroupCreate */
+        OrgGroupCreate: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * OrgGroupDetail
+         * @description One group with its members, by name.
+         */
+        OrgGroupDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Managed By Scim
+             * @default false
+             */
+            managed_by_scim: boolean;
+            /** Member Count */
+            member_count: number;
+            /** Members */
+            members: components["schemas"]["OrgGroupMemberResponse"][];
+            /** Name */
+            name: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * OrgGroupMemberAdd
+         * @description Add one member of the organization to the group.
+         */
+        OrgGroupMemberAdd: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** OrgGroupMemberResponse */
+        OrgGroupMemberResponse: {
+            /**
+             * Added At
+             * Format: date-time
+             */
+            added_at: string;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * OrgGroupResponse
+         * @description One group, with how many members it has.
+         */
+        OrgGroupResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Managed By Scim
+             * @default false
+             */
+            managed_by_scim: boolean;
+            /** Member Count */
+            member_count: number;
+            /** Name */
+            name: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * OrgGroupUpdate
+         * @description A rename and/or a new description. Omitted fields are left alone; ``null`` is a 422.
+         */
+        OrgGroupUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** OrgJiraDefaults */
+        OrgJiraDefaults: {
+            /** Api Token Configured */
+            api_token_configured: boolean;
+            /** Auth Email */
+            auth_email: string;
+            /** Base Url */
+            base_url: string;
+            /** Project Key */
+            project_key: string;
+        };
+        /** OrgJiraDefaultsUpdate */
+        OrgJiraDefaultsUpdate: {
+            /** Api Token */
+            api_token?: string | null;
+            /** Auth Email */
+            auth_email?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Project Key */
+            project_key?: string | null;
+        };
+        /** OrgLimitSettings */
+        OrgLimitSettings: {
+            /** Metrics Row Limit Default */
+            metrics_row_limit_default: number;
+            /** Scan Row Limit Default */
+            scan_row_limit_default: number;
+        };
+        /** OrgLimitSettingsUpdate */
+        OrgLimitSettingsUpdate: {
+            /** Metrics Row Limit Default */
+            metrics_row_limit_default?: number | null;
+            /** Scan Row Limit Default */
+            scan_row_limit_default?: number | null;
+        };
+        /** OrgLinearDefaults */
+        OrgLinearDefaults: {
+            /** Api Key Configured */
+            api_key_configured: boolean;
+            /** Team Id */
+            team_id: string;
+        };
+        /** OrgLinearDefaultsUpdate */
+        OrgLinearDefaultsUpdate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Team Id */
+            team_id?: string | null;
+        };
+        /**
+         * OrgMemberRemoved
+         * @description What removing a member took away with the membership (critique #28).
+         */
+        OrgMemberRemoved: {
+            /** Api Keys Revoked */
+            api_keys_revoked: number;
+            /** Group Memberships Removed */
+            group_memberships_removed: number;
+            /** Invitations Revoked */
+            invitations_revoked: number;
+            /** Project Memberships Removed */
+            project_memberships_removed: number;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * OrgMembershipOut
+         * @description One organization the signed-in user belongs to, with their role there.
+         *
+         *     ``status`` is ``active`` or ``suspended`` (F20 PR14): a suspended
+         *     organization stays listed so the UI can explain why it is closed.
+         */
+        OrgMembershipOut: {
+            /** Name */
+            name: string;
+            role: components["schemas"]["OrganizationRole"];
+            /** Slug */
+            slug: string;
+            /** @default active */
+            status: components["schemas"]["OrganizationStatus"];
+        };
+        /**
+         * OrgResponse
+         * @description One organization, with the caller's role in it.
+         */
+        OrgResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            default_project_role: components["schemas"]["ProjectMemberRole"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Name */
+            name: string;
+            role: components["schemas"]["OrganizationRole"];
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["OrganizationStatus"];
+            /**
+             * Step In
+             * @default false
+             */
+            step_in: boolean;
+        };
+        /**
+         * OrgScimConfigResponse
+         * @description The organization's SCIM endpoint and settings.
+         */
+        OrgScimConfigResponse: {
+            /** Active Tokens */
+            active_tokens: number;
+            /** Admin Group Id */
+            admin_group_id: string | null;
+            /** Admin Group Name */
+            admin_group_name: string | null;
+            /** Base Url */
+            base_url: string;
+        };
+        /**
+         * OrgScimConfigUpdate
+         * @description ``PUT /scim/config``. ``admin_group_id`` null removes the mapping.
+         */
+        OrgScimConfigUpdate: {
+            /** Admin Group Id */
+            admin_group_id?: string | null;
+        };
+        /**
+         * OrgScimTokenCreated
+         * @description ``POST /scim/tokens``: the raw token, shown exactly once.
+         */
+        OrgScimTokenCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Prefix */
+            prefix: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Token */
+            token: string;
+        };
+        /**
+         * OrgScimTokenResponse
+         * @description One SCIM token of the organization. The secret is never returned again.
+         */
+        OrgScimTokenResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Email */
+            created_by_email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Prefix */
+            prefix: string;
+            /** Revoked At */
+            revoked_at: string | null;
+        };
+        /**
+         * OrgSearchSettings
+         * @description An organization's semantic-search embeddings (F20 PR10).
+         */
+        OrgSearchSettings: {
+            /** Search Embedding Api Key Configured */
+            search_embedding_api_key_configured: boolean;
+            /** Search Embedding Base Url */
+            search_embedding_base_url: string;
+            /** Search Embedding Dimensions */
+            search_embedding_dimensions: number;
+            /** Search Embedding Model */
+            search_embedding_model: string;
+            /** Search Embedding Provider */
+            search_embedding_provider: string;
+            /** Search Embeddings Enabled */
+            search_embeddings_enabled: boolean;
+        };
+        /**
+         * OrgSearchSettingsUpdate
+         * @description Endpoint, provider, model and key are ONE credential group: setting any of
+         *     them makes the whole group the organization's, and the operator's key is
+         *     never sent to an organization's endpoint. Saved only after a test embedding
+         *     of ``search_embedding_dimensions`` values succeeds (422 otherwise).
+         */
+        OrgSearchSettingsUpdate: {
+            /** Search Embedding Api Key */
+            search_embedding_api_key?: string | null;
+            /** Search Embedding Base Url */
+            search_embedding_base_url?: string | null;
+            /** Search Embedding Model */
+            search_embedding_model?: string | null;
+            /** Search Embedding Provider */
+            search_embedding_provider?: "openai" | null;
+            /** Search Embeddings Enabled */
+            search_embeddings_enabled?: boolean | null;
+        };
+        /**
+         * OrgSettingsCeilings
+         * @description The operator's maxima: an organization's value above one is clamped to it.
+         */
+        OrgSettingsCeilings: {
+            /** Ai Max Output Tokens */
+            ai_max_output_tokens: number;
+            /** Ai Timeout Seconds */
+            ai_timeout_seconds: number;
+            /** Metrics Row Limit Default */
+            metrics_row_limit_default: number;
+            /** Photo Max Size Mb */
+            photo_max_size_mb: number;
+            /** Scan Row Limit Default */
+            scan_row_limit_default: number;
+        };
+        /** OrgSettingsResponse */
+        OrgSettingsResponse: {
+            ai: components["schemas"]["OrgAiSettings"];
+            ceilings: components["schemas"]["OrgSettingsCeilings"];
+            email: components["schemas"]["EmailSettings"];
+            inherited: components["schemas"]["OrgSettingsValues"];
+            limits: components["schemas"]["OrgLimitSettings"];
+            /**
+             * Operator Fallback
+             * @enum {string}
+             */
+            operator_fallback: "all" | "none";
+            /** Organization */
+            organization: string;
+            /** Overridden Fields */
+            overridden_fields: string[];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "organization" | "operator";
+            search: components["schemas"]["OrgSearchSettings"];
+            /** Sources */
+            sources: {
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
+            };
+            storage: components["schemas"]["OrgStorageSettings"];
+            storage_limits: components["schemas"]["OrgStorageLimits"];
+        };
+        /** OrgSettingsUpdate */
+        OrgSettingsUpdate: {
+            ai?: components["schemas"]["OrgAiSettingsUpdate"] | null;
+            email?: components["schemas"]["OrgEmailSettingsUpdate"] | null;
+            limits?: components["schemas"]["OrgLimitSettingsUpdate"] | null;
+            search?: components["schemas"]["OrgSearchSettingsUpdate"] | null;
+            storage?: components["schemas"]["OrgStorageSettingsUpdate"] | null;
+        };
+        /** OrgSettingsValues */
+        OrgSettingsValues: {
+            ai: components["schemas"]["OrgAiSettings"];
+            email: components["schemas"]["EmailSettings"];
+            limits: components["schemas"]["OrgLimitSettings"];
+            search: components["schemas"]["OrgSearchSettings"];
+            storage: components["schemas"]["OrgStorageSettings"];
+        };
+        /** OrgSsoConfigResponse */
+        OrgSsoConfigResponse: {
+            /** Client Id */
+            client_id: string;
+            /** Client Secret Configured */
+            client_secret_configured: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Issuer */
+            issuer: string;
+            /** Login Url */
+            login_url: string;
+            /**
+             * Protocol
+             * @enum {string}
+             */
+            protocol: "oidc" | "saml";
+            /** Redirect Uri */
+            redirect_uri: string;
+            /** Saml Acs Url */
+            saml_acs_url: string;
+            /** Saml Cert Info */
+            saml_cert_info: components["schemas"]["SamlCertificateInfo"][];
+            /** Saml Email Attribute */
+            saml_email_attribute: string | null;
+            /** Saml Idp Certs */
+            saml_idp_certs: string;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id: string;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url: string;
+            /** Saml Metadata Url */
+            saml_metadata_url: string;
+            /** Saml Name Id Format */
+            saml_name_id_format: string;
+            /** Saml Sp Entity Id */
+            saml_sp_entity_id: string;
+            /** Scopes */
+            scopes: string;
+            /** Sso Required */
+            sso_required: boolean;
+        };
+        /** OrgSsoConfigSaved */
+        OrgSsoConfigSaved: {
+            /** Client Id */
+            client_id: string;
+            /** Client Secret Configured */
+            client_secret_configured: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Issuer */
+            issuer: string;
+            /** Login Url */
+            login_url: string;
+            /**
+             * Protocol
+             * @enum {string}
+             */
+            protocol: "oidc" | "saml";
+            /** Redirect Uri */
+            redirect_uri: string;
+            /**
+             * Revoked Api Keys
+             * @default 0
+             */
+            revoked_api_keys: number;
+            /** Saml Acs Url */
+            saml_acs_url: string;
+            /** Saml Cert Info */
+            saml_cert_info: components["schemas"]["SamlCertificateInfo"][];
+            /** Saml Email Attribute */
+            saml_email_attribute: string | null;
+            /** Saml Idp Certs */
+            saml_idp_certs: string;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id: string;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url: string;
+            /** Saml Metadata Url */
+            saml_metadata_url: string;
+            /** Saml Name Id Format */
+            saml_name_id_format: string;
+            /** Saml Sp Entity Id */
+            saml_sp_entity_id: string;
+            /** Scopes */
+            scopes: string;
+            /** Sso Required */
+            sso_required: boolean;
+        };
+        /**
+         * OrgSsoConfigUpdate
+         * @description ``PUT /orgs/{org}/sso``.
+         *
+         *     ``protocol`` picks the provider's kind. Its own fields are required (OIDC:
+         *     ``issuer``, ``client_id``; SAML: ``saml_idp_entity_id``,
+         *     ``saml_idp_sso_url``, ``saml_idp_certs``); the other protocol's fields are
+         *     saved only when given non-null, and kept as stored when omitted or null,
+         *     so switching back loses nothing. ``client_secret`` omitted or null keeps
+         *     the stored one; ``scopes`` null is the default set.
+         */
+        OrgSsoConfigUpdate: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
+            /**
+             * Enabled
+             * @default false
+             */
+            enabled: boolean;
+            /** Issuer */
+            issuer?: string | null;
+            /**
+             * Protocol
+             * @default oidc
+             * @enum {string}
+             */
+            protocol: "oidc" | "saml";
+            /** Saml Email Attribute */
+            saml_email_attribute?: string | null;
+            /** Saml Idp Certs */
+            saml_idp_certs?: string | null;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id?: string | null;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url?: string | null;
+            /**
+             * Saml Name Id Format
+             * @default urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+             */
+            saml_name_id_format: string;
+            /**
+             * Scopes
+             * @default openid email profile
+             */
+            scopes: string | null;
+            /**
+             * Sso Required
+             * @default false
+             */
+            sso_required: boolean;
+        };
+        /** OrgSsoDomainCreate */
+        OrgSsoDomainCreate: {
+            /** Domain */
+            domain: string;
+        };
+        /** OrgSsoDomainResponse */
+        OrgSsoDomainResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Domain */
+            domain: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Txt Record Name */
+            txt_record_name: string;
+            /** Txt Record Value */
+            txt_record_value: string;
+            /** Verified */
+            verified: boolean;
+            /** Verified At */
+            verified_at: string | null;
+        };
+        /** OrgSsoTestResult */
+        OrgSsoTestResult: {
+            /** Authorization Endpoint */
+            authorization_endpoint?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Jwks Uri */
+            jwks_uri?: string | null;
+            /** Message */
+            message: string;
+            /** Ok */
+            ok: boolean;
+            /** Saml Cert Info */
+            saml_cert_info?: components["schemas"]["SamlCertificateInfo"][] | null;
+            /** Token Endpoint */
+            token_endpoint?: string | null;
+            /** Token Endpoint Auth Method */
+            token_endpoint_auth_method?: string | null;
+        };
+        /**
+         * OrgStorageLimits
+         * @description What the operator allows an organization's storage (F20 PR11).
+         */
+        OrgStorageLimits: {
+            /** Local Backend Allowed */
+            local_backend_allowed: boolean;
+            /** Operator Allowed Mime */
+            operator_allowed_mime: string[];
+        };
+        /**
+         * OrgStorageSettings
+         * @description An organization's photo storage (F20 PR11). No server paths: the local
+         *     directory and the operator's credential file are the operator's alone.
+         */
+        OrgStorageSettings: {
+            /** Gcs Photo Bucket */
+            gcs_photo_bucket: string;
+            /** Gcs Photo Credentials Configured */
+            gcs_photo_credentials_configured: boolean;
+            /** Gcs Photo Public */
+            gcs_photo_public: boolean;
+            /** Gcs Photo Signed Url Ttl Seconds */
+            gcs_photo_signed_url_ttl_seconds: number;
+            /** Photo Allowed Mime */
+            photo_allowed_mime: string;
+            /** Photo Max Size Mb */
+            photo_max_size_mb: number;
+            /** Photo Storage Backend */
+            photo_storage_backend: string;
+        };
+        /**
+         * OrgStorageSettingsUpdate
+         * @description Backend, bucket, credential JSON, public URLs and URL lifetime are ONE
+         *     group: setting any of them makes the organization's photos go to its own
+         *     storage, and the platform's credentials are never used on its bucket.
+         *     ``gcs_photo_credentials_json`` is the service-account key file's content:
+         *     stored encrypted, never returned; ``null`` or an empty string clears it.
+         */
+        OrgStorageSettingsUpdate: {
+            /** Gcs Photo Bucket */
+            gcs_photo_bucket?: string | null;
+            /** Gcs Photo Credentials Json */
+            gcs_photo_credentials_json?: string | null;
+            /** Gcs Photo Public */
+            gcs_photo_public?: boolean | null;
+            /** Gcs Photo Signed Url Ttl Seconds */
+            gcs_photo_signed_url_ttl_seconds?: number | null;
+            /** Photo Allowed Mime */
+            photo_allowed_mime?: string | null;
+            /** Photo Max Size Mb */
+            photo_max_size_mb?: number | null;
+            /** Photo Storage Backend */
+            photo_storage_backend?: ("local" | "gcs") | null;
+        };
+        /**
+         * OrgSuspendRequest
+         * @description Why the organization is suspended. Shown to platform admins only.
+         */
+        OrgSuspendRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /** OrgTrackerDefaultsResponse */
+        OrgTrackerDefaultsResponse: {
+            jira: components["schemas"]["OrgJiraDefaults"];
+            linear: components["schemas"]["OrgLinearDefaults"];
+            /** Organization */
+            organization: string;
+            /** Sources */
+            sources: {
+                [key: string]: "org" | "default";
+            };
+        };
+        /** OrgTrackerDefaultsUpdate */
+        OrgTrackerDefaultsUpdate: {
+            jira?: components["schemas"]["OrgJiraDefaultsUpdate"] | null;
+            linear?: components["schemas"]["OrgLinearDefaultsUpdate"] | null;
+        };
+        /**
+         * OrgTransferOwnership
+         * @description Hand the organization to another member, who becomes an owner.
+         */
+        OrgTransferOwnership: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * OrgUpdate
+         * @description A partial update: the name and/or the default project role.
+         *
+         *     ``extra="forbid"``: the slug is immutable, so sending one is a 422. At
+         *     least one field must be sent.
+         */
+        OrgUpdate: {
+            default_project_role?: components["schemas"]["ProjectMemberRole"] | null;
+            /** Name */
+            name?: string | null;
+        };
+        /**
+         * OrganizationRole
+         * @description A user's role in one organization (``organization_members.role``).
+         *
+         *     The source of truth for organization-level rights (F20 PR4). ``owner`` and
+         *     ``admin`` administer the organization and are the implicit ``owner`` of
+         *     every project in it; only an ``owner`` can make or unmake another owner.
+         *     ``member`` holds the role of their ``project_members`` row in a project,
+         *     or the organization's ``default_project_role`` where they hold none.
+         * @enum {string}
+         */
+        OrganizationRole: "owner" | "admin" | "member";
+        /**
+         * OrganizationStatus
+         * @description Lifecycle of an organization row (``organizations.status``, F20 PR6).
+         *
+         *     ``deleting`` is set the moment an owner asks to delete the organization; a
+         *     Celery job then purges it. From that moment every read of it answers 404
+         *     (``services.org_resolution``), so nothing new lands in an organization that
+         *     is on its way out.
+         *
+         *     ``suspended`` is set by a platform admin from the platform console (F20
+         *     PR14). The organization stays listed for its members, with its status, but
+         *     every org-scoped request of theirs answers 403 "This organization is
+         *     suspended", and the scheduled worker jobs skip its projects
+         *     (``services.active_org_scope``). Unsuspending restores it untouched.
+         * @enum {string}
+         */
+        OrganizationStatus: "active" | "deleting" | "suspended";
         /**
          * OverviewKpiSeriesResponse
          * @description Real daily series behind Overview KPI sparklines.
@@ -11478,9 +14460,13 @@ export interface components {
          * @description What the upload endpoint will take, for the browser to say so up front.
          *
          *     ``photo_max_size_mb`` is an owner setting; every signed-in user may read it,
-         *     because an editor's upload is what it refuses (EVT-28).
+         *     because an editor's upload is what it refuses (EVT-28). Both values are the
+         *     organization's (F20 PR11): its own cap, never above the operator's, and its
+         *     allow-list, never wider than the operator's.
          */
         PhotoLimitsResponse: {
+            /** Photo Allowed Mime */
+            photo_allowed_mime: string[];
             /** Photo Max Size Mb */
             photo_max_size_mb: number;
         };
@@ -11850,7 +14836,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic";
+            code: "unknown_event_type" | "unknown_event" | "deprecated_event" | "unknown_field" | "missing_required_field" | "value_not_allowed" | "dynamic_value" | "too_dynamic" | "wrong_type";
             /** Field */
             field?: string | null;
             /** Message */
@@ -11956,6 +14942,116 @@ export interface components {
              */
             kind: "added" | "removed" | "changed";
         };
+        /**
+         * PlatformAdminGrant
+         * @description Grant (``true``) or revoke (``false``) the platform-admin flag.
+         */
+        PlatformAdminGrant: {
+            /** Grant */
+            grant: boolean;
+        };
+        /** PlatformOrgDetail */
+        PlatformOrgDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Member Count */
+            member_count: number;
+            /** Members */
+            members: components["schemas"]["PlatformOrgMember"][];
+            /** Name */
+            name: string;
+            /** Owner Emails */
+            owner_emails: string[];
+            /** Project Count */
+            project_count: number;
+            /** Projects */
+            projects: components["schemas"]["PlatformOrgProject"][];
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["OrganizationStatus"];
+            /** Suspended At */
+            suspended_at: string | null;
+            /** Suspended Reason */
+            suspended_reason: string | null;
+        };
+        /**
+         * PlatformOrgItem
+         * @description One organization in the console list.
+         */
+        PlatformOrgItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Member Count */
+            member_count: number;
+            /** Name */
+            name: string;
+            /** Owner Emails */
+            owner_emails: string[];
+            /** Project Count */
+            project_count: number;
+            /** Slug */
+            slug: string;
+            status: components["schemas"]["OrganizationStatus"];
+            /** Suspended At */
+            suspended_at: string | null;
+            /** Suspended Reason */
+            suspended_reason: string | null;
+        };
+        /** PlatformOrgList */
+        PlatformOrgList: {
+            /** Items */
+            items: components["schemas"]["PlatformOrgItem"][];
+            /** Total */
+            total: number;
+        };
+        /** PlatformOrgMember */
+        PlatformOrgMember: {
+            /** Email */
+            email: string;
+            /** Name */
+            name: string | null;
+            role: components["schemas"]["OrganizationRole"];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * PlatformOrgProject
+         * @description A project's metadata: never its plan, data or settings.
+         */
+        PlatformOrgProject: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
         /** PlatformParityAnomaly */
         PlatformParityAnomaly: {
             /** Actual Share */
@@ -12005,6 +15101,36 @@ export interface components {
             event_name: string;
             /** Present Platforms */
             present_platforms: string[];
+        };
+        /** PlatformUserItem */
+        PlatformUserItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /** Email Verified */
+            email_verified: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Platform Admin */
+            is_platform_admin: boolean;
+            /** Name */
+            name: string | null;
+            /** Org Count */
+            org_count: number;
+        };
+        /** PlatformUserList */
+        PlatformUserList: {
+            /** Items */
+            items: components["schemas"]["PlatformUserItem"][];
+            /** Total */
+            total: number;
         };
         /**
          * PostgresSettings
@@ -12363,13 +15489,19 @@ export interface components {
          * ProjectMemberRole
          * @description A user's role inside one project (``project_members.role``).
          *
-         *     There is no per-project ``owner``: the instance owner (``UserRole.owner``)
-         *     sees and manages every project without a membership row. The effective role
-         *     is also capped by the instance role, so a ``viewer`` user holding an
-         *     ``editor`` membership still acts as a viewer (``services.project_access``).
+         *     There is no per-project ``owner``: an owner or admin of the project's
+         *     organization (:class:`OrganizationRole`) sees and manages every project of
+         *     that organization without a membership row, as project role ``owner``. For
+         *     everyone else the row is authoritative (``services.project_access``), and
+         *     a member without a row gets the organization's ``default_project_role``.
+         *
+         *     ``none`` is "no access": as a row it opts one organization member out of
+         *     one project (the project is a 404 for them, whatever the organization
+         *     default); as ``organizations.default_project_role`` it means members see
+         *     only the projects they hold a row in.
          * @enum {string}
          */
-        ProjectMemberRole: "editor" | "viewer";
+        ProjectMemberRole: "none" | "editor" | "viewer";
         /** ProjectMemberUpdate */
         ProjectMemberUpdate: {
             role: components["schemas"]["ProjectMemberRole"];
@@ -12509,6 +15641,11 @@ export interface components {
              */
             open_incident_count: number;
             /**
+             * Open Property Drift Count
+             * @default 0
+             */
+            open_property_drift_count: number;
+            /**
              * Review Pending Event Count
              * @default 0
              */
@@ -12615,6 +15752,11 @@ export interface components {
             enabled: boolean;
             /** Id */
             id?: string | null;
+            /**
+             * Inherited Fields
+             * @default []
+             */
+            inherited_fields: string[];
             /** Issue Type */
             issue_type: string;
             /**
@@ -12679,6 +15821,182 @@ export interface components {
             /** Timezone */
             timezone?: string;
         };
+        /**
+         * PropertyDriftActionRequest
+         * @description Triage one property drift.
+         *
+         *     ``accept`` changes the plan to match what the scan saw: a new property
+         *     joins the event's property list, a missing one stops being required, and
+         *     a type change retypes the variable to the observed type.
+         */
+        PropertyDriftActionRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "accept" | "snooze" | "false_positive" | "reopen";
+            /** Note */
+            note?: string | null;
+            /** Snoozed Until */
+            snoozed_until?: string | null;
+        };
+        /**
+         * PropertyDriftKind
+         * @enum {string}
+         */
+        PropertyDriftKind: "new_property" | "missing_required" | "type_change";
+        /** PropertyDriftListResponse */
+        PropertyDriftListResponse: {
+            /** Items */
+            items: components["schemas"]["PropertyDriftResponse"][];
+            /** Total */
+            total: number;
+        };
+        /** PropertyDriftResponse */
+        PropertyDriftResponse: {
+            /**
+             * Detail
+             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change. For an object property whose sampled objects disagree with its sub-schema, type_change also carries nested_changes (each a path, a change of new_key, missing_required or type_change, and for a type change the expected and observed types), and observed_schema is the stored sub-schema with those changes applied.
+             * @default {}
+             */
+            detail: {
+                [key: string]: unknown;
+            };
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /** Event Id */
+            event_id?: string | null;
+            /** Event Name */
+            event_name?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["PropertyDriftKind"];
+            /** Resolution Note */
+            resolution_note?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved By */
+            resolved_by?: string | null;
+            /** Scan Config Id */
+            scan_config_id?: string | null;
+            /** Snoozed Until */
+            snoozed_until?: string | null;
+            /** @default open */
+            status: components["schemas"]["SchemaDriftStatus"];
+            /**
+             * Variable Id
+             * Format: uuid
+             */
+            variable_id: string;
+            /** Variable Name */
+            variable_name: string;
+        };
+        /**
+         * PropertyEventResponse
+         * @description One event whose property list carries the property, with its entry.
+         */
+        PropertyEventResponse: {
+            /**
+             * Effective Values
+             * @description The allowed values in force for this event: the override when there is one, else the property's global list.
+             * @default []
+             */
+            effective_values: string[];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Event Name */
+            event_name: string;
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /**
+             * Presence Rate
+             * @description Share of the event's rows that carried the property at the last scan.
+             */
+            presence_rate?: number | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Required Presence Threshold
+             * @description The event's own threshold; null means the default (0.95).
+             */
+            required_presence_threshold?: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Suggested Required
+             * @description Whether presence_rate reaches the event's threshold; null when presence is unknown.
+             */
+            suggested_required?: boolean | null;
+            /**
+             * Values
+             * @description This event's override of the allowed values; null when there is none.
+             */
+            values?: string[] | null;
+        };
+        /**
+         * PropertyEventsBulkDelete
+         * @description Take the property off many events' lists (their overrides go with it).
+         */
+        PropertyEventsBulkDelete: {
+            /** Event Ids */
+            event_ids: string[];
+        };
+        /** PropertyEventsBulkResult */
+        PropertyEventsBulkResult: {
+            /**
+             * Created
+             * @description Events the property was added to.
+             */
+            created: number;
+            /**
+             * Removed
+             * @description Events the property was taken off.
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Updated
+             * @description Events whose existing entry was edited.
+             */
+            updated: number;
+        };
+        /**
+         * PropertyEventsBulkUpsert
+         * @description Add the property to many events' lists, or edit its entry on each.
+         *
+         *     The same patch as the single ``PUT .../event-overrides/{event_id}``: a field
+         *     left out keeps what each entry holds, a new entry starts with no override
+         *     and not required, and ``values: null`` drops the override.
+         */
+        PropertyEventsBulkUpsert: {
+            /** Event Ids */
+            event_ids: string[];
+            /**
+             * Required
+             * @description Whether every occurrence of each event must carry the property.
+             */
+            required?: boolean | null;
+            /**
+             * Values
+             * @description Allowed values for these events, replacing the property's global list. null: no override, the global list applies.
+             */
+            values?: string[] | null;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             /**
@@ -12688,6 +16006,10 @@ export interface components {
             email: string;
             /** Name */
             name?: string | null;
+            /** Org Name */
+            org_name?: string | null;
+            /** Org Slug */
+            org_slug?: string | null;
             /** Password */
             password: string;
         };
@@ -12949,6 +16271,47 @@ export interface components {
             /** Scan Row Limit Default */
             scan_row_limit_default?: number | null;
         };
+        /** SamlCertificateInfo */
+        SamlCertificateInfo: {
+            /** Expired */
+            expired: boolean;
+            /** Fingerprint Sha256 */
+            fingerprint_sha256: string;
+            /**
+             * Not After
+             * Format: date-time
+             */
+            not_after: string;
+            /**
+             * Not Before
+             * Format: date-time
+             */
+            not_before: string;
+            /** Subject */
+            subject: string;
+        };
+        /**
+         * SamlMetadataImport
+         * @description ``POST /orgs/{org}/sso/saml/metadata-import``: the IdP's metadata XML, pasted.
+         */
+        SamlMetadataImport: {
+            /** Xml */
+            xml: string;
+        };
+        /**
+         * SamlMetadataImportResult
+         * @description What the metadata says, to fill the form with; nothing is saved.
+         */
+        SamlMetadataImportResult: {
+            /** Saml Cert Info */
+            saml_cert_info: components["schemas"]["SamlCertificateInfo"][];
+            /** Saml Idp Certs */
+            saml_idp_certs: string;
+            /** Saml Idp Entity Id */
+            saml_idp_entity_id: string;
+            /** Saml Idp Sso Url */
+            saml_idp_sso_url: string;
+        };
         /**
          * ScanActivityItem
          * @description One scan config's run activity, as the Scans list shows it.
@@ -13023,6 +16386,8 @@ export interface components {
             distribution_drift_fields?: string[];
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -13030,6 +16395,8 @@ export interface components {
             /** Event Type Id */
             event_type_id?: string | null;
             interval?: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /** Metric Breakdown Columns */
@@ -13042,11 +16409,19 @@ export interface components {
             name: string;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };
@@ -13092,6 +16467,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -13105,6 +16482,8 @@ export interface components {
              */
             id: string;
             interval: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths: string[];
             /** Last Collection At */
@@ -13139,11 +16518,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -13161,11 +16548,15 @@ export interface components {
              * Format: uuid
              */
             data_source_id: string;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /**
              * Include Json Paths
              * @default false
              */
             include_json_paths: boolean;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /**
@@ -13173,6 +16564,8 @@ export interface components {
              * @default 10
              */
             limit: number;
+            /** Properties Column */
+            properties_column?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Time Column */
@@ -13210,6 +16603,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -13223,6 +16618,8 @@ export interface components {
              */
             id: string;
             interval: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths: string[];
             /** Last Collection At */
@@ -13253,11 +16650,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -13288,6 +16693,8 @@ export interface components {
             distribution_drift_fields?: string[] | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][] | null;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -13295,6 +16702,8 @@ export interface components {
             /** Event Type Id */
             event_type_id?: string | null;
             interval?: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[] | null;
             /** Json Value Paths */
             json_value_paths?: string[] | null;
             /** Metric Breakdown Columns */
@@ -13307,11 +16716,15 @@ export interface components {
             name?: string | null;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /** Setup Preset */
+            setup_preset?: ("custom" | "event_properties") | null;
             /** Time Column */
             time_column?: string | null;
         };
@@ -13474,16 +16887,22 @@ export interface components {
             data_source_id?: string | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
             event_type_column?: string | null;
             /** Event Type Id */
             event_type_id?: string | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             /**
              * Sample Row Limit
              * @default 5000
@@ -13493,6 +16912,12 @@ export interface components {
             scan_config_id?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };
@@ -14040,10 +17465,10 @@ export interface components {
             security: components["schemas"]["SecuritySettings"];
             /** Sources */
             sources: {
-                [key: string]: "env" | "override" | "default";
+                [key: string]: "env" | "override" | "default" | "org" | "disabled";
             };
             storage: components["schemas"]["StorageSettings"];
-            system: components["schemas"]["SystemSettings"];
+            system: components["schemas"]["SystemSettings"] | null;
         };
         /** ServiceSettingsUpdate */
         ServiceSettingsUpdate: {
@@ -14668,6 +18093,91 @@ export interface components {
             kind: "sql";
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
         };
+        /** SsoDiscoverOrg */
+        SsoDiscoverOrg: {
+            /** Login Url */
+            login_url: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+        };
+        /** SsoDiscoverResponse */
+        SsoDiscoverResponse: {
+            /** Orgs */
+            orgs: components["schemas"]["SsoDiscoverOrg"][];
+        };
+        /** SsoLinkConfirm */
+        SsoLinkConfirm: {
+            /** Ticket */
+            ticket: string;
+        };
+        /** SsoLinkPreview */
+        SsoLinkPreview: {
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Org Name */
+            org_name: string;
+            /** Org Slug */
+            org_slug: string;
+            /** Sign In Required */
+            sign_in_required: boolean;
+        };
+        /** SsoLinkResult */
+        SsoLinkResult: {
+            /** Next */
+            next: string;
+            user: components["schemas"]["AuthUserResponse"];
+        };
+        /**
+         * StepInRequest
+         * @description Start a read-only step-in: a mandatory reason and a time limit in minutes.
+         */
+        StepInRequest: {
+            /** Reason */
+            reason: string;
+            /**
+             * Ttl Minutes
+             * @default 60
+             */
+            ttl_minutes: number;
+        };
+        /**
+         * StepInResponse
+         * @description One step-in. ``active`` is "not ended and not expired" at response time.
+         */
+        StepInResponse: {
+            /** Active */
+            active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Org Name */
+            org_name: string;
+            /** Org Slug */
+            org_slug: string;
+            /** Reason */
+            reason: string;
+        };
         /** StorageSettings */
         StorageSettings: {
             /** Gcs Photo Bucket */
@@ -14882,7 +18392,13 @@ export interface components {
             /** Updated */
             updated: boolean;
         };
-        /** UserListItem */
+        /**
+         * UserListItem
+         * @description A member of the request's organization, with their organization role.
+         *
+         *     Built explicitly by ``user_service`` from the membership row, never
+         *     validated from a ``User`` (whose ``role`` is the unread legacy column).
+         */
         UserListItem: {
             /**
              * Created At
@@ -14898,16 +18414,19 @@ export interface components {
             id: string;
             /** Name */
             name: string | null;
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /**
-         * UserRole
-         * @enum {string}
+         * UserRoleUpdate
+         * @description ``PATCH /users/{id}``: the target's new ORGANIZATION role.
+         *
+         *     The vocabulary is the organization's: ``owner``, ``admin`` or ``member``.
+         *     The instance-era values map as ``owner`` -> ``owner`` and ``editor`` /
+         *     ``viewer`` -> ``member`` (write rights inside a project are the project
+         *     role's business); they are not accepted here any more (422).
          */
-        UserRole: "owner" | "editor" | "viewer";
-        /** UserRoleUpdate */
         UserRoleUpdate: {
-            role: components["schemas"]["UserRole"];
+            role: components["schemas"]["OrganizationRole"];
         };
         /** ValidationError */
         ValidationError: {
@@ -14950,6 +18469,13 @@ export interface components {
              * @default
              */
             description: string;
+            /**
+             * Json Schema
+             * @description JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type.
+             */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name: string;
             /** @default string */
@@ -14970,20 +18496,37 @@ export interface components {
              */
             id: string;
             /**
-             * Values
-             * @default []
+             * Required
+             * @default false
              */
-            values: string[];
+            required: boolean;
+            /** Values */
+            values?: string[] | null;
             /**
              * Variable Id
              * Format: uuid
              */
             variable_id: string;
         };
-        /** VariableEventOverrideUpsert */
+        /**
+         * VariableEventOverrideUpsert
+         * @description Add the variable to the event's property list, or edit its entry.
+         *
+         *     A patch: a field left out keeps what the entry holds, and a new entry
+         *     starts with no override and not required. ``values: null`` removes the
+         *     override and keeps the property; deleting the entry removes both.
+         */
         VariableEventOverrideUpsert: {
-            /** Values */
-            values: string[];
+            /**
+             * Required
+             * @description Whether every occurrence of the event must carry this property.
+             */
+            required?: boolean | null;
+            /**
+             * Values
+             * @description Allowed values for this event, replacing the variable's global list. null: no override, the global list applies.
+             */
+            values?: string[] | null;
         };
         /**
          * VariableEventRef
@@ -15056,6 +18599,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Json Schema */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Listed Event Count
+             * @description Events whose property list carries this property (F23), on the property's branch; unlike 'event_count', which counts where scans saw it.
+             * @default 0
+             */
+            listed_event_count: number;
             /**
              * Low Context Count
              * @default 0
@@ -15073,6 +18626,12 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /**
+             * Required Event Count
+             * @description Of 'listed_event_count', the events that require the property.
+             * @default 0
+             */
+            required_event_count: number;
             /**
              * Sample Values
              * @description Observed values unioned across every (variable, event, field) context, de-duplicated and capped at 20. Lets a list client render the row's value chips without one /values call per variable.
@@ -15161,6 +18720,13 @@ export interface components {
             description?: string | null;
             /** Excluded From Scans */
             excluded_from_scans?: boolean | null;
+            /**
+             * Json Schema
+             * @description JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type.
+             */
+            json_schema?: {
+                [key: string]: unknown;
+            } | null;
             /** Name */
             name?: string | null;
             variable_type?: components["schemas"]["VariableType"] | null;
@@ -15285,6 +18851,14 @@ export interface components {
          * @enum {string}
          */
         VariableValueKind: "low" | "high";
+        /**
+         * VerifyEmailConfirmRequest
+         * @description ``POST /auth/verify-email/confirm``: the raw token from the emailed link.
+         */
+        VerifyEmailConfirmRequest: {
+            /** Token */
+            token: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -15412,6 +18986,184 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditActionCatalog"];
+                };
+            };
+        };
+    };
+    export_audit_api_v1_audit_export_get: {
+        parameters: {
+            query?: {
+                format?: "csv" | "json";
+                from?: string | null;
+                to?: string | null;
+                action?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rows, oldest first: CSV (a header row) or NDJSON. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/x-ndjson": string;
+                    "text/csv": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_audit_webhook_api_v1_audit_webhook_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookResponse"];
+                };
+            };
+        };
+    };
+    put_audit_webhook_api_v1_audit_webhook_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditWebhookUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_audit_webhook_api_v1_audit_webhook_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_audit_webhook_deliveries_api_v1_audit_webhook_deliveries_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "failed" | "sent" | "dead") | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookDeliveryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rotate_audit_webhook_secret_api_v1_audit_webhook_rotate_secret_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookSaved"];
+                };
+            };
+        };
+    };
+    send_audit_webhook_test_api_v1_audit_webhook_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditWebhookTestResult"];
                 };
             };
         };
@@ -15683,6 +19435,229 @@ export interface operations {
             };
         };
     };
+    discover_api_v1_auth_sso_discover_get: {
+        parameters: {
+            query: {
+                email: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoDiscoverResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_link_api_v1_auth_sso_link_get: {
+        parameters: {
+            query: {
+                ticket: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoLinkPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_link_api_v1_auth_sso_link_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SsoLinkConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SsoLinkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    callback_api_v1_auth_sso__org_slug__callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saml_acs_api_v1_auth_sso__org_slug__saml_acs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_saml_acs_api_v1_auth_sso__org_slug__saml_acs_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saml_metadata_api_v1_auth_sso__org_slug__saml_metadata_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/samlmetadata+xml": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_api_v1_auth_sso__org_slug__start_get: {
+        parameters: {
+            query?: {
+                next?: string | null;
+            };
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_status_api_v1_auth_status_get: {
         parameters: {
             query?: never;
@@ -15700,6 +19675,55 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AuthStatusResponse"];
                 };
+            };
+        };
+    };
+    confirm_email_verification_api_v1_auth_verify_email_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyEmailConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_email_verification_api_v1_auth_verify_email_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -16196,6 +20220,1493 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnreadCountResponse"];
+                };
+            };
+        };
+    };
+    list_orgs_api_v1_orgs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"][];
+                };
+            };
+        };
+    };
+    create_org_api_v1_orgs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_api_v1_orgs__org__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+        };
+    };
+    delete_org_api_v1_orgs__org__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_org_api_v1_orgs__org__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_groups_api_v1_orgs__org__groups_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgGroupResponse"][];
+                };
+            };
+        };
+    };
+    create_group_api_v1_orgs__org__groups_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgGroupDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_group_api_v1_orgs__org__groups__group_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgGroupDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_group_api_v1_orgs__org__groups__group_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_group_api_v1_orgs__org__groups__group_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgGroupDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_group_member_api_v1_orgs__org__groups__group_id__members_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgGroupMemberAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgGroupMemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_group_member_api_v1_orgs__org__groups__group_id__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                group_id: string;
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_members_api_v1_orgs__org__members_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_v1_orgs__org__members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgMemberRemoved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_role_api_v1_orgs__org__members__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserRoleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scim_config_api_v1_orgs__org__scim_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimConfigResponse"];
+                };
+            };
+        };
+    };
+    put_scim_config_api_v1_orgs__org__scim_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgScimConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimConfigResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_scim_tokens_api_v1_orgs__org__scim_tokens_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimTokenResponse"][];
+                };
+            };
+        };
+    };
+    create_scim_token_api_v1_orgs__org__scim_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgScimTokenCreated"];
+                };
+            };
+        };
+    };
+    revoke_scim_token_api_v1_orgs__org__scim_tokens__token_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_settings_api_v1_orgs__org__settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+        };
+    };
+    put_org_settings_api_v1_orgs__org__settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_org_settings_api_v1_orgs__org__settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_org_ai_settings_api_v1_orgs__org__settings_ai_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_org_email_settings_api_v1_orgs__org__settings_email_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_org_photo_limits_api_v1_orgs__org__settings_photo_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoLimitsResponse"];
+                };
+            };
+        };
+    };
+    get_org_row_limits_api_v1_orgs__org__settings_row_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowLimitDefaultsResponse"];
+                };
+            };
+        };
+    };
+    get_org_tracker_defaults_api_v1_orgs__org__settings_trackers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgTrackerDefaultsResponse"];
+                };
+            };
+        };
+    };
+    patch_org_tracker_defaults_api_v1_orgs__org__settings_trackers_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgTrackerDefaultsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgTrackerDefaultsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sso_api_v1_orgs__org__sso_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoConfigResponse"];
+                };
+            };
+        };
+    };
+    put_sso_api_v1_orgs__org__sso_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSsoConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoConfigSaved"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_domains_api_v1_orgs__org__sso_domains_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoDomainResponse"][];
+                };
+            };
+        };
+    };
+    add_domain_api_v1_orgs__org__sso_domains_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSsoDomainCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoDomainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_domain_api_v1_orgs__org__sso_domains__domain_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_domain_api_v1_orgs__org__sso_domains__domain_id__verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoDomainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_saml_metadata_api_v1_orgs__org__sso_saml_metadata_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SamlMetadataImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SamlMetadataImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    probe_sso_api_v1_orgs__org__sso_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgSsoTestResult"];
+                };
+            };
+        };
+    };
+    transfer_ownership_api_v1_orgs__org__transfer_ownership_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgTransferOwnership"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_platform_orgs_api_v1_platform_orgs_get: {
+        parameters: {
+            query?: {
+                /** @description Substring of the slug or name. */
+                q?: string | null;
+                status?: components["schemas"]["OrganizationStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOrgList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_platform_org_api_v1_platform_orgs__org_slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOrgDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_step_in_api_v1_platform_orgs__org_slug__step_in_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepInRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepInResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspend_platform_org_api_v1_platform_orgs__org_slug__suspend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrgSuspendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOrgDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsuspend_platform_org_api_v1_platform_orgs__org_slug__unsuspend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformOrgDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_platform_settings_api_v1_platform_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                };
+            };
+        };
+    };
+    patch_platform_settings_api_v1_platform_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_platform_ai_settings_api_v1_platform_settings_ai_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_platform_email_settings_api_v1_platform_settings_email_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailSettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsTestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_step_ins_api_v1_platform_step_ins_get: {
+        parameters: {
+            query?: {
+                /** @description true: live only; false: ended or expired. */
+                active?: boolean | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepInResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    end_step_in_api_v1_platform_step_ins__step_in_id__end_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                step_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StepInResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_platform_users_api_v1_platform_users_get: {
+        parameters: {
+            query?: {
+                /** @description Substring of the email or name. */
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformUserList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_platform_admin_api_v1_platform_users__user_id__platform_admin_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlatformAdminGrant"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlatformUserItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -18899,7 +24410,7 @@ export interface operations {
     doc_backlinks_api_v1_projects__slug__docs_backlinks_get: {
         parameters: {
             query: {
-                kind: "event" | "event_type" | "field";
+                kind: "event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user";
                 name: string;
                 qualifier?: string | null;
             };
@@ -19077,6 +24588,82 @@ export interface operations {
             };
         };
     };
+    read_doc_sharing_api_v1_projects__slug__docs_file_sharing_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_doc_sharing_api_v1_projects__slug__docs_file_sharing_put: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocSharingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_doc_folder_api_v1_projects__slug__docs_folder_delete: {
         parameters: {
             query: {
@@ -19100,6 +24687,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocFolderDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_folder_sharing_api_v1_projects__slug__docs_folder_sharing_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description A folder prefix. */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_folder_sharing_api_v1_projects__slug__docs_folder_sharing_put: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description A folder prefix. */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocSharingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocSharingResponse"];
                 };
             };
             /** @description Validation Error */
@@ -19194,10 +24857,46 @@ export interface operations {
             };
         };
     };
+    doc_link_suggestions_api_v1_projects__slug__docs_link_suggestions_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                /** @description Only this kind; the editor passes it once '[[kind:' is typed. */
+                kind?: ("event" | "event_type" | "field" | "doc" | "variable" | "metric" | "alert_rule" | "branch" | "scan" | "data_source" | "user") | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocLinkSuggestionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     resolve_doc_links_api_v1_projects__slug__docs_links_get: {
         parameters: {
             query: {
-                /** @description kind:name, kind being event, event-type or field (repeatable). */
+                /** @description kind:target (repeatable). kind is event, event-type, field, doc, variable, metric, alert-rule, branch, scan, data-source or user; doc, alert-rule and user take an id. */
                 ref: string[];
             };
             header?: never;
@@ -20122,6 +25821,8 @@ export interface operations {
                 has_open_questions?: boolean | null;
                 field_value?: string | null;
                 meta_value?: string | null;
+                /** @description Property id or name: only events whose property list carries it. */
+                property?: string | null;
                 offset?: number;
                 limit?: number;
                 order_by?: "catalog" | "volume" | "health";
@@ -21308,6 +27009,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_event_properties_api_v1_projects__slug__events__event_id__properties_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventPropertyResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -22850,6 +28586,660 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PlanValidationResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_variables__properties_api_v1_projects__slug__properties_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+                /** @description Narrow to the variables nothing refers to ('unused' — exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0). */
+                usage?: "all" | "used" | "unused";
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_variable__properties_api_v1_projects__slug__properties_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableBulkUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get: {
+        parameters: {
+            query?: {
+                variable_id?: string | null;
+                event_id?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableValueDriftListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                drift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableValueDriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableValueDriftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get: {
+        parameters: {
+            query?: {
+                variable_id?: string | null;
+                event_id?: string | null;
+                kind?: components["schemas"]["PropertyDriftKind"] | null;
+                active_only?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                drift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyDriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_variable__properties_api_v1_projects__slug__properties__variable_id__patch: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableEventOverrideResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableEventOverrideUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableEventOverrideResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+                event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VariableValueContextResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete: {
+        parameters: {
+            query?: {
+                /** @description Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse — the same value /values already returns, so a client can scope the clear to a single (event, field). */
+                context_id?: string | null;
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -24833,6 +31223,78 @@ export interface operations {
             };
         };
     };
+    list_property_drifts_api_v1_projects__slug__variables_property_drifts_get: {
+        parameters: {
+            query?: {
+                variable_id?: string | null;
+                event_id?: string | null;
+                kind?: components["schemas"]["PropertyDriftKind"] | null;
+                active_only?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                drift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyDriftActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyDriftResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_variable_api_v1_projects__slug__variables__variable_id__delete: {
         parameters: {
             query?: {
@@ -24940,6 +31402,84 @@ export interface operations {
             };
         };
     };
+    bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put: {
         parameters: {
             query?: {
@@ -25002,6 +31542,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_events_api_v1_projects__slug__variables__variable_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -25099,7 +31674,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                    "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
         };
@@ -25123,7 +31698,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                    "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -25156,7 +31731,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ServiceSettingsResponse"];
+                    "application/json": components["schemas"]["CombinedSettingsResponse"];
                 };
             };
             /** @description Validation Error */

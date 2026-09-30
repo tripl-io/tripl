@@ -14,6 +14,7 @@ import type {
   PlanDiffEntry,
   PlanDiffKind,
 } from '@/types'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export { STATUS_LABEL, STATUS_TONE } from '@/lib/branchStatus'
 
@@ -64,7 +65,7 @@ export const ENTITY_LABEL: Record<PlanDiffEntityType, string> = {
   event_type: 'event type',
   field_definition: 'field',
   event: 'event',
-  variable: 'variable',
+  variable: 'property',
   meta_field: 'meta field',
   relation: 'relation',
 }
@@ -116,11 +117,11 @@ export function entityPath(slug: string, entry: PlanDiffEntry): string | null {
   if (!entry.entity_id) return null
   switch (entry.entity_type) {
     case 'event':
-      return `/p/${slug}/events/all/${entry.entity_id}`
+      return projectPath(currentOrgSlug(), slug, `/events/all/${entry.entity_id}`)
     case 'event_type':
-      return `/p/${slug}/event-types/${entry.entity_id}`
+      return projectPath(currentOrgSlug(), slug, `/event-types/${entry.entity_id}`)
     case 'variable':
-      return `/p/${slug}/variables/${entry.entity_id}`
+      return projectPath(currentOrgSlug(), slug, `/variables/${entry.entity_id}`)
     default:
       return null
   }
@@ -149,9 +150,9 @@ export function entityEditPath(
 ): string | null {
   switch (entityType) {
     case 'event':
-      return `/p/${slug}/events/all/${entityId}/edit`
+      return projectPath(currentOrgSlug(), slug, `/events/all/${entityId}/edit`)
     case 'variable':
-      return `/p/${slug}/variables/${entityId}`
+      return projectPath(currentOrgSlug(), slug, `/variables/${entityId}`)
     default:
       return null
   }
@@ -209,7 +210,8 @@ const STATE_KEY_LABEL: Record<string, string> = {
   field_values: 'Field values',
   meta_values: 'Meta fields',
   source_name: 'Source',
-  variable_type: 'Variable type',
+  variable_type: 'Property type',
+  json_schema: 'JSON Schema',
 }
 
 export function stateKeyLabel(key: string): string {

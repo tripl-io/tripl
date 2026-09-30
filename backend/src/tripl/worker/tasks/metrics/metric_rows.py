@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import math
 import uuid
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import cast
 
@@ -27,11 +27,15 @@ from tripl.core.analyzers.event_generator import (
     truncate_event_name,
 )
 from tripl.core.bucketing import stored_bucket, to_utc
+from tripl.core.json_string_columns import scan_source_query
 from tripl.json_paths import (
+    MAX_PROPERTY_FIELDS,
     build_json_value,
     decode_json_path_value,
     format_json_path_value,
     group_json_value_paths,
+    is_property_field,
+    split_property_field,
 )
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.distribution_drift import DistributionDrift
@@ -187,12 +191,25 @@ def _is_supported_metric_breakdown_column(
     *,
     column: str,
     regular_cols: list[str],
+    json_cols: Sequence[str] = (),
 ) -> bool:
-    return (
-        column in regular_cols
-        and column != config.event_type_column
-        and column != config.time_column
-    )
+    """Whether ``column`` can be collected as a breakdown of this scan's rows.
+
+    A scalar column must be one of the scan's regular columns. A property entry
+    (``<json_column>.<path>``, F23 #306) must name a path of one of its nested
+    columns, whose value the adapter extracts per row; an entry that breaks the
+    path grammar (only a row written before the save-time check could hold one)
+    is unsupported rather than an error.
+    """
+    if column in (config.event_type_column, config.time_column):
+        return False
+    try:
+        prop = split_property_field(column)
+    except ValueError:
+        return False
+    if prop is None:
+        return column in regular_cols
+    return prop[0] in json_cols
 
 
 def _is_supported_configured_breakdown_column(
@@ -200,6 +217,7 @@ def _is_supported_configured_breakdown_column(
     *,
     column: str,
     regular_cols: list[str],
+    json_cols: Sequence[str] = (),
 ) -> bool:
     """The test for a column a USER listed in ``metric_breakdown_columns``.
 
@@ -226,6 +244,7 @@ def _is_supported_configured_breakdown_column(
             config,
             column=column,
             regular_cols=regular_cols,
+            json_cols=json_cols,
         )
         and column != config.app_version_column
     )
@@ -236,12 +255,27 @@ def _is_supported_distribution_drift_field(
     *,
     field_name: str,
     regular_cols: list[str],
+    json_cols: Sequence[str] = (),
 ) -> bool:
     return _is_supported_metric_breakdown_column(
         config,
         column=field_name,
         regular_cols=regular_cols,
+        json_cols=json_cols,
     )
+
+
+def _within_property_cap(field: str, selected: Collection[str]) -> bool:
+    """Whether one more field keeps a query within ``MAX_PROPERTY_FIELDS`` properties.
+
+    The save schema holds each list to the cap; this holds the collection
+    query to it too, because the breakdown query unions the scan's list with
+    every event's, and each property parses the JSON document per row. A
+    scalar column, or a property already selected, is always within it.
+    """
+    if not is_property_field(field) or field in selected:
+        return True
+    return sum(1 for item in selected if is_property_field(item)) < MAX_PROPERTY_FIELDS
 
 
 def _serialize_distribution_top_movers(top_movers: list[TopShift]) -> list[dict[str, object]]:
@@ -741,7 +775,8 @@ def _collect_metric_breakdown_rows(
             config,
             column=configured_column,
             regular_cols=regular_cols,
-        ):
+            json_cols=json_cols,
+        ) and _within_property_cap(configured_column, seen_breakdown_columns):
             if configured_column not in seen_breakdown_columns:
                 breakdown_columns.append(configured_column)
                 seen_breakdown_columns.add(configured_column)
@@ -799,7 +834,7 @@ def _collect_metric_breakdown_rows(
         breakdown_json_value_names,
         rows,
     ) = adapter.get_time_bucketed_breakdown_counts_multi(
-        config.base_query,
+        scan_source_query(adapter, config),
         config.time_column or "",
         interval_code,
         breakdown_columns,
@@ -1104,7 +1139,8 @@ def _collect_distribution_drift_rows(
             config,
             field_name=configured_field,
             regular_cols=regular_cols,
-        ):
+            json_cols=json_cols,
+        ) and _within_property_cap(configured_field, distribution_fields):
             distribution_fields.append(configured_field)
             continue
         logger.warning(
@@ -1121,7 +1157,7 @@ def _collect_distribution_drift_rows(
     history_from = time_from - interval_delta * baseline_window_buckets
 
     _col_names, _json_value_names, rows = adapter.get_time_bucketed_breakdown_counts_multi(
-        config.base_query,
+        scan_source_query(adapter, config),
         config.time_column or "",
         interval_code,
         distribution_fields,

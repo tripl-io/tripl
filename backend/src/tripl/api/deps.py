@@ -1,27 +1,43 @@
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.dependencies.models import Dependant
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.config import settings
+from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.database import get_session
 from tripl.middleware.branch_context import bound_branch
-from tripl.middleware.org_context import bind_org, current_org, path_org_slug
+from tripl.middleware.org_context import (
+    OrgRef,
+    bind_org,
+    current_org,
+    current_org_id,
+    path_org_slug,
+    require_org_id,
+)
+from tripl.models.domain_enums import OrganizationRole
 from tripl.models.plan_branch import BranchKind, BranchStatus, PlanBranch
 from tripl.models.project import Project
 from tripl.models.user import User
-from tripl.services import api_key_service, project_access, project_service
+from tripl.models.user_session import AUTH_METHOD_SSO
+from tripl.services import (
+    api_key_service,
+    email_verification_service,
+    org_service,
+    org_sso_service,
+    project_access,
+    project_service,
+)
 from tripl.services._plan_branch_locks import (
     hold_branch_for_plan_write,
     hold_main_plan_for_write,
     locks_rows,
 )
-from tripl.services.auth_service import get_user_by_session_token
-from tripl.services.org_resolution import resolve_request_org
+from tripl.services.auth_service import get_session_by_token
+from tripl.services.org_resolution import ORG_NOT_FOUND, resolve_request_org, suspended_error
 from tripl.services.project_lookup import (
     PROJECT_NOT_FOUND,
     project_slug_clause,
@@ -50,17 +66,104 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired API key",
         )
+    key_user = await session.get(User, api_key.user_id)
+    if key_user is not None:
+        _refuse_unverified(request, key_user)
     # Stash on request.state so role/scope checks downstream can tell whether
     # the caller is a session user or an API-key client.
     request.state.api_key_scope = api_key.scope
     request.state.api_key_project_id = api_key.project_id
     request.state.api_key_org_id = api_key.organization_id
-    user = await session.get(User, api_key.user_id)
+    user = key_user
     if user is not None:
         # The key's organization, bound before get_current_user runs the
         # project-bound key fence: that fence resolves a slug (critique #2).
         await _bind_request_org(request, session, user, key_org_id=api_key.organization_id)
+        await _refuse_key_without_sso(request, session, user, api_key.organization_id, api_key)
     return user
+
+
+SSO_REQUIRED = "This organization requires single sign-on"
+
+
+class SsoRequiredError(HTTPException):
+    """403 of an organization that requires SSO (F20).
+
+    ``main`` answers it as ``{"detail": ..., "sso_start": <login path>}`` so the
+    SPA can offer the organization's sign-in; anywhere else it is a plain 403.
+    """
+
+    def __init__(self, org_slug: str) -> None:
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=SSO_REQUIRED)
+        self.sso_start = org_sso_service.login_path(org_slug)
+
+
+async def _sso_required(request: Request, session: AsyncSession, org_id: uuid.UUID) -> bool:
+    """Whether ``org_id`` requires SSO; asked once per request and organization."""
+    cache: dict[uuid.UUID, bool] | None = getattr(request.state, "sso_required_orgs", None)
+    if cache is None:
+        cache = {}
+        request.state.sso_required_orgs = cache
+    if org_id not in cache:
+        cache[org_id] = await org_sso_service.sso_required(session, org_id)
+    return cache[org_id]
+
+
+async def refuse_non_sso_session(
+    request: Request,
+    session: AsyncSession,
+    user: User,
+    org: OrgRef,
+    *,
+    role: OrganizationRole | None = None,
+) -> None:
+    """403 :class:`SsoRequiredError` for a browser session that did not sign in through ``org``.
+
+    The gate of an organization's "SSO required" (F20), for cookie sessions (API
+    keys: :func:`_refuse_key_without_sso`). Passes a session of
+    ``auth_method='sso'`` for this very organization, the organization's OWNERS
+    (break-glass: an owner can always sign in with a password and fix a broken
+    provider), a platform admin's read-only step-in, and ``/api/v1/auth/``.
+    ``role`` saves a lookup when the caller already knows it.
+    """
+    if org.step_in_user_id is not None:
+        return
+    if getattr(request.state, "api_key_scope", None) is not None:
+        return
+    if _app_path(request).startswith(_UNVERIFIED_ALLOWED_PREFIX):
+        return
+    if not await _sso_required(request, session, org.id):
+        return
+    if (
+        getattr(request.state, "session_auth_method", None) == AUTH_METHOD_SSO
+        and getattr(request.state, "session_sso_org_id", None) == org.id
+    ):
+        return
+    if role is None:
+        role = await project_access.org_role_of(session, user.id, org.id)
+    if role == OrganizationRole.owner:
+        return
+    raise SsoRequiredError(org.slug)
+
+
+async def _refuse_key_without_sso(
+    request: Request,
+    session: AsyncSession,
+    user: User,
+    org_id: uuid.UUID,
+    api_key: object,
+) -> None:
+    """An API key in an organization requiring SSO must be minted from its SSO session.
+
+    Owners included: their break-glass is a password sign-in to the app, not a
+    key that outlives turning "SSO required" on (such keys are revoked then).
+    """
+    if getattr(api_key, "created_with_sso_org_id", None) == org_id:
+        return
+    if not await _sso_required(request, session, org_id):
+        return
+    org = current_org()
+    raise SsoRequiredError(org.slug if org is not None else "")
 
 
 #: Routes that act in no organization, so a cookie session skips org resolution
@@ -73,15 +176,54 @@ async def _resolve_api_key_user(request: Request, session: AsyncSession) -> User
 _ORG_FREE_PATH_PREFIXES: tuple[str, ...] = (
     "/api/v1/auth/",
     "/api/v1/settings",
+    # The operator console (F20 PR9): instance-wide, no organization.
+    "/api/v1/platform",
     "/api/v1/project-templates",
+    # The organization management API (F20 PR6): ``GET/POST /orgs`` act in no
+    # organization, and ``/orgs/{org}/...`` resolves the organization its path
+    # names through its own gate (:func:`_resolve_path_org`), which holds a
+    # session to a membership of it. Org-qualified project URLs are rewritten to
+    # their legacy path before routing, so they never match this prefix.
+    "/api/v1/orgs",
 )
 
 
-def _is_org_free(request: Request) -> bool:
+def _app_path(request: Request) -> str:
+    """The routed path without any ``root_path`` prefix."""
     path: str = request.scope.get("path", "")
     root_path: str = request.scope.get("root_path", "") or ""
     if root_path and path.startswith(root_path):
         path = path[len(root_path) :]
+    return path
+
+
+#: What an account with an unverified address may still reach on a hosted
+#: instance: identity routes — who am I, sign out, verify/resend, preview an
+#: invitation.
+_UNVERIFIED_ALLOWED_PREFIX = "/api/v1/auth/"
+
+
+def _refuse_unverified(request: Request, user: User) -> None:
+    """The hosted email-verification gate (F20 hosted sign-up).
+
+    Enforced only when ``DEPLOYMENT_MODE=hosted``: an account that has not
+    verified its address gets 403 on every authenticated route outside
+    ``/api/v1/auth/``. Checked before the organization is resolved, so the
+    answer never depends on the account's memberships. An API key cannot be
+    minted behind this gate; it is refused all the same, in case one exists.
+    """
+    if not email_verification_service.is_blocked(user):
+        return
+    if _app_path(request).startswith(_UNVERIFIED_ALLOWED_PREFIX):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=email_verification_service.EMAIL_NOT_VERIFIED_MESSAGE,
+    )
+
+
+def _is_org_free(request: Request) -> bool:
+    path = _app_path(request)
     return any(
         path == prefix or path.startswith(prefix if prefix.endswith("/") else prefix + "/")
         for prefix in _ORG_FREE_PATH_PREFIXES
@@ -109,7 +251,48 @@ async def _bind_request_org(
         key_org_id=key_org_id,
         path_org_slug=path_org_slug(request),
     )
+    refuse_step_in_writes(request, org)
+    if key_org_id is None:
+        await refuse_non_sso_session(request, session, user, org)
     bind_org(org)
+
+
+STEP_IN_READ_ONLY = "Step-in is read-only"
+
+#: The two read-shaped POSTs a step-in may send (F20 PR14, owner decision):
+#: the signal and window-metric batches carry their ids in a body because they
+#: outgrow a query string, and write nothing. Every other non-GET/HEAD/OPTIONS
+#: request in a stepped-in organization is refused. Named by handler for the
+#: reason given at ``_DERIVED_DATA_HANDLERS``; test_platform_step_in fails if a
+#: name stops matching a route.
+STEP_IN_READ_HANDLERS = frozenset(
+    {
+        "tripl.api.v1.metrics.query_active_signals",
+        "tripl.api.v1.metrics.get_events_window_metrics",
+    }
+)
+
+
+def _handler_of(request: Request) -> str:
+    endpoint = getattr(request.scope.get("route"), "endpoint", None)
+    return f"{getattr(endpoint, '__module__', '')}.{getattr(endpoint, '__qualname__', '')}"
+
+
+def refuse_step_in_writes(request: Request, org: OrgRef) -> None:
+    """403 "Step-in is read-only" for a write in an organization bound through a step-in.
+
+    The fence of the read-only step-in (F20 PR14): keyed on the method, not on
+    the route's gates, so a route that forgot its write gate is closed too. The
+    only exceptions are :data:`STEP_IN_READ_HANDLERS`. Org settings, member
+    management, API keys and deletion are all writes, so a step-in never
+    reaches them; their reads still take an owner/admin role, which a step-in
+    (organization role ``member``) does not hold.
+    """
+    if org.step_in_user_id is None or request.method in _SAFE_METHODS:
+        return
+    if _handler_of(request) in STEP_IN_READ_HANDLERS:
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=STEP_IN_READ_ONLY)
 
 
 async def _ensure_request_org(request: Request, session: AsyncSession, user: User) -> None:
@@ -166,13 +349,18 @@ async def get_current_user(request: Request, session: SessionDep) -> User:
             detail="Authentication required",
         )
 
-    user = await get_user_by_session_token(session, session_token)
-    if user is None:
+    db_session = await get_session_by_token(session, session_token)
+    if db_session is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
         )
+    user = db_session.user
+    # How this session signed in, for an organization's "SSO required" (F20).
+    request.state.session_auth_method = db_session.auth_method
+    request.state.session_sso_org_id = db_session.sso_organization_id
 
+    _refuse_unverified(request, user)
     await _bind_request_org(request, session, user, key_org_id=None)
     return user
 
@@ -180,22 +368,45 @@ async def get_current_user(request: Request, session: SessionDep) -> User:
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 
 
-def require_editor(user: User) -> None:
-    """Reject viewers — mutations need editor role or above."""
-    if user.role == "viewer":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Editor role required",
-        )
+_ORG_ROLE_UNSET = object()
+
+#: 403 detail of every organization owner/admin gate.
+ORG_ADMIN_REQUIRED = "Organization owner or admin role required"
+ORG_MEMBERSHIP_REQUIRED = "Organization membership required"
+PLATFORM_ADMIN_REQUIRED = "Platform admin required"
 
 
-def require_owner(user: User) -> None:
-    """Reject anyone below owner."""
-    if user.role != "owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner role required",
-        )
+async def request_org_role(
+    request: Request, session: AsyncSession, user: User
+) -> OrganizationRole | None:
+    """The caller's role in the request's bound organization; ``None`` for a non-member.
+
+    Also ``None`` on an org-free route (``/settings``, ``/auth/...``) where a
+    cookie session binds no organization. Cached on ``request.state.org_role``
+    so the gates of one request query it once.
+    """
+    cached = getattr(request.state, "org_role", _ORG_ROLE_UNSET)
+    if cached is not _ORG_ROLE_UNSET:
+        return cast(OrganizationRole | None, cached)
+    org_id = current_org_id()
+    role = None if org_id is None else await project_access.org_role_of(session, user.id, org_id)
+    request.state.org_role = role
+    return role
+
+
+async def require_org_member(
+    session: AsyncSession, user: User, org_id: uuid.UUID | None = None
+) -> None:
+    """403 unless ``user`` belongs to ``org_id`` (default: the bound organization).
+
+    The self-hosted default organization is bound for every session, members or
+    not (``org_resolution`` rule 4), so this is what keeps an account without a
+    membership from acting in it. Any organization role passes; what the caller
+    may do inside a project is still decided by the project role.
+    """
+    target = org_id if org_id is not None else require_org_id()
+    if await project_access.org_role_of(session, user.id, target) is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_MEMBERSHIP_REQUIRED)
 
 
 def require_write_scope(request: Request) -> None:
@@ -255,19 +466,32 @@ async def _project_role(
     return await project_access.require_project_access(request, session, user)
 
 
+async def get_project_role(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> project_access.ProjectRole | None:
+    """The caller's role in the path's project; ``None`` on a route without a slug.
+
+    The public, injectable form of :func:`_project_role`: a non-member gets the
+    membership gate's 404.
+    """
+    return await _project_role(request, session, user)
+
+
+ProjectRoleDep = Annotated[project_access.ProjectRole | None, Depends(get_project_role)]
+
+
 async def require_project_mutation_access(
     request: Request, session: AsyncSession, user: User
 ) -> None:
-    """Project-scope the instance-wide editor role through membership.
+    """Demand an editing project role on a route whose path carries a ``slug``.
 
-    ``require_editor`` only answers "may this user edit *something*". Every route
-    whose path carries a project ``slug`` also has to answer "...may they edit
-    *this* project", otherwise an editor could rewrite the tracking plan of every
-    project on the instance (tripl-jfm3.19). The answer is the caller's project
-    role (:mod:`tripl.services.project_access`): the instance owner, or a member
-    whose membership role is ``editor`` (capped by their instance role). A
-    viewer member gets 403; a non-member never gets this far, the membership
-    gate has already answered 404.
+    Every route whose path carries a project ``slug`` has to answer "may they
+    edit *this* project", otherwise a member of one project could rewrite the
+    tracking plan of every project (tripl-jfm3.19). The answer is the caller's
+    project role (:mod:`tripl.services.project_access`): an owner or admin of
+    the project's organization, or a member whose membership role is
+    ``editor``. A viewer member gets 403; a non-member never gets this far, the
+    membership gate has already answered 404.
 
     Hooked into :func:`get_editor_user` rather than sprinkled over ~20 routers on
     purpose: the mutation surface is exactly the set of slug-scoped routes that
@@ -290,67 +514,103 @@ def can_mutate_project(
 ) -> bool:
     """Whether :func:`get_editor_user` would admit this caller on the project's routes.
 
-    The non-raising form of the same three checks, reused rather than restated,
-    so ``ProjectResponse.can_mutate`` cannot drift from the gate it predicts: a
-    ``read``-scope API key, a viewer, and a caller whose project role
+    The non-raising form of the same checks, reused rather than restated, so
+    ``ProjectResponse.can_mutate`` cannot drift from the gate it predicts: a
+    ``read``-scope API key and a caller whose project role
     (:class:`~tripl.services.project_service.ProjectMutationScope`) is not an
-    editing one are all ``False``. The project-bound key fence
+    editing one are both ``False``. The project-bound key fence
     (``_enforce_project_scope``) is not repeated: a key that fails it never
-    reaches a project's response at all.
+    reaches a project's response at all. ``user`` is kept for the call sites;
+    the project role already carries everything the user contributes.
     """
+    del user
     try:
         require_write_scope(request)
-        require_editor(user)
     except HTTPException:
         return False
     return scope.allows()
 
 
 async def get_editor_user(request: Request, session: SessionDep, user: CurrentUserDep) -> User:
+    """The write gate for plan edits and for creating things in the organization.
+
+    With a ``slug`` in the path: an editing role in that project. Without one
+    (``POST /projects``, the demo routes, a data source's schema): membership of
+    the bound organization, any role.
+    """
     require_write_scope(request)
-    require_editor(user)
-    await require_project_mutation_access(request, session, user)
+    if request.path_params.get("slug"):
+        await require_project_mutation_access(request, session, user)
+    else:
+        await _ensure_request_org(request, session, user)
+        await require_org_member(session, user)
     return user
 
 
-def _owner_gate(request: Request, user: User, *, key_reachable: bool) -> User:
+async def get_org_member_user(request: Request, session: SessionDep, user: CurrentUserDep) -> User:
+    """Any member of the bound organization (no scope check)."""
+    await _ensure_request_org(request, session, user)
+    await require_org_member(session, user)
+    return user
+
+
+async def _owner_gate(
+    request: Request, session: AsyncSession, user: User, *, key_reachable: bool
+) -> User:
     """The whole owner rule, in one place, with exactly one flag to differ on.
 
     Both owner gates below call this: they must never drift on the role or scope
     checks, only on whether a Bearer token is admitted at all.
+
+    "Owner" means owner OR admin of the request's bound organization
+    (``organization_members``). With a ``slug`` in the path the caller must
+    also hold project role ``owner`` in that project.
+    That role only comes from owner/admin of the PROJECT's own organization,
+    and the slug is resolved inside the bound organization, so the path
+    project's organization is the request's: this is what keeps
+    :data:`PROJECT_SCOPED_GATES` sound.
     """
     require_write_scope(request)
-    require_owner(user)
+    await _ensure_request_org(request, session, user)
+    if not project_access.is_org_admin_role(await request_org_role(request, session, user)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
     if not key_reachable and getattr(request.state, "api_key_scope", None) is not None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Owner session required",
         )
+    if (
+        request.path_params.get("slug")
+        and await _project_role(request, session, user) != project_access.OWNER
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
     return user
 
 
-async def get_owner_user(request: Request, user: CurrentUserDep) -> User:
-    """The strict owner gate: owner role **and** an interactive browser session.
+async def get_owner_user(request: Request, session: SessionDep, user: CurrentUserDep) -> User:
+    """The strict owner gate: org owner/admin **and** an interactive browser session.
 
     An API key is refused whatever its scope and whoever owns it, because
-    "owner-only" here means security and instance administration — minting users
-    and invitations, warehouse credentials, instance settings, the audit feed,
-    authoring the SQL a scan runs, deleting a project. A leaked ``tk_w_`` must not
-    be able to invite a member or point a warehouse credential at a new query, so
-    those stay browser-only.
+    "owner-only" here means security and organization administration — minting
+    users and invitations, warehouse credentials, the audit feed, authoring the
+    SQL a scan runs, deleting a project. A leaked ``tk_w_`` must not be able to
+    invite a member or point a warehouse credential at a new query, so those
+    stay browser-only.
 
     This is the default owner gate; :func:`get_key_reachable_owner_user` is the
     narrow, enumerated exception. Reach for this one unless the owner has
     explicitly decided a specific route is agent-safe.
     """
-    return _owner_gate(request, user, key_reachable=False)
+    return await _owner_gate(request, session, user, key_reachable=False)
 
 
-async def get_key_reachable_owner_user(request: Request, user: CurrentUserDep) -> User:
-    """The owner gate an agent can pass: owner **role**, ``write`` scope, key OK.
+async def get_key_reachable_owner_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """The owner gate an agent can pass: org owner/admin, ``write`` scope, key OK.
 
     Same role and scope demands as :func:`get_owner_user` — it only drops the
-    "must be a cookie session" clause, so an editor's key and any ``read`` key are
+    "must be a cookie session" clause, so a member's key and any ``read`` key are
     still 403. Added for the bounded metrics replay (tripl-cj5z): no Bearer client
     could trigger one, which is why tripl-mcp ships no replay tool and the CLI
     dropped ``tripl scans replay``.
@@ -360,13 +620,241 @@ async def get_key_reachable_owner_user(request: Request, user: CurrentUserDep) -
     fails the build when a new route picks it up, so the exception list cannot
     grow by copy-paste.
     """
-    return _owner_gate(request, user, key_reachable=True)
+    return await _owner_gate(request, session, user, key_reachable=True)
 
+
+async def require_platform_admin(request: Request, user: CurrentUserDep) -> User:
+    """The operator gate: ``users.is_platform_admin`` in an interactive session.
+
+    For the instance-wide operator settings, the ``system`` block and the
+    platform console (F20 PR14). A platform admin gets no organization or
+    project access from the flag — only a live read-only step-in, which the
+    console opens with a reason and a time limit, lets them read one
+    organization — and an organization owner gets no operator access from their
+    org role.
+    """
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin session required",
+        )
+    if not user.is_platform_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PLATFORM_ADMIN_REQUIRED)
+    return user
+
+
+async def require_org_creator(request: Request, user: CurrentUserDep) -> User:
+    """Who may create an organization (``POST /orgs``). Never an API key.
+
+    Self-hosted: a platform admin only (owner decision 4). Hosted: any signed-in
+    browser session; the hosted email-verification gate in
+    :func:`get_current_user` has already refused unverified accounts.
+    """
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        return await require_platform_admin(request, user)
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="A browser session is required"
+        )
+    return user
+
+
+_LEGACY_SETTINGS_ORG_STATE_KEY = "legacy_settings_org_id"
+
+
+async def legacy_settings_org_id(
+    request: Request, session: AsyncSession, user: User
+) -> uuid.UUID | None:
+    """The organization the legacy ``/settings`` acts in for its org fields (F20 PR9).
+
+    ``/settings`` is org-free (no organization is bound for it), so it resolves
+    one itself, with the legacy-path rule: the default organization on a
+    self-hosted instance, the user's only organization on a hosted one (an API
+    key: its own), and ``None`` when a hosted user has none or several — never
+    a fallback. Cached on the request.
+    """
+    cached = getattr(request.state, _LEGACY_SETTINGS_ORG_STATE_KEY, _ORG_ROLE_UNSET)
+    if cached is not _ORG_ROLE_UNSET:
+        return cast(uuid.UUID | None, cached)
+    org_id: uuid.UUID | None
+    try:
+        org = await resolve_request_org(
+            session,
+            user=user,
+            key_org_id=getattr(request.state, "api_key_org_id", None),
+            path_org_slug=None,
+        )
+    except HTTPException:
+        org_id = None
+    else:
+        org_id = org.id
+        try:
+            # An organization requiring SSO is not acted in from another session.
+            await refuse_non_sso_session(request, session, user, org)
+        except SsoRequiredError:
+            org_id = None
+    setattr(request.state, _LEGACY_SETTINGS_ORG_STATE_KEY, org_id)
+    return org_id
+
+
+async def is_settings_admin(request: Request, session: AsyncSession, user: User) -> bool:
+    """Whether ``user`` may use the legacy combined ``/settings``.
+
+    A platform admin, or an owner/admin of the organization the legacy route
+    acts in (:func:`legacy_settings_org_id`): the default organization when
+    self-hosted, the user's only organization when hosted.
+    """
+    if user.is_platform_admin:
+        return True
+    org_id = await legacy_settings_org_id(request, session, user)
+    if org_id is None:
+        return False
+    return project_access.is_org_admin_role(
+        await project_access.org_role_of(session, user.id, org_id)
+    )
+
+
+async def get_settings_admin_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """The gate of ``/settings``: :func:`is_settings_admin`, session only.
+
+    Operator fields inside a settings write additionally need
+    :func:`require_platform_admin`'s check, and organization fields an admin
+    role in the resolved organization; the route applies both to the payload.
+    """
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Owner session required",
+        )
+    if not await is_settings_admin(request, session, user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
+    return user
+
+
+# ── the organization management gates (F20 PR6) ─────────────────────────────
+
+ORG_OWNER_REQUIRED = "Organization owner role required"
+_MANAGED_ORG_STATE_KEY = "managed_org"
+
+
+async def _resolve_path_org(
+    request: Request, session: AsyncSession, user: User
+) -> org_service.ManagedOrg:
+    """The organization a ``/orgs/{org}/...`` path names, if the caller may see it.
+
+    404 "Organization not found" for an unknown slug, a ``deleting``
+    organization, a non-member and an API key of another organization alike,
+    and always BEFORE any scope or role check, so a 403 never tells a stranger
+    that the organization exists. A member of a suspended organization then
+    gets 403 "This organization is suspended". A platform admin's live
+    read-only step-in reads it as a member, and every write under it is
+    refused (:func:`refuse_step_in_writes`). Binds the organization for the
+    rest of the request (the audit rows it files belong to it) and caches the
+    result.
+    """
+    cached = getattr(request.state, _MANAGED_ORG_STATE_KEY, None)
+    if isinstance(cached, org_service.ManagedOrg):
+        return cached
+    key_org_id = getattr(request.state, "api_key_org_id", None)
+    try:
+        org = await org_service.resolve_managed_org(
+            session,
+            slug=str(request.path_params.get("org", "")),
+            user_id=user.id,
+            key_org_id=key_org_id,
+            platform_admin=bool(user.is_platform_admin) and key_org_id is None,
+        )
+    except org_service.OrgNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ORG_NOT_FOUND) from None
+    except org_service.OrgSuspendedError:
+        raise suspended_error() from None
+    ref = OrgRef(id=org.id, slug=org.slug, step_in_user_id=user.id if org.step_in else None)
+    refuse_step_in_writes(request, ref)
+    if key_org_id is None:
+        await refuse_non_sso_session(request, session, user, ref, role=org.role)
+    bind_org(ref)
+    request.state.org_role = org.role
+    setattr(request.state, _MANAGED_ORG_STATE_KEY, org)
+    return org
+
+
+def _refuse_api_keys(request: Request) -> None:
+    require_write_scope(request)
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Owner session required")
+
+
+async def get_path_org_member_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """Any member of the path's organization; an API key of that organization too."""
+    await _resolve_path_org(request, session, user)
+    return user
+
+
+async def get_path_org_admin_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """An owner or admin of the path's organization, from a browser session."""
+    org = await _resolve_path_org(request, session, user)
+    _refuse_api_keys(request)
+    if not project_access.is_org_admin_role(org.role):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_ADMIN_REQUIRED)
+    return user
+
+
+async def get_path_org_owner_user(
+    request: Request, session: SessionDep, user: CurrentUserDep
+) -> User:
+    """An owner of the path's organization, from a browser session."""
+    org = await _resolve_path_org(request, session, user)
+    _refuse_api_keys(request)
+    if org.role != OrganizationRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_OWNER_REQUIRED)
+    return user
+
+
+async def get_org_owner_user(request: Request, session: SessionDep, user: CurrentUserDep) -> User:
+    """An OWNER (not an admin) of the request's bound organization, browser session only.
+
+    :func:`get_owner_user`'s checks (owner or admin, no API key, ``write``
+    scope), then the owner role itself. For org-bound settings reached through
+    the org-qualified rewrite (``/orgs/{org}/audit/webhook``), where the path
+    gates of the real ``/orgs/{org}`` routes do not apply: an admin can read
+    the audit feed, but where it is copied to is the owner's decision.
+    """
+    await _owner_gate(request, session, user, key_reachable=False)
+    if await request_org_role(request, session, user) != OrganizationRole.owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=ORG_OWNER_REQUIRED)
+    return user
+
+
+def get_managed_org(request: Request) -> org_service.ManagedOrg:
+    """What the route's path-org gate resolved; declare it AFTER that gate."""
+    org = getattr(request.state, _MANAGED_ORG_STATE_KEY, None)
+    if not isinstance(org, org_service.ManagedOrg):  # pragma: no cover - wiring error
+        raise RuntimeError("get_managed_org needs a path-org gate declared before it")
+    return org
+
+
+PathOrgMemberUserDep = Annotated[User, Depends(get_path_org_member_user)]
+PathOrgAdminUserDep = Annotated[User, Depends(get_path_org_admin_user)]
+PathOrgOwnerUserDep = Annotated[User, Depends(get_path_org_owner_user)]
+ManagedOrgDep = Annotated[org_service.ManagedOrg, Depends(get_managed_org)]
 
 WriteUserDep = Annotated[User, Depends(get_write_user)]
 EditorUserDep = Annotated[User, Depends(get_editor_user)]
 OwnerUserDep = Annotated[User, Depends(get_owner_user)]
 KeyReachableOwnerUserDep = Annotated[User, Depends(get_key_reachable_owner_user)]
+OrgOwnerUserDep = Annotated[User, Depends(get_org_owner_user)]
+OrgMemberUserDep = Annotated[User, Depends(get_org_member_user)]
+PlatformAdminUserDep = Annotated[User, Depends(require_platform_admin)]
+SettingsAdminUserDep = Annotated[User, Depends(get_settings_admin_user)]
 
 _WriteGate = Callable[..., Awaitable[User]]
 _GateReplay = Callable[[Request, AsyncSession, User], Awaitable[User]]
@@ -377,10 +865,14 @@ _GateReplay = Callable[[Request, AsyncSession, User], Awaitable[User]]
 _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
     get_write_user: lambda request, _session, user: get_write_user(request, user),
     get_editor_user: get_editor_user,
-    get_owner_user: lambda request, _session, user: get_owner_user(request, user),
-    get_key_reachable_owner_user: (
-        lambda request, _session, user: get_key_reachable_owner_user(request, user)
-    ),
+    get_owner_user: get_owner_user,
+    get_key_reachable_owner_user: get_key_reachable_owner_user,
+    require_platform_admin: lambda request, _session, user: require_platform_admin(request, user),
+    require_org_creator: lambda request, _session, user: require_org_creator(request, user),
+    get_settings_admin_user: get_settings_admin_user,
+    get_path_org_admin_user: get_path_org_admin_user,
+    get_path_org_owner_user: get_path_org_owner_user,
+    get_org_owner_user: get_org_owner_user,
 }
 
 # The route audits in tests/ classify every route by the gate it carries. Each
@@ -392,11 +884,15 @@ _WRITE_GATE_REPLAYS: dict[_WriteGate, _GateReplay] = {
 WRITE_GATES = frozenset(_WRITE_GATE_REPLAYS)
 # Gates that resolve the path's project as well as the caller's role:
 # ``get_editor_user`` runs :func:`require_project_mutation_access` (an editing
-# project role: instance owner or ``editor`` member), and the two owner gates
-# demand the instance-owner role, which is ``owner`` in every project by
-# definition. :func:`require_project_membership` is deliberately NOT in this set:
-# it is mounted on every route by the router and admits viewer members, so
-# counting it would make every slug-scoped mutation pass the audit trivially.
+# project role: org owner/admin or ``editor`` member), and the two owner gates
+# demand org owner/admin of the bound organization AND project role ``owner``
+# in the path's project, which only an owner/admin of that project's own
+# organization holds; the slug is resolved inside the bound organization, so
+# the path project's organization is always the request's. The platform and
+# settings gates carry no project and are not in this set.
+# :func:`require_project_membership` is deliberately NOT in this set: it is
+# mounted on every route by the router and admits viewer members, so counting it
+# would make every slug-scoped mutation pass the audit trivially.
 PROJECT_SCOPED_GATES = frozenset({get_editor_user, get_owner_user, get_key_reachable_owner_user})
 
 # A merged branch is the record of what landed on main and a closed one is

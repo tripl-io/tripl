@@ -1,31 +1,36 @@
 """Organizations: the tenant boundary above projects (F20, GH #273).
 
-PR1 adds the schema and nothing else. Every project, data source, API key and
-invitation belongs to exactly one organization, and today that is always the
-default one below: the migration puts every existing row and every existing user
-there, and the ORM default puts every new row there too. Nothing reads these
-tables for a permission decision yet — ``users.role`` is still the source of
-truth until the gates switch over in a later PR.
+Every project, data source, API key and invitation belongs to exactly one
+organization. The PR1 migration put every existing row and every existing user
+in the default one below. Since PR5 there is no ORM or server default on those
+``organization_id`` columns: every write names its organization (the bound one,
+``middleware.org_context``) and a write that forgets fails on NOT NULL instead
+of landing in the default organization. Since PR4 ``organization_members.role``
+is the source of truth for every organization-level permission
+(``services.project_access``, ``api.deps``); the instance-wide ``users.role``
+is gone.
+
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint, true
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, String, Text, UniqueConstraint, true
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.compiler import SQLCompiler
 from sqlalchemy.sql.elements import ColumnElement
 
-from tripl.models.base import Base, TimestampMixin, UUIDMixin
-from tripl.models.domain_enums import OrganizationRole, ProjectMemberRole
+from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
+from tripl.models.domain_enums import OrganizationRole, OrganizationStatus, ProjectMemberRole
 from tripl.models.enum_types import db_enum
 
 #: The organization every pre-organization row was migrated into. A fixed,
-#: well-known id rather than a generated one, so the migration, the ORM default
+#: well-known id rather than a generated one, so the migration, the audit-log default
 #: and the test fixtures all name the same row without looking it up.
 DEFAULT_ORG_ID = uuid.UUID("00000000-0000-0000-0000-00000000d0f1")
 DEFAULT_ORG_SLUG = "default"
@@ -58,11 +63,12 @@ def _compile_default_org_id_pg(
 
 
 def default_org_server_default() -> _DefaultOrgIdLiteral:
-    """The DDL default for an ``organization_id`` column during the transition.
+    """The DDL default for ``audit_log.organization_id``.
 
-    Kept alongside the ORM default so a container still running the previous
-    release during a deploy — which knows nothing about organizations — can keep
-    inserting rows after the migration has made the column NOT NULL.
+    Only the audit log keeps it (its column is nullable anyway: platform-level
+    actions have no organization). Projects, data sources, API keys and
+    invitations lost theirs in F20 PR5, so a write that forgets its organization
+    fails instead of landing in the default one.
     """
     return _DefaultOrgIdLiteral()
 
@@ -77,19 +83,46 @@ def default_organization_values() -> dict[str, Any]:
     }
 
 
+#: The values ``organizations.default_project_role`` may hold. The column shares
+#: the ``project_member_role`` type, which has no ``owner`` either; the CHECK
+#: states the rule where it is enforced (migration ``d2f4a6c8e0b1``).
+DEFAULT_PROJECT_ROLE_CHECK = "default_project_role IN ('none', 'viewer', 'editor')"
+
+
 class Organization(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "organizations"
+    __table_args__ = (
+        CheckConstraint(DEFAULT_PROJECT_ROLE_CHECK, name="ck_organizations_default_project_role"),
+    )
 
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
-    # Reserved for a later PR: the project role an organization member gets on a
-    # project they hold no membership row for. NULL means none (404, as today).
-    default_project_role: Mapped[str | None] = mapped_column(
-        db_enum(ProjectMemberRole, "project_member_role"), nullable=True, default=None
+    # The project role an organization member gets on a project they hold no
+    # ``project_members`` row in (F20): ``none`` (the project is a 404 for them),
+    # ``viewer`` or ``editor``; never ``owner``. Resolved in
+    # ``services.project_access``; an explicit row, ``none`` included, wins.
+    default_project_role: Mapped[str] = mapped_column(
+        db_enum(ProjectMemberRole, "project_member_role"),
+        default=ProjectMemberRole.none.value,
+        server_default=ProjectMemberRole.none.value,
+        nullable=False,
     )
     members_can_create_projects: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False
     )
+    # ``deleting`` from the moment an owner asks to delete the organization
+    # until the purge job removes the row (F20 PR6, critique #26). Every read
+    # resolves ``active`` organizations only.
+    status: Mapped[str] = mapped_column(
+        db_enum(OrganizationStatus, "organization_status"),
+        default=OrganizationStatus.active.value,
+        server_default=OrganizationStatus.active.value,
+        nullable=False,
+    )
+    # Set with ``status = suspended`` by a platform admin (F20 PR14), cleared on
+    # unsuspend. The reason is operator-facing: members see only the status.
+    suspended_at: Mapped[datetime | None] = mapped_column(UtcDateTime(), nullable=True)
+    suspended_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class OrganizationMember(UUIDMixin, TimestampMixin, Base):

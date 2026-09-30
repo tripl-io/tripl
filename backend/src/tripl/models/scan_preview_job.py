@@ -35,6 +35,15 @@ class ScanPreviewJob(UUIDMixin, TimestampMixin, Base):
     row_limit: Mapped[int] = mapped_column(Integer, default=10)
     time_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
     scan_lookback_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The "event + properties" preset's two columns (F23.4c). When both are set
+    # the fast preview also summarises the events and properties the sample
+    # rows would yield.
+    event_name_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    properties_column: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The draft's String columns to parse as JSON (F23.9); see ScanConfig.
+    json_string_columns: Mapped[list[str]] = mapped_column(
+        sa.JSON, default=list, server_default="[]"
+    )
     # When true, the worker runs the (slow) JSON path discovery instead of the
     # fast columns+rows preview. Drives the "Discover JSON keys" action.
     include_json_paths: Mapped[bool] = mapped_column(

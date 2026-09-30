@@ -126,6 +126,17 @@ describe('getScopeMonitoringPath', () => {
     ).toBe('/p/demo/monitoring/event/evt-9')
   })
 
+  it('links a property drift to its event page, and a type change nowhere (F23)', () => {
+    // The event page mounts PropertyDriftList, where the drift can be triaged.
+    expect(
+      getScopeMonitoringPath('demo', { scope_type: 'property_drift', scope_ref: 'd-1', event_id: 'evt-9' }),
+    ).toBe('/p/demo/monitoring/event/evt-9')
+    // A type change is per property: no event, so no guessed link.
+    expect(
+      getScopeMonitoringPath('demo', { scope_type: 'property_drift', scope_ref: 'd-2', event_id: null }),
+    ).toBeNull()
+  })
+
   it('gives a drift scope no link at all when it carries no event', () => {
     // schema / distribution drift carry a null event_id, so they get nothing
     // rather than a guess — which at least does not mislead.

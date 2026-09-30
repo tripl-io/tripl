@@ -44,6 +44,7 @@ from tripl.schemas.alerting import (
     AlertRuleResponse,
     AlertRuleUpdate,
 )
+from tripl.services._alerting_from_policy import assert_from_override_allowed
 from tripl.services._alerting_health import (
     DestinationHealth,
     RuleHealth,
@@ -275,6 +276,7 @@ def rule_to_response(rule: AlertRule, health: RuleHealth, *, now: datetime) -> A
         include_metrics=rule.include_metrics,
         include_source_freshness=rule.include_source_freshness,
         include_lifecycle=rule.include_lifecycle,
+        include_property_drifts=rule.include_property_drifts,
         notify_on_spike=rule.notify_on_spike,
         notify_on_drop=rule.notify_on_drop,
         ai_explanation_enabled=rule.ai_explanation_enabled,
@@ -693,6 +695,10 @@ async def create_destination(
         await _assert_public_destination_host(data.jira_base_url, field="Jira base_url")
     # Validate and persist the same channel's fields. Other channel values may
     # be present on the request, but must not become unvalidated stored state.
+    if data.type == AlertDestinationType.email:
+        await assert_from_override_allowed(
+            session, project.organization_id, data.email_from_address
+        )
     slack = data.type == AlertDestinationType.slack
     telegram = data.type == AlertDestinationType.telegram
     webhook = data.type == AlertDestinationType.webhook
@@ -988,6 +994,9 @@ async def update_destination(
         if destination.webhook_header_name is None:
             destination.webhook_header_value_encrypted = None
     if destination.type == AlertDestinationType.email:
+        await assert_from_override_allowed(
+            session, project.organization_id, update_dict.get("email_from_address")
+        )
         # Field validators on AlertDestinationUpdate already normalized these.
         if "email_recipients" in update_dict and update_dict["email_recipients"] is not None:
             destination.email_recipients = update_dict["email_recipients"]
@@ -1109,6 +1118,7 @@ async def create_rule(
         include_metrics=data.include_metrics,
         include_source_freshness=data.include_source_freshness,
         include_lifecycle=data.include_lifecycle,
+        include_property_drifts=data.include_property_drifts,
         notify_on_spike=data.notify_on_spike,
         notify_on_drop=data.notify_on_drop,
         ai_explanation_enabled=data.ai_explanation_enabled,

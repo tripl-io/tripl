@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from tripl.config import settings
 from tripl.models import Base
+from tripl.tests._legacy_role_schema import drop_legacy_role_schema
 from tripl.tests.test_alembic_revisions import _load_migration
 from tripl.tests.test_alert_digest_concurrency_pg import _PG_URL, _engine_or_skip
 
@@ -40,7 +41,33 @@ MIGRATION = "b8d0f2a4c6e8_organizations_schema_and_default_org.py"
 # must be unwound before ``MIGRATION.downgrade`` runs: ``doc_files`` (F22) keeps
 # an ``organization_id`` foreign key that would block dropping ``organizations``.
 # A new revision that depends on the organization schema belongs here.
-LATER_MIGRATIONS: tuple[str, ...] = ("c3f5a7b9d1e2_docs_catalog.py",)
+LATER_MIGRATIONS: tuple[str, ...] = (
+    "a1c3e5f7b9d2_json_string_columns.py",
+    "c3e5a7b9d1f2_property_drift_alerts.py",
+    "e4c6a8f0b2d5_scan_setup_preset.py",
+    "c0e2a4b6d8f1_variable_type_checked_at.py",
+    "b9d1f3a5c7e0_property_drifts.py",
+    "a8c0e2f4b6d9_variable_value_presence.py",
+    "f7b9d1e3a5c8_event_properties.py",
+    "e6a8b0c2d4f7_variable_json_schema.py",
+    "d5f7a9b1c3e6_doc_link_kinds.py",
+    "c4e6a8b0d2f5_doc_sharing.py",
+    "b3d5f7a9c1e4_org_saml_sso.py",
+    "a2c4e6f8b0d3_drop_legacy_instance_role.py",
+    "f8a0c2e4b6d9_audit_webhooks.py",
+    "f5b7d9e1a3c4_org_scim.py",
+    "e3a5c7d9f1b2_org_oidc_sso.py",
+    "d2f4a6c8e0b1_default_project_role.py",
+    "c1e3a5b7d9f2_platform_console.py",
+    "b8d0f2a4c6e9_email_verification.py",
+    "a7c9e1f3b5d8_organization_groups.py",
+    "f6c8a0b2d4e7_per_org_photo_storage.py",
+    "d4e8f1a2b3c5_incident_summary_hash_without_hrefs.py",
+    "e5b7d9f1a3c6_organization_status.py",
+    "d4a6c8e0f2b4_per_org_uniqueness_and_no_org_default.py",
+    "c9e1a3b5d7f9_org_roles_backfill_and_viewer_cap.py",
+    "c3f5a7b9d1e2_docs_catalog.py",
+)
 DEFAULT_ORG = "00000000-0000-0000-0000-00000000d0f1"
 _PSYCOPG_PREFIX = "postgresql+psycopg://"
 _ORG_COLUMNS = {
@@ -56,12 +83,13 @@ _ORG_COLUMNS = {
 @pytest.fixture
 def pg_engine() -> Iterator[Engine]:
     engine = _engine_or_skip()
-    Base.metadata.drop_all(engine)
+    drop_legacy_role_schema(engine)
     Base.metadata.create_all(engine)
     try:
         yield engine
     finally:
-        Base.metadata.drop_all(engine)
+        # The downgrades put ``user_role`` back; the model metadata no longer knows it.
+        drop_legacy_role_schema(engine)
         engine.dispose()
 
 
@@ -233,7 +261,8 @@ async def test_organizations_revision_round_trips_on_postgres(
                 {"u": ids["viewer"]},
             ).all()
         )
-        # Left as the previous release wrote them: users.role still caps them.
+        # Left as the previous release wrote them: this revision does not cap
+        # them; c9e1a3b5d7f9 does (test_org_roles_migration_pg).
         assert project_roles == {ids["alpha"]: "editor", ids["beta"]: "viewer"}
         editor_role = connection.execute(
             sa.text("SELECT role::text FROM project_members WHERE user_id = :u"),

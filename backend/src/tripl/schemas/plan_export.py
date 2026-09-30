@@ -56,6 +56,26 @@ class CodegenField(BaseModel):
     variable: str | None = None
 
 
+class CodegenProperty(BaseModel):
+    """One typed property of an event: a leaf of one of its JSON fields (F23)."""
+
+    # The JSON field and the dotted path inside it (``properties`` / ``cart.total``).
+    field: str
+    path: str
+    # The variable the leaf names; ``None`` for a literal the event always sends.
+    variable: str | None = None
+    # The variable's ``variable_type``; ``None`` for a literal.
+    type: str | None = None
+    # The property as JSON Schema: type, format, items, and ``enum`` from the
+    # allowed values; ``{"const": ...}`` for a literal.
+    json_schema: dict[str, Any] = Field(default_factory=dict)
+    required: bool = False
+    # The allowed values for this event (its override, else the global list),
+    # as plan strings; ``None`` when free.
+    values: list[str] | None = None
+    literal: Any = None
+
+
 class CodegenEvent(BaseModel):
     identity: str
     name: str
@@ -69,6 +89,8 @@ class CodegenEvent(BaseModel):
     # plan order. Empty when the event overrides nothing.
     overrides: dict[str, list[str]] = Field(default_factory=dict)
     deprecated: bool = False
+    # The event's typed JSON properties (F23), by field then path.
+    properties: list[CodegenProperty] = Field(default_factory=list)
 
 
 class CodegenEventType(BaseModel):
@@ -87,6 +109,8 @@ class CodegenVariable(BaseModel):
     # Every ``${token}`` spelling that resolves to this variable (name, source
     # name, bindings), so a stored template can be mapped back to it.
     tokens: list[str] = Field(default_factory=list)
+    variable_type: str = "string"
+    json_schema: dict[str, Any] | None = None
 
 
 class PlanExportCodegenModel(PlanExportMeta):

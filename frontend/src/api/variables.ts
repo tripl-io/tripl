@@ -1,5 +1,5 @@
 import { api, withBranch } from './client'
-import type { Variable, VariableListPage, VariableType, VariableValueContext } from '../types'
+import type { PropertySchema, Variable, VariableListPage, VariableType, VariableValueContext } from '../types'
 
 // The list endpoint pages server-side (offset/limit, server default 200). Every
 // caller here wants the project's whole variable set in ONE round trip — the
@@ -25,7 +25,7 @@ const listPage = (
 ) =>
   api.get<VariableListPage>(
     withBranch(
-      `/projects/${slug}/variables?offset=${offset}&limit=${limit}&usage=${usage}`,
+      `/projects/${slug}/properties?offset=${offset}&limit=${limit}&usage=${usage}`,
       branchId,
     ),
   )
@@ -44,9 +44,10 @@ export const variablesApi = {
       description?: string
       allowed_values?: string[]
       bindings?: string[]
+      json_schema?: PropertySchema | null
     },
     branchId?: string | null,
-  ) => api.post<Variable>(withBranch(`/projects/${slug}/variables`, branchId), data),
+  ) => api.post<Variable>(withBranch(`/projects/${slug}/properties`, branchId), data),
   update: (
     slug: string,
     id: string,
@@ -57,14 +58,16 @@ export const variablesApi = {
       allowed_values?: string[]
       bindings?: string[]
       excluded_from_scans?: boolean
+      /** null clears the schema. */
+      json_schema?: PropertySchema | null
     },
     branchId?: string | null,
-  ) => api.patch<Variable>(withBranch(`/projects/${slug}/variables/${id}`, branchId), data),
+  ) => api.patch<Variable>(withBranch(`/projects/${slug}/properties/${id}`, branchId), data),
   /** Full per-event breakdown for ONE variable. Never fetch this per list row —
    * the list response already carries `event_names` and `sample_values`. */
   values: (slug: string, id: string, branchId?: string | null) =>
     api.get<VariableValueContext[]>(
-      withBranch(`/projects/${slug}/variables/${id}/values`, branchId),
+      withBranch(`/projects/${slug}/properties/${id}/values`, branchId),
     ),
   /** Drop this variable's observed contexts, keeping the variable itself along
    * with its description, documented values, bindings, per-event overrides and
@@ -74,14 +77,14 @@ export const variablesApi = {
   clearValues: (slug: string, id: string, branchId?: string | null, contextId?: string) =>
     api.del(
       withBranch(
-        `/projects/${slug}/variables/${id}/values${
+        `/projects/${slug}/properties/${id}/values${
           contextId ? `?context_id=${encodeURIComponent(contextId)}` : ''
         }`,
         branchId,
       ),
     ),
   del: (slug: string, id: string, branchId?: string | null) =>
-    api.del(withBranch(`/projects/${slug}/variables/${id}`, branchId)),
+    api.del(withBranch(`/projects/${slug}/properties/${id}`, branchId)),
   bulkUpdate: (
     slug: string,
     data: {
@@ -92,9 +95,9 @@ export const variablesApi = {
       allowed_values_remove?: string[]
     },
     branchId?: string | null,
-  ) => api.post<void>(withBranch(`/projects/${slug}/variables/bulk-update`, branchId), data),
+  ) => api.post<void>(withBranch(`/projects/${slug}/properties/bulk-update`, branchId), data),
   bulkDelete: (slug: string, variableIds: string[], branchId?: string | null) =>
-    api.post<void>(withBranch(`/projects/${slug}/variables/bulk-delete`, branchId), {
+    api.post<void>(withBranch(`/projects/${slug}/properties/bulk-delete`, branchId), {
       variable_ids: variableIds,
     }),
 }

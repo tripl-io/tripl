@@ -229,12 +229,17 @@ CLI layers (`cli/src/tripl_cli`):
 ## Domain Model Cheat Sheet
 
 Core planning entities:
-- `Organization`, `OrganizationMember` (F20, schema only so far): the tenant
-  above projects, with org roles `owner` | `admin` | `member`. Projects, data
+- `OrganizationGroup`, `OrganizationGroupMember` (F20, `models/organization_group.py`):
+  named sets of an org's members, `/api/v1/orgs/{org}/groups`. Membership in the
+  org is enforced in `services/org_group_service.py`; `org_service.remove_member`
+  drops the user's groups. Consumers (F24 sharing, owners, alert routing) resolve
+  groups with `org_group_service.group_member_ids`; SCIM sync is not wired yet.
+- `Organization`, `OrganizationMember` (F20): the tenant above projects, with
+  org roles `owner` | `admin` | `member`. Projects, data
   sources, API keys and invitations carry a NOT NULL `organization_id`; every row
   is in the default organization (`DEFAULT_ORG_ID` in `models/organization.py`).
-  Nothing reads org roles yet: `users.role` is still the permission source, and
-  `app_settings` reads must filter `organization_id IS NULL` (operator scope).
+  Org roles and project roles are the only permission source (the old
+  instance role, `users.role`, is dropped), and `app_settings` reads must filter `organization_id IS NULL` (operator scope).
   Org context (F20 PR2): every authenticated request acts in one organization,
   bound in `middleware/org_context.py` by `api/deps.py` (`get_current_user` /
   `_resolve_api_key_user` via `services/org_resolution.py`) BEFORE any slug is
@@ -253,7 +258,8 @@ Core planning entities:
 - `Project`: tracking-plan namespace.
 - `ProjectMember`: a user's membership of one project (`editor` | `viewer`).
   Non-members get 404 on every `/projects/{slug}/...` route and never see the
-  project in a list or feed; instance owners need no row. Rules live in
+  project in a list or feed; owners and admins of the project's organization
+  need no row (they are project role `owner`). Rules live in
   `services/project_access.py`; the gate is `require_project_membership` in
   `api/deps.py`, mounted in `api/v1/router.py`'s `protected_dependencies`.
 - `EventType`: schema bucket like page view or click.

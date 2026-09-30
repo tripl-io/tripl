@@ -39,7 +39,7 @@ export function JsonValuePathsPicker({
         <div>
           <div className="text-body font-medium">JSON values to keep as-is</div>
           <p className="text-body-sm text-fg-tertiary">
-            Selected paths stay as real values in generated JSON. Unselected paths become variables.
+            Selected paths stay as real values in generated JSON. Unselected paths become properties.
           </p>
         </div>
         <Button

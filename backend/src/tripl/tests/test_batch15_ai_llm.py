@@ -19,7 +19,9 @@ def test_post_chat_completions_handles_mid_response_failure(monkeypatch, failure
         def read(self):
             raise failure
 
-    monkeypatch.setattr(llm_service.urllib.request, "urlopen", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(
+        llm_service._NO_REDIRECT_OPENER, "open", lambda *_args, **_kwargs: Response()
+    )
     assert llm_service._post_chat_completions("https://example.test", {}, "key", 1) == (None, None)
 
 
@@ -34,7 +36,9 @@ def test_post_chat_completions_handles_invalid_utf8(monkeypatch):
         def read(self):
             return b"\xff"
 
-    monkeypatch.setattr(llm_service.urllib.request, "urlopen", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(
+        llm_service._NO_REDIRECT_OPENER, "open", lambda *_args, **_kwargs: Response()
+    )
     assert llm_service._post_chat_completions("https://example.test", {}, "key", 1) == (None, None)
 
 
@@ -47,6 +51,7 @@ def test_complete_handles_unexpected_json_shape(monkeypatch, body):
         ai_max_output_tokens=100,
         ai_base_url="https://example.test",
         ai_timeout_seconds=1,
+        host_guard=False,
     )
     monkeypatch.setattr(llm_service, "_post_chat_completions", lambda *_args: (body, None))
     assert llm_service.complete("system", "user", config=config) is None
@@ -80,7 +85,7 @@ async def test_ask_plan_keeps_question_in_truncated_prompt(monkeypatch):
     async def fake_search(*_args, **_kwargs):
         return search_result
 
-    async def fake_config(_session):
+    async def fake_config(_session, **_kwargs):
         return SimpleNamespace(ask_system_prompt="Answer")
 
     def fake_complete(_system_prompt, user_prompt, **_kwargs):

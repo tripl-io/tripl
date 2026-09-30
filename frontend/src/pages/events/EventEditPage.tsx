@@ -31,6 +31,10 @@ import { rememberCreatedEvents } from './createdEventsHandoff'
 import { DraftDiscussionNote } from './DraftDiscussionNote'
 import { EventForm } from './EventFormView'
 import { EventHealthCard } from './EventHealthCard'
+import { EventPropertiesGrid } from './EventPropertiesGrid'
+import { useEventPropertyIds } from './useEventPropertyIds'
+import { PropertyDriftList } from './PropertyDriftList'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EMPTY_EVENT_TYPES: EventType[] = []
 const EMPTY_META_FIELDS: MetaFieldDefinition[] = []
@@ -51,7 +55,7 @@ export default function EventEditPage() {
   const branchLink = useBranchLinkProps()
   const canWrite = useCanWriteProject()
   const isNew = !eventId
-  const listPath = !tab || tab === 'all' ? `/p/${slug}/events` : `/p/${slug}/events/${tab}`
+  const listPath = !tab || tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
 
   // Reviewing a branch and fixing three of its events used to cost three round
   // trips through Settings > Branches, because closing the editor always landed
@@ -89,7 +93,7 @@ export default function EventEditPage() {
       // worse failure — pressing Create again makes a second one — so land them
       // on the event, carrying what they wrote into its own composer. `replace`
       // keeps Back meaning what it meant before the save.
-      navigate(`/p/${slug}/events/${tab ?? 'all'}/${created.id}/edit${location.search}`, {
+      navigate(projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${created.id}/edit${location.search}`), {
         replace: true,
         state: {
           commentDraft: body,
@@ -121,6 +125,9 @@ export default function EventEditPage() {
     queryFn: () => eventsApi.get(slug!, eventId!, branchId),
     enabled: !!slug && !!eventId && canWrite,
   })
+  // The event's property list, for the drift list's type changes (F23); the
+  // grid reads the same cached query.
+  const eventPropertyIds = useEventPropertyIds(slug, branchId, eventId)
   // The plan's branches, for two things: whether the event opened here lives
   // on the branch being edited (AU-1 / PL-2), and the branch's name in the
   // "added to branch" confirmation (JR-13). The same query the branch banner
@@ -147,7 +154,7 @@ export default function EventEditPage() {
     return (
       <Navigate
         replace
-        to={isNew ? `${listPath}${location.search}` : `/p/${slug}/monitoring/event/${eventId}${location.search}`}
+        to={isNew ? `${listPath}${location.search}` : projectPath(currentOrgSlug(), slug, `/monitoring/event/${eventId}${location.search}`)}
       />
     )
   }
@@ -174,7 +181,7 @@ export default function EventEditPage() {
       <PageContainer width="narrow">
         {/* Names what failed, not the view (SH-33). */}
         <ErrorState
-          title="Could not load the event types, meta fields or variables"
+          title="Could not load the event types, meta fields or properties"
           error={loadError}
           onRetry={() => {
             void Promise.all([
@@ -220,7 +227,7 @@ export default function EventEditPage() {
     : !!eventId && !!rowBranch && !!mainBranch && rowBranchId !== (branchId ?? mainBranch.id)
   const rowIsMain = rowBranch?.kind === 'main'
   const switchLink = rowBranch
-    ? branchLink(`/p/${slug}/events/${tab ?? 'all'}/${eventId}/edit`, rowIsMain ? null : rowBranch.id)
+    ? branchLink(projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventId}/edit`), rowIsMain ? null : rowBranch.id)
     : null
   const activeBranchName = branchId ? branches?.find(b => b.id === branchId)?.name : undefined
 
@@ -232,7 +239,7 @@ export default function EventEditPage() {
       toast.success(`Added ${created.name} to branch ${activeBranchName}`, {
         action: {
           label: 'View changes',
-          onClick: () => navigate(`/p/${slug}/branches/${branchId}`),
+          onClick: () => navigate(projectPath(currentOrgSlug(), slug, `/branches/${branchId}`)),
         },
       })
       return
@@ -240,7 +247,7 @@ export default function EventEditPage() {
     toast.success(`Created ${created.name}`, {
       action: {
         label: 'Open',
-        onClick: () => navigate(branchLink(`/p/${slug}/monitoring/event/${created.id}`, branchId).to),
+        onClick: () => navigate(branchLink(projectPath(currentOrgSlug(), slug, `/monitoring/event/${created.id}`), branchId).to),
       },
     })
   }
@@ -304,16 +311,16 @@ export default function EventEditPage() {
             <EntityBranchBanner
               slug={slug}
               rowBranchId={eventQuery.data?.branch_id}
-              path={`/p/${slug}/events/${tab ?? 'all'}/${eventId}/edit`}
+              path={projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventId}/edit`)}
               // Not this page's id on main: it is the branch row's, which main
               // would render again under a mismatch warning (EVT-42). The main
               // twin's page when the server names one, else the list on main.
               mainPath={
                 eventQuery.data?.main_event_id
-                  ? `/p/${slug}/events/${tab ?? 'all'}/${eventQuery.data.main_event_id}/edit`
+                  ? projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventQuery.data.main_event_id}/edit`)
                   : !tab || tab === 'all'
-                    ? `/p/${slug}/events`
-                    : `/p/${slug}/events/${tab}`
+                    ? projectPath(currentOrgSlug(), slug, '/events')
+                    : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
               }
             />
           ) : undefined
@@ -332,6 +339,29 @@ export default function EventEditPage() {
         // Below the sticky save bar with a clear break, so the page end is not
         // mistaken for more of the form (AU-6).
         <div className="mt-10 max-w-[880px] pb-10">
+          {/* The event's property list (F23): its own card outside the form,
+              because each change saves at once, apart from Save. The open
+              property drifts (F23.5b) sit beside it. Locked when the event
+              lives on another branch than the one being edited. */}
+          <div className="mb-6 grid gap-4" data-slot="event-properties">
+            <EventPropertiesGrid
+              slug={slug}
+              branchId={branchId}
+              eventId={eventId}
+              threshold={eventQuery.data?.required_presence_threshold ?? null}
+              canWrite={canWrite && !branchMismatch}
+              projectVariables={variablesQuery.data ?? EMPTY_VARIABLES}
+            />
+            {/* Property drift (F23.5b): detected against main, and Accept edits main. */}
+            {branchId === null && (
+              <PropertyDriftList
+                slug={slug}
+                eventId={eventId}
+                variableIds={eventPropertyIds}
+                readOnly={!canWrite}
+              />
+            )}
+          </div>
           {/* Health (F15, #268): what the event scores on the main plan and
               why. Renders nothing on a branch or for an archived event. */}
           <EventHealthCard slug={slug} eventId={eventId} className="mb-6" />

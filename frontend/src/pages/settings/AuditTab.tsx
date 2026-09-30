@@ -37,6 +37,7 @@ import {
   toIsoOrUndef,
 } from './auditSentences'
 import { stateKeyLabel } from './branches/branchMeta'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // How long the email box waits after the last keystroke before it filters.
 const EMAIL_DEBOUNCE_MS = 400
@@ -326,7 +327,7 @@ function AuditLog({ slug }: { slug?: string }) {
   ) : (
     <>
       Compliance trail of mutation actions on this project's plan —
-      events, schema, variables, branches — and on its scans, metrics and
+      events, schema, properties, branches — and on its scans, metrics and
       alerting. Secrets are redacted in stored payloads. A branch chip
       names the working branch an entry was written through. No chip
       means the write was not branch-scoped: main, or an action with no
@@ -626,7 +627,7 @@ function AuditLog({ slug }: { slug?: string }) {
                             ) : null}
                             {entry.branch_id && entry.project_slug ? (
                               <Link
-                                to={`/p/${entry.project_slug}/branches/${entry.branch_id}`}
+                                to={projectPath(currentOrgSlug(), entry.project_slug, `/branches/${entry.branch_id}`)}
                                 className="inline-flex items-center gap-0.5 font-medium hover:underline text-accent"
                               >
                                 Open branch {entry.branch_name}

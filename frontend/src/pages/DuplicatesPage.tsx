@@ -25,6 +25,7 @@ import { useCanWriteProject } from '@/lib/permissions'
 import { branchEventsKey, duplicateClustersKey, projectEventKey } from '@/lib/queryKeys'
 import type { DuplicateCluster, DuplicateClusterEvent } from '@/types'
 import { clusterKey, proposedKeeper, uniqueClusters, volumeLabel } from './duplicates/duplicateClusters'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Likely duplicates already in the catalog (F12, #265): events that look
@@ -204,7 +205,7 @@ export default function DuplicatesPage() {
         actions={
           slug ? (
             <Button asChild variant="outline" size="sm">
-              <Link to={`/p/${slug}/reconciliation`} className="no-underline">
+              <Link to={projectPath(currentOrgSlug(), slug, '/reconciliation')} className="no-underline">
                 Reconciliation
               </Link>
             </Button>

@@ -41,21 +41,21 @@ function isJson(value: string): boolean {
 }
 
 const RULES: Partial<Record<VariableType, { validate: (value: string) => boolean; message: string }>> = {
-  number: { validate: isNumber, message: 'A Number variable takes numbers, e.g. 42 or 3.5.' },
+  number: { validate: isNumber, message: 'A Number property takes numbers, e.g. 42 or 3.5.' },
   number_array: {
     validate: isNumber,
-    message: 'A Number[] variable takes numbers, one per value, e.g. 42 or 3.5.',
+    message: 'A Number[] property takes numbers, one per value, e.g. 42 or 3.5.',
   },
   boolean: {
     validate: (value) => value === 'true' || value === 'false',
-    message: 'A Boolean variable takes true or false.',
+    message: 'A Boolean property takes true or false.',
   },
-  date: { validate: isCalendarDate, message: 'A Date variable takes dates as YYYY-MM-DD.' },
+  date: { validate: isCalendarDate, message: 'A Date property takes dates as YYYY-MM-DD.' },
   datetime: {
     validate: isDatetime,
-    message: 'A Datetime variable takes ISO date-times, e.g. 2026-09-25T14:30:00Z.',
+    message: 'A Datetime property takes ISO date-times, e.g. 2026-09-25T14:30:00Z.',
   },
-  json: { validate: isJson, message: 'A JSON variable takes valid JSON, e.g. {"a": 1} or "text".' },
+  json: { validate: isJson, message: 'A JSON property takes valid JSON, e.g. {"a": 1} or "text".' },
 }
 
 /** The ChipListInput `validate`/`invalidMessage` pair for a type; empty when any value goes. */

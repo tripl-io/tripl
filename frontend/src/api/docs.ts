@@ -1,5 +1,5 @@
 import { uid } from '@/lib/uid'
-import { api, ApiError, AUTH_UNAUTHORIZED_EVENT } from './client'
+import { api, ApiError, AUTH_UNAUTHORIZED_EVENT, orgScopedPath } from './client'
 import type {
   DocBacklinksResponse,
   DocBundle,
@@ -10,12 +10,15 @@ import type {
   DocImportResult,
   DocLinkKind,
   DocLinkResolution,
+  DocLinkSuggestionsResponse,
   DocMoveRequest,
   DocMoveResponse,
   DocRevisionDetail,
   DocRevisionListResponse,
   DocScope,
   DocSearchResponse,
+  DocSharing,
+  DocSharingUpdate,
   DocTreeResponse,
   DocWriteRequest,
   DocWriteResponse,
@@ -48,7 +51,7 @@ async function rawRequest(path: string, init: RequestInit): Promise<Response> {
   headers.set('X-Request-ID', uid())
   let res: Response
   try {
-    res = await fetch(`${BASE}${path}`, { ...init, headers, credentials: 'include' })
+    res = await fetch(`${BASE}${orgScopedPath(path)}`, { ...init, headers, credentials: 'include' })
   } catch {
     throw new ApiError('Backend is unavailable. Check that the API server is running and try again.', 503)
   }
@@ -124,11 +127,41 @@ export const docsApi = {
     signal?: AbortSignal,
   ) => api.get<DocBacklinksResponse>(docsPath(slug, `/backlinks${query(params)}`), signal),
 
-  /** Resolve `kind:target` refs (kind: event | event-type | field). ≤200. */
+  /** Resolve `kind:target` refs (kind as written: event, event-type, doc, alert-rule, …). ≤200. */
   links: (slug: string, refs: readonly string[], signal?: AbortSignal) =>
     refs.length === 0
       ? Promise.resolve<DocLinkResolution[]>([])
       : api.get<DocLinkResolution[]>(docsPath(slug, `/links?${linkRefQuery(refs)}`), signal),
+
+  /**
+   * The editor's `[[` / `@` picker (F24): notes the caller can read, plan
+   * entities, alert rules, branches, scans, data sources and organization
+   * members matching `q`, narrowed to one `kind` when given. Rate-limited
+   * per user (240 a minute, then 429).
+   */
+  linkSuggestions: (
+    slug: string,
+    params: { q: string; kind?: DocLinkKind | null; limit?: number },
+    signal?: AbortSignal,
+  ) => api.get<DocLinkSuggestionsResponse>(docsPath(slug, `/link-suggestions${query(params)}`), signal),
+
+  /**
+   * Sharing (F24, GH #308). Readable by anyone who can read the note; changed
+   * by its author or an organization owner or admin (audited). A note the
+   * caller cannot read answers 404, like the note itself.
+   */
+  fileSharing: (slug: string, scope: DocScope, path: string, signal?: AbortSignal) =>
+    api.get<DocSharing>(docsPath(slug, `/file/sharing${query({ scope, path })}`), signal),
+
+  updateFileSharing: (slug: string, scope: DocScope, path: string, body: DocSharingUpdate) =>
+    api.put<DocSharing>(docsPath(slug, `/file/sharing${query({ scope, path })}`), body),
+
+  /** A folder setting: every note under `prefix` that inherits follows it. */
+  folderSharing: (slug: string, scope: DocScope, prefix: string, signal?: AbortSignal) =>
+    api.get<DocSharing>(docsPath(slug, `/folder/sharing${query({ scope, path: prefix })}`), signal),
+
+  updateFolderSharing: (slug: string, scope: DocScope, prefix: string, body: DocSharingUpdate) =>
+    api.put<DocSharing>(docsPath(slug, `/folder/sharing${query({ scope, path: prefix })}`), body),
 
   exportJson: (slug: string, scope: DocScope) =>
     api.get<DocBundle>(docsPath(slug, `/export${query({ scope, format: 'json' })}`)),

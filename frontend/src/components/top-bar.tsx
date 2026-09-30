@@ -28,6 +28,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { planBranchesKey, projectsQueryOptions } from '@/lib/queryKeys'
 // The branch pages' own status words, so the strip cannot drift from them.
 import { STATUS_LABEL } from '@/lib/branchStatus'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 type TopBarProps = {
   title: string
@@ -205,7 +206,7 @@ export function BranchStrip({ slug }: { slug: string | undefined }) {
       </span>
       <div className="flex-1" />
       <Link
-        to={`/p/${slug}/branches/${branchId}`}
+        to={projectPath(currentOrgSlug(), slug, `/branches/${branchId}`)}
         className="hidden shrink-0 font-medium underline-offset-2 hover:underline sm:inline text-fg"
       >
         Review changes

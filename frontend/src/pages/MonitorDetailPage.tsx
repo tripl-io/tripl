@@ -47,6 +47,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { usePageTitle } from '@/components/shell-chrome-context'
 import { invalidateAlertingConfig } from './alerting/alertingCache'
 import { monitorDetailKey, monitorHistoryKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export default function MonitorDetailPage() {
   const { slug, monitorId } = useParams<{ slug: string; monitorId: string }>()
@@ -118,7 +119,7 @@ export default function MonitorDetailPage() {
   const muteError = muteMut.error ?? unmuteMut.error
 
   // The list this rule lives in: Alerting, on its Rules section.
-  const rulesListPath = `/p/${slug}/alerting?section=monitors`
+  const rulesListPath = projectPath(currentOrgSlug(), slug, '/alerting?section=monitors')
 
   if (monitorQuery.isError) {
     // A rule that does not exist is not a failure to retry (#237 SH-33): a
@@ -216,7 +217,7 @@ export default function MonitorDetailPage() {
       )}
       {!canWrite && (
         <ReadOnlyNotice>
-          Read-only: your account has the viewer role. Muting this rule and
+          Read-only: you have the viewer role in this project. Muting this rule and
           retrying its deliveries are done by an editor or owner.
         </ReadOnlyNotice>
       )}
@@ -655,7 +656,7 @@ function DestinationPanel({ slug, monitor }: { slug?: string; monitor: MonitorDe
           </Chip>
           {slug ? (
             <Link
-              to={`/p/${slug}/alerting?section=destinations`}
+              to={projectPath(currentOrgSlug(), slug, '/alerting?section=destinations')}
               className="min-w-0 truncate text-body-sm no-underline hover:underline text-fg"
               title={monitor.destination_name}
             >

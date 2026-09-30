@@ -1,8 +1,23 @@
 import type { EventPhoto, EventPhotoComment, PhotoLimits } from '../types'
+import { currentOrgSlug } from '@/lib/activeOrg'
 import { uid } from '@/lib/uid'
-import { api, ApiError, AUTH_UNAUTHORIZED_EVENT } from './client'
+import { api, ApiError, AUTH_UNAUTHORIZED_EVENT, orgScopedPath } from './client'
 
 const BASE = '/api/v1'
+
+/**
+ * The address to load a photo's file from. The server builds `photo.url` as an
+ * org-less `/api/v1/projects/{slug}/…/file` (tripl-0chm), which a cookie
+ * session resolves in the default organization, so an `<img>` in any other one
+ * would load the default organization's same-slug project, or 404. This applies
+ * the client's organization rewrite to it; an already org-qualified URL, or one
+ * outside the API, is returned as it is.
+ */
+export function photoFileUrl(url: string): string {
+  const apiPrefix = `${BASE}/`
+  if (!url.startsWith(apiPrefix)) return url
+  return `${BASE}${orgScopedPath(url.slice(BASE.length))}`
+}
 
 /**
  * POST one file with upload progress.
@@ -20,7 +35,8 @@ function uploadWithProgress<T>(
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${BASE}${path}`)
+    // The same organization rewrite `api` applies (F20 PR7).
+    xhr.open('POST', `${BASE}${orgScopedPath(path)}`)
     xhr.withCredentials = true
     xhr.setRequestHeader('X-Request-ID', uid())
     xhr.upload.onprogress = event => {
@@ -59,8 +75,18 @@ function uploadWithProgress<T>(
 }
 
 export const eventPhotosApi = {
-  /** The instance's upload limit (an owner setting any signed-in user may read). */
-  limits: (): Promise<PhotoLimits> => api.get<PhotoLimits>('/settings/photo-limits'),
+  /**
+   * The ACTIVE organization's upload limits (F20 PR11: its own cap and content
+   * types, within the operator's), readable by every member. The legacy route
+   * guesses an organization for a user in several, so the one on screen is
+   * named whenever there is one.
+   */
+  limits: (): Promise<PhotoLimits> => {
+    const org = currentOrgSlug()
+    return api.get<PhotoLimits>(
+      org ? `/orgs/${encodeURIComponent(org)}/settings/photo-limits` : '/settings/photo-limits',
+    )
+  },
 
   list: (slug: string, eventId: string): Promise<EventPhoto[]> =>
     api.get<EventPhoto[]>(`/projects/${slug}/events/${eventId}/photos`),

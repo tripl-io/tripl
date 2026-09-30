@@ -28,6 +28,8 @@ function ownerAuthValue(): AuthContextValue {
       email: 'owner@example.com',
       name: 'owner',
       role: 'owner',
+      is_platform_admin: true,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -161,7 +163,7 @@ describe('Instance settings destructive actions', () => {
     })
   })
 
-  it('does not promise the AI prompts an environment variable that cannot exist', async () => {
+  it('does not promise the AI prompts an environment property that cannot exist', async () => {
     // The dialog names "all three system prompts" in its own stakes line, and
     // none of the three has an environment variable — a reset returns them to a
     // built-in constant. Said in front of an irreversible write (tripl-wkwv.2).
@@ -380,7 +382,7 @@ describe('Instance settings save row', () => {
    * gained a third state in this same change; this sentence never caught up
    * (tripl-wkwv.2).
    */
-  it('does not promise an environment fallback for fields that have no variable', async () => {
+  it('does not promise an environment fallback for fields that have no property', async () => {
     renderSection('ai')
 
     const legend = await screen.findByText(/Fields marked Override are stored here/)
@@ -425,7 +427,7 @@ describe('Instance settings load failure (WS-1)', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText("Couldn't load instance settings")).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't load platform settings")).toBeInTheDocument()
     expect(screen.getByText('Service unavailable')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))

@@ -5,6 +5,7 @@ import { PageContainer } from '@/components/primitives/page-container'
 import { PageHead, Panel } from '@/components/settings/kit'
 import { PRODUCT_PILLARS, type PillarId } from '@/components/workspace-welcome-pillars'
 import { termAnchor } from '@/lib/glossary'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * A single domain term: its plain-language definition and, where the concept has
@@ -83,7 +84,7 @@ const AREAS: readonly Area[] = [
         path: '/meta-fields',
       },
       {
-        term: 'Variables',
+        term: 'Properties',
         definition:
           'Reusable named values (thresholds, identifiers, constants) referenced across the plan so a value is defined once and used everywhere.',
         path: '/variables',
@@ -307,7 +308,7 @@ function TermRow({ term, slug }: { term: Term; slug: string | undefined }) {
     ? term.workspace
       ? term.path
       : slug
-        ? `/p/${slug}${term.path}`
+        ? projectPath(currentOrgSlug(), slug, `${term.path}`)
         : undefined
     : undefined
   // One label shape for every row, "Open <page>" (#238 DA-36): most rows said

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import uuid
@@ -35,7 +36,10 @@ from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.models.subscription import Subscription
 from tripl.models.user import User
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.schemas.plan_branch import PlanBranchDetailResponse
 from tripl.services import project_access, subscription_service
 from tripl.services._branch_counterparts import main_counterparts
@@ -45,7 +49,11 @@ from tripl.services._event_reference_cleanup import drop_dangling_event_referenc
 from tripl.services._plan_branch_locks import lock_main_plan_for_merge
 from tripl.services._plan_branch_renames import pair_renames, rekey_in_place
 from tripl.services._plan_merge_slots import merge_slots
-from tripl.services.event_photo_service import PHOTO_KIND_PHOTO, delete_unreferenced_blobs
+from tripl.services.event_photo_service import (
+    PHOTO_KIND_PHOTO,
+    BlobRef,
+    delete_unreferenced_blobs,
+)
 from tripl.services.event_type_owner_service import load_owner_user_ids
 from tripl.services.plan_branch_conflicts import (
     _ET_CHANGE_KEYS,
@@ -69,6 +77,7 @@ from tripl.services.plan_revision_service import (
     with_snapshot_defaults,
 )
 from tripl.services.project_branch_settings_service import read_branch_merge_policy
+from tripl.services.project_links import project_link
 from tripl.services.scan_config_lookup import (
     event_type_binding_conflict_detail,
     name_format_conflict_detail,
@@ -584,9 +593,7 @@ async def _merge_photo_comments(
     await session.flush()
 
 
-async def _blob_keys_of(
-    session: AsyncSession, event_ids: Sequence[uuid.UUID]
-) -> set[tuple[str, str]]:
+async def _blob_keys_of(session: AsyncSession, event_ids: Sequence[uuid.UUID]) -> set[BlobRef]:
     """Every uploaded blob the given events' attachments point at.
 
     Read BEFORE the rows go, because they go by FK cascade: ``EventPhoto``
@@ -604,14 +611,16 @@ async def _blob_keys_of(
     if not event_ids:
         return set()
     rows = await session.execute(
-        select(EventPhoto.storage_backend, EventPhoto.storage_key).where(
+        select(
+            EventPhoto.storage_backend, EventPhoto.storage_key, EventPhoto.storage_config_id
+        ).where(
             EventPhoto.event_id.in_(event_ids),
             EventPhoto.kind == PHOTO_KIND_PHOTO,
             EventPhoto.storage_backend.is_not(None),
             EventPhoto.storage_key.is_not(None),
         )
     )
-    return {(str(backend), key) for backend, key in rows.all()}
+    return {(str(backend), key, config_id) for backend, key, config_id in rows.all()}
 
 
 async def _event_thread_twins(
@@ -737,7 +746,7 @@ async def _apply_merge(
     *,
     resolutions: dict[tuple[str, str, str], str] | None = None,
     base_payload: dict[str, Any] | None = None,
-) -> frozenset[tuple[str, str]]:
+) -> frozenset[BlobRef]:
     """Apply the branch's plan onto main with upsert-by-natural-key.
 
     Matched event_type/event rows are updated in place (id preserved) so
@@ -765,7 +774,7 @@ async def _apply_merge(
             select(PlanBranch.origin_ids_complete).where(PlanBranch.id == branch_id)
         )
     )
-    released_blobs: set[tuple[str, str]] = set()
+    released_blobs: set[BlobRef] = set()
     base_et_by_name: dict[str, dict[str, Any]] = {
         e["name"]: e for e in (base_payload or {}).get("event_types", [])
     }
@@ -1137,16 +1146,23 @@ async def _apply_merge(
         "allowed_values",
         "bindings",
         "excluded_from_scans",
+        "json_schema",
     )
     for name, b_v in branch_var_by_name.items():
         m_v = main_var_by_name.get(name)
         if m_v is not None:
             base_var = base_var_by_name.get(name)
+            # ``variable_type`` and ``json_schema`` are taken attribute by
+            # attribute like the rest; they cannot come from different sides,
+            # because the conflict check compares them as one value and refuses
+            # the merge when both sides changed it (``comparable_field``).
             for attr in variable_attrs:
                 branch_value = getattr(b_v, attr)
                 if base_var is None or branch_value != base_var.get(attr):
                     if attr in ("allowed_values", "bindings"):
                         branch_value = list(branch_value or [])
+                    elif attr == "json_schema":
+                        branch_value = copy.deepcopy(branch_value)
                     setattr(m_v, attr, branch_value)
         else:
             if name in base_var_by_name:
@@ -1162,6 +1178,7 @@ async def _apply_merge(
                     description=b_v.description,
                     allowed_values=list(b_v.allowed_values or []),
                     bindings=list(b_v.bindings or []),
+                    json_schema=copy.deepcopy(b_v.json_schema),
                     excluded_from_scans=b_v.excluded_from_scans,
                 )
             )
@@ -1323,6 +1340,7 @@ async def _apply_merge(
         "owner_id",
         "reviewed",
         "metric_breakdown_columns",
+        "required_presence_threshold",
     )
     for slot in event_slots.slots:
         m_ev, b_ev, base_event = slot.main, slot.branch, slot.base
@@ -1411,6 +1429,7 @@ async def _apply_merge(
             sunset_at=b_ev.sunset_at,
             last_seen_at=b_ev.last_seen_at,
             metric_breakdown_columns=list(b_ev.metric_breakdown_columns or []),
+            required_presence_threshold=b_ev.required_presence_threshold,
             owner_id=b_ev.owner_id,
             reviewed=b_ev.reviewed,
             # superseded_by_event_id is deliberately absent: the value on
@@ -1572,7 +1591,9 @@ async def _apply_merge(
             doomed_photo_ids.extend(m_ph.id for m_ph in doomed_rows)
             for m_ph in doomed_rows:
                 if m_ph.kind == PHOTO_KIND_PHOTO and m_ph.storage_backend and m_ph.storage_key:
-                    released_blobs.add((str(m_ph.storage_backend), m_ph.storage_key))
+                    released_blobs.add(
+                        (str(m_ph.storage_backend), m_ph.storage_key, m_ph.storage_config_id)
+                    )
             base_sort_orders = {base_photo.get("sort_order") for base_photo in base_rows}
             for main_photo, bp in pairs:
                 # Position is left out of the identity so that re-ordering a
@@ -1603,6 +1624,8 @@ async def _apply_merge(
                     external_url=bp.external_url,
                     storage_backend=bp.storage_backend,
                     storage_key=bp.storage_key,
+                    storage_org_id=bp.storage_org_id,
+                    storage_config_id=bp.storage_config_id,
                     sort_order=bp.sort_order,
                 )
             )
@@ -1691,7 +1714,8 @@ async def _apply_merge(
                     branch_id=main_branch_id,
                     variable_id=main_var_id,
                     event_id=landed.id,
-                    values=list(override.values or []),
+                    values=copy_override_values(override.values),
+                    required=override.required,
                 )
             )
     await session.flush()
@@ -2095,13 +2119,14 @@ async def _lock_branch_for_merge(
 class _MergeOutcome(NamedTuple):
     # The post-merge snapshot of the live plan.
     post_payload: dict[str, Any]
-    # ``(storage_backend, storage_key)`` of every uploaded photo the merge
-    # deleted from main, for ``_release_photo_blobs`` (tripl-0zpq.146).
-    released_blobs: frozenset[tuple[str, str]]
+    # ``(storage_backend, storage_key, storage_config_id)`` of every uploaded
+    # photo the merge deleted from main, for ``_release_photo_blobs``
+    # (tripl-0zpq.146, F20 PR11).
+    released_blobs: frozenset[BlobRef]
 
 
 async def _release_photo_blobs(
-    session: AsyncSession, *, branch_id: uuid.UUID, blobs: frozenset[tuple[str, str]]
+    session: AsyncSession, *, branch_id: uuid.UUID, blobs: frozenset[BlobRef]
 ) -> None:
     """Best-effort: delete the blobs the committed merge left no row pointing at.
 
@@ -2426,7 +2451,7 @@ async def _announce_merge(
                 entity_type=subscription_service.BRANCH,
                 entity_id=branch_id,
                 title=f"{who} merged branch {branch_name} into main",
-                url=f"/p/{slug}/branches/{branch_id}",
+                url=await project_link(notify_session, project_id, f"/branches/{branch_id}"),
                 actor_user_id=actor_id,
                 user_ids={*reviewers, *([author_id] if author_id is not None else [])},
                 watchers_of=[(subscription_service.BRANCH, branch_id)],

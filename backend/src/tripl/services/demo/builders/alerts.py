@@ -57,6 +57,7 @@ from tripl.services.demo.builders.warehouse import (
     SPIKE_EVENT_NAME,
 )
 from tripl.services.demo.scenario import DemoContext
+from tripl.services.project_links import project_org_slugs
 from tripl.services.release_annotations import (
     RELEASE_ANNOTATION_COLOR,
     release_annotation_label,
@@ -183,6 +184,7 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
         firings,
         destination=demo_sink,
         project=project,
+        org_slug=(await project_org_slugs(session, [project.id])).get(project.id, ""),
     )
 
     delivery = AlertDelivery(

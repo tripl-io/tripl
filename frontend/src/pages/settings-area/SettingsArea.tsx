@@ -1,9 +1,9 @@
 import { Suspense, useEffect, useState } from 'react'
 import { lazyWithReload } from '@/lib/lazyWithReload'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { projectsQueryOptions } from '@/lib/queryKeys'
-import { projectHomePath } from '@/lib/navigation'
+import { projectHomePath, workspacePath } from '@/lib/navigation'
 import { OnboardingReturnBar } from '@/components/onboarding-return-bar'
 import { useAuth } from '@/components/auth-context'
 import { ErrorState } from '@/components/error-state'
@@ -13,18 +13,47 @@ import { SETTINGS_STORAGE_KEY, sectionLabel } from '@/components/settings/nav'
 import { ReadOnlyNotice, SectionSkeleton } from '@/components/states'
 import { LEAVE_CONFIRMED } from '@/components/settings/unsaved-changes'
 import type { Project } from '@/types'
-import { isOwner as isOwnerRole } from '@/lib/permissions'
+import { activeOrgRole, isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/permissions'
+import { orgStorageKey } from '@/lib/activeOrg'
+import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
+import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
+import { ORG_SSO_PATH } from './org-settings/orgSsoModel'
+import { ORG_SCIM_PATH } from './org-settings/orgScimModel'
+import { ORG_AUDIT_WEBHOOK_PATH } from './org-settings/auditExportModel'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
 const ProjectMembersSection = lazyWithReload(() => import('./ProjectMembersSection'))
 const MembersSection = lazyWithReload(() => import('./MembersSection'))
+const OrganizationGeneralSection = lazyWithReload(() => import('./OrganizationGeneralSection'))
+const InvitationsSection = lazyWithReload(() => import('./InvitationsSection'))
 const DataSourcesSection = lazyWithReload(() => import('./DataSourcesSection'))
 const ApiKeysSection = lazyWithReload(() => import('./ApiKeysSection'))
 const ProfileSection = lazyWithReload(() => import('./ProfileSection'))
 const SecuritySection = lazyWithReload(() => import('./SecuritySection'))
 const InstanceSection = lazyWithReload(() => import('./InstanceSection'))
 const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSection'))
+const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
+const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
+const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
+const OrgSsoSection = lazyWithReload(() => import('./OrgSsoSection'))
+const OrgScimSection = lazyWithReload(() => import('./OrgScimSection'))
+const OrgAuditWebhookSection = lazyWithReload(() => import('./OrgAuditWebhookSection'))
+// The platform console (F20): its own chunks, fetched by platform admins alone.
+const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
+const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
+const PlatformUsersSection = lazyWithReload(() => import('@/pages/platform/PlatformUsersSection'))
+
+/** The console's organization list, which its detail pages belong to in the rail. */
+const PLATFORM_ORGS_SECTION = 'platform/orgs'
+
+/**
+ * The rail entry a section lights up: an organization's console page
+ * (`platform/orgs/<slug>`) belongs to Organizations.
+ */
+function railPathFor(section: string): string {
+  return section.startsWith(`${PLATFORM_ORGS_SECTION}/`) ? PLATFORM_ORGS_SECTION : section
+}
 
 const LAST_SLUG_STORAGE_KEY = 'tripl-last-project-slug'
 
@@ -54,7 +83,7 @@ function useSettingsSlug(pickedSlug: string | null): string | undefined {
   if (pickedSlug) return pickedSlug
   let last: string | null = null
   try {
-    last = localStorage.getItem(LAST_SLUG_STORAGE_KEY)
+    last = localStorage.getItem(orgStorageKey(LAST_SLUG_STORAGE_KEY))
   } catch {
     /* ignore */
   }
@@ -93,6 +122,9 @@ function StateHeader({ section }: { section: string }) {
 export default function SettingsArea({ section }: { section: string }) {
   const auth = useAuth()
   const isOwner = isOwnerRole(auth.user?.role)
+  // Single sign-on is an OWNER's alone (F20), not an admin's.
+  const isOrgOwner = activeOrgRole(auth.user) === 'owner'
+  const platformAdmin = isPlatformAdmin(auth.user)
   const [pickedSlug, setPickedSlug] = useState<string | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const slug = useSettingsSlug(pickedSlug)
@@ -105,7 +137,7 @@ export default function SettingsArea({ section }: { section: string }) {
   // app does.
   const pickProject = (picked: string) => {
     try {
-      localStorage.setItem(LAST_SLUG_STORAGE_KEY, picked)
+      localStorage.setItem(orgStorageKey(LAST_SLUG_STORAGE_KEY), picked)
     } catch {
       /* ignore */
     }
@@ -141,11 +173,11 @@ export default function SettingsArea({ section }: { section: string }) {
   // The project's front door, Overview, where the Get-started checklist lives:
   // a newcomer sent to Data sources by step 2 came back to an empty Events
   // table instead (#250 JR-1 / JR-3).
-  const backHref = slug ? projectHomePath(slug) : '/workspace'
+  const backHref = slug ? projectHomePath(slug) : workspacePath()
 
   return (
     <SettingsLayout
-      activePath={section}
+      activePath={railPathFor(section)}
       backHref={backHref}
       projectName={projectName}
       projectSlug={slug}
@@ -171,11 +203,13 @@ export default function SettingsArea({ section }: { section: string }) {
           }}
         />
       )}
-      <Suspense fallback={<SectionFallback section={section} />}>
+      <Suspense fallback={<SectionFallback section={railPathFor(section)} />}>
         {renderSection({
           section,
           slug,
           isOwner,
+          isOrgOwner,
+          platformAdmin,
           projects,
           projectsStatus: projectsQuery.status,
           onPickProject: pickProject,
@@ -193,22 +227,34 @@ export default function SettingsArea({ section }: { section: string }) {
 /** Sections that render against one project and so need a slug bound. */
 function isProjectScopedSection(section: string): boolean {
   return (
-    !ACCOUNT_SECTIONS.has(section) && !section.startsWith('instance/')
+    !ACCOUNT_SECTIONS.has(section) &&
+    !section.startsWith('instance/') &&
+    !section.startsWith('platform/')
   )
 }
 
 const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
+  'organization/general',
+  'organization/groups',
   'members',
+  'invitations',
   'data-sources',
   'api-keys',
   'profile',
   'security',
+  ...Object.values(ORG_SECTION_PATHS),
+  ORG_TRACKERS_PATH,
+  ORG_SSO_PATH,
+  ORG_SCIM_PATH,
+  ORG_AUDIT_WEBHOOK_PATH,
 ])
 
 function renderSection({
   section,
   slug,
   isOwner,
+  isOrgOwner,
+  platformAdmin,
   projects,
   projectsStatus,
   onPickProject,
@@ -219,6 +265,8 @@ function renderSection({
   section: string
   slug: string | undefined
   isOwner: boolean
+  isOrgOwner: boolean
+  platformAdmin: boolean
   projects: Project[]
   projectsStatus: 'pending' | 'error' | 'success'
   onPickProject: (slug: string) => void
@@ -226,19 +274,78 @@ function renderSection({
   projectsError: unknown
   onRetryProjects: () => void
 }) {
+  if (section === 'organization/general') return <OrganizationGeneralSection />
+  if (section === 'organization/groups') return <OrgGroupsSection />
   if (section === 'members') return <MembersSection />
+  if (section === 'invitations') return <InvitationsSection />
   if (section === 'data-sources') return <DataSourcesSection />
   if (section === 'api-keys') return <ApiKeysSection />
   if (section === 'profile') return <ProfileSection />
   if (section === 'security') return <SecuritySection />
+  const orgSection = orgSectionForPath(section)
+  if (orgSection) {
+    // The organization's own mail, AI and limits: its owners and admins. The
+    // platform flag grants nothing inside an organization.
+    return isOwner ? <OrgSettingsSection section={orgSection} /> : <OwnerOnly section={section} />
+  }
+  if (section === ORG_TRACKERS_PATH) {
+    // The Jira/Linear defaults its projects inherit (F20 PR12): the same gate.
+    return isOwner ? <OrgTrackersSection /> : <OwnerOnly section={section} />
+  }
+  if (section === ORG_SSO_PATH) {
+    // How the organization signs in (F20): its owners alone, not its admins.
+    return isOrgOwner ? (
+      <OrgSsoSection />
+    ) : (
+      <OrgOwnerOnly section={section} reason="single sign-on: it decides how everyone in the organization signs in" />
+    )
+  }
+  if (section === ORG_AUDIT_WEBHOOK_PATH) {
+    // Where the organization's audit trail is sent (F20): its owners alone.
+    return isOrgOwner ? (
+      <OrgAuditWebhookSection />
+    ) : (
+      <OrgOwnerOnly section={section} reason="the audit webhook: it sends the organization's whole audit trail elsewhere" />
+    )
+  }
+  if (section === ORG_SCIM_PATH) {
+    // Who the identity provider may add and remove (F20): owners alone too.
+    return isOrgOwner ? (
+      <OrgScimSection />
+    ) : (
+      <OrgOwnerOnly
+        section={section}
+        reason="provisioning: it decides who your identity provider adds to and removes from the organization"
+      />
+    )
+  }
+  // One route serves every organization section; an unknown one is not a
+  // project section to guess at.
+  if (section.startsWith('organization/')) return <Navigate to="/settings/organization/general" replace />
   if (section.startsWith('instance/')) {
-    if (!isOwner) return <OwnerOnly section={section} />
     // Audit is the one Instance section that is not a settings form, so it does
     // not go through InstanceSection — that component's whole job is to frame a
-    // ServiceSettingsPage section, and this reads a feed instead. It shares the
-    // owner gate above rather than adding a second one (tripl-wkwv.17).
-    if (section === 'instance/audit') return <WorkspaceAuditSection />
+    // ServiceSettingsPage section, and this reads a feed instead. It is the
+    // organization's feed, so it takes the org owner gate (tripl-wkwv.17).
+    if (section === 'instance/audit') {
+      return isOwner ? <WorkspaceAuditSection /> : <OwnerOnly section={section} />
+    }
+    // Every other instance/* section is the Platform console (F20 PR9): the
+    // operator's, whatever the caller's organization role.
+    if (!platformAdmin) return <PlatformOnly section={section} />
     return <InstanceSection section={section.slice('instance/'.length)} />
+  }
+  if (section.startsWith('platform/')) {
+    // The platform console (F20): organizations, users, suspension and
+    // read-only step-in. The operator's, whatever the caller's organization role.
+    if (!platformAdmin) return <PlatformOnly section={railPathFor(section)} />
+    if (section === PLATFORM_ORGS_SECTION) return <PlatformOrgsSection />
+    if (section === 'platform/users') return <PlatformUsersSection />
+    const orgSlug = section.slice(`${PLATFORM_ORGS_SECTION}/`.length)
+    if (section.startsWith(`${PLATFORM_ORGS_SECTION}/`) && orgSlug && !orgSlug.includes('/')) {
+      return <PlatformOrgDetailSection key={orgSlug} slug={orgSlug} />
+    }
+    return <Navigate to={`/settings/${PLATFORM_ORGS_SECTION}`} replace />
   }
   // Everything below is project-scoped. Never guess which project that is.
   if (!slug) {
@@ -306,7 +413,7 @@ function NoProjectSelected({
         description="Project settings change one specific project's tracking plan, and there is no project on this workspace yet."
       >
         <p className="m-0 px-4 py-[15px] text-body text-fg-tertiary">
-          <Link to="/workspace" className="underline">
+          <Link to={workspacePath()} className="underline">
             Create one in the workspace
           </Link>{' '}
           and these settings open with it.
@@ -342,7 +449,51 @@ function NoProjectSelected({
 }
 
 /**
- * An Instance section opened by a non-owner (a shared link, a bookmark). The
+ * A Platform section opened by anyone but a platform admin: the rail hides the
+ * group from them, so the page names itself and says whose it is.
+ */
+function PlatformOnly({ section }: { section: string }) {
+  return (
+    <div>
+      <StateHeader section={section} />
+      <ReadOnlyNotice
+        action={
+          <Link to="/settings/profile" className="text-body-sm font-medium text-accent no-underline hover:underline">
+            Go to Profile
+          </Link>
+        }
+      >
+        Platform admin is required to view or change platform settings: they configure the server
+        itself and the defaults every organization inherits.
+      </ReadOnlyNotice>
+    </div>
+  )
+}
+
+/**
+ * A section only an organization OWNER may open (not an admin), opened by
+ * anyone else: single sign-on and the audit webhook (F20). `reason` names the
+ * section and why it is an owner's.
+ */
+function OrgOwnerOnly({ section, reason }: { section: string; reason: string }) {
+  return (
+    <div>
+      <StateHeader section={section} />
+      <ReadOnlyNotice
+        action={
+          <Link to="/settings/profile" className="text-body-sm font-medium text-accent no-underline hover:underline">
+            Go to Profile
+          </Link>
+        }
+      >
+        Only an organization owner can view or change {reason}. Ask an owner.
+      </ReadOnlyNotice>
+    </div>
+  )
+}
+
+/**
+ * An owner-only section opened by a non-owner (a shared link, a bookmark). The
  * rail hides the Instance group from them, so the page has to say where they
  * are itself: the section's title, the one read-only notice, and a way out
  * (#237 ST-17 / ST-36).
@@ -358,8 +509,8 @@ function OwnerOnly({ section }: { section: string }) {
           </Link>
         }
       >
-        Owner role is required to view or change instance-level settings. Ask an owner, or go to
-        Profile.
+        Owner role is required to view or change organization-level settings. Ask an owner, or go
+        to Profile.
       </ReadOnlyNotice>
     </div>
   )

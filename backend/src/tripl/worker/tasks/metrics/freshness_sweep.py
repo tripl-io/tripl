@@ -46,6 +46,7 @@ from tripl.models.alert_rule import AlertRule
 from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.source_freshness import STATUS_OVERDUE
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
@@ -112,6 +113,7 @@ def _sweep_candidate_configs(session: Session, *, now: datetime) -> list[ScanCon
             ScanConfig.interval.isnot(None),
             ScanConfig.time_column.isnot(None),
             has_freshness_rule,
+            project_in_active_org(),
         )
         .order_by(ScanConfig.id)
     ).all()

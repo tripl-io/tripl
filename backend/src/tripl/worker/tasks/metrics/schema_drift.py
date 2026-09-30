@@ -21,6 +21,7 @@ from tripl.models.event_type import EventType
 from tripl.models.schema_drift import SchemaDrift
 from tripl.observability.metrics import schema_drifts_detected_total
 from tripl.worker.tasks._errors import _CURATED_ERRORS
+from tripl.worker.tasks.metrics.property_contracts import property_contract_expectations_for
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +251,29 @@ def _field_contract_expectations(
     return expectations
 
 
+def _property_contract_expectations(
+    session: Session,
+    event_type: EventType,
+    columns: list[ColumnInfo],
+    skip_columns: set[str],
+) -> list[FieldContractExpectation]:
+    """The contracts the type's typed properties imply (F23, #306).
+
+    Keyed on the property's path (``<json_column>.<path>``) rather than a
+    column, and only for paths of the JSON columns this run observed; see
+    ``core.property_contracts``. A run that read no JSON column has no
+    property to check and touches no table for them.
+    """
+    json_columns = {
+        col.name for col in columns if col.name not in skip_columns and _is_json_type(col.type_name)
+    }
+    if not json_columns:
+        return []
+    return property_contract_expectations_for(
+        session, event_type_id=event_type.id, json_columns=json_columns
+    )
+
+
 def _contract_observed_type(violation: FieldContractViolation) -> str:
     return (
         f"bad_rate={violation.bad_rate:.2%}; "
@@ -477,7 +501,10 @@ def _detect_field_contract_violations(
     if event_type is None:
         return FieldContractOutcome()
 
-    expectations = _field_contract_expectations(event_type, columns, skip_columns)
+    expectations = [
+        *_field_contract_expectations(event_type, columns, skip_columns),
+        *_property_contract_expectations(session, event_type, columns, skip_columns),
+    ]
     if not expectations:
         return FieldContractOutcome()
 

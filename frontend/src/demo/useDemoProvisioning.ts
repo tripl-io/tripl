@@ -31,6 +31,7 @@ import type { Project } from '@/types'
 import { DEMO_PROVISION_TIMEOUT_MS } from './provisioningPhases'
 import { useEstimatedPhase } from './useEstimatedPhase'
 import { projectsKey } from '@/lib/queryKeys'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export type ProvisioningStatus =
   | 'idle'
@@ -197,7 +198,7 @@ export function useDemoProvisioning(options?: {
       if (onSuccess) {
         onSuccess(outcome.project)
       } else {
-        void navigate(`/p/${outcome.project.slug}/overview`)
+        void navigate(projectPath(currentOrgSlug(), outcome.project.slug, '/overview'))
       }
     },
     onSettled: (outcome) => {

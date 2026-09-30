@@ -58,6 +58,7 @@ class EventCreate(BaseModel):
     owner_id: uuid.UUID | None = None
     reviewed: bool = False
     metric_breakdown_columns: list[str] = []
+    required_presence_threshold: float | None = Field(None, gt=0, le=1)
     tags: list[str] = []
     field_values: list[EventFieldValueIn] = []
     meta_values: list[EventMetaValueIn] = []
@@ -101,6 +102,8 @@ class EventUpdate(BaseModel):
     owner_id: uuid.UUID | None = None
     reviewed: bool | None = None
     metric_breakdown_columns: list[str] | None = None
+    # null restores the default threshold.
+    required_presence_threshold: float | None = Field(None, gt=0, le=1)
     tags: list[str] | None = None
     field_values: list[EventFieldValueIn] | None = None
     meta_values: list[EventMetaValueIn] | None = None
@@ -332,6 +335,7 @@ class EventResponse(BaseModel):
     # The human label, empty when the identity is all there is (tripl-kjhi.3).
     title: str = ""
     description: str
+    required_presence_threshold: float | None = None
     order: int
     status: EventStatus
     sunset_at: datetime | None = None
@@ -399,6 +403,7 @@ class EventListItemResponse(BaseModel):
     source_name: str | None = None
     title: str = ""
     description: str
+    required_presence_threshold: float | None = None
     order: int
     status: EventStatus
     sunset_at: datetime | None = None

@@ -383,21 +383,24 @@ def test_plan_search_sample(
     )
 
 
-def test_plan_variables_sample(
+def test_plan_properties_sample(
     tripl_api: FakeInstance,
     configured_env: None,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     tripl_api.variables("prod", [make_variable(open_drift_count=1)], total=3)
-    assert main(["plan", "variables", "--project", "prod", "--limit", "1"]) == 0
+    assert main(["plan", "properties", "--project", "prod", "--limit", "1"]) == 0
     assert capsys.readouterr().out == (
-        "tripl plan variables - http://tripl.test (from $TRIPL_BASE_URL)\n"
+        "tripl plan properties - http://tripl.test (from $TRIPL_BASE_URL)\n"
         "\n"
         "prod\n"
         "  var-1  cart_value  number  12 events  1 open drift\n"
         "\n"
-        "1 of 3 variables shown; raise --limit or pass --offset to read the rest.\n"
+        "1 of 3 properties shown; raise --limit or pass --offset to read the rest.\n"
     )
+    # The former name still works, and says which command ran.
+    assert main(["plan", "variables", "--project", "prod", "--limit", "1"]) == 0
+    assert capsys.readouterr().out.startswith("tripl plan properties - ")
 
 
 def test_an_empty_plan_read_says_so_rather_than_printing_nothing(

@@ -29,6 +29,7 @@ PlanValidationCode = Literal[
     "value_not_allowed",
     "dynamic_value",
     "too_dynamic",
+    "wrong_type",
 ]
 
 

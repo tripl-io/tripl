@@ -17,10 +17,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from tripl.middleware.org_context import require_org_id
 from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import ApiKeyScope
 from tripl.models.project import Project
-from tripl.services.project_lookup import owning_org_id
 
 ALLOWED_SCOPES = tuple(scope.value for scope in ApiKeyScope)
 _PREFIX = "tk_"
@@ -47,9 +47,18 @@ def _generate_token(scope: str) -> tuple[str, str]:
     return raw, raw[: len(_PREFIX) + 2 + 6]  # tk_<scope>_<first 6 chars>
 
 
-async def list_keys(session: AsyncSession, user_id: uuid.UUID) -> list[ApiKey]:
+async def list_keys(
+    session: AsyncSession, user_id: uuid.UUID, organization_id: uuid.UUID
+) -> list[ApiKey]:
+    """``user_id``'s keys bound to ``organization_id`` (the request's org), newest first.
+
+    A key acts in exactly one organization, so listing it under another would
+    show a key that does nothing there.
+    """
     rows = await session.execute(
-        select(ApiKey).where(ApiKey.user_id == user_id).order_by(ApiKey.created_at.desc())
+        select(ApiKey)
+        .where(ApiKey.user_id == user_id, ApiKey.organization_id == organization_id)
+        .order_by(ApiKey.created_at.desc())
     )
     return list(rows.scalars().all())
 
@@ -62,12 +71,14 @@ async def create_key(
     scope: str,
     expires_in_days: int | None,
     project_id: uuid.UUID | None = None,
+    created_with_sso_org_id: uuid.UUID | None = None,
 ) -> tuple[ApiKey, str]:
     """Create a key row and return ``(row, raw_token)``.
 
     The raw token is only ever surfaced once — the row carries the prefix
     plus the hash, so callers should display the raw token to the operator
-    immediately and never again.
+    immediately and never again. ``created_with_sso_org_id`` is the
+    organization whose SSO session mints the key (F20), if any.
     """
     if scope not in ALLOWED_SCOPES:
         raise HTTPException(status_code=422, detail=f"scope must be one of {list(ALLOWED_SCOPES)}")
@@ -85,13 +96,16 @@ async def create_key(
     row = ApiKey(
         user_id=user_id,
         project_id=project_id,
-        # A project-bound key's project was resolved in this same bound org.
-        organization_id=owning_org_id(),
+        # The bound organization; with none bound this raises rather than
+        # defaulting (F20 PR5). A project-bound key's project was resolved in
+        # this same organization, and fk_api_keys_project_organization holds it.
+        organization_id=require_org_id(),
         name=normalized_name,
         key_prefix=prefix,
         key_hash=_hash_token(raw),
         scope=scope,
         expires_at=expires_at,
+        created_with_sso_org_id=created_with_sso_org_id,
         created_at=created_at,
         updated_at=created_at,
     )

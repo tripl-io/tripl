@@ -2,9 +2,11 @@ import re
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from tripl.core.property_schema import check_schema_matches_type, validate_property_schema
 from tripl.schemas.not_null_update import reject_explicit_nulls
 
 # Warehouse column or dotted JSON path, e.g. "variant" or "page_data.extra.variant".
@@ -55,6 +57,18 @@ def _validate_update_bindings(bindings: list[str] | None) -> list[str] | None:
     return bindings
 
 
+def _validate_json_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    return None if schema is None else validate_property_schema(schema)
+
+
+_JSON_SCHEMA_DESCRIPTION = (
+    "JSON Schema fragment refining variable_type: type, format, items, properties,"
+    " required and the numeric, string and array constraints. Must agree with"
+    " variable_type (number may narrow to integer, json is an object or array)."
+    " Documented values stay in allowed_values. null: the type is just variable_type."
+)
+
+
 class VariableType(StrEnum):
     string = "string"
     number = "number"
@@ -77,8 +91,15 @@ class VariableCreate(BaseModel):
     description: str = ""
     allowed_values: list[str] = Field(default_factory=list, max_length=500)
     bindings: list[str] = Field(default_factory=list, max_length=100)
+    json_schema: dict[str, Any] | None = Field(None, description=_JSON_SCHEMA_DESCRIPTION)
 
     _check_bindings = field_validator("bindings")(_validate_bindings)
+    _check_json_schema = field_validator("json_schema")(_validate_json_schema)
+
+    @model_validator(mode="after")
+    def _schema_matches_type(self) -> VariableCreate:
+        check_schema_matches_type(self.variable_type.value, self.json_schema)
+        return self
 
 
 # Every field of VariableUpdate maps to a NOT NULL Variable column, and
@@ -110,6 +131,10 @@ class VariableUpdate(BaseModel):
     allowed_values: list[str] | None = Field(None, max_length=500)
     bindings: list[str] | None = Field(None, max_length=100)
     excluded_from_scans: bool | None = None
+    # Nullable on purpose, unlike the rest: an explicit null clears the schema.
+    # Agreement with variable_type is checked by the service, which knows the
+    # stored half of the pair.
+    json_schema: dict[str, Any] | None = Field(None, description=_JSON_SCHEMA_DESCRIPTION)
 
     @model_validator(mode="before")
     @classmethod
@@ -117,6 +142,7 @@ class VariableUpdate(BaseModel):
         return reject_explicit_nulls(data, _VARIABLE_NOT_NULL_UPDATE_FIELDS)
 
     _check_bindings = field_validator("bindings")(_validate_update_bindings)
+    _check_json_schema = field_validator("json_schema")(_validate_json_schema)
 
 
 class VariableEventRef(BaseModel):
@@ -136,6 +162,7 @@ class VariableResponse(BaseModel):
     allowed_values: list[str] = []
     bindings: list[str] = []
     excluded_from_scans: bool = False
+    json_schema: dict[str, Any] | None = None
     event_count: int = 0
     context_count: int = 0
     low_context_count: int = 0
@@ -150,6 +177,17 @@ class VariableResponse(BaseModel):
         ),
     )
     open_drift_count: int = 0
+    listed_event_count: int = Field(
+        default=0,
+        description=(
+            "Events whose property list carries this property (F23), on the"
+            " property's branch; unlike 'event_count', which counts where scans saw it."
+        ),
+    )
+    required_event_count: int = Field(
+        default=0,
+        description="Of 'listed_event_count', the events that require the property.",
+    )
     event_names: list[str] = Field(
         default=[],
         max_length=SUMMARY_EVENT_LIMIT,
@@ -204,7 +242,27 @@ class VariableBulkDelete(BaseModel):
 
 
 class VariableEventOverrideUpsert(BaseModel):
-    values: list[str] = Field(max_length=500)
+    """Add the variable to the event's property list, or edit its entry.
+
+    A patch: a field left out keeps what the entry holds, and a new entry
+    starts with no override and not required. ``values: null`` removes the
+    override and keeps the property; deleting the entry removes both.
+    """
+
+    values: list[str] | None = Field(
+        None,
+        max_length=500,
+        description="Allowed values for this event, replacing the variable's global list."
+        " null: no override, the global list applies.",
+    )
+    required: bool | None = Field(
+        None, description="Whether every occurrence of the event must carry this property."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_required(cls, data: object) -> object:
+        return reject_explicit_nulls(data, frozenset({"required"}))
 
 
 class VariableEventOverrideResponse(BaseModel):
@@ -212,9 +270,41 @@ class VariableEventOverrideResponse(BaseModel):
     variable_id: uuid.UUID
     event_id: uuid.UUID
     event_name: str
-    values: list[str] = []
+    values: list[str] | None = None
+    required: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class EventPropertyResponse(BaseModel):
+    """One entry of an event's property list, with the variable it names."""
+
+    id: uuid.UUID
+    variable_id: uuid.UUID
+    name: str
+    variable_type: VariableType
+    json_schema: dict[str, Any] | None = None
+    description: str = ""
+    required: bool = False
+    values: list[str] | None = Field(
+        None, description="This event's override of the allowed values; null when there is none."
+    )
+    effective_values: list[str] = Field(
+        default=[],
+        description="The allowed values in force for this event: the override when there is"
+        " one, else the variable's global list.",
+    )
+    presence_rate: float | None = Field(
+        None,
+        description="Share of this event's scanned rows that carried the property, from the"
+        " last scan that measured it; null when unknown.",
+    )
+    suggested_required: bool | None = Field(
+        None,
+        description="Whether presence_rate reaches the event's required_presence_threshold"
+        " (default 0.95); null when presence is unknown. A suggestion: 'required' is only"
+        " ever set by a person.",
+    )
 
 
 class VariableValueContextResponse(BaseModel):

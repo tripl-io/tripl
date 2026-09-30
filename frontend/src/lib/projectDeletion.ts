@@ -14,7 +14,7 @@ export function deleteProjectConfirmation(
 ): ConfirmOptions {
   return {
     title: 'Delete project',
-    message: `Permanently delete “${project.name}”? Its tracking plan (event types, events, fields and variables), scans, metrics, monitors, alert rules and the whole history go with it. This cannot be undone.`,
+    message: `Permanently delete “${project.name}”? Its tracking plan (event types, events, fields and properties), scans, metrics, monitors, alert rules and the whole history go with it. This cannot be undone.`,
     confirmLabel: 'Delete project',
     pendingLabel: 'Deleting…',
     errorPrefix: 'Could not delete the project',

@@ -166,7 +166,7 @@ export function VariablesBulkBar({
         <BulkPopover label="Set description…" {...menuProps('description')}>
           <Input
             aria-label="Bulk description"
-            placeholder="Description for every selected variable"
+            placeholder="Description for every selected property"
             value={description}
             onChange={e => setDescription(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyDescription() } }}

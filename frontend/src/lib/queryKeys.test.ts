@@ -30,7 +30,7 @@ describe('shared query keys (tripl-jfm3.115, tripl-jfm3.116)', () => {
     expect(variablesKey('demo', 'branch-1')).toEqual(['variables', 'demo', 'branch-1'])
   })
 
-  it('keeps the two variable shapes in separate caches, page nested under items', () => {
+  it('keeps the two property shapes in separate caches, page nested under items', () => {
     // The items key holds an array and the page key holds {items, total}. Sharing
     // one key handed the events rows an object and crashed the page in
     // production (tripl-lqxb) — so they must differ...
@@ -109,6 +109,7 @@ describe('query key values (SHELL-50)', () => {
   // matches leaves the screen stale with nothing to show for it.
   it.each([
     [keys.authStatusKey(), ['auth', 'status']],
+    [keys.verifyEmailKey('tok'), ['auth', 'verify-email', 'tok']],
     [keys.usersKey(), ['users']],
     [keys.projectMembersKey('demo'), ['projectMembers', 'demo']],
     [keys.invitationsKey(), ['invitations']],
@@ -124,6 +125,9 @@ describe('query key values (SHELL-50)', () => {
     [keys.auditKey({ offset: 0 }), ['audit', { offset: 0 }]],
     [keys.auditActionsKey(), ['auditActions']],
     [keys.auditEntryKey('a-1'), ['auditEntry', 'a-1']],
+    [keys.orgAuditWebhookKey('acme'), ['acme', 'orgAuditWebhook']],
+    [keys.orgAuditWebhookDeliveriesKey('acme'), ['acme', 'orgAuditWebhook', 'deliveries']],
+    [keys.orgAuditWebhookDeliveriesListKey('acme', 'dead'), ['acme', 'orgAuditWebhook', 'deliveries', 'dead']],
     [keys.projectRootKey(), ['project']],
     [keys.projectKey('demo'), ['project', 'demo']],
     [keys.projectsKey(), ['projects']],
@@ -177,6 +181,9 @@ describe('query key values (SHELL-50)', () => {
     [keys.variablesUsagePageKey('demo', 'b-1', 'unused'), ['variables', 'demo', 'b-1', 'page', 'unused']],
     [keys.variableDriftsKey('demo', 'b-1', 'v-1'), ['variable-drifts', 'demo', 'b-1', 'v-1']],
     [keys.eventVariableDriftsKey('demo', 'b-1', 'e-1'), ['variable-drifts', 'demo', 'b-1', 'event', 'e-1']],
+    [keys.eventPropertyDriftsKey('demo', 'e-1'), ['property-drifts', 'demo', 'event', 'e-1']],
+    [keys.typeChangePropertyDriftsKey('demo'), ['property-drifts', 'demo', 'type_change']],
+    [keys.activePropertyDriftsKey('demo'), ['property-drifts', 'demo', 'active']],
     [keys.variableOverridesKey('demo', 'b-1', 'v-1'), ['variable-overrides', 'demo', 'b-1', 'v-1']],
     [keys.variableValuesKey('demo', 'b-1', 'v-1'), ['variable-values', 'demo', 'b-1', 'v-1']],
     [
@@ -271,6 +278,7 @@ describe('query key values (SHELL-50)', () => {
     [keys.eventTypesRootKey(), keys.eventTypesKey('demo', 'b-1')],
     [keys.projectVariablesKey('demo'), keys.variablesUsagePageKey('demo', 'b-1', 'all')],
     [keys.branchVariableDriftsKey('demo', 'b-1'), keys.eventVariableDriftsKey('demo', 'b-1', 'e-1')],
+    [keys.projectPropertyDriftsKey('demo'), keys.eventPropertyDriftsKey('demo', 'e-1')],
     [keys.branchVariableValuesKey('demo', 'b-1'), keys.variableValuesKey('demo', 'b-1', 'v-1')],
     [keys.eventsMetricsKey('demo'), keys.eventsMetricsChartKey('demo', null, {
       filterEtId: undefined,

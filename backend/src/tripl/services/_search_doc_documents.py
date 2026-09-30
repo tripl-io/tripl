@@ -16,7 +16,8 @@ from tripl.models.doc_file import DocFile, DocLink
 from tripl.models.project import Project
 from tripl.services._search_documents import BuiltDocument, _join, _spaced_identifiers
 from tripl.services.docs_frontmatter import split_frontmatter
-from tripl.services.docs_links import rewrite_links_as_text
+from tripl.services.docs_links import ID_KINDS, rewrite_links_as_text
+from tripl.services.project_links import legacy_project_path
 
 #: How much of a note's body is indexed. The embed text is capped separately
 #: (``EMBED_TEXT_MAX_CHARS``); this keeps the stored tsvector bounded too.
@@ -51,9 +52,14 @@ async def build_doc_documents(
     if not docs:
         return []
     link_targets: dict[uuid.UUID, list[str]] = {}
+    # Names only: a note, alert rule or person is linked by id, which is noise
+    # to the index (and a note's id must not carry its title anywhere).
     rows = await session.execute(
         select(DocLink.doc_file_id, DocLink.target)
-        .where(DocLink.doc_file_id.in_([doc.id for doc in docs]))
+        .where(
+            DocLink.doc_file_id.in_([doc.id for doc in docs]),
+            DocLink.kind.not_in(sorted(ID_KINDS)),
+        )
         .order_by(DocLink.doc_file_id, DocLink.kind, DocLink.target)
     )
     for doc_id, target in rows:
@@ -84,7 +90,7 @@ async def build_doc_documents(
                         doc.audience,
                     ]
                 ),
-                route_path=f"/p/{slug}/docs/{scope}/{doc.path}",
+                route_path=legacy_project_path(slug, f"/docs/{scope}/{doc.path}"),
             )
         )
     return documents

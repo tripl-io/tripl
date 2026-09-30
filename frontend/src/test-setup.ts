@@ -2,6 +2,7 @@ import { format } from 'node:util'
 import { afterEach, beforeEach, expect, vi } from 'vitest'
 import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers'
 import type { AxeMatchers } from 'vitest-axe/matchers'
+import { setCurrentOrgSlug } from '@/lib/activeOrg'
 
 // This file runs for both projects in vite.config.ts: the `node` one (pure
 // `*.test.ts` logic) and the `jsdom` one (components). The DOM half is loaded
@@ -125,6 +126,9 @@ afterEach(async () => {
   // storage, fake timers left on by a test that failed before restoring them,
   // and stubbed globals.
   vi.unstubAllGlobals()
+  // The active organization is module state (lib/activeOrg.ts); a test that
+  // mounts the org provider, or sets it, must not act in it for the next.
+  setCurrentOrgSlug(null)
   localStorage.clear()
   sessionStorage.clear()
   vi.useRealTimers()

@@ -285,6 +285,7 @@ def _add_delivery_item(
     details_path = _build_alert_audit_url(
         seeded.project_slug,
         delivery.id,
+        org_slug="default",
         app_base_url=_APP_BASE_URL if with_link else "",
         scope_type=scope_type,
         scope_ref=scope_ref or seeded.scope_ref,

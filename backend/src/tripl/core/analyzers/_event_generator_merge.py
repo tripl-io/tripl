@@ -35,6 +35,7 @@ from tripl.models.field_definition import FieldDefinition
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_baseline import MetricBaseline
 from tripl.models.metric_breakdown_anomaly import MetricBreakdownAnomaly
+from tripl.models.property_drift import PropertyDrift
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
 from tripl.models.variable_value import VariableValue, VariableValueKind
@@ -522,6 +523,7 @@ def _merge_event_into_group(
         )
     _move_variable_event_overrides(session, source=source, target=target)
     _move_variable_value_drifts(session, source=source, target=target)
+    _move_property_drifts(session, source=source, target=target)
     # Everything above re-points a real foreign key. This carries the references
     # that are event ids stored as STRINGS or inside JSON lists, which no
     # database reflection can find and which therefore went unnoticed until the
@@ -723,6 +725,9 @@ def _reconcile_pending_variable_contexts(
         prior["value_kind"] = folded.value_kind
         prior["observed_count"] = folded.observed_count
         prior["values"] = folded.values
+        prior["presence_rate"] = _fold_presence(
+            prior.get("presence_rate"), context.get("presence_rate")
+        )
 
 
 def _move_variable_contexts(
@@ -812,7 +817,23 @@ def _move_variable_contexts(
         prior.value_kind = folded.value_kind
         prior.observed_count = folded.observed_count
         prior.values = folded.values
+        prior.presence_rate = _fold_presence(prior.presence_rate, context.presence_rate)
         session.delete(context)
+
+
+def _fold_presence(prior: float | None, incoming: float | None) -> float | None:
+    """The presence rate of two contexts folded into one event (F23).
+
+    The row counts behind each rate are gone by now, so the exact weighted
+    share cannot be rebuilt. The higher rate is kept: the merged event carried
+    the path at least that often in the rows that rate was measured over, and
+    a measured rate beats none.
+    """
+    if prior is None:
+        return incoming
+    if incoming is None:
+        return prior
+    return max(prior, incoming)
 
 
 def _move_variable_event_overrides(session: Session, *, source: Event, target: Event) -> None:
@@ -866,6 +887,29 @@ def _move_variable_value_drifts(session: Session, *, source: Event, target: Even
             continue
         drift.event_id = target.id
         claimed.add(drift.variable_id)
+
+
+def _move_property_drifts(session: Session, *, source: Event, target: Event) -> None:
+    """Carry property-drift triage onto the surviving event (F23).
+
+    Same reasoning as ``_move_variable_value_drifts``: the row may hold a
+    person's decision. Target wins on ``uq_property_drift`` ``(variable_id,
+    event_id, kind)``.
+    """
+    claimed = {
+        (row.variable_id, row.kind)
+        for row in session.execute(
+            select(PropertyDrift).where(PropertyDrift.event_id == target.id)
+        ).scalars()
+    }
+    for drift in session.execute(
+        select(PropertyDrift).where(PropertyDrift.event_id == source.id)
+    ).scalars():
+        if (drift.variable_id, drift.kind) in claimed:
+            session.delete(drift)
+            continue
+        drift.event_id = target.id
+        claimed.add((drift.variable_id, drift.kind))
 
 
 def _merge_event_metric_rows(

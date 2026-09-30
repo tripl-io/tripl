@@ -132,7 +132,7 @@ describe('Instance Security & access — registration', () => {
     renderSection(settingsFixture({ registration_mode: 'disabled' }))
 
     const hint = screen.getByText(/POST \/auth\/register is refused/i)
-    expect(hint).toHaveTextContent(/invite a member/i)
+    expect(hint).toHaveTextContent(/Settings → Organization → Invitations/)
     expect(hint).not.toHaveTextContent(/nobody new can be added/i)
     // The first-owner bootstrap exemption is still worth stating.
     expect(hint).toHaveTextContent(/first account on an instance with no users/i)

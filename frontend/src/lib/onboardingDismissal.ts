@@ -6,12 +6,15 @@
  * (WS-35). The slug key is still read, so a dismissal made before this change
  * holds, and is what callers without an id use.
  */
+
+import { orgStorageKey } from '@/lib/activeOrg'
 const STORAGE_PREFIX = 'tripl-onboarding-dismissed:'
 
 function keysFor(slug: string, projectId?: string): string[] {
+  // Inside the active organization: a slug names a project only there.
   return projectId
-    ? [`${STORAGE_PREFIX}${projectId}`, `${STORAGE_PREFIX}${slug}`]
-    : [`${STORAGE_PREFIX}${slug}`]
+    ? [orgStorageKey(`${STORAGE_PREFIX}${projectId}`), orgStorageKey(`${STORAGE_PREFIX}${slug}`)]
+    : [orgStorageKey(`${STORAGE_PREFIX}${slug}`)]
 }
 
 export function isOnboardingDismissed(slug: string, projectId?: string): boolean {

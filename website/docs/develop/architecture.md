@@ -99,12 +99,23 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   agents. Only the SHA-256 hash of a key is stored. Keys carry a `read` or
   `write` scope, an optional project binding, and an optional expiry, and are
   revocable. See **[agent-api-guide.md](../integrate/agent-api-guide.md)**.
-- **RBAC** with three roles: owner / editor / viewer. Owner-only routes
-  (security and instance administration) require an interactive owner session
-  and are not reachable with an API key. One enumerated exception carries a
-  separate gate (`deps.get_key_reachable_owner_user`): the
+- **RBAC** in two layers plus an operator flag. The organization role
+  (`organization_members.role`: owner / admin / member) and the project role
+  (`project_members.role`: editor / viewer) decide everything inside an
+  organization; `services/project_access.py` turns them into one project role
+  (org owner or admin of the project's own organization = `owner` in every
+  project of it; a member = their row; no row = `404`). `users.is_platform_admin`
+  grants the operator settings and nothing else. There is no instance-wide role
+  (the old `users.role` is dropped; a guard test keeps it out). Owner-gated
+  routes (`deps.get_owner_user`) take an
+  org owner or admin in an interactive session and are not reachable with an
+  API key. One enumerated exception carries a separate gate
+  (`deps.get_key_reachable_owner_user`): the
   [metrics replay](../integrate/agent-api-guide.md#replaying-metrics) accepts an
-  owner's `write`-scoped key, and a test pins the route list so it stays one.
+  org owner's or admin's `write`-scoped key, and a test pins the route list so
+  it stays one. `/settings` takes `deps.get_settings_admin_user` (a platform
+  admin, or owner/admin of the default organization), and a write touching an
+  operator field additionally needs `deps.require_platform_admin`.
 
 ---
 
@@ -163,6 +174,12 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   the review state independent from later evidence refreshes. Accepted rows are
   frozen: their stored values are the accepted set, and a scan reopens the row
   only for values outside it.
+- **Property drift** (F23) — compares each event's property list with what a
+  scan saw (new property, missing required property, per-property type
+  change). Its open rows are counted by one implementation
+  (`services/_open_signals.py`) for the project summary and the health score,
+  and become `property_drift` alert candidates through one mapping
+  (`alerting_property_drift.py`) shared by dispatch and the replay.
 - **Distribution drift** — uses **PSI** (Population Stability Index) over event
   field values.
 - **Release regression** — activation-gated comparison of the newest stable app
@@ -373,9 +390,18 @@ and **changes no behaviour**:
 - `app_settings.organization_id`: NULL is the operator scope. Keys are unique
   per scope, and every settings read and write filters to the operator scope.
 
-Permission checks still read `users.role`. Org resolution, org roles in the
-gates, per-org settings and multi-org support come in later stages. The
-configuration page lists the environment settings they will use.
+Later stages resolve the request's organization (`/api/v1/orgs/{org}/...`
+paths, the API key's own organization) and key caches by project id. Since the
+roles stage, permission checks read `organization_members` and
+`project_members` (the old instance role, `users.role`, was dropped by a later
+migration): the roles stage's migration re-ran the backfill, filled
+`invitations.org_role`, and capped the project rows of former instance viewers
+at `viewer`. Registration, invitation acceptance and `PATCH /users/{id}` write
+organization roles; the first account of a self-hosted instance is the default
+organization's owner and the platform admin. The owner-set advisory lock and
+the last-owner rule are per organization. Per-org settings, per-org audit
+filtering and multi-org sign-up come in later stages. The configuration page
+lists the environment settings they will use.
 
 ---
 

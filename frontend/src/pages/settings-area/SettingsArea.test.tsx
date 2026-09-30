@@ -2,11 +2,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { platformApi } from '@/api/platform'
 import { projectMembersApi } from '@/api/projectMembers'
 import { projectsApi } from '@/api/projects'
 import { usersApi } from '@/api/users'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { Project } from '@/types'
+import { scimApi } from '@/api/scim'
+import { ssoApi } from '@/api/sso'
+import { auditWebhookApi } from '@/api/auditExport'
 import SettingsArea from './SettingsArea'
 import { at } from '@/test/at'
 
@@ -19,6 +23,8 @@ function ownerAuthValue(): AuthContextValue {
       email: 'owner@example.com',
       name: 'owner',
       role: 'owner',
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -349,9 +355,9 @@ describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
   it('titles the page and explains the owner gate with a way out', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
     const owner = ownerAuthValue()
-    const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'editor' } }
+    const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'member' } }
 
-    renderArea('instance/email', '', member)
+    renderArea('organization/email', '', member)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Email' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
@@ -359,5 +365,130 @@ describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
       'href',
       '/settings/profile',
     )
+  })
+
+  it.each([
+    ['organization/search', 'Search'],
+    ['organization/trackers', 'Trackers'],
+  ])('gates %s behind the organization owner/admin role (F20 PR10, PR12)', async (section, title) => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const owner = ownerAuthValue()
+    const member: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'member' } }
+
+    renderArea(section, '', member)
+
+    expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Owner role is required/)
+  })
+
+  it('keeps Single sign-on from an organization admin: it is an owner\'s alone (F20)', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const get = vi.spyOn(ssoApi, 'get')
+    const owner = ownerAuthValue()
+    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
+
+    renderArea('organization/sso', '', admin)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Single sign-on' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner/)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it("keeps Provisioning (SCIM) from an organization admin: it is an owner's alone (F20)", async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const tokens = vi.spyOn(scimApi, 'listTokens')
+    const config = vi.spyOn(scimApi, 'getConfig')
+    const owner = ownerAuthValue()
+    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
+
+    renderArea('organization/scim', '', admin)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Provisioning' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change provisioning/)
+    expect(tokens).not.toHaveBeenCalled()
+    expect(config).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Audit webhook from an organization admin: it is an owner\'s alone (F20)', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const get = vi.spyOn(auditWebhookApi, 'get')
+    const owner = ownerAuthValue()
+    const admin: AuthContextValue = { ...owner, user: owner.user && { ...owner.user, role: 'admin' } }
+
+    renderArea('organization/audit-webhook', '', admin)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Audit webhook' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Only an organization owner can view or change the audit webhook/)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Platform console from an organization owner who is not a platform admin (F20 PR9)', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+
+    renderArea('instance/email')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Mail relay' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Platform admin is required/)
+    expect(screen.getByRole('link', { name: 'Go to Profile' })).toHaveAttribute(
+      'href',
+      '/settings/profile',
+    )
+  })
+})
+
+describe('SettingsArea platform console (F20)', () => {
+  function platformAdmin(): AuthContextValue {
+    const owner = ownerAuthValue()
+    return { ...owner, user: owner.user && { ...owner.user, is_platform_admin: true } }
+  }
+
+  it('keeps the console from anyone but a platform admin', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    const list = vi.spyOn(platformApi, 'listOrgs')
+
+    renderArea('platform/orgs')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Organizations' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/Platform admin is required/)
+    expect(list).not.toHaveBeenCalled()
+  })
+
+  it('opens Organizations for a platform admin, lit in the rail', async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    vi.spyOn(platformApi, 'listOrgs').mockResolvedValue({ items: [], total: 0 })
+
+    renderArea('platform/orgs', '', platformAdmin())
+
+    expect(await screen.findByText('There are no organizations yet.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'User accounts' })).toHaveAttribute(
+      'href',
+      '/settings/platform/users',
+    )
+  })
+
+  it("keeps Organizations lit on one organization's page", async () => {
+    vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
+    vi.spyOn(platformApi, 'getOrg').mockResolvedValue({
+      id: 'o1',
+      slug: 'acme',
+      name: 'Acme Corp',
+      status: 'active',
+      created_at: '2026-01-01T00:00:00Z',
+      suspended_at: null,
+      suspended_reason: null,
+      member_count: 1,
+      project_count: 1,
+      owner_emails: ['owner@example.com'],
+      members: [{ email: 'owner@example.com', name: 'Olivia', role: 'owner' }],
+      projects: [{ slug: 'web', name: 'Web', created_at: '2026-01-01T00:00:00Z' }],
+    })
+
+    renderArea('platform/orgs/acme', '', platformAdmin())
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Acme Corp' })).toBeInTheDocument()
+    expect(screen.getByText('Olivia')).toBeInTheDocument()
+    expect(screen.getByText('Web')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Organizations' })).toHaveAttribute('aria-current', 'page')
   })
 })

@@ -17,7 +17,7 @@ function context(overrides: Partial<EventFieldVariableValue> = {}): EventFieldVa
 }
 
 function openPopover() {
-  fireEvent.click(screen.getByRole('button', { name: 'Observed variable values' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Observed property values' }))
 }
 
 describe('VariableValueContextTrigger', () => {
@@ -109,7 +109,7 @@ describe('VariableValueContextTrigger', () => {
     expect(await screen.findByText('Excluded')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Last seen before this variable was excluded from scans — scans no longer refresh it.',
+        'Last seen before this property was excluded from scans — scans no longer refresh it.',
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('u1')).toBeInTheDocument()
@@ -118,7 +118,7 @@ describe('VariableValueContextTrigger', () => {
     expect(screen.getByText('All values')).toBeInTheDocument()
   })
 
-  it('says nothing about exclusion for a variable still being scanned', async () => {
+  it('says nothing about exclusion for a property still being scanned', async () => {
     render(
       <VariableValueContextTrigger
         contexts={[context({ value_kind: 'low', observed_count: 2, values: ['u1', 'u2'] })]}
@@ -140,7 +140,7 @@ describe('VariableValueContextTrigger', () => {
     expect(await screen.findByText('Excluded')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'This variable is excluded from scans — scans no longer record values for it.',
+        'This property is excluded from scans — scans no longer record values for it.',
       ),
     ).toBeInTheDocument()
     // There is no value to date, so "last seen" would name one that never was.
@@ -148,13 +148,13 @@ describe('VariableValueContextTrigger', () => {
     expect(screen.getByText('No value recorded for this field on this event')).toBeInTheDocument()
   })
 
-  it('renders nothing when the field references no variable', () => {
+  it('renders nothing when the field references no property', () => {
     // The overwhelming majority of event fields are literals. A marker on every
     // one of them would bury the fields that do carry a variable.
     const { container } = render(<VariableValueContextTrigger contexts={[]} />)
 
     expect(container).toBeEmptyDOMElement()
-    expect(screen.queryByRole('button', { name: 'Observed variable values' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Observed property values' })).toBeNull()
   })
 
   it('renders nothing when the caller omits contexts entirely', () => {

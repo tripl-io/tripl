@@ -27,7 +27,7 @@ describe('bindingExample', () => {
     })
   })
 
-  it('prefers a variable whose name differs from its binding', () => {
+  it('prefers a property whose name differs from its binding', () => {
     // The instructive case, and the one this exists for: it shows both roles at
     // once — the scan reads `property.bite_threshold`, the plan writes
     // `${bite_threshold}`. A variable whose name IS its binding shows one thing
@@ -44,7 +44,7 @@ describe('bindingExample', () => {
     })
   })
 
-  it('uses a name-equals-binding variable only when there is nothing else', () => {
+  it('uses a name-equals-binding property only when there is nothing else', () => {
     const example = bindingExample([
       variable({ id: 'v1', name: 'page_data.extra.mode', bindings: ['page_data.extra.mode'] }),
     ])

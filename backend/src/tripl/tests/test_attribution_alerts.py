@@ -391,6 +391,7 @@ def test_the_snapshot_freezes_the_attribution_line() -> None:
         cast(Any, SimpleNamespace(name="scan")),
         project_slug="p",
         app_base_url="",
+        org_slug="default",
         rule=cast(Any, SimpleNamespace(name="rule")),
         destination=cast(Any, SimpleNamespace(name="dest", type="slack")),
         anomalies=cast(Any, [with_line, without_line]),

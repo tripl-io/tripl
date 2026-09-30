@@ -193,6 +193,7 @@ def render_firings_message(
     destination: AlertDestination,
     project: Project,
     metric_units: dict[str, str | None] | None = None,
+    org_slug: str = "",
 ) -> tuple[list[str], str]:
     """Render per-firing items + the overall message text for the preview.
 
@@ -225,6 +226,7 @@ def render_firings_message(
     overall_variables = {
         "project_name": escape_alert_value(project.name, message_format),
         "project_slug": escape_alert_value(project.slug, message_format),
+        "org_slug": escape_alert_value(org_slug, message_format),
         "channel": escape_alert_value(destination.type, message_format),
         "destination_name": escape_alert_value(destination.name, message_format),
         "rule_name": escape_alert_value(rule.name, message_format),

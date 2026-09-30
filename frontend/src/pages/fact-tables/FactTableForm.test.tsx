@@ -4,7 +4,6 @@ import { toast } from 'sonner'
 import { surfaceMutationError } from '@/lib/errorFeedback'
 import { createElement, type ReactNode } from 'react'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DataSource, FactTable } from '@/types'
 import { FactTableForm } from './FactTableForm'
@@ -75,6 +74,8 @@ import { factTablesApi } from '@/api/factTables'
 import { ApiError } from '@/api/client'
 import { at } from '@/test/at'
 import { factTablesKey } from '@/lib/queryKeys'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 const DATA_SOURCES = [{ id: 'ds-1', name: 'Warehouse' }] as unknown as DataSource[]
 
@@ -453,7 +454,7 @@ describe('FactTableForm unsaved-changes guard (MET-5)', () => {
   })
 })
 
-const VIEWER = authAs('viewer')
+const VIEWER = personaAuth('viewer')
 
 describe('FactTableForm for a viewer', () => {
   const SAVED = {
@@ -480,12 +481,12 @@ describe('FactTableForm for a viewer', () => {
       createElement(
         AuthContext.Provider,
         { value: VIEWER },
-        createElement(FactTableForm, {
+        createElement(SessionProject, { session: VIEWER }, createElement(FactTableForm, {
           slug: 'demo',
           factTable: SAVED,
           dataSources: DATA_SOURCES,
           onClose: vi.fn(),
-        }),
+        })),
       ),
       { wrapper },
     )

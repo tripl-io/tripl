@@ -11,13 +11,16 @@ from tripl.models.anomaly_scope_override import AnomalyScopeOverride
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import AppSetting
 from tripl.models.audit_log import AuditLog
+from tripl.models.audit_webhook import AuditWebhookOutbox, OrgAuditWebhook
 from tripl.models.base import Base
 from tripl.models.chart_annotation import ChartAnnotation
 from tripl.models.coverage_metric import CoverageMetric
 from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.doc_file import DocFile, DocLink, DocRevision
+from tripl.models.doc_share import DocFolderSetting, DocFolderShare, DocShare
 from tripl.models.duplicate_dismissal import DuplicateDismissal
+from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.event import Event
 from tripl.models.event_change import EventChange
 from tripl.models.event_field_value import EventFieldValue
@@ -45,20 +48,34 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.metric_value_breakdown import MetricValueBreakdown
 from tripl.models.notification import Notification
+from tripl.models.org_scim import OrgScimConfig, OrgScimToken, ScimGroupLink, ScimUserLink
+from tripl.models.org_sso import (
+    OrgSsoConfig,
+    OrgSsoDomain,
+    SamlAssertionId,
+    SsoLinkTicket,
+    SsoLoginState,
+    SsoMembershipBlock,
+    UserSsoIdentity,
+)
 from tripl.models.organization import Organization, OrganizationMember
+from tripl.models.organization_group import OrganizationGroup, OrganizationGroupMember
 from tripl.models.password_reset_token import PasswordResetToken
+from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.plan_branch import PlanBranch
 from tripl.models.plan_branch_approval import PlanBranchApproval
 from tripl.models.plan_branch_comment import PlanBranchComment
 from tripl.models.plan_branch_merge_resolution import PlanBranchMergeResolution
 from tripl.models.plan_branch_reviewer import PlanBranchReviewer
 from tripl.models.plan_revision import PlanRevision
+from tripl.models.platform_step_in import PlatformStepIn
 from tripl.models.project import Project
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.project_branch_settings import ProjectBranchSettings
 from tripl.models.project_health_snapshot import ProjectHealthSnapshot
 from tripl.models.project_member import ProjectMember
 from tripl.models.project_tracker_config import ProjectTrackerConfig
+from tripl.models.property_drift import PropertyDrift
 from tripl.models.release_regression import ReleaseComparability, ReleaseRegression
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_dry_run_job import ScanDryRunJob
@@ -92,6 +109,7 @@ __all__ = [
     "ApiKey",
     "AppSetting",
     "AuditLog",
+    "AuditWebhookOutbox",
     "ChartAnnotation",
     "CoverageMetric",
     "Project",
@@ -123,8 +141,25 @@ __all__ = [
     "MetricValueBreakdown",
     "Notification",
     "Organization",
+    "OrganizationGroup",
+    "OrganizationGroupMember",
+    "OrgScimConfig",
+    "OrgScimToken",
+    "ScimGroupLink",
+    "ScimUserLink",
+    "OrgAuditWebhook",
+    "OrgSsoConfig",
+    "SamlAssertionId",
+    "OrgSsoDomain",
+    "SsoLinkTicket",
+    "SsoLoginState",
+    "SsoMembershipBlock",
+    "UserSsoIdentity",
     "OrganizationMember",
+    "PhotoStorageConfig",
+    "PlatformStepIn",
     "PasswordResetToken",
+    "EmailVerificationToken",
     "PlanBranch",
     "PlanBranchApproval",
     "PlanBranchComment",
@@ -144,6 +179,9 @@ __all__ = [
     "DocFile",
     "DocLink",
     "DocRevision",
+    "DocShare",
+    "DocFolderSetting",
+    "DocFolderShare",
     "DuplicateDismissal",
     "ScanConfig",
     "ScanDryRunJob",
@@ -160,4 +198,5 @@ __all__ = [
     "VariableEventValueOverride",
     "VariableValue",
     "VariableValueDrift",
+    "PropertyDrift",
 ]

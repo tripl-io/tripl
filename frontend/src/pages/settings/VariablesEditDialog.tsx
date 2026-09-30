@@ -55,7 +55,7 @@ export function VariablesEditDialog({
       <DialogContent className="max-w-4xl">
         {/* pr-8 keeps a long name from running under the close button. */}
         <DialogHeader className="pr-8">
-          <DialogTitle className="break-all leading-tight">{canWrite ? 'Edit' : 'Variable'}: {variable.name}</DialogTitle>
+          <DialogTitle className="break-all leading-tight">{canWrite ? 'Edit' : 'Property'}: {variable.name}</DialogTitle>
         </DialogHeader>
         {/* Only the body scrolls: the title and Save stay in view (AL-4).
             min-w-0 all the way down: the observed-values table's min-content
@@ -103,13 +103,13 @@ export function VariablesEditDialog({
               to={variableDetailPath(slug, variable.id)}
               className="inline-flex items-center gap-0.5 self-center text-caption font-medium text-accent hover:underline sm:mr-auto"
             >
-              Open variable page
+              Open property page
               <ArrowUpRight className="size-3" aria-hidden="true" />
             </Link>
           )}
           <Button type="button" variant="outline" onClick={onClose}>{canWrite ? 'Cancel' : 'Close'}</Button>
           {canWrite && (
-            <Button type="submit" form={formId} disabled={draft.updateMut.isPending || draft.typeChangeBlocked}>
+            <Button type="submit" form={formId} disabled={draft.updateMut.isPending || draft.typeChangeBlocked || draft.schemaIssues.length > 0}>
               Save
             </Button>
           )}

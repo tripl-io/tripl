@@ -91,6 +91,7 @@ from tripl.services.plan_branch_service import (
     ensure_main_branch_id,
     resolve_branch_id,
 )
+from tripl.services.project_links import project_org_slugs
 from tripl.services.project_lookup import resolve_project_id
 
 __all__ = [
@@ -130,12 +131,14 @@ async def _scope(
 ) -> Scope:
     main_branch_id = await ensure_main_branch_id(session, project_id)
     resolved = await resolve_branch_id(session, project_id, branch_id)
+    org_slug = (await project_org_slugs(session, [project_id])).get(project_id) if slug else None
     return Scope(
         session=session,
         project_id=project_id,
         branch_id=resolved,
         main_branch_id=main_branch_id,
         slug=slug,
+        org_slug=org_slug,
     )
 
 
@@ -485,6 +488,7 @@ async def branch_impact_response(
         branch_id=branch_id,
         main_branch_id=main_scope.main_branch_id,
         slug=slug,
+        org_slug=main_scope.org_slug,
     )
     renamed_from = {
         (rename.entity_type, rename.parent, rename.removed_name) for rename in diff.renames

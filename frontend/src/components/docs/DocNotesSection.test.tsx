@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
-import type { Role } from '@/types'
+import { PersonaProject } from '@/test/PersonaProject'
+import { personaAuth, type Persona } from '@/test/persona'
 import type { DocBacklinksResponse } from '@/types/docs'
 import { newNoteHref } from '@/lib/docLinks'
 import { DocFieldNotes, DocNotesSection } from './DocNotesSection'
@@ -20,12 +20,14 @@ function response(items: DocBacklinksResponse['items']): DocBacklinksResponse {
   return { kind: 'event', name: 'checkout_started', qualifier: null, items }
 }
 
-function renderWith(ui: ReactNode, role: Role = 'editor') {
+function renderWith(ui: ReactNode, persona: Persona = 'member') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter>{ui}</MemoryRouter>
+      <AuthContext.Provider value={personaAuth(persona)}>
+        <PersonaProject persona={persona}>
+          <MemoryRouter>{ui}</MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -34,6 +36,41 @@ function renderWith(ui: ReactNode, role: Role = 'editor') {
 describe('DocNotesSection (F22)', () => {
   beforeEach(() => {
     vi.mocked(docsApi.backlinks).mockReset()
+  })
+
+  it('serves the F24 kinds too: a metric card asks for metric backlinks', async () => {
+    vi.mocked(docsApi.backlinks).mockResolvedValue({
+      kind: 'metric',
+      name: 'signup_rate',
+      qualifier: null,
+      items: [
+        {
+          scope: 'project',
+          path: 'metrics/signup.md',
+          title: 'Signup rate explained',
+          description: '',
+          audience: 'both',
+          link_raw: '[[metric:signup_rate]]',
+        },
+      ],
+    })
+    renderWith(<DocNotesSection slug="demo" kind="metric" name="signup_rate" />)
+    expect(await screen.findByText('Signup rate explained')).toBeInTheDocument()
+    expect(screen.getByText('Docs that link to this metric')).toBeInTheDocument()
+    expect(docsApi.backlinks).toHaveBeenCalledWith(
+      'demo',
+      { kind: 'metric', name: 'signup_rate', qualifier: null },
+      expect.anything(),
+    )
+  })
+
+  it('offers a property note pre-filled with the property link', async () => {
+    vi.mocked(docsApi.backlinks).mockResolvedValue({ kind: 'variable', name: 'country', qualifier: null, items: [] })
+    renderWith(<DocNotesSection slug="demo" kind="variable" name="country" />)
+    expect(await screen.findByText(/No notes link to this property yet/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'New note about this' }).getAttribute('href')).toContain(
+      encodeURIComponent('[[variable:country]]'),
+    )
   })
 
   it('lists the notes that link here, organization notes marked', async () => {

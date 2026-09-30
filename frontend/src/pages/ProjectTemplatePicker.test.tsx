@@ -57,16 +57,16 @@ afterEach(() => {
 })
 
 describe('formatTemplateCounts', () => {
-  it('reads events, event types and variables with plurals', () => {
+  it('reads events, event types and properties with plurals', () => {
     expect(formatTemplateCounts(templateFixture().counts)).toBe(
-      '9 events · 5 event types · 4 variables',
+      '9 events · 5 event types · 4 properties',
     )
-    expect(formatTemplateCounts(SUBSCRIPTIONS.counts)).toBe('1 event · 1 event type · 1 variable')
+    expect(formatTemplateCounts(SUBSCRIPTIONS.counts)).toBe('1 event · 1 event type · 1 property')
   })
 
   it('appends the template version for the card', () => {
     expect(formatTemplateMeta(templateFixture())).toBe(
-      '9 events · 5 event types · 4 variables · version 1',
+      '9 events · 5 event types · 4 properties · version 1',
     )
   })
 })
@@ -89,7 +89,7 @@ describe('ProjectTemplatePicker', () => {
     expect(radios[0]).toHaveAccessibleName('Blank project')
     const ecommerce = screen.getByRole('radio', { name: 'E-commerce' })
     expect(ecommerce).toHaveAccessibleDescription(
-      `${templateFixture().description} 9 events · 5 event types · 4 variables · version 1`,
+      `${templateFixture().description} 9 events · 5 event types · 4 properties · version 1`,
     )
     // One Tab stop for the whole group, on the checked card.
     expect(radios[0]).toHaveAttribute('tabindex', '0')

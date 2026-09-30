@@ -19,10 +19,12 @@ import type { DocScope, DocSummary, DocTreeResponse } from '@/types/docs'
 import { MoveDocDialog, NewDocDialog, type MoveRequest, type NewDocRequest } from './DocFileDialogs'
 import { DocHistoryPanel } from './DocHistoryPanel'
 import { DocImportExportDialog } from './DocImportExportDialog'
+import { DocShareDialog } from './DocShareDialog'
 import { DocQuickOpen } from './DocQuickOpen'
 import { DocsTree } from './DocsTree'
 import { DocView } from './DocView'
-import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree } from './useDocs'
+import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree, type DocSharingTarget } from './useDocs'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // The editor carries CodeMirror and its Markdown grammar; readers never load it.
 const DocEditor = lazyWithReload(() => import('./DocEditor').then(m => ({ default: m.DocEditor })))
@@ -41,16 +43,24 @@ export default function DocsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const canEdit = useCanWriteProject()
-  const isOwner = useIsOwner()
+  // An organization owner or admin (useIsOwner covers both since F20 PR4): the
+  // only writers of organization notes (services/docs_access.py).
+  const isOrgAdmin = useIsOwner()
+  const canEditScope = (s: DocScope | null) => canEdit && (s === 'project' || (s === 'organization' && isOrgAdmin))
   const tree = useDocTree(slug)
   const scope: DocScope | null = isDocScope(scopeParam) ? scopeParam : null
   const path = docPathFromSplat(splat)
   const file = useDocFile(slug, scope, path)
-  const editing = canEdit && searchParams.get('edit') === '1'
+  // F24: the server also says what the caller may do with this note — a note
+  // shared with them view-only, or someone else's private note opened by an
+  // organization admin (break-glass, audited), is read-only.
+  const canEditNote = canEditScope(scope) && file.data?.my_permission === 'edit'
+  const editing = canEditNote && searchParams.get('edit') === '1'
 
   const [historyOpen, setHistoryOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
+  const [shareTarget, setShareTarget] = useState<DocSharingTarget | null>(null)
   const [newDoc, setNewDoc] = useState<NewDocRequest | null>(null)
   const [moveReq, setMoveReq] = useState<MoveRequest | null>(null)
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -115,7 +125,7 @@ export default function DocsPage() {
     )
   }
   const data = tree.data
-  const docsIndex = `/p/${slug}/docs`
+  const docsIndex = projectPath(currentOrgSlug(), slug, '/docs')
 
   const onDeleteNote = async () => {
     if (!scope || !path) return
@@ -154,7 +164,8 @@ export default function DocsPage() {
         onNewInFolder: (s: DocScope, prefix: string) => setNewDoc({ scope: s, folder: prefix }),
         onMoveFolder: (s: DocScope, prefix: string) => setMoveReq({ scope: s, from: prefix, folder: true }),
         onDeleteFolder: (s: DocScope, prefix: string, count: number) => void onDeleteFolder(s, prefix, count),
-        canDeleteFolder: (s: DocScope) => s === 'project' || isOwner,
+        onShareFolder: (s: DocScope, prefix: string) => setShareTarget({ kind: 'folder', scope: s, path: prefix }),
+        canEditScope,
       }
     : undefined
 
@@ -229,8 +240,9 @@ export default function DocsPage() {
             <DocView
               slug={slug}
               doc={file.data}
-              canEdit={canEdit}
+              canEdit={canEditNote}
               onEdit={() => setEditing(true)}
+              onShare={() => setShareTarget({ kind: 'file', scope: file.data.scope, path: file.data.path })}
               onHistory={() => setHistoryOpen(true)}
               onMove={() => setMoveReq({ scope: file.data.scope, from: file.data.path, folder: false })}
               onDelete={() => void onDeleteNote()}
@@ -240,8 +252,21 @@ export default function DocsPage() {
       </div>
 
       {scope && path && (
-        <DocHistoryPanel slug={slug} scope={scope} path={path} open={historyOpen} onOpenChange={setHistoryOpen} canEdit={canEdit} />
+        <DocHistoryPanel slug={slug} scope={scope} path={path} open={historyOpen} onOpenChange={setHistoryOpen} canEdit={canEditNote} />
       )}
+      <DocShareDialog
+        slug={slug}
+        target={shareTarget}
+        organizationSlug={data.organization.slug}
+        organizationName={data.organization.name}
+        // A guess until the server answers `can_manage`: an organization owner or
+        // admin, or (for a note) someone who may edit it — the author always may.
+        canManage={
+          isOrgAdmin ||
+          (shareTarget?.kind === 'file' ? file.data?.my_permission === 'edit' : canEditScope(shareTarget?.scope ?? null))
+        }
+        onClose={() => setShareTarget(null)}
+      />
       <DocQuickOpen
         slug={slug}
         open={quickOpen}
@@ -254,7 +279,7 @@ export default function DocsPage() {
         open={transferOpen}
         onOpenChange={setTransferOpen}
         canEdit={canEdit}
-        isOwner={isOwner}
+        isOrgAdmin={isOrgAdmin}
         organizationName={data.organization.name}
         limits={data.limits}
       />
@@ -262,6 +287,7 @@ export default function DocsPage() {
         slug={slug}
         request={newDoc ?? linkedNewDoc}
         organizationName={data.organization.name}
+        canWriteOrganization={isOrgAdmin}
         onClose={closeNewDoc}
         onCreated={created => {
           setNewDoc(null)

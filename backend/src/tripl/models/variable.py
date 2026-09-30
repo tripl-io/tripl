@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import enum
 import uuid
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
 from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
@@ -58,11 +59,24 @@ class Variable(UUIDMixin, Base):
     # User-editable warehouse column / JSON-path bindings (e.g.
     # "page_data.extra.variant"); scans adopt existing variables through these.
     bindings: Mapped[list[str]] = mapped_column(sa.JSON, default=list, server_default="[]")
+    # JSON Schema fragment refining ``variable_type``; ``core.property_schema``
+    # keeps the two consistent. NULL: the type is just ``variable_type``.
+    json_schema: Mapped[dict[str, Any] | None] = mapped_column(
+        sa.JSON(none_as_null=True), nullable=True
+    )
     # Tombstone: scans adopt-and-skip excluded variables — the row prevents
     # re-creation while contexts/drift stop accumulating (plain deletion is
     # undone by the next scan).
     excluded_from_scans: Mapped[bool] = mapped_column(
         sa.Boolean, default=False, server_default="false"
+    )
+    # When a scan sampled this scan-minted JSON-path variable to type it after
+    # the fact (``catalog_sync._type_backfill_candidates``): set once, whatever
+    # the samples showed, so a property whose values stay text or mixed leaves
+    # that candidate set. Scan bookkeeping, not plan content — no API field, no
+    # branch copy, no revision snapshot. Editing the bindings clears it.
+    type_checked_at: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
     )
 
     project: Mapped[Project] = relationship(back_populates="variables")

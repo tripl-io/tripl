@@ -14,17 +14,23 @@ from math import inf
 
 from tripl.core.adapters.base import BaseAdapter, ColumnInfo
 from tripl.core.analyzers.cardinality import _is_json_type
+from tripl.core.analyzers.event_plan import _format_value
+from tripl.core.property_schema import infer_property_type
+from tripl.core.warehouse_types import is_string_type
 from tripl.json_paths import (
     decode_json_path_value,
     flatten_json_paths,
     format_json_path_value,
     group_json_value_paths,
     json_safe,
+    object_property_paths,
 )
 
 JSON_PATH_DISCOVERY_LIMIT = 1000
 JSON_PATH_SAMPLE_LIMIT = 3
 JSON_PATH_SAMPLE_ROW_LIMIT = 1000
+# Example values the event + properties summary shows per key.
+EVENT_PROPERTY_SAMPLE_LIMIT = 3
 
 
 def _is_feature_worth_sampling(unique_count: int, total_rows: int) -> bool:
@@ -179,6 +185,118 @@ def _get_json_path_samples(
     )
 
 
+def _value_at(document: object, path: str) -> object:
+    """The value at a dotted ``path`` of a decoded JSON document, or None."""
+    current = document
+    for segment in path.split("."):
+        if not isinstance(current, dict):
+            return None
+        current = current.get(segment)
+    return current
+
+
+def summarize_event_properties(
+    columns: list[ColumnInfo],
+    rows: list[dict[str, object]],
+    *,
+    event_name_column: str,
+    properties_column: str,
+) -> dict[str, object]:
+    """What the "event + properties" preset yields from a preview's sample rows.
+
+    One entry per event name, busiest first, each with every key its rows'
+    properties carried: the share of the event's rows that carried it, the type
+    ``infer_property_type`` reads off the values (the one a run would set), and
+    a few example values. The name is the event column's value formatted the way
+    the planner formats it, and a row whose name comes out empty is skipped, as
+    a run skips it.
+
+    Keys are the properties a run catalogues: the JSON's leaf paths, with a
+    nested object folded into ONE property the way the scan folds it
+    (``object_property_paths``, F23.4e) — the preset pins no path, so every
+    object folds. A summary of a sample: an event or key missing here may still
+    exist, which the dry run answers for the whole lookback window.
+    """
+    summary: dict[str, object] = {
+        "event_name_column": event_name_column,
+        "properties_column": properties_column,
+        "sample_rows": 0,
+        "events": [],
+        "error": None,
+    }
+    by_name = {column.name: column for column in columns}
+    for role, name in (("event", event_name_column), ("properties", properties_column)):
+        if name not in by_name:
+            summary["error"] = f"The {role} column {name!r} is not in the query's columns."
+            return summary
+    properties_type = by_name[properties_column].type_name
+    if not _is_json_type(properties_type):
+        hint = (
+            " Tick 'Parse as JSON' to read its text as JSON."
+            if is_string_type(properties_type)
+            else ""
+        )
+        summary["error"] = (
+            f"The properties column {properties_column!r} is {properties_type}, "
+            f"not a JSON column.{hint}"
+        )
+        return summary
+
+    named_rows: list[tuple[str, object]] = []
+    leaf_paths: set[str] = set()
+    for row in rows:
+        name = _format_value(row.get(event_name_column))
+        if not name:
+            continue
+        properties = decode_json_path_value(row.get(properties_column))
+        named_rows.append((name, properties))
+        leaf_paths.update(path for path, _value in flatten_json_paths(properties))
+    folded = object_property_paths(leaf_paths)
+
+    rows_by_event: dict[str, int] = {}
+    values_by_event: dict[str, dict[str, list[object]]] = {}
+    for name, properties in named_rows:
+        rows_by_event[name] = rows_by_event.get(name, 0) + 1
+        paths = values_by_event.setdefault(name, {})
+        seen: set[str] = set()
+        for leaf, leaf_value in flatten_json_paths(properties):
+            path = folded.get(leaf, leaf)
+            paths.setdefault(path, [])
+            # Presence counts rows, so a property repeated inside one row (the
+            # leaves of one object) counts once.
+            if path not in seen:
+                seen.add(path)
+                value = _value_at(properties, path) if path != leaf else leaf_value
+                paths[path].append(value)
+
+    events: list[dict[str, object]] = []
+    for name, count in sorted(rows_by_event.items(), key=lambda item: (-item[1], item[0])):
+        properties_out: list[dict[str, object]] = []
+        for path, values in sorted(values_by_event[name].items()):
+            inferred = infer_property_type(values)
+            examples: list[str] = []
+            for value in values:
+                if value is None:
+                    continue
+                text = format_json_path_value(value)
+                if text not in examples:
+                    examples.append(text)
+                if len(examples) >= EVENT_PROPERTY_SAMPLE_LIMIT:
+                    break
+            properties_out.append(
+                {
+                    "path": path,
+                    "presence": len(values) / count,
+                    "type": inferred[0] if inferred is not None else None,
+                    "sample_values": examples,
+                }
+            )
+        events.append({"name": name, "sample_rows": count, "properties": properties_out})
+    summary["sample_rows"] = sum(rows_by_event.values())
+    summary["events"] = events
+    return summary
+
+
 def build_preview_payload(
     adapter: BaseAdapter,
     base_query: str,
@@ -187,6 +305,8 @@ def build_preview_payload(
     time_column: str | None = None,
     time_from: datetime | None = None,
     time_to: datetime | None = None,
+    event_name_column: str | None = None,
+    properties_column: str | None = None,
 ) -> dict[str, object]:
     """Connect and sample rows for a fast, single-query preview.
 
@@ -195,6 +315,11 @@ def build_preview_payload(
     "Discover JSON keys" action). The shape still mirrors
     ``ScanConfigPreviewResponse``; ``json_columns`` lists the JSON-typed columns
     with empty ``paths`` so the UI knows discovery is available.
+
+    With both ``event_name_column`` and ``properties_column`` (the "event +
+    properties" preset) the payload also carries ``event_properties``,
+    summarised from every fetched row rather than the few shown, so the keys an
+    event carries are not limited to the rows picked for their diversity.
     """
     adapter.test_connection()
 
@@ -237,7 +362,7 @@ def build_preview_payload(
         if _is_json_type(column.type_name)
     ]
 
-    return {
+    payload: dict[str, object] = {
         "columns": [
             {
                 "name": column.name,
@@ -249,6 +374,16 @@ def build_preview_payload(
         "rows": preview_rows,
         "json_columns": json_columns,
     }
+    if event_name_column and properties_column:
+        payload["event_properties"] = json_safe(
+            summarize_event_properties(
+                columns,
+                sampled_rows,
+                event_name_column=event_name_column,
+                properties_column=properties_column,
+            )
+        )
+    return payload
 
 
 def build_json_paths_payload(

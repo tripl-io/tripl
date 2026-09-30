@@ -10,7 +10,7 @@ import { useBranchLinkProps } from '@/hooks/useBranch'
 import type { PlanDiffEntry, PlanDiffKind } from '@/types'
 import { DiffValue } from '../DiffValue'
 import { PlanFieldChangeList } from '../PlanFieldChangeList'
-import { changeSummary, housekeepingLine } from './branchDiffModel'
+import { changeSummary, housekeepingLine, housekeepingReason } from './branchDiffModel'
 import {
   ENTITY_LABEL,
   KIND_META,
@@ -478,7 +478,7 @@ export function HousekeepingFold({ entries }: { entries: PlanDiffEntry[] }) {
                 {entry.name}
               </span>
               <span className="shrink-0 text-fg-tertiary">
-                {ENTITY_LABEL[entry.entity_type] ?? entry.entity_type} · {entry.housekeeping}
+                {ENTITY_LABEL[entry.entity_type] ?? entry.entity_type} · {housekeepingReason(entry.housekeeping ?? '')}
               </span>
             </li>
           ))}

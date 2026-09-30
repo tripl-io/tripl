@@ -35,7 +35,7 @@ export const WELCOME_PILLARS: ReadonlyArray<{
     eyebrow: PRODUCT_PILLARS.plan.label,
     title: 'Design what should be tracked',
     description:
-      'A searchable catalog of every event, its fields, and typed variables. Changes happen on branches that are reviewed and merged like pull requests, so the live plan is never broken by accident.',
+      'A searchable catalog of every event, its fields, and typed properties. Changes happen on branches that are reviewed and merged like pull requests, so the live plan is never broken by accident.',
   },
   {
     id: 'observe',

@@ -250,7 +250,7 @@ def test_sql_config_without_value_column_must_project_value() -> None:
         SqlConfig(metric_sql="SELECT 1 AS v, now() AS x", time_column="t")
 
 
-# --- tripl-0zpq.370: a rename race on uq_data_source_name --------------------
+# --- tripl-0zpq.370: a rename race on uq_data_sources_organization_name ------
 
 
 async def _create_source(client: AsyncClient, name: str) -> str:

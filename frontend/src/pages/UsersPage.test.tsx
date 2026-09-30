@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
+import InvitationsSection from './settings-area/InvitationsSection'
 import UsersPage from './UsersPage'
 
 const OWNER: AuthContextValue = {
@@ -11,6 +12,8 @@ const OWNER: AuthContextValue = {
     email: 'owner@example.com',
     name: 'Owner',
     role: 'owner',
+    is_platform_admin: false,
+    orgs: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
@@ -45,6 +48,9 @@ function renderUsersPage(auth: AuthContextValue = OWNER, entry = '/settings/memb
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
         <MemoryRouter initialEntries={[entry]}>
+          {/* Members and Invitations are two sections since F20 PR7; the
+              invite flows here are the Invitations section's. */}
+          <InvitationsSection />
           <UsersPage />
         </MemoryRouter>
       </AuthContext.Provider>
@@ -64,17 +70,21 @@ describe('UsersPage', () => {
   it('tells a non-owner once, in the shared read-only notice, why roles are locked (#237 ST-17)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(jsonResponse([])))
 
-    renderUsersPage({ ...OWNER, user: OWNER.user && { ...OWNER.user, role: 'editor' } })
+    renderUsersPage({ ...OWNER, user: OWNER.user && { ...OWNER.user, role: 'member' } })
 
-    expect(await screen.findByRole('note')).toHaveTextContent(
-      'Only owners can change roles or invite people.',
+    // One notice per section: Members' says why roles are locked, and the
+    // Invitations section beside it says the same once for itself.
+    const notes = await screen.findAllByRole('note')
+    expect(notes.filter((note) => note.textContent?.includes('change roles'))).toHaveLength(1)
+    expect(notes.find((note) => note.textContent?.includes('change roles'))).toHaveTextContent(
+      'Only owners and admins can change roles or invite people.',
     )
   })
 
   it("focuses the invite email field when the palette's Invite member lands on ?invite=1", async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(jsonResponse([])))
 
-    renderUsersPage(OWNER, '/settings/members?invite=1')
+    renderUsersPage(OWNER, '/settings/invitations?invite=1')
 
     await waitFor(() => expect(screen.getByLabelText('Email')).toHaveFocus())
   })

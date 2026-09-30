@@ -20,7 +20,8 @@ from tripl.schemas.event import (
     EventUpdate,
 )
 from tripl.schemas.text_filters import FreeTextFilter
-from tripl.services import audit_service, event_service
+from tripl.schemas.variable import EventPropertyResponse
+from tripl.services import audit_service, event_service, variable_service
 
 router = APIRouter(prefix="/projects/{slug}/events", tags=["events"])
 # Kept for the two routes that only permute ``Event.order`` and are deliberately
@@ -150,6 +151,12 @@ async def list_events(
     has_open_questions: bool | None = None,
     field_value: FreeTextFilter | None = None,
     meta_value: FreeTextFilter | None = None,
+    # Events whose property list carries this property (F23.8): its id or name
+    # on the branch read. A ref that names no property matches nothing.
+    property: Annotated[
+        FreeTextFilter | None,
+        Query(description="Property id or name: only events whose property list carries it."),
+    ] = None,
     offset: int = Query(0, ge=0),
     # Ceiling is 10000 because frontend/src/pages/events/useEventsQuery.ts pages
     # the whole match set at EVENTS_ID_FETCH_PAGE_SIZE = 10000 for bulk "select
@@ -181,6 +188,7 @@ async def list_events(
         has_open_questions=has_open_questions,
         branch_id=branch_id,
         order_by=order_by,
+        property_ref=property,
     )
     return EventListResponse(items=items, total=total)
 
@@ -344,6 +352,15 @@ async def get_event(
     session: SessionDep, slug: str, event_id: uuid.UUID, branch_id: BranchIdDep
 ) -> Event:
     return await event_service.get_event(session, slug, event_id, branch_id, strict_branch=False)
+
+
+@router.get("/{event_id}/properties", response_model=list[EventPropertyResponse])
+async def list_event_properties(
+    session: SessionDep, slug: str, event_id: uuid.UUID, branch_id: BranchIdDep
+) -> list[EventPropertyResponse]:
+    """The event's property list (F23). Edit an entry through
+    ``PUT /variables/{variable_id}/event-overrides/{event_id}``."""
+    return await variable_service.list_event_properties(session, slug, event_id, branch_id)
 
 
 @router.get("/{event_id}/history", response_model=list[EventChangeResponse])

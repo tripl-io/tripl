@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.models.project import Project
 from tripl.models.project_health_snapshot import ProjectHealthSnapshot
 from tripl.services import event_health_service
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.health_weights import SNAPSHOT_RETENTION_DAYS
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import run_with_async_worker_session
@@ -59,7 +60,9 @@ async def upsert_snapshot(
 async def snapshot_all_projects(session: AsyncSession, now: datetime) -> dict[str, int]:
     """Snapshot every project for ``now``'s UTC day and prune old rows."""
     today = now.astimezone(UTC).date()
-    project_ids = list((await session.execute(select(Project.id))).scalars().all())
+    project_ids = list(
+        (await session.execute(select(Project.id).where(project_in_active_org()))).scalars().all()
+    )
     written = failed = 0
     for project_id in project_ids:
         try:

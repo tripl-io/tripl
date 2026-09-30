@@ -8,6 +8,8 @@ import { eventsApi } from '@/api/events'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { BranchContext } from '@/components/branch-context-internal'
 import DuplicatesPage from './DuplicatesPage'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/duplicates', () => ({
   MAX_DUPLICATE_CANDIDATES: 500,
@@ -35,21 +37,7 @@ const PAGE: DuplicateClustersResponse = {
 }
 
 function viewer(): AuthContextValue {
-  return {
-    user: {
-      id: 'viewer-1',
-      email: 'viewer@example.com',
-      name: 'Viewer',
-      role: 'viewer',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    },
-    status: 'authenticated',
-    error: null,
-    isLoggingOut: false,
-    logout: async () => {},
-    refresh: () => {},
-  } as AuthContextValue
+  return personaAuth('viewer')
 }
 
 function renderPage(auth: AuthContextValue | null = null) {
@@ -57,13 +45,15 @@ function renderPage(auth: AuthContextValue | null = null) {
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <BranchContext.Provider value={{ branchId: null, setBranchId: () => {}, slug: 'demo' }}>
-          <MemoryRouter initialEntries={['/p/demo/duplicates']}>
-            <Routes>
-              <Route path="/p/:slug/duplicates" element={<DuplicatesPage />} />
-            </Routes>
-          </MemoryRouter>
-        </BranchContext.Provider>
+        <SessionProject session={auth}>
+          <BranchContext.Provider value={{ branchId: null, setBranchId: () => {}, slug: 'demo' }}>
+            <MemoryRouter initialEntries={['/p/demo/duplicates']}>
+              <Routes>
+                <Route path="/p/:slug/duplicates" element={<DuplicatesPage />} />
+              </Routes>
+            </MemoryRouter>
+          </BranchContext.Provider>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import enum
 import json
 import uuid
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, Final, Literal, cast
 
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import desc, func, null, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.middleware.branch_context import current_branch
-from tripl.middleware.org_context import require_org_id
 from tripl.models.audit_log import AuditLog
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -18,7 +18,8 @@ from tripl.schemas.audit import (
     AuditEntryResponse,
     AuditListResponse,
 )
-from tripl.services.project_lookup import project_slug_clause
+from tripl.services import audit_webhook_outbox
+from tripl.services.project_lookup import owning_org_id, project_slug_clause
 
 # Fields that must never make it into the audit payload — credentials, hashes,
 # anything you would not want to read back from the audit UI in cleartext.
@@ -55,6 +56,18 @@ _REDACTED_KEYS = frozenset(
 _TARGET_NAME_MAX = 255
 
 
+class _BoundOrg(enum.Enum):
+    """Sentinel type of :data:`BOUND_ORG`."""
+
+    token = 0
+
+
+#: ``record(organization_id=...)``'s default: the project's organization, else
+#: the bound one. Pass an id to file the row elsewhere (a new organization's
+#: ``org.create``), or ``None`` for a platform-scope row (``org.delete_complete``).
+BOUND_ORG: Final = _BoundOrg.token
+
+
 def _jsonable(payload: dict[str, Any]) -> dict[str, Any]:
     """Round-trip through JSON to coerce UUIDs, datetimes, enums to primitives."""
     return cast(dict[str, Any], json.loads(json.dumps(payload, default=str)))
@@ -76,6 +89,7 @@ async def record(
     project_slug: str | None = None,
     payload: dict[str, Any] | None = None,
     commit: bool = True,
+    organization_id: uuid.UUID | None | Literal[_BoundOrg.token] = BOUND_ORG,
 ) -> AuditLog:
     """Write one audit row.
 
@@ -110,22 +124,29 @@ async def record(
     """
     project_id: uuid.UUID | None
     slug = ""
+    # The row belongs to the project's organization, else the bound one (the
+    # default when none is bound), so the feed can be read per organization.
+    owning_org = owning_org_id()
     if project is not None:
         project_id = project.id
         slug = project.slug
+        owning_org = project.organization_id
     elif project_slug:
         row = (
             await session.execute(
-                select(Project.id, Project.slug).where(project_slug_clause(project_slug))
+                select(Project.id, Project.slug, Project.organization_id).where(
+                    project_slug_clause(project_slug)
+                )
             )
         ).one_or_none()
         if row is None:
             project_id = None
             slug = project_slug
         else:
-            project_id, slug = row
+            project_id, slug, owning_org = row
     else:
         project_id = None
+    org_id: uuid.UUID | None = owning_org if organization_id is BOUND_ORG else organization_id
 
     # Read once per row so a ``commit=False`` batch (the inbox bulk route) is
     # consistent within itself; that route carries no branch, so it gets NULL.
@@ -136,6 +157,7 @@ async def record(
         user_email=user.email if user else "",
         project_id=project_id,
         project_slug=slug,
+        organization_id=org_id,
         branch_id=branch[0] if branch else None,
         branch_name=branch[1] if branch else "",
         action=action,
@@ -144,7 +166,15 @@ async def record(
         target_name=(target_name or "")[:_TARGET_NAME_MAX],
         payload=_redact(_jsonable(payload or {})),
     )
+    if org_id is None:
+        # A platform-scope row. ``None`` alone would let the column's default
+        # (the default organization) fill it in; ``NULL`` is written as such.
+        entry.organization_id = null()
     session.add(entry)
+    if org_id is not None:
+        # The organization's audit webhook, in this very transaction: the row
+        # is delivered if and only if it commits (audit_webhook_outbox).
+        await audit_webhook_outbox.enqueue(session, entry, org_id)
     if commit:
         await session.commit()
     return entry
@@ -162,8 +192,11 @@ async def list_entries(
     limit: int = 50,
     offset: int = 0,
 ) -> AuditListResponse:
-    base = select(AuditLog)
-    count_base = select(func.count()).select_from(AuditLog)
+    # Only the bound organization's feed (F20 PR4): an organization admin must
+    # not read another organization's payloads (warehouse details, scan SQL).
+    in_org = AuditLog.organization_id == owning_org_id()
+    base = select(AuditLog).where(in_org)
+    count_base = select(func.count()).select_from(AuditLog).where(in_org)
 
     if project_slug:
         # Resolve the slug to a project and filter on the ID. ``project_slug`` on
@@ -182,15 +215,12 @@ async def list_entries(
         owner_id: uuid.UUID | None = await session.scalar(
             select(Project.id).where(project_slug_clause(project_slug))
         )
-        # The label fallback is fenced to the bound organization: a deleted
-        # project's slug names nothing outside it (critique #8).
+        # The label fallback is fenced to the bound organization by ``in_org``:
+        # a deleted project's slug names nothing outside it (critique #8).
         scope = (
             AuditLog.project_id == owner_id
             if owner_id is not None
-            else and_(
-                AuditLog.organization_id == require_org_id(),
-                AuditLog.project_slug == project_slug,
-            )
+            else AuditLog.project_slug == project_slug
         )
         base = base.where(scope)
         count_base = count_base.where(scope)
@@ -241,7 +271,10 @@ async def get_entry(session: AsyncSession, entry_id: uuid.UUID) -> AuditEntryDet
     """One entry with the payload the list rows deliberately leave out.
 
     ``None`` for an id that is not in the log, so the router can answer 404
-    rather than an empty body (tripl-5ydt).
+    rather than an empty body (tripl-5ydt) — and for another organization's
+    entry, which does not exist for the caller.
     """
-    row = await session.get(AuditLog, entry_id)
+    row = await session.scalar(
+        select(AuditLog).where(AuditLog.id == entry_id, AuditLog.organization_id == owning_org_id())
+    )
     return AuditEntryDetailResponse.model_validate(row) if row is not None else None

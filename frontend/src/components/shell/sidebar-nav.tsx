@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CountBadge } from '@/components/primitives/count-badge'
+import { Dot } from '@/components/primitives/dot'
 import type { NavGroup, NavItem } from '@/lib/navigation'
 import type { EventType } from '@/types'
 import {
@@ -10,6 +11,7 @@ import {
   navLinkClass,
   navLinkStyle,
 } from './sidebar-style'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EVENT_TYPES_EXPANDED_KEY = 'tripl-sidebar-event-types-expanded'
 /** Event-type rows shown under Events before a "Show N more" row (#238 SH-9). */
@@ -95,6 +97,7 @@ function NavRow({ item, active }: { item: NavItem; active: boolean }) {
         aria-hidden="true"
       />
       <span className="flex-1 truncate text-left">{item.label}</span>
+      {item.attention && <Dot tone="warning" size={6} label={item.attention} />}
       {hasNavCount(item) && <NavCount count={item.count} urgent={isUrgentCount(item)} />}
     </Link>
   )
@@ -228,7 +231,7 @@ function EventTypeNavRow({
 }
 
 function eventTypeEventsHref(slug: string, eventTypeName: string): string {
-  return `/p/${slug}/events/${eventTypeName}`
+  return projectPath(currentOrgSlug(), slug, `/events/${eventTypeName}`)
 }
 
 export function EmptyNav({ loading }: { loading: boolean }) {

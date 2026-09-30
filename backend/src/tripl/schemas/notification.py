@@ -9,6 +9,9 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 SubscriptionEntityTypeLiteral = Literal["event", "event_type", "metric", "branch"]
+# What a notification may be about: every subscribable entity, plus a docs
+# catalog note (an @mention in a note, F24 part 2), which has no subscriptions.
+NotificationEntityTypeLiteral = Literal["event", "event_type", "metric", "branch", "doc"]
 SubscriptionReasonLiteral = Literal["author", "owner", "commenter", "reviewer", "manual"]
 NotificationKindLiteral = Literal[
     "comment",
@@ -20,6 +23,7 @@ NotificationKindLiteral = Literal[
     "branch_approved",
     "branch_merged",
     "lifecycle",
+    "property_drift",
 ]
 EmailModeLiteral = Literal["off", "instant", "daily", "weekly"]
 
@@ -39,7 +43,7 @@ class NotificationResponse(BaseModel):
     project_slug: str
     project_name: str
     kind: NotificationKindLiteral
-    entity_type: SubscriptionEntityTypeLiteral
+    entity_type: NotificationEntityTypeLiteral
     entity_id: uuid.UUID
     title: str
     body: str

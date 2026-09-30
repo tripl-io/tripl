@@ -59,6 +59,7 @@ from tripl.services._celery_dispatch import dispatch
 from tripl.services.data_source_scope import (
     DATA_SOURCE_NOT_AVAILABLE,
     data_source_out_of_project_scope,
+    project_organization_id,
     scanning_project_ids_for,
 )
 from tripl.services.metrics_service import (
@@ -152,6 +153,7 @@ async def load_project_data_source(
     if data_source_out_of_project_scope(
         data_source,
         project_id=project_id,
+        project_organization_id=await project_organization_id(session, project_id),
         scanning_project_ids=await scanning_project_ids_for(session, data_source),
     ):
         raise HTTPException(status_code=404, detail=DATA_SOURCE_NOT_AVAILABLE)

@@ -81,7 +81,7 @@ them precisely and only returns events that actually carry them.
 
 The smart search endpoint takes a natural-language query `q` and returns ranked hits
 across the whole project — not just events, but event types, fields, meta
-fields, variables, relations, tags, metrics, fact tables, scans and alert
+fields, properties, relations, tags, metrics, fact tables, scans and alert
 rules. A scan is findable by the columns it is wired to and by the
 warehouse SQL it runs, so "which scan reads `checkout_events`" is a search; an
 alert rule is findable by the wording of its message template. The response is
@@ -112,7 +112,7 @@ Each item carries:
 - `route_path` — where the entity lives in the app
 
 Event hits additionally include `event_id`, `name`, `implemented`, and
-`variable_values` (the observed variable readings for that event).
+`variable_values` (the observed property readings for that event).
 
 ### Example: a feature phrase
 
@@ -214,11 +214,11 @@ Two consequences worth knowing:
 A match in an entity's **name** counts for more than the same word buried in its
 description, its field values, or the values a scan harvested from your warehouse.
 So searching `paywall` surfaces the event *called* paywall-something ahead of an
-unrelated variable that merely happens to have observed the string `paywall` in
+unrelated property that merely happens to have observed the string `paywall` in
 production data.
 
-This matters most for **auto-detected variables**, which accumulate whatever your
-app emitted. Before, a variable holding a common word thousands of times could
+This matters most for **auto-detected properties**, which accumulate whatever your
+app emitted. Before, a property holding a common word thousands of times could
 outrank the event actually named after it. It no longer can.
 
 A caveat worth knowing: entities whose names are in one language are not favoured
@@ -233,7 +233,9 @@ There are two flags with this name and they answer two different questions.
 **On the envelope**, `semantic_used` tells you which engine answered:
 
 - `true` — embeddings were used (true semantic ranking by meaning).
-- `false` — the instance has no embedding provider configured, so search fell back
+- `false` — the organization the project belongs to has no embedding provider
+  configured (each organization chooses its own under **Settings → Organization
+  → Search**, or inherits the operator's), so search fell back
   to keyword/substring matching. `/search` still works, but it ranks by word
   overlap (stemmed, as above) rather than by meaning.
 

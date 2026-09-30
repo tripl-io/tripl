@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import logging
 import smtplib
+import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.project import Project
 from tripl.services import app_settings_service
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.tasks.alerts_channels import DIGEST_SUBJECT_TITLE
@@ -150,13 +153,29 @@ def _send_digest_to_destination(
     )
 
 
+class _OrgEmailConfigs:
+    """Each project's ORGANIZATION's relay (F20 PR9), read once per organization per run."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+        self._by_org: dict[uuid.UUID, app_settings_service.EmailConfig] = {}
+
+    def for_project(self, project: Project) -> app_settings_service.EmailConfig:
+        org_id = project.organization_id
+        if org_id not in self._by_org:
+            self._by_org[org_id] = app_settings_service.get_email_config_sync(
+                self._session, org_id=org_id
+            )
+        return self._by_org[org_id]
+
+
 @celery_app.task(name="tripl.worker.tasks.alerts.send_weekly_plan_digest")  # type: ignore[untyped-decorator]
 def send_weekly_plan_digest() -> dict[str, int]:
     session = _get_sync_session()
     sent = 0
     failed = 0
     try:
-        email_config = app_settings_service.get_email_config_sync(session)
+        email_configs = _OrgEmailConfigs(session)
         rows = session.execute(
             select(Project, AlertDestination)
             .join(AlertDestination, AlertDestination.project_id == Project.id)
@@ -172,6 +191,7 @@ def send_weekly_plan_digest() -> dict[str, int]:
                 # which is the honest tally: nothing was attempted, and nothing
                 # is wrong (tripl-0zpq.33).
                 Project.is_demo.is_(False),
+                project_in_active_org(),
                 AlertDestination.enabled.is_(True),
                 AlertDestination.type.in_(
                     [AlertDestinationType.slack.value, AlertDestinationType.email.value]
@@ -187,7 +207,7 @@ def send_weekly_plan_digest() -> dict[str, int]:
                     destination=destination,
                     message=message,
                     project=project,
-                    email_config=email_config,
+                    email_config=email_configs.for_project(project),
                 )
                 sent += 1
             except Exception:  # noqa: BLE001
@@ -235,7 +255,7 @@ def check_deprecated_sunset_events() -> dict[str, int]:
     sent = 0
     failed = 0
     try:
-        email_config = app_settings_service.get_email_config_sync(session)
+        email_configs = _OrgEmailConfigs(session)
         rows = session.execute(
             select(Project, AlertDestination)
             .join(AlertDestination, AlertDestination.project_id == Project.id)
@@ -244,6 +264,7 @@ def check_deprecated_sunset_events() -> dict[str, int]:
                 # its destinations the same way and is equally outside the API's
                 # demo guard.
                 Project.is_demo.is_(False),
+                project_in_active_org(),
                 AlertDestination.enabled.is_(True),
                 AlertDestination.type.in_(
                     [AlertDestinationType.slack.value, AlertDestinationType.email.value]
@@ -262,7 +283,7 @@ def check_deprecated_sunset_events() -> dict[str, int]:
                     destination=destination,
                     message=message,
                     project=project,
-                    email_config=email_config,
+                    email_config=email_configs.for_project(project),
                     subject_title=SUNSET_SUBJECT_TITLE,
                 )
                 sent += 1

@@ -1,3 +1,4 @@
+import { orgRoot } from '@/lib/activeOrg'
 import type { DocLinkKind, DocScope } from '@/types/docs'
 
 /**
@@ -9,12 +10,16 @@ import type { DocLinkKind, DocScope } from '@/types/docs'
  * Kept beside queryKeys.ts rather than in it so the event page's Notes card
  * does not import the whole key module's API clients just for these.
  */
-export const docsKey = (slug: string) => ['docs', slug] as const
+export const docsKey = (slug: string) => [...orgRoot(), 'docs', slug] as const
 
 export const docsTreeKey = (slug: string) => [...docsKey(slug), 'tree'] as const
 
 export const docFileKey = (slug: string, scope: DocScope, path: string) =>
   [...docsKey(slug), 'file', scope, path] as const
+
+/** A note's (`target: 'file'`) or folder's sharing (F24). */
+export const docSharingKey = (slug: string, target: 'file' | 'folder', scope: DocScope, path: string) =>
+  [...docsKey(slug), 'sharing', target, scope, path] as const
 
 export const docRevisionsKey = (slug: string, scope: DocScope, path: string) =>
   [...docsKey(slug), 'revisions', scope, path] as const
@@ -32,6 +37,10 @@ export const docBacklinksKey = (
 /** Live-preview link resolution; `refs` is the sorted `kind:target` list. */
 export const docLinkResolutionKey = (slug: string, refs: readonly string[]) =>
   [...docsKey(slug), 'links', refs.join('\n')] as const
+
+/** The editor's `[[` / `@` picker rows for one (debounced) query. */
+export const docLinkSuggestionsKey = (slug: string, q: string, kind: DocLinkKind | null) =>
+  [...docsKey(slug), 'link-suggestions', kind, q] as const
 
 /** Full-text docs search (quick open's "In note text"). */
 export const docSearchKey = (slug: string, q: string) => [...docsKey(slug), 'search', q] as const

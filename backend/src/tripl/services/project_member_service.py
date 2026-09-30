@@ -6,8 +6,15 @@ member-management API (list, add, change role, remove) and the grants the
 creation paths write — a project's creator becomes an ``editor`` member, and a
 demo reset carries the previous members over onto the re-created row.
 
-Managing members is reserved to the instance owner and the project's creator,
-the same "project manager" set that may rename or re-slug a project.
+Managing members is reserved to the owners and admins of the project's
+organization (project role ``owner``) and the project's creator, the same
+"project manager" set that may rename or re-slug a project. Only members of the
+project's organization can be added.
+
+A row with role ``none`` opts one organization member out of the project: it
+wins over the organization's ``default_project_role`` (F20). An owner or admin
+of the organization always reaches every project, so a ``none`` row for one is
+refused (422) rather than stored as a rule that would not hold.
 """
 
 from __future__ import annotations
@@ -19,7 +26,7 @@ from fastapi import HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.models.domain_enums import ProjectMemberRole, UserRole
+from tripl.models.domain_enums import ProjectMemberRole
 from tripl.models.event_type import EventType
 from tripl.models.event_type_owner import EventTypeOwner
 from tripl.models.plan_branch import PlanBranch
@@ -28,8 +35,13 @@ from tripl.models.project import Project
 from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.schemas.project_member import ProjectMemberResponse
+from tripl.services import project_access
 
 NOT_A_MEMBER_DETAIL = "User is not a member of this project"
+ORG_ADMIN_ALWAYS_HAS_ACCESS = (
+    "Organization owners and admins always have access to every project; "
+    "'none' cannot be set for them"
+)
 
 
 @dataclass(frozen=True)
@@ -41,15 +53,20 @@ class MemberGrant:
     added_by_user_id: uuid.UUID | None
 
 
-def is_member_manager(user: User, project: Project) -> bool:
-    """The instance owner, or whoever created this project."""
-    return user.role == UserRole.owner.value or (
+def is_member_manager(project_role: str | None, user: User, project: Project) -> bool:
+    """An owner/admin of the project's organization, or whoever created this project.
+
+    ``project_role`` is the caller's role in ``project`` as
+    :func:`tripl.services.project_access.member_role` answers it (``"owner"``
+    exactly for owners/admins of the project's own organization).
+    """
+    return project_role == project_access.OWNER or (
         project.created_by_user_id is not None and project.created_by_user_id == user.id
     )
 
 
-def require_member_manager(user: User, project: Project) -> None:
-    if is_member_manager(user, project):
+def require_member_manager(project_role: str | None, user: User, project: Project) -> None:
+    if is_member_manager(project_role, user, project):
         return
     raise HTTPException(
         status_code=403,
@@ -99,7 +116,7 @@ async def list_members(session: AsyncSession, project_id: uuid.UUID) -> list[Pro
 
 
 async def is_member(session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
-    """Whether ``user_id`` holds a membership row (the instance owner may not)."""
+    """Whether ``user_id`` holds a membership row (an organization owner/admin may not)."""
     return await _get_member(session, project_id, user_id) is not None
 
 
@@ -156,6 +173,26 @@ async def restore_grants(
         )
 
 
+def _refuse_no_access_for_org_admin(role: ProjectMemberRole, org_role: str | None) -> None:
+    """422 on a ``none`` row for an organization owner/admin: they always have access."""
+    if role == ProjectMemberRole.none and project_access.is_org_admin_role(org_role):
+        raise HTTPException(status_code=422, detail=ORG_ADMIN_ALWAYS_HAS_ACCESS)
+
+
+async def _drop_grants_unless_still_member(
+    session: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID
+) -> None:
+    """Drop ``user_id``'s per-project grants once they no longer reach the project.
+
+    Read after the membership change is flushed, through the one access rule
+    (``project_access.members_among``): an org owner/admin, or a member the
+    organization default still admits, keeps them. No commit.
+    """
+    await session.flush()
+    if user_id not in await project_access.members_among(session, project_id, [user_id]):
+        await _drop_project_grants(session, project_id, user_id)
+
+
 async def add_member(
     session: AsyncSession,
     project: Project,
@@ -165,8 +202,17 @@ async def add_member(
     added_by: uuid.UUID | None,
 ) -> ProjectMemberResponse:
     user = await session.get(User, user_id)
-    if user is None:
+    # Only members of the project's organization can join it. A user of another
+    # organization answers the same 404 as an unknown id, so the endpoint is no
+    # oracle for which accounts exist elsewhere on the instance.
+    org_role = (
+        None
+        if user is None
+        else await project_access.org_role_of(session, user_id, project.organization_id)
+    )
+    if user is None or org_role is None:
         raise HTTPException(status_code=404, detail="User not found")
+    _refuse_no_access_for_org_admin(role, org_role)
     if await _get_member(session, project.id, user_id) is not None:
         raise HTTPException(status_code=409, detail="User is already a member of this project")
     member = ProjectMember(
@@ -176,6 +222,9 @@ async def add_member(
         added_by_user_id=added_by,
     )
     session.add(member)
+    if role == ProjectMemberRole.none:
+        # An opt-out: whatever the default gave them in this project goes too.
+        await _drop_grants_unless_still_member(session, project.id, user_id)
     await session.commit()
     await session.refresh(member)
     return _serialize(member, user)
@@ -188,13 +237,22 @@ async def update_member(
     user_id: uuid.UUID,
     role: ProjectMemberRole,
 ) -> tuple[ProjectMemberResponse, str]:
-    """Change a member's role. Returns the new state and the previous role."""
+    """Change a member's role. Returns the new state and the previous role.
+
+    Moving a member to ``none`` takes the project away from them, with the
+    event-type ownerships and reviewer seats they held in it.
+    """
     member = await _get_member_or_404(session, project.id, user_id)
     user = await session.get(User, user_id)
     if user is None:  # pragma: no cover - the FK cascades a deleted user's rows away
         raise HTTPException(status_code=404, detail="Member not found")
-    previous = member.role
+    _refuse_no_access_for_org_admin(
+        role, await project_access.org_role_of(session, user_id, project.organization_id)
+    )
+    previous = str(member.role)
     member.role = role.value
+    if role == ProjectMemberRole.none:
+        await _drop_grants_unless_still_member(session, project.id, user_id)
     await session.commit()
     await session.refresh(member)
     return _serialize(member, user), previous
@@ -205,14 +263,19 @@ async def remove_member(
 ) -> ProjectMemberResponse:
     """Delete a membership. Returns what was removed, for the audit row.
 
-    Removing the last editor is allowed: the instance owner always reaches the
-    project, so it can never become unmanageable.
+    Removing the last editor is allowed: the organization's owners always reach
+    the project, so it can never become unmanageable. Removing a row puts the
+    member back on the organization's ``default_project_role``: removing a
+    ``none`` row may give them access, removing an ``editor`` row under an
+    ``editor`` default changes nothing. To take a member out of a project whose
+    organization default admits them, set ``none`` instead.
 
-    In the same transaction, drop the per-project grants the membership carried:
-    the user's ownership of this project's event types (which would otherwise
-    keep gating merges on an approval they can no longer give) and their
-    reviewer assignments on this project's branches. An instance owner keeps
-    them: they still reach the project without the row.
+    In the same transaction, drop the per-project grants the membership carried
+    if the user no longer reaches the project: their ownership of this
+    project's event types (which would otherwise keep gating merges on an
+    approval they can no longer give) and their reviewer assignments on this
+    project's branches. An owner/admin of the project's organization, or a
+    member the organization default admits, keeps them.
     """
     member = await _get_member_or_404(session, project.id, user_id)
     user = await session.get(User, user_id)
@@ -220,10 +283,21 @@ async def remove_member(
         raise HTTPException(status_code=404, detail="Member not found")
     removed = _serialize(member, user)
     await session.delete(member)
-    if user.role != UserRole.owner.value:
-        await _drop_project_grants(session, project.id, user_id)
+    await _drop_grants_unless_still_member(session, project.id, user_id)
     await session.commit()
     return removed
+
+
+async def drop_grants_in_projects(
+    session: AsyncSession, project_ids: list[uuid.UUID], user_id: uuid.UUID
+) -> None:
+    """:func:`_drop_project_grants` over several projects: a member leaving an organization.
+
+    No commit. Used by ``org_service.remove_member`` (critique #28), which takes
+    the user out of every project of the organization at once.
+    """
+    for project_id in project_ids:
+        await _drop_project_grants(session, project_id, user_id)
 
 
 async def _drop_project_grants(

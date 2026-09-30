@@ -23,7 +23,7 @@ Because of that, the MCP server inherits the API-key security model wholesale:
 
 The server is configured through environment variables:
 
-| Variable | Required | Meaning |
+| Property | Required | Meaning |
 |----------|----------|---------|
 | `TRIPL_BASE_URL` | yes | Base URL of the tripl instance, e.g. `https://tripl.example.com` |
 | `TRIPL_API_KEY` | stdio mode | API key (`tk_r_...` or `tk_w_...`) used for all requests |
@@ -32,7 +32,7 @@ The server is configured through environment variables:
 Give a discovery-only agent a `tk_r_` key and prefer project-scoped keys, the
 same [safe defaults](./agent-api-guide.md#safe-agent-defaults) as for raw REST.
 
-:::tip Same two variables as the CLI
+:::tip Same two properties as the CLI
 `TRIPL_BASE_URL` and `TRIPL_API_KEY` are read identically by the
 [operator CLI](../run/cli.md), and the two tools share one HTTP client (the MCP
 server imports it from the `tripl` distribution in `cli/`). A shell configured
@@ -184,10 +184,11 @@ and not by the tool schema.
 | `search_plan` | `slug, q, types?, limit?, branch_id?` | `GET /projects/{slug}/search` — `types` is [enumerated](#enumerated-arguments) |
 | `list_events` | `slug, search?, status?, tag?, field_value?, meta_value?, event_type_id?, silent_since_days?, reviewed?, offset?, limit?, order_by?, branch_id?` | `GET /projects/{slug}/events` — `status` and `order_by` are [enumerated](#enumerated-arguments) |
 | `get_event` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}` |
+| `get_event_properties` | `slug, event_id, branch_id?` | `GET /projects/{slug}/events/{event_id}/properties` |
 | `list_event_types` | `slug` | `GET /projects/{slug}/event-types` |
 | `get_event_type_fields` | `slug, event_type_id` | Event type + its field definitions, merged |
-| `list_variables` | `slug, branch_id?` | `GET /projects/{slug}/variables` |
-| `get_variable_values` | `slug, variable_id, branch_id?` | Variable values + event overrides |
+| `list_variables` | `slug, branch_id?` | `GET /projects/{slug}/properties` |
+| `get_variable_values` | `slug, variable_id, branch_id?` | Property values + event overrides |
 | `list_branches` | `slug` | `GET /projects/{slug}/branches` |
 | `get_branch_diff` | `slug, branch_id` | `GET /projects/{slug}/branches/{branch_id}/diff` |
 | `list_scans` | `slug` | `GET /projects/{slug}/scans` — **trimmed**: identity, schedule and a derived `dispatchable` flag, without `base_query` and the tuning knobs |
@@ -220,26 +221,26 @@ project the key is fenced to.
 
 :::note
 `list_variables` passes the API response straight through, so it returns the
-paged envelope `{"items": [...], "total": <int>}` — the first 200 variables of
-the project. Compare `total` against `len(items)` before concluding a variable
+paged envelope `{"items": [...], "total": <int>}` — the first 200 properties of
+the project. Compare `total` against `len(items)` before concluding a property
 does not exist; on a large catalog, fall back to `search_plan` with
 `types=variable` to find a specific one.
 
-A missing variable is not always a paging artefact either: a catalog scan run
-can retire the scan-created variables nothing refers to any more, so an id from
+A missing property is not always a paging artefact either: a catalog scan run
+can retire the scan-created properties nothing refers to any more, so an id from
 an earlier listing can stop resolving. A scan started by hand always does this;
-a scheduled collection does too, judging a variable minted from a path inside a
+a scheduled collection does too, judging a property minted from a path inside a
 JSON column on every run and one minted from a scalar column only when the
-config declares a lookback window; a replay never. Variables that were edited, documented,
+config declares a lookback window; a replay never. Properties that were edited, documented,
 bound, or excluded from scans are never retired, and neither is one renamed to
 anything the scan would not have chosen for that path itself — see
-[Variables & templates](../use/variables-and-templates.md#unreferenced-scan-created-variables-are-retired-automatically).
+[Properties & templates](../use/variables-and-templates.md#unreferenced-scan-created-properties-are-retired-automatically).
 
 The REST endpoint's `usage=all|used|unused` filter — `unused` being exactly the
 set a retirement pass would take — is **not** plumbed through this tool, which
 passes only `slug`, `branch_id`, `offset` and `limit`. An agent that needs
-"which variables does nothing reference" has to call
-`GET /api/v1/projects/{slug}/variables?usage=unused` over HTTP.
+"which properties does nothing reference" has to call
+`GET /api/v1/projects/{slug}/properties?usage=unused` over HTTP.
 :::
 
 ### Write tools
@@ -277,12 +278,25 @@ review. That is why the toolset stops at single-note create and replace:
 
 - Pass `base_revision` from the `read_doc` you edited. If someone changed the
   note since, the server answers `409` rather than overwriting their edit.
-- A `[[event:NAME]]`, `[[event-type:NAME]]` or `[[field:TYPE/NAME]]` link that
-  does not resolve on the main plan comes back as a warning. The note is saved
-  anyway, so fix the name and write it again.
+- A `[[kind:target]]` link that does not resolve comes back as a warning. The
+  note is saved anyway, so fix the name and write it again. Plan links
+  (`[[event:NAME]]`, `[[event-type:NAME]]`, `[[field:TYPE/NAME]]`,
+  `[[variable:NAME]]`, `[[metric:NAME]]`, `[[branch:NAME]]`, `[[scan:NAME]]`,
+  `[[data-source:NAME]]`) go by name. Links to notes, alert rules and people go
+  by id: `[[doc:<id>]]`, `[[alert-rule:<id>]]` and `[[user:<id>]]` (a mention).
+  See the [link syntax](agent-api-guide.md#docs-link-syntax).
 - A `tk_r_` key, or a `tk_w_` key held by a viewer, gets a `403`.
 - A key bound to one project gets a `403` on `scope: organization` writes,
   because every project of the organization reads those notes.
+- The tools see what the key's user sees. A note that is not shared with that
+  user (see [Sharing](../use/docs-catalog.md#sharing)) is missing from
+  `list_docs`, `search_docs` and `search_plan`, and `read_doc` answers "not
+  found" for it. The exception is a key of an organization owner or admin:
+  `read_doc` still returns such a note, flagged `break_glass: true`, and the
+  read is recorded in the audit log as `doc.break_glass_read`. It stays
+  read-only and never shows in lists or searches. A note shared with the user
+  to view only gets a `403` from `write_doc`. Sharing itself is changed in the
+  app or through the API, not through MCP.
 
 ### Names an agent does not choose
 

@@ -22,7 +22,6 @@ from pydantic import TypeAdapter
 from tripl import realtime
 from tripl.api.deps import get_current_user
 from tripl.main import app
-from tripl.models.domain_enums import UserRole
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.scan_config import ScanConfig
 from tripl.models.scan_job import ScanJob
@@ -262,7 +261,7 @@ async def test_viewer_reads_generated_sql(client: AsyncClient) -> None:
     url = f"{_metrics_url(project['slug'])}/{metric.json()['id']}"
     # A persisted viewer MEMBER: non-members get 404 on every slug route.
     viewer = await persisted_member_user(
-        uuid.UUID(project["id"]), role=UserRole.viewer.value, email="viewer@example.com"
+        uuid.UUID(project["id"]), role="viewer", email="viewer@example.com"
     )
 
     async def _viewer() -> User:
@@ -308,17 +307,12 @@ async def _can_mutate(client: AsyncClient, slug: str, **kwargs: Any) -> bool:
 async def test_can_mutate_follows_the_editor_gate_per_caller() -> None:
     owner, editor, other_editor, viewer = (_new_client() for _ in range(4))
     try:
-        # The first registered user is the instance owner; later ones are editors.
+        # The first registered user owns the default organization; later ones
+        # are its members, whose project rights come from their project rows.
         await _register(owner, "owner@example.com")
         await _register(editor, "editor@example.com")
         await _register(other_editor, "other@example.com")
-        viewer_user = await _register(viewer, "viewer@example.com")
-        demote = await owner.patch(f"/api/v1/users/{viewer_user['id']}", json={"role": "viewer"})
-        assert demote.status_code == 200, demote.text
-        relogin = await viewer.post(
-            "/api/v1/auth/login", json={"email": "viewer@example.com", "password": PASSWORD}
-        )
-        assert relogin.status_code == 200, relogin.text
+        await _register(viewer, "viewer@example.com")
 
         await _create_project(owner, "shared")
         created = await _create_project(other_editor, "theirs")
@@ -327,11 +321,11 @@ async def test_can_mutate_follows_the_editor_gate_per_caller() -> None:
         assert created["my_role"] == "editor"
 
         # Membership decides: editor is an editor member of "shared" and a
-        # viewer member of "theirs"; the instance viewer is an editor member of
-        # "shared" but capped by their instance role.
+        # viewer member of "theirs"; viewer is a viewer member of "shared" (the
+        # project row is authoritative since F20 PR4, there is no instance cap).
         await add_member_by_slug("shared", "editor@example.com", "editor")
         await add_member_by_slug("theirs", "editor@example.com", "viewer")
-        await add_member_by_slug("shared", "viewer@example.com", "editor")
+        await add_member_by_slug("shared", "viewer@example.com", "viewer")
 
         assert await _can_mutate(editor, "theirs") is False
         assert await _can_mutate(other_editor, "theirs") is True
@@ -754,7 +748,9 @@ def _recorded_actions() -> tuple[set[str], set[str]]:
                 start = source.rfind("record(", 0, match.start())
                 end = source.find("\n    )", match.end())
                 block = source[start : end if end > 0 else match.end() + 600]
-                has_project = "project=" in block or "project_slug=" in block
+                # ``project_slug=""`` / ``project=None`` name no project: the
+                # platform-scope rows (F20 PR14) spell the column out empty.
+                has_project = re.search(r'project(?:_slug)?=(?!None\b|"")', block) is not None
                 (scoped if has_project else unscoped).add(match.group(1))
     return scoped, unscoped
 

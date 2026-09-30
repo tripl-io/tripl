@@ -81,7 +81,10 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "variable.values_clear",
             "variable.override_set",
             "variable.override_delete",
+            "variable.override_bulk_set",
+            "variable.override_bulk_delete",
             "variable.drift_action",
+            "variable.property_drift_action",
         ),
     ),
     (
@@ -181,6 +184,10 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "doc.folder_delete",
             "doc.restore",
             "doc.import",
+            # F24: a note's or folder's sharing changed (before/after, no
+            # content), and an org owner/admin read a note hidden from them.
+            "doc.share_update",
+            "doc.break_glass_read",
         ),
     ),
     (
@@ -215,12 +222,100 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "data_source.delete",
             "user.invite",
             "user.invite_revoke",
+            "user.invite_accept",
             "user.role_update",
             "api_key.revoke",
             "settings.update",
             # Written by the removed ``PUT /settings/ai``; older entries carry it.
             "settings.ai_update",
             "project.delete",
+        ),
+    ),
+    (
+        # F20 PR6. ``org.delete_complete`` is filed at platform scope (no
+        # organization: it is gone), so no organization's feed ever lists it.
+        "Organization",
+        (
+            "org.create",
+            "org.update",
+            # Written by ``PATCH /orgs/{org}`` before it became ``org.update``
+            # (default project role); older entries carry it.
+            "org.rename",
+            "org.delete_request",
+            "org.delete_cancel",
+            "org.delete_complete",
+            "org.member_role_update",
+            "org.member_remove",
+            "org.transfer_ownership",
+            "org.group.create",
+            "org.group.update",
+            "org.group.delete",
+            "org.group.member_add",
+            "org.group.member_remove",
+        ),
+    ),
+    (
+        # F20: reading the log out — the export (filed when it starts) and the
+        # audit webhook's settings (``org.audit_webhook.*``).
+        "Audit log",
+        (
+            "org.audit_export",
+            "org.audit_webhook.create",
+            "org.audit_webhook.update",
+            "org.audit_webhook.delete",
+            "org.audit_webhook.rotate_secret",
+            "org.audit_webhook.test",
+        ),
+    ),
+    (
+        # F20: an organization's OIDC single sign-on — its settings and domains
+        # (``org.sso.*``) and the sign-ins through it (``user.sso_*``), all
+        # filed in the organization.
+        "Single sign-on",
+        (
+            "org.sso.update",
+            "org.sso.domain_add",
+            "org.sso.domain_verify",
+            "org.sso.domain_remove",
+            "user.sso_login",
+            "user.sso_provision",
+            "user.sso_link",
+        ),
+    ),
+    (
+        # F20: SCIM 2.0 provisioning. The owner's token and mapping changes
+        # (``org.scim.token_*``, ``org.scim.config_update``) carry the owner;
+        # everything the identity provider does through a token carries no
+        # user and ``{"via": "scim", "token_prefix": ...}`` in the payload. A
+        # role the admin-group mapping changes is ``org.member_role_update``
+        # (under Organization) with ``"via": "scim_admin_group"``.
+        "Provisioning (SCIM)",
+        (
+            "org.scim.token_create",
+            "org.scim.token_revoke",
+            "org.scim.config_update",
+            "org.scim.user_provision",
+            "org.scim.user_link",
+            "org.scim.user_update",
+            "org.scim.user_deactivate",
+            "org.scim.user_reactivate",
+            "org.scim.group_create",
+            "org.scim.group_update",
+            "org.scim.group_delete",
+        ),
+    ),
+    (
+        # F20 PR14: the platform console. Suspension and step-ins are filed in
+        # the TARGET organization, so its owners read them in their own feed;
+        # platform-admin grants have no organization (platform scope).
+        "Platform",
+        (
+            "org.suspend",
+            "org.unsuspend",
+            "platform.step_in",
+            "platform.step_in_end",
+            "platform.admin_grant",
+            "platform.admin_revoke",
         ),
     ),
 )

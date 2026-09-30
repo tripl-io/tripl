@@ -145,9 +145,9 @@ export function DangerRetireVariablesRow({
     >
       <div className={DANGER_ROW_CLASS}>
         <div className="min-w-0 flex-1">
-          <div className="text-body font-medium">Retire unused variables</div>
+          <div className="text-body font-medium">Retire unused properties</div>
           <div className="mt-[3px] text-body-sm leading-[1.45] text-fg-tertiary">
-            Delete variables a scan created that no event field value references and that carry no
+            Delete properties a scan created that no event field value references and that carry no
             observed values, drift or documented values. Nothing edited by hand is touched.
           </div>
           {feedback}

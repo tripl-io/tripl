@@ -10,6 +10,7 @@ import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
 import { eventsRootKey, projectMembersQueryOptions, usersKey } from '@/lib/queryKeys'
 import { usersApi } from '@/api/users'
 import { projectCandidates } from '@/lib/projectCandidates'
+import { useOrgDefaultProjectRole } from '@/hooks/useOrgDefaultProjectRole'
 import { useConfirm } from '@/hooks/useConfirm'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { AuthContext } from '@/components/auth-context'
@@ -121,8 +122,8 @@ export function CommentThread({
   const [replyTo, setReplyTo] = useState<string | null>(null)
 
   const commentsQuery = useQuery({ queryKey: queryKey, queryFn: list })
-  // The @ list: the project's members plus the instance owners, who see every
-  // project without a member row (tripl-vefw) — the server notifies exactly
+  // The @ list: the project's members plus the organization's owners and
+  // admins, who see every project without a member row (tripl-vefw) — the server notifies exactly
   // those. Members are fetched only for someone who can post.
   const membersQuery = useQuery({
     ...projectMembersQueryOptions(mentionSlug),
@@ -140,10 +141,13 @@ export function CommentThread({
     meta: SILENT_ERROR_META,
     staleTime: 60_000,
   })
+  // Members with no row see the project too when the organization's default
+  // access gives it to them (F20 PR15).
+  const defaultProjectRole = useOrgDefaultProjectRole({ enabled: !!mentionSlug })
   const members = Array.isArray(membersQuery.data) ? membersQuery.data : []
   const users = Array.isArray(usersQuery.data) ? usersQuery.data : []
   const mentionCandidates: MentionCandidate[] | undefined = mentionSlug
-    ? projectCandidates(members, users)
+    ? projectCandidates(members, users, defaultProjectRole)
         .filter(candidate => candidate.user_id !== currentUserId)
         .map(candidate => ({
           userId: candidate.user_id,

@@ -5,11 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { EventType, FieldDefinition } from '@/types'
 import { BranchContext } from '@/components/branch-context-internal'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { projectEventTypesKey } from '@/lib/queryKeys'
 import { EventTypesTab, FieldsEditor } from './EventTypesTab'
 import { EventTypeDetail } from './EventTypeDetailView'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 /**
  * Radix tabs select on mouse-down (and keyboard), not on click, so a bare
@@ -67,7 +68,7 @@ const CHECKOUT = eventType({
   ],
 })
 
-const VIEWER = authAs('viewer')
+const VIEWER = personaAuth('viewer')
 
 function renderWithRoutes(
   initialPath: string,
@@ -79,13 +80,15 @@ function renderWithRoutes(
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <Routes>
-            <Route path="/p/:slug/event-types/:itemId" element={<DetailRoute />} />
-            <Route path="/p/:slug/event-types" element={<EventTypesTab slug="demo" />} />
-            <Route path="/p/:slug/events/:tab" element={<div>events for tab</div>} />
-          </Routes>
-        </MemoryRouter>
+        <SessionProject session={auth}>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Routes>
+              <Route path="/p/:slug/event-types/:itemId" element={<DetailRoute />} />
+              <Route path="/p/:slug/event-types" element={<EventTypesTab slug="demo" />} />
+              <Route path="/p/:slug/events/:tab" element={<div>events for tab</div>} />
+            </Routes>
+          </MemoryRouter>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )

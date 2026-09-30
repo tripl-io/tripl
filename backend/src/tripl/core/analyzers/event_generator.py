@@ -68,6 +68,8 @@ from tripl.core.analyzers._event_identity import (
     insert_event_claiming_identity,
     scan_identity_winner_order,
 )
+from tripl.core.analyzers._json_object_properties import documented_json_paths
+from tripl.core.analyzers._json_property_union import fold_json_properties
 from tripl.core.analyzers._variable_value_drift import (
     detect_variable_value_drifts as _detect_variable_value_drifts,
 )
@@ -89,6 +91,7 @@ from tripl.core.analyzers.event_plan import (
     render_default_event_name,
     truncate_event_name,
 )
+from tripl.core.property_drift import detect_event_property_drifts
 from tripl.models.event import Event, EventStatus
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.field_definition import FieldDefinition
@@ -145,6 +148,7 @@ class GenerationResult:
     # ``variable_values_written`` — do not rename.
     variable_values_written: int = 0
     value_drifts_detected: int = 0
+    property_drifts_detected: int = 0
     columns_analyzed: int = 0
     details: list[str] = field(default_factory=list)
     col_meta: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -245,6 +249,11 @@ def generate_events(
         event_group_rules=event_group_rules,
         reserved_columns=reserved_columns,
         json_path_samples=json_path_samples,
+        # Nested objects fold into one property each; the dotted properties a
+        # person made theirs keep being named by the templates (F23).
+        documented_json_paths=documented_json_paths(
+            session, project_id=project_id, index=variable_index
+        ),
         # Deliberately uncapped. ``max_events`` bounds the events this function
         # CREATES; the planner can only bound distinct names, and a re-scan whose
         # names all exist already creates none of them. Capping in the planner
@@ -265,6 +274,7 @@ def generate_events(
             need.inferred_type,
             branch_id=main_branch_id,
             index=variable_index,
+            json_schema=need.json_schema,
         )
     col_meta = plan.col_meta
     if not col_meta:
@@ -315,8 +325,20 @@ def generate_events(
     # discarded; the run summary says so rather than leaving it silent.
     values_seen: dict[tuple[str, str], set[str]] = {}
 
+    # Every row of an identity carries the union of its JSON keys, and each key
+    # its presence rate, instead of the busiest row's keys alone (F23).
+    ordered, presence = fold_json_properties(
+        _rows_most_frequent_last(plan.events),
+        [column for column, meta in col_meta.items() if meta.get("is_json")],
+    )
+
+    # Events this run recorded contexts for, among those whose presence was
+    # measured: the only ones whose ABSENT paths mean "not carried". An archived
+    # event and one past the ``max_events`` break get no contexts at all.
+    measured_events: set[uuid.UUID] = set()
+
     # Materialise the plan — one planned entry per breakdown row.
-    for planned in _rows_most_frequent_last(plan.events):
+    for planned in ordered:
         if result.events_created >= max_events:
             result.details.append(f"Reached max_events limit ({max_events})")
             break
@@ -361,7 +383,10 @@ def generate_events(
                     field_values=field_values,
                     col_meta=col_meta,
                     index=variable_index,
+                    presence=presence.get(planned.name),
                 )
+                if planned.name in presence:
+                    measured_events.add(event.id)
                 existing_by_identity[event_name] = event
                 result.events_created += 1
                 continue
@@ -389,7 +414,10 @@ def generate_events(
             field_values=field_values,
             col_meta=col_meta,
             index=variable_index,
+            presence=presence.get(planned.name),
         )
+        if planned.name in presence:
+            measured_events.add(existing.id)
         result.events_skipped += 1
 
     # An event keeps one value per field, so a collapse throws the rest away.
@@ -466,6 +494,15 @@ def generate_events(
         branch_id=main_branch_id,
         scan_config_id=scan_config_id,
         contexts=variable_contexts,
+    )
+    result.property_drifts_detected = detect_event_property_drifts(
+        session,
+        project_id=project_id,
+        branch_id=main_branch_id,
+        scan_config_id=scan_config_id,
+        contexts=variable_contexts,
+        measured_events=measured_events,
+        json_columns=[column for column, meta in col_meta.items() if meta.get("is_json")],
     )
     session.flush()
     if result.events_skipped:

@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { toast } from 'sonner'
 import { ApiError } from '@/api/client'
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
-import type { Role } from '@/types'
+import { PersonaProject } from '@/test/PersonaProject'
+import { personaAuth, type Persona } from '@/test/persona'
 import type { DocFileResponse, DocSummary, DocTreeResponse } from '@/types/docs'
 import DocsPage from './DocsPage'
 
@@ -23,7 +23,9 @@ vi.mock('@uiw/react-codemirror', () => ({
     onChange?: (next: string) => void
     'aria-label'?: string
   }) => <textarea aria-label={ariaLabel} value={value} onChange={e => onChange?.(e.target.value)} />,
-  EditorView: { lineWrapping: [] },
+  EditorView: { lineWrapping: [], updateListener: { of: () => [] } },
+  Prec: { highest: (extension: unknown) => extension },
+  keymap: { of: () => [] },
 }))
 vi.mock('@codemirror/lang-markdown', () => ({ markdown: () => [] }))
 vi.mock('@/api/docs', () => ({
@@ -55,6 +57,9 @@ function summary(overrides: Partial<DocSummary>): DocSummary {
     size_bytes: 10,
     updated_at: '2026-09-01T00:00:00Z',
     updated_by_name: 'Editor',
+    visibility: 'level',
+    my_permission: 'edit',
+    shared: false,
     ...overrides,
   }
 }
@@ -115,18 +120,20 @@ function LocationProbe() {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
 }
 
-function renderPage(url: string, role: Role = 'editor') {
+function renderPage(url: string, persona: Persona = 'member') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <AuthContext.Provider value={authAs(role)}>
-        <MemoryRouter initialEntries={[url]}>
-          <Routes>
-            <Route path="/p/:slug/docs/:scope/*" element={<DocsPage />} />
-            <Route path="/p/:slug/docs" element={<DocsPage />} />
-          </Routes>
-          <LocationProbe />
-        </MemoryRouter>
+      <AuthContext.Provider value={personaAuth(persona)}>
+        <PersonaProject persona={persona}>
+          <MemoryRouter initialEntries={[url]}>
+            <Routes>
+              <Route path="/p/:slug/docs/:scope/*" element={<DocsPage />} />
+              <Route path="/p/:slug/docs" element={<DocsPage />} />
+            </Routes>
+            <LocationProbe />
+          </MemoryRouter>
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -246,7 +253,7 @@ describe('DocsPage (F22)', () => {
     )
     render(
       <QueryClientProvider client={client}>
-        <AuthContext.Provider value={authAs('editor')}>
+        <AuthContext.Provider value={personaAuth('member')}>
           <RouterProvider router={router} />
         </AuthContext.Provider>
       </QueryClientProvider>,
@@ -385,10 +392,29 @@ describe('DocsPage (F22) states and file actions', () => {
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/p\/demo\/docs$/)
   })
 
-  it('lets only the owner delete organization folders', async () => {
+  it('lets only an organization owner or admin change organization notes', async () => {
     renderPage('/p/demo/docs')
     await screen.findByRole('navigation', { name: 'Docs' })
+    // A project editor who is a plain organization member: project folders only.
+    expect(screen.getByRole('button', { name: 'Delete references/' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete warehouse/' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Rename or move warehouse/' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'New organization note' })).toBeNull()
+  })
+
+  it('hides Edit on an organization note from a member and shows it to an admin', async () => {
+    vi.mocked(docsApi.read).mockResolvedValue(
+      file({ scope: 'organization', path: 'warehouse/gotchas.md', title: 'Warehouse gotchas' }),
+    )
+    const member = renderPage('/p/demo/docs/organization/warehouse/gotchas.md')
+    expect(await screen.findByRole('heading', { name: 'Warehouse gotchas', level: 2 })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
+    member.unmount()
+
+    renderPage('/p/demo/docs/organization/warehouse/gotchas.md', 'admin')
+    expect(await screen.findByRole('heading', { name: 'Warehouse gotchas', level: 2 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete warehouse/' })).toBeInTheDocument()
   })
 
   it('renames the open note and follows it', async () => {

@@ -2,19 +2,28 @@ import { useMemo, type ComponentProps, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import Markdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { AlertTriangle, ExternalLink, Unlink } from 'lucide-react'
+import { AlertTriangle, ExternalLink, FileX, Unlink } from 'lucide-react'
 import {
+  describeSuggestions,
   describeUnresolved,
+  docLinkRoute,
   indexResolutions,
+  isIdKind,
+  isUnavailableNote,
+  isUuid,
+  mentionName,
   parseDocLinkHref,
   remarkDocLinks,
   resolutionKey,
   resolveRelativeDocHref,
+  type ParsedDocLinkHref,
 } from '@/lib/docLinks'
 import { docRoute } from '@/lib/docTree'
+import { DOC_LINK_KIND_ICON, INLINE_ICON_KINDS } from './docLinkIcons'
 import { docUrlTransform } from './docMarkdownUrl'
 import { cn } from '@/lib/utils'
 import type { DocLinkResolution, DocScope } from '@/types/docs'
+import { withActiveOrg } from '@/lib/navigation'
 
 /**
  * Renders a note's Markdown body (F22). GFM (tables, task lists,
@@ -23,7 +32,8 @@ import type { DocLinkResolution, DocScope } from '@/types/docs'
  * stance for content any editor (or an imported bundle) can write.
  *
  * `[[event:…]]`-style links become in-app links through `resolutions`; a
- * broken one renders as a red chip. Relative `.md` links open the sibling
+ * broken one renders as a red chip, a link to a note the reader cannot see
+ * as a generic "unavailable note", and `[[user:<id>]]` as `@Name`. Relative `.md` links open the sibling
  * note in the same scope. Images are shown as links, never fetched: the
  * catalog is Markdown only, and a remote image in a note is a tracking pixel.
  */
@@ -82,6 +92,22 @@ export function DocMarkdown({
 
 const LINK_CLASS = 'text-[var(--accent)] underline decoration-[var(--accent-soft)] underline-offset-2 hover:decoration-[var(--accent)]'
 
+/**
+ * What a `[[…]]` link shows: the author's `|label` when there is one; for a
+ * link by id, the target's CURRENT name from the server (a moved note shows
+ * its new title, a mention `@Name`); otherwise the name as written.
+ */
+function linkText(entity: ParsedDocLinkHref, resolution: DocLinkResolution | undefined, written: ReactNode): ReactNode {
+  if (entity.kind === 'user') {
+    const name = mentionName(entity.label ?? resolution?.label)
+    return name ? `@${name}` : '@someone'
+  }
+  if (entity.label || !isIdKind(entity.kind)) return written
+  if (resolution?.label) return resolution.label
+  if (entity.kind === 'doc') return isUuid(entity.target) ? 'Linked note' : written
+  return 'Alert rule'
+}
+
 function DocAnchor({
   href,
   slug,
@@ -102,38 +128,81 @@ function DocAnchor({
   const entity = parseDocLinkHref(href)
   if (entity) {
     const resolution = index?.get(resolutionKey(entity.kind, entity.target, entity.qualifier))
+    const Icon = INLINE_ICON_KINDS.has(entity.kind) ? DOC_LINK_KIND_ICON[entity.kind] : null
+    const icon = Icon ? <Icon className="mr-0.5 inline size-3 shrink-0 align-[-1px]" aria-hidden /> : null
+    const mono = entity.kind !== 'user' && !isIdKind(entity.kind)
     if (!resolution) {
       return (
-        <span data-doc-link="pending" className="rounded-sm bg-bg-sunken px-1 font-mono">
-          {children}
+        <span
+          data-doc-link="pending"
+          data-doc-link-kind={entity.kind}
+          className={cn('rounded-sm bg-bg-sunken px-1', mono && 'font-mono')}
+        >
+          {icon}
+          {linkText(entity, undefined, children)}
         </span>
       )
     }
-    if (resolution.status === 'broken' || !resolution.route_path) {
+    if (isUnavailableNote(resolution)) {
+      // Deleted or hidden from this reader: the same words either way, and no
+      // label — the chip must not reveal that a hidden note exists or its name.
+      return (
+        <span
+          data-doc-link="unavailable"
+          data-doc-link-kind="doc"
+          title="This note is unavailable"
+          className="inline-flex items-center gap-1 rounded-sm bg-bg-sunken px-1 text-fg-tertiary"
+        >
+          <FileX className="size-3 shrink-0" aria-hidden />
+          Unavailable note
+        </span>
+      )
+    }
+    if (entity.kind === 'user' && resolution.status === 'resolved' && !resolution.route_path) {
+      // A mention has no page of its own to open: a plain @Name chip.
+      return (
+        <span
+          data-doc-link="resolved"
+          data-doc-link-kind="user"
+          className="rounded-sm bg-[var(--accent-soft)] px-1 font-medium text-[var(--accent)]"
+        >
+          {linkText(entity, resolution, children)}
+        </span>
+      )
+    }
+    if ((resolution.status !== 'resolved' && resolution.status !== 'ambiguous') || !resolution.route_path) {
       // A title, not a Radix tooltip: the renderer also runs in the editor
       // preview and in tests without the app's TooltipProvider.
-      const reason = describeUnresolved(resolution)
+      const hint = describeSuggestions(resolution)
+      const reason = hint ? `${describeUnresolved(resolution)} ${hint}` : describeUnresolved(resolution)
       return (
         <span
           data-doc-link="broken"
+          data-doc-link-kind={entity.kind}
           title={reason}
-          className="inline-flex items-center gap-1 rounded-sm bg-danger-soft px-1 font-mono text-danger line-through decoration-1"
+          className={cn(
+            'inline-flex items-center gap-1 rounded-sm bg-danger-soft px-1 text-danger line-through decoration-1',
+            mono && 'font-mono',
+          )}
         >
           <Unlink className="size-3 shrink-0" aria-hidden />
-          {children}
+          {linkText(entity, resolution, children)}
           <span className="sr-only"> (broken link: {reason})</span>
         </span>
       )
     }
     const ambiguous = resolution.status === 'ambiguous'
+    const route = docLinkRoute(resolution.route_path, entity.anchor)
     return (
       <Link
-        to={resolution.route_path}
+        to={withActiveOrg(route)}
         data-doc-link={resolution.status}
+        data-doc-link-kind={entity.kind}
         title={ambiguous ? describeUnresolved(resolution) : undefined}
-        className={cn(LINK_CLASS, 'font-mono', ambiguous && 'text-warning')}
+        className={cn(LINK_CLASS, mono && 'font-mono', ambiguous && 'text-warning')}
       >
-        {children}
+        {icon}
+        {linkText(entity, resolution, children)}
         {ambiguous && <AlertTriangle className="ml-0.5 inline size-3 align-[-1px]" aria-label="ambiguous" />}
       </Link>
     )

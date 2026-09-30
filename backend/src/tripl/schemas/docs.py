@@ -18,11 +18,41 @@ from tripl.services.docs_paths import (
 )
 
 DocAudience = Literal["human", "agent", "both"]
-DocLinkKind = Literal["event", "event_type", "field"]
-DocLinkStatus = Literal["resolved", "ambiguous", "broken"]
+#: What a ``[[kind:...]]`` link points at (F22 plan links, F24 part 2 the rest).
+#: ``doc``, ``alert_rule`` and ``user`` are stored by id; the others by name.
+DocLinkKind = Literal[
+    "event",
+    "event_type",
+    "field",
+    "doc",
+    "variable",
+    "metric",
+    "alert_rule",
+    "branch",
+    "scan",
+    "data_source",
+    "user",
+]
+#: ``unavailable``: a ``[[doc:<id>]]`` link to a note the reader may not see, or
+#: to no note at all: the two read the same (no reason, title, path or route), so
+#: a link never confirms that a hidden note exists.
+DocLinkStatus = Literal["resolved", "ambiguous", "broken", "unavailable"]
+#: Why a link does not resolve, for the reader and the relink picker.
+DocLinkReason = Literal[
+    "not_found",
+    "invalid_id",
+    "path_form",
+    "not_a_member",
+]
 DocRevisionAction = Literal["create", "update", "move", "restore", "import"]
 DocImportMode = Literal["merge", "mirror"]
 DocBundleFormat = Literal["tripl-docs/v1"]
+#: Who may read a note (F24, GH #308): its author only, its author plus the
+#: people and groups it is shared with, or everyone at its level (the default).
+DocVisibility = Literal["private", "restricted", "level"]
+#: What a share grants, and what the caller may do with a note.
+DocPermission = Literal["view", "edit"]
+DocSharePrincipalType = Literal["user", "group"]
 
 __all__ = ["DocScope"]  # re-exported: the scope literal lives next to the path rules
 
@@ -38,6 +68,12 @@ class DocSummary(BaseModel):
     size_bytes: int
     updated_at: datetime
     updated_by_name: str | None = None
+    # F24: the note's effective visibility (its own, or its folder's while it
+    # inherits), what the caller may do with it, and whether it is shared with
+    # anyone. A note the caller cannot see is never listed.
+    visibility: DocVisibility = "level"
+    my_permission: DocPermission = "view"
+    shared: bool = False
 
 
 class DocTreeProject(BaseModel):
@@ -77,12 +113,35 @@ class DocLinkRef(BaseModel):
 class DocLinkResolution(BaseModel):
     kind: DocLinkKind
     target: str
+    # The event type of a field link, or the heading anchor of a doc link.
     qualifier: str | None = None
     raw: str
     status: DocLinkStatus
     route_path: str | None = None
     entity_id: uuid.UUID | None = None
     candidates: int = 0
+    # What the link shows now: a note's current title, ``@Name`` for a mention,
+    # an alert rule's current name, a metric's display name. None when broken
+    # or unavailable, except a hand-typed ``[[doc:path]]`` (reason
+    # ``path_form``) with a suggestion: the title of that readable note.
+    label: str | None = None
+    # A second line: a note's current scope and path. None when not resolved.
+    detail: str | None = None
+    reason: DocLinkReason | None = None
+    # Relink candidates for a broken link: up to 3 current targets closest to
+    # the stored one (plan names by similarity; for a hand-typed
+    # ``[[doc:path]]``, the id of the readable note now at that path). Each
+    # replaces ``target`` in the reference.
+    suggestions: list[str] = []
+
+
+class DocBacklinkItem(BaseModel):
+    scope: DocScope
+    path: str
+    title: str
+    description: str = ""
+    audience: DocAudience = "both"
+    link_raw: str
 
 
 class DocFileResponse(DocSummary):
@@ -91,8 +150,15 @@ class DocFileResponse(DocSummary):
     body: str
     extra_frontmatter: dict[str, Any] = {}
     links: list[DocLinkResolution] = []
+    # "Linked from" (F24 part 2): the notes linking to this one by id
+    # (``[[doc:<id>]]``) that the reader can see. Also ``GET /docs/backlinks``
+    # with ``kind=doc&name=<id>``.
+    linked_from: list[DocBacklinkItem] = []
     created_at: datetime
     created_by_name: str | None = None
+    # F24: true when an organization owner or admin opened a note hidden from
+    # them (an audited break-glass read); such a read never grants editing.
+    break_glass: bool = False
 
 
 class DocWriteRequest(BaseModel):
@@ -181,13 +247,22 @@ class DocSearchResponse(BaseModel):
     semantic_used: bool = False
 
 
-class DocBacklinkItem(BaseModel):
-    scope: DocScope
-    path: str
-    title: str
-    description: str = ""
-    audience: DocAudience = "both"
-    link_raw: str
+class DocLinkSuggestion(BaseModel):
+    """One autocomplete candidate of ``GET /docs/link-suggestions``."""
+
+    kind: DocLinkKind
+    # The entity's id (a note, a user, a metric...). Plan entities are still
+    # referenced by name in ``insert``; the id is for the picker's keys.
+    id: uuid.UUID
+    label: str
+    detail: str = ""
+    # The canonical reference text to insert, e.g. ``[[metric:revenue]]``,
+    # ``[[doc:<id>]]`` or ``[[user:<id>]]``.
+    insert: str
+
+
+class DocLinkSuggestionsResponse(BaseModel):
+    items: list[DocLinkSuggestion]
 
 
 class DocBacklinksResponse(BaseModel):
@@ -237,3 +312,45 @@ class DocImportResult(BaseModel):
     deleted: list[str] = []
     skipped: list[DocImportSkipped] = []
     errors: list[DocImportError] = []
+
+
+# ── Sharing (F24, GH #308) ────────────────────────────────────────────────────
+
+
+class DocShareItem(BaseModel):
+    principal_type: DocSharePrincipalType
+    principal_id: uuid.UUID
+    #: The user's name (or email) or the group's name.
+    name: str = ""
+    permission: DocPermission = "view"
+
+
+class DocShareInput(BaseModel):
+    principal_type: DocSharePrincipalType
+    principal_id: uuid.UUID
+    permission: DocPermission = "view"
+
+
+class DocSharingResponse(BaseModel):
+    """A note's or a folder's sharing.
+
+    ``inherited`` is true when it follows the nearest folder setting above it,
+    named by ``inherited_from`` (``None`` when no folder has one and the default,
+    ``level``, applies). ``visibility`` and ``shares`` are then the folder's.
+    """
+
+    scope: DocScope
+    path: str
+    visibility: DocVisibility
+    inherited: bool
+    inherited_from: str | None = None
+    shares: list[DocShareItem] = []
+    can_manage: bool = False
+
+
+class DocSharingUpdate(BaseModel):
+    """``inherited: true`` drops the note's (or folder's) own setting and shares."""
+
+    visibility: DocVisibility = "level"
+    inherited: bool = False
+    shares: list[DocShareInput] = Field(default=[], max_length=200)

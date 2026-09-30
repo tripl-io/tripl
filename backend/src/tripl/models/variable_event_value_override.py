@@ -16,10 +16,15 @@ if TYPE_CHECKING:
 
 
 class VariableEventValueOverride(UUIDMixin, TimestampMixin, Base):
-    """User-documented allowed values for a variable in one event's context.
+    """One variable as a property of one event (F23, #306).
 
-    Replaces (does not extend) the variable's global ``allowed_values`` list
-    for that event. User-owned: the scan pipeline never writes these rows.
+    The row IS the event's property list entry: a variable with a row here is a
+    property the event carries, ``required`` says whether every occurrence must
+    carry it, and ``values`` optionally documents the allowed values for this
+    event. A ``values`` list REPLACES (does not extend) the variable's global
+    ``allowed_values`` for that event; NULL means no override — the global list
+    applies. Rows from before F23 are all overrides, so their ``values`` is a
+    list. User-owned: the scan pipeline never writes these rows.
     """
 
     __tablename__ = "variable_event_value_overrides"
@@ -38,7 +43,8 @@ class VariableEventValueOverride(UUIDMixin, TimestampMixin, Base):
     event_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("events.id", ondelete="CASCADE"), index=True
     )
-    values: Mapped[list[str]] = mapped_column(sa.JSON, default=list, server_default="[]")
+    values: Mapped[list[str] | None] = mapped_column(sa.JSON(none_as_null=True), nullable=True)
+    required: Mapped[bool] = mapped_column(sa.Boolean, default=False, server_default=sa.false())
 
     variable: Mapped[Variable] = relationship(back_populates="event_overrides")
     event: Mapped[Event] = relationship(lazy="selectin")
@@ -46,3 +52,12 @@ class VariableEventValueOverride(UUIDMixin, TimestampMixin, Base):
     @property
     def event_name(self) -> str:
         return self.event.name
+
+
+def copy_override_values(values: list[str] | None) -> list[str] | None:
+    """A fresh copy of an entry's ``values``, keeping NULL ("no override") NULL.
+
+    Every copy of a row goes through here: ``list(values or [])`` turned "no
+    override" into "no values allowed".
+    """
+    return None if values is None else list(values)

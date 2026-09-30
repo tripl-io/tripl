@@ -31,6 +31,17 @@ afterEach(() => {
 })
 
 describe('docsApi JSON requests', () => {
+  it('asks for link suggestions with the query, the kind and the limit (F24)', async () => {
+    const spy = stubFetch(() => jsonResponse({ items: [] }))
+    await docsApi.linkSuggestions('demo', { q: 'sign', kind: 'metric', limit: 8 })
+    await docsApi.linkSuggestions('demo', { q: '', kind: null })
+    const first = call(spy, 0)
+    expect(first.url.pathname).toBe('/api/v1/projects/demo/docs/link-suggestions')
+    expect(Object.fromEntries(first.url.searchParams)).toEqual({ q: 'sign', kind: 'metric', limit: '8' })
+    // No kind: the parameter is left out, not sent empty.
+    expect(Object.fromEntries(call(spy, 1).url.searchParams)).toEqual({ q: '' })
+  })
+
   it('reads the tree with the caller\'s signal', async () => {
     const spy = stubFetch(jsonResponse({ project_docs: [] }))
     const controller = new AbortController()
@@ -202,5 +213,45 @@ describe('docsApi raw requests (zip)', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect(err.status).toBe(503)
     expect(err.message).toMatch(/Backend is unavailable/)
+  })
+})
+
+describe('docsApi sharing (F24)', () => {
+  const sharing = { visibility: 'restricted', inherited: false, inherited_from: null, shares: [] }
+
+  it('reads and writes a note\'s sharing by scope and path', async () => {
+    const spy = stubFetch(() => jsonResponse(sharing))
+    await docsApi.fileSharing('demo', 'project', 'guides/a b.md')
+    await docsApi.updateFileSharing('demo', 'organization', 'x.md', {
+      visibility: 'restricted',
+      inherited: false,
+      shares: [{ principal_type: 'group', principal_id: 'g-1', permission: 'edit' }],
+    })
+
+    const read = call(spy, 0)
+    expect(read.url.pathname).toBe('/api/v1/projects/demo/docs/file/sharing')
+    expect(Object.fromEntries(read.url.searchParams)).toEqual({ scope: 'project', path: 'guides/a b.md' })
+
+    const write = call(spy, 1)
+    expect(write.init.method).toBe('PUT')
+    expect(write.url.pathname).toBe('/api/v1/projects/demo/docs/file/sharing')
+    expect(Object.fromEntries(write.url.searchParams)).toEqual({ scope: 'organization', path: 'x.md' })
+    expect(write.body).toEqual({
+      visibility: 'restricted',
+      inherited: false,
+      shares: [{ principal_type: 'group', principal_id: 'g-1', permission: 'edit' }],
+    })
+  })
+
+  it('reads and writes a folder\'s sharing by prefix', async () => {
+    const spy = stubFetch(() => jsonResponse(sharing))
+    await docsApi.folderSharing('demo', 'project', 'guides/')
+    await docsApi.updateFolderSharing('demo', 'project', 'guides/', { visibility: 'private', inherited: false, shares: [] })
+
+    const read = call(spy, 0)
+    expect(read.url.pathname).toBe('/api/v1/projects/demo/docs/folder/sharing')
+    expect(read.url.searchParams.get('path')).toBe('guides/')
+    expect(call(spy, 1).init.method).toBe('PUT')
+    expect(call(spy, 1).body).toEqual({ visibility: 'private', inherited: false, shares: [] })
   })
 })

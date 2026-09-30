@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import beat_init, setup_logging, worker_init, worker_process_init
@@ -95,6 +97,13 @@ celery_app.conf.beat_schedule = {
         # STRANDED_DELIVERY_MINUTES, so this just bounds detection latency for
         # rows the worker/broker failed to dispatch.
         "schedule": crontab(minute="*/5"),
+    },
+    "requeue-stranded-org-deletions": {
+        "task": "tripl.worker.tasks.org_delete.requeue_stranded_org_deletions",
+        # Hourly: a row counts as stranded only after STRANDED_DELETION_GRACE
+        # (2 h, above the task time limit) without a purge job touching it, and
+        # all it costs meanwhile is a slug and some storage.
+        "schedule": crontab(minute=17),
     },
     "send-weekly-plan-digest": {
         "task": "tripl.worker.tasks.alerts.send_weekly_plan_digest",
@@ -210,6 +219,16 @@ celery_app.conf.beat_schedule = {
         # run harmless.
         "schedule": crontab(minute="*"),
     },
+    "deliver-audit-webhooks": {
+        "task": "tripl.worker.tasks.audit_webhook.deliver_audit_webhooks",
+        # Every 30 seconds (F20): the one entry off the crontab grid. An audit
+        # webhook feeds a SIEM, where a minute of lag is visible, and the tick
+        # is one indexed read of due outbox rows when nothing is queued. Not a
+        # wall-clock time anyone typed, so no boundary to align to. A tick not
+        # started within its interval is dropped; the next one covers it.
+        "schedule": timedelta(seconds=30),
+        "options": {"expires": 30},
+    },
     "send-notification-digest-daily": {
         "task": "tripl.worker.tasks.notification_email.send_notification_digest",
         "schedule": crontab(hour=7, minute=0),
@@ -262,6 +281,7 @@ import tripl.worker.tasks.alert_digest_send  # noqa: F401, E402
 import tripl.worker.tasks.alert_flush  # noqa: F401, E402
 import tripl.worker.tasks.alert_owner_notify  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
+import tripl.worker.tasks.audit_webhook  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.health  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402
@@ -270,6 +290,7 @@ import tripl.worker.tasks.maintenance  # noqa: F401, E402
 import tripl.worker.tasks.metrics  # noqa: F401, E402
 import tripl.worker.tasks.metrics.freshness_sweep  # noqa: F401, E402
 import tripl.worker.tasks.notification_email  # noqa: F401, E402
+import tripl.worker.tasks.org_delete  # noqa: F401, E402
 import tripl.worker.tasks.scan  # noqa: F401, E402
 import tripl.worker.tasks.scan_dry_run  # noqa: F401, E402
 import tripl.worker.tasks.search  # noqa: F401, E402

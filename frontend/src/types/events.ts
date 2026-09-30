@@ -62,6 +62,9 @@ export interface Event {
   source_name: string | null
   /** Free-text label shown beside the identity; never part of it. */
   title: string
+  /** Presence at or above which a scanned JSON property counts as always carried
+   *  (F23); null: the default, 0.95. Optional: an older response omits it. */
+  required_presence_threshold?: number | null
   description: string
   order: number
   status: EventStatus
@@ -201,9 +204,11 @@ export interface EventPhoto {
   created_at: string
 }
 
-/** GET /settings/photo-limits: what the upload endpoint takes. */
+/** GET /orgs/{org}/settings/photo-limits: what the upload endpoint takes. */
 export interface PhotoLimits {
   photo_max_size_mb: number
+  /** Lower-case content types the organization accepts (F20 PR11). */
+  photo_allowed_mime: string[]
 }
 
 export interface EventPhotoComment {
@@ -237,6 +242,29 @@ export type EventCommentAction = 'resolve' | 'snooze' | 'reopen'
 
 export type VariableType = 'string' | 'number' | 'boolean' | 'date' | 'datetime' | 'json' | 'string_array' | 'number_array'
 
+/** The JSON Schema subset `backend/src/tripl/core/property_schema.py` accepts. */
+export interface PropertySchema {
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object'
+  description?: string
+  format?: string
+  pattern?: string
+  minLength?: number
+  maxLength?: number
+  minimum?: number
+  maximum?: number
+  exclusiveMinimum?: number
+  exclusiveMaximum?: number
+  multipleOf?: number
+  enum?: (string | number | boolean)[]
+  items?: PropertySchema
+  minItems?: number
+  maxItems?: number
+  uniqueItems?: boolean
+  properties?: Record<string, PropertySchema>
+  required?: string[]
+  additionalProperties?: boolean
+}
+
 export interface Variable {
   id: string
   project_id: string
@@ -246,8 +274,15 @@ export interface Variable {
   description: string
   allowed_values: string[]
   bindings: string[]
+  /** JSON Schema fragment refining `variable_type`; null when the type is just
+   *  `variable_type`. Optional: an older response omits it. */
+  json_schema?: PropertySchema | null
   excluded_from_scans?: boolean
   open_drift_count?: number
+  /** Events whose property list carries it (F23); `event_count` is where scans saw it. */
+  listed_event_count?: number
+  /** Of those, the events that require it. */
+  required_event_count?: number
   event_count?: number
   context_count?: number
   low_context_count?: number

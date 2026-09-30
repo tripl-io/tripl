@@ -15,6 +15,14 @@ Zip uploads are checked before anything is extracted: the upload size, the
 declared size of every entry, the total, and each entry's compression ratio.
 Reads are bounded as well, so an entry that lies about its size still cannot
 inflate past the limit.
+
+Visibility (F24) is not part of a bundle. An export carries only the notes the
+caller can see, and never writes a visibility into the frontmatter; an import
+never reads one (a ``visibility:`` key is just unknown frontmatter, kept
+verbatim), so an imported note gets the default — its folder's setting, else
+``level``. An import updates or (``mirror``) deletes only the notes the caller
+may edit; a note hidden from them is never touched, and a bundle path that
+collides with one is an error that names nothing but the path.
 """
 
 from __future__ import annotations
@@ -25,12 +33,12 @@ import zipfile
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.models.doc_file import DocFile
 from tripl.models.organization import Organization
+from tripl.models.project import Project
 from tripl.schemas.docs import (
     DocBundle,
     DocBundleFile,
@@ -41,7 +49,13 @@ from tripl.schemas.docs import (
 )
 from tripl.services import _docs_store as store
 from tripl.services import audit_service
-from tripl.services.docs_access import DocCaller, require_doc_writer, require_org_bulk_delete
+from tripl.services.docs_access import (
+    DocAccess,
+    DocCaller,
+    docs_with_access,
+    require_doc_writer,
+    require_org_bulk_delete,
+)
 from tripl.services.docs_frontmatter import DocContentError, ParsedDoc, parse_frontmatter
 from tripl.services.docs_paths import (
     MAX_BUNDLE_BYTES,
@@ -68,13 +82,17 @@ def _is_markdown(name: str) -> bool:
     return name.lower().endswith(".md")
 
 
-async def export_bundle(session: AsyncSession, slug: str, scope: DocScope) -> DocBundle:
+async def export_bundle(
+    session: AsyncSession, slug: str, scope: DocScope, caller: DocCaller
+) -> DocBundle:
+    """The scope's notes the caller can see (a hidden note is left out, uncounted)."""
     project = await _resolve_project(session, slug)
-    docs = list(
-        await session.scalars(
-            select(DocFile).where(store.scope_filter(project, scope)).order_by(DocFile.path_key)
+    docs = [
+        doc
+        for doc, _ in await docs_with_access(
+            session, caller.user.id, store.scope_filter(project, scope)
         )
-    )
+    ]
     organization_slug: str | None = None
     organization = await session.get(Organization, project.organization_id)
     if organization is not None:
@@ -92,9 +110,11 @@ async def export_bundle(session: AsyncSession, slug: str, scope: DocScope) -> Do
     )
 
 
-async def export_zip(session: AsyncSession, slug: str, scope: DocScope) -> tuple[bytes, str]:
+async def export_zip(
+    session: AsyncSession, slug: str, scope: DocScope, caller: DocCaller
+) -> tuple[bytes, str]:
     """``(zip bytes, file name)``; the name is the project's or organization's slug."""
-    bundle = await export_bundle(session, slug, scope)
+    bundle = await export_bundle(session, slug, scope, caller)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for item in sorted(bundle.files, key=lambda item: item.path):
@@ -210,16 +230,22 @@ def _validate(item: DocBundleFile, seen: dict[str, str]) -> tuple[str, ParsedDoc
         return DocImportError(path=path, detail=str(exc))
 
 
-def check_import_allowed(caller: DocCaller, scope: DocScope, mode: DocImportMode) -> None:
+async def check_import_allowed(
+    session: AsyncSession, slug: str, caller: DocCaller, scope: DocScope, mode: DocImportMode
+) -> Project:
     """The authorization half of an import, answered before any upload is read.
 
-    A mirror deletes the notes the bundle leaves out, so for organization notes
-    it takes the bulk-delete rule. TODO(F20 PR4): organization owner/admin.
+    Resolves the path's project (its organization owns the organization notes)
+    and returns it. A mirror deletes the notes the bundle leaves out, so for
+    organization notes it takes the bulk-delete rule (org owner/admin, browser
+    session only).
     """
+    project = await _resolve_project(session, slug)
     if mode == "mirror":
-        require_org_bulk_delete(caller, scope, "mirror")
+        await require_org_bulk_delete(session, caller, scope, project.organization_id, "mirror")
     else:
-        require_doc_writer(caller, scope)
+        await require_doc_writer(session, caller, scope, project.organization_id)
+    return project
 
 
 async def import_zip(
@@ -233,7 +259,7 @@ async def import_zip(
     dry_run: bool,
     caller: DocCaller,
 ) -> DocImportResult:
-    check_import_allowed(caller, scope, mode)
+    await check_import_allowed(session, slug, caller, scope, mode)
     files, skipped, errors = parse_zip_upload(data, keep_root=keep_root)
     return await import_bundle(
         session,
@@ -260,14 +286,13 @@ async def import_bundle(
     skipped: list[DocImportSkipped] | None = None,
     errors: list[DocImportError] | None = None,
 ) -> DocImportResult:
-    check_import_allowed(caller, scope, mode)
+    project = await check_import_allowed(session, slug, caller, scope, mode)
     user = caller.user
     if sum(content_bytes(item.content) for item in files) > MAX_BUNDLE_BYTES:
         raise HTTPException(
             status_code=413,
             detail=f"Bundle is larger than {MAX_BUNDLE_BYTES // (1024 * 1024)} MiB",
         )
-    project = await _resolve_project(session, slug)
     result = DocImportResult(
         scope=scope,
         mode=mode,
@@ -275,10 +300,11 @@ async def import_bundle(
         skipped=list(skipped or []),
         errors=list(errors or []),
     )
-    existing = {
-        doc.path_key: doc
-        for doc in await session.scalars(select(DocFile).where(store.scope_filter(project, scope)))
-    }
+    with_access = await docs_with_access(
+        session, user.id, store.scope_filter(project, scope), visible_only=False
+    )
+    existing = {doc.path_key: doc for doc, _ in with_access}
+    access: dict[str, DocAccess] = {doc.path_key: rule for doc, rule in with_access}
     seen: dict[str, str] = {}
     plan: list[tuple[str, DocBundleFile, ParsedDoc, DocFile | None]] = []
     for item in files:
@@ -293,6 +319,18 @@ async def import_bundle(
             continue
         path, parsed = checked
         doc = existing.get(path_key(path))
+        if doc is not None and not access[doc.path_key].editable:
+            result.errors.append(
+                DocImportError(
+                    path=path,
+                    detail=(
+                        "shared with you for viewing only"
+                        if access[doc.path_key].readable
+                        else "the path is taken"
+                    ),
+                )
+            )
+            continue
         if doc is None:
             result.created.append(path)
         elif doc.content == item.content and doc.path == path:
@@ -301,7 +339,13 @@ async def import_bundle(
         else:
             result.updated.append(path)
         plan.append((path, item, parsed, doc))
-    stale = [doc for key, doc in existing.items() if key not in seen] if mode == "mirror" else []
+    # A mirror deletes only what the caller may edit: a note hidden from them,
+    # or shared with them for viewing, is not theirs to remove.
+    stale = (
+        [doc for key, doc in existing.items() if key not in seen and access[key].editable]
+        if mode == "mirror"
+        else []
+    )
     result.deleted = sorted(doc.path for doc in stale)
     if len(existing) + len(result.created) - len(stale) > MAX_FILES_PER_SCOPE:
         result.errors.append(

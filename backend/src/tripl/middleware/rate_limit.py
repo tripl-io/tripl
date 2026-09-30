@@ -218,6 +218,112 @@ STATUS_RATE_LIMIT_PER_MINUTE = 30
 
 status_rate_limiter = _limiter_for(STATUS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="status")
 
+# ``/auth/verify-email/request`` sends a mail through the operator's relay each
+# time it is accepted, so it gets its own small hourly bucket: resending never
+# consumes login/register quota, and a signed-in caller cannot turn the relay
+# into a mail cannon. A module constant for the same reason as the status one.
+VERIFY_EMAIL_RATE_LIMIT_PER_HOUR = 10
+
+verify_email_rate_limiter = _limiter_for(
+    VERIFY_EMAIL_RATE_LIMIT_PER_HOUR, per_seconds=3600.0, name="verify_email"
+)
+
+
+# SSO sign-in (F20): ``/auth/sso/{org}/start`` and ``/callback`` share this
+# bucket, apart from the password-login one, so one round trip through the
+# identity provider (two requests) never eats the 5/min a password sign-in has.
+# The callback answers an exhausted bucket with a redirect, not a 429 body
+# (:func:`allow`): the browser is mid-redirect from the provider there.
+SSO_RATE_LIMIT_PER_MINUTE = 20
+
+sso_rate_limiter = _limiter_for(SSO_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso")
+
+# An owner's SSO connection test and domain verification make tripl call out
+# (the provider's discovery document, DNS): a small bucket, so neither becomes a
+# probe of other hosts.
+SSO_PROBE_RATE_LIMIT_PER_MINUTE = 10
+
+sso_probe_rate_limiter = _limiter_for(
+    SSO_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="sso_probe"
+)
+
+# An owner's audit-webhook test sends a request to the URL they typed, and a
+# save resolves its host (hosted): the same small bucket size as the SSO
+# probe, its own key, so neither turns tripl into an outbound request cannon
+# nor ties up the API's worker threads (F20).
+AUDIT_WEBHOOK_PROBE_RATE_LIMIT_PER_MINUTE = 10
+
+audit_webhook_probe_rate_limiter = _limiter_for(
+    AUDIT_WEBHOOK_PROBE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="audit_webhook_probe"
+)
+
+# An audit export streams up to a year of rows and holds a database connection
+# per page it reads: a few per minute is plenty for a person or a SIEM pull.
+AUDIT_EXPORT_RATE_LIMIT_PER_MINUTE = 5
+
+audit_export_rate_limiter = _limiter_for(
+    AUDIT_EXPORT_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="audit_export"
+)
+
+
+# The note editor's ``[[`` / ``@`` link picker (F24 part 2): keyed on the signed-in
+# USER (a debounced picker fires a few requests per second while someone types),
+# so colleagues behind one NAT never share a quota. Generous for typing, and a
+# ceiling on a script hammering the membership-gated lookups behind it.
+DOC_LINK_SUGGESTIONS_RATE_LIMIT_PER_MINUTE = 240
+
+doc_link_suggestions_rate_limiter = _limiter_for(
+    DOC_LINK_SUGGESTIONS_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="doc_link_suggestions"
+)
+
+
+# SCIM provisioning (F20): keyed on the SCIM TOKEN, not the client address, so
+# an identity provider's egress pool (many addresses, one tenant) draws on one
+# quota and two tenants behind one NAT never starve each other. Generous: a
+# first sync of a large directory is a burst of hundreds of requests.
+SCIM_RATE_LIMIT_PER_MINUTE = 600
+
+scim_rate_limiter = _limiter_for(SCIM_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="scim")
+
+# Failed SCIM authentication (401s), keyed on the client ADDRESS: only failures
+# draw on it, so identity providers sharing egress addresses are never limited
+# for their valid tokens, while a caller spraying bogus tokens soon gets 429s.
+SCIM_AUTH_FAILURE_RATE_LIMIT_PER_MINUTE = 30
+
+scim_auth_failure_rate_limiter = _limiter_for(
+    SCIM_AUTH_FAILURE_RATE_LIMIT_PER_MINUTE, per_seconds=60.0, name="scim_auth_failure"
+)
+
+
+async def retry_after_for_key(limiter: TokenBucketLimiter, key: str) -> int | None:
+    """Take a token from ``limiter``'s bucket for ``key``; seconds to wait when it is empty.
+
+    For callers keyed on something other than the client address (a SCIM
+    token). ``None`` when the token was taken or limiting is off.
+    """
+    if not settings.rate_limit_enabled or not limiter.enabled:
+        return None
+    try:
+        await limiter.acquire_shared(f"{limiter.name}:{key}")
+    except RateLimitExceeded as exc:
+        return max(1, int(exc.retry_after_seconds + 0.999))
+    return None
+
+
+async def allow(limiter: TokenBucketLimiter, request: Request) -> bool:
+    """Take a token for ``request``; ``False`` when the bucket is empty.
+
+    For a route that answers an exhausted bucket its own way (a redirect)
+    instead of :func:`enforce`'s 429.
+    """
+    if not settings.rate_limit_enabled or not limiter.enabled:
+        return True
+    try:
+        await limiter.acquire_shared(_client_key(request, limiter.name))
+    except RateLimitExceeded:
+        return False
+    return True
+
 
 def enforce(limiter: TokenBucketLimiter) -> Callable[[Request], Awaitable[None]]:
     """FastAPI dependency that applies ``limiter`` to the inbound request."""

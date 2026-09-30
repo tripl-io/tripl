@@ -9,6 +9,7 @@ import { NativeSelect } from '@/components/settings/kit'
 import { displayUser } from '@/hooks/useUsersById'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { projectCandidates } from '@/lib/projectCandidates'
+import { useOrgDefaultProjectRole } from '@/hooks/useOrgDefaultProjectRole'
 import { getErrorMessage } from '@/lib/utils'
 import type { PlanBranchApproval, PlanBranchDetail, PlanBranchSummary } from '@/types'
 import { planBranchDetailKey, projectMembersQueryOptions, usersKey } from '@/lib/queryKeys'
@@ -72,8 +73,8 @@ export function BranchReviewSummary({
   )
   const description = branch.description.trim()
 
-  // Only the project's members, and the instance owners who see every project
-  // without a member row, can review: anyone else cannot see the project, and
+  // Only the project's members, and the organization's owners and admins who
+  // see every project without a member row, can review: anyone else cannot see the project, and
   // the server refuses them (tripl-vefw).
   const { data: members } = useQuery({
     ...projectMembersQueryOptions(slug),
@@ -84,8 +85,11 @@ export function BranchReviewSummary({
     queryFn: () => usersApi.list(),
     enabled: canWrite && open,
   })
+  // Members with no row can review too when the organization's default access
+  // gives them the project (F20 PR15).
+  const defaultProjectRole = useOrgDefaultProjectRole({ enabled: canWrite && open })
   const assigned = new Set(reviewers.map((r) => r.user_id))
-  const candidates = projectCandidates(members, users).filter((m) => !assigned.has(m.user_id))
+  const candidates = projectCandidates(members, users, defaultProjectRole).filter((m) => !assigned.has(m.user_id))
 
   const refresh = () => qc.invalidateQueries({ queryKey: planBranchDetailKey(slug, branch.id) })
   const addMut = useMutation({

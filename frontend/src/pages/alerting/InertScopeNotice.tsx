@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** The two alert scopes whose candidates come from configuration a rule does not own. */
 export type DriftScope = 'distribution_drift' | 'variable_value_drift'
@@ -58,14 +59,14 @@ const SCOPE_COPY: Record<DriftScope, ScopeCopy> = {
     // that check is about. The monitor detail names the bound scan separately,
     // as text (tripl-wkwv.9).
     href: (slug, scanConfigId) =>
-      scanConfigId ? `/p/${slug}/scans/${scanConfigId}` : `/p/${slug}/scans`,
+      scanConfigId ? projectPath(currentOrgSlug(), slug, `/scans/${scanConfigId}`) : projectPath(currentOrgSlug(), slug, '/scans'),
   },
   variable_value_drift: {
     sentence:
-      'Value drift is on, but no variable that scans observe documents an allowed-values list on the main branch — this scope cannot fire until one does.',
-    note: 'Variables opens on the branch you have selected; a list documented on a working branch counts only once it merges.',
-    linkLabel: 'Variables',
-    href: (slug) => `/p/${slug}/variables`,
+      'Value drift is on, but no property that scans observe documents an allowed-values list on the main branch — this scope cannot fire until one does.',
+    note: 'Properties opens on the branch you have selected; a list documented on a working branch counts only once it merges.',
+    linkLabel: 'Properties',
+    href: (slug) => projectPath(currentOrgSlug(), slug, '/variables'),
   },
 }
 

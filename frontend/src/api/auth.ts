@@ -25,6 +25,25 @@ export interface AuthStatusResponse {
    *  up front that no link will come (ST-24). Always sent; optional so probes
    *  mocked before it still type, and only a definite `false` changes the UI. */
   email_configured?: boolean
+  /** `hosted`: public sign-up creates an organization, and an account must
+   *  verify its address before it can use the app. Optional so probes mocked
+   *  before F20's hosted mode still type; absent reads as `self_hosted`. */
+  deployment_mode?: DeploymentMode
+  /** True exactly in hosted mode: an unverified session is refused everywhere
+   *  but `/auth/*`, so the app shows the "check your inbox" screen instead. */
+  email_verification_required?: boolean
+}
+
+export type DeploymentMode = 'self_hosted' | 'hosted'
+
+/** Sign-up. `org_name` / `org_slug` are required in hosted mode (the new
+ *  account creates and owns that organization) and ignored when self-hosted. */
+export interface RegisterRequest {
+  email: string
+  password: string
+  name?: string
+  org_name?: string
+  org_slug?: string
 }
 
 export const authApi = {
@@ -32,7 +51,7 @@ export const authApi = {
   status: () => api.get<AuthStatusResponse>('/auth/status'),
   login: (data: { email: string; password: string }) =>
     api.post<AuthUser>('/auth/login', data),
-  register: (data: { email: string; password: string; name?: string }) =>
+  register: (data: RegisterRequest) =>
     api.post<AuthUser>('/auth/register', data),
   logout: () => api.post<void>('/auth/logout'),
   // Self-service password reset. `request` always resolves 200 with a neutral
@@ -41,4 +60,11 @@ export const authApi = {
     api.post<PasswordResetRequestResponse>('/auth/password-reset/request', data),
   confirmPasswordReset: (data: { token: string; new_password: string }) =>
     api.post<PasswordResetConfirmResponse>('/auth/password-reset/confirm', data),
+  // Email verification (F20). `request` mails a fresh link to the signed-in
+  // account (204; 503 when the instance cannot send mail); `confirm` redeems
+  // the emailed token without a session (204; one neutral 400 for an unknown,
+  // expired or used token).
+  verifyEmailRequest: () => api.post<void>('/auth/verify-email/request'),
+  verifyEmailConfirm: (data: { token: string }) =>
+    api.post<void>('/auth/verify-email/confirm', data),
 }

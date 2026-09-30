@@ -36,6 +36,7 @@ from tripl_cli.model import (
     ScansSnapshot,
     Severity,
     StatusSnapshot,
+    Whoami,
     float_of,
     int_of,
     text_of,
@@ -65,6 +66,8 @@ def plural(count: int, noun: str) -> str:
     """
     if count == 1:
         return f"{count} {noun}"
+    if noun.endswith("y") and noun[-2:-1] not in "aeiou":
+        return f"{count} {noun[:-1]}ies"
     return f"{count} {noun}{'es' if noun.endswith(_SIBILANT_ENDINGS) else 's'}"
 
 
@@ -485,6 +488,28 @@ def search_rows(results: Sequence[JsonDict]) -> list[list[str]]:
     ]
 
 
+def _property_block(properties: object) -> list[str]:
+    """The event's typed property list (F23): name, type, required, presence."""
+    rows: list[list[str]] = []
+    for prop in properties if isinstance(properties, list) else []:
+        if not isinstance(prop, dict):
+            continue
+        presence = prop.get("presence_rate")
+        values = prop.get("effective_values") or []
+        rows.append(
+            [
+                text_of(prop, "name") or "?",
+                text_of(prop, "variable_type") or "?",
+                "required" if prop.get("required") else "optional",
+                f"{presence:.0%}" if isinstance(presence, int | float) else "-",
+                ", ".join(str(v) for v in values) if values else "any",
+            ]
+        )
+    if not rows:
+        return []
+    return ["    properties:", *(f"      {line}" for line in columns(rows))]
+
+
 def render_event_detail(read: PlanRead, event: JsonDict, fields: JsonList) -> str:
     """One event, with its field values resolved to the field NAMES they set.
 
@@ -527,6 +552,7 @@ def render_event_detail(read: PlanRead, event: JsonDict, fields: JsonList) -> st
     ]
     lines.extend(f"    {line}" for line in columns(attributes))
     lines.extend(_value_block("fields", event.get("field_values"), "field_definition_id", names))
+    lines.extend(_property_block(event.get("properties")))
     # Definition ids, not names. See the docstring: there is no meta-field
     # builder in tripl_cli.api, and a second spelling of one belongs nowhere.
     lines.extend(
@@ -604,3 +630,26 @@ def _annotation_line(outcome: MutationOutcome, result: JsonDict) -> str:
             f"at {bucket}); the API de-duplicated it and nothing new was created."
         )
     return f"{outcome.project}: annotated {label!r} at {bucket} ({annotation_id})."
+
+
+def render_whoami(whoami: Whoami) -> str:
+    """The ``tripl whoami`` lines: one fact per line, ``label: value``."""
+    access = whoami.access or "unknown"
+    if whoami.user_id is None:
+        return "\n".join(
+            [
+                f"key:   {access}, bound to one project",
+                "user:  unknown (a project-bound key cannot read /auth/me)",
+            ]
+        )
+    who = whoami.email or whoami.user_id
+    if whoami.name:
+        who = f"{whoami.name} <{who}>"
+    lines = [
+        f"user:  {who}",
+        f"key:   {access}, reaches the whole organization",
+        f"org:   {whoami.org or 'unknown'}" + (f" (role: {whoami.role})" if whoami.role else ""),
+    ]
+    if whoami.is_platform_admin:
+        lines.append("platform admin: yes (operator settings; browser sessions only)")
+    return "\n".join(lines)

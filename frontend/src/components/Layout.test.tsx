@@ -90,6 +90,8 @@ const ownerAuth: AuthContextValue = {
     email: 'owner@example.com',
     name: 'owner',
     role: 'owner',
+    is_platform_admin: false,
+    orgs: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
@@ -312,6 +314,21 @@ describe('Layout breadcrumbs', () => {
     // … but the page half must not name a real surface the user is not on.
     expect(screen.queryByText('Overview')).toBeNull()
     expect(screen.getByText('Not found')).toBeInTheDocument()
+  })
+})
+
+describe('Layout suspended organization (F20)', () => {
+  it('shows the suspended state instead of the shell when the organization refuses', async () => {
+    renderLayout('/workspace', '/workspace', 'Workspace page', {
+      mocks: () => {
+        vi.mocked(projectsApi.list).mockRejectedValue(new ApiError('This organization is suspended', 403))
+      },
+    })
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'This organization is suspended' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Workspace page')).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'sidebar' })).toBeNull()
   })
 })
 

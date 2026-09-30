@@ -22,9 +22,9 @@ import {
 import { chapterState, liveLoopState } from './scenarioTestState'
 import { setWelcomeDismissed } from './welcomeDismissal'
 import { at } from '@/test/at'
-import { authAs } from '@/test/auth'
 import { ActiveProjectContext } from '@/components/active-project-context'
 import { AuthContext } from '@/components/auth-context'
+import { personaAuth, type Persona } from '@/test/persona'
 
 const SLUG = 'acme'
 const POLL_MS = 10_000
@@ -295,13 +295,18 @@ describe('DemoScenarioStrip — when the coached control is nowhere on screen', 
   })
 
   /** The strip on the step's surface for a signed-in `role` on this demo. */
-  function renderStripAs(role: 'owner' | 'editor' | 'viewer') {
+  function renderStripAs(role: Persona) {
     writeScenarioState(SLUG, liveLoopState('live-loop/run-scan'))
-    const project = demoProject({ created_by_user_id: 'someone-else' })
+    // A viewer is an organization member whose row in this demo is `viewer`:
+    // the server answers the project to them as read-only.
+    const project = demoProject({
+      created_by_user_id: 'someone-else',
+      ...(role === 'viewer' ? { my_role: 'viewer' as const, can_mutate: false } : {}),
+    })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
       <QueryClientProvider client={client}>
-        <AuthContext.Provider value={authAs(role)}>
+        <AuthContext.Provider value={personaAuth(role)}>
           <ActiveProjectContext.Provider value={project}>
             <MemoryRouter initialEntries={[SCANS_ROUTE]}>
               <DemoScenarioProvider project={project} pollIntervalMs={POLL_MS}>

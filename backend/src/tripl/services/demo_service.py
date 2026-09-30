@@ -22,6 +22,7 @@ from sqlalchemy import ColumnElement, and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl import cache
+from tripl.middleware.org_context import require_org_id
 from tripl.middleware.request_id import current_request_id
 from tripl.models.audit_log import AuditLog
 from tripl.models.data_source import DataSource
@@ -107,9 +108,17 @@ def _demo_project_name(taken: Collection[str]) -> str:
 
 
 def _new_demo_project(
-    *, slug: str, created_by: uuid.UUID | None, name: str = "Demo Project"
+    *,
+    slug: str,
+    created_by: uuid.UUID | None,
+    organization_id: uuid.UUID,
+    name: str = "Demo Project",
 ) -> Project:
-    """The demo's Project row, shared by create and reset so they cannot drift."""
+    """The demo's Project row, shared by create and reset so they cannot drift.
+
+    ``organization_id`` is explicit (F20 PR5): the column has no default, and a
+    demo must land in the organization it was created or reset in.
+    """
     return Project(
         name=name,
         slug=slug,
@@ -123,7 +132,7 @@ def _new_demo_project(
         generation_status=ProjectGenerationStatus.seeding.value,
         generation_stage="init",
         created_by_user_id=created_by,
-        organization_id=project_lookup.owning_org_id(),
+        organization_id=organization_id,
     )
 
 
@@ -152,7 +161,9 @@ async def create_demo_project(
     # sweep them — no extra scheduled job to keep alive (tripl-jfm3.17/.76).
     await _sweep_failed_demo_shells(session)
 
-    live_names = await _live_demo_names(session, created_by)
+    # The organization the demo is created in; nothing is written without one.
+    organization_id = require_org_id()
+    live_names = await _live_demo_names(session, created_by, organization_id)
     live = len(live_names)
     if created_by is not None and live >= MAX_DEMOS_PER_CREATOR:
         raise HTTPException(
@@ -165,7 +176,10 @@ async def create_demo_project(
 
     # Phase 1: durable hidden shell, committed first as the provisioning marker.
     project = _new_demo_project(
-        slug=slug, created_by=created_by, name=_demo_project_name(live_names)
+        slug=slug,
+        created_by=created_by,
+        organization_id=organization_id,
+        name=_demo_project_name(live_names),
     )
     session.add(project)
     await session.flush()
@@ -270,6 +284,9 @@ async def request_demo_cancel(
     """
     if created_by is None:
         return DemoCancelResponse(cancelled=False, slug=None, state="none")
+    # Only the bound organization's demos (F20 PR5): a user in two organizations
+    # cancelling under B must neither abort nor be handed back a demo in A.
+    organization_id = require_org_id()
 
     in_flight = (
         (
@@ -278,6 +295,7 @@ async def request_demo_cancel(
                     Project.is_demo.is_(True),
                     Project.generation_status == ProjectGenerationStatus.seeding.value,
                     Project.created_by_user_id == created_by,
+                    Project.organization_id == organization_id,
                 )
             )
         )
@@ -292,6 +310,7 @@ async def request_demo_cancel(
                     Project.is_demo.is_(True),
                     Project.generation_status == ProjectGenerationStatus.ready.value,
                     Project.created_by_user_id == created_by,
+                    Project.organization_id == organization_id,
                     Project.created_at >= datetime.now(UTC) - DEMO_CANCEL_FINISHED_WINDOW,
                 )
                 .order_by(Project.created_at.desc())
@@ -319,8 +338,14 @@ async def _cancel_requested(session: AsyncSession, project_id: uuid.UUID) -> boo
     return stage == DEMO_CANCEL_REQUESTED_STAGE
 
 
-async def _live_demo_names(session: AsyncSession, created_by: uuid.UUID | None) -> list[str]:
-    """Names of the demos this creator currently holds against their cap.
+async def _live_demo_names(
+    session: AsyncSession, created_by: uuid.UUID | None, organization_id: uuid.UUID
+) -> list[str]:
+    """Names of the demos this creator currently holds against their cap in one organization.
+
+    The cap is counted per organization (F20 PR5): a user who belongs to two
+    organizations holds up to ``MAX_DEMOS_PER_CREATOR`` demos in each, and the
+    demos of one organization never block or number the other's.
 
     One row per demo, so ``len`` is the cap count and the names feed
     :func:`_demo_project_name`.
@@ -336,6 +361,7 @@ async def _live_demo_names(session: AsyncSession, created_by: uuid.UUID | None) 
     rows = await session.scalars(
         select(Project.name).where(
             Project.is_demo.is_(True),
+            Project.organization_id == organization_id,
             Project.created_by_user_id == created_by,
             Project.generation_status != ProjectGenerationStatus.failed.value,
             (Project.generation_status != ProjectGenerationStatus.seeding.value)
@@ -426,11 +452,15 @@ async def reset_demo_project(
     grants = await project_member_service.snapshot_grants(session, project.id)
     # The purged row's id keys its cache entries (F20 PR3).
     old_project_id = project.id
+    # The replacement stays in the organization the demo lived in.
+    organization_id = project.organization_id
 
     try:
         await _purge_audit_trail(session, project)
         await project_service.purge_project_rows(session, project)
-        replacement = _new_demo_project(slug=slug, created_by=creator, name=name)
+        replacement = _new_demo_project(
+            slug=slug, created_by=creator, organization_id=organization_id, name=name
+        )
         session.add(replacement)
         await session.flush()
         branch_id = await plan_branch_service.ensure_main_branch_id(session, replacement.id)

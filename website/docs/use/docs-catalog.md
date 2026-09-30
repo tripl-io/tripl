@@ -65,28 +65,81 @@ tripl stores every other key unchanged and does not check it, so
 export. Frontmatter that is not valid YAML, or that is not a mapping, is
 refused with a message that names the problem.
 
-## Links to the plan
+## Links and mentions {#links-and-mentions}
 
-A note can link to plan entities by name:
+A note links to other notes, to plan entities and to people with
+`[[kind:target]]`. Add `|label` to show your own text instead:
+`[[metric:signup_rate|the signup rate]]`.
 
-| Syntax | Links to |
-| --- | --- |
-| `[[event:purchase]]` | the event named `purchase` |
-| `[[event-type:checkout]]` | the event type named `checkout` |
-| `[[field:amount]]` | a field named `amount` on any event type |
-| `[[field:checkout/amount]]` | the field `amount` of event type `checkout` |
-| `[[event:purchase\|the purchase event]]` | the same link, shown as *the purchase event* |
+| Syntax | Links to | Written by |
+| --- | --- | --- |
+| `[[doc:<id>]]` | another note, shown with its current title | id |
+| `[[doc:<id>#heading-slug]]` | a heading in another note | id |
+| `[[event:purchase]]` | the event named `purchase` | name |
+| `[[event-type:checkout]]` | the event type named `checkout` | name |
+| `[[field:amount]]` | a field named `amount` on any event type | name |
+| `[[field:checkout/amount]]` | the field `amount` of event type `checkout` | name |
+| `[[variable:country]]` | the property named `country` | name |
+| `[[metric:signup_rate]]` | the catalog metric named `signup_rate` | name |
+| `[[alert-rule:<id>]]` | an alert rule, shown with its current name | id |
+| `[[branch:feature_x]]` | the plan branch named `feature_x` | name |
+| `[[scan:nightly]]` | the scan config named `nightly` | name |
+| `[[data-source:warehouse]]` | a data source the project uses | name |
+| `[[user:<id>]]` | a person, shown as **@Name** (a mention) | id |
 
-Links resolve against the **main** plan every time a note is shown, so a link
-never points at an old copy. Links inside code blocks and inline code are
-plain text. When no entity has the name, the link is **broken**. The note
-shows a warning that lists the broken links, and a save reports them too, but
-it is still saved. When more than one event has the name, the link is
-**ambiguous** and opens the first one.
+You do not type ids. In the editor:
 
-On the main plan, the event and event-type pages show a **Notes** card that
-lists every note that links to them, from both roots. An event type's
-**Field notes** section lists the notes that link to its fields.
+- Type `[[` to open the link picker. It searches notes you can read, plan
+  entities, alert rules, branches, scans, data sources and people as you type.
+- Type a kind and a colon, such as `[[metric:`, to search only that kind.
+- Type `@` after a space or at the start of a line to mention a person.
+- Use the arrow keys to choose, **Enter** or **Tab** to insert, and **Esc** to
+  close the picker. The picker inserts the full link, id included.
+
+You can also type `[[doc:guides/setup.md]]` by hand. When you save, tripl
+changes it to the `[[doc:<id>]]` form if that path is a note you can read.
+Otherwise the link stays as you typed it and is broken. If a reader can read
+a note at that path, the warning names that note and asks them to save the note
+to link it by id.
+
+### Renames and moves
+
+Links by **id** (notes, alert rules and people) keep working when the target is
+renamed or moved, and always show the current title or name.
+
+Links by **name** (plan entities, branches, scans and data sources) resolve
+against the **main** plan every time a note is shown, so a link never points at
+an old copy. When the target is renamed, the link is **broken**. The note shows
+a warning that lists the broken links, with up to three current names that are
+close to the one written (for the first 20 broken links of a note). In the editor, click a name to relink every copy of
+the link. A save reports broken links, but the note is still saved. When more
+than one event has the name, the link is **ambiguous** and opens the first one.
+
+Links inside code blocks and inline code are plain text.
+
+### Notes you cannot see
+
+A link to a note you cannot read shows as **Unavailable note**. It does not
+show the note's title or path, and it looks the same as a link to a deleted
+note.
+
+### Mentions
+
+When you save a note with a new `[[user:<id>]]` mention, tripl sends that person
+a notification, but only if they are a member of the organization and of this
+project, and can read the note. A mention that was already in the note does not notify again. Imports
+never send notifications.
+
+### Back-links
+
+A note's page lists **Linked from**: the other notes that link to it, limited
+to notes you can read.
+
+On the main plan, entity pages show a **Notes** card that lists every note that
+links to the entity, from both roots. The card is on the event, event type,
+property and metric pages. An event type's **Field notes** section lists the
+notes that link to its fields. The API returns back-links for every kind (see
+the [Agent API guide](../integrate/agent-api-guide.md#docs-catalog)).
 
 ## History
 
@@ -107,16 +160,112 @@ meantime, you get a conflict and can reload their version or overwrite it.
 
 - Every project member can read the project's notes and its organization's
   notes. This includes viewers and `read`-scope API keys.
-- Project editors (and the instance owner) can write project notes.
-- Organization notes can be written by instance editors and owners who can
-  edit the project they are working in. An API key bound to one project can
-  read organization notes but cannot change them, because other projects read
-  them too.
+- Project editors (and the organization's owners and admins) can write project
+  notes.
+- Organization notes are written by the organization's owners and admins. A
+  member who edits one project can read organization notes but not change
+  them, because every project of the organization reads them. An API key bound
+  to one project cannot change them either.
 - Deleting organization notes in bulk, with a folder delete or an import in
-  **mirror** mode, needs the instance owner signed in to the web app. An API
-  key cannot do it, whoever owns it.
+  **mirror** mode, needs an organization owner or admin signed in to the web
+  app. An API key cannot do it, whoever owns it.
 
 Every change is recorded in the project's **Audit** tab, in the **Docs** group.
+
+These rules apply to notes everyone at their level can see, which is every
+note unless it is shared more narrowly. See [Sharing](#sharing).
+
+## Sharing {#sharing}
+
+Each note has a visibility. The **Share** button on a note sets it:
+
+- **Everyone in the project** (or **Everyone in the organization** for an
+  organization note). This is the default for a new note, and it is how every
+  note behaved before sharing existed. The rules in
+  [Who can read and write](#who-can-read-and-write) apply.
+- **Specific people and groups.** The author, plus the people and the
+  organization groups the note is shared with. Each share is **Can view** or
+  **Can edit**. Group membership is checked when the note is read, so adding
+  someone to a group or removing them takes effect at once.
+- **Only me.** Only the author reads and edits it.
+
+The author can always read their own note. They edit it, and change its
+sharing, while they still have write access to it: an author who is later made
+a project viewer can only read it. A share never gives access
+to a project. A person, or a group member, who is not a member of the note's
+project (or of its organization, for an organization note) still cannot see
+it. When someone leaves the organization, their shares are removed. Editing
+still needs write access: a project viewer with a **Can edit** share can only
+read the note.
+
+A note the caller cannot read does not exist for them. The tree, the note page,
+its history, search, the **Notes** card on event and event-type pages, the
+export and the counts all leave it out. Opening its link returns **Note not
+found**. Search totals and folder counts never include it.
+
+A hidden note still occupies its path, so a few write answers show that
+something exists there, never what it is or who wrote it:
+
+- Creating a note, moving a note, or importing a note (also in a dry run) at a
+  path a hidden note holds is refused with **A doc already exists at** that
+  path, or **the path is taken** in an import report.
+- The limit of notes per project or organization counts every note, hidden or
+  not, so a create or an import can be refused for the limit while the tree
+  shows fewer notes.
+
+**Folders.** A folder can have a sharing setting too: **Share** in the folder's
+menu in the tree. A note follows the setting of the nearest folder above it
+that has one, until you give the note its own setting by clearing **Follow
+the folder setting** in its Share dialog. The dialog names the folder a
+setting is inherited from.
+
+A folder has no single author, so its **Only each note's author** setting
+keeps every note in it to the person who wrote that note. It does not make the
+notes visible to the person who set the folder.
+
+**Moving notes.** A move never changes who can read a note behind its author's
+back:
+
+- When the note's author, or an organization owner or admin, moves a single
+  note that follows its folder's setting, it takes the setting of its new
+  folder. The change is recorded as `doc.share_update`.
+- When anyone else moves it (a colleague with a **Can edit** share, or a
+  project editor moving someone else's note), the note keeps the access it
+  had: its old setting is copied onto the note as its own setting.
+- A folder move keeps every moved note's access. The folder's settings go
+  with it when the target folder is new. When the target folder already
+  holds other notes or has a setting of its own, those stay as they are, and
+  each moved note keeps its old access as its own setting. A setting the
+  folder inherited from a folder above it is kept the same way.
+
+The `doc.move` audit row lists the notes whose access was kept this way.
+
+**Who changes sharing.** For a note: its author, while they have write access
+to it, or an owner or admin of the organization. A **Can edit** share lets
+someone edit a note, not change who can read it. For a folder of project
+notes: an organization owner or admin, or a project editor when every note
+that follows the folder is their own or still open to everyone in the project.
+For a folder of organization notes: an organization owner or admin. Each
+change is recorded in the audit log as `doc.share_update`, with the setting
+before and after. The note's content is not recorded.
+
+**Organization owners and admins.** They can open a note that is not shared
+with them, directly by its link or path. This is for audit and incident
+response. Each such read is recorded in the audit log as
+`doc.break_glass_read`; so is opening such a note's Share dialog, which shows
+who it is shared with. The note page tells them that the read was recorded.
+These notes still never appear in their tree, search
+or counts, and they cannot edit a note unless it is shared with them for
+editing.
+
+The tree marks an author-only note with a lock and a shared note with a people
+icon. The note header says the same, and shows **view only** when you can read
+but not edit.
+
+**Import and export.** Sharing is not part of a note's file. An export holds
+only the notes you can read, with no visibility in their frontmatter. An
+import ignores any visibility key in frontmatter: imported notes get the
+default, or their folder's setting.
 
 ## Import and export
 
@@ -143,8 +292,8 @@ An import takes a zip or a JSON bundle:
 The **Import / export** button on the Docs page does both. It picks the root,
 exports a zip or JSON, and imports a `.zip` or `.json` file with **Merge** or
 **Mirror**. **Import** is enabled only after **Preview (dry run)** has run
-without errors. Only the instance owner, signed in to the web app, can mirror
-organization notes.
+without errors. Only organization owners and admins can import organization
+notes, and mirroring them needs one signed in to the web app.
 
 ### Layout of an export
 
@@ -252,3 +401,5 @@ Agents use the same notes through the API (`/projects/{slug}/docs`), the MCP
 tools `list_docs`, `read_doc`, `search_docs` and `write_doc`, and the CLI
 (`tripl docs ls`, `cat`, `pull` and `push`). See the
 [Agent API guide](../integrate/agent-api-guide.md#docs-catalog).
+An agent sees what the user behind its API key sees: notes that are not shared
+with that user are missing from every list, search and read.

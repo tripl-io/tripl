@@ -1,6 +1,6 @@
 import type { ServiceSettings } from '@/types'
 import { Field, RadioCards, SCard, TextInput, ToggleRow } from '@/components/settings/kit'
-import { InactiveGroup, NumberSettingInput, SourceBadge } from './ServiceSettingsPrimitives'
+import { InactiveGroup, NumberSettingInput, OperatorFields, SourceBadge } from './ServiceSettingsPrimitives'
 import type { EditableSettings, SectionKey } from './serviceSettingsHelpers'
 import { sourceFor } from './serviceSettingsHelpers'
 
@@ -13,10 +13,16 @@ export function StorageSection({
   form,
   settings,
   setField,
+  platformAdmin,
 }: {
   form: EditableSettings
   settings: ServiceSettings
   setField: (section: SectionKey, field: string, value: string | number | boolean) => void
+  /**
+   * Every storage field but the MIME allow-list is operator-only (backend
+   * `OPERATOR_FIELDS`): one value serves every organization until each has its own.
+   */
+  platformAdmin: boolean
 }) {
   // Both backend cards stay editable (an owner may prepare GCS before
   // switching), but the one not selected above says so: with both always
@@ -27,6 +33,7 @@ export function StorageSection({
   return (
     <>
       <SCard title="Backend">
+        <OperatorFields locked={!platformAdmin}>
         <Field
           label="Photo storage backend"
           labelRight={
@@ -55,6 +62,7 @@ export function StorageSection({
             suffix="MB"
           />
         </Field>
+        </OperatorFields>
         <Field
           label="Allowed MIME types"
           labelRight={<SourceBadge source={sourceFor(settings, 'storage', 'photo_allowed_mime')} />}
@@ -74,6 +82,7 @@ export function StorageSection({
       >
         {/* Faded as well as described: the note alone left every field looking
             live (ST-26, after WS-30). */}
+        <OperatorFields locked={!platformAdmin}>
         <InactiveGroup inactive={backend !== 'local'}>
         <Field
           label="Local photo directory"
@@ -87,12 +96,14 @@ export function StorageSection({
           />
         </Field>
         </InactiveGroup>
+        </OperatorFields>
       </SCard>
 
       <SCard
         title="Google Cloud Storage"
         description={backend === 'gcs' ? undefined : inactiveNote('Local filesystem')}
       >
+        <OperatorFields locked={!platformAdmin}>
         <InactiveGroup inactive={backend !== 'gcs'}>
         <Field
           label="GCS bucket"
@@ -141,6 +152,7 @@ export function StorageSection({
           />
         </Field>
         </InactiveGroup>
+        </OperatorFields>
       </SCard>
     </>
   )

@@ -8,6 +8,8 @@ import { eventTypesApi } from '@/api/eventTypes'
 import { relationsApi } from '@/api/relations'
 import type { EventType, EventTypeRelation } from '@/types'
 import { RelationsTab } from './RelationsTab'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/relations', () => ({
   relationsApi: { list: vi.fn(), create: vi.fn(), update: vi.fn(), del: vi.fn() },
@@ -37,7 +39,9 @@ function renderTab(auth: AuthContextValue | null, { seed = true }: { seed?: bool
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <RelationsTab slug="demo" />
+        <SessionProject session={auth}>
+          <RelationsTab slug="demo" />
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -49,7 +53,7 @@ afterEach(() => {
 
 describe('RelationsTab', () => {
   it('offers an editor Add and Delete', async () => {
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
 
     expect(
       await screen.findByRole('button', { name: 'Delete relation between purchase.user_id and signup.user_id' }),
@@ -58,7 +62,7 @@ describe('RelationsTab', () => {
   })
 
   it('offers a viewer neither, and says why once', async () => {
-    renderTab(authAs('viewer'))
+    renderTab(personaAuth('viewer'))
 
     expect(await screen.findByText('purchase.user_id')).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent(/viewer role/)
@@ -68,7 +72,7 @@ describe('RelationsTab', () => {
   })
 
   it('names the joined fields in each row and in the delete confirm (PLAN-52)', async () => {
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
 
     expect(await screen.findByText('purchase.user_id')).toBeInTheDocument()
     expect(screen.getByText('signup.user_id')).toBeInTheDocument()
@@ -82,7 +86,7 @@ describe('RelationsTab', () => {
 
   it('says a failed delete failed instead of leaving the row in silence', async () => {
     vi.mocked(relationsApi.del).mockRejectedValue(new Error('Relation is in use'))
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete relation between purchase.user_id and signup.user_id' }),
@@ -94,7 +98,7 @@ describe('RelationsTab', () => {
 
   it('shows a skeleton, not "No relations", while the list loads (PLAN-41)', async () => {
     vi.mocked(relationsApi.list).mockReturnValue(new Promise(() => {}))
-    renderTab(authAs('editor'), { seed: false })
+    renderTab(authAs('member'), { seed: false })
 
     expect(await screen.findByLabelText('Loading relations')).toBeInTheDocument()
     expect(screen.queryByText('No relations')).not.toBeInTheDocument()
@@ -102,7 +106,7 @@ describe('RelationsTab', () => {
 
   it('shows a failed load as an error with a retry, not as an empty list (PLAN-41)', async () => {
     vi.mocked(relationsApi.list).mockRejectedValue(new Error('boom'))
-    renderTab(authAs('editor'), { seed: false })
+    renderTab(authAs('member'), { seed: false })
 
     expect(await screen.findByText("Couldn't load relations")).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
@@ -110,7 +114,7 @@ describe('RelationsTab', () => {
   })
 
   it('shows the relation type in words and the join in one cell (AU-13)', async () => {
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
 
     const source = await screen.findByText('purchase.user_id')
     expect(screen.getByText('shared field')).toBeInTheDocument()
@@ -118,7 +122,7 @@ describe('RelationsTab', () => {
   })
 
   it('groups each end of a new relation and previews the join (AU-13)', async () => {
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
     await screen.findByText('purchase.user_id')
 
     fireEvent.click(screen.getByRole('button', { name: /New relation/ }))
@@ -139,7 +143,7 @@ describe('RelationsTab', () => {
 
   it('edits a relation in place with the same From/To dialog (AU-13)', async () => {
     vi.mocked(relationsApi.update).mockResolvedValue(RELATION)
-    renderTab(authAs('editor'))
+    renderTab(authAs('member'))
 
     fireEvent.click(
       await screen.findByRole('button', { name: 'Edit relation between purchase.user_id and signup.user_id' }),

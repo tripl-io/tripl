@@ -71,7 +71,7 @@ describe('VariablesTableRow observed values cell', () => {
     expect(screen.queryByText('No values stored')).not.toBeInTheDocument()
   })
 
-  it('names the silence when the variable has contexts but no stored values', () => {
+  it('names the silence when the property has contexts but no stored values', () => {
     renderRow(makeSpeakingVariable({ sample_values: [], context_count: 2 }))
 
     expect(screen.getByText('No values stored')).toHaveAttribute(
@@ -90,7 +90,7 @@ describe('VariablesTableRow observed values cell', () => {
     )
   })
 
-  it('keeps the em-dash when no context references the variable at all', () => {
+  it('keeps the em-dash when no context references the property at all', () => {
     renderRow(makeSpeakingVariable({ sample_values: [], context_count: 0 }))
 
     expect(screen.queryByText('No values stored')).not.toBeInTheDocument()
@@ -137,5 +137,36 @@ describe('VariablesTableRow observed-in events (AU-29)', () => {
 
     expect(screen.getByText('checkout_completed')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'checkout_completed' })).toBeNull()
+  })
+})
+
+describe('VariablesTableRow property lists (F23)', () => {
+  it('says how many events list the property, linked to its Events tab', () => {
+    render(
+      <MemoryRouter>
+        <table>
+          <tbody>
+            <VariablesTableRow
+              variable={makeSpeakingVariable({ listed_event_count: 3, required_event_count: 1 })}
+              typeLabel="string"
+              selected={false}
+              focused={false}
+              onToggleSelect={() => {}}
+              onEdit={() => {}}
+              onExclude={() => {}}
+              onDelete={() => {}}
+              listedEventsHref={(id) => `/variables/${id}?tab=events`}
+            />
+          </tbody>
+        </table>
+      </MemoryRouter>,
+    )
+    const link = screen.getByRole('link', { name: 'On 3 events · 1 required' })
+    expect(link).toHaveAttribute('href', '/variables/var-1?tab=events')
+  })
+
+  it('says nothing when no event lists it', () => {
+    renderRow(makeSpeakingVariable({ listed_event_count: 0 }))
+    expect(screen.queryByText(/required$/)).toBeNull()
   })
 })

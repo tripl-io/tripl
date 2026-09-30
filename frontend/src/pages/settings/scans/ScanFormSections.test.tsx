@@ -7,6 +7,8 @@ import { AuthContext } from '@/components/auth-context'
 import { authAs } from '@/test/auth'
 import { ScanConfigurationTab, ScanCreatePage } from './ScanConfigForm'
 import { at } from '@/test/at'
+import { personaAuth, type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 // CodeMirror needs real layout measurement jsdom can't provide; a plain textarea
 // keeps the SQL field queryable and the suite deterministic.
@@ -106,12 +108,14 @@ function renderCreatePage() {
  * The edit form is an owner's (DATA-6); anyone else gets the read view
  * (i9mt.12), so the form's own tests render as an owner.
  */
-function renderConfigurationTab(scanConfig: ScanConfig, role: 'owner' | 'editor' | 'viewer' = 'owner') {
+function renderConfigurationTab(scanConfig: ScanConfig, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authAs(role)}>
-        <ScanConfigurationTab slug="demo" scanConfig={scanConfig} onDeleted={() => {}} />
+      <AuthContext.Provider value={personaAuth(role)}>
+        <PersonaProject persona={role}>
+          <ScanConfigurationTab slug="demo" scanConfig={scanConfig} onDeleted={() => {}} />
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -793,7 +797,7 @@ describe('ScanFormSections — batch 4', () => {
       app_version_column: null,
       platform_column: null,
       cardinality_threshold: 100,
-    } as unknown as ScanConfig, 'editor')
+    } as unknown as ScanConfig, 'member')
 
     expect(await screen.findByRole('note')).toHaveTextContent('Only an owner can change, replay or delete a scan.')
     expect(screen.getByLabelText('Scan query')).toHaveTextContent('SELECT * FROM analytics.events')

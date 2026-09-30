@@ -9,7 +9,7 @@ function repaired(input: string, known: string[] = KNOWN): string | null {
 }
 
 describe('relaxedToJson', () => {
-  it('wraps bare key: value pairs and reads dotted values as variables', () => {
+  it('wraps bare key: value pairs and reads dotted values as properties', () => {
     expect(repaired('from_profile: property.forecast_profile, mode: property.mode')).toBe(
       '{"from_profile":"${property.forecast_profile}","mode":"${property.mode}"}',
     )
@@ -58,7 +58,7 @@ describe('relaxedToJson', () => {
       'wrapped it in { }',
       'quoted 2 keys',
       'switched single quotes to double',
-      'read 1 value as a variable',
+      'read 1 value as a property',
     ])
   })
 

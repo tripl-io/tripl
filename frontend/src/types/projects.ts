@@ -40,6 +40,10 @@ export interface ProjectSummary {
   // twin of `failing_scan_config_count`, for the Overview status line (MO-15).
   // Always sent (default 0); optional so summaries built before it still type.
   failing_alert_destination_count?: number
+  // Open property drifts (F23, #306): new, missing-required and retyped
+  // properties nobody has triaged. Kept apart from monitoring_signal_count,
+  // which equals the Anomalies page. Optional so older summaries still type.
+  open_property_drift_count?: number
   latest_scan_job: ProjectLatestScanJob | null
   latest_signal: ProjectLatestSignal | null
 }
@@ -81,23 +85,49 @@ export interface Project {
   demo_last_tick_at?: string | null
   created_by_user_id?: string | null
   // Whether the signed-in caller may write inside this project: the backend's
-  // mutation gate answered per request (instance owner, or a member with an
-  // editing role whose instance role is not viewer). Optional so fixtures that
+  // mutation gate answered per request (an owner or admin of the project's
+  // organization, or a member with an editing role in it). Optional so fixtures that
   // predate it keep type-checking; lib/permissions falls back to `my_role`, then
   // the role/demo rule, when it is absent.
   can_mutate?: boolean
-  // The caller's access to this project: 'owner' for an instance owner (who
-  // sees every project), otherwise their project membership role, capped by
-  // their instance role. Optional so fixtures that predate project membership
-  // keep type-checking; the server always sends it.
+  // The caller's access to this project: 'owner' for an owner or admin of its
+  // organization (who sees every project of it), otherwise their project
+  // membership row's role, or the organization's default access when they
+  // have no row. Optional so fixtures that predate project membership keep
+  // type-checking; the server always sends it.
   my_role?: ProjectAccessRole
 }
 
-/** A project membership role. The instance owner is never a member row. */
-export type ProjectMemberRole = 'editor' | 'viewer'
+/** A role that grants access to a project: reading (`viewer`) or writing too (`editor`). */
+export type ProjectGrantRole = 'editor' | 'viewer'
 
-/** What `ProjectResponse.my_role` can say about the caller. */
-export type ProjectAccessRole = 'owner' | ProjectMemberRole
+/**
+ * A project membership row's role. `'none'` opts an organization member out
+ * of a project the organization's default access would otherwise give them:
+ * the project is hidden from them as if it did not exist. An org owner or
+ * admin is never a member row (they see every project).
+ */
+export type ProjectMemberRole = ProjectGrantRole | 'none'
+
+/**
+ * The organization's default access to its projects
+ * (`OrgResponse.default_project_role`): what a member gets on a project they
+ * have no membership row in. `'none'` keeps projects invite-only. Never owner.
+ */
+export type DefaultProjectRole = ProjectMemberRole
+
+/** Order and words for the project roles, `'none'` included, app-wide. */
+export const PROJECT_ROLE_OPTIONS: readonly { value: ProjectMemberRole; label: string }[] = [
+  { value: 'none', label: 'No access' },
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'editor', label: 'Editor' },
+]
+
+/**
+ * What `ProjectResponse.my_role` can say about the caller. Never `'none'`:
+ * a caller without access gets a 404, not a project.
+ */
+export type ProjectAccessRole = 'owner' | ProjectGrantRole
 
 /** One row of `GET /projects/{slug}/members`. Hand-written until the API
  *  types are regenerated. */

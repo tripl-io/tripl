@@ -59,6 +59,8 @@ from tripl.worker.tasks.metrics.urls import (
 
 BASE = "https://tripl.example"
 SLUG = "acme-ios"
+# F20 PR8: every deep link names the organization; the suite runs in default.
+ORG = "default"
 
 # The window the real alert measured over: 2026-07-24T09:00Z -> 2026-07-26T12:00Z.
 WINDOW_FROM = datetime(2026, 7, 24, 9, tzinfo=UTC)
@@ -106,6 +108,7 @@ def _full_item(item: AlertDeliveryItem) -> AlertDeliveryItem:
     """
     item.details_path, item.monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type=item.scope_type,
         scope_ref=item.scope_ref,
@@ -139,6 +142,7 @@ def test_a_release_regression_never_links_to_the_event_monitoring_page() -> None
 
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(event_id),
@@ -146,12 +150,12 @@ def test_a_release_regression_never_links_to_the_event_monitoring_page() -> None
         delivery_id=delivery_id,
     )
 
-    assert f"{BASE}/p/{SLUG}/monitoring/event/{event_id}" not in (
+    assert f"{BASE}/o/{ORG}/p/{SLUG}/monitoring/event/{event_id}" not in (
         details_path,
         monitoring_path,
     )
     # Section (d) pins the ``?item=`` anchor; here only the destination matters.
-    assert (details_path or "").startswith(f"{BASE}/p/{SLUG}/alerting/{delivery_id}")
+    assert (details_path or "").startswith(f"{BASE}/o/{ORG}/p/{SLUG}/alerting/{delivery_id}")
     # One link, not two labels on the same URL: there is no monitoring page.
     assert monitoring_path is None
 
@@ -168,6 +172,7 @@ def test_an_event_type_scoped_regression_does_not_get_an_event_url() -> None:
 
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(event_type_id),
@@ -177,12 +182,13 @@ def test_an_event_type_scoped_regression_does_not_get_an_event_url() -> None:
 
     assert f"/monitoring/event/{event_type_id}" not in (details_path or "")
     assert f"/monitoring/event/{event_type_id}" not in (monitoring_path or "")
-    assert (details_path or "").startswith(f"{BASE}/p/{SLUG}/alerting/{delivery_id}")
+    assert (details_path or "").startswith(f"{BASE}/o/{ORG}/p/{SLUG}/alerting/{delivery_id}")
 
 
 def test_a_regression_without_a_delivery_id_gets_no_link_rather_than_a_wrong_one() -> None:
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(uuid.uuid4()),
@@ -226,6 +232,7 @@ def test_every_other_scope_keeps_the_links_it_had(
 
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type=scope_type,
         scope_ref=scope_ref,
@@ -233,7 +240,7 @@ def test_every_other_scope_keeps_the_links_it_had(
         delivery_id=uuid.uuid4(),
     )
 
-    prefix = f"{BASE}/p/{SLUG}"
+    prefix = f"{BASE}/o/{ORG}/p/{SLUG}"
     assert details_path == prefix + expected_details.format(event_id=event_id, scope_ref=scope_ref)
     if expected_monitoring is None:
         assert monitoring_path is None
@@ -264,6 +271,7 @@ def test_every_scope_links_to_the_incident_when_there_is_one(scope_type: str) ->
 
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type=scope_type,
         scope_ref=str(uuid.uuid4()),
@@ -273,7 +281,7 @@ def test_every_scope_links_to_the_incident_when_there_is_one(scope_type: str) ->
     )
 
     assert details_path is not None
-    assert details_path.startswith(f"{BASE}/p/{SLUG}/alerting/{delivery_id}?")
+    assert details_path.startswith(f"{BASE}/o/{ORG}/p/{SLUG}/alerting/{delivery_id}?")
     assert f"incident={group_id}" in details_path
     assert "item=" in details_path
     assert monitoring_path is None
@@ -284,13 +292,14 @@ def test_a_catalog_metric_links_to_the_metric_drilldown_not_the_event_route() ->
     metric_id = uuid.uuid4()
     _, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="metric",
         scope_ref=str(metric_id),
         event_id=None,
         delivery_id=uuid.uuid4(),
     )
-    assert monitoring_path == f"{BASE}/p/{SLUG}/monitoring/metric/{metric_id}"
+    assert monitoring_path == f"{BASE}/o/{ORG}/p/{SLUG}/monitoring/metric/{metric_id}"
 
 
 def test_the_base_url_is_handed_in_and_has_no_default() -> None:
@@ -469,6 +478,7 @@ def test_two_items_in_one_delivery_do_not_share_a_link() -> None:
 
     first, _ = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(first_event),
@@ -477,6 +487,7 @@ def test_two_items_in_one_delivery_do_not_share_a_link() -> None:
     )
     second, _ = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(second_event),
@@ -500,6 +511,7 @@ def test_the_audit_link_names_the_item_it_was_printed_for() -> None:
 
     details_path, _ = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(event_id),
@@ -508,7 +520,7 @@ def test_the_audit_link_names_the_item_it_was_printed_for() -> None:
     )
 
     assert details_path == (
-        f"{BASE}/p/{SLUG}/alerting/{delivery_id}?item=release_regression:{event_id}"
+        f"{BASE}/o/{ORG}/p/{SLUG}/alerting/{delivery_id}?item=release_regression:{event_id}"
     )
 
 
@@ -527,6 +539,7 @@ def test_the_anchor_carries_the_scope_type_because_scope_ref_alone_collides() ->
 
     regression_details, _ = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="release_regression",
         scope_ref=str(shared_event_id),
@@ -553,6 +566,7 @@ def test_the_anchor_is_url_safe_for_a_scope_ref_that_is_not_a_uuid() -> None:
     audit_scope = next(iter(_SCOPES_LINKED_TO_ALERT_AUDIT))
     details_path, _ = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type=audit_scope,
         scope_ref="checkout total&spend=1",
@@ -573,6 +587,7 @@ def test_the_per_item_anchor_does_not_leak_into_scopes_that_have_a_real_page() -
     for scope_type in ("event", "event_type", "project_total", "metric"):
         details_path, monitoring_path = _build_item_paths(
             SLUG,
+            org_slug=ORG,
             app_base_url=BASE,
             scope_type=scope_type,
             scope_ref=str(uuid.uuid4()),
@@ -641,6 +656,9 @@ _AUDIT_LINK_DECISION: dict[MetricScopeType, bool] = {
     # An event lifecycle finding (#258): the event page shows the finding and
     # the migration numbers; every item reaches its incident anyway.
     MetricScopeType.lifecycle: False,
+    # A property drift (F23): the event page lists the event's property
+    # drifts with their actions; a type change has no event and no link.
+    MetricScopeType.property_drift: False,
 }
 
 
@@ -657,6 +675,7 @@ def test_value_drift_links_to_the_event_its_variable_is_anchored_to() -> None:
 
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="variable_value_drift",
         # scope_ref is the VariableValueDrift row id, which no route accepts.
@@ -665,7 +684,7 @@ def test_value_drift_links_to_the_event_its_variable_is_anchored_to() -> None:
         delivery_id=delivery_id,
     )
 
-    assert details_path == f"{BASE}/p/{SLUG}/monitoring/event/{event_id}"
+    assert details_path == f"{BASE}/o/{ORG}/p/{SLUG}/monitoring/event/{event_id}"
     # The scope still has no monitoring DETAIL route of its own; the round that
     # made ``_build_monitoring_url`` exhaustive got that half right, and the
     # row id must never reappear inside /monitoring/event/.
@@ -677,6 +696,7 @@ def test_value_drift_is_not_sent_to_the_audit_row() -> None:
     delivery_id = uuid.uuid4()
     details_path, monitoring_path = _build_item_paths(
         SLUG,
+        org_slug=ORG,
         app_base_url=BASE,
         scope_type="variable_value_drift",
         scope_ref=str(uuid.uuid4()),
@@ -685,7 +705,7 @@ def test_value_drift_is_not_sent_to_the_audit_row() -> None:
     )
     # Prefix, not equality: the audit URL now carries a ``?item=`` anchor, and
     # an equality check would pass against any anchored variant of it.
-    audit_prefix = f"{BASE}/p/{SLUG}/alerting/{delivery_id}"
+    audit_prefix = f"{BASE}/o/{ORG}/p/{SLUG}/alerting/{delivery_id}"
     assert not (details_path or "").startswith(audit_prefix)
     assert not (monitoring_path or "").startswith(audit_prefix)
 

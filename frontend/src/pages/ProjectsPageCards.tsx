@@ -25,7 +25,7 @@ import { formatIncidentCount } from '@/lib/alertStatus'
 import { formatPlanCoverage, planCoverageRatio } from '@/lib/coverage'
 import { formatDate, formatDateTime, formatRelativeTime } from '@/lib/datetime'
 import { getMonitoringPath } from '@/lib/monitoring'
-import { projectHomePath } from '@/lib/navigation'
+import { currentOrgSlug, projectHomePath, projectPath } from '@/lib/navigation'
 import { countOf, pluralize } from '@/lib/plural'
 import { friendlyScanError } from '@/lib/scanError'
 import { formatJobScanned, jobScanned } from './settings/scans/scanUtils'
@@ -347,7 +347,7 @@ function ProjectFacts({
           cmd-clickable (tripl-a1d1). */}
       {summary.review_pending_event_count > 0 ? (
         <Link
-          to={`/p/${project.slug}/events/review`}
+          to={projectPath(currentOrgSlug(), project.slug, '/events/review')}
           aria-label={`In review in ${project.name}: ${pluralize(
             summary.review_pending_event_count,
             '1 event',
@@ -435,7 +435,7 @@ function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boole
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Event types" value={String(summary.event_type_count)} />
             <Metric label="Active events" value={String(summary.active_event_count)} />
-            <Metric label="Variables" value={String(summary.variable_count)} />
+            <Metric label="Properties" value={String(summary.variable_count)} />
             {/* Incidents awaiting triage, as the sidebar's Alerting badge
                 counts them. "Alerts" used to show the destination count, so
                 the sidebar could say 1 while this said 2 (SH-26). */}
@@ -457,7 +457,7 @@ function ProjectDetails({ project, isOwner }: { project: Project; isOwner: boole
           </Panel>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to={`/p/${project.slug}/settings`}>
+          <Link to={projectPath(currentOrgSlug(), project.slug, '/settings')}>
             <Settings2 className="h-3.5 w-3.5" />
             Settings
           </Link>

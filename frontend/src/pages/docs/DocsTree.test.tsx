@@ -16,6 +16,9 @@ function summary(path: string, title: string, scope: DocScope = 'project'): DocS
     size_bytes: 10,
     updated_at: '2026-09-01T00:00:00Z',
     updated_by_name: null,
+    visibility: 'level',
+    my_permission: 'edit',
+    shared: false,
   }
 }
 
@@ -34,12 +37,12 @@ function tree(overrides: Partial<DocTreeResponse> = {}): DocTreeResponse {
   }
 }
 
-function actions(canDelete: (scope: DocScope) => boolean = () => true): FolderActions {
+function actions(canEdit: (scope: DocScope) => boolean = () => true): FolderActions {
   return {
     onNewInFolder: vi.fn(),
     onMoveFolder: vi.fn(),
     onDeleteFolder: vi.fn(),
-    canDeleteFolder: vi.fn(canDelete),
+    canEditScope: vi.fn(canEdit),
   }
 }
 
@@ -131,10 +134,48 @@ describe('DocsTree', () => {
     expect(a.onDeleteFolder).toHaveBeenCalledWith('project', 'references/', 2)
   })
 
-  it('hides folder delete where the user may not bulk-delete', () => {
+  it('hides organization folder actions from a project editor who is not an org owner or admin', () => {
     renderTree({ actions: actions(scope => scope === 'project') })
     expect(screen.getByRole('button', { name: 'Delete references/' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New project note' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Delete warehouse/' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Rename or move warehouse/' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rename or move warehouse/' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'New organization note' })).toBeNull()
+  })
+})
+
+describe('DocsTree sharing (F24)', () => {
+  it('marks private and shared notes, and nothing for the default', () => {
+    render(
+      <MemoryRouter>
+        <DocsTree
+          slug="demo"
+          tree={tree({
+            project_docs: [
+              { ...summary('mine.md', 'Mine'), visibility: 'private' },
+              { ...summary('team.md', 'Team'), visibility: 'restricted', shared: true },
+              summary('open.md', 'Open'),
+            ],
+          })}
+          active={null}
+        />
+      </MemoryRouter>,
+    )
+    const root = projectRoot()
+    expect(within(root).getByRole('link', { name: 'Mine (only the author)' })).toBeInTheDocument()
+    expect(within(root).getByRole('link', { name: 'Team (shared with specific people)' })).toBeInTheDocument()
+    expect(within(root).getByRole('link', { name: 'Open' })).toBeInTheDocument()
+  })
+
+  it('offers folder sharing to an editor when the page wires it', () => {
+    const a = { ...actions(), onShareFolder: vi.fn() }
+    renderTree({ actions: a })
+    fireEvent.click(within(projectRoot()).getByRole('button', { name: 'Share references/' }))
+    expect(a.onShareFolder).toHaveBeenCalledWith('project', 'references/')
+  })
+
+  it('hides folder sharing when the page does not wire it', () => {
+    renderTree({ actions: actions() })
+    expect(screen.queryByRole('button', { name: 'Share references/' })).toBeNull()
   })
 })

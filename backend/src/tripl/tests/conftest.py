@@ -53,9 +53,17 @@ from tripl.main import app  # noqa: E402
 _app_settings.apply_startup_service_overrides = _real_apply_startup_service_overrides
 from tripl.middleware.org_context import OrgRef, bind_org, reset_org  # noqa: E402
 from tripl.middleware.rate_limit import (  # noqa: E402
+    audit_export_rate_limiter,
+    audit_webhook_probe_rate_limiter,
+    doc_link_suggestions_rate_limiter,
     login_rate_limiter,
     register_rate_limiter,
+    scim_auth_failure_rate_limiter,
+    scim_rate_limiter,
+    sso_probe_rate_limiter,
+    sso_rate_limiter,
     status_rate_limiter,
+    verify_email_rate_limiter,
 )
 from tripl.models import Base  # noqa: E402
 from tripl.models.data_source import TestStatus  # noqa: E402
@@ -66,13 +74,17 @@ from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG  # noqa: 
 TestStatus.__test__ = False  # type: ignore[attr-defined]
 from tripl.tests._default_org import (  # noqa: E402
     install_default_organization_seeding,
+    install_test_row_default_org,
     seed_default_organization,
 )
 from tripl.tests._sqlite import enable_sqlite_foreign_keys  # noqa: E402
 
 # Every schema built from the models — this one and each module's own engine —
-# starts with the default organization every project belongs to (F20 PR1).
+# starts with the default organization every project belongs to (F20 PR1), and a
+# row a test builds without an organization lands in it (F20 PR5: the models no
+# longer default it, so application code that forgets still fails).
 install_default_organization_seeding()
+install_test_row_default_org()
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -198,6 +210,14 @@ def _reset_rate_limiters() -> None:
     login_rate_limiter.reset()
     register_rate_limiter.reset()
     status_rate_limiter.reset()
+    verify_email_rate_limiter.reset()
+    sso_rate_limiter.reset()
+    sso_probe_rate_limiter.reset()
+    scim_rate_limiter.reset()
+    scim_auth_failure_rate_limiter.reset()
+    audit_webhook_probe_rate_limiter.reset()
+    audit_export_rate_limiter.reset()
+    doc_link_suggestions_rate_limiter.reset()
 
 
 async def override_get_session() -> AsyncGenerator[AsyncSession]:

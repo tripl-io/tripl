@@ -344,7 +344,6 @@ async def test_reviewers_add_list_remove(client: AsyncClient) -> None:
                 id=reviewer_id,
                 email="reviewer@example.com",
                 password_hash="!seed",
-                role="editor",
             )
         )
         await session.commit()
@@ -403,7 +402,6 @@ async def test_submit_auto_assigns_touched_owners_as_reviewers(client: AsyncClie
                 id=owner_id,
                 email="owner-rev@example.com",
                 password_hash="!seed",
-                role="editor",
             )
         )
         # Flush the user before the owner row that FKs to it — the unit of work
@@ -3185,7 +3183,7 @@ async def _seed_second_user(email: str, slug: str) -> uuid.UUID:
     made an editor member of ``slug``: approvers are project members."""
     user_id = uuid.uuid4()
     async with TestSessionLocal() as session:
-        session.add(User(id=user_id, email=email, password_hash="!seed", role="editor"))
+        session.add(User(id=user_id, email=email, password_hash="!seed"))
         await session.commit()
     await add_member_by_slug(slug, email, "editor")
     return user_id

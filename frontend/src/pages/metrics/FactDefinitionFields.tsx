@@ -23,6 +23,7 @@ import {
 } from './metricDraft'
 import { toOperandPayload, withAggregation, withFactTable } from './metricPayload'
 import type { FactTableDetails, OperandDetailState } from './useFactTableDetails'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const AGGREGATION_LABEL: Record<MetricAggregation, string> = {
   count: 'Count',
@@ -270,7 +271,7 @@ export function FactDefinitionFields({
         >
           <span>No fact tables yet. A fact metric aggregates one, so create it first.</span>
           <Button asChild size="sm" variant="outline">
-            <Link to={`/p/${slug}/metrics/fact-tables/new`} className="no-underline">
+            <Link to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables/new')} className="no-underline">
               <Plus aria-hidden="true" />
               New fact table
             </Link>

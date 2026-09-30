@@ -17,13 +17,14 @@ import re
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.core.adapters.synthetic import SYNTHETIC_EVENT_NAMES
 from tripl.models.data_source import DataSource, TestStatus
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
+from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.services.demo import noise
 from tripl.services.demo.builders.plan import event_specs
@@ -109,8 +110,15 @@ async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
     # network/filesystem access. Scoped to this demo project so it is cleaned up
     # with the project instead of leaking a workspace-global orphan. host/port/
     # credentials are placeholders — the adapter never opens a connection.
+    # The demo project's organization: every data-source route is fenced to the
+    # request's organization, so a source left in the column default would be
+    # invisible to a demo created in any other organization.
+    organization_id = await session.scalar(
+        select(Project.organization_id).where(Project.id == ctx.project_id)
+    )
     data_source = DataSource(
         project_id=ctx.project_id,
+        organization_id=organization_id,
         name=demo_data_source_name(ctx.slug),
         db_type="synthetic",
         host="synthetic",

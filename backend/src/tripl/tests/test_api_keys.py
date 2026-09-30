@@ -8,12 +8,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from tripl.models.api_key import ApiKey
+from tripl.models.organization import OrganizationMember
+from tripl.models.user import User
 from tripl.services import api_key_service
 from tripl.services.api_key_service import API_KEY_TOUCH_INTERVAL_SECONDS, _hash_token
 from tripl.tests._members import add_member_by_slug
+from tripl.tests.conftest import TestSessionLocal
 
 
 async def _issue_key(
@@ -130,56 +133,48 @@ async def test_read_key_cannot_manage_api_keys(
 
 
 @pytest.mark.asyncio
-async def test_viewer_can_create_read_key_but_not_write_key(anon_client: AsyncClient) -> None:
-    owner = await anon_client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "api-owner@example.com",
-            "password": "Password123!",
-            "name": "Owner",
-        },
-    )
-    assert owner.status_code == 201
+async def test_non_member_can_create_read_key_but_not_write_key(anon_client: AsyncClient) -> None:
+    """A write key needs membership of the organization it is bound to (F20 PR4).
 
-    await anon_client.post("/api/v1/auth/logout")
-    viewer = await anon_client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "api-viewer@example.com",
-            "password": "Password123!",
-            "name": "Viewer",
-        },
-    )
-    assert viewer.status_code == 201
+    Replaces the instance-viewer rule: there is no instance viewer any more, a
+    plain org member mints write keys (what the key may write is still decided
+    per project by the project role), and an account that is not a member of
+    the request's organization gets 403 for write scope.
+    """
+    for email in ("api-owner@example.com", "api-member@example.com"):
+        registered = await anon_client.post(
+            "/api/v1/auth/register",
+            json={"email": email, "password": "Password123!", "name": email},
+        )
+        assert registered.status_code == 201, registered.text
+        if email == "api-owner@example.com":
+            await anon_client.post("/api/v1/auth/logout")
 
-    await anon_client.post("/api/v1/auth/logout")
-    await anon_client.post(
-        "/api/v1/auth/login",
-        json={"email": "api-owner@example.com", "password": "Password123!"},
+    member_write = await anon_client.post(
+        "/api/v1/me/api-keys", json={"name": "member-write", "scope": "write"}
     )
-    users = await anon_client.get("/api/v1/users")
-    assert users.status_code == 200
-    viewer_id = next(u["id"] for u in users.json() if u["email"] == "api-viewer@example.com")
-    role_update = await anon_client.patch(f"/api/v1/users/{viewer_id}", json={"role": "viewer"})
-    assert role_update.status_code == 200
+    assert member_write.status_code == 201, member_write.text
 
-    await anon_client.post("/api/v1/auth/logout")
-    await anon_client.post(
-        "/api/v1/auth/login",
-        json={"email": "api-viewer@example.com", "password": "Password123!"},
-    )
+    async with TestSessionLocal() as session:
+        user_id = await session.scalar(
+            select(User.id).where(User.email == "api-member@example.com")
+        )
+        await session.execute(
+            delete(OrganizationMember).where(OrganizationMember.user_id == user_id)
+        )
+        await session.commit()
 
     read_key = await anon_client.post(
         "/api/v1/me/api-keys",
-        json={"name": "viewer-read", "scope": "read"},
+        json={"name": "outsider-read", "scope": "read"},
     )
     assert read_key.status_code == 201, read_key.text
 
     write_key = await anon_client.post(
         "/api/v1/me/api-keys",
-        json={"name": "viewer-write", "scope": "write"},
+        json={"name": "outsider-write", "scope": "write"},
     )
-    assert write_key.status_code == 403
+    assert write_key.status_code == 403, write_key.text
 
 
 @pytest.mark.asyncio
@@ -193,7 +188,7 @@ async def test_owner_read_key_cannot_update_roles(
 
     update = await anon_client.patch(
         f"/api/v1/users/{owner_id}",
-        json={"role": "editor"},
+        json={"role": "member"},
         headers=_bearer(token),
     )
     assert update.status_code == 403

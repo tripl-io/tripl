@@ -7,6 +7,8 @@ import type { AlertDelivery, AlertDeliveryDetail, AlertDeliveryItem, Role } from
 import { formatDateTime } from '@/lib/datetime'
 import { AlertDeliveryRow } from './AlertDeliveryRow'
 import type { RetryWatchOptions } from './retryWatch'
+import { type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 // Stubbed so a retry's success can be asserted as the sentence a reader sees.
 const { toastSuccess, toastError } = vi.hoisted(() => ({
@@ -111,6 +113,8 @@ function authValue(role: Role): AuthContextValue {
       email: 'someone@example.com',
       name: 'Someone',
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -126,7 +130,7 @@ function renderRow(
   delivery: AlertDelivery,
   focusDeliveryId?: string,
   focusItemKey?: string,
-  role: Role = 'editor',
+  role: Persona = 'member',
   // Off unless a test is about it: a watch left running would look the
   // delivery up after its test ended, against the next test's fetch stub.
   retryWatch: RetryWatchOptions = { attempts: 0 },
@@ -142,22 +146,24 @@ function renderRow(
     // bug was entirely about which of the two got written.
     queryClient,
     ...render(
-      <AuthContext.Provider value={authValue(role)}>
-        <QueryClientProvider client={queryClient}>
-          <MemoryRouter>
-            <table>
-              <tbody>
-                <AlertDeliveryRow
-                  slug="demo"
-                  delivery={delivery}
-                  focusDeliveryId={focusDeliveryId}
-                  focusItemKey={focusItemKey}
-                  retryWatch={retryWatch}
-                />
-              </tbody>
-            </table>
-          </MemoryRouter>
-        </QueryClientProvider>
+      <AuthContext.Provider value={authValue(role === 'viewer' ? 'member' : role)}>
+        <PersonaProject persona={role}>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter>
+              <table>
+                <tbody>
+                  <AlertDeliveryRow
+                    slug="demo"
+                    delivery={delivery}
+                    focusDeliveryId={focusDeliveryId}
+                    focusItemKey={focusItemKey}
+                    retryWatch={retryWatch}
+                  />
+                </tbody>
+              </table>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </PersonaProject>
       </AuthContext.Provider>,
     ),
   }
@@ -942,7 +948,7 @@ describe('AlertDeliveryRow — a retry says what it did', () => {
       mockDelivery({ status: 'failed', destination_name: 'Ops Slack' }),
       undefined,
       undefined,
-      'editor',
+      'member',
       { intervalMs: 5, attempts: 5 },
     )
 
@@ -959,7 +965,7 @@ describe('AlertDeliveryRow — a retry says what it did', () => {
       mockDelivery({ status: 'failed', destination_name: 'Ops Slack' }),
       undefined,
       undefined,
-      'editor',
+      'member',
       { intervalMs: 5, attempts: 5 },
     )
 

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 
 import type { ChannelMeta } from './channelMeta'
 import type { DestinationChannel } from './constants'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 interface AlertingGuidedSetupProps {
   slug: string
@@ -109,8 +110,8 @@ export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }:
         </p>
         {!canWrite && (
           <ReadOnlyNotice>
-            Your account has the viewer role, so the first destination is created by an editor or
-            owner. Once one exists, incidents and their deliveries show up here for everyone.
+            You have the viewer role in this project, so the first destination is created by an
+            editor or owner. Once one exists, incidents and their deliveries show up here for everyone.
           </ReadOnlyNotice>
         )}
 
@@ -124,7 +125,7 @@ export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }:
             >
               <div>
                 <Button asChild size="sm" variant="outline">
-                  <Link to={`/p/${slug}/scans`}>Go to Scans</Link>
+                  <Link to={projectPath(currentOrgSlug(), slug, '/scans')}>Go to Scans</Link>
                 </Button>
               </div>
             </Step>

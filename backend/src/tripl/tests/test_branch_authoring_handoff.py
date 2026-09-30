@@ -324,12 +324,14 @@ def test_a_base_snapshot_without_title_reads_as_an_empty_title() -> None:
                 "name": "a",
                 "title": "",
                 "superseded_by": None,
+                "required_presence_threshold": None,
                 "field_values": [],
             }
         ],
     }
     assert with_snapshot_defaults(old)["events"][0]["title"] == ""
     assert with_snapshot_defaults(old)["events"][0]["superseded_by"] is None
+    assert with_snapshot_defaults(old)["events"][0]["required_presence_threshold"] is None
     assert with_snapshot_defaults(new) is new
     assert compute_plan_diff_entries(old, new) == []
 

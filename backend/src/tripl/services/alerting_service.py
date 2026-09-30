@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from tripl.alerting_matching import (
     SCOPE_DISTRIBUTION_DRIFT,
     SCOPE_METRIC,
+    SCOPE_PROPERTY_DRIFT,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_VARIABLE_VALUE_DRIFT,
     AlertMatchCandidate,
@@ -27,6 +28,11 @@ from tripl.alerting_matching import (
     distribution_drift_scope_ref,
     rule_matches_anomaly,
     simulate_rule_firings,
+)
+from tripl.alerting_property_drift import (
+    active_property_drift_filters,
+    property_drift_candidate,
+    property_drift_scope_name,
 )
 from tripl.models.domain_enums import DistributionDriftBand, MetricScopeType
 from tripl.models.metric_anomaly import MetricAnomaly
@@ -101,6 +107,7 @@ from tripl.services.alerting_rendering import (
 from tripl.services.alerting_rendering import (
     trim_alert_text as _trim_alert_text,
 )
+from tripl.services.project_links import project_org_slugs
 from tripl.services.project_lookup import resolve_project as _get_project
 
 # The one scope family whose label is a CONSTANT rather than a row lookup.
@@ -271,6 +278,16 @@ async def _build_scope_name_map(
         event_name = event_names.get(anomaly.event_id, "Event")
         drift_field = getattr(anomaly, "drift_field", None) or anomaly.scope_ref
         names[(SCOPE_VARIABLE_VALUE_DRIFT, anomaly.scope_ref)] = f"{event_name}.{drift_field}"
+
+    # A property drift names its event and property, or "All events" for a type
+    # change — the live rule, through the same helper.
+    for anomaly in anomalies:
+        if anomaly.scope_type != SCOPE_PROPERTY_DRIFT:
+            continue
+        event_label = event_names.get(anomaly.event_id) if anomaly.event_id is not None else None
+        names[(SCOPE_PROPERTY_DRIFT, anomaly.scope_ref)] = property_drift_scope_name(
+            event_label, getattr(anomaly, "drift_field", None) or anomaly.scope_ref
+        )
 
     # Release regressions borrow the name of the event / event type they were
     # measured on, again mirroring the live builder: their ``scope_ref`` IS that
@@ -553,6 +570,50 @@ async def _load_variable_value_drift_candidates(
     ]
 
 
+async def _load_property_drift_candidates(
+    session: AsyncSession,
+    *,
+    project_id: uuid.UUID,
+    window_from: datetime,
+    window_to: datetime,
+) -> list[DriftAlertCandidate]:
+    """Replay twin of ``signals._get_active_property_drift_candidates`` (F23, #306).
+
+    The row choice makes the two trades ``_load_variable_value_drift_candidates``
+    above argues — the replay window bounds ``detected_at`` instead of the
+    retention cutoff, and the project with a NOT NULL ``scan_config_id``
+    replaces the one config — and nothing else. The field mapping is not a
+    copy: both call ``alerting_property_drift.property_drift_candidate``.
+    """
+    from datetime import UTC
+
+    from sqlalchemy import select
+
+    from tripl.models.property_drift import PropertyDrift
+    from tripl.models.variable import Variable
+
+    rows = (
+        await session.execute(
+            select(PropertyDrift, Variable.name)
+            .join(Variable, Variable.id == PropertyDrift.variable_id)
+            .where(
+                PropertyDrift.project_id == project_id,
+                PropertyDrift.scan_config_id.is_not(None),
+                PropertyDrift.detected_at >= window_from,
+                PropertyDrift.detected_at < window_to,
+                *active_property_drift_filters(datetime.now(UTC)),
+            )
+            .order_by(PropertyDrift.detected_at)
+        )
+    ).all()
+    return [
+        property_drift_candidate(
+            drift, variable_name=variable_name, scan_config_id=drift.scan_config_id
+        )
+        for drift, variable_name in rows
+    ]
+
+
 async def _load_release_regression_candidates(
     session: AsyncSession,
     *,
@@ -820,8 +881,14 @@ async def simulate_rule(
         window_from=window_from,
         window_to=window_to,
     )
-    # FIVE sources, matching the five ``dispatch._prepare_alert_deliveries``
-    # merges (worker/tasks/metrics/dispatch.py). It was three until
+    property_drift_candidates = await _load_property_drift_candidates(
+        session,
+        project_id=project.id,
+        window_from=window_from,
+        window_to=window_to,
+    )
+    # SIX sources, matching the ``dispatch._prepare_alert_deliveries`` merges
+    # (worker/tasks/metrics/dispatch.py); property drift (F23) is the sixth. It was three until
     # tripl-0zpq.158: variable-value drifts and release regressions were never
     # loaded, so a rule with ``include_variable_value_drifts`` or
     # ``include_release_regressions`` on replayed SILENT while the pipeline
@@ -850,6 +917,7 @@ async def simulate_rule(
         *distribution_candidates,
         *variable_value_drift_candidates,
         *release_regression_candidates,
+        *property_drift_candidates,
     ]
     # A sigma what-if is a question about DETECTION, not about the rule, so it is
     # applied to the candidate list itself: in the world being simulated those
@@ -923,6 +991,7 @@ async def simulate_rule(
         destination=destination,
         project=project,
         metric_units=metric_units,
+        org_slug=(await project_org_slugs(session, [project.id])).get(project.id, ""),
     )
     for firing, rendered_item in zip(firings, rendered_items, strict=True):
         firing.rendered_item = rendered_item or None

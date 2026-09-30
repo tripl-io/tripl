@@ -25,13 +25,18 @@ import { LazyDemoScenarioProvider } from '@/demo/LazyDemoScenarioProvider'
 import { DemoBannerPlaceholder } from '@/demo/DemoBannerPlaceholder'
 import { ShellSkeleton } from '@/components/states/skeletons'
 import { ProjectNotFound } from '@/components/states/project-not-found'
+import { OrgSuspendedState } from '@/components/states/org-suspended'
+import { SsoRequiredState } from '@/components/states/sso-required'
+import { StepInBanner } from '@/components/shell/step-in-banner'
+import { useActiveOrg } from '@/components/active-org-context'
+import { findSsoRequiredError, orgIsSuspended, ssoStartFromError } from '@/lib/orgStatus'
 import {
   DocumentEntityTitleContext,
   EDIT_PAGE_TITLE_PREFIX,
   ShellChromeContext,
 } from '@/components/shell-chrome-context'
 import { ProjectEventStreamProvider } from '@/realtime/ProjectEventStreamProvider'
-import { projectHomePath, resolveNavLocation } from '@/lib/navigation'
+import { currentOrgSlug, projectHomePath, projectPath, resolveNavLocation, stripOrgPrefix } from '@/lib/navigation'
 import { navCrumb, type Crumb } from '@/components/shell/crumbs'
 import { useShellShortcuts } from '@/components/shell/shell-shortcuts'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -167,7 +172,9 @@ const WORKSPACE_TITLE = 'All projects'
 // area label matches the page's own eyebrow (ConceptsPage `PageHead`).
 const CONCEPTS_AREA = 'Help & reference'
 
-function resolveCrumbs(pathname: string, slug?: string, projectName?: string): Crumbs {
+function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string): Crumbs {
+  // `/o/{org}/p/…` reads as `/p/…`, and `/o/{org}` as the workspace (F20 PR7).
+  const pathname = stripOrgPrefix(fullPathname)
   if (WORKSPACE_PATHS.includes(pathname)) return { crumbs: [], title: WORKSPACE_TITLE }
   if (pathname.startsWith('/settings') || pathname.startsWith('/data-sources')) {
     return { crumbs: [], title: 'Settings' }
@@ -232,7 +239,7 @@ function resolveCrumbs(pathname: string, slug?: string, projectName?: string): C
   // metric", "Metrics › Fact tables › Edit fact table" (#246 MT-31).
   const metricsSub = /^\/p\/[^/]+\/metrics\/(.+)$/.exec(pathname)?.[1]
   const factTables: Crumb = slug
-    ? { label: 'Fact tables', to: `/p/${slug}/metrics/fact-tables` }
+    ? { label: 'Fact tables', to: projectPath(currentOrgSlug(), slug, '/metrics/fact-tables') }
     : { label: 'Fact tables' }
   if (metricsSub === 'new') {
     return { crumbs: withProject('Observe', nav('Metrics')), title: 'New metric' }
@@ -294,6 +301,7 @@ function ShellFallback({ children }: { children: ReactNode }) {
 export default function Layout() {
   const location = useLocation()
   const { slug } = useParams()
+  const activeOrg = useActiveOrg()
   const [activityOpen, setActivityOpen] = useActivityOpen()
 
   // A page may ask for the rail to stay out of its way (the 404, LIVE-35).
@@ -498,6 +506,39 @@ export default function Layout() {
     ? entityAction
     : entityTitle || (crumbs[crumbs.length - 1]?.label ?? '')
 
+  // A suspended organization (F20) refuses every request inside it, so the
+  // shell would only be a wall of failing panels: say what happened instead.
+  // Known from the membership when the session carries its status, otherwise
+  // from the server's refusal of the first request.
+  if (orgIsSuspended(activeOrg.membership, projectsQuery.error, confirmProject.error)) {
+    return (
+      <OrgSuspendedState
+        orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
+        otherOrgs={activeOrg.orgs.filter(
+          (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
+        )}
+      />
+    )
+  }
+
+  // An organization that requires single sign-on (F20) refuses a session that
+  // did not come through its identity provider, on every request inside it:
+  // offer the sign-in it would accept instead of a wall of failing panels.
+  const ssoRefusal = findSsoRequiredError(projectsQuery.error, confirmProject.error)
+  if (ssoRefusal) {
+    return (
+      <SsoRequiredState
+        orgName={activeOrg.membership?.name ?? activeOrg.slug ?? 'This organization'}
+        orgSlug={activeOrg.slug}
+        serverStart={ssoStartFromError(ssoRefusal)}
+        returnTo={`${location.pathname}${location.search}${location.hash}`}
+        otherOrgs={activeOrg.orgs.filter(
+          (org) => org.slug !== activeOrg.slug && org.status !== 'suspended',
+        )}
+      />
+    )
+  }
+
   // Hold the shell until the slug is resolved. Everything below fans out
   // project-scoped requests the moment it mounts, so rendering optimistically is
   // what produced the doomed fan-out in the first place.
@@ -581,6 +622,8 @@ export default function Layout() {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col" inert={drawerActive}>
+            {/* A platform admin's read-only step-in to this organization. */}
+            <StepInBanner />
             <TopBar
               title={headerTitle}
               crumbs={headerCrumbs}

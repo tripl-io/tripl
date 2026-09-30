@@ -3,12 +3,14 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from celery import Task
 from celery.exceptions import MaxRetriesExceededError, Retry
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import ColumnElement, and_, exists, or_, select, text
 from sqlalchemy.orm import Session
 
+from tripl.models.project import Project
 from tripl.models.search_document import SearchDocument
 from tripl.services import app_settings_service
 from tripl.services._search_documents import (
@@ -16,8 +18,9 @@ from tripl.services._search_documents import (
     EMBED_TEXT_MAX_CHARS,
     embed_text_for,
 )
+from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.app_settings_service import AiConfig
-from tripl.services.embedding_service import embed_texts, embedding_provenance
+from tripl.services.embedding_service import can_embed, embed_texts, embedding_provenance
 from tripl.services.search_service import sanitize_embedding
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
@@ -117,7 +120,11 @@ def embed_search_documents(
 ) -> dict[str, int]:
     session = _get_sync_session()
     try:
-        ai_config = app_settings_service.get_ai_config_sync(session)
+        # The owning organization's vector space (F20 PR10), read from the DB:
+        # a queued task carries ids, never an organization it could be told.
+        ai_config = app_settings_service.get_embedding_config_for_project_sync(
+            session, uuid.UUID(project_id)
+        )
         if not ai_config.search_embeddings_enabled:
             return {"embedded": 0, "failed": 0}
         if session.get_bind().dialect.name != "postgresql":
@@ -194,6 +201,73 @@ def embed_search_documents(
 STALE_REINDEX_BRANCHES_PER_RUN = 2
 
 
+def _stale_predicate(
+    ai_config: AiConfig, *, include_unembedded: bool = False
+) -> ColumnElement[bool]:
+    """Rows due a rebuild under ``ai_config`` (one organization's config).
+
+    A builder generation behind is always due. With embeddings on, so is a
+    ``ready`` row stamped with another provenance — another endpoint, provider
+    or model, including an organization's previous one. With embeddings off a
+    ``ready`` row is left alone, which is what keeps the keyless demo's
+    fixture-stamped rows exempt, as they always were.
+
+    ``include_unembedded`` (the per-organization reindex a settings change
+    enqueues) also takes rows that were never embedded (``disabled``, ``failed``)
+    once embeddings are on, and ``pending`` rows once they are off, so switching
+    an organization's embeddings on embeds its corpus and switching them off
+    leaves nothing waiting for a worker that will never embed it.
+    """
+    stale: ColumnElement[bool] = SearchDocument.builder_version < DOCUMENT_BUILDER_VERSION
+    if ai_config.search_embeddings_enabled:
+        stale = or_(
+            stale,
+            and_(
+                SearchDocument.embedding_status == "ready",
+                or_(
+                    SearchDocument.embedding_model.is_(None),
+                    SearchDocument.embedding_model != embedding_provenance(ai_config),
+                ),
+            ),
+        )
+        if include_unembedded:
+            stale = or_(stale, SearchDocument.embedding_status.in_(("disabled", "failed")))
+    elif include_unembedded:
+        stale = or_(stale, SearchDocument.embedding_status == "pending")
+    return stale
+
+
+def _org_project_ids(org_ids: list[uuid.UUID]) -> Any:
+    return select(Project.id).where(Project.organization_id.in_(org_ids))
+
+
+def _orgs_by_embedding_space(session: Session) -> dict[tuple[bool, str], list[uuid.UUID]]:
+    """Every organization with search documents, grouped by its embedding identity.
+
+    One staleness query per distinct (enabled, provenance) instead of one per
+    organization: every organization that inherits the operator's endpoint
+    shares one. Each organization's config is resolved on its own (fail closed:
+    an unreadable one is "embeddings off", which never marks a vector stale).
+    """
+    # A semi-join driven from projects: the planner stops at the first document
+    # of each project instead of aggregating the whole search_documents table.
+    org_ids = session.scalars(
+        select(Project.organization_id)
+        .where(exists().where(SearchDocument.project_id == Project.id), project_in_active_org())
+        .distinct()
+    ).all()
+    groups: dict[tuple[bool, str], list[uuid.UUID]] = {}
+    for org_id in sorted(org_ids, key=str):
+        config = app_settings_service.get_embedding_config_sync(session, org_id=org_id)
+        key = (config.search_embeddings_enabled, embedding_provenance(config))
+        groups.setdefault(key, []).append(org_id)
+    return groups
+
+
+def _config_of_group(session: Session, org_ids: list[uuid.UUID]) -> AiConfig:
+    return app_settings_service.get_embedding_config_sync(session, org_id=org_ids[0])
+
+
 @celery_app.task(  # type: ignore[untyped-decorator]
     name="tripl.worker.tasks.search.reindex_stale_search_documents",
 )
@@ -218,29 +292,70 @@ def reindex_stale_search_documents() -> dict[str, int]:
     Unchanged documents keep their vectors when their provenance matches.
     Switching the model or endpoint invalidates old vectors and schedules fresh
     embedding on every branch, including working branches.
+
+    PER ORGANIZATION (F20 PR10)
+    ---------------------------
+    Each organization has its own vector space, so "stale" is decided with the
+    config of the organization owning the project (read from the database),
+    never one config for the whole instance. The per-run budget is shared.
     """
     session = _get_sync_session()
     try:
-        ai_config = app_settings_service.get_ai_config_sync(session)
-        stale_embedding = and_(
-            SearchDocument.embedding_status == "ready",
-            or_(
-                SearchDocument.embedding_model.is_(None),
-                SearchDocument.embedding_model != embedding_provenance(ai_config),
-            ),
-        )
-        stale = SearchDocument.builder_version < DOCUMENT_BUILDER_VERSION
-        if ai_config.search_embeddings_enabled:
-            stale = or_(stale, stale_embedding)
-        pairs = session.execute(
-            select(SearchDocument.project_id, SearchDocument.branch_id)
-            .where(stale)
-            .distinct()
-            .limit(STALE_REINDEX_BRANCHES_PER_RUN)
-        ).all()
+        pairs: list[tuple[uuid.UUID, uuid.UUID]] = []
+        for org_ids in _orgs_by_embedding_space(session).values():
+            budget = STALE_REINDEX_BRANCHES_PER_RUN - len(pairs)
+            if budget <= 0:
+                break
+            ai_config = _config_of_group(session, org_ids)
+            rows = session.execute(
+                select(SearchDocument.project_id, SearchDocument.branch_id)
+                .where(
+                    SearchDocument.project_id.in_(_org_project_ids(org_ids)),
+                    _stale_predicate(ai_config),
+                )
+                .distinct()
+                .limit(budget)
+            ).all()
+            pairs.extend((project_id, branch_id) for project_id, branch_id in rows)
         for project_id, branch_id in pairs:
             reindex_branch_from_worker(session, project_id, branch_id)
         return {"branches_reindexed": len(pairs)}
+    finally:
+        session.close()
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name="tripl.worker.tasks.search.reindex_org_search_documents",
+)
+def reindex_org_search_documents(org_id: str) -> dict[str, int]:
+    """Rebuild one organization's stale branches after its embedding settings changed.
+
+    Enqueued by the organization settings save (F20 PR10) when the
+    organization's embedding identity — on/off, endpoint, provider, model —
+    moved. Only THIS organization's projects are touched: another
+    organization's vectors are in another space and stay as they are. Each
+    stale branch is handed to :func:`reindex_search_branch`, one task per
+    branch, so a large organization is spread over the workers rather than
+    held in one task; the incremental rebuild keeps every row whose content
+    and provenance still match, and the embed task it queues re-embeds the rest
+    with the organization's new config. Demo documents follow the same rules as
+    in the sweep above.
+    """
+    org_uuid = uuid.UUID(org_id)
+    session = _get_sync_session()
+    try:
+        ai_config = app_settings_service.get_embedding_config_sync(session, org_id=org_uuid)
+        pairs = session.execute(
+            select(SearchDocument.project_id, SearchDocument.branch_id)
+            .where(
+                SearchDocument.project_id.in_(_org_project_ids([org_uuid])),
+                _stale_predicate(ai_config, include_unembedded=True),
+            )
+            .distinct()
+        ).all()
+        for project_id, branch_id in pairs:
+            reindex_search_branch.delay(str(project_id), str(branch_id))
+        return {"branches_queued": len(pairs)}
     finally:
         session.close()
 
@@ -288,23 +403,35 @@ def requeue_stranded_search_embeddings() -> dict[str, int]:
     beat task re-queues one embed task per (project, branch) that still has
     pending documents older than the stranded horizon; fresh pending docs are
     skipped so in-flight batches are not double-processed.
+
+    Only for organizations whose config can embed (F20 PR10): on, a supported
+    provider and a key. Each project's organization is read from the database
+    and its own config decides; a keyless one would only fail the batch again.
     """
     session = _get_sync_session()
     try:
-        ai_config = app_settings_service.get_ai_config_sync(session)
-        if not ai_config.search_embeddings_enabled:
-            return {"branches_requeued": 0}
         cutoff = datetime.now(UTC) - timedelta(minutes=STRANDED_EMBEDDING_MINUTES)
-        pairs = session.execute(
-            select(SearchDocument.project_id, SearchDocument.branch_id)
+        rows = session.execute(
+            select(SearchDocument.project_id, SearchDocument.branch_id, Project.organization_id)
+            .join(Project, Project.id == SearchDocument.project_id)
             .where(
                 SearchDocument.embedding_status == "pending",
                 SearchDocument.updated_at < cutoff,
+                project_in_active_org(),
             )
             .distinct()
         ).all()
-        for project_id, branch_id in pairs:
+        enabled: dict[uuid.UUID, bool] = {}
+        requeued = 0
+        for project_id, branch_id, org_id in rows:
+            if org_id not in enabled:
+                enabled[org_id] = can_embed(
+                    app_settings_service.get_embedding_config_sync(session, org_id=org_id)
+                )
+            if not enabled[org_id]:
+                continue
             embed_search_documents.delay(str(project_id), str(branch_id))
-        return {"branches_requeued": len(pairs)}
+            requeued += 1
+        return {"branches_requeued": requeued}
     finally:
         session.close()

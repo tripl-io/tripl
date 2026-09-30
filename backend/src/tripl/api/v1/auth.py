@@ -1,27 +1,40 @@
 import logging
 import smtplib
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.api.deps import CurrentUserDep, SessionDep
-from tripl.config import settings
+from tripl.auth_utils import hash_session_token
+from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.middleware.rate_limit import (
     enforce,
     login_rate_limiter,
     register_rate_limiter,
     status_rate_limiter,
+    verify_email_rate_limiter,
 )
+from tripl.models.domain_enums import OrganizationRole
+from tripl.models.invitation import Invitation
+from tripl.models.user import User
 from tripl.schemas.auth import (
     PASSWORD_MAX_LENGTH,
     AuthStatusResponse,
     AuthUserResponse,
     LoginRequest,
     RegisterRequest,
+    VerifyEmailConfirmRequest,
     validate_password_strength,
 )
 from tripl.schemas.invitation import InvitationAcceptRequest, InvitationPreview
-from tripl.services import app_settings_service, auth_service, invitation_service
+from tripl.services import (
+    app_settings_service,
+    audit_service,
+    auth_service,
+    email_verification_service,
+    invitation_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +148,80 @@ def _send_password_reset_email(
         logger.exception("Failed to send password reset email")
 
 
+def _send_verification_email(
+    *,
+    recipient: str,
+    verify_link: str,
+    email_config: app_settings_service.EmailConfig,
+) -> None:
+    """Send the email-verification link through the operator's relay.
+
+    A ``BackgroundTask`` like :func:`_send_password_reset_email`, and just as
+    best-effort: a failure is logged and swallowed — the account exists and
+    can ask for another link (``POST /auth/verify-email/request``).
+    """
+    from_address = email_config.smtp_from_address
+    if not from_address:
+        logger.warning("Verification email not sent: SMTP_FROM_ADDRESS is unset")
+        return
+
+    from tripl.worker.tasks.alerts_channels import _send_email_message
+
+    body = (
+        "Confirm the email address of your tripl account.\n\n"
+        f"Open this link to verify it (valid for "
+        f"{email_verification_service.EMAIL_VERIFICATION_TTL_HOURS} hours):\n"
+        f"{verify_link}\n\n"
+        "If you did not create a tripl account, you can ignore this email.\n"
+    )
+    try:
+        _send_email_message(
+            smtp_module=smtplib,
+            smtp_host=email_config.smtp_host,
+            smtp_port=email_config.smtp_port,
+            smtp_username=email_config.smtp_username,
+            smtp_password=email_config.smtp_password,
+            smtp_security=email_config.smtp_security,
+            from_address=from_address,
+            recipients=[recipient],
+            subject="Verify your tripl email address",
+            body=body,
+        )
+    except Exception:  # noqa: BLE001 — best-effort; the user can resend.
+        logger.exception("Failed to send verification email")
+
+
+async def _operator_mail(
+    session: AsyncSession,
+) -> tuple[app_settings_service.EmailConfig, str]:
+    """The operator relay's email config and ``app_base_url``.
+
+    Account mail always goes through the OPERATOR's relay (F20 PR9), never an
+    organization's.
+    """
+    overrides = await app_settings_service.get_service_overrides(session)
+    return (
+        app_settings_service.build_email_config(overrides),
+        app_settings_service.build_runtime_config(overrides).app_base_url,
+    )
+
+
+def _queue_verification_email(
+    background_tasks: BackgroundTasks,
+    *,
+    user: User,
+    raw_token: str,
+    email_config: app_settings_service.EmailConfig,
+    app_base_url: str,
+) -> None:
+    background_tasks.add_task(
+        _send_verification_email,
+        recipient=user.email,
+        verify_link=email_verification_service.build_verification_link(app_base_url, raw_token),
+        email_config=email_config,
+    )
+
+
 @router.get(
     "/status",
     response_model=AuthStatusResponse,
@@ -146,7 +233,11 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     # whether a sign-up form is worth rendering at all.
     # Rate limited on its own bucket (never shares login/register quota) so an
     # unauthenticated caller can't hammer the COUNT(*) behind it.
-    has_users = await auth_service.has_any_users(session)
+    # A hosted instance has no first-user bootstrap, so it reports ``has_users``
+    # true without counting: no first-account note, and an unauthenticated
+    # caller cannot learn whether the service is empty.
+    hosted = settings.deployment_mode == DEPLOYMENT_HOSTED
+    has_users = True if hosted else await auth_service.has_any_users(session)
     overrides = await app_settings_service.get_service_overrides(session)
     return AuthStatusResponse(
         has_users=has_users,
@@ -156,6 +247,8 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
         email_configured=app_settings_service.email_can_send(
             app_settings_service.build_email_config(overrides)
         ),
+        deployment_mode=settings.deployment_mode,
+        email_verification_required=email_verification_service.verification_required(),
     )
 
 
@@ -166,11 +259,39 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     dependencies=[Depends(enforce(register_rate_limiter))],
 )
 async def register(
-    response: Response, session: SessionDep, data: RegisterRequest
+    response: Response,
+    session: SessionDep,
+    data: RegisterRequest,
+    background_tasks: BackgroundTasks,
 ) -> AuthUserResponse:
-    user, session_token = await auth_service.register_user(session, data)
+    """Self-service sign-up.
+
+    Self-hosted: into the default organization (the first account owns it and
+    is a platform admin); ``org_name`` / ``org_slug`` are ignored.
+
+    Hosted: ``org_name`` and ``org_slug`` are required and the account creates
+    and owns that organization. It starts unverified — the verification link
+    is mailed through the operator relay after the commit (a failed send is
+    logged; the user can resend) — so 503 up front when that relay cannot send.
+    """
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        user, session_token = await auth_service.register_user(session, data)
+        _set_session_cookie(response, session_token)
+        return await auth_service.build_auth_user_response(session, user)
+
+    email_config, app_base_url = await _operator_mail(session)
+    user, session_token, raw_token = await auth_service.register_hosted_user(
+        session, data, email_can_send=app_settings_service.email_can_send(email_config)
+    )
+    _queue_verification_email(
+        background_tasks,
+        user=user,
+        raw_token=raw_token,
+        email_config=email_config,
+        app_base_url=app_base_url,
+    )
     _set_session_cookie(response, session_token)
-    return AuthUserResponse.model_validate(user)
+    return await auth_service.build_auth_user_response(session, user)
 
 
 @router.get(
@@ -183,7 +304,7 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
 
     Unauthenticated by necessity — the whole point is that this person cannot
     sign in yet. It discloses nothing the token holder does not already have:
-    the address it was issued to, the role it grants, and when it lapses. It
+    the address it was issued to, the organization role it grants, and when it lapses. It
     does not reveal whether the instance has other users, or who they are.
 
     Shares the cheap /status bucket rather than the register bucket: previewing
@@ -193,7 +314,8 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     invitation = await invitation_service.get_valid_invitation(session, token)
     return InvitationPreview(
         email=invitation.email,
-        role=invitation.role,
+        # The organization role the invitee joins with.
+        role=OrganizationRole(invitation.org_role),
         expires_at=invitation.expires_at,
     )
 
@@ -205,11 +327,30 @@ async def preview_invitation(session: SessionDep, token: str) -> InvitationPrevi
     dependencies=[Depends(enforce(register_rate_limiter))],
 )
 async def accept_invitation(
-    response: Response, session: SessionDep, token: str, data: InvitationAcceptRequest
+    request: Request,
+    response: Response,
+    session: SessionDep,
+    token: str,
+    data: InvitationAcceptRequest,
+    background_tasks: BackgroundTasks,
 ) -> AuthUserResponse:
-    """Redeem an invitation into an account, and sign the new user straight in.
+    """Redeem an invitation: into a new account, or into the signed-in one.
 
-    Reachable regardless of ``registration_mode`` — that is the entire point:
+    Signed in (a browser session cookie): the invitation adds a membership of
+    its organization to THIS account, but only when the account's email is the
+    invitation's (case-insensitive) — else 403 and the invitation stays unused;
+    on a hosted instance the account must also have verified its address (403);
+    409 when the account is already a member. Answers 200 and leaves the
+    session as it is (F20 PR6).
+
+    Not signed in: the new-account path. ``password`` is required, the account
+    is created with the invitation's address and the new user is signed
+    straight in (201). Self-hosted the account counts as email-verified. Hosted
+    it starts unverified — the inviter was handed the raw link, so redeeming it
+    proves nothing about the address — and a verification link is mailed
+    through the operator relay after the commit (a failed send is logged; the
+    user can resend).
+    Reachable regardless of ``registration_mode`` —
     an owner-issued, single-use, expiring, address-bound invitation is a
     different mechanism from the instance-wide door, so a closed instance can
     still onboard exactly the people its owner named.
@@ -217,11 +358,91 @@ async def accept_invitation(
     On the register rate-limit bucket, so guessing tokens costs the same as
     hammering signup.
     """
-    user, session_token = await invitation_service.redeem_invitation(
+    cookie = request.cookies.get(settings.session_cookie_name)
+    signed_in = await auth_service.get_user_by_session_token(session, cookie) if cookie else None
+    if signed_in is not None:
+        try:
+            invitation = await invitation_service.accept_as_signed_in(
+                session, raw_token=token, user=signed_in
+            )
+        except invitation_service.InvitationEmailMismatchError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "This invitation was sent to a different email address. Sign in "
+                    "with that address to accept it."
+                ),
+            ) from None
+        except invitation_service.EmailNotVerifiedError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Verify your email address before accepting an invitation.",
+            ) from None
+        except invitation_service.AlreadyMemberError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You are already a member of this organization.",
+            ) from None
+        await _record_acceptance(session, signed_in, invitation, existing_account=True)
+        response.status_code = status.HTTP_200_OK
+        return await auth_service.build_auth_user_response(session, signed_in)
+
+    if data.password is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="A password is required to create the account.",
+        )
+    user, session_token, invitation = await invitation_service.redeem_invitation(
         session, raw_token=token, password=data.password, name=data.name
     )
+    await _record_acceptance(session, user, invitation, existing_account=False)
+    if email_verification_service.verification_required():
+        await _mail_verification_link(session, background_tasks, user)
     _set_session_cookie(response, session_token)
-    return AuthUserResponse.model_validate(user)
+    return await auth_service.build_auth_user_response(session, user)
+
+
+async def _mail_verification_link(
+    session: AsyncSession, background_tasks: BackgroundTasks, user: User
+) -> None:
+    """Issue ``user`` a verification token, commit, and queue the mail.
+
+    For an account that already exists and is signed in (an invitation just
+    redeemed into it). When the operator relay cannot send, nothing is issued:
+    a warning is logged and the user can ask again once it can.
+    """
+    email_config, app_base_url = await _operator_mail(session)
+    if not app_settings_service.email_can_send(email_config):
+        logger.warning("Verification email not sent: the operator email relay cannot send")
+        return
+    raw_token = await email_verification_service.issue_token(session, user)
+    await session.commit()
+    _queue_verification_email(
+        background_tasks,
+        user=user,
+        raw_token=raw_token,
+        email_config=email_config,
+        app_base_url=app_base_url,
+    )
+
+
+async def _record_acceptance(
+    session: AsyncSession, user: User, invitation: Invitation, *, existing_account: bool
+) -> None:
+    """``user.invite_accept``, filed in the invitation's organization. Commits."""
+    await audit_service.record(
+        session,
+        user=user,
+        action="user.invite_accept",
+        target_type="invitation",
+        target_id=invitation.id,
+        target_name=invitation.email,
+        payload={
+            "role": invitation.org_role,
+            "existing_account": existing_account,
+        },
+        organization_id=invitation.organization_id,
+    )
 
 
 @router.post(
@@ -233,7 +454,7 @@ async def accept_invitation(
 async def login(response: Response, session: SessionDep, data: LoginRequest) -> AuthUserResponse:
     user, session_token = await auth_service.authenticate_user(session, data)
     _set_session_cookie(response, session_token)
-    return AuthUserResponse.model_validate(user)
+    return await auth_service.build_auth_user_response(session, user)
 
 
 @router.post(
@@ -251,6 +472,8 @@ async def request_password_reset(
     # has SMTP configured AND a matching account exists; otherwise nothing is
     # stored or sent. ``email_configured`` is instance-wide, so returning it
     # (for the UI's fallback copy) does not enable enumeration.
+    # Account mail always goes through the OPERATOR's relay (F20 PR9): the
+    # operator-scope overrides below, never an organization's.
     overrides = await app_settings_service.get_service_overrides(session)
     email_config = app_settings_service.build_email_config(overrides)
     # The flag has to mean "this can actually send"; see ``email_can_send``.
@@ -293,6 +516,85 @@ async def confirm_password_reset(
     )
 
 
+@router.post(
+    "/verify-email/request",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce(verify_email_rate_limiter))],
+)
+async def request_email_verification(
+    request: Request,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    background_tasks: BackgroundTasks,
+) -> None:
+    """Mail the signed-in account a fresh verification link (a resend).
+
+    A browser session only (an API key is 403). 204 without doing anything
+    when the address is already verified or the instance does not require
+    verification (self-hosted); 503 when the operator relay cannot send.
+    Otherwise every earlier link of the account stops working and the new one
+    goes out after the response (a failed send is logged).
+    """
+    if getattr(request.state, "api_key_scope", None) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="A browser session is required"
+        )
+    if (
+        not email_verification_service.verification_required()
+        or current_user.email_verified_at is not None
+    ):
+        return
+    email_config, app_base_url = await _operator_mail(session)
+    if not app_settings_service.email_can_send(email_config):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=auth_service.EMAIL_DELIVERY_NOT_CONFIGURED_MESSAGE,
+        )
+    raw_token = await email_verification_service.issue_token(session, current_user)
+    await session.commit()
+    _queue_verification_email(
+        background_tasks,
+        user=current_user,
+        raw_token=raw_token,
+        email_config=email_config,
+        app_base_url=app_base_url,
+    )
+
+
+@router.post(
+    "/verify-email/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce(login_rate_limiter))],
+)
+async def confirm_email_verification(
+    request: Request, session: SessionDep, data: VerifyEmailConfirmRequest
+) -> None:
+    """Redeem a verification link, signed in as the account it was issued to.
+
+    Needs a browser session (401 without one): the link alone proves only that
+    someone read the mail, the session proves it is the account holder who
+    did. A session of a different account gets the same 400 as an unknown,
+    expired or used token, and the token stays usable. On success every other
+    session of the account is signed out, and on a hosted instance an address
+    listed in ``PLATFORM_ADMIN_EMAILS`` becomes a platform admin — the only
+    place that grant happens. On the login bucket, like the password reset
+    confirm, so guessing tokens costs what guessing passwords does.
+    """
+    cookie = request.cookies.get(settings.session_cookie_name)
+    signed_in = await auth_service.get_user_by_session_token(session, cookie) if cookie else None
+    if cookie is None or signed_in is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sign in to confirm your email address.",
+        )
+    await email_verification_service.confirm(
+        session,
+        data.token,
+        session_user=signed_in,
+        session_token_hash=hash_session_token(cookie),
+    )
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     request: Request,
@@ -306,5 +608,15 @@ async def logout(
 
 
 @router.get("/me", response_model=AuthUserResponse)
-async def get_me(current_user: CurrentUserDep) -> AuthUserResponse:
-    return AuthUserResponse.model_validate(current_user)
+async def get_me(
+    request: Request, session: SessionDep, current_user: CurrentUserDep
+) -> AuthUserResponse:
+    """The signed-in account with its organization role(s) and the platform-admin flag.
+
+    For an API key it also names the key's organization (``org``) and scope
+    (``api_key_scope``): what ``tripl whoami`` prints. Read from the database on
+    every call, so a membership added, changed or removed shows at once.
+    """
+    return await auth_service.build_auth_user_response(
+        session, current_user, api_key_scope=getattr(request.state, "api_key_scope", None)
+    )

@@ -7,14 +7,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 from sqlalchemy.sql.elements import ColumnElement
 
+from tripl.core.property_drift import effective_threshold
+from tripl.core.property_schema import PropertySchemaError, check_schema_matches_type
 from tripl.models.event import Event
 from tripl.models.event_field_value import EventFieldValue
 from tripl.models.event_meta_value import EventMetaValue
 from tripl.models.variable import Variable
-from tripl.models.variable_event_value_override import VariableEventValueOverride
+from tripl.models.variable_event_value_override import (
+    VariableEventValueOverride,
+    copy_override_values,
+)
 from tripl.models.variable_value import VariableValue
 from tripl.schemas.variable import (
     BINDING_PATTERN,
+    EventPropertyResponse,
     VariableBulkDelete,
     VariableBulkUpdate,
     VariableCreate,
@@ -89,12 +95,12 @@ async def _check_binding_conflicts(
         if clash:
             raise HTTPException(
                 status_code=409,
-                detail=f"Binding '{sorted(clash)[0]}' is already used by variable '{other.name}'",
+                detail=f"Binding '{sorted(clash)[0]}' is already used by property '{other.name}'",
             )
         if name is not None and name in claimed:
             raise HTTPException(
                 status_code=409,
-                detail=f"Name '{name}' is already bound to variable '{other.name}'",
+                detail=f"Name '{name}' is already bound to property '{other.name}'",
             )
 
 
@@ -190,7 +196,7 @@ async def create_variable(
         )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Variable with this name already exists")
+        raise HTTPException(status_code=409, detail="Property with this name already exists")
     await _check_binding_conflicts(
         session,
         project_id=project_id,
@@ -302,7 +308,7 @@ async def update_variable(
     )
     var = result.scalar_one_or_none()
     if not var:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
     previous_name = var.name
     update_data = data.model_dump(exclude_unset=True)
     # Only what the update ADDS is judged: the edit form resends the stored
@@ -327,11 +333,22 @@ async def update_variable(
             exclude_variable_id=var.id,
             name=renamed_to,
         )
+    # The two halves of the type are judged together, whichever one the patch
+    # touches: a type change against the stored schema is as wrong as a schema
+    # against the stored type.
+    if "variable_type" in update_data or "json_schema" in update_data:
+        try:
+            check_schema_matches_type(
+                update_data.get("variable_type", var.variable_type),
+                update_data.get("json_schema", var.json_schema),
+            )
+        except PropertySchemaError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
     if "name" in update_data and update_data["name"] != var.name:
         if not _STRICT_NAME_PATTERN.match(update_data["name"]):
             raise HTTPException(
                 status_code=422,
-                detail="Variable names must be lowercase letters, digits and underscores"
+                detail="Property names must be lowercase letters, digits and underscores"
                 " (bind data paths via 'bindings' instead of dotted names)",
             )
         dup = await session.execute(
@@ -342,7 +359,7 @@ async def update_variable(
             )
         )
         if dup.scalar_one_or_none():
-            raise HTTPException(status_code=409, detail="Variable with this name already exists")
+            raise HTTPException(status_code=409, detail="Property with this name already exists")
 
         # Carry the name change through every stored ``${old_name}``. Called
         # HERE, before the ``setattr`` loop below writes the new name, because
@@ -372,6 +389,13 @@ async def update_variable(
     # Readers that must not ACT on an excluded variable filter on the flag too:
     # ``variable_value_service.attach_variable_summaries`` for the drift badge,
     # ``worker.tasks.metrics.signals`` for alert candidates.
+    # New bindings point the property at other warehouse paths, so the scan's
+    # one-off type check (``catalog_sync._type_backfill_candidates``) may run
+    # again against them.
+    if "bindings" in update_data and list(update_data["bindings"] or []) != list(
+        var.bindings or []
+    ):
+        var.type_checked_at = None
     for key, value in update_data.items():
         setattr(var, key, value)
     await session.commit()
@@ -474,7 +498,7 @@ async def _load_variables_by_ids(
     variables = list(result.scalars().all())
     missing = set(variable_ids) - {variable.id for variable in variables}
     if missing:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
     return variables
 
 
@@ -487,6 +511,21 @@ async def bulk_update_variables(
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
     variables = await _load_variables_by_ids(session, project_id, branch_id, data.variable_ids)
+    if data.variable_type is not None:
+        # All or nothing: a bulk type change never leaves some rows retyped and
+        # the rest refused, and never drops a schema a person wrote.
+        mismatched = []
+        for variable in variables:
+            try:
+                check_schema_matches_type(data.variable_type, variable.json_schema)
+            except PropertySchemaError:
+                mismatched.append(variable.name)
+        if mismatched:
+            raise HTTPException(
+                status_code=422,
+                detail=f"variable_type {data.variable_type.value} does not match the json_schema"
+                f" of: {', '.join(sorted(mismatched))}. Change or clear their schemas first.",
+            )
     for variable in variables:
         if data.variable_type is not None:
             variable.variable_type = data.variable_type
@@ -547,7 +586,7 @@ async def _get_variable_in_branch(
     )
     var = result.scalar_one_or_none()
     if not var:
-        raise HTTPException(status_code=404, detail="Variable not found")
+        raise HTTPException(status_code=404, detail="Property not found")
     return var
 
 
@@ -606,17 +645,21 @@ async def upsert_event_override(
         )
     )
     override = existing.scalar_one_or_none()
+    patch = data.model_dump(exclude_unset=True)
     if override is None:
         override = VariableEventValueOverride(
             project_id=project_id,
             branch_id=branch_id,
             variable_id=variable_id,
             event_id=event_id,
-            values=list(data.values),
+            values=None,
+            required=False,
         )
         session.add(override)
-    else:
-        override.values = list(data.values)
+    if "values" in patch:
+        override.values = copy_override_values(patch["values"])
+    if "required" in patch:
+        override.required = patch["required"]
     await session.commit()
     await session.refresh(override)
     return override, variable.name
@@ -652,3 +695,68 @@ async def delete_event_override(
     await session.delete(override)
     await session.commit()
     return names
+
+
+async def list_event_properties(
+    session: AsyncSession,
+    slug: str,
+    event_id: uuid.UUID,
+    branch_id: uuid.UUID | None = None,
+) -> list[EventPropertyResponse]:
+    """The event's property list: every variable with an entry for it, by name."""
+    project_id = await resolve_project_id(session, slug)
+    branch_id = await resolve_branch_id(session, project_id, branch_id)
+    found = (
+        await session.execute(
+            select(Event.id, Event.required_presence_threshold).where(
+                Event.id == event_id,
+                Event.project_id == project_id,
+                Event.branch_id == branch_id,
+            )
+        )
+    ).first()
+    if found is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    threshold = effective_threshold(found.required_presence_threshold)
+    rows = (
+        await session.execute(
+            select(VariableEventValueOverride, Variable)
+            .join(Variable, Variable.id == VariableEventValueOverride.variable_id)
+            .where(
+                VariableEventValueOverride.branch_id == branch_id,
+                VariableEventValueOverride.event_id == event_id,
+            )
+            .order_by(Variable.name)
+        )
+    ).all()
+    presence: dict[uuid.UUID, float] = {}
+    for variable_id, rate in await session.execute(
+        select(VariableValue.variable_id, func.max(VariableValue.presence_rate))
+        .where(
+            VariableValue.branch_id == branch_id,
+            VariableValue.event_id == event_id,
+            VariableValue.presence_rate.is_not(None),
+        )
+        .group_by(VariableValue.variable_id)
+    ):
+        presence[variable_id] = rate
+    return [
+        EventPropertyResponse(
+            id=entry.id,
+            variable_id=variable.id,
+            name=variable.name,
+            variable_type=variable.variable_type,
+            json_schema=variable.json_schema,
+            description=variable.description,
+            required=entry.required,
+            values=copy_override_values(entry.values),
+            effective_values=list(
+                entry.values if entry.values is not None else variable.allowed_values or []
+            ),
+            presence_rate=presence.get(variable.id),
+            suggested_required=(
+                None if variable.id not in presence else presence[variable.id] >= threshold
+            ),
+        )
+        for entry, variable in rows
+    ]

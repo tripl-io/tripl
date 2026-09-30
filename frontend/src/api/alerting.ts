@@ -98,6 +98,7 @@ export interface AlertRuleUpdatePayload {
   include_metrics?: boolean
   include_source_freshness?: boolean
   include_lifecycle?: boolean
+  include_property_drifts?: boolean
   notify_on_spike?: boolean
   notify_on_drop?: boolean
   ai_explanation_enabled?: boolean
@@ -221,6 +222,7 @@ export const alertingApi = {
       include_metrics?: boolean
       include_source_freshness?: boolean
       include_lifecycle?: boolean
+      include_property_drifts?: boolean
       notify_on_spike?: boolean
       notify_on_drop?: boolean
       ai_explanation_enabled?: boolean

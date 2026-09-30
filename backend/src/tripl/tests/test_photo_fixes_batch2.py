@@ -443,11 +443,14 @@ async def test_a_url_that_cannot_be_signed_falls_back_to_the_api(
     assert first.status_code == 201, first.text
     assert second.status_code == 201, second.text
     assert first.json()["storage_backend"] == "gcs"
-    assert first.json()["url"] == f"{base}/{first.json()['id']}/file"
+    # Org-qualified (tripl-0chm): the URL names the organization the listing
+    # request resolved the slug in, and the legacy request above ran in default.
+    served_base = base.replace("/api/v1/", "/api/v1/orgs/default/", 1)
+    assert first.json()["url"] == f"{served_base}/{first.json()['id']}/file"
     assert listed.status_code == 200
     assert len(listed.json()) == 2
     for row in listed.json():
-        assert row["url"] == f"{base}/{row['id']}/file"
+        assert row["url"] == f"{served_base}/{row['id']}/file"
         served = await client.get(row["url"])
         assert served.status_code == 200
         assert served.content == _PNG
@@ -645,7 +648,8 @@ async def test_the_editor_gate_answers_before_the_read_only_409(
     wrong: dict[str, str] = {}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as viewer:
         await _register(viewer, "viewer@example.com")
-        # A member, so the answer is the role gate's 403, not the membership 404.
+        # A viewer member, so the answer is the project-role gate's 403, not the
+        # membership 404 (F20 PR4: write rights live on the project row).
         await add_member_by_slug(slug, "viewer@example.com", "viewer")
         # A role change ends the user's sessions, so sign in again after it.
         await _set_role(client, "viewer@example.com", "viewer")
@@ -656,7 +660,10 @@ async def test_the_editor_gate_answers_before_the_read_only_409(
         assert login.status_code == 200, login.text
         for write in _WRITES:
             resp = await _photo_write(viewer, base, write, photo_id)
-            if resp.status_code != 403 or resp.json()["detail"] != "Editor role required":
+            if (
+                resp.status_code != 403
+                or resp.json()["detail"] != "Editor access to this project is required"
+            ):
                 wrong[write] = f"{resp.status_code} {resp.text[:120]}"
 
     assert not wrong, wrong

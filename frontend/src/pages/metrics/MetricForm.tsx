@@ -96,6 +96,7 @@ import {
   type SqlTemplateId,
 } from './metricTemplates'
 import { useFactTableDetails } from './useFactTableDetails'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // What each kind measures and what it needs, in the words of the person
 // choosing, most approachable first (MT-3). The stored kind names stay in the
@@ -688,7 +689,7 @@ export function MetricForm({
                   {noEvents && (
                     <>
                       No events yet.{' '}
-                      <Link to={`/p/${slug}/events`} className="underline underline-offset-2 text-fg">
+                      <Link to={projectPath(currentOrgSlug(), slug, '/events')} className="underline underline-offset-2 text-fg">
                         Add events
                       </Link>
                       {facts.noFactTables ? ' · ' : null}
@@ -698,7 +699,7 @@ export function MetricForm({
                     <>
                       No fact tables yet.{' '}
                       <Link
-                        to={`/p/${slug}/metrics/fact-tables/new`}
+                        to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables/new')}
                         className="underline underline-offset-2 text-fg"
                       >
                         Create one
@@ -1042,7 +1043,7 @@ export default function MetricEditPage() {
   // own drilldown — and to the catalog when it was opened directly (MET-29).
   const goBack = () => {
     if (location.key !== 'default') navigate(-1)
-    else navigate(`/p/${slug}/metrics`)
+    else navigate(projectPath(currentOrgSlug(), slug, '/metrics'))
   }
   const onSaved = (savedId: string, created: boolean) => {
     // Replace the create route: Back from the new metric must not reopen an
@@ -1070,7 +1071,7 @@ export default function MetricEditPage() {
   if (!canWrite && slug) {
     return (
       <Navigate
-        to={metricId ? getMetricMonitoringPath(slug, metricId) : `/p/${slug}/metrics`}
+        to={metricId ? getMetricMonitoringPath(slug, metricId) : projectPath(currentOrgSlug(), slug, '/metrics')}
         replace
       />
     )
@@ -1087,7 +1088,7 @@ export default function MetricEditPage() {
           onRetry={() => void metricQuery.refetch()}
           notFound={{
             title: 'Metric not found',
-            back: { to: `/p/${slug}/metrics`, label: 'Back to metrics' },
+            back: { to: projectPath(currentOrgSlug(), slug, '/metrics'), label: 'Back to metrics' },
           }}
         />
       </PageContainer>
@@ -1115,7 +1116,7 @@ export default function MetricEditPage() {
       dataSourcesError={dataSourcesQuery.error ?? undefined}
       onRetryDataSources={() => void dataSourcesQuery.refetch()}
       onClose={goBack}
-      onBack={() => navigate(`/p/${slug}/metrics`)}
+      onBack={() => navigate(projectPath(currentOrgSlug(), slug, '/metrics'))}
       onSaved={onSaved}
     />
   )

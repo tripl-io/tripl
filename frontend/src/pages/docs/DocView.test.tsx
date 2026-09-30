@@ -22,6 +22,9 @@ function doc(overrides: Partial<DocFileResponse> = {}): DocFileResponse {
     size_bytes: 20,
     updated_at: '2026-09-01T00:00:00Z',
     updated_by_name: null,
+    visibility: 'level',
+    my_permission: 'edit',
+    shared: false,
     content: '# Setup\n',
     body: 'Body text\n',
     extra_frontmatter: {},
@@ -117,12 +120,114 @@ describe('DocView', () => {
   })
 })
 
+function brokenLink(name: string, overrides: Partial<DocLinkResolution> = {}): DocLinkResolution {
+  return {
+    kind: 'event',
+    target: name,
+    qualifier: null,
+    raw: `[[event:${name}]]`,
+    status: 'broken',
+    route_path: null,
+    entity_id: null,
+    candidates: 0,
+    ...overrides,
+  }
+}
+
 describe('BrokenLinksBanner', () => {
   it('shows the first 20 and counts the rest', () => {
-    render(<BrokenLinksBanner items={Array.from({ length: 23 }, (_, i) => `link ${i}`)} />)
+    render(<BrokenLinksBanner links={Array.from({ length: 23 }, (_, i) => brokenLink(`link_${i}`))} />)
     expect(screen.getByText('23 links do not resolve')).toBeInTheDocument()
-    expect(screen.getByText('link 19')).toBeInTheDocument()
-    expect(screen.queryByText('link 20')).toBeNull()
+    expect(screen.getByText(/'link_19'/)).toBeInTheDocument()
+    expect(screen.queryByText(/'link_20'/)).toBeNull()
     expect(screen.getByText('…and 3 more')).toBeInTheDocument()
+  })
+
+  it('lists relink suggestions as text when reading', () => {
+    render(<BrokenLinksBanner links={[brokenLink('checkout_strted', { suggestions: ['checkout_started'] })]} />)
+    expect(screen.getByText('checkout_started')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('offers each suggestion as a relink button when editing (F24)', () => {
+    const onRelink = vi.fn()
+    const link = brokenLink('checkout_strted', { suggestions: ['checkout_started', 'checkout_ended'] })
+    render(<BrokenLinksBanner links={[link]} onRelink={onRelink} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Relink [[event:checkout_strted]] to checkout_ended' }))
+    expect(onRelink).toHaveBeenCalledWith(link, 'checkout_ended')
+  })
+})
+
+describe('DocView linked from (F24)', () => {
+  it('lists the notes that link here', () => {
+    renderView(
+      doc({
+        linked_from: [
+          { scope: 'project', path: 'guides/intro.md', title: 'Intro' },
+          { scope: 'organization', path: 'handbook.md', title: 'Handbook' },
+        ],
+      }),
+    )
+    expect(screen.getByRole('heading', { name: 'Linked from' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Intro' })).toHaveAttribute('href', '/p/demo/docs/project/guides/intro.md')
+    expect(screen.getByRole('link', { name: 'Handbook' })).toHaveAttribute(
+      'href',
+      '/p/demo/docs/organization/handbook.md',
+    )
+  })
+
+  it('shows nothing when no note links here', () => {
+    renderView(doc({ linked_from: [] }))
+    expect(screen.queryByRole('heading', { name: 'Linked from' })).toBeNull()
+  })
+})
+
+describe('DocView sharing (F24)', () => {
+  it('says nothing for a note everyone in the project reads', () => {
+    renderView(doc())
+    expect(screen.queryByText(/Only the author/)).toBeNull()
+    expect(screen.queryByText(/Shared with specific people/)).toBeNull()
+    expect(screen.queryByText('View only')).toBeNull()
+  })
+
+  it('marks a private note and a shared view-only note', () => {
+    renderView(doc({ visibility: 'private' }))
+    expect(screen.getByText('Only the author')).toBeInTheDocument()
+  })
+
+  it('marks a note shared with the reader to view only', () => {
+    renderView(doc({ visibility: 'restricted', shared: true, my_permission: 'view' }), false)
+    expect(screen.getByText('Shared with specific people · view only')).toBeInTheDocument()
+  })
+
+  it('tells an org admin that a break-glass read was audited', () => {
+    renderView(doc({ visibility: 'private', my_permission: 'view', break_glass: true }), false)
+    expect(screen.getByText('This note is not shared with you')).toBeInTheDocument()
+    expect(screen.getByText(/recorded in the audit log/)).toBeInTheDocument()
+  })
+
+  it('shows no break-glass notice on an ordinary read', () => {
+    renderView(doc())
+    expect(screen.queryByText('This note is not shared with you')).not.toBeInTheDocument()
+  })
+
+  it('opens the Share dialog', () => {
+    const onShare = vi.fn()
+    render(
+      <MemoryRouter>
+        <DocView
+          slug="demo"
+          doc={doc()}
+          canEdit={false}
+          onEdit={vi.fn()}
+          onHistory={vi.fn()}
+          onMove={vi.fn()}
+          onDelete={vi.fn()}
+          onShare={onShare}
+        />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }))
+    expect(onShare).toHaveBeenCalled()
   })
 })

@@ -574,6 +574,7 @@ def _snapshot_items(expected_count: float) -> list[dict[str, object]]:
         # reads a link, so the base is deliberately the one value that cannot
         # make a link look right by accident.
         app_base_url="",
+        org_slug="default",
         rule=AlertRule(id=uuid.uuid4(), destination_id=uuid.uuid4(), name="Volume drops"),
         destination=AlertDestination(
             id=uuid.uuid4(),

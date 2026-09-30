@@ -45,6 +45,7 @@ from tripl.services._branch_counterparts import main_counterparts
 from tripl.services._plan_branch_locks import hold_branch_for_plan_write
 from tripl.services.event_photo_service import ensure_comment_deletable
 from tripl.services.mentions import excerpt
+from tripl.services.project_links import project_link
 from tripl.services.project_lookup import resolve_project_id
 
 
@@ -224,7 +225,7 @@ async def _announce_comment(
             "project_id": home.project_id,
             "entity_type": subscription_service.EVENT,
             "entity_id": home.id,
-            "url": f"/p/{slug}/events/detail/{home.id}",
+            "url": await project_link(session, home.project_id, f"/events/detail/{home.id}"),
             "body": excerpt(comment.body),
             "actor_user_id": actor_id,
         }
@@ -276,7 +277,7 @@ async def delete_comment(
     comment = await session.get(EventPhotoComment, comment_id)
     if comment is None or comment.event_id not in thread.anchors:
         raise HTTPException(status_code=404, detail="Comment not found")
-    ensure_comment_deletable(comment, user)
+    await ensure_comment_deletable(session, comment, user, thread.home.project_id)
     await session.delete(comment)
     await session.commit()
 

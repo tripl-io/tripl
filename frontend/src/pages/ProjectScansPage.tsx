@@ -3,6 +3,7 @@ import { ScansTab } from './settings/ScansTab'
 import { ScanConfigDetail } from './settings/ScanConfigDetailView'
 import { ScanCreatePage } from './settings/scans/ScanConfigForm'
 import { useIsOwner } from '@/lib/permissions'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /** A scan id is a UUID, so `new` under `/p/:slug/scans/:scanId` is never one. */
 const NEW_SCAN_SEGMENT = 'new'
@@ -15,14 +16,14 @@ const NEW_SCAN_SEGMENT = 'new'
 function NewScanRoute({ slug }: { slug: string }) {
   const navigate = useNavigate()
   const isOwner = useIsOwner()
-  if (!isOwner) return <Navigate to={`/p/${slug}/scans`} replace />
+  if (!isOwner) return <Navigate to={projectPath(currentOrgSlug(), slug, '/scans')} replace />
   return (
     <ScanCreatePage
       slug={slug}
-      onBack={() => navigate(`/p/${slug}/scans`)}
+      onBack={() => navigate(projectPath(currentOrgSlug(), slug, '/scans'))}
       // Replace the /new entry: Back from the created scan goes to the list,
       // not to an empty New scan form.
-      onCreated={created => navigate(`/p/${slug}/scans/${created.id}`, { replace: true })}
+      onCreated={created => navigate(projectPath(currentOrgSlug(), slug, `/scans/${created.id}`), { replace: true })}
     />
   )
 }

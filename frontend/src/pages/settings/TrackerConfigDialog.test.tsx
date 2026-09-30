@@ -9,6 +9,8 @@ import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import type { ProjectTrackerConfig, Role } from '@/types'
 import { TrackerConfigDialog } from './TrackerConfigDialog'
 import { at } from '@/test/at'
+import { type Persona } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/trackerConfig', () => ({
   trackerConfigApi: {
@@ -41,6 +43,8 @@ function authValue(role: Role): AuthContextValue {
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -52,12 +56,14 @@ function authValue(role: Role): AuthContextValue {
   }
 }
 
-function renderDialog(role: Role = 'owner', onOpenChange: (open: boolean) => void = () => {}) {
+function renderDialog(role: Persona = 'owner', onOpenChange: (open: boolean) => void = () => {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthContext.Provider value={authValue(role)}>
-        <TrackerConfigDialog slug="demo" open onOpenChange={onOpenChange} />
+      <AuthContext.Provider value={authValue(role === 'viewer' ? 'member' : role)}>
+        <PersonaProject persona={role}>
+          <TrackerConfigDialog slug="demo" open onOpenChange={onOpenChange} />
+        </PersonaProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -139,7 +145,7 @@ describe('TrackerConfigDialog', () => {
   it('hides the Save control and disables inputs for non-owners', async () => {
     vi.mocked(trackerConfigApi.get).mockResolvedValue(makeConfig())
 
-    renderDialog('editor')
+    renderDialog('member')
 
     // Editors can GET but not PATCH, so no Save affordance is offered.
     expect(await screen.findByLabelText('Project key')).toBeDisabled()
@@ -214,6 +220,52 @@ describe('TrackerConfigDialog', () => {
 
     expect(await screen.findAllByText('Required while the tracker is enabled.')).toHaveLength(3)
     expect(trackerConfigApi.update).not.toHaveBeenCalled()
+  })
+
+  describe("the organization's tracker defaults (F20 PR12)", () => {
+    const inheriting = () =>
+      makeConfig({
+        enabled: false,
+        base_url: '',
+        project_key: '',
+        auth_email: '',
+        api_token_set: false,
+        inherited_fields: ['api_token', 'auth_email', 'base_url', 'project_key'],
+      })
+
+    it('enables a tracker whose empty fields the organization fills in', async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(inheriting())
+      vi.mocked(trackerConfigApi.update).mockResolvedValue(makeConfig())
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByLabelText('Enabled'))
+      expect(screen.getAllByText('From the organization’s tracker defaults.')).toHaveLength(3)
+      expect(screen.getByLabelText('API token')).toHaveAttribute(
+        'placeholder',
+        "The organization's API token — leave blank to use it",
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => expect(trackerConfigApi.update).toHaveBeenCalledWith('demo', { enabled: true }))
+      expect(screen.queryByText('Required while the tracker is enabled.')).toBeNull()
+    })
+
+    it("asks for the project's own account and token once it names its own site (critique #13)", async () => {
+      vi.mocked(trackerConfigApi.get).mockResolvedValue(inheriting())
+
+      renderDialog('owner')
+
+      fireEvent.click(await screen.findByLabelText('Enabled'))
+      fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://other.atlassian.net' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      // The project key still comes from the organization; the account and the
+      // token do not follow a site the project names.
+      expect(await screen.findAllByText('Required while the tracker is enabled.')).toHaveLength(1)
+      expect(screen.getByText(/the organization's token is never sent there/)).toBeInTheDocument()
+      expect(trackerConfigApi.update).not.toHaveBeenCalled()
+    })
   })
 
   it('lets an owner park an incomplete connection while it is disabled', async () => {
@@ -363,7 +415,7 @@ describe('TrackerConfigDialog', () => {
         makeConfig({ tracker_type: 'linear', team_id: 'team-1' }),
       )
 
-      renderDialog('editor')
+      renderDialog('member')
 
       expect(await screen.findByLabelText('Team ID')).toBeDisabled()
       expect(screen.queryByRole('button', { name: 'Linear' })).toBeNull()

@@ -46,6 +46,8 @@ import { toast } from 'sonner'
 import { metricsCatalogApi } from '@/api/metricsCatalog'
 import { factTablesApi } from '@/api/factTables'
 import { dataSourcesApi } from '@/api/dataSources'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 function makeItem(overrides: Partial<MetricDefinitionListItem>): MetricDefinitionListItem {
   return {
@@ -185,13 +187,15 @@ function renderMetrics(
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/p/:slug/metrics" element={<MetricsPage tab="catalog" />} />
-            <Route path="/p/:slug/metrics/fact-tables" element={<MetricsPage tab="fact-tables" />} />
-            <Route path="/p/:slug/metrics/:metricId/edit" element={<EditRouteProbe />} />
-          </Routes>
-        </MemoryRouter>
+        <SessionProject session={auth}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/p/:slug/metrics" element={<MetricsPage tab="catalog" />} />
+              <Route path="/p/:slug/metrics/fact-tables" element={<MetricsPage tab="fact-tables" />} />
+              <Route path="/p/:slug/metrics/:metricId/edit" element={<EditRouteProbe />} />
+            </Routes>
+          </MemoryRouter>
+        </SessionProject>
       </AuthContext.Provider>
     </QueryClientProvider>,
   )
@@ -219,21 +223,7 @@ afterEach(() => {
 })
 
 function viewerAuth(): AuthContextValue {
-  return {
-    user: {
-      id: 'viewer-1',
-      email: 'viewer@example.com',
-      name: 'Viewer',
-      role: 'viewer',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    },
-    status: 'authenticated',
-    error: null,
-    isLoggingOut: false,
-    logout: async () => {},
-    refresh: () => {},
-  }
+  return personaAuth('viewer')
 }
 
 describe('MetricsPage — a viewer reads the catalog without write controls (MET-6)', () => {

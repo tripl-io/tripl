@@ -24,25 +24,30 @@ import {
   usersKey,
 } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
-import type { ProjectMember, ProjectMemberRole } from '@/types'
+import { PROJECT_ROLE_OPTIONS, type ProjectMember, type ProjectMemberRole } from '@/types'
 
 const ADD_FORM_ID = 'add-project-member-form'
 
-const MEMBER_ROLE_OPTIONS: { value: ProjectMemberRole; label: string }[] = [
-  { value: 'editor', label: 'Editor' },
-  { value: 'viewer', label: 'Viewer' },
-]
+/** The row roles an org owner/admin may hold: never `none` (they always have access). */
+const ORG_ADMIN_ROLE_OPTIONS = PROJECT_ROLE_OPTIONS.filter((option) => option.value !== 'none')
+
+/** The words a confirmation uses for a role, from the app-wide list. */
+function roleWord(role: ProjectMemberRole): string {
+  return PROJECT_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role
+}
 
 function memberName(member: Pick<ProjectMember, 'name' | 'email'>): string {
   return member.name || member.email
 }
 
 /**
- * Project · Access. A project is invisible to anyone who is not a member of it
- * (instance owners see every project), so this is where people are given a
- * project: added from the instance roster at a role, re-roled, or removed.
- * Everyone who can open the project can read the list; only managers see the
- * controls.
+ * Project · Access. Organization owners and admins see every project; anyone
+ * else gets the organization's default access (Organization › Details), which
+ * a row here overrides for this project: `editor`, `viewer`, or `none` ("No
+ * access", which hides the project from them even when the default would
+ * give it). This is where rows are added from the organization roster at a
+ * role, re-roled, or removed (back to the default). Everyone who can open the
+ * project can read the list; only managers see the controls.
  */
 export default function ProjectMembersSection({ slug }: { slug: string }) {
   const qc = useQueryClient()
@@ -95,13 +100,18 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
 
   const members = membersQuery.data ?? []
   const memberIds = new Set(members.map((member) => member.user_id))
-  // Instance owners already see and manage every project, so adding one would
-  // change nothing; they are left out of the picker rather than offered.
+  // Org owners/admins already see and manage every project of the organization,
+  // so adding one would change nothing; they are left out of the picker.
   const candidates = (usersQuery.data ?? []).filter(
     (candidate) => !memberIds.has(candidate.id) && !isOwnerRole(candidate.role),
   )
-  const pickedUser = candidates.find((candidate) => candidate.id === pickedUserId)
-  const pickedIsViewer = pickedUser?.role === 'viewer'
+  // Owners/admins can still hold a row (a creator's editor row, or a member
+  // promoted after being added). They always have access, so the backend
+  // refuses `none` for them (422): their row offers only Editor/Viewer, and a
+  // leftover `none` row reads as "always has access" instead of "No access".
+  const orgAdminIds = new Set(
+    (usersQuery.data ?? []).filter((candidate) => isOwnerRole(candidate.role)).map((candidate) => candidate.id),
+  )
 
   const resetErrors = () => {
     addMut.reset()
@@ -118,13 +128,19 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
   const handleRoleChange = async (member: ProjectMember, next: ProjectMemberRole) => {
     if (next === member.role) return
     resetErrors()
-    // A demotion takes away writing at once, so it asks; a promotion does not.
-    if (next === 'viewer') {
+    // A demotion takes away writing (or the whole project) at once, so it
+    // asks; a promotion does not.
+    const demotion = next === 'none' || (next === 'viewer' && member.role === 'editor')
+    if (demotion) {
       const who = memberName(member)
+      const word = roleWord(next)
       const ok = await confirm({
-        title: `Change ${who} to Viewer?`,
-        message: `${who} can still open this project but can no longer change anything in it.`,
-        confirmLabel: 'Change to Viewer',
+        title: `Change ${who} to ${word}?`,
+        message:
+          next === 'none'
+            ? `${who} loses this project: it disappears from their project list, whatever the organization's default access.`
+            : `${who} can still open this project but can no longer change anything in it.`,
+        confirmLabel: `Change to ${word}`,
         variant: 'danger',
       })
       if (!ok) return
@@ -139,8 +155,8 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
     const ok = await confirm({
       title: 'Remove member',
       message: self
-        ? 'Remove yourself from this project? It disappears from your project list as soon as you confirm, unless you are an instance owner.'
-        : `Remove ${who} from this project? It disappears from their project list, and they lose access to everything in it.`,
+        ? "Remove yourself from this project? You are left with the organization's default access to it, which may be none, unless you are an owner or admin of the organization."
+        : `Remove ${who} from this project? They are left with the organization's default access to it, which may be none.`,
       confirmLabel: 'Remove',
       variant: 'danger',
     })
@@ -158,20 +174,20 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
       {dialog}
       <SHeader
         title="Access"
-        description="Who can see this project. People who are not members do not see it at all; instance owners see every project."
+        description="Who can see this project. Organization owners and admins see every project; everyone else gets the organization's default access (Organization › Details) unless a row here says otherwise. No access hides the project from that person."
       />
 
       {/* Wait for the project before claiming read-only: its creator is a manager. */}
       {projectQuery.isSuccess && !manager && (
         <ReadOnlyNotice className="mb-5">
-          Only an instance owner or the person who created this project can change who has access.
+          Only an organization owner or admin, or the person who created this project, can change who has access.
         </ReadOnlyNotice>
       )}
 
       {manager && (
         <SCard
           title="Add a member"
-          description="Gives someone from this workspace access to this project, at the role you pick."
+          description="Sets someone's access to this project, overriding the organization's default: Editor, Viewer, or No access to keep them out of it."
           footer={
             <div className="flex w-full flex-wrap items-center justify-end gap-2">
               {addMut.isError && (
@@ -203,7 +219,7 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
             </div>
           ) : usersQuery.isSuccess && candidates.length === 0 ? (
             <p className="m-0 px-4 py-[14px] text-body-sm text-fg-tertiary">
-              Everyone in the workspace already has access. Invite more people from Workspace ›
+              Everyone in the workspace already has a role here. Invite more people from Workspace ›
               Members, then add them here.
             </p>
           ) : (
@@ -240,20 +256,12 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
                 label="Role"
                 htmlFor="project-member-role"
                 last
-                hint={
-                  pickedIsViewer && pickedRole === 'editor' ? (
-                    <span className="text-warning">
-                      This person is a Viewer on the workspace, so they can only read this project
-                      whatever role it gives them.
-                    </span>
-                  ) : undefined
-                }
               >
                 <NativeSelect
                   id="project-member-role"
                   value={pickedRole}
                   onChange={(next) => setPickedRole(next as ProjectMemberRole)}
-                  options={MEMBER_ROLE_OPTIONS}
+                  options={PROJECT_ROLE_OPTIONS}
                   width="fill"
                 />
               </Field>
@@ -302,11 +310,12 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
             size="sm"
             headingLevel={3}
             title="No members yet"
-            description="Only instance owners can see this project until someone is added."
+            description="Organization owners and admins see this project; everyone else gets the organization's default access until someone is added here."
           />
         ) : (
           members.map((member) => {
             const who = memberName(member)
+            const orgAdmin = orgAdminIds.has(member.user_id)
             const busy =
               (updateMut.isPending && updateMut.variables?.userId === member.user_id)
               || (removeMut.isPending && removeMut.variables === member.user_id)
@@ -328,17 +337,23 @@ export default function ProjectMembersSection({ slug }: { slug: string }) {
                 {manager ? (
                   <>
                     <div className="w-[120px] shrink-0">
-                      <NativeSelect
-                        size="sm"
-                        aria-label={`Role for ${who}`}
-                        value={member.role}
-                        disabled={busy}
-                        onChange={(next) => {
-                          void handleRoleChange(member, next as ProjectMemberRole)
-                        }}
-                        options={MEMBER_ROLE_OPTIONS}
-                        width="fill"
-                      />
+                      {orgAdmin && member.role === 'none' ? (
+                        <span className="block text-right text-caption text-fg-tertiary">
+                          Owner/admin · always has access
+                        </span>
+                      ) : (
+                        <NativeSelect
+                          size="sm"
+                          aria-label={`Role for ${who}`}
+                          value={member.role}
+                          disabled={busy}
+                          onChange={(next) => {
+                            void handleRoleChange(member, next as ProjectMemberRole)
+                          }}
+                          options={orgAdmin ? ORG_ADMIN_ROLE_OPTIONS : PROJECT_ROLE_OPTIONS}
+                          width="fill"
+                        />
+                      )}
                     </div>
                     <Button
                       type="button"

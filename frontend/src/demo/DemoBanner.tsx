@@ -62,6 +62,7 @@ import { forgetDemoLocalState } from './demoLocalState'
 import { DEMO_PROVISION_ESTIMATE, DEMO_PROVISION_TIMEOUT_MS } from './provisioningPhases'
 import { useEstimatedPhase } from './useEstimatedPhase'
 import { setWelcomeDismissed } from './welcomeDismissal'
+import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
 
 /** How long a reset may run before the page stops waiting for it (DEMO-4). */
 const TIMEOUT_SECONDS = Math.round(DEMO_PROVISION_TIMEOUT_MS / 1000)
@@ -191,7 +192,7 @@ export function DemoBanner({
   // the dropped rows are simply fetched again.
   const dropReseededIds = () => {
     setBranchId(null, { updateUrl: false })
-    void navigate(`/p/${project.slug}/overview`)
+    void navigate(projectPath(currentOrgSlug(), project.slug, '/overview'))
     // Every cached row describes a deleted entity now — drop them outright
     // rather than merely marking them stale. Except three that describe no
     // seeded entity (DEMO-3): the session (dropping it put the signed-in user
@@ -306,7 +307,7 @@ export function DemoBanner({
       // again (DEMO-17).
       forgetDemoLocalState(project.slug)
       void queryClient.invalidateQueries({ queryKey: projectsKey() })
-      void navigate('/workspace')
+      void navigate(workspacePath())
     },
   })
 

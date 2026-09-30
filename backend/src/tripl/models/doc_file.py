@@ -16,6 +16,15 @@ is computed on read). :class:`DocLink` holds the ``[[event:...]]`` style
 references found in the body, by NAME; whether a name resolves is computed live
 against the main plan, so nothing here goes stale when an event appears or
 disappears.
+
+Who may see a note (F24, GH #308) is ``visibility``: ``level`` (everyone at the
+note's level, the F22 behaviour), ``restricted`` (its author plus the users and
+organization groups in :class:`~tripl.models.doc_share.DocShare`) or
+``private`` (its author only). While ``visibility_inherited`` is true the note
+takes the setting of the nearest folder that has one
+(:class:`~tripl.models.doc_share.DocFolderSetting`), and ``visibility`` is kept
+at ``level``. The effective rule is computed in ONE place,
+``services.docs_access``.
 """
 
 from __future__ import annotations
@@ -25,6 +34,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -35,6 +45,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
     text,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,6 +67,10 @@ class DocFile(UUIDMixin, TimestampMixin, Base):
         CheckConstraint(
             "audience IN ('human', 'agent', 'both')",
             name="ck_doc_files_audience",
+        ),
+        CheckConstraint(
+            "visibility IN ('private', 'restricted', 'level')",
+            name="ck_doc_files_visibility",
         ),
         Index(
             "uq_doc_files_project_path",
@@ -98,6 +113,8 @@ class DocFile(UUIDMixin, TimestampMixin, Base):
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, default=None
     )
+    visibility: Mapped[str] = mapped_column(String(16), default="level", server_default="level")
+    visibility_inherited: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
 
 class DocRevision(UUIDMixin, Base):
@@ -128,13 +145,39 @@ class DocRevision(UUIDMixin, Base):
     restored_from_number: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
 
 
+#: Every ``DocLink.kind`` (F22 plan links; F24 part 2 notes, mentions and the
+#: project's other entities). Mirrors ``schemas.docs.DocLinkKind``.
+DOC_LINK_KINDS: tuple[str, ...] = (
+    "event",
+    "event_type",
+    "field",
+    "doc",
+    "variable",
+    "metric",
+    "alert_rule",
+    "branch",
+    "scan",
+    "data_source",
+    "user",
+)
+DOC_LINK_KIND_CHECK = "kind IN ({})".format(", ".join(f"'{kind}'" for kind in DOC_LINK_KINDS))
+
+
 class DocLink(UUIDMixin, Base):
-    """A ``[[kind:name]]`` reference found in a note's body, by name."""
+    """A ``[[kind:target]]`` reference found in a note's body.
+
+    Plan entities (event, event type, field, variable, metric, branch, scan,
+    data source) are kept by NAME and resolved on read, so a rename shows up as
+    a broken link. A note (``doc``), an alert rule and a mentioned user are kept
+    by id (``target`` is the UUID's canonical text), so they survive renames and
+    moves. ``qualifier`` is a field's event type, or a note link's heading
+    anchor.
+    """
 
     __tablename__ = "doc_links"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('event', 'event_type', 'field')",
+            DOC_LINK_KIND_CHECK,
             name="ck_doc_links_kind",
         ),
         Index("ix_doc_links_target", "kind", "target"),

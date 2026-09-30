@@ -24,20 +24,34 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session
 
 from tripl.config import settings
 from tripl.models.alert_delivery import AlertDelivery, AlertDeliveryStatus
 from tripl.models.alert_destination import AlertDestination, AlertDestinationType
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.event_photo import EventPhoto
+from tripl.models.organization import Organization
+from tripl.models.photo_storage_config import PhotoStorageConfig
 from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.schema_drift import SchemaDrift
+from tripl.services.active_org_scope import in_active_org
 from tripl.services.event_photo_service import PHOTO_KEY_PREFIX
+from tripl.services.photo_storage_service import (
+    group_org_stores,
+    list_first,
+    operator_photo_backends,
+    operator_store_identity,
+    org_key_prefix,
+)
 from tripl.services.schema_drift_service import DRIFT_RETENTION_DAYS
-from tripl.storage import storage_for
+from tripl.storage import PhotoStorage, storage_for
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 from tripl.worker.tasks._errors import is_transient_send_error
@@ -200,6 +214,9 @@ def requeue_stranded_alert_deliveries() -> dict[str, object]:
                     AlertDelivery.status == AlertDeliveryStatus.pending.value,
                     AlertDelivery.created_at < cutoff,
                     AlertDelivery.updated_at < cutoff,
+                    # A suspended organization's deliveries wait, un-exhausted,
+                    # for it to be unsuspended (F20 PR14).
+                    in_active_org(AlertDelivery.project_id),
                 )
             )
             .scalars()
@@ -247,6 +264,7 @@ def requeue_stranded_alert_deliveries() -> dict[str, object]:
                     # silent: auto-retrying rows they watched fail and then
                     # switched off would re-send through a toggle that says off.
                     AlertDestination.enabled.is_(True),
+                    in_active_org(AlertDelivery.project_id),
                 )
             )
             .scalars()
@@ -342,17 +360,70 @@ def requeue_stranded_alert_deliveries() -> dict[str, object]:
         session.close()
 
 
-def _photo_backends_to_sweep() -> list[str]:
-    """The photo backends this process can reach, whatever new uploads use.
+@dataclass
+class _SweptStore:
+    """One physical store the sweep lists, and only under the prefixes tripl wrote.
 
-    Rows written before a backend switch still point at the old store
-    (tripl-0zpq.295), so its orphans are swept too. GCS only when a bucket is
-    configured: without one the driver cannot even be built.
+    ``owner`` ``None`` is the operator's store: its legacy ``events/`` prefix
+    plus every organization's ``orgs/{id}/events/`` (an organization without
+    storage of its own writes there). An organization's own store is listed
+    only under its own prefix, with its own credentials (F20 PR11): ``builds``
+    holds one driver per version of that store, newest first, and the first
+    that can list is used (an older version's key is often revoked).
     """
-    backends = ["local"]
-    if settings.gcs_photo_bucket:
-        backends.append("gcs")
-    return backends
+
+    label: str
+    owner: uuid.UUID | None
+    builds: list[Callable[[], PhotoStorage]]
+    prefixes: set[str] = field(default_factory=set)
+    backend: str = ""
+    version_ids: frozenset[uuid.UUID] = frozenset()
+
+
+def _stores_to_sweep(session: Session) -> list[_SweptStore]:
+    """Every store a photo row can point at, keyed by (owner, bucket or root)."""
+    org_ids = list(session.scalars(select(Organization.id)).all())
+    stores: list[_SweptStore] = []
+    operator_identities: set[tuple[str, str]] = set()
+    for backend in operator_photo_backends():
+        operator_identities.add(operator_store_identity(backend))
+        stores.append(
+            _SweptStore(
+                label=backend,
+                owner=None,
+                builds=[partial(storage_for, backend)],
+                prefixes={PHOTO_KEY_PREFIX, *(org_key_prefix(org_id) for org_id in org_ids)},
+                backend=backend,
+            )
+        )
+    rows = session.scalars(
+        select(PhotoStorageConfig).order_by(PhotoStorageConfig.created_at.desc())
+    ).all()
+    # The operator's own store (a self-hosted organization on the local backend)
+    # is already listed under every organization's prefix.
+    for org_store in group_org_stores(rows, skip=operator_identities):
+        stores.append(
+            _SweptStore(
+                label=f"org:{org_store.org_id}:{org_store.backend}",
+                owner=org_store.org_id,
+                builds=org_store.builders(),
+                prefixes={org_key_prefix(org_store.org_id)},
+                version_ids=org_store.version_ids,
+            )
+        )
+    return stores
+
+
+def _store_has_rows(session: Session, store: _SweptStore) -> bool:
+    """Whether any photo row points at this store at all (the empty-database guard)."""
+    stmt = select(func.count()).select_from(EventPhoto).where(EventPhoto.storage_key.is_not(None))
+    if store.owner is None:
+        stmt = stmt.where(
+            EventPhoto.storage_config_id.is_(None), EventPhoto.storage_backend == store.backend
+        )
+    else:
+        stmt = stmt.where(EventPhoto.storage_config_id.in_(store.version_ids))
+    return bool(session.scalar(stmt))
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -380,53 +451,57 @@ def sweep_orphan_photo_blobs() -> dict[str, object]:
     sweep sees no reference and may delete the blob the copy is about to
     commit. The window is the length of one ``create_branch`` transaction.
 
-    Any row holding the key keeps it, in any project and on any branch — the
-    same rule as ``event_photo_service._blob_is_referenced``. Only keys under
-    ``PHOTO_KEY_PREFIX`` are considered, because the directory or bucket may
-    hold objects tripl did not write. A backend without a listing API is
-    skipped and logged.
+    Per store and prefix (F20 PR11): the operator's store under ``events/`` and
+    every organization's ``orgs/{id}/events/``; each organization's own
+    storage, with its own credentials, under its own prefix only — never a
+    prefix tripl did not write, because a bucket or directory may hold objects
+    that are not tripl's. A key any row holds keeps its blob, in any project,
+    on any branch and in any store — the same rule as
+    ``event_photo_service._blob_is_referenced``, only broader. A store without
+    a listing API is skipped and logged, and so is one no row points at.
     """
     cutoff = datetime.now(UTC) - timedelta(hours=settings.photo_orphan_sweep_grace_hours)
     session = _get_sync_session()
     deleted: list[str] = []
     skipped: list[str] = []
     try:
-        for backend in _photo_backends_to_sweep():
+        referenced: set[str] | None = None
+        for store in _stores_to_sweep(session):
             try:
-                storage = storage_for(backend)
-                listed = [
-                    obj for obj in storage.list_objects(PHOTO_KEY_PREFIX) if obj.written_at < cutoff
-                ]
+                storage, objects = list_first(store.builds, store.prefixes)
+                listed = [obj for obj in objects if obj.written_at < cutoff]
             except Exception:
-                logger.exception("Cannot list the %s photo backend; orphan sweep skips it", backend)
-                skipped.append(backend)
+                logger.exception(
+                    "Cannot list the %s photo store; orphan sweep skips it", store.label
+                )
+                skipped.append(store.label)
                 continue
             if not listed:
                 continue
-            referenced = set(
-                session.execute(
-                    select(EventPhoto.storage_key).where(
-                        EventPhoto.storage_backend == backend,
-                        EventPhoto.storage_key.is_not(None),
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            if not referenced:
-                # Old blobs on disk and not one row pointing at this backend is
-                # what an empty or half-restored database looks like, not a set
-                # of orphans. Deleting here would wipe every photo, so the sweep
+            if not _store_has_rows(session, store):
+                # Old blobs and not one row pointing at this store is what an
+                # empty or half-restored database looks like, not a set of
+                # orphans. Deleting here would wipe every photo, so the sweep
                 # refuses and says so; a real "no photos left" state costs only
                 # the disk the leftovers use.
                 logger.warning(
                     "Orphan photo sweep skipped %s: %d old blob(s) but no event_photos row "
-                    "references this backend",
-                    backend,
+                    "references this store",
+                    store.label,
                     len(listed),
                 )
-                skipped.append(backend)
+                skipped.append(store.label)
                 continue
+            if referenced is None:
+                referenced = {
+                    key
+                    for key in session.execute(
+                        select(EventPhoto.storage_key).where(EventPhoto.storage_key.is_not(None))
+                    )
+                    .scalars()
+                    .all()
+                    if key
+                }
             for obj in listed:
                 if obj.key in referenced:
                     continue
@@ -435,19 +510,18 @@ def sweep_orphan_photo_blobs() -> dict[str, object]:
                 still_referenced = session.scalar(
                     select(func.count())
                     .select_from(EventPhoto)
-                    .where(
-                        EventPhoto.storage_backend == backend,
-                        EventPhoto.storage_key == obj.key,
-                    )
+                    .where(EventPhoto.storage_key == obj.key)
                 )
                 if still_referenced:
                     continue
                 try:
                     storage.delete_blocking(obj.key)
                 except Exception:
-                    logger.exception("Failed to delete orphan photo blob %s:%s", backend, obj.key)
+                    logger.exception(
+                        "Failed to delete orphan photo blob %s:%s", store.label, obj.key
+                    )
                     continue
-                deleted.append(f"{backend}:{obj.key}")
+                deleted.append(f"{store.label}:{obj.key}")
         logger.info("Swept %d orphan photo blob(s) older than %s", len(deleted), cutoff.isoformat())
         return {"deleted": deleted, "skipped_backends": skipped, "cutoff": cutoff.isoformat()}
     finally:

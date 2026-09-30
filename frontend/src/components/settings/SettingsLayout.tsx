@@ -21,7 +21,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SETTINGS_CONTENT_ID } from './landmarks'
-import { backToLabel, sectionLabel, sectionPathForUrl, visibleGroupsAll } from './nav'
+import { backToLabel, sectionIsWide, sectionLabel, sectionPathForUrl, visibleGroupsAll } from './nav'
+import { cn } from '@/lib/utils'
 import { SettingsCommandPalette } from './settings-palette'
 import {
   LEAVE_CONFIRMED,
@@ -30,7 +31,9 @@ import {
   type UnsavedWork,
 } from './unsaved-changes'
 import type { Project } from '@/types'
-import { isOwner as isOwnerRole } from '@/lib/permissions'
+import { isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUser } from '@/lib/permissions'
+import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
+import { useActiveOrg } from '@/components/active-org-context'
 
 const RAIL_TITLE_ID = 'settings-rail-title'
 const RAIL_ID = 'settings-rail'
@@ -102,6 +105,14 @@ export function SettingsLayout({
   const navigate = useNavigate()
   const { confirm, dialog } = useConfirm()
   const isOwner = isOwnerRole(auth.user?.role)
+  // The operator sections (security, observability, system) are the platform
+  // admin's alone, whatever their organization role (F20 PR4).
+  const isPlatformAdmin = isPlatformAdminUser(auth.user)
+  // The takeover's address names no organization of its own (only `?org=`),
+  // so the rail says which one it acts in: Members, Invitations, Data sources
+  // and API keys otherwise read the same in every organization.
+  const activeOrg = useActiveOrg()
+  const orgName = activeOrg.membership?.name ?? activeOrg.slug ?? ''
 
   // Personalize group sub-labels with live identity, matching the mockup
   // (Project → project name, Account → "You · <name>"). Workspace stays
@@ -111,11 +122,13 @@ export function SettingsLayout({
   const subFor = (group: { label: string; sub: string }): string => {
     if (group.label === 'Project' && projectName) return projectName
     if (group.label === 'Account' && userName) return `You · ${userName}`
+    if (group.label === 'Organization' && orgName) return orgName
     if (group.sub === group.label) return ''
     return group.sub
   }
   const backLabel = backToLabel(backHref, projectName)
   const sectionTitle = sectionLabel(activePath)
+  const wide = sectionIsWide(activePath)
 
   // Off-canvas rail state, used only below `md` — above it the `md:*` utilities
   // pin the rail to static flow regardless of this flag.
@@ -253,7 +266,7 @@ export function SettingsLayout({
     void confirmLeave(null).then((leave) => {
       if (!leave) return
       closeRail()
-      navigate(`/settings/${path}?project=${encodeURIComponent(slug)}`, { state: LEAVE_CONFIRMED })
+      navigate(settingsPath(`/settings/${path}?project=${encodeURIComponent(slug)}`), { state: LEAVE_CONFIRMED })
     })
   }
 
@@ -356,6 +369,7 @@ export function SettingsLayout({
         activePath={activePath}
         backHref={backHref}
         isOwner={isOwner}
+        isPlatformAdmin={isPlatformAdmin}
         projects={projects}
         backLabel={backLabel}
         onLeave={leaveTo}
@@ -420,7 +434,7 @@ export function SettingsLayout({
           aria-labelledby={RAIL_TITLE_ID}
           className="flex-1 overflow-y-auto px-3 pb-6 pt-1 [mask-image:linear-gradient(to_bottom,black_calc(100%_-_24px),transparent)]"
         >
-          {visibleGroupsAll(isOwner).map((group) => {
+          {visibleGroupsAll(isOwner, isPlatformAdmin).map((group) => {
             // Sentence case, not an uppercase eyebrow: these are names ("Demo
             // project 2", "You · Ada"), and caps shouted them (ST-7).
             const sub = subFor(group)
@@ -459,8 +473,8 @@ export function SettingsLayout({
                   const Icon = item.icon
                   const href =
                     projectSlug && item.path.startsWith('project/')
-                      ? `/settings/${item.path}?project=${encodeURIComponent(projectSlug)}`
-                      : `/settings/${item.path}`
+                      ? settingsPath(`/settings/${item.path}?project=${encodeURIComponent(projectSlug)}`)
+                      : settingsPath(`/settings/${item.path}`)
                   return (
                     // A real anchor, not a button: as buttons none of these 14
                     // destinations could be cmd-clicked into a new tab,
@@ -514,7 +528,7 @@ export function SettingsLayout({
                   // "Project operations" button on General as the only way
                   // there (#238 ST-5). The arrow marks it as leaving the area.
                   <Link
-                    to={`/p/${encodeURIComponent(projectSlug)}/event-types`}
+                    to={projectPath(currentOrgSlug(), encodeURIComponent(projectSlug), '/event-types')}
                     onClick={guardLeave}
                     className="flex items-center gap-2 rounded-md px-[9px] py-2.5 md:py-[7px] text-left text-body-sm font-medium text-fg-muted no-underline transition-colors hover:bg-sidebar-hover focus-visible:bg-sidebar-hover"
                   >
@@ -616,8 +630,16 @@ export function SettingsLayout({
           </Link>
         </div>
         {/* The narrow content width every form and settings page shares
-            (DS-3), left-aligned against the rail instead of floating centred. */}
-        <div className="max-w-[880px] px-4 pb-24 pt-6 sm:px-6 md:px-10 md:pt-10">
+            (DS-3), left-aligned against the rail instead of floating centred.
+            A table section takes the wide column instead, so a wide screen
+            shows its columns rather than a horizontal scroll. */}
+        <div
+          data-width={wide ? 'wide' : 'narrow'}
+          className={cn(
+            wide ? 'max-w-[1440px]' : 'max-w-[880px]',
+            'px-4 pb-24 pt-6 sm:px-6 md:px-10 md:pt-10',
+          )}
+        >
           <UnsavedChangesProvider value={unsavedChanges}>{children}</UnsavedChangesProvider>
         </div>
       </main>

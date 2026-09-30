@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -20,6 +21,7 @@ from tripl.core.adapters.base import (
     SchemaTable,
     contract_bound_literal,
     field_contract_verdict,
+    is_breakdown_field_of,
 )
 from tripl.core.adapters.measure_validator import (
     build_aggregate_sql,
@@ -29,6 +31,12 @@ from tripl.core.adapters.measure_validator import (
 from tripl.core.bucketing import format_utc_literal
 from tripl.core.intervals import IntervalUnit, get_interval
 from tripl.core.warehouse_types import ComplexKind, classify_complex
+from tripl.json_paths import (
+    decode_json_path_value,
+    json_safe,
+    set_nested_value,
+    split_property_field,
+)
 from tripl.models.domain_enums import MetricAggregation
 
 # Hard cap on rows pulled from the catalog so a warehouse with thousands of
@@ -184,6 +192,37 @@ class ClickHouseAdapter(BaseAdapter):
         result = self._client.query(sql)
         return list(result.column_names), _as_rows(result.result_rows)
 
+    supports_json_string_columns = True
+
+    @override
+    def json_string_source(self, base_query: str, columns: list[str]) -> str:
+        """Parse String columns as ``JSON`` in a wrapper over ``base_query``.
+
+        ``SELECT * REPLACE`` keeps every other column, and its position, as it
+        was. The text is cast only when ``isValidJSON`` and ``JSONType`` agree
+        it is a JSON object: a cast of anything else (malformed text, a bare
+        scalar, an array, NULL) raises, so such a row reads as ``{}`` instead —
+        no paths, which the scan counts as a row missing every key. The cast is
+        one parse per row read; every statement already bounds the rows it
+        reads (sample LIMITs, the scan window), so the cost scales with those
+        and not with the table.
+        """
+        replacements: list[str] = []
+        for column in columns:
+            if not _IDENTIFIER_PART_RE.match(column):
+                msg = f"Invalid column name: {column}"
+                raise ValueError(msg)
+            text = f"ifNull(toString(`{column}`), '')"
+            replacements.append(
+                f"CAST(if(isValidJSON({text}) AND JSONType({text}) = 'Object', {text}, '{{}}'), "
+                f"'JSON') AS `{column}`"
+            )
+        if not replacements:
+            return base_query
+        return f"SELECT * REPLACE ({', '.join(replacements)}) FROM ({base_query}) AS _json_src"
+
+    json_path_samples_are_text = True
+
     @override
     def get_json_path_samples(
         self,
@@ -196,6 +235,7 @@ class ClickHouseAdapter(BaseAdapter):
         path_limit: int = 1000,
         sample_limit: int = 3,
         sample_row_limit: int = 1000,
+        include_objects: bool = False,
     ) -> dict[str, dict[str, list[object]]]:
         """Discover JSON paths independently from visible preview rows.
 
@@ -281,7 +321,24 @@ class ClickHouseAdapter(BaseAdapter):
                 for index, name in enumerate(sample_result.column_names)
                 if name in path_by_alias
             }
-            seen_by_path: dict[str, set[str]] = {path: set() for path in paths}
+            # Object paths are every proper prefix of a leaf. They are not read
+            # with a query of their own: each sample row already holds all of
+            # its leaves, so one row's object is rebuilt from them here.
+            object_paths = (
+                sorted(
+                    {
+                        ".".join(path.split(".")[:take])
+                        for path in paths
+                        for take in range(1, path.count(".") + 1)
+                    }
+                    - set(paths)
+                )
+                if include_objects
+                else []
+            )
+            for path in object_paths:
+                column_samples[path] = []
+            seen_by_path: dict[str, set[str]] = {path: set() for path in column_samples}
 
             for row in sample_result.result_rows:
                 if all(len(values) >= sample_limit for values in column_samples.values()):
@@ -297,8 +354,52 @@ class ClickHouseAdapter(BaseAdapter):
                         continue
                     seen_by_path[path].add(sample_key)
                     column_samples[path].append(value)
+                if object_paths:
+                    self._sample_row_objects(
+                        row, index_to_path, object_paths, column_samples, seen_by_path, sample_limit
+                    )
 
         return samples_by_column
+
+    @staticmethod
+    def _sample_row_objects(
+        row: Sequence[object],
+        index_to_path: dict[int, str],
+        object_paths: list[str],
+        column_samples: dict[str, list[object]],
+        seen_by_path: dict[str, set[str]],
+        sample_limit: int,
+    ) -> None:
+        """Add one sample row's nested objects, as JSON text, to the samples.
+
+        A leaf the row does not carry reads back as ``null``, the same as one
+        it carries as null, so neither is a key of the rebuilt object; an
+        object with no key left is no sample.
+        """
+        leaves: dict[str, object] = {}
+        for index, path in index_to_path.items():
+            value = decode_json_path_value(row[index])
+            if value is not None:
+                leaves[path] = value
+        for object_path in object_paths:
+            if len(column_samples[object_path]) >= sample_limit:
+                continue
+            prefix = object_path + "."
+            rebuilt: dict[str, object] = {}
+            for path, value in leaves.items():
+                if path.startswith(prefix):
+                    set_nested_value(rebuilt, path.removeprefix(prefix), value)
+            if not rebuilt:
+                continue
+            # ``toJSONString``'s own spelling, so the text is the one the
+            # leaves come back in.
+            text = json.dumps(
+                json_safe(rebuilt), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            )
+            if text in seen_by_path[object_path]:
+                continue
+            seen_by_path[object_path].add(text)
+            column_samples[object_path].append(text)
 
     def _validate_alias(self, alias: str) -> str:
         """Validate a caller-supplied output column alias before interpolation.
@@ -450,6 +551,51 @@ class ClickHouseAdapter(BaseAdapter):
     def _string_value_expression(self, column: str) -> str:
         return f"ifNull(toString(`{self._validate_column(column)}`), '')"
 
+    def _property_value_expression(self, column: str, path: str) -> str:
+        """One property (a JSON path of a nested column) as a Nullable(String).
+
+        NULL when the row does not carry the path, so a property behaves like a
+        nullable scalar column in breakdowns and contracts (F23, #306). Built on
+        ``_json_path_expression`` — the same validated, backticked subcolumn
+        access the scan's ``json_value_paths`` use — for JSON and named Tuple
+        columns; a Map has keys rather than paths, so only a one-segment path
+        addresses it, and the key goes through ``_quote_string``.
+        """
+        c = self._validate_column(column)
+        if self._nested_kind(c) is ComplexKind.map:
+            if "." in path:
+                msg = f"ClickHouse: Map column {c!r} has no nested path {path!r}"
+                raise ValueError(msg)
+            key = self._quote_string(path)
+            return f"if(mapContains(`{c}`, {key}), toString(`{c}`[{key}]), NULL)"
+        expr = self._json_path_expression(c, path)
+        return f"if(isNull({expr}), NULL, toString({expr}))"
+
+    def _field_operand(self, field: str) -> str:
+        """A breakdown / drift / contract field as a nullable SQL operand.
+
+        A scalar column is its backticked name, exactly as before; a property
+        entry (``<json_column>.<path>``) is its extracted value.
+        """
+        prop = split_property_field(field)
+        if prop is None:
+            return f"`{self._validate_column(field)}`"
+        return self._property_value_expression(*prop)
+
+    def _field_value_expression(self, field: str) -> str:
+        """``_string_value_expression`` for a scalar column or a property entry."""
+        if split_property_field(field) is None:
+            return self._string_value_expression(field)
+        return f"ifNull({self._field_operand(field)}, '')"
+
+    def _validate_breakdown_field(self, field: str) -> str:
+        """Validate a breakdown entry: a column, or a property of a known column."""
+        prop = split_property_field(field)
+        if prop is None:
+            return self._validate_column(field)
+        self._validate_column(prop[0])
+        return field
+
     def _quote_string(self, value: str) -> str:
         escaped = value.replace("\\", "\\\\").replace("'", "\\'")
         return f"'{escaped}'"
@@ -562,21 +708,23 @@ class ClickHouseAdapter(BaseAdapter):
         if self._field_contract_is_inert(expectation):
             return None
 
-        column = self._validate_column(expectation.field_name)
-        value_expr = f"ifNull(toString(`{column}`), '')"
+        operand = self._contract_operand(expectation, self._field_operand)
+        if operand is None:
+            return None
+        value_expr = f"ifNull(toString({operand}), '')"
 
         if expectation.drift_type == "required_null_violation":
-            bad_condition = f"isNull(`{column}`)"
+            bad_condition = f"isNull({operand})"
             total_expr = "count()"
             sample_expr = f"anyIf('<NULL>', {bad_condition})"
         elif expectation.drift_type == "enum_violation":
             options = ", ".join(self._quote_string(option) for option in expectation.enum_options)
-            present_condition = f"NOT isNull(`{column}`)"
+            present_condition = f"NOT isNull({operand})"
             bad_condition = f"{present_condition} AND {value_expr} NOT IN ({options})"
             total_expr = f"countIf({present_condition})"
             sample_expr = f"anyIf({value_expr}, {bad_condition})"
         elif expectation.drift_type == "regex_violation":
-            present_condition = f"NOT isNull(`{column}`)"
+            present_condition = f"NOT isNull({operand})"
             # The assert narrows the type; a pattern-less regex is inert above.
             assert expectation.regex is not None
             # RE2 is stricter than the Python `re` the save gate screens with —
@@ -591,7 +739,7 @@ class ClickHouseAdapter(BaseAdapter):
             total_expr = f"countIf({present_condition})"
             sample_expr = f"anyIf({value_expr}, {bad_condition})"
         elif expectation.drift_type == "range_violation":
-            present_condition = f"NOT isNull(`{column}`)"
+            present_condition = f"NOT isNull({operand})"
             numeric_expr = f"toFloat64OrNull({value_expr})"
             range_conditions = [f"isNull({numeric_expr})"]
             # Rendered through the shared helper rather than an f-string of the
@@ -707,10 +855,10 @@ class ClickHouseAdapter(BaseAdapter):
             return {column: [] for column in breakdown_columns}
 
         tc = self._validate_column(time_column)
-        breakdown_cols = [self._validate_column(column) for column in breakdown_columns]
+        breakdown_cols = [self._validate_breakdown_field(column) for column in breakdown_columns]
         where_clause = self._time_window_where_clause(tc, time_from, time_to)
         prepared_parts = [
-            f"{self._string_value_expression(column)} AS `__bd_raw_{idx}`"
+            f"{self._field_value_expression(column)} AS `__bd_raw_{idx}`"
             for idx, column in enumerate(breakdown_cols)
         ]
         branch_conditions = [
@@ -1314,10 +1462,17 @@ class ClickHouseAdapter(BaseAdapter):
         bucket_sql = self._bucket_expression(tc, interval)
         reg_cols = [self._validate_column(c) for c in regular_columns]
         json_cols = [self._validate_column(c) for c in json_columns]
-        breakdown_cols = [self._validate_column(c) for c in breakdown_columns]
-        invalid_breakdown_cols = [column for column in breakdown_cols if column not in reg_cols]
+        breakdown_cols = [self._validate_breakdown_field(c) for c in breakdown_columns]
+        invalid_breakdown_cols = [
+            column
+            for column in breakdown_cols
+            if not is_breakdown_field_of(column, reg_cols, json_cols)
+        ]
         if invalid_breakdown_cols:
-            msg = f"Breakdown columns must be scalar columns: {', '.join(invalid_breakdown_cols)}"
+            msg = (
+                "Breakdown columns must be scalar columns or properties of a JSON column: "
+                f"{', '.join(invalid_breakdown_cols)}"
+            )
             raise ValueError(msg)
 
         json_value_paths = json_value_paths or {}
@@ -1357,7 +1512,7 @@ class ClickHouseAdapter(BaseAdapter):
         grouping_sets: list[str] = []
 
         for idx, column in enumerate(breakdown_cols):
-            raw_expr = self._string_value_expression(column)
+            raw_expr = self._field_value_expression(column)
             value_alias = f"__bd_value_{idx}"
             other_alias = f"__bd_other_{idx}"
             top_values = (

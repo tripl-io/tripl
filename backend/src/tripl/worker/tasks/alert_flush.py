@@ -71,6 +71,7 @@ from tripl.models.alert_pending_item import AlertPendingItem
 from tripl.models.alert_rule import AlertRule
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
+from tripl.services.active_org_scope import in_active_org
 from tripl.worker.celery_app import celery_app
 from tripl.worker.db import _get_sync_session
 
@@ -438,6 +439,7 @@ def flush_due_alert_digests() -> dict[str, int]:
                 .where(
                     AlertDestination.enabled.is_(True),
                     AlertDestination.delivery_schedule_cron.is_(None),
+                    in_active_org(AlertDestination.project_id),
                 )
                 .order_by(AlertDestination.id)
                 .distinct()
@@ -464,6 +466,7 @@ def flush_due_alert_digests() -> dict[str, int]:
             .where(
                 AlertDestination.enabled.is_(True),
                 AlertDestination.delivery_schedule_cron.isnot(None),
+                in_active_org(AlertDestination.project_id),
             )
             .order_by(AlertDestination.id)
         ).all()

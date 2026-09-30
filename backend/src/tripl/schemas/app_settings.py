@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from tripl.alerting_validation import validate_sender_address
 from tripl.config import validate_csp, validate_http_token
@@ -11,7 +11,10 @@ from tripl.config import validate_csp, validate_http_token
 # Mirrors app_settings_service.SettingSource. "default" means the value equals
 # the built-in default — either nothing was delivered for it, or what was
 # delivered matches it; the two are indistinguishable from here (tripl-wkwv.2).
-SettingSource = Literal["env", "override", "default"]
+# "override" is always the OPERATOR's override; "org" is an organization's own
+# value and "disabled" a credential group ORG_SETTINGS_OPERATOR_FALLBACK=none
+# withholds from an organization without its own (F20 PR9).
+SettingSource = Literal["env", "override", "default", "org", "disabled"]
 # Self-service registration policy. "open" lets anyone reaching the instance
 # create an account; "disabled" refuses new signups (the first-owner bootstrap
 # on an empty instance stays exempt so a fresh install can still be claimed).
@@ -189,6 +192,23 @@ class EmailSettingsUpdate(BaseModel):
         return validate_sender_address(value)
 
 
+def _check_ai_base_url_format(value: str | None) -> str | None:
+    # Format-only guard: must be a well-formed http(s) URL with a host. http and
+    # private/localhost hosts are allowed here so that self-hosted/local LLM
+    # endpoints (e.g. http://localhost:11434) work; an ORGANIZATION's value on a
+    # hosted instance is additionally refused when private, by the service at
+    # save time and by llm_service at use time (F20 PR9).
+    if value is None:
+        return value
+    trimmed = value.strip()
+    if not trimmed:
+        return trimmed
+    parsed = urlparse(trimmed)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("ai_base_url must be a valid http(s) URL")
+    return trimmed
+
+
 class AiSettings(BaseModel):
     ai_enabled: bool
     ai_base_url: str
@@ -204,11 +224,12 @@ class AiSettings(BaseModel):
     search_embedding_model: str
     search_embedding_api_key_configured: bool
     search_embedding_dimensions: int
-    # Reported, never accepted: absent from AiSettingsUpdate below AND from
-    # EDITABLE_FIELDS, so a body carrying it is dropped twice over. Repointing
-    # the endpoint at runtime would silently poison every vector already in the
-    # index; leaving it invisible turned a compose allowlist slip into an
-    # unnoticed change of where plan text is sent (tripl-wkwv.2).
+    # The OPERATOR's value is reported, never accepted: absent from
+    # AiSettingsUpdate below AND from EDITABLE_FIELDS, so a body carrying it is
+    # dropped twice over; leaving it invisible turned a compose allowlist slip
+    # into an unnoticed change of where plan text is sent (tripl-wkwv.2). An
+    # ORGANIZATION sets its own under /orgs/{org}/settings (F20 PR10), where the
+    # endpoint is part of its provenance and a change re-embeds only its rows.
     search_embedding_base_url: str
 
 
@@ -221,18 +242,7 @@ class AiSettingsUpdate(BaseModel):
     @field_validator("ai_base_url")
     @classmethod
     def _check_ai_base_url(cls, value: str | None) -> str | None:
-        # Format-only guard: must be a well-formed http(s) URL with a host.
-        # We intentionally allow http and private/localhost hosts so that
-        # self-hosted/local LLM endpoints (e.g. http://localhost:11434) work.
-        if value is None:
-            return value
-        trimmed = value.strip()
-        if not trimmed:
-            return trimmed
-        parsed = urlparse(trimmed)
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            raise ValueError("ai_base_url must be a valid http(s) URL")
-        return trimmed
+        return _check_ai_base_url_format(value)
 
     ai_timeout_seconds: int | None = Field(default=None, ge=1)
     ai_max_output_tokens: int | None = Field(default=None, ge=1)
@@ -275,9 +285,26 @@ class ServiceSettingsResponse(BaseModel):
     observability: ObservabilitySettings
     email: EmailSettings
     ai: AiSettings
-    system: SystemSettings
+    # ``None`` for everyone but a platform admin (F20 PR4): the process
+    # environment and migration state are operator information.
+    system: SystemSettings | None
     overridden_fields: list[str]
     sources: dict[str, SettingSource]
+
+
+class CombinedSettingsResponse(ServiceSettingsResponse):
+    """The legacy ``/settings`` view (F20 PR9).
+
+    The operator's infrastructure sections are ``None`` for everyone but a
+    platform admin: an organization admin reading its own organization's
+    values has no business with the operator's server paths, buckets,
+    telemetry endpoint or security policy. ``/platform/settings`` answers
+    :class:`ServiceSettingsResponse` with every section filled in.
+    """
+
+    security: SecuritySettings | None  # type: ignore[assignment]
+    storage: StorageSettings | None  # type: ignore[assignment]
+    observability: ObservabilitySettings | None  # type: ignore[assignment]
 
 
 class ServiceSettingsUpdate(BaseModel):
@@ -336,3 +363,267 @@ class EmailSettingsTestRequest(BaseModel):
 class SettingsTestResponse(BaseModel):
     ok: bool
     message: str
+
+
+# ── organization settings (F20 PR9) ─────────────────────────────────────────
+#
+# What an organization owner/admin may set for their own organization: mail, AI
+# chat, search embeddings (PR10), photo storage (PR11) and the row-limit
+# defaults. The update models forbid unknown keys, so a body carrying an
+# operator field (security, the storage server paths, embedding dimensions, the
+# public URL...) is a 422, never silently dropped.
+
+OrgSettingsScope = Literal["organization", "operator"]
+OperatorFallback = Literal["all", "none"]
+
+
+class OrgLimitSettings(BaseModel):
+    scan_row_limit_default: int
+    metrics_row_limit_default: int
+
+
+class OrgLimitSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scan_row_limit_default: int | None = Field(default=None, ge=1)
+    metrics_row_limit_default: int | None = Field(default=None, ge=1)
+
+
+class OrgEmailSettingsUpdate(EmailSettingsUpdate):
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrgAiSettings(BaseModel):
+    ai_enabled: bool
+    ai_base_url: str
+    ai_model: str
+    ai_api_key_configured: bool
+    ai_timeout_seconds: int
+    ai_max_output_tokens: int
+    describe_system_prompt: str
+    ask_system_prompt: str
+    alert_explanation_system_prompt: str
+
+
+class OrgAiSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ai_enabled: bool | None = None
+    ai_base_url: str | None = None
+    ai_model: str | None = None
+    ai_api_key: str | None = Field(default=None, max_length=4096)
+    ai_timeout_seconds: int | None = Field(default=None, ge=1)
+    ai_max_output_tokens: int | None = Field(default=None, ge=1)
+    describe_system_prompt: str | None = Field(default=None, min_length=1)
+    ask_system_prompt: str | None = Field(default=None, min_length=1)
+    alert_explanation_system_prompt: str | None = Field(default=None, min_length=1)
+
+    @field_validator("ai_base_url")
+    @classmethod
+    def _check_ai_base_url(cls, value: str | None) -> str | None:
+        return _check_ai_base_url_format(value)
+
+
+def _check_embedding_base_url_format(value: str | None) -> str | None:
+    """Format only, like ``ai_base_url``; the private-address check is the service's.
+
+    Blank means "clear" (``None``): an organization's stored ``""`` would make
+    the whole credential group its own with no endpoint at all, so clearing the
+    field falls back to the group default or the operator's endpoint instead.
+    """
+    if value is None:
+        return value
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    parsed = urlparse(trimmed)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError("search_embedding_base_url must be a valid http(s) URL")
+    return trimmed
+
+
+class OrgSearchSettings(BaseModel):
+    """An organization's semantic-search embeddings (F20 PR10)."""
+
+    search_embeddings_enabled: bool
+    search_embedding_provider: str
+    search_embedding_model: str
+    #: Blank while the organization inherits the operator's endpoint (the
+    #: operator's infrastructure is not shown to organization admins).
+    search_embedding_base_url: str
+    search_embedding_api_key_configured: bool
+    #: The operator's, fixed: every organization's model must produce this width.
+    search_embedding_dimensions: int
+
+
+class OrgSearchSettingsUpdate(BaseModel):
+    """Endpoint, provider, model and key are ONE credential group: setting any of
+    them makes the whole group the organization's, and the operator's key is
+    never sent to an organization's endpoint. Saved only after a test embedding
+    of ``search_embedding_dimensions`` values succeeds (422 otherwise)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    search_embeddings_enabled: bool | None = None
+    search_embedding_provider: Literal["openai"] | None = None
+    search_embedding_model: str | None = Field(default=None, min_length=1, max_length=200)
+    search_embedding_base_url: str | None = None
+    search_embedding_api_key: str | None = Field(default=None, max_length=4096)
+
+    @field_validator("search_embedding_base_url")
+    @classmethod
+    def _check_base_url(cls, value: str | None) -> str | None:
+        return _check_embedding_base_url_format(value)
+
+
+PhotoStorageBackend = Literal["local", "gcs"]
+
+
+class OrgStorageSettings(BaseModel):
+    """An organization's photo storage (F20 PR11). No server paths: the local
+    directory and the operator's credential file are the operator's alone."""
+
+    photo_storage_backend: str
+    #: The organization's upload cap, never above the operator's (``ceilings``).
+    photo_max_size_mb: int
+    #: Comma-separated content types, never wider than the operator's list.
+    photo_allowed_mime: str
+    #: Blank while the organization uses the platform's storage.
+    gcs_photo_bucket: str
+    #: Whether the organization's own service-account JSON is stored (write-only).
+    gcs_photo_credentials_configured: bool
+    gcs_photo_public: bool
+    gcs_photo_signed_url_ttl_seconds: int
+
+
+class OrgStorageSettingsUpdate(BaseModel):
+    """Backend, bucket, credential JSON, public URLs and URL lifetime are ONE
+    group: setting any of them makes the organization's photos go to its own
+    storage, and the platform's credentials are never used on its bucket.
+    ``gcs_photo_credentials_json`` is the service-account key file's content:
+    stored encrypted, never returned; ``null`` or an empty string clears it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    photo_storage_backend: PhotoStorageBackend | None = None
+    photo_max_size_mb: int | None = Field(default=None, ge=1)
+    photo_allowed_mime: str | None = Field(default=None, max_length=2000)
+    gcs_photo_bucket: str | None = Field(default=None, max_length=222)
+    gcs_photo_credentials_json: str | None = Field(default=None, max_length=65536)
+    gcs_photo_public: bool | None = None
+    gcs_photo_signed_url_ttl_seconds: int | None = Field(default=None, ge=60, le=604800)
+
+    @field_validator("gcs_photo_bucket")
+    @classmethod
+    def _blank_bucket_clears(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
+
+
+class OrgStorageLimits(BaseModel):
+    """What the operator allows an organization's storage (F20 PR11)."""
+
+    #: The operator's allow-list: an organization's list may only narrow it.
+    operator_allowed_mime: list[str]
+    #: False on a hosted instance: the server's disk is not an organization's.
+    local_backend_allowed: bool
+
+
+class OrgSettingsValues(BaseModel):
+    limits: OrgLimitSettings
+    email: EmailSettings
+    ai: OrgAiSettings
+    search: OrgSearchSettings
+    storage: OrgStorageSettings
+
+
+class OrgSettingsCeilings(BaseModel):
+    """The operator's maxima: an organization's value above one is clamped to it."""
+
+    scan_row_limit_default: int
+    metrics_row_limit_default: int
+    ai_timeout_seconds: int
+    ai_max_output_tokens: int
+    photo_max_size_mb: int
+
+
+class OrgSettingsResponse(OrgSettingsValues):
+    organization: str
+    #: "operator" on a self-hosted instance's default organization, whose values
+    #: ARE the operator's (so password-reset mail follows what is set here).
+    scope: OrgSettingsScope
+    operator_fallback: OperatorFallback
+    #: What the organization would run with if it cleared every value of its
+    #: own: the operator's (fallback "all") or disabled groups (fallback "none").
+    inherited: OrgSettingsValues
+    ceilings: OrgSettingsCeilings
+    storage_limits: OrgStorageLimits
+    overridden_fields: list[str]
+    #: Keyed ``<section>.<field>`` for limits, email, ai, search and storage.
+    sources: dict[str, SettingSource]
+
+
+class OrgSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    limits: OrgLimitSettingsUpdate | None = None
+    email: OrgEmailSettingsUpdate | None = None
+    ai: OrgAiSettingsUpdate | None = None
+    search: OrgSearchSettingsUpdate | None = None
+    storage: OrgStorageSettingsUpdate | None = None
+
+
+# ── organization tracker defaults (F20 PR12) ────────────────────────────────
+#
+# Jira and Linear defaults every project of the organization inherits unless its
+# own tracker config sets the field. Secrets are write-only (``*_configured``).
+# In an update, an omitted field is unchanged and ``null`` or ``""`` clears it.
+
+TrackerDefaultSource = Literal["org", "default"]
+
+
+class OrgJiraDefaults(BaseModel):
+    base_url: str
+    auth_email: str
+    api_token_configured: bool
+    project_key: str
+
+
+class OrgLinearDefaults(BaseModel):
+    api_key_configured: bool
+    team_id: str
+
+
+class OrgTrackerDefaultsResponse(BaseModel):
+    organization: str
+    jira: OrgJiraDefaults
+    linear: OrgLinearDefaults
+    #: Keyed ``jira.<field>`` / ``linear.<field>``: "org" when the organization
+    #: set it, "default" when it did not (projects then need their own).
+    sources: dict[str, TrackerDefaultSource]
+
+
+class OrgJiraDefaultsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: https only, and refused when it resolves to a private address.
+    base_url: str | None = None
+    auth_email: str | None = None
+    api_token: str | None = Field(default=None, max_length=4096)
+    project_key: str | None = None
+
+
+class OrgLinearDefaultsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: str | None = Field(default=None, max_length=4096)
+    team_id: str | None = None
+
+
+class OrgTrackerDefaultsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    jira: OrgJiraDefaultsUpdate | None = None
+    linear: OrgLinearDefaultsUpdate | None = None

@@ -13,8 +13,11 @@ export type NotificationKind =
   | 'branch_approved'
   | 'branch_merged'
   | 'lifecycle'
+  | 'property_drift'
 
 export type SubscriptionEntityType = 'event' | 'event_type' | 'metric' | 'branch'
+/** What a notification is about: a subscribable entity, or a note (a docs @mention). */
+export type NotificationEntityType = SubscriptionEntityType | 'doc'
 
 export type SubscriptionReason = 'author' | 'owner' | 'commenter' | 'reviewer' | 'manual'
 
@@ -31,7 +34,7 @@ export interface AppNotification {
   project_slug: string
   project_name: string
   kind: NotificationKind
-  entity_type: SubscriptionEntityType
+  entity_type: NotificationEntityType
   entity_id: string
   title: string
   body: string

@@ -71,7 +71,7 @@ async def _add_member(user_id: uuid.UUID, org_id: uuid.UUID) -> None:
 @pytest.fixture
 async def user() -> AsyncIterator[User]:
     async with TestSessionLocal() as session:
-        row = User(email="org-matrix@example.com", name="M", password_hash="x", role="editor")
+        row = User(email="org-matrix@example.com", name="M", password_hash="x")
         session.add(row)
         await session.commit()
         await session.refresh(row)
@@ -200,7 +200,7 @@ async def test_registration_writes_a_default_org_membership(client: AsyncClient)
                 OrganizationMember.organization_id == DEFAULT_ORG_ID,
             )
         )
-    # The first user is the instance owner, and so owns the organization.
+    # The first user of a self-hosted instance owns the default organization.
     assert role == OrganizationRole.owner.value
 
 
@@ -240,7 +240,9 @@ async def test_hosted_multi_org_cookie_user_needs_the_org_in_the_path(
 async def test_self_hosted_default_org_path_works_without_a_membership_row(
     client: AsyncClient, self_hosted: None
 ) -> None:
-    # Accounts registered between the PR1 migration and PR2 have no row.
+    # Resolution binds the default org without a membership row (migration
+    # c9e1a3b5d7f9 gave every older account one); what the account may then do
+    # is its roles' business: its creator row still reaches the project.
     assert (
         await client.post("/api/v1/projects", json={"name": "Nm", "slug": "nm"})
     ).status_code == 201

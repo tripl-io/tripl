@@ -42,7 +42,10 @@ bucket against a seasonal baseline and scores the gap as
 `min_expected_count` (default 50). It also emits **distribution-drift** signals
 (a value mix shifted) and **release-regression** signals (a new app version
 under-fires an event), plus **variable-value drift** when an event observes
-values outside its effective documented variable list. A scan whose source is
+values outside its effective documented property list, and **property drift**
+when an event's property list and what a scan saw disagree (a new property, a
+required one going missing, a type change — see [Property drift](#property-drift)).
+A scan whose source is
 late or overdue produces one **source freshness** signal instead of a drop on
 every scope. See [Source freshness](#source-freshness). A daily lifecycle check
 adds **lifecycle** signals for retirements that are not going to plan — see
@@ -81,6 +84,18 @@ the same delivery doesn't open duplicates). The chat channels (Slack, Telegram)
 post a message; **Webhook** POSTs a JSON payload. **MarkdownV2** falls back to
 plain text automatically if a message can't be rendered safely.
 :::
+
+An email destination's **From** address is used only if the mail goes out
+through your organization's own SMTP relay. If your organization has no SMTP
+settings of its own, the mail goes out through the operator's relay and uses
+that relay's configured sender, and the destination's From address is ignored.
+Entering the operator's own SMTP host in your organization's settings does not
+count as your own relay. On a hosted instance a From address can only be saved
+if your organization has its own SMTP relay, even when its domain is one of your
+verified single sign-on domains, because the operator's relay would not use it.
+Otherwise the save fails with a 422 error. On a self-hosted instance the default
+organization uses the operator's settings, so its From address works as it did
+before.
 
 Credentials are write-only. When you edit a destination, a secret box left empty
 keeps the stored value. The webhook's custom header is a pair: a new header name
@@ -518,7 +533,8 @@ the drift/regression signals are opt-in:
 | Event volume | on |
 | Schema drift | off |
 | Distribution drift | off |
-| Variable value drift | off |
+| Property value drift | off |
+| Property drift | off |
 | Release regression | off |
 | Metric anomaly | off |
 | Source freshness | off |
@@ -534,7 +550,7 @@ the drift and regression signals they behave like a volume anomaly — they carr
 a real spike/drop direction and **do** honor the count thresholds below.
 
 **Direction.** *Notify on spike* and *notify on drop* (at least one must be on).
-Schema, distribution, and variable-value drift are reported as a **spike**;
+Schema, distribution, variable-value and property drift are reported as a **spike**;
 release regressions and source freshness are reported as a **drop** — so a
 drift-only rule still needs *notify on spike* enabled, and a rule that should
 hear about late data needs *notify on drop*. **Lifecycle** alerts are the
@@ -583,7 +599,7 @@ simulator to see what the new value would have sent.
 :::warning
 Thresholds apply to the volume scopes (project total / event type / event) and to
 **metric anomalies**. Schema drift, distribution drift, variable-value drift,
-release regressions and lifecycle findings **bypass** thresholds — if you enable
+property drift, release regressions and lifecycle findings **bypass** thresholds — if you enable
 those scopes, they fire regardless of the count thresholds.
 :::
 
@@ -670,6 +686,46 @@ rule editor — which is off by default.
 Lifecycle findings are computed on `main` only, so a retirement documented on a
 working branch is not watched until the branch merges.
 
+### Property drift {#property-drift}
+
+Scans compare each event's [property list](./variables-and-templates.md) with
+what they observe and record the difference as a **property drift**. The
+**Property drift** scope turns the open ones into alerts. It is opt-in through
+the rule's **`include_property_drifts`** field — the **Property drift** box in
+the rule editor — which is off by default.
+
+- **One candidate per open drift.** Every property drift that is open (or whose
+  snooze has run out), on a property still scanned, detected by the collecting
+  scan in the last 30 days, is one candidate with scope type `property_drift`.
+  Its kind rides `${drift_type}`, most serious first:
+  - `missing_required` — a property the event's list marks required was
+    carried on fewer rows than the event's threshold (or on none);
+  - `type_change` — a property's sampled values are of a type its declared
+    type does not admit. This one is about the property, not an event, so it
+    carries no event and passes an `event` or `event_type` filter the way a
+    schema drift does;
+  - `new_property` — the event carried a property its list does not name
+    (only for events whose list names at least one property).
+- **The message.** The drift line reads, for example,
+  `Missing required property ${plan}: on 40% of rows, required on 95%`,
+  `Property type changed ${price}: observed number, typed string` or
+  `New property ${coupon}: on 12% of rows, not on the event's property list`.
+  The item is named `<event>.<property>` (`All events.<property>` for a type
+  change). `${drift_field}` is the property, `${sample_value}` what the scan
+  saw; `${actual_count}` / `${expected_count}` hold the presence rate and the
+  threshold in percent, for the delivery's item table only.
+- **Cooldown and incidents per drift**, like value drift: a drift that stays
+  open is not re-sent inside the rule's cooldown, and each drift is its own
+  incident in the [Inbox](#the-inbox), which links to the event page, where the
+  drift can be accepted, snoozed or dismissed.
+- **Spike, no thresholds.** Property drift is reported as a spike and bypasses
+  the count thresholds; filters apply. The
+  [simulator](#replaying-a-what-if-without-saving-it) replays it.
+
+Watchers of an event are also told in the bell once per new per-event property
+drift, and the project's open property drifts are marked on the **Properties**
+item of the sidebar.
+
 ### When a scope is on but nothing feeds it
 
 Enabling a scope narrows what a rule reacts to; it never creates the signals.
@@ -677,19 +733,19 @@ The two drift scopes depend on plan and scan configuration a rule does not own,
 so a rule can have one of them switched on and still be structurally unable to
 fire — no error anywhere, just permanent silence.
 
-**Variable value drift** needs some variable to document an allowed-values list
+**Property value drift** needs some property to document an allowed-values list
 on the **main** branch, *or* a value drift already collected in this project.
-Either documented source counts: the variable's own list of allowed values, or a
+Either documented source counts: the property's own list of allowed values, or a
 per-event override of it. One of them is enough. Values documented on a working
 branch change nothing until that branch merges, because detection runs against
-main, and a variable excluded from scans never drifts however full its list is.
+main, and a property excluded from scans never drifts however full its list is.
 Collected drift counts on its own for the same reason it does for distribution
 drift — candidates are built from the drift rows, so an open or snoozed row from
 the last 30 days keeps the scope live even after the documented list that
 produced it is emptied. The exclusion rule reaches those rows too: excluding a
-variable from scans keeps the drift it already had, but alerts skip that drift,
+property from scans keeps the drift it already had, but alerts skip that drift,
 so it no longer counts towards readiness either. A project whose only surviving
-value drift sits on excluded variables reads as a scope that cannot fire.
+value drift sits on excluded properties reads as a scope that cannot fire.
 
 **Distribution drift** needs a scan that names the columns to watch (**Scan
 settings → Metric breakdowns and drift → Distribution drift**), *or* a
@@ -703,11 +759,11 @@ into an alert.
 When neither source exists, the rule editor and the monitor detail say so
 inline, beside the box you just ticked:
 
-- *Value drift is on, but no variable that scans observe documents an
+- *Value drift is on, but no property that scans observe documents an
   allowed-values list on the main branch — this scope cannot fire until one
-  does.* The notice links to **Variables**, and adds that Variables opens on the
+  does.* The notice links to **Properties**, and adds that Properties opens on the
   branch you have selected — a list documented on a working branch counts only
-  once it merges. (A variable excluded from scans does not count, which is what
+  once it merges. (A property excluded from scans does not count, which is what
   "that scans observe" means.)
 - *Distribution drift is on, but no scan in this project watches a column for
   it — this scope cannot fire until one does.* The notice links to **Scan
@@ -832,7 +888,7 @@ matches at a time, so type to reach an event that isn't in the first page — th
 footer tells you how many matches are still hidden.
 
 Variable-value drift carries its affected `event_id`, so event filters apply;
-its alert item uses the variable name as `drift_field` and a bounded novel-value
+its alert item uses the property name as `drift_field` and a bounded novel-value
 sample as `sample_value`. That same `event_id` is what `details:` links to: the
 event's monitoring page carries the **Value drift** panel, which lists the full
 set of observed values the message could only sample, and lets you accept,
@@ -1032,11 +1088,18 @@ same member, email and SMTP conditions apply, and two more limits:
 ## Message templates
 
 Messages are rendered from templates using `${variable}` placeholders (an unknown
-variable is rejected, so a typo fails fast rather than sending a broken message).
+property is rejected, so a typo fails fast rather than sending a broken message).
 
-- **Message-level:** `${project_name}`, `${project_slug}`, `${channel}`,
-  `${destination_name}`, `${rule_name}`, `${scan_name}`, `${matched_count}`,
-  `${items_count}`, `${items_text}`.
+- **Message-level:** `${project_name}`, `${project_slug}`, `${org_slug}`,
+  `${channel}`, `${destination_name}`, `${rule_name}`, `${scan_name}`,
+  `${matched_count}`, `${items_count}`, `${items_text}`.
+
+  `${org_slug}` is the slug of the organization the project belongs to.
+  `${project_slug}` is still the bare project slug, and a project slug is unique
+  only inside its organization, so a template that builds its own link into
+  tripl should write `/o/${org_slug}/p/${project_slug}/...`. The links tripl
+  puts in the message itself (`${details_url}`, `${monitoring_url}` and their
+  `*_line` variants) already have that form.
 - **Per matched item:** `${scope_name}`, `${scope_type}`, `${scope_label}`,
   `${direction}`, `${direction_label}`, `${actual_count}`, `${expected_count}`,
   `${expected_basis}`,
@@ -1070,11 +1133,11 @@ variable is rejected, so a typo fails fast rather than sending a broken message)
   scope computes its expectation differently from all the others: a **release
   regression** compares shares, not counts, so its `${expected_count}` is
   followed by `(adoption-adjusted)`. If you write a custom item template and
-  drop this variable, release-regression items lose that qualifier — see
+  drop this property, release-regression items lose that qualifier — see
   [Release-regression items](#release-regression-items) below for why it is
   there.
 - **Email subject** supports a smaller set: `${project_name}`, `${project_slug}`,
-  `${rule_name}`, `${destination_name}`, `${matched_count}`.
+  `${org_slug}`, `${rule_name}`, `${destination_name}`, `${matched_count}`.
 
 An optional **AI explanation** can be appended to messages; it is off by default
 and does nothing unless an AI provider is configured — see
@@ -1265,7 +1328,7 @@ volume over the rollout-overlap window — so the message writes it as
 ```
 - Release regression home:open:map:: down, actual=345, expected=715.7 (adoption-adjusted), delta=370.7 (51.8%)
   release: dropped in 15.7.5 vs 15.7.4 over the 51h rollout overlap; 715.7 is 15.7.4's share of this event at 15.7.5's own volume, so 51.8% is share-for-share
-  details: https://your-tripl/p/shop-ios/alerting/<delivery-id>?item=release_regression:<scope-ref>
+  details: https://your-tripl/o/acme/p/shop-ios/alerting/<delivery-id>?item=release_regression:<scope-ref>
 ```
 
 This answers the obvious objection before you raise it: *"the release only just

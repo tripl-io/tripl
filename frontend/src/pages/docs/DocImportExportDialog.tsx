@@ -46,7 +46,7 @@ export function DocImportExportDialog({
   open,
   onOpenChange,
   canEdit,
-  isOwner,
+  isOrgAdmin,
   organizationName,
   limits,
 }: {
@@ -54,7 +54,8 @@ export function DocImportExportDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
   canEdit: boolean
-  isOwner: boolean
+  /** An organization owner or admin: the only writers of organization notes. */
+  isOrgAdmin: boolean
   organizationName: string
   limits: DocTreeLimits
 }) {
@@ -66,7 +67,9 @@ export function DocImportExportDialog({
   const [busy, setBusy] = useState<'export' | 'preview' | 'apply' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const invalidate = useInvalidateDocs(slug)
-  const mirrorBlocked = mode === 'mirror' && scope === 'organization' && !isOwner
+  // Organization notes are imported (merge or mirror) by organization owners
+  // and admins only, the server's rule in services/docs_access.py.
+  const orgBlocked = scope === 'organization' && !isOrgAdmin
 
   const reset = () => {
     setPreview(null)
@@ -199,7 +202,12 @@ export function DocImportExportDialog({
               {mode === 'mirror' && (
                 <p className="m-0 text-caption text-warning">
                   Mirror deletes every {scope === 'organization' ? 'organization' : 'project'} note that is not in the
-                  upload.{mirrorBlocked ? ' Only the instance owner can mirror organization notes.' : ''}
+                  upload.
+                </p>
+              )}
+              {orgBlocked && (
+                <p className="m-0 text-caption text-fg-tertiary">
+                  Only organization owners and admins can import organization notes.
                 </p>
               )}
               {file && !/\.json$/i.test(file.name) && (
@@ -212,7 +220,7 @@ export function DocImportExportDialog({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!file || busy !== null || mirrorBlocked}
+                  disabled={!file || busy !== null || orgBlocked}
                   onClick={() => void runImport(true)}
                 >
                   {busy === 'preview' ? <Loader2 className="animate-spin" aria-hidden /> : <Upload aria-hidden />}
@@ -221,7 +229,7 @@ export function DocImportExportDialog({
                 <Button
                   size="sm"
                   variant={mode === 'mirror' ? 'destructive' : 'default'}
-                  disabled={!file || busy !== null || mirrorBlocked || !preview?.dry_run || preview.errors.length > 0}
+                  disabled={!file || busy !== null || orgBlocked || !preview?.dry_run || preview.errors.length > 0}
                   onClick={() => void runImport(false)}
                 >
                   {busy === 'apply' && <Loader2 className="animate-spin" aria-hidden />}

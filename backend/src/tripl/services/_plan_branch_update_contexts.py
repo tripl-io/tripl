@@ -119,6 +119,7 @@ async def copy_value_contexts(
                 value_kind=context.value_kind,
                 observed_count=context.observed_count,
                 values=list(context.values or []),
+                presence_rate=context.presence_rate,
             )
         )
     await session.flush()

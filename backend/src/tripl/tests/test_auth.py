@@ -5,6 +5,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from tripl.config import REGISTRATION_DISABLED, REGISTRATION_OPEN, settings
+from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.user import User
 from tripl.services import auth_service
@@ -105,14 +106,14 @@ async def test_status_reports_empty_instance_then_populated(anon_client: AsyncCl
 
 @pytest.mark.asyncio
 async def test_first_owner_lock_is_noop_off_postgres():
-    # The first-owner TOCTOU guard is a constant-key pg_advisory_xact_lock taken
-    # before the has_any_users() check; PostgreSQL serialises concurrent first
-    # registrations there. On SQLite (this suite) the helper must be a silent
-    # no-op — it must not emit SQL the dialect can't parse or raise. The
+    # The first-owner TOCTOU guard is the default organization's owner-set
+    # pg_advisory_xact_lock, taken before the has_any_users() check; PostgreSQL
+    # serialises concurrent first registrations there. On SQLite (this suite)
+    # the helper must be a silent no-op — it must not emit SQL the dialect can't parse or raise. The
     # behavioural race itself is untestable here: the suite runs on a single
     # in-memory connection, so two registrations can never interleave.
     async with TestSessionLocal() as session:
-        await auth_service.acquire_owner_set_xact_lock(session)
+        await auth_service.acquire_owner_set_xact_lock(session, DEFAULT_ORG_ID)
 
 
 @pytest.mark.asyncio
@@ -387,7 +388,8 @@ async def test_open_mode_allows_registration_after_the_first_user(
     )
 
     assert second.status_code == 201
-    assert second.json()["role"] == "editor"
+    assert second.json()["role"] == "member"
+    assert second.json()["is_platform_admin"] is False
 
 
 @pytest.mark.asyncio
@@ -462,6 +464,8 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "has_users": False,
         "registration_enabled": True,
         "email_configured": False,
+        "deployment_mode": "self_hosted",
+        "email_verification_required": False,
     }
 
     await _register(anon_client, "status-owner@example.com", "Password123!")
@@ -471,4 +475,6 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "has_users": True,
         "registration_enabled": False,
         "email_configured": False,
+        "deployment_mode": "self_hosted",
+        "email_verification_required": False,
     }

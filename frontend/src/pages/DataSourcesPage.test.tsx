@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { SettingsLayout } from '@/components/settings/SettingsLayout'
 import DataSourcesPage from './DataSourcesPage'
-import type { DataSource } from '@/types'
+import type { DataSource, Role } from '@/types'
 
 const DATA_SOURCE: DataSource = {
   id: 'ds-1',
@@ -145,13 +145,15 @@ function LocationProbe() {
   return <span data-testid="location">{location.pathname}</span>
 }
 
-function authValue(role: 'owner' | 'editor' | 'viewer'): AuthContextValue {
+function authValue(role: Role): AuthContextValue {
   return {
     user: {
       id: `${role}-1`,
       email: `${role}@example.com`,
       name: role,
       role,
+      is_platform_admin: false,
+      orgs: [],
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     },
@@ -165,7 +167,7 @@ function authValue(role: 'owner' | 'editor' | 'viewer'): AuthContextValue {
 
 function renderDataSourcesPage(
   path = '/settings/data-sources/ds-1',
-  role: 'owner' | 'editor' | 'viewer' = 'owner',
+  role: Role = 'owner',
   queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -311,7 +313,7 @@ describe('DataSourcesPage', () => {
       return Promise.reject(new Error(`Unexpected request: ${url}`))
     })
 
-    renderDataSourcesPage('/settings/data-sources/ds-1', 'editor')
+    renderDataSourcesPage('/settings/data-sources/ds-1', 'member')
 
     expect(await screen.findByText('Warehouse')).toBeInTheDocument()
     await waitFor(() => {
@@ -459,7 +461,7 @@ describe('DataSourcesPage', () => {
     }
     vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([redacted]))
 
-    renderDataSourcesPage('/settings/data-sources', 'editor')
+    renderDataSourcesPage('/settings/data-sources', 'member')
 
     expect(await screen.findByText('Warehouse')).toBeInTheDocument()
     expect(screen.queryByText(/:0\//)).not.toBeInTheDocument()
@@ -906,7 +908,7 @@ describe('DataSourcesPage', () => {
     expect(screen.queryByText('my-gcp-project:8123/analytics')).not.toBeInTheDocument()
   })
 
-  it('hides inline recovery actions from non-owners on a failed source', async () => {
+  it('hides inline recovery actions from members on a failed source', async () => {
     const failedSource: DataSource = {
       ...DATA_SOURCE,
       last_test_status: 'failed',
@@ -915,7 +917,7 @@ describe('DataSourcesPage', () => {
     }
     vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([failedSource]))
 
-    renderDataSourcesPage('/settings/data-sources', 'viewer')
+    renderDataSourcesPage('/settings/data-sources', 'member')
 
     expect(await screen.findByText('Connection refused')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Re-test connection' })).not.toBeInTheDocument()

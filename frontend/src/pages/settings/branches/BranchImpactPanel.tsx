@@ -82,8 +82,8 @@ export function BranchImpactPanel({ slug, branchId }: { slug: string; branchId: 
       {touching.length === 0 ? (
         <p className="m-0 text-body-sm text-fg-tertiary">
           Deleted, deprecated, renamed and changed (edited in place, such as a field&apos;s type)
-          events, event types, fields and variables are checked against the metrics, alert rules,
-          relations and variables that use them.
+          events, event types, fields and properties are checked against the metrics, alert rules,
+          relations and properties that use them.
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-4 p-0" aria-label="Changes with downstream impact">

@@ -115,8 +115,10 @@ def detect_variable_value_drifts(
     if branch_id is not None:
         override_query = override_query.where(VariableEventValueOverride.branch_id == branch_id)
     overrides: dict[tuple[uuid.UUID, uuid.UUID], list[str]] = {
-        (override.variable_id, override.event_id): list(override.values or [])
+        (override.variable_id, override.event_id): list(override.values)
         for override in session.execute(override_query).scalars()
+        # A property entry without an override leaves the global list in force.
+        if override.values is not None
     }
 
     novel_by_pair: dict[tuple[uuid.UUID, uuid.UUID], list[str]] = {}

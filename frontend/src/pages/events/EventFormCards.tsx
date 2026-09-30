@@ -21,6 +21,7 @@ import {
   ScanMaintenanceNotice,
 } from './eventFormFields'
 import { breakdownChipId, focusBreakdownChip } from './eventFormValues'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 export function TagsBreakdownsCard({
   tags,
@@ -203,13 +204,13 @@ export function FieldValuesCard({
         <>
           Columns defined by the{' '}
           {eventTypeId ? (
-            <SubtitleLink to={`/p/${slug}/event-types/${eventTypeId}`}>{typeLabel}</SubtitleLink>
+            <SubtitleLink to={projectPath(currentOrgSlug(), slug, `/event-types/${eventTypeId}`)}>{typeLabel}</SubtitleLink>
           ) : (
             typeLabel
           )}{' '}
           type; scans match the event on these.
           {nameFormat ? ` The event name is built from ${[...namingColumns].join(', ')}.` : ''}{' '}
-          Type <span className="mono">{'${'}</span> to insert a variable.
+          Type <span className="mono">{'${'}</span> to insert a property.
         </>
       }
     >
@@ -256,7 +257,7 @@ export function FieldValuesCard({
                   <FieldBreakdownLink
                     column={f.name}
                     href={branchLink(
-                      `/p/${slug}/monitoring/event/${event.id}`
+                      projectPath(currentOrgSlug(), slug, `/monitoring/event/${event.id}`)
                         + `?tab=breakdowns&column=${encodeURIComponent(f.name)}`,
                       branchId,
                     )}
@@ -329,7 +330,7 @@ export function MetaFieldsCard({
           {slug && (
             <>
               {' '}
-              <SubtitleLink to={`/p/${slug}/meta-fields`}>Manage meta fields</SubtitleLink>
+              <SubtitleLink to={projectPath(currentOrgSlug(), slug, '/meta-fields')}>Manage meta fields</SubtitleLink>
             </>
           )}
         </>

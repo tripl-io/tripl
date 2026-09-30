@@ -9,6 +9,7 @@ from httpx import AsyncClient
 from tripl.models.alert_delivery import AlertDelivery
 from tripl.models.alert_delivery_item import AlertDeliveryItem
 from tripl.services import llm_service
+from tripl.services.app_settings_service import env_ai_config
 from tripl.services.ai_service import _parse_describe_response, _strip_markdown_fences
 
 # Importing metrics first initializes the worker task graph in dependency
@@ -75,17 +76,17 @@ async def test_ask_returns_503_when_disabled(client: AsyncClient):
 
 
 def test_llm_complete_returns_none_when_disabled():
-    assert llm_service.is_enabled() is False
-    assert llm_service.complete("system", "user") is None
+    assert llm_service.is_enabled(env_ai_config()) is False
+    assert llm_service.complete("system", "user", config=env_ai_config()) is None
 
 
 def test_llm_is_enabled_requires_api_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
     monkeypatch.setattr(llm_service.settings, "ai_api_key", "")
     monkeypatch.setattr(llm_service.settings, "openai_api_key", "")
-    assert llm_service.is_enabled() is False
+    assert llm_service.is_enabled(env_ai_config()) is False
     monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-test")
-    assert llm_service.is_enabled() is True
+    assert llm_service.is_enabled(env_ai_config()) is True
 
 
 def _success_body(text: str = "ok") -> str:
@@ -106,7 +107,9 @@ def test_llm_complete_retries_with_max_completion_tokens(monkeypatch: pytest.Mon
         return _success_body("described"), None
 
     monkeypatch.setattr(llm_service, "_post_chat_completions", fake_post)
-    assert llm_service.complete("system", "user", max_tokens=50) == "described"
+    assert (
+        llm_service.complete("system", "user", max_tokens=50, config=env_ai_config()) == "described"
+    )
     assert len(sent_payloads) == 3
     assert "max_tokens" not in sent_payloads[1]
     assert sent_payloads[1]["max_completion_tokens"] == 50
@@ -129,7 +132,11 @@ def test_llm_complete_drops_response_format_a_server_does_not_support(
 
     monkeypatch.setattr(llm_service, "_post_chat_completions", fake_post)
     result = llm_service.complete(
-        "system", "user", max_tokens=50, response_format={"type": "json_object"}
+        "system",
+        "user",
+        max_tokens=50,
+        response_format={"type": "json_object"},
+        config=env_ai_config(),
     )
     assert result == "described"
     assert sent_payloads[0]["response_format"] == {"type": "json_object"}
@@ -147,7 +154,7 @@ def test_llm_complete_returns_none_on_non_retryable_error(monkeypatch: pytest.Mo
         return None, {"code": "invalid_api_key", "param": None}
 
     monkeypatch.setattr(llm_service, "_post_chat_completions", fake_post)
-    assert llm_service.complete("system", "user") is None
+    assert llm_service.complete("system", "user", config=env_ai_config()) is None
     assert len(calls) == 1
 
 
@@ -350,7 +357,7 @@ def test_build_ai_explanation_includes_item_context(monkeypatch: pytest.MonkeyPa
         captured["user_prompt"] = user_prompt
         return "The drop is isolated to the home screen."
 
-    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda: True)
+    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda *_a, **_k: True)
     monkeypatch.setattr("tripl.services.llm_service.complete", fake_complete)
 
     result = alerts_task._build_ai_explanation(
@@ -373,7 +380,7 @@ def _capture_prompt(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
         captured["user_prompt"] = user_prompt
         return "explained"
 
-    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda: True)
+    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda *_a, **_k: True)
     monkeypatch.setattr("tripl.services.llm_service.complete", fake_complete)
     return captured
 
@@ -463,7 +470,7 @@ def test_build_ai_explanation_does_not_tell_the_model_nothing_changed(
 
 def test_build_ai_explanation_swallows_llm_errors(monkeypatch: pytest.MonkeyPatch):
     delivery = _delivery_with_item()
-    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda: True)
+    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda *_a, **_k: True)
 
     def boom(*args: object, **kwargs: object) -> str:
         raise RuntimeError("provider down")
@@ -601,7 +608,7 @@ def test_build_ai_explanation_tells_the_model_what_it_already_said(
         captured["user_prompt"] = user_prompt
         return "Still falling, now 90% below expected."
 
-    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda: True)
+    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda *_a, **_k: True)
     monkeypatch.setattr("tripl.services.llm_service.complete", fake_complete)
     monkeypatch.setattr(
         alerts_messages,
@@ -632,7 +639,7 @@ def test_build_ai_explanation_without_a_session_is_unchanged(monkeypatch: pytest
         captured["user_prompt"] = user_prompt
         return "First time."
 
-    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda: True)
+    monkeypatch.setattr("tripl.services.llm_service.is_enabled", lambda *_a, **_k: True)
     monkeypatch.setattr("tripl.services.llm_service.complete", fake_complete)
 
     assert (

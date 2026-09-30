@@ -37,6 +37,7 @@ from tripl.models.event_metric import EventMetric
 from tripl.models.lifecycle_finding import LifecycleFinding, LifecycleFindingKind
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.scan_config import ScanConfig
+from tripl.services.active_org_scope import in_active_org
 from tripl.services.lifecycle_rules import (
     SUCCESSOR_SILENCE_WINDOW,
     SUNSET_VOLUME_WINDOW,
@@ -123,6 +124,7 @@ def _desired_findings(session: Session, *, now: datetime) -> dict[tuple[uuid.UUI
         .where(
             PlanBranch.kind == BranchKind.main.value,
             Event.status == EventStatus.deprecated.value,
+            in_active_org(Event.project_id),
         )
     ).all()
     desired: dict[tuple[uuid.UUID, str], _Desired] = {}
@@ -190,7 +192,14 @@ def compute_lifecycle_findings(session: Session, *, now: datetime) -> LifecycleS
     desired = _desired_findings(session, now=now)
     stats = LifecycleSweepStats()
 
-    existing = session.execute(select(LifecycleFinding)).scalars().all()
+    # Only active organizations' findings are reconciled: a suspended one's
+    # stay exactly as they were, rather than resolving because its events were
+    # left out of ``desired`` (F20 PR14).
+    existing = (
+        session.execute(select(LifecycleFinding).where(in_active_org(LifecycleFinding.project_id)))
+        .scalars()
+        .all()
+    )
     seen_keys: set[tuple[uuid.UUID, str]] = set()
     for finding in existing:
         key = (finding.event_id, finding.kind)

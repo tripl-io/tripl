@@ -14,6 +14,11 @@ from tripl.models.project_tracker_config import ProjectTrackerConfig
 from tripl.schemas.implementation_ticket import ImplementationTicketResponse
 from tripl.services._branch_counterparts import main_counterparts
 from tripl.services.event_service import get_event
+from tripl.services.org_tracker_defaults_service import (
+    NO_DEFAULTS,
+    OrgTrackerDefaults,
+    defaults_for_project_sync,
+)
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
 
@@ -139,19 +144,22 @@ def _ticket_ref(ticket: ImplementationTicket) -> _TicketRef:
 
 def _load_comment_inputs(
     session: Session, ticket: ImplementationTicket
-) -> tuple[ProjectTrackerConfig | None, _TicketRef]:
+) -> tuple[ProjectTrackerConfig | None, _TicketRef, OrgTrackerDefaults]:
     config = session.scalar(
         select(ProjectTrackerConfig).where(ProjectTrackerConfig.project_id == ticket.project_id)
     )
+    # The organization's tracker defaults (F20 PR12), under the project's values.
+    defaults = defaults_for_project_sync(session, ticket.project_id)
     # Freshly loaded, so every column the HTTP half reads is already populated
     # and nothing it touches can trigger a lazy load.
-    return config, _ticket_ref(ticket)
+    return config, _ticket_ref(ticket), defaults
 
 
 def _post_ticket_comment(
     config: ProjectTrackerConfig | None,
     ticket: _TicketRef,
     text: str,
+    defaults: OrgTrackerDefaults = NO_DEFAULTS,
 ) -> bool:
     """The network half of ``add_ticket_comment``: no session, never raises.
 
@@ -180,14 +188,14 @@ def _post_ticket_comment(
         from tripl.worker.tasks.tracker_clients import add_jira_comment, add_linear_comment
 
         if ticket.tracker_type == TRACKER_LINEAR:
-            linear = _resolve_linear_config(config)
+            linear = _resolve_linear_config(config, defaults)
             issue_ref = ticket.external_id or ticket.external_key
             if linear is None or not issue_ref:
                 return False
             api_key, _team_id = linear
             return add_linear_comment(_post_json, api_key=api_key, issue_id=issue_ref, body=text)
 
-        jira = _resolve_jira_config(config)
+        jira = _resolve_jira_config(config, defaults)
         if jira is None or not ticket.external_key:
             return False
         base_url, auth_email, api_token, _project_key, _issue_type = jira
@@ -223,11 +231,11 @@ def add_ticket_comment(session: Session, ticket: ImplementationTicket, text: str
     not while it holds row locks.
     """
     try:
-        config, ref = _load_comment_inputs(session, ticket)
+        config, ref, defaults = _load_comment_inputs(session, ticket)
     except Exception:
         logger.warning("Could not load tracker config for ticket comment", exc_info=True)
         return False
-    return _post_ticket_comment(config, ref, text)
+    return _post_ticket_comment(config, ref, text, defaults)
 
 
 async def add_ticket_comment_async(
@@ -235,8 +243,8 @@ async def add_ticket_comment_async(
 ) -> bool:
     """``add_ticket_comment`` for an async session; the HTTP call runs off the loop."""
     try:
-        config, ref = await session.run_sync(_load_comment_inputs, ticket)
+        config, ref, defaults = await session.run_sync(_load_comment_inputs, ticket)
     except Exception:
         logger.warning("Could not load tracker config for ticket comment", exc_info=True)
         return False
-    return await asyncio.to_thread(_post_ticket_comment, config, ref, text)
+    return await asyncio.to_thread(_post_ticket_comment, config, ref, text, defaults)

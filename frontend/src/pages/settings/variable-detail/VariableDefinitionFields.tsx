@@ -23,6 +23,8 @@ import {
 } from '../variablesShared'
 import { invalidValuesFor } from '../variableValueValidation'
 import type { VariableDefinitionDraft } from './useVariableDefinitionDraft'
+import { PropertySchemaEditor, PropertySchemaSummary } from './PropertySchemaEditor'
+import { schemaMatchesType } from '@/lib/propertySchema'
 
 function TokenList({ values }: { values: readonly string[] }) {
   if (values.length === 0) return null
@@ -102,6 +104,12 @@ export function VariableDefinitionFields({
         items={[
           { label: 'Name', value: <span className="mono">{variable.name}</span> },
           { label: 'Type', value: TYPE_LABELS[variable.variable_type] },
+          {
+            label: 'Schema',
+            value: variable.json_schema && schemaMatchesType(variable.variable_type, variable.json_schema)
+              ? <PropertySchemaSummary schema={variable.json_schema} />
+              : null,
+          },
           { label: 'Description', value: variable.description },
           {
             label: 'Possible values (documented)',
@@ -124,8 +132,13 @@ export function VariableDefinitionFields({
 
   // Overrides are values too, and a type change strands them the same way
   // (review 204): distinct, in the order the overrides list them.
+  // The server names the schema node it refused ("json_schema.properties.x:
+  // ..."), so that refusal is shown under the schema editor, not at the foot.
+  const saveError = draft.updateMut.isError ? getErrorMessage(draft.updateMut.error) : null
+  const schemaError = saveError && /json_schema/.test(saveError) ? saveError : null
+
   const invalidOverrideValues = [
-    ...new Set(invalidValuesFor(draft.type, overrides.flatMap((override) => override.values))),
+    ...new Set(invalidValuesFor(draft.type, overrides.flatMap((override) => override.values ?? []))),
   ]
 
   return (
@@ -161,6 +174,13 @@ export function VariableDefinitionFields({
           />
         </div>
       </div>
+      <PropertySchemaEditor
+        variableType={draft.type}
+        schema={draft.schema}
+        onChange={draft.setSchema}
+        problems={draft.schemaIssues}
+        error={schemaError}
+      />
       <div className="grid gap-2">
         <Label htmlFor={valuesId}>Possible values (documented)</Label>
         <ChipListInput
@@ -204,10 +224,10 @@ export function VariableDefinitionFields({
             creation and misleading here: emptying a binding a scan filled in
             makes the row read as hand-owned to `_human_claim`, and it is then
             exempt from the retirement sweep for good. */}
-        <p className="text-caption text-fg-tertiary">Needed only where the warehouse column or JSON path is spelled differently from the name; otherwise scans match on the name. A binding a scan filled in is how it keeps finding this variable — removing it marks the variable as yours, and retirement stops considering it.</p>
+        <p className="text-caption text-fg-tertiary">Needed only where the warehouse column or JSON path is spelled differently from the name; otherwise scans match on the name. A binding a scan filled in is how it keeps finding this property — removing it marks the property as yours, and retirement stops considering it.</p>
         <BindingVersusTokenNote example={example} />
       </div>
-      {draft.updateMut.isError && (
+      {draft.updateMut.isError && !schemaError && (
         <p role="alert" className="text-body text-destructive">{getErrorMessage(draft.updateMut.error)}</p>
       )}
     </div>

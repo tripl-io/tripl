@@ -30,7 +30,7 @@ import ssl
 import urllib.error
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
@@ -142,6 +142,10 @@ class _TestTarget:
     linear_team_id: str | None
     linear_state_id: str | None
     linear_label_ids: str | None
+    # The project's organization, whose SMTP relay an email test goes through
+    # (F20 PR9). ``None`` sends nothing: the send refuses rather than borrow
+    # the operator's relay.
+    organization_id: uuid.UUID | None = None
 
 
 def _decrypt(encrypted: str | None) -> str | None:
@@ -377,15 +381,21 @@ def _send_email(target: _TestTarget) -> None:
     from tripl.worker.tasks.alerts_channels import _parse_email_recipients
 
     # No session argument: this runs off the event loop, so it opens its own
-    # short-lived sync session exactly as the worker does.
-    email_config = app_settings_service.get_email_config_sync()
+    # short-lived sync session exactly as the worker does. The project's
+    # organization's relay (F20 PR9); with no organization, no relay at all.
+    email_config = (
+        app_settings_service.get_email_config_sync(org_id=target.organization_id)
+        if target.organization_id is not None
+        else app_settings_service.disabled_email_config()
+    )
     if not email_config.smtp_host:
         raise ValueError(
             "Email destination is configured but SMTP is not — set SMTP_HOST "
             "(and SMTP_USERNAME/SMTP_PASSWORD if your relay requires auth)."
         )
     recipients = _parse_email_recipients(validate_email_recipients(target.email_recipients))
-    from_address = target.email_from_address or email_config.smtp_from_address
+    # Same rule as delivery (critique #16): the override only on an own relay.
+    from_address = app_settings_service.email_sender_for(target.email_from_address, email_config)
     if not from_address:
         raise ValueError("Email destination has no From: address and SMTP_FROM_ADDRESS is unset.")
     alerts._send_email_message(
@@ -632,7 +642,7 @@ async def _run_test_send(
 
     # Built after the policy check, so a refused send never decrypts anything.
     try:
-        target = build_target()
+        target = replace(build_target(), organization_id=project.organization_id)
     except _SecretBorrowRefused as exc:
         return AlertDestinationTestResponse(
             ok=False, error=str(exc), sent_at=None, error_kind="config"

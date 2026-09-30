@@ -115,6 +115,9 @@ class MetricScopeType(enum.StrEnum):
     # An open lifecycle finding (#258): sunset overdue or successor silent.
     # Added via ALTER TYPE migration d5f7b9c1e3a8.
     lifecycle = "lifecycle"
+    # An open property drift (F23, #306): an event's property list against
+    # what a scan saw. Added via ALTER TYPE migration c3e5a7b9d1f2.
+    property_drift = "property_drift"
 
 
 class MetricKind(enum.StrEnum):
@@ -253,6 +256,14 @@ class AlertDriftType(enum.StrEnum):
     # d5f7b9c1e3a8.
     sunset_overdue = "sunset_overdue"
     successor_silent = "successor_silent"
+    # Written by the property-drift candidate builder (F23, #306): the drift
+    # kind of a ``property_drift`` scope, the same values as
+    # ``PropertyDriftKind``. ``type_change`` is a property's type and is not
+    # the schema drift's ``type_changed`` (a meta field's). Added to the type
+    # by c3e5a7b9d1f2.
+    new_property = "new_property"
+    missing_required = "missing_required"
+    type_change = "type_change"
 
 
 class ReleaseRegressionKind(enum.StrEnum):
@@ -319,22 +330,39 @@ class ProjectGenerationStatus(enum.StrEnum):
     failed = "failed"
 
 
-class UserRole(enum.StrEnum):
-    owner = "owner"
-    editor = "editor"
-    viewer = "viewer"
-
-
 class OrganizationRole(enum.StrEnum):
     """A user's role in one organization (``organization_members.role``).
 
-    Schema only so far (F20 PR1): nothing reads it yet, and ``users.role`` stays
-    the source of truth for every permission check until the gates move over.
+    The source of truth for organization-level rights (F20 PR4). ``owner`` and
+    ``admin`` administer the organization and are the implicit ``owner`` of
+    every project in it; only an ``owner`` can make or unmake another owner.
+    ``member`` holds the role of their ``project_members`` row in a project,
+    or the organization's ``default_project_role`` where they hold none.
     """
 
     owner = "owner"
     admin = "admin"
     member = "member"
+
+
+class OrganizationStatus(enum.StrEnum):
+    """Lifecycle of an organization row (``organizations.status``, F20 PR6).
+
+    ``deleting`` is set the moment an owner asks to delete the organization; a
+    Celery job then purges it. From that moment every read of it answers 404
+    (``services.org_resolution``), so nothing new lands in an organization that
+    is on its way out.
+
+    ``suspended`` is set by a platform admin from the platform console (F20
+    PR14). The organization stays listed for its members, with its status, but
+    every org-scoped request of theirs answers 403 "This organization is
+    suspended", and the scheduled worker jobs skip its projects
+    (``services.active_org_scope``). Unsuspending restores it untouched.
+    """
+
+    active = "active"
+    deleting = "deleting"
+    suspended = "suspended"
 
 
 class ApiKeyScope(enum.StrEnum):
@@ -345,11 +373,18 @@ class ApiKeyScope(enum.StrEnum):
 class ProjectMemberRole(enum.StrEnum):
     """A user's role inside one project (``project_members.role``).
 
-    There is no per-project ``owner``: the instance owner (``UserRole.owner``)
-    sees and manages every project without a membership row. The effective role
-    is also capped by the instance role, so a ``viewer`` user holding an
-    ``editor`` membership still acts as a viewer (``services.project_access``).
+    There is no per-project ``owner``: an owner or admin of the project's
+    organization (:class:`OrganizationRole`) sees and manages every project of
+    that organization without a membership row, as project role ``owner``. For
+    everyone else the row is authoritative (``services.project_access``), and
+    a member without a row gets the organization's ``default_project_role``.
+
+    ``none`` is "no access": as a row it opts one organization member out of
+    one project (the project is a 404 for them, whatever the organization
+    default); as ``organizations.default_project_role`` it means members see
+    only the projects they hold a row in.
     """
 
+    none = "none"
     editor = "editor"
     viewer = "viewer"

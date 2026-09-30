@@ -41,7 +41,7 @@ import {
   TextArea,
   TextInput,
 } from '@/components/settings/kit'
-import { canManageProject, canWrite, canWriteProject, isOwner } from '@/lib/permissions'
+import { canManageProject, canWriteProject, isOwner } from '@/lib/permissions'
 import { SLUG_ERROR, SLUG_HINT, isValidSlug } from '@/lib/slug'
 import { forgetDemoLocalState } from '@/demo/demoLocalState'
 import { deleteProjectConfirmation } from '@/lib/projectDeletion'
@@ -60,6 +60,8 @@ import {
   DangerRetireVariablesRow,
   DangerRow,
 } from './ProjectDangerRows'
+import { currentOrgSlug, projectPath, workspacePath } from '@/lib/navigation'
+import { orgStorageKey } from '@/lib/activeOrg'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MAX_APP_VERSION_KEEP_RELEASES = 100
@@ -148,8 +150,8 @@ function summarizeRetirement(counts: VariableRetirementCounts, committed: boolea
   ].filter(Boolean)
   const tail = kept.length ? ` Kept ${kept.join(', ')}.` : ''
   return committed
-    ? `Retired ${counts.retired} of ${counts.scanned} variables.${tail}`
-    : `${counts.retirable} of ${counts.scanned} variables can be retired.${tail}`
+    ? `Retired ${counts.retired} of ${counts.scanned} properties.${tail}`
+    : `${counts.retirable} of ${counts.scanned} properties can be retired.${tail}`
 }
 
 /**
@@ -232,7 +234,7 @@ function ProjectGeneralBody({
         // below, or the refresh asks the server for it and gets a 404.
         qc.removeQueries({ queryKey: projectKey(slug) })
         try {
-          localStorage.setItem('tripl-last-project-slug', project.slug)
+          localStorage.setItem(orgStorageKey('tripl-last-project-slug'), project.slug)
         } catch {
           /* ignore */
         }
@@ -310,9 +312,9 @@ function ProjectGeneralBody({
   const handleRetireVariables = async () => {
     const retirable = retirementPreview?.retirable ?? 0
     const ok = await confirm({
-      title: 'Retire unused variables',
-      message: `Permanently delete ${retirable} variable${retirable === 1 ? '' : 's'} that no event field value references. Variables you edited, documented, excluded from scans, or that carry observed values or drift are not touched. This cannot be undone.`,
-      confirmLabel: 'Retire variables',
+      title: 'Retire unused properties',
+      message: `Permanently delete ${retirable} ${retirable === 1 ? 'property' : 'properties'} that no event field value references. Properties you edited, documented, excluded from scans, or that carry observed values or drift are not touched. This cannot be undone.`,
+      confirmLabel: 'Retire properties',
       variant: 'danger',
     })
     if (ok) retireVariablesMut.mutate()
@@ -437,13 +439,13 @@ function ProjectGeneralBody({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/p/${slug}/event-types`)}
+              onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/event-types'))}
             >
               {/* Named for what it opens: event types, meta fields, alerting…
                   "Project operations" described none of them (#238 ST-5). */}
               Tracking plan &amp; alerting
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate(`/p/${slug}/events`)}>
+            <Button variant="outline" size="sm" onClick={() => navigate(projectPath(currentOrgSlug(), slug, '/events'))}>
               View project
             </Button>
           </>
@@ -459,7 +461,7 @@ function ProjectGeneralBody({
           error={projectQuery.error}
           title="Could not load this project"
           onRetry={() => void projectQuery.refetch()}
-          notFound={{ title: 'Project not found', back: { to: '/workspace', label: 'Back to all projects' } }}
+          notFound={{ title: 'Project not found', back: { to: workspacePath(), label: 'Back to all projects' } }}
         />
       )}
 
@@ -467,7 +469,8 @@ function ProjectGeneralBody({
         <>
           {!canEdit && (
             <ReadOnlyNotice className="mb-4">
-              {canWrite(user?.role)
+              {/* A viewer of the project gets the notice's own viewer wording. */}
+              {projectQuery.data.my_role !== 'viewer'
                 ? 'Read-only: only the project’s creator or an owner can change its details and version policy.'
                 : undefined}
             </ReadOnlyNotice>

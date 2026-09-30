@@ -12,6 +12,7 @@ import { ScanErrorTechnicalDetails } from './ScanErrorTechnicalDetails'
 import type { ScanMode } from './scanMode'
 import { buildRunReport, type RunReportLine, type RunReportTarget } from './runReport'
 import { scanErrorNextStep } from './scanErrorNextStep'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * Where a report line's counter can be inspected. Both filter by SCAN, not by
@@ -24,11 +25,11 @@ const TARGET_LINK: Record<
   { href: (slug: string, scanConfigId: string) => string; title: string }
 > = {
   anomalies: {
-    href: (slug, scanConfigId) => `/p/${slug}/anomalies?scan=${scanConfigId}`,
+    href: (slug, scanConfigId) => projectPath(currentOrgSlug(), slug, `/anomalies?scan=${scanConfigId}`),
     title: 'View anomalies from this scan',
   },
   alerts: {
-    href: (slug, scanConfigId) => `/p/${slug}/alerting?scan=${scanConfigId}`,
+    href: (slug, scanConfigId) => projectPath(currentOrgSlug(), slug, `/alerting?scan=${scanConfigId}`),
     title: 'View alerts from this scan',
   },
 }
@@ -206,7 +207,7 @@ export function JobDetails({
             // with 18px bold figures.
             <MiniStatStrip boxed>
               <MiniStat label="Events created" value={summary.events_created ?? 0} valueTone="success" />
-              <MiniStat label="Variables created" value={summary.variables_created ?? 0} valueTone="info" />
+              <MiniStat label="Properties created" value={summary.variables_created ?? 0} valueTone="info" />
               <MiniStat label="Events skipped" value={summary.events_skipped ?? 0} />
               <MiniStat label="Columns analyzed" value={summary.columns_analyzed ?? 0} valueTone="accent" />
               {summary.breakdown_event_metrics != null && (
@@ -234,7 +235,7 @@ export function JobDetails({
                   both mints and retires, and the pair is the only way to tell a
                   catalog that is growing from one holding steady (tripl-bh1q). */}
               {summary.variables_retired != null && (
-                <MiniStat label="Variables retired" value={summary.variables_retired} />
+                <MiniStat label="Properties retired" value={summary.variables_retired} />
               )}
               {summary.signals_added != null && (
                 <MiniStat

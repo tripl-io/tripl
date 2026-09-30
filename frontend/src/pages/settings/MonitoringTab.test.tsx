@@ -3,8 +3,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AuthContext } from '@/components/auth-context'
-import { authAs } from '@/test/auth'
 import { MonitoringTab } from './MonitoringTab'
+import { personaAuth } from '@/test/persona'
+import { PersonaProject } from '@/test/PersonaProject'
 
 function jsonResponse(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -389,8 +390,10 @@ describe('MonitoringTab — a viewer reads the settings without changing them', 
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
-        <AuthContext.Provider value={authAs('viewer')}>
-          <MonitoringTab slug="demo" />
+        <AuthContext.Provider value={personaAuth('viewer')}>
+          <PersonaProject persona="viewer">
+            <MonitoringTab slug="demo" />
+          </PersonaProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )

@@ -268,7 +268,7 @@ scan's own collection run; an `overdue` alert comes from a sweep that runs every
 
 Volume detection answers "did the count spike or drop?" Distribution drift answers a different question: **"did the *mix* change even though the total stayed flat?"** — for example, 80% of an event's traffic suddenly arriving from a single platform when it used to be evenly split.
 
-Nothing is compared until a scan names the columns to watch (**Scan settings → Distribution drift**), so an alert rule subscribed to the scope stays silent until one does. The rule editor and the monitor detail mark that scope inline when no scan in the project watches a column and no drift has been collected yet — see [When a scope is on but nothing feeds it](alerting.md#when-a-scope-is-on-but-nothing-feeds-it).
+Nothing is compared until a scan names the columns to watch (**Scan settings → Distribution drift**) — a plain column, or a property of a JSON column written `<json_column>.<path>` (see [Properties as breakdowns, drift fields and contracts](variables-and-templates.md#properties-as-breakdowns-drift-fields-and-contracts)) — so an alert rule subscribed to the scope stays silent until one does. The rule editor and the monitor detail mark that scope inline when no scan in the project watches a column and no drift has been collected yet — see [When a scope is on but nothing feeds it](alerting.md#when-a-scope-is-on-but-nothing-feeds-it).
 
 When a scan designates a **platform column**, Tripl also monitors each platform's
 share of the same event total (`platform count / total count`) bucket by bucket.
@@ -291,9 +291,9 @@ The corrected result is bucketed into interpretive bands:
 
 Only the **significant** band (PSI ≥ 0.25) is surfaced as a drift signal that alert rules can subscribe to. Alongside the score, the detector reports the handful of category values that moved the most (their before/after shares), so you can see *what* shifted, not just *that* it shifted. The sparse-window correction has no dial of its own — it is derived from the two window sizes and the number of distinct values — so the false-positive ratchet and `min_expected_count` still tune nothing on a drift scope.
 
-## Variable value drift
+## Property value drift
 
-Variable value drift compares observed values for one event with that variable's
+Property value drift compares observed values for one event with that property's
 effective documented contract: the event override when one exists, otherwise
 the global `allowed_values` list. An empty effective list means no finite value
 contract has been declared, so observations do not create drift.
@@ -313,16 +313,16 @@ Without this the single row per variable/event would quietly absorb every future
 novel value while still reading as resolved.
 
 **The first sample is a backlog, and it is reported.** The first time a
-variable is sampled for an event, the values it brings back are everything the
-column already holds, not a change. If the variable documents `allowed_values`,
+property is sampled for an event, the values it brings back are everything the
+column already holds, not a change. If the property documents `allowed_values`,
 every one of those outside the list becomes drift on that tick, as one batch.
 This is deliberate: the values really are in the data and outside the contract.
 Review them once — accept the ones that belong (globally or for that event) or
 mark the rest false positive — and later scans report only values that are new.
-Expect this batch after documenting values on a variable that is already being
-observed, or when a new event first reaches a documented variable.
+Expect this batch after documenting values on a property that is already being
+observed, or when a new event first reaches a documented property.
 
-See [Variables & templates](./variables-and-templates.md) for the authoring and
+See [Properties & templates](./variables-and-templates.md) for the authoring and
 review workflow.
 
 ## Release regression
@@ -465,9 +465,9 @@ their UTC date. The hour × weekday heatmap is built from UTC buckets and is
 labelled UTC.
 
 These records become the **signals** you see on the monitoring views, and they
-are the candidates the alerting layer evaluates. Schema, distribution, and
-variable-value drift plus release regression feed the same machinery as
-additional candidate types.
+are the candidates the alerting layer evaluates. Schema, distribution,
+variable-value and [property drift](./variables-and-templates.md#property-drift)
+plus release regression feed the same machinery as additional candidate types.
 
 Triaging those candidates is not symmetric. Snooze, false-positive and reopen
 only move review state, but **accepting** a schema drift edits the tracking plan

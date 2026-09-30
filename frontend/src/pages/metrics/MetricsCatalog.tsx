@@ -87,6 +87,7 @@ import { factTablesKey, metricsCatalogKey, metricsCatalogListKey, usersKey } fro
 import { listCatalogPage, type CatalogListParams } from './catalogRequests'
 import { usersApi } from '@/api/users'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // The metric name gets the widest flexible track on purpose. Its cell packs a
 // dot, a truncating name and a nowrap kind chip, so the widest chip ("Event
@@ -819,7 +820,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
               action={
                 slug && canWrite ? (
                   <Button asChild size="sm">
-                    <Link to={`/p/${slug}/metrics/new`} className="no-underline">
+                    <Link to={projectPath(currentOrgSlug(), slug, '/metrics/new')} className="no-underline">
                       <Plus className="h-3.5 w-3.5" />
                       New metric
                     </Link>
@@ -1299,7 +1300,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
     onSuccess: created => {
       invalidateCatalog(qc, slug)
       toast.success('Metric duplicated as a draft.')
-      navigate(`/p/${slug}/metrics/${created.id}/edit`)
+      navigate(projectPath(currentOrgSlug(), slug, `/metrics/${created.id}/edit`))
     },
     // No onError: the global backstop already toasts this exact message.
   })
@@ -1403,7 +1404,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
       >
         <DropdownMenuItem
           className="text-body-sm"
-          onSelect={() => navigate(`/p/${slug}/metrics/${metric.id}/edit`)}
+          onSelect={() => navigate(projectPath(currentOrgSlug(), slug, `/metrics/${metric.id}/edit`))}
         >
           <Pencil className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" /> Edit
         </DropdownMenuItem>

@@ -6,6 +6,8 @@ import { ApiError } from '@/api/client'
 import { eventTypesApi } from '@/api/eventTypes'
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import { EventDriftBadge } from './EventDriftBadge'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 vi.mock('@/api/eventTypes', () => ({
   eventTypesApi: {
@@ -62,26 +64,14 @@ afterEach(() => {
 describe('EventDriftBadge', () => {
   it('shows a viewer the drifts without the triage buttons (EVT-9)', async () => {
     vi.mocked(eventTypesApi.listDrifts).mockResolvedValue({ items: [DRIFT], total: 1 })
-    const viewer: AuthContextValue = {
-      user: {
-        id: 'viewer-1',
-        email: 'viewer@example.com',
-        name: 'Viewer',
-        role: 'viewer',
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      },
-      status: 'authenticated',
-      error: null,
-      isLoggingOut: false,
-      logout: async () => {},
-      refresh: () => {},
-    }
+    const viewer: AuthContextValue = personaAuth('viewer')
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={viewer}>
-          <EventDriftBadge slug="demo" eventTypeId="et-1" count={1} />
+          <SessionProject session={viewer}>
+            <EventDriftBadge slug="demo" eventTypeId="et-1" count={1} />
+          </SessionProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )
@@ -90,6 +80,26 @@ describe('EventDriftBadge', () => {
     expect(await screen.findByText(/action/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Accept' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Snooze' })).not.toBeInTheDocument()
+  })
+
+  it('labels a contract drift on a property path as a property contract (F23)', async () => {
+    vi.mocked(eventTypesApi.listDrifts).mockResolvedValue({
+      items: [
+        {
+          ...DRIFT,
+          field_name: 'props.plan',
+          drift_type: 'enum_violation' as const,
+          observed_type: 'bad_rate=10.00%; max=0.00%; bad=1; total=10',
+          declared_type: 'enum',
+          sample_value: 'platinum',
+        },
+      ],
+      total: 1,
+    })
+    renderBadge()
+    fireEvent.click(screen.getByRole('button', { name: '1 schema drift on this event type' }))
+    expect(await screen.findByText('props.plan')).toBeInTheDocument()
+    expect(screen.getByText(/property enum/)).toBeInTheDocument()
   })
 
   it('shows a paused note, not a red auth failure, when the drift list 401s under the sign-in dialog (SH-35)', async () => {
@@ -109,7 +119,9 @@ describe('EventDriftBadge', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={expired}>
-          <EventDriftBadge slug="demo" eventTypeId="et-1" count={1} />
+          <SessionProject session={expired}>
+            <EventDriftBadge slug="demo" eventTypeId="et-1" count={1} />
+          </SessionProject>
         </AuthContext.Provider>
       </QueryClientProvider>,
     )

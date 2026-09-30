@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { formatLag } from '@/lib/sourceFreshness'
 import { cn } from '@/lib/utils'
 import type { SourceFreshnessItem } from '@/types'
+import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
  * "Data late — drop signals held" (F16, #269). Shown where volume signals are
@@ -44,7 +45,7 @@ export function SignalsHeldNotice({
           {items.map((item, index) => (
             <span key={item.id}>
               {index > 0 && (index === items.length - 1 ? ' and ' : ', ')}
-              <Link to={`/p/${slug}/scans/${item.id}`} className="no-underline hover:underline text-fg">
+              <Link to={projectPath(currentOrgSlug(), slug, `/scans/${item.id}`)} className="no-underline hover:underline text-fg">
                 {item.name}
               </Link>
               {item.freshness.status === 'late' && item.freshness.lag_seconds != null && (

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { eventPhotosApi } from '@/api/eventPhotos'
+import { eventPhotosApi, photoFileUrl } from '@/api/eventPhotos'
 import type { EventPhoto } from '@/types'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -44,14 +44,29 @@ interface UploadItem {
  * `maxSizeMb` is the instance's own `photo_max_size_mb`, read from the server
  * (EVT-28): a fixed 10 MB here refused files an instance had been configured to
  * take. Until it has loaded (or if it cannot be read) size is left to the
- * server's 413.
+ * server's 413. `allowedMime` is the organization's own list (F20 PR11); a
+ * type outside it would only come back as a 415.
  */
-function photoRejection(file: Pick<File, 'type' | 'size'>, maxSizeMb: number | undefined): string | null {
+function photoRejection(
+  file: Pick<File, 'type' | 'size'>,
+  maxSizeMb: number | undefined,
+  allowedMime: readonly string[] | undefined,
+): string | null {
   if (!file.type.startsWith('image/')) return 'not an image'
+  if (allowedMime !== undefined && !allowedMime.includes(file.type.toLowerCase())) {
+    return 'a type this organization does not accept'
+  }
   if (maxSizeMb !== undefined && file.size > maxSizeMb * 1024 * 1024) {
     return `larger than the ${maxSizeMb} MB limit`
   }
   return null
+}
+
+/** `["image/png", "image/jpeg"]` -> `"PNG or JPEG"`. */
+function describeTypes(types: readonly string[]): string {
+  const names = types.map(type => type.replace(/^image\//, '').toUpperCase())
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`
 }
 
 function formatSize(bytes: number): string {
@@ -100,6 +115,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
     enabled: canWrite,
   })
   const maxSizeMb = limitsQuery.data?.photo_max_size_mb
+  const allowedMime = limitsQuery.data?.photo_allowed_mime
 
   // Files upload side by side, each with its own progress and outcome. They
   // used to go one after another inside one mutation: no progress, and when the
@@ -170,7 +186,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
     const accepted: File[] = []
     const refused: string[] = []
     for (const file of Array.from(files)) {
-      const reason = photoRejection(file, maxSizeMb)
+      const reason = photoRejection(file, maxSizeMb, allowedMime)
       if (reason) refused.push(`${file.name} (${reason})`)
       else accepted.push(file)
     }
@@ -312,7 +328,8 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
                 <>
                   <p>No screenshots or Figma links yet. Drop images here, or use the buttons above.</p>
                   <p className="text-caption text-fg-tertiary">
-                    JPEG, PNG, GIF, or WebP{maxSizeMb !== undefined && `, up to ${maxSizeMb} MB each`}
+                    {allowedMime ? describeTypes(allowedMime) : 'JPEG, PNG, GIF, or WebP'}
+                    {maxSizeMb !== undefined && `, up to ${maxSizeMb} MB each`}
                   </p>
                 </>
               ) : (
@@ -425,7 +442,7 @@ function PhotoTile({
           </div>
         ) : (
           <img
-            src={photo.url}
+            src={photoFileUrl(photo.url)}
             alt=""
             className="aspect-square w-full object-cover"
             loading="lazy"
@@ -485,7 +502,7 @@ function PhotoViewer({
           />
         ) : (
           <img
-            src={photo.url}
+            src={photoFileUrl(photo.url)}
             alt={photo.original_filename || 'Photo'}
             className="max-h-[75vh] w-full object-contain"
           />

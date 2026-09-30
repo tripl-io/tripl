@@ -57,6 +57,149 @@ only the short form. The rules:
 - `/api/v1/settings`, `/api/v1/project-templates` and `/api/v1/auth` are not
   org-qualified: `/api/v1/orgs/{org}/settings` is reserved for per-organization
   settings and answers `404` until those routes exist.
+- `/api/v1/orgs/{org}`, `/members`, `/members/{user_id}` and
+  `/transfer-ownership` are real routes of the [organization API](#organizations),
+  not rewritten ones.
+
+### Organizations {#organizations}
+
+The organization management API. Everything under `/api/v1/orgs/{org}` answers
+`404 Organization not found` to anyone who is not a member of `{org}`, to an API
+key of another organization, and for an organization being deleted — the same
+answer as for a slug that does not exist, and always before any `403`.
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs` | any account | Your organizations, with your role and the organization's `status` (`active` or `suspended`) in each. An API key lists only its own organization. |
+| `POST /api/v1/orgs` | self-hosted: platform admin; hosted: any account; browser session | `{"slug", "name"}`; the creator becomes the owner. `409` when the slug is taken, `422` for an invalid or reserved slug. |
+| `GET /api/v1/orgs/{org}` | any member (or its key) | `id`, `slug`, `name`, `role`, `status`, `is_default`, `default_project_role`, `created_at`. |
+| `PATCH /api/v1/orgs/{org}` | owner or admin, browser session | `{"name"?, "default_project_role"?}`: a rename, and/or the default access to projects (`none`, `viewer` or `editor`; `owner` is `422`), audited as `org.update` with before and after. The slug is permanent; sending one is `422`. |
+| `DELETE /api/v1/orgs/{org}` | owner, browser session | `{"confirm_slug": "<slug>"}`. `202`, then a background job purges the organization. The default organization is `400`. |
+| `GET /api/v1/orgs/{org}/members` | any member (or its key) | Members with their organization role; `limit` / `offset`. |
+| `PATCH /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | `{"role": "owner" \| "admin" \| "member"}`. Only an owner manages owners; the last owner cannot be demoted (`400`). |
+| `DELETE /api/v1/orgs/{org}/members/{user_id}` | owner or admin, browser session | Removes the membership, the user's project memberships in the organization and their group memberships in it, revokes their keys bound to it, and deletes their single sign-on identities for it. |
+| `POST /api/v1/orgs/{org}/transfer-ownership` | owner, browser session | `{"user_id"}`: that member becomes an owner, the caller an admin. |
+| `GET /api/v1/orgs/{org}/groups` | any member (or its key) | The organization's groups by name: `id`, `name`, `description`, `member_count`, `created_at`, `updated_at`. |
+| `POST /api/v1/orgs/{org}/groups` | owner or admin, browser session | `{"name", "description"?}`. `201` with the group and its (empty) `members`. `409` when the organization already has a group of that name (ignoring case); `422` for a blank name or a NUL character. |
+| `GET /api/v1/orgs/{org}/groups/{group_id}` | any member (or its key) | The group with `members`: `user_id`, `email`, `name`, `added_at`. |
+| `PATCH /api/v1/orgs/{org}/groups/{group_id}` | owner or admin, browser session | `{"name"?, "description"?}`; an omitted field is unchanged, `null` is `422`. `409` on a name clash. |
+| `DELETE /api/v1/orgs/{org}/groups/{group_id}` | owner or admin, browser session | `204`. The group and its memberships go; the members stay in the organization. |
+| `POST /api/v1/orgs/{org}/groups/{group_id}/members` | owner or admin, browser session | `{"user_id"}`. `201` with the member. `404` when the user is not a member of the organization, `409` when already in the group. |
+| `DELETE /api/v1/orgs/{org}/groups/{group_id}/members/{user_id}` | owner or admin, browser session | `204`; `404` when the user is not in the group. |
+
+Single sign-on (see [the admin guide](../administer/admin-guide.md#single-sign-on))
+is configured by the organization's **owners** only, from a browser session;
+an admin, a member or any API key gets `403`:
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs/{org}/sso` | owner, browser session | `configured`, `protocol` (`oidc` or `saml`), `enabled`, `sso_required`, `login_url` (where members start signing in); for OpenID Connect `issuer`, `client_id`, `client_secret_configured` (the secret itself is never returned), `scopes` and `redirect_uri` (to register at the provider); for SAML `saml_idp_entity_id`, `saml_idp_sso_url`, `saml_idp_certs` (PEM, public), `saml_name_id_format`, `saml_email_attribute`, the read-only `saml_sp_entity_id`, `saml_acs_url` and `saml_metadata_url` (to register at the IdP) and `saml_cert_info` (`[{"fingerprint_sha256", "not_after", "subject"}]`). Fields never set are empty strings (`saml_email_attribute` is `null`). A save that changes the protocol, the SAML entity ID, or replaces every SAML certificate unlinks the members' SSO identities of the old provider (they confirm the link again); the unchanged values a save echoes back are not re-validated. `saml_idp_entity_id` is at most 507 characters. |
+| `PUT /api/v1/orgs/{org}/sso` | owner, browser session | The whole configuration: `{"protocol"?, "issuer", "client_id", "client_secret"?, "scopes"?, "saml_idp_entity_id"?, "saml_idp_sso_url"?, "saml_idp_certs"?, "saml_name_id_format"?, "saml_email_attribute"?, "enabled"?, "sso_required"?}`. `protocol` defaults to `oidc`. The fields of the chosen protocol are required and checked; the other protocol's may be `null`. An omitted `enabled` or `sso_required` is `false`; an omitted or `null` `client_secret` keeps the stored one, which is write-only. `scopes` defaults to `openid email profile` and must include `openid`. For SAML, `saml_idp_sso_url` must be `https`, `saml_idp_certs` holds one or more PEM certificates (several while the IdP rotates its key), `saml_name_id_format` defaults to `urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress`, and `saml_email_attribute` names the attribute carrying the email when the NameID is not one. `enabled: true` needs a saved provider and at least one verified domain. Turning `sso_required` on revokes the organization's API keys that were not created from a single sign-on session of it, owners' included; `revoked_api_keys` in the response says how many. While it is on, such keys are refused with `403` and new keys are created only from a single sign-on session of the organization (an owner's password session gets `403` too). Audited as `org.sso.*`, without the secret. |
+| `POST /api/v1/orgs/{org}/sso/test` | owner, browser session | OpenID Connect: fetches the issuer's discovery document and checks the issuer and endpoints: `{"ok", "message", "error_code", "authorization_endpoint", "token_endpoint", "jwks_uri", ...}`. SAML: checks that the saved certificates parse and have not expired and that the SSO URL is `https`, without contacting the IdP. A failure's `message` is a fixed text per `error_code`. Rate-limited to 10 a minute, shared with domain verification. |
+| `POST /api/v1/orgs/{org}/sso/saml/metadata-import` | owner, browser session | `{"xml"}`: pasted IdP metadata (an `EntityDescriptor`). Answers `{"saml_idp_entity_id", "saml_idp_sso_url", "saml_idp_certs"}` (the HTTP-Redirect single sign-on location and the signing certificates as PEM) without saving anything; send them with `PUT` to keep them. No URL is fetched. Metadata that does not parse, carries a `DOCTYPE`, or lacks an entity ID, a redirect location or a signing certificate is `422`. |
+| `GET /api/v1/orgs/{org}/sso/domains` | owner, browser session | The claimed domains: `id`, `domain`, `verified`, `verified_at`, `txt_record_name`, `txt_record_value`, `created_at`. |
+| `POST /api/v1/orgs/{org}/sso/domains` | owner, browser session | `{"domain"}`, lowercased. `201` with the domain and the TXT record to publish. A domain another organization has verified is `409`. |
+| `DELETE /api/v1/orgs/{org}/sso/domains/{id}` | owner, browser session | Removes the claim. |
+| `POST /api/v1/orgs/{org}/sso/domains/{id}/verify` | owner, browser session | Looks up the DNS TXT record `_tripl-verification.<domain>` and marks the domain verified when it contains `tripl-verification=<token>`. Rate-limited to 10 a minute, shared with the connection test. |
+
+In an organization with `sso_required`, a request from a browser session that
+did not sign in through the organization's provider answers
+`403 {"detail": "This organization requires single sign-on", "sso_start": "/api/v1/auth/sso/<org>/start"}`
+(organization owners and a platform admin's read-only step-in excepted). An API
+key bound to it works only if it was created from a single sign-on session of
+that organization; any other key is `403`.
+
+The audit log leaves tripl two ways (see
+[Exporting the audit log](../administer/admin-guide.md#audit-export) and
+[Audit webhook](../administer/admin-guide.md#audit-webhook)). Neither takes an
+API key: the export is an owner's or admin's browser session, like the audit
+feed, and the webhook an owner's:
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs/{org}/audit/export?format=csv\|json&from=YYYY-MM-DD&to=YYYY-MM-DD&action=` | owner or admin, browser session | A streamed download (`Content-Disposition: attachment`, `audit-<org>-<from>-<to>.<ext>`) of the organization's entries and its projects', ordered by `created_at` then `id`. `csv` is `text/csv` with every cell quoted and formula-like cells (`=`, `+`, `-`, `@`, tab, carriage return) prefixed with `'`; `json` is NDJSON (`application/x-ndjson`), one object per line. Columns: `id`, `created_at`, `org_slug`, `project_slug`, `branch_name`, `user_email`, `action`, `target_type`, `target_id`, `target_name`, `payload`. The range is `from` **included**, `to` **excluded** (both read in UTC; a bare date is midnight), so to include a whole last day send the day after it. `to` must be after `from` and at most 366 days later, else `422`. `action` is optional. Rate-limited (`429`). Audited as `org.audit_export`. |
+| `GET /api/v1/orgs/{org}/audit/webhook` | owner, browser session | Always `200`: `configured`, `url`, `enabled`, `secret_configured` (the secret itself is never returned), `last_success_at`, `last_error`, `last_error_at`. With no webhook, `configured` is `false`, `url` is `""` and `enabled` `false`. |
+| `PUT /api/v1/orgs/{org}/audit/webhook` | owner, browser session | `{"url", "enabled"}`. The URL must be `https`, and on a hosted instance a public address (`422` otherwise). Answers the webhook's fields; the call that creates it also generates the signing secret and returns it once, in `secret`. Rate-limited with `test` (10 a minute, `429`). |
+| `DELETE /api/v1/orgs/{org}/audit/webhook` | owner, browser session | Removes the webhook; nothing more is sent. |
+| `POST /api/v1/orgs/{org}/audit/webhook/rotate-secret` | owner, browser session | The webhook's fields (as `GET`) plus `secret`: a new signing secret, returned once. The old one stops working at once. `404` when there is no webhook. |
+| `POST /api/v1/orgs/{org}/audit/webhook/test` | owner, browser session | Sends a synthetic `audit.webhook_test` event now: `{"ok", "status_code", "error"}`. At most 15 seconds; rate-limited (10 a minute, `429`). |
+| `GET /api/v1/orgs/{org}/audit/webhook/deliveries?status=&limit=` | owner, browser session | Recent deliveries, newest first: `id`, `audit_log_id`, `action`, `status` (`pending`, `sent`, `failed`, `dead`), `attempts`, `next_attempt_at`, `last_error`, `created_at`, `sent_at`. |
+
+Each delivery is a `POST` of one entry as JSON with `X-Tripl-Event-Id` (the
+entry's `id`), `X-Tripl-Timestamp` (Unix seconds) and
+`X-Tripl-Signature: sha256=<hex HMAC-SHA256 of "t=<timestamp>.<raw body>">`
+(the literal `t=`, then the `X-Tripl-Timestamp` value, a dot and the body bytes).
+Webhook changes are audited as `org.audit_webhook.*`, without the secret.
+
+A group id of another organization answers `404 Group not found`, like an id
+that does not exist. Every group change is audited (`org.group.create`,
+`org.group.update`, `org.group.delete`, `org.group.member_add`,
+`org.group.member_remove`). A group carries `managed_by_scim`: `true` when the
+organization's identity provider created it, or has written to it, over SCIM.
+Renaming, deleting or changing the members of such a group here answers `409`;
+its description stays editable.
+
+SCIM provisioning (see [the admin guide](../administer/admin-guide.md#scim)) is
+set up by the organization's **owners** only, from a browser session; an admin,
+a member or any API key gets `403`:
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/orgs/{org}/scim/tokens` | owner, browser session | The SCIM tokens, revoked ones included: `id`, `prefix`, `created_at`, `created_by_email`, `last_used_at`, `revoked_at`. The token itself is never returned here. |
+| `POST /api/v1/orgs/{org}/scim/tokens` | owner, browser session | Creates a token: `{"id", "prefix", "token", "created_at"}`. `token` (starting `tripl_scim_`) is shown only in this response. Audited as `org.scim.token_create`. |
+| `DELETE /api/v1/orgs/{org}/scim/tokens/{id}` | owner, browser session | Revokes the token; the identity provider's next request with it is refused. Audited as `org.scim.token_revoke`. |
+| `GET /api/v1/orgs/{org}/scim/config` | owner, browser session | `{"base_url", "admin_group_id", "admin_group_name", "active_tokens"}`: the SCIM base URL to give the identity provider, the group whose members are made admins (`null` for none), and how many unrevoked tokens there are. |
+| `PUT /api/v1/orgs/{org}/scim/config` | owner, browser session | `{"admin_group_id": "<group id>" \| null}`. The group must belong to the organization. |
+
+The SCIM 2.0 protocol itself is served at `/scim/v2/{org}` (outside
+`/api/v1`) for the identity provider: `ServiceProviderConfig`, `ResourceTypes`,
+`Schemas`, `Users` and `Groups`. It takes only
+`Authorization: Bearer tripl_scim_…` of that organization; sessions and API
+keys are refused there, and a SCIM token works nowhere else. Agents and
+scripts should use the `/api/v1` routes above instead.
+
+API keys never manage an organization: every write above answers `403` to a
+key, whatever its scope. Invitations into an organization are
+`POST /api/v1/orgs/{org}/users/invitations` (owner or admin, browser session).
+
+`GET /api/v1/auth/me` with an API key also returns `org` (the key's organization
+slug) and `api_key_scope` (`read` or `write`); `tripl whoami` prints them. For a
+browser session both are `null`. A project-bound key cannot call `/auth/me`
+(`403`).
+
+### Platform console {#platform-console}
+
+The instance operator's API, under `/api/v1/platform`. Every route takes a
+**platform admin's browser session**: an API key is `403 Platform admin session
+required` whatever its scope or owner, and anyone else is `403 Platform admin
+required`. Agents cannot use it; it is listed so a client can tell it apart.
+Organizations are named by slug; nothing here returns project content. See
+[Platform console](../administer/admin-guide.md#platform-console) for the
+rules behind each action.
+
+| Method and path | What |
+|---|---|
+| `GET /api/v1/platform/orgs` | `q` (name or slug), `status` (`active`, `suspended`, `deleting`), `limit`, `offset`. `{"items", "total"}`; each item: `id`, `slug`, `name`, `status`, `created_at`, `suspended_at`, `suspended_reason`, `member_count`, `project_count`, `owner_emails`. |
+| `GET /api/v1/platform/orgs/{org_slug}` | The same fields plus `members` (`email`, `name`, `role`) and `projects` (`slug`, `name`, `created_at`). |
+| `POST /api/v1/platform/orgs/{org_slug}/suspend` | `{"reason"}` (required, 1 to 500 characters, no NUL). The organization answers `403 This organization is suspended` to its members and keys until unsuspended. `409` for an organization being deleted and for the default organization (in any `DEPLOYMENT_MODE`). A platform admin's read-only step-in may still read it. Audited as `org.suspend` in the organization. |
+| `POST /api/v1/platform/orgs/{org_slug}/unsuspend` | Back to `active`. `409` for an organization being deleted. Audited as `org.unsuspend`. |
+| `POST /api/v1/platform/orgs/{org_slug}/step-in` | `{"reason", "ttl_minutes"?}`: reason 1 to 500 characters, `ttl_minutes` 5 to 240 (default 60). `{"id", "org_slug", "expires_at"}`. Starts a read-only step-in into an active or a suspended organization (`409` for one being deleted); a second step-in to the same organization supersedes the first. Audited as `platform.step_in` in the organization. |
+| `POST /api/v1/platform/step-ins/{id}/end` | Ends one of your step-ins now; audited as `platform.step_in_end`. A step-in that runs out is recorded as `platform.step_in_end` with `expired: true`, lazily, the first time a request or a listing sees it. |
+| `GET /api/v1/platform/step-ins` | Your step-ins; `active=true` keeps the unexpired, un-ended ones. |
+| `GET /api/v1/platform/users` | `q` (email or name), `limit`, `offset`. Each item: `id`, `email`, `name`, `is_platform_admin`, `email_verified`, `created_at`, `org_count`. |
+| `POST /api/v1/platform/users/{user_id}/platform-admin` | `{"grant": true \| false}`. `409` when revoking the last platform admin or yourself. Audited as `platform.admin_grant` / `platform.admin_revoke`, with no organization. |
+
+During a step-in the admin acts in that organization as a `member` with the
+`viewer` role on every project, from the browser session only. Any request in
+it other than `GET`, `HEAD` and `OPTIONS` answers `403 Step-in is read-only`,
+except `POST /api/v1/projects/{slug}/anomalies/signals/query` and
+`POST /api/v1/projects/{slug}/events/window-metrics`. `GET /api/v1/auth/me`
+returns the caller's active step-ins as `active_step_ins`
+(`[{"org_slug", "expires_at"}]`).
+
+A suspended organization answers `403 This organization is suspended` to every
+request that acts in it, from a session or a key; `GET /api/v1/orgs` still lists
+it, with `status: "suspended"`.
 
 ## MCP Server
 
@@ -92,8 +235,9 @@ Scopes:
 - `read`: read-only. Mutation endpoints reject it, while read/query operations
   remain available even when an endpoint uses `POST` for a complex query body.
   Use this for retrieval, search, and agent context loading.
-- `write`: allowed on mutation endpoints, subject to the user role behind the key. Editor-only routes still require an editor or owner user.
-- Owner-only security and instance-administration routes require an interactive owner session; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key backed by an owner may call.
+- `write`: allowed on mutation endpoints, subject to the roles of the user behind the key. A project write still needs an editing project role (an `editor` membership, or owner/admin of the organization). Minting a `write` key needs membership of the organization.
+- Owner-only security and administration routes (data sources, scan SQL, members, invitations, the audit log) require an interactive session of an organization owner or admin; an API key is `403` on them even when its user is an owner. The one exception is the [metrics replay](#replaying-metrics), which a `write` key of an org owner or admin may call. The instance operator settings (`/settings` fields for security, observability and the server) require a platform admin's session and never take a key.
+- A key belongs to the organization it was minted in and acts only there; a URL naming another organization answers `404`. `GET /api/v1/me/api-keys` lists the keys of the organization the request acts in.
 
 Project scope:
 
@@ -101,21 +245,59 @@ Project scope:
 - Project-scoped keys cannot call instance-level routes such as `/api/v1/projects` or `/api/v1/users`.
 - Omit `project_slug` only for trusted automation that must read or write multiple projects.
 
+With `DEPLOYMENT_MODE=hosted`, an account whose email address is not verified
+gets `403 Email address not verified` on every route outside `/api/v1/auth/*`,
+with a session or a key. Keys are created behind that check, so in practice a
+working key always belongs to a verified account.
+
 If a Bearer token is invalid, expired, or revoked, the API returns `401`. If a valid key lacks scope or role permission, the API returns `403`. A project-bound key used on another project's slug gets `404 Project not found`, the same answer as a slug that does not exist, even when the key's user is a member of that project; instance-wide routes still answer `403` to a project-bound key.
 
 Project membership:
 
 - A key acts as the user who created it, so it reaches only the projects that
-  user is a **member** of (an instance owner's key reaches every project). On any
+  user has **access** to (the key of an owner or admin of the organization
+  reaches every project of it). A member's access to a project is their
+  membership row there, or, without one, the organization's
+  `default_project_role` (`none`, `viewer` or `editor`); a row with role `none`
+  shuts them out whatever the default. On any
   other project every `/projects/{slug}/...` route answers `404`
   `Project not found`, the same answer as for a slug that does not exist, and the
   project is missing from `GET /api/v1/projects` and `GET /api/v1/activity`.
-- Creating a key with `project_slug` for a project the user is not a member of
+- Creating a key with `project_slug` for a project the user cannot see
   answers `404`.
-- Writing needs an **editor** membership. A viewer member's key gets `403` on
-  mutation routes, whatever its scope.
-- A new user is a member of no project. Ask the project's creator or an owner to
-  add the account behind your key.
+- Writing needs **editor** access, by row or by the default. A viewer's key
+  gets `403` on mutation routes, whatever its scope.
+- Under the `none` default (every organization's until an owner or admin
+  changes it) a new user sees no project. Ask the project's creator or an owner
+  or admin of the organization to add the account behind your key.
+
+### Account endpoints {#account-endpoints}
+
+The `/api/v1/auth` routes handle sign-in and the account itself. Agents rarely
+need them beyond `/auth/me`; they are listed so a client can tell them apart
+from the rest of the API. The unauthenticated ones are rate-limited per client
+address and answer `429` with `Retry-After` when exceeded.
+
+| Method and path | Who | What |
+|---|---|---|
+| `GET /api/v1/auth/status` | anyone | `has_users`, `registration_enabled`, `email_configured`, `deployment_mode` (`self_hosted` or `hosted`) and `email_verification_required` (`true` when hosted). A hosted instance always reports `has_users: true`. |
+| `POST /api/v1/auth/register` | anyone, when registration is open | `{"email", "password", "name"?}`, plus `"org_name"` and `"org_slug"`, which a hosted instance requires (`422` without them, `409` when the slug is taken) and a self-hosted one ignores. Hosted: `503 Email delivery is not configured` when the operator cannot send mail; the new account owns a new organization and is sent a verification link. |
+| `POST /api/v1/auth/login` | anyone | Starts a browser session. |
+| `POST /api/v1/auth/logout` | session | `204`. |
+| `GET /api/v1/auth/me` | session or key | The account, including `email_verified`, `is_platform_admin` and, for a platform admin's session, `active_step_ins` (`[{"org_slug", "expires_at"}]`). |
+| `POST /api/v1/auth/verify-email/request` | session | `204`. Sends a new verification link (24 hours, single use) and invalidates the earlier unused ones; a verified account gets `204` and no mail, and so does every account on a self-hosted instance, where verification is not required. `503` when the operator cannot send mail. Rate-limited to 10 an hour. |
+| `POST /api/v1/auth/verify-email/confirm` | the signed-in browser session of the token's own account | `{"token"}`. `204`, and the address is verified; every other session of the account is signed out, the caller's is kept. No session: `401 Sign in to confirm your email address.` and the token stays unused. An unknown, expired or used token, or one sent to another account than the signed-in one, is one uniform `400` (the token stays unused). Hosted: an address listed in `PLATFORM_ADMIN_EMAILS` becomes a platform admin here, and only here. |
+| `POST /api/v1/auth/password-reset/request` | anyone | Sends a reset link when the address has an account; the answer does not say whether it does. |
+| `POST /api/v1/auth/password-reset/confirm` | anyone | Sets the new password and marks the address verified. Signs the account out everywhere and revokes all of its API keys; issue new keys afterwards. Never grants platform admin. |
+| `GET /api/v1/auth/invitations/{token}` | anyone | Previews an invitation. |
+| `GET /api/v1/auth/sso/discover?email=` | anyone | `{"orgs": [{"slug", "name", "login_url"}]}`: the organizations with single sign-on turned on whose verified domain the address is at. Rate-limited like `/auth/status`. |
+| `GET /api/v1/auth/sso/{org}/start?next=` | anyone (a browser) | `302` to the organization's identity provider: for SAML, to its SSO URL with an unsigned `SAMLRequest` (HTTP-Redirect binding) and the state as `RelayState`. `next` is where to return afterwards and must be a relative path on this origin (`/…`, not `//…`). Start and callback share a rate limit of 20 a minute per address, apart from password sign-in. |
+| `GET /api/v1/auth/sso/{org}/callback?code=&state=` | the identity provider's redirect | Finishes the sign-in and redirects: into the app with a session, to `/sso/link?ticket=…` when the address belongs to an existing account that has to confirm the link, or to `/auth?sso_error=<code>`: `sso_unavailable`, `invalid_state`, `idp_error`, `idp_denied`, `invalid_token`, `email_missing`, `email_not_verified`, `email_domain_not_allowed`, `membership_removed` (removed from the organization and not invited back), `rate_limited` or `sso_failed`. |
+| `GET /api/v1/auth/sso/{org}/saml/metadata` | anyone | tripl's SAML service-provider metadata (XML): the entity ID (this URL), the ACS URL with the HTTP-POST binding, the email NameID format and `WantAssertionsSigned="true"`. Unsigned; there is no SP certificate. |
+| `POST /api/v1/auth/sso/{org}/saml/acs` | the identity provider's form post (`SAMLResponse`, `RelayState`) | The SAML counterpart of the callback, with the same outcomes and the same `sso_error` codes, plus `saml_invalid` (the response failed a check: issuer, audience, recipient, destination, validity window), `idp_denied` also for a non-`Success` status, `email_missing` also when no email attribute is configured and the NameID format is not `emailAddress`, `saml_signature_invalid` (the assertion is unsigned, signed with SHA-1 or by a certificate not configured), `saml_replay` (the assertion was already used), `saml_unsolicited` (not an answer to a request tripl made: IdP-initiated sign-in is not supported) and `encrypted_assertion_unsupported`. |
+| `GET /api/v1/auth/sso/link?ticket=` | anyone holding the ticket | `{"email", "org_slug", "org_name", "expires_at", "sign_in_required"}`: what confirming would link, without using the ticket; `sign_in_required` is true when this browser must first sign in to the account. `400` when the ticket is not live. |
+| `POST /api/v1/auth/sso/link` | the ticket, from a browser session of the ticket's account | `{"ticket"}`: links the identity provider's account to the existing tripl account, adds the organization membership if missing, marks the address verified and replaces the session with a single sign-on session. Answers `{"next", "user"}`. Without a session of that account: `401` and the ticket stays usable. An account whose address was never verified needs no session and is taken over clean (its password, sessions and API keys are dropped). Single use, 10 minutes; `400` for an unknown, used or expired ticket; `403` for an account removed from the organization; `409` when the organization no longer uses single sign-on. |
+| `POST /api/v1/auth/invitations/{token}/accept` | anyone, or the invited account signed in | Creates the account, or adds the organization to the signed-in account. Self-hosted: the new account is verified at creation. Hosted: the new account is **not** verified by the invitation and is sent a verification link to confirm, and a signed-in account must be verified first (`403`). Never grants platform admin. |
 
 ### Project members
 
@@ -137,16 +319,22 @@ GET /api/v1/projects/{slug}/members
 ]
 ```
 
-`role` is the membership role, `editor` or `viewer`. The project response
+`role` is the membership role: `editor`, `viewer` or `none`. A `none` row
+("No access" in the app) opts an organization member out of a project the
+organization's `default_project_role` would otherwise give them; members
+without a row are not listed and hold the default. The project response
 (`GET /api/v1/projects/{slug}`) also carries `my_role` (`owner`, `editor` or
-`viewer`), the caller's effective role, and `can_mutate`.
+`viewer`, never `none`: without access the project is a `404`), the caller's
+effective role — `owner` for an owner or admin of the project's organization,
+else their row's role, else the organization's default — and `can_mutate`.
 
-Changing membership is limited to the instance owner and the project's creator,
-and needs a browser session: every API key, whatever its scope, gets `403` on
-these routes. The creator also needs an editing role: a creator whose instance
-role is `viewer`, or who is a `viewer` member, gets `403`, and a creator who was
-removed from the project gets `404`. The same applies to renaming and resetting
-the project; deleting it is owner-only.
+Changing membership is limited to the organization's owners and admins and the
+project's creator, and needs a browser session: every API key, whatever its
+scope, gets `403` on these routes. The creator also needs an editing role: a
+creator who is a `viewer` member gets `403`, and a creator who was removed from
+the project gets `404`. The same applies to renaming and resetting the project;
+deleting it is for owners and admins only. The user you add must be a member of
+the project's organization.
 
 ```http
 POST   /api/v1/projects/{slug}/members            {"user_id": "…", "role": "viewer"}
@@ -154,18 +342,24 @@ PATCH  /api/v1/projects/{slug}/members/{user_id}  {"role": "editor"}
 DELETE /api/v1/projects/{slug}/members/{user_id}
 ```
 
+`role` is `editor`, `viewer` or `none`. A `none` row for an owner or admin of
+the organization answers `422`: they always see every project. Deleting a row
+returns its user to the organization's default access.
+
 Adding someone who is already a member answers `409`; an unknown user or
 membership answers `404`. When you add an event-type owner
 (`POST /api/v1/projects/{slug}/event-types/{event_type_id}/owners`) or a branch
 reviewer (`POST /api/v1/projects/{slug}/branches/{branch_id}/reviewers`), the
-user must be a member of the project, or the call answers `422`
+user must have access to the project, or the call answers `422`
 `User is not a member of this project`. Removing a member also removes their
 event-type ownerships and pending branch-reviewer assignments in that project,
 and closes a live-updates stream they have open within one heartbeat.
 
-One existence signal is unavoidable: slugs are unique across the instance, so
-`POST /api/v1/projects` or a rename to a slug that is already taken answers
-`409` even when the caller cannot see the project holding it.
+One existence signal is unavoidable: slugs are unique within an organization,
+so `POST /api/v1/projects` or a rename to a slug that is already taken in the
+same organization answers `409` even when the caller cannot see the project
+holding it. Another organization may use the same slug. Reserved slugs (`demo`,
+`orgs`, `new`, `settings`, `api`, `p`, `o`, ...) answer `422`.
 
 ### Creating a project from a template {#project-templates}
 
@@ -205,7 +399,7 @@ POST /api/v1/projects
 ```
 
 The `201` response is the usual project plus `template_branch_id`, the draft
-working branch holding the template's event types, fields, variables and draft
+working branch holding the template's event types, fields, properties and draft
 events. Pass it as `?branch=` to review or edit the plan, then submit, approve
 and merge it through the ordinary branch flow; main stays empty until then, so
 the project's summary counters read `0`. Without `template_id` the request is
@@ -277,7 +471,7 @@ Read the response's `renames` list before interpreting those entries. Entities a
 { "entity_type": "event", "name": "purchase:success", "parent": "track", "field": "field_values", "entity_id": "5a1f…" }
 ```
 
-Pass the entry's `entity_id` as well: when two entries share a name it is the only thing that says which one you mean, and without it such a name is refused with `409` (`More than one change on this branch is called …`). Omit `field` to revert the whole entity: an addition is deleted, an edit is written back, a deletion is rebuilt with its child rows and, for an event, its `superseded_by` successor. A revert never touches main, needs an open branch and an editor role, and answers with a `409` — rather than a partial write — when the change cannot be undone unambiguously: two entities on the branch answer to the name and nothing records which one the entry is about (`Rename one of them, then revert.`), several rows of the branch's base snapshot answer to it with none of them named by the entry or a copy's origin (`Undo it by hand instead.`), two base events share the name of an event a restored variable override points at (`Set the overrides by hand instead.`), two events answer to the `superseded_by` successor being restored, on the branch or in the base, the parent event type is still deleted, or the branch's base snapshot predates a field the entity needs. A restored `superseded_by` whose successor no longer exists on the branch is cleared instead. A merged branch answers `409` `Branch is merged, so its plan is read-only`, and a closed one `Branch is closed — reopen it before reverting changes`.
+Pass the entry's `entity_id` as well: when two entries share a name it is the only thing that says which one you mean, and without it such a name is refused with `409` (`More than one change on this branch is called …`). Omit `field` to revert the whole entity: an addition is deleted, an edit is written back, a deletion is rebuilt with its child rows and, for an event, its `superseded_by` successor. A revert never touches main, needs an open branch and an editor role, and answers with a `409` — rather than a partial write — when the change cannot be undone unambiguously: two entities on the branch answer to the name and nothing records which one the entry is about (`Rename one of them, then revert.`), several rows of the branch's base snapshot answer to it with none of them named by the entry or a copy's origin (`Undo it by hand instead.`), two base events share the name of an event a restored property override points at (`Set the overrides by hand instead.`), two events answer to the `superseded_by` successor being restored, on the branch or in the base, the parent event type is still deleted, or the branch's base snapshot predates a field the entity needs. A restored `superseded_by` whose successor no longer exists on the branch is cleared instead. A merged branch answers `409` `Branch is merged, so its plan is read-only`, and a closed one `Branch is closed — reopen it before reverting changes`.
 
 ### Updating a branch from main
 
@@ -345,10 +539,10 @@ GET /api/v1/projects/{slug}/events?search=purchase&limit=50&branch=<branch_id>
 GET /api/v1/projects/{slug}/event-types
 GET /api/v1/projects/{slug}/event-types/{event_type_id}
 GET /api/v1/projects/{slug}/event-types/{event_type_id}/fields
-GET /api/v1/projects/{slug}/variables?limit=200&offset=0&branch=<branch_id>
-GET /api/v1/projects/{slug}/variables/{variable_id}/values?branch=<branch_id>
-GET /api/v1/projects/{slug}/variables/{variable_id}/event-overrides?branch=<branch_id>
-GET /api/v1/projects/{slug}/variables/drifts?branch=<branch_id>
+GET /api/v1/projects/{slug}/properties?limit=200&offset=0&branch=<branch_id>
+GET /api/v1/projects/{slug}/properties/{variable_id}/values?branch=<branch_id>
+GET /api/v1/projects/{slug}/properties/{variable_id}/event-overrides?branch=<branch_id>
+GET /api/v1/projects/{slug}/properties/drifts?branch=<branch_id>
 ```
 
 `GET /projects/{slug}/events/{event_id}` and its `/history` answer for an event
@@ -369,7 +563,7 @@ Event responses include:
 - field values and meta values;
 - tags;
 - metric breakdown columns;
-- variable value contexts on field values that contain real `${variable}` placeholders.
+- property value contexts on field values that contain real `${variable}` placeholders.
 
 `/variables` is paginated and returns `{"items": [...], "total": <int>}`.
 `offset` defaults to `0` (minimum `0`) and `limit` defaults to `200` (`1` to
@@ -380,7 +574,7 @@ the whole catalog.
 `usage=all|used|unused` narrows the listing: `unused` returns exactly the rows a
 retirement pass would take, `used` its complement. It is answered by the same
 retirement predicate rather than by a "zero usage count" shortcut, so `unused`
-never offers up a variable that a live event value still names. The default is
+never offers up a property that a live event value still names. The default is
 `all` and an unrecognised value is a `422`. `total` reflects the filter, so it
 stays the honest count for whichever set you asked for.
 
@@ -388,11 +582,11 @@ Each item in `items` includes `allowed_values`, warehouse/JSON-path `bindings`,
 `excluded_from_scans`, usage summaries, `open_drift_count`, and two inline
 previews that spare a per-variable follow-up call: `sample_values` (observed
 values unioned across every context, de-duplicated, capped at 20) and
-`event_names` (distinct names of the events the variable was observed in,
+`event_names` (distinct names of the events the property was observed in,
 alphabetical, capped at 20 — `event_count` carries the untruncated total).
 
 `/variables/{variable_id}/values` returns the full per-event observed contexts
-for one variable: low-cardinality contexts list all observed values, while
+for one property: low-cardinality contexts list all observed values, while
 high-cardinality contexts list bounded samples and an observed count. A context
 over a plain column takes its kind and its count from a `COUNT(DISTINCT)` over
 the scanned window, but one over a JSON-path binding is always high-cardinality
@@ -401,15 +595,15 @@ Reach for it only when the inline previews are not enough. Event overrides
 replace the global documented list for their event.
 
 The catalog is not append-only. A catalog scan run can retire the scan-created
-variables nothing refers to any more — no `${token}` in any stored event field
+properties nothing refers to any more — no `${token}` in any stored event field
 or meta value, no observed context, no value drift, no per-event override — so a
-variable id cached from an earlier read can be gone by the next call. A scan
+property id cached from an earlier read can be gone by the next call. A scan
 started by hand always retires; a scheduled collection retires too, judging a
-variable minted from a path inside a JSON column on every run and one minted
+property minted from a path inside a JSON column on every run and one minted
 from a scalar column only when the config declares a lookback window, because
 one quiet interval can flip a scalar column to literals in every event at once
-and a run must not recycle the variable on that evidence; a replay never. A
-variable your agent edited, documented, bound, or excluded from scans is never
+and a run must not recycle the property on that evidence; a replay never. A
+property your agent edited, documented, bound, or excluded from scans is never
 retired, and so is one renamed to anything the scan would not have chosen for
 that path itself.
 The branch-wide version of the same pass,
@@ -469,7 +663,7 @@ through event mutations are treated as authored and are protected from later
 scan overwrite; re-sending an unchanged value keeps its flag as it was.
 
 On every partial-update body in the API — events, event types, fields, meta
-fields, scan configs, data sources, variables and projects — omitting a field is
+fields, scan configs, data sources, properties and projects — omitting a field is
 how you leave it alone, and sending it as an explicit `null` means "clear it".
 A `null` on a field whose column cannot be empty is refused with a `422` naming
 the field (`Field(s) cannot be null: status`). On `EventUpdate` those are `name`,
@@ -697,14 +891,15 @@ the config's own interval first.
 
 This is the **only** owner-gated route an API key can reach, and the gate is
 strict about all three of its parts: the key's scope must be `write`, the user
-behind it must have the `owner` role, and a project-bound key still only reaches
-its own project. An editor's `write` key gets `403 Owner role required`; a `read`
-key gets `403 API key has read-only scope`.
+behind it must be an owner or admin of the organization the key belongs to (and
+so of the project's), and a project-bound key still only reaches its own
+project. A member's `write` key gets `403 Organization owner or admin role
+required`; a `read` key gets `403 API key has read-only scope`.
 
-It is reachable because a replay only re-runs SQL an owner already authored
-through the browser-only scan routes — it cannot introduce a new query. Creating
-or editing a scan config, like connecting a data source, stays an interactive
-owner session.
+It is reachable because a replay only re-runs SQL an owner or admin already
+authored through the browser-only scan routes — it cannot introduce a new query.
+Creating or editing a scan config, like connecting a data source, stays an
+interactive session of an owner or admin.
 
 ## Source freshness
 
@@ -892,9 +1087,10 @@ Owners of a matched item are the event type's owners on `main` (for an event,
 its type's owners; for an event type, its own; for any other scope about an
 event or event type — drift, release regression, lifecycle — that type's
 owners) plus, for a catalog metric, the metric's `owner_id`; project total and
-source freshness have none. Only current project members with an account
-email are emailed; an owner who is not a member or has no email is neither
-notified nor listed. Each owner gets one plain-text email per rule delivery,
+source freshness have none. Only owners who can currently see the project (a
+row, the organization's default access, or an owner or admin of the
+organization) and have an account email are emailed; an owner without access
+or without an email is neither notified nor listed. Each owner gets one plain-text email per rule delivery,
 sent after the rule's delivery is sent, through the instance SMTP settings. The
 email uses the default item lines (the digest's lines for a digest), not the
 rule's custom template. A digest that batches several rules sends one email
@@ -1190,7 +1386,7 @@ dependencies route of its own.
   in the entity's own scope) and `possible` for a match by name without a
   stored id: an SQL identifier or JSON-key literal in a `sql` metric's query,
   filter SQL or a fact table's SQL, a fact-table or `fact` metric column, a
-  variable binding by column name, a column on a scan with no event type. Treat
+  property binding by column name, a column on a scan with no event type. Treat
   `possible` as "check it", never as proof.
 - `url_hint` is the entity's path in the app, without `?branch=`. It is filled
   for every kind except a field whose event type cannot be found, where it is
@@ -1203,7 +1399,7 @@ dependencies route of its own.
 
 See [Dependencies & impact](../use/dependencies-and-impact.md#what-counts-as-a-dependency)
 for every edge, including *superseded by* links between events, detection
-overrides, variables used in field and meta values, and scan drift, platform
+overrides, properties used in field and meta values, and scan drift, platform
 and app-version columns.
 
 Ask about a set of planned changes at once:
@@ -1258,7 +1454,7 @@ GET /api/v1/projects/{slug}/branches/{branch_id}/impact
 
 The response has the same `items` shape as `POST /impact`, with the change set
 taken from the branch's diff: deleted, renamed, deprecated or archived, and
-otherwise edited events, event types, fields and variables. Here `change` can
+otherwise edited events, event types, fields and properties. Here `change` can
 also be `change`, a response-only value for an entity edited in place (a
 field's type, an event's breakdown columns) without being renamed, deprecated or
 archived. A rename appears once, paired the way the diff's `renames` list pairs
@@ -1806,8 +2002,9 @@ event's discussion, watch the event itself.
 
 A comment body mentions a member with `@[Name](user_id)`. Only that form
 notifies; plain `@name` text does not. Take the ids from
-[`GET /api/v1/projects/{slug}/members`](#project-members). A mentioned user who
-is not a member of the project is skipped. A mention notifies even when the
+[`GET /api/v1/projects/{slug}/members`](#project-members), or, for members who
+hold the organization's default access without a row, from the organization's
+member list. A mentioned user who cannot see the project is skipped. A mention notifies even when the
 mentioned user has muted the thread.
 
 ### Who is notified
@@ -1903,7 +2100,7 @@ How an item is resolved:
 
 A hole matches whatever the plan has in that place, and the plan's own
 `${variable}` placeholders match the item's literal text (which is then checked
-against the variable's documented values). The fields an item carries are
+against the property's documented values). The fields an item carries are
 checked against the type whether or not the identity matched. When the identity
 matches no planned event:
 
@@ -1959,7 +2156,7 @@ findings. `summary` counts items by status. The finding codes are:
 | `deprecated_event` | warning, or error | The matched event is `deprecated` (warning) or `archived` (error). |
 | `unknown_field` | warning | A `fields` or `properties` key that the event type does not define. |
 | `missing_required_field` | error | Only for `complete: true`: a required field of the type is absent. |
-| `value_not_allowed` | error | A literal value is outside the field's enum options, outside the documented `allowed_values` of the variable the field refers to, or fails the field's contract regex or min/max. |
+| `value_not_allowed` | error | A literal value is outside the field's enum options, outside the documented `allowed_values` of the property the field refers to, or fails the field's contract regex or min/max. |
 | `dynamic_value` | info | Only with `"strict": true`: a field was sent as `null` or with a hole, or the identity has holes. |
 | `too_dynamic` | info | The identity has more than 10 holes, too many to match. |
 
@@ -2057,7 +2254,7 @@ How a field becomes a property:
 | Field type | `string`, `enum` → `type: string`; `url` → `type: string, format: uri`; `number` → `type: number`; `boolean` → `type: boolean`; `json` → no `type` (anything). |
 | Required field | Listed in `required`. |
 | The event's value is a literal (`checkout`, `9.99`) | `const`, typed by the field type: a number field's `"9.99"` is the number `9.99`. |
-| The event's value is a whole `${variable}` | `enum` of the variable's allowed values (the event's own override list when it has one). No allowed values: no constraint. |
+| The event's value is a whole `${variable}` | `enum` of the property's allowed values (the event's own override list when it has one). No allowed values: no constraint. |
 | The event's value is a template (`item_${kind}`) on a string field | An anchored `pattern`, each hole an alternation of the allowed values, or `.*`. |
 | Enum field | `enum` of its options. |
 | Contract regex | `pattern`. Unanchored: the same partial match `tripl check` and the drift job apply. |
@@ -2074,7 +2271,7 @@ identity, name, status); a 2020-12 validator ignores it.
 ### `format=codegen_model` {#plan-export-codegen-model}
 
 The plan as the code generator needs it: every event type with its name rule,
-fields and events, and the documented variables.
+fields and events, and the documented properties.
 
 ```json
 {
@@ -2114,13 +2311,13 @@ fields and events, and the documented variables.
 |-----|---------|
 | `event_types[].name_rule` | The type's resolved event name format, or `null` for a type identified by a flat name. |
 | `fields[].type` | The plan field type: `string`, `number`, `boolean`, `json`, `enum` or `url`. |
-| `fields[].values` | The closed set of values the plan allows for the field across the type's events, or `null` when it is free. It is closed only for a string-like field that **every** exported event fills with a literal, a variable with allowed values, or a template whose holes all have them; an event that leaves the field unset makes it free. A free enum field falls back to its options. |
-| `fields[].variable` | The variable the field is bound to, or `null`. |
-| `events[].field_values` | Plan field to value. A `${token}` value is a variable placeholder; its values are in `variables`. |
+| `fields[].values` | The closed set of values the plan allows for the field across the type's events, or `null` when it is free. It is closed only for a string-like field that **every** exported event fills with a literal, a property with allowed values, or a template whose holes all have them; an event that leaves the field unset makes it free. A free enum field falls back to its options. |
+| `fields[].variable` | The property the field is bound to, or `null`. |
+| `events[].field_values` | Plan field to value. A `${token}` value is a property placeholder; its values are in `variables`. |
 | `events[].deprecated` | `true` for a deprecated event. Archived events are not listed. |
-| `events[].overrides` | The event's own allowed values for a variable, keyed by every `${token}` spelling of it, values in plan order. For that event only they replace the variable's `allowed_values`; an empty list means the event accepts any value. `{}` when the event overrides nothing. |
-| `variables[].allowed_values` | The variable's documented values. |
-| `variables[].tokens` | Every `${token}` spelling that names the variable, so a stored `field_values` template can be mapped back to it. |
+| `events[].overrides` | The event's own allowed values for a property, keyed by every `${token}` spelling of it, values in plan order. For that event only they replace the property's `allowed_values`; an empty list means the event accepts any value. `{}` when the event overrides nothing. |
+| `variables[].allowed_values` | The property's documented values. |
+| `variables[].tokens` | Every `${token}` spelling that names the property, so a stored `field_values` template can be mapped back to it. |
 
 ## Docs catalog {#docs-catalog}
 
@@ -2138,6 +2335,7 @@ GET    /api/v1/projects/{slug}/docs/revisions?scope=project&path=guides/warehous
 GET    /api/v1/projects/{slug}/docs/revisions/{revision_id}
 GET    /api/v1/projects/{slug}/docs/backlinks?kind=field&name=amount&qualifier=checkout
 GET    /api/v1/projects/{slug}/docs/links?ref=event:purchase&ref=field:checkout/amount
+GET    /api/v1/projects/{slug}/docs/link-suggestions?q=signup&kind=metric&limit=8
 GET    /api/v1/projects/{slug}/docs/export?scope=project&format=json
 PUT    /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
 DELETE /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md
@@ -2146,25 +2344,93 @@ POST   /api/v1/projects/{slug}/docs/move
 POST   /api/v1/projects/{slug}/docs/revisions/{revision_id}/restore
 POST   /api/v1/projects/{slug}/docs/import?scope=project&mode=merge&dry_run=true
 POST   /api/v1/projects/{slug}/docs/import/zip?scope=project&mode=merge&dry_run=true&keep_root=false
+GET    /api/v1/projects/{slug}/docs/file/sharing?scope=project&path=guides/warehouse.md
+PUT    /api/v1/projects/{slug}/docs/file/sharing?scope=project&path=guides/warehouse.md
+GET    /api/v1/projects/{slug}/docs/folder/sharing?scope=project&path=guides/
+PUT    /api/v1/projects/{slug}/docs/folder/sharing?scope=project&path=guides/
 ```
 
 Reads (every `GET`) are open to any project member, including viewers and
 `read`-scope keys. A non-member gets `404`. Writes need an editor on the
 project and a `write`-scope key. Organization notes are readable from every
-project of the organization, so a key bound to one project cannot change them
-(`403`). Deleting organization notes in bulk, with `DELETE /docs/folder` or an
-import in `mirror` mode, needs the instance owner in a browser session: every
-API key gets `403`. Two writers racing on the same note get `409`, as a stale
+project of the organization, so only an owner or admin of the organization may
+change them (`403` for anyone else), and a key bound to one project cannot
+change them (`403`). Deleting organization notes in bulk, with
+`DELETE /docs/folder` or an import in `mirror` mode, needs an organization
+owner or admin in a browser session: every API key gets `403`. Two writers racing on the same note get `409`, as a stale
 `base_revision` does.
 
 `GET /docs` returns the tree: `project_docs` and `organization_docs` (each
 note's `scope`, `path`, `title`, `description`, `tags`, `audience`,
-`revision`, `size_bytes`, `updated_at`, `updated_by_name`), the project and
+`revision`, `size_bytes`, `updated_at`, `updated_by_name`, `visibility`,
+`my_permission` and `shared`), the project and
 organization, and the `limits`. `GET /docs/file` adds `id`, the raw `content`
 (frontmatter included), the `body` without frontmatter, `extra_frontmatter`
-(the keys tripl does not interpret), and `links`. Each link has a `status` of
-`resolved`, `ambiguous` or `broken`, plus the in-app `route_path` of its
-target on the main plan. A missing note is `404` with `"Doc not found"`.
+(the keys tripl does not interpret), `links` and `linked_from`. Each link has
+a `status` of `resolved`, `ambiguous`, `broken` or `unavailable`, plus the
+in-app `route_path` of its target on the main plan. A link that does not
+resolve may have a `reason`: `not_found`, `invalid_id`, `path_form` (a
+`[[doc:path]]` that was not saved as an id) or `not_a_member` (a mention of
+someone outside the organization). A broken link by name also has
+`suggestions`, up to three current names close to the one written. Only the
+first 20 broken links of one response get suggestions; the others have an
+empty list.
+`linked_from` lists the notes that link to this one (`scope`, `path`,
+`title`), limited to notes the caller can read. A missing note is `404` with
+`"Doc not found"`.
+
+### Link syntax {#docs-link-syntax}
+
+| Kind | Syntax | Resolved by |
+| --- | --- | --- |
+| `doc` | `[[doc:<id>]]`, `[[doc:<id>#heading-slug\|label]]` | note id; shown with the note's current title |
+| `event` | `[[event:NAME]]` | name, on the main plan |
+| `event_type` | `[[event-type:NAME]]` | name, on the main plan |
+| `field` | `[[field:NAME]]`, `[[field:EVENT_TYPE/NAME]]` | name, on the main plan |
+| `variable` | `[[variable:NAME]]` | name, on the main plan |
+| `metric` | `[[metric:NAME]]` | catalog metric name |
+| `alert_rule` | `[[alert-rule:<id>]]` | rule id; shown with the rule's current name |
+| `branch` | `[[branch:NAME]]` | plan branch name |
+| `scan` | `[[scan:NAME]]` | scan config name |
+| `data_source` | `[[data-source:NAME]]` | name of a data source the project uses |
+| `user` | `[[user:<id>]]` | user id; a mention, shown as `@Name` |
+
+Any link takes an optional `|label`. Links by id survive renames and moves.
+A link by name breaks when the target is renamed; relink it to one of the
+`suggestions`. A `PUT` turns a hand-written `[[doc:path/to/note.md]]` into the
+id form when the path is a note the caller can read. A `[[doc:path]]` that is
+still in the note comes back `broken` with the reason `path_form`. If the
+caller can read a note at that path, `suggestions` holds its id and `label`
+its title: save the note to link it by id. A `[[doc:<id>]]` link to a note
+the caller cannot read comes back `unavailable`, with no reason, title, path
+or route. A link to a deleted note gets exactly the same answer, so a link
+never shows whether a hidden note exists. Saving a note with a new
+`[[user:<id>]]` notifies that person once, if they are an organization member
+who can read the note and is a member of this project. Imports never notify.
+
+`GET /docs/backlinks?kind=&name=` works for every kind: pass the name for a
+by-name kind and the id for `doc`, `alert_rule` and `user`.
+
+### Link suggestions {#docs-link-suggestions}
+
+`GET /docs/link-suggestions?q=&kind=&limit=` is what the editor's `[[` and `@`
+pickers call. `q` is the typed text, `kind` (optional) narrows to one kind
+from the table above, and `limit` caps the rows. The answer is
+`{"items": [...]}`, and each item has:
+
+- `kind`: one of the kinds above.
+- `id`: the target's id (always present).
+- `label`: the name to show.
+- `detail`: a second line, such as a path or an email address, or `""` when
+  there is none.
+- `insert`: the canonical link to write into the note, such as
+  `[[metric:signup_rate]]` or `[[user:<id>]]`.
+
+Plan entities come from the plan search. Notes are limited to the ones the
+caller can read, people to members of the organization, and alert rules,
+branches, scans and data sources to the project. The route allows 240
+requests per minute for each user and answers `429` with a `Retry-After`
+header after that.
 
 To write, send the whole content:
 
@@ -2192,10 +2458,78 @@ link. A broken link does not block the save.
 - Content over 256 KiB is `413`. A bad path, invalid frontmatter, or a root
   that already holds 5000 notes is `422`, with the reason in `detail`.
 
+### Note sharing {#docs-sharing}
+
+A note is readable by everyone at its level (`visibility: "level"`, the
+default), by its author and the people and groups it is shared with
+(`"restricted"`), or by its author only (`"private"`). See
+[Sharing](../use/docs-catalog.md#sharing). The rules apply to every docs
+route, and to API keys as to their user:
+
+- A note the caller cannot read is left out of `GET /docs`, search, backlinks,
+  revisions and the export, and is not counted anywhere. Reading it by path is
+  `404` `"Doc not found"`, the same answer as for a missing note.
+- An organization owner or admin can read such a note by path
+  (`GET /docs/file`, `GET /docs/revisions`, `GET /docs/file/sharing`). The
+  answer is `200` with `"break_glass": true` on the note, each read is audited
+  as `doc.break_glass_read`, the note is still missing from every list, and
+  it stays read-only for them unless it is shared with them for editing.
+- A hidden note still holds its path: a create, move or import (also a dry
+  run) onto that path is `409` `"A doc already exists at ..."` (or `"the path
+  is taken"` in an import report), and the per-scope note limit counts hidden
+  notes. None of these names the note or shows its content.
+- Each note in a response carries `visibility`, `my_permission` (`"view"` or
+  `"edit"`: what the caller may do with it) and `shared` (whether it has any
+  share). A `PUT /docs/file` on a note whose `my_permission` is `"view"` is
+  `403`.
+
+`GET /docs/file/sharing` returns the note's setting:
+
+```json
+{
+  "visibility": "restricted",
+  "inherited": false,
+  "inherited_from": null,
+  "shares": [
+    {"principal_type": "user", "principal_id": "<user id>", "name": "Alice Example", "permission": "edit"},
+    {"principal_type": "group", "principal_id": "<group id>", "name": "Analysts", "permission": "view"}
+  ]
+}
+```
+
+`inherited: true` means the note follows the nearest folder setting above it,
+named by `inherited_from` (`null` when no folder sets one). `PUT` takes the
+same body without the `name` fields. Send `inherited: true` to follow the
+folder again. Groups are organization groups. A share to someone outside the
+project (or organization) grants nothing. Only the note's author (while the
+level lets them write) or an organization owner or admin may change a note's
+sharing (`403` otherwise); an `edit` share lets a caller edit the note, not
+re-share it. Each change is audited as `doc.share_update`, with the setting
+before and after.
+
+`GET` and `PUT /docs/folder/sharing?path=<folder>` read and set a folder's
+setting, which the notes under it that follow their folder use. For a folder
+of project notes, `PUT` is allowed to an organization owner or admin, or to a
+project editor when every note that follows the folder is their own or still
+has `visibility: "level"`; for organization notes, to an organization owner
+or admin. A folder's `"private"` means each note's own author, not the caller
+who set it.
+
+Frontmatter never carries visibility. An import ignores it, so imported notes
+get the default or their folder's setting, and an export does not write it.
+
 `POST /docs/move` takes `{"scope", "from_path", "to_path", "folder"}`. With
 `"folder": true` both paths are folder prefixes and every note under
 `from_path` moves. The move is all or nothing: if any target path is taken,
-the answer is `409` and names them. `DELETE /docs/folder` returns
+the answer is `409` and names them. A move never changes who can read a
+note behind its author's back: a single note that follows its folder takes
+its new folder's setting only when the caller is its author or an
+organization owner or admin (audited as `doc.share_update` with
+`"via_move": true`). Otherwise, and for every folder move, a moved note whose
+access would change keeps its old setting as its own
+(`inherited: false`), and the `doc.move` audit row lists it under
+`access_kept`. A folder move carries its folder settings only onto a target
+folder that holds no other notes and has no setting. `DELETE /docs/folder` returns
 `{"deleted": [...]}` and is `404` for a folder with no notes.
 
 `GET /docs/revisions` lists revisions newest first. `GET

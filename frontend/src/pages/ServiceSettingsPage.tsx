@@ -49,11 +49,16 @@ import {
   resetPayload,
   updateHasInvalidNumber,
 } from './settings-service/serviceSettingsHelpers'
-import { isOwner } from '@/lib/permissions'
-import { aiStatusRootKey, authStatusKey, serviceSettingsKey } from '@/lib/queryKeys'
+import { isPlatformAdmin } from '@/lib/permissions'
+import {
+  aiStatusRootKey,
+  authStatusKey,
+  inheritsPlatformSettings,
+  serviceSettingsKey,
+} from '@/lib/queryKeys'
 
 const UNSAVED_MESSAGE =
-  'Instance settings you edited here have not been saved. Leaving this page drops them — anything typed into a prompt or a field is gone.'
+  'Platform settings you edited here have not been saved. Leaving this page drops them — anything typed into a prompt or a field is gone.'
 
 /**
  * What one PATCH to the settings endpoint is doing.
@@ -80,9 +85,10 @@ function writesAi(write: SettingsWrite): boolean {
 }
 
 function payloadFor(write: SettingsWrite): ServiceSettingsUpdate {
-  if (write.kind === 'save') return write.update
-  if (write.kind === 'reset') return resetPayload(write.section)
-  return { [write.group]: { [write.field]: null } } as ServiceSettingsUpdate
+  if (write.kind === 'clear-secret') {
+    return { [write.group]: { [write.field]: null } } as ServiceSettingsUpdate
+  }
+  return write.kind === 'save' ? write.update : resetPayload(write.section)
 }
 
 export default function ServiceSettingsSection({
@@ -91,6 +97,9 @@ export default function ServiceSettingsSection({
   section: ServiceSettingsSectionKey
 }) {
   const { user } = useAuth()
+  // The Platform console (F20 PR9): every section is the operator's. An
+  // organization's own mail, AI and limits are Organization › Email, AI, Limits.
+  const platformAdmin = isPlatformAdmin(user)
   const qc = useQueryClient()
   const { confirm, dialog } = useConfirm()
   const { registerUnsaved } = useUnsavedChanges()
@@ -101,7 +110,7 @@ export default function ServiceSettingsSection({
   const settingsQuery = useQuery({
     queryKey: serviceSettingsKey(),
     queryFn: serviceSettingsApi.get,
-    enabled: isOwner(user?.role),
+    enabled: platformAdmin,
     // Rendered below as an ErrorState with a retry.
     meta: SILENT_ERROR_META,
   })
@@ -113,7 +122,8 @@ export default function ServiceSettingsSection({
   }
 
   const saveMut = useMutation({
-    mutationFn: (write: SettingsWrite) => serviceSettingsApi.update(payloadFor(write)),
+    mutationFn: (write: SettingsWrite) =>
+      serviceSettingsApi.update(payloadFor(write)),
     // Shown in the sticky save row.
     meta: SILENT_ERROR_META,
     onSuccess: (data, write) => {
@@ -126,6 +136,9 @@ export default function ServiceSettingsSection({
       // /auth/status reports whether email is configured, which the Security
       // section and the sign-in page's password reset read.
       void qc.invalidateQueries({ queryKey: authStatusKey() })
+      // Organizations inherit these values and are capped by them: their settings views and the
+      // scan form's row-cap hints would otherwise check against the old ceiling for minutes.
+      void qc.invalidateQueries({ predicate: query => inheritsPlatformSettings(query.queryKey) })
       // A write settles only what it wrote. `form` spans all six sections, so
       // replacing it here threw away an unsaved prompt or field in a section
       // this action never touched (tripl-l8v2).
@@ -229,14 +242,15 @@ export default function ServiceSettingsSection({
     setSecretDrafts(existing => clearSectionSecrets(existing, activeSection))
   }
 
-  if (!isOwner(user?.role)) {
+  if (!platformAdmin) {
     return (
       <div className="max-w-3xl">
         <Card>
           <CardContent>
-            <PageHeader title="Instance settings" />
+            <PageHeader title="Platform settings" />
             <p className="mt-2 text-body text-fg-tertiary">
-              Owner role is required to view or change instance-level settings.
+              Platform admin is required to view or change platform settings: they configure the
+              server itself and the defaults every organization inherits.
             </p>
           </CardContent>
         </Card>
@@ -249,7 +263,7 @@ export default function ServiceSettingsSection({
   if (settingsQuery.isError && !settingsQuery.data) {
     return (
       <ErrorState
-        title="Couldn't load instance settings"
+        title="Couldn't load platform settings"
         error={settingsQuery.error}
         onRetry={() => {
           void settingsQuery.refetch()
@@ -302,7 +316,12 @@ export default function ServiceSettingsSection({
       )}
 
       {section === 'runtime' && (
-        <RuntimeSection form={form} settings={settings} setField={setField} />
+        <RuntimeSection
+          form={form}
+          settings={settings}
+          setField={setField}
+          platformAdmin={platformAdmin}
+        />
       )}
 
       {section === 'email' && (
@@ -326,6 +345,7 @@ export default function ServiceSettingsSection({
           setSecretDrafts={setSecretDrafts}
           saving={saveMut.isPending}
           onClearSecret={(group, field) => void clearSecret(group, field)}
+          platformAdmin={platformAdmin}
         />
       )}
 
@@ -334,14 +354,19 @@ export default function ServiceSettingsSection({
       )}
 
       {section === 'storage' && (
-        <StorageSection form={form} settings={settings} setField={setField} />
+        <StorageSection
+          form={form}
+          settings={settings}
+          setField={setField}
+          platformAdmin={platformAdmin}
+        />
       )}
 
       {section === 'observability' && (
         <ObservabilitySection form={form} settings={settings} setField={setField} />
       )}
 
-      {section === 'system' && <SystemCard system={settings.system} />}
+      {section === 'system' && settings.system && <SystemCard system={settings.system} />}
 
       {section !== 'system' && (
         <ResetSectionCard

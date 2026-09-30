@@ -7,6 +7,8 @@
  * the tour, the scenario, the welcome panel and the hint toggle wrote.
  */
 
+import { orgStorageKey } from '@/lib/activeOrg'
+
 /** localStorage: the product tour's step position. */
 export const TOUR_STORAGE_PREFIX = 'tripl-tour:'
 /** localStorage: the coached scenario's chapter progress. */
@@ -21,9 +23,9 @@ export const TOUR_DOCK_PREFIX = 'tripl-tour-dock:'
 /** Drop everything the demo remembered about `slug`. Best effort, never throws. */
 export function forgetDemoLocalState(slug: string): void {
   try {
-    window.localStorage.removeItem(`${TOUR_STORAGE_PREFIX}${slug}`)
-    window.localStorage.removeItem(`${SCENARIO_STORAGE_PREFIX}${slug}`)
-    window.localStorage.removeItem(`${WELCOME_DISMISS_PREFIX}${slug}`)
+    window.localStorage.removeItem(orgStorageKey(`${TOUR_STORAGE_PREFIX}${slug}`))
+    window.localStorage.removeItem(orgStorageKey(`${SCENARIO_STORAGE_PREFIX}${slug}`))
+    window.localStorage.removeItem(orgStorageKey(`${WELCOME_DISMISS_PREFIX}${slug}`))
   } catch {
     /* storage unavailable: there is nothing to clean up either */
   }
@@ -55,7 +57,11 @@ export function sweepOrphanedDemoLocalState(liveSlugs: Iterable<string>): void {
     for (const key of orphaned) storage.removeItem(key)
   }
   try {
-    sweep(window.localStorage, [TOUR_STORAGE_PREFIX, SCENARIO_STORAGE_PREFIX, WELCOME_DISMISS_PREFIX])
+    // The active organization's keys only: `liveSlugs` are its projects.
+    sweep(
+      window.localStorage,
+      [TOUR_STORAGE_PREFIX, SCENARIO_STORAGE_PREFIX, WELCOME_DISMISS_PREFIX].map((prefix) => orgStorageKey(prefix)),
+    )
   } catch {
     /* storage unavailable: nothing was written to it either */
   }

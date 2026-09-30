@@ -60,7 +60,7 @@ class DependencyEdge(BaseModel):
     # A plain sentence fragment, e.g. "metric uses event in its composition".
     relation: str
     certainty: DependencyCertainty
-    # A frontend path (``/p/{slug}/...``) without ``?branch=``; the caller adds
+    # A frontend path (``/o/{org}/p/{slug}/...``, F20 PR8) without ``?branch=``; the caller adds
     # the branch it is looking at. Null when there is no page to link to.
     url_hint: str | None = None
     # 1 for a neighbour of the asked entity, 2 for a neighbour of a neighbour

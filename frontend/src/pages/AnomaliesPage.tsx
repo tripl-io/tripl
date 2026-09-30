@@ -19,7 +19,7 @@ import { SectionSkeleton, StatValueSkeleton } from '@/components/states'
 import { formatRelativeTime, formatTimestamp } from '@/lib/datetime'
 import { APP_LOCALE, formatNumber } from '@/lib/format'
 import { formatSignalEffect, formatSignalEffectDetail, getMonitoringPath } from '@/lib/monitoring'
-import { getAlertingPath } from '@/lib/navigation'
+import { currentOrgSlug, getAlertingPath, projectPath } from '@/lib/navigation'
 import { alertInboxStatusLabel } from '@/lib/alertStatus'
 import {
   DEFAULT_MAGNITUDE_LEVEL,
@@ -415,7 +415,7 @@ export default function AnomaliesPage() {
         actions={
           slug ? (
             <Button asChild variant="outline" size="sm">
-              <Link to={`/p/${slug}/settings/monitoring`} className="no-underline">
+              <Link to={projectPath(currentOrgSlug(), slug, '/settings/monitoring')} className="no-underline">
                 <Settings2 aria-hidden="true" />
                 Detection settings
               </Link>
@@ -481,13 +481,13 @@ export default function AnomaliesPage() {
                   slug ? (
                     <div className="flex flex-wrap justify-center gap-2">
                       <Button asChild size="sm">
-                        <Link to={`/p/${slug}/scans`} className="no-underline">
+                        <Link to={projectPath(currentOrgSlug(), slug, '/scans')} className="no-underline">
                           <Play aria-hidden="true" />
                           Run a scan
                         </Link>
                       </Button>
                       <Button asChild variant="outline" size="sm">
-                        <Link to={`/p/${slug}/settings/monitoring`} className="no-underline">
+                        <Link to={projectPath(currentOrgSlug(), slug, '/settings/monitoring')} className="no-underline">
                           Detection settings
                         </Link>
                       </Button>

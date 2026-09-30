@@ -28,6 +28,7 @@ from tripl.models.event import Event
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
 from tripl.models.search_document import SearchDocument
+from tripl.models.user import User
 from tripl.schemas.search import (
     SearchEntityType,
     SearchResponse,
@@ -35,7 +36,7 @@ from tripl.schemas.search import (
     SearchVariant,
     SearchVariantGroup,
 )
-from tripl.services import app_settings_service
+from tripl.services import app_settings_service, docs_access
 from tripl.services._celery_dispatch import dispatch
 from tripl.services._search_documents import (
     DOCUMENT_BUILDER_VERSION,
@@ -71,6 +72,7 @@ from tripl.services._search_query import (
 from tripl.services.app_settings_service import AiConfig
 from tripl.services.embedding_service import embedding_provenance, sanitize_embedding
 from tripl.services.plan_branch_service import resolve_branch_id
+from tripl.services.project_links import project_org_slugs, qualify_project_path
 from tripl.services.project_lookup import resolve_project_id
 
 logger = logging.getLogger(__name__)
@@ -242,7 +244,8 @@ async def _reindex_branch_documents(
 
     project_slug = slug or await _project_slug(session, project_id)
     documents = await _build_documents(session, project_id, branch_id, project_slug)
-    ai_config = await app_settings_service.get_ai_config(session)
+    # The owning organization's vector space (F20 PR10).
+    ai_config = await app_settings_service.get_embedding_config_for_project(session, project_id)
     demo_fixture_model = await _demo_fixture_model(session, project_id, ai_config)
 
     existing_rows = (
@@ -485,7 +488,12 @@ async def search_project(
     semantic: bool = True,
     group_variants: bool = False,
     project_id: uuid.UUID | None = None,
+    viewer: User | None = None,
 ) -> SearchResponse:
+    # ``viewer`` is who asks (F24, GH #308): docs catalog notes hidden from them
+    # are left out inside the ranking query, before the window and the page cut,
+    # so they never take a slot or show in ``truncated``. ``None`` (an internal
+    # caller) sees only notes visible at their level to everyone.
     # ``project_id`` lets a caller that has already resolved the project (the
     # docs catalog) skip a second slug lookup; ``slug`` is then ignored.
     # Sanitize here rather than in the router: this is the single funnel every
@@ -500,6 +508,12 @@ async def search_project(
         project_id = await resolve_project_id(session, slug)
     resolved_branch_id = await resolve_branch_id(session, project_id, branch_id)
     await _ensure_index_exists(session, project_id, resolved_branch_id)
+
+    exclude_doc_ids: list[uuid.UUID] = []
+    if not entity_types or "doc" in entity_types:
+        exclude_doc_ids = await docs_access.hidden_doc_ids(
+            session, viewer.id if viewer is not None else None, project_id
+        )
 
     capped_limit = _safe_limit(limit)
     candidate_limit = max(capped_limit, CANDIDATE_WINDOW)
@@ -522,6 +536,7 @@ async def search_project(
             limit=retrieval_limit,
             project_is_demo=project_is_demo,
             semantic=semantic,
+            exclude_doc_ids=exclude_doc_ids,
         )
     else:
         items = await _sqlite_search(
@@ -532,6 +547,7 @@ async def search_project(
             entity_types=entity_types,
             include_archived=include_archived,
             limit=retrieval_limit,
+            exclude_doc_ids=exclude_doc_ids,
         )
         semantic_used = False
 
@@ -568,6 +584,9 @@ async def search_project(
         project_id=project_id,
         branch_id=resolved_branch_id,
     )
+    org_slug = (await project_org_slugs(session, [project_id])).get(project_id)
+    if org_slug is not None:
+        items = [qualify_result_routes(item, org_slug) for item in items]
     return SearchResponse(
         items=items,
         total=len(items),
@@ -864,6 +883,34 @@ async def _group_event_variants(
         event_types=event_types,
         name_formats=sorted(name_format for name_format in name_formats if name_format),
     )
+
+
+def qualify_result_routes(result: SearchResult, org_slug: str) -> SearchResult:
+    """``result`` with its route paths org-qualified (F20 PR8, critique #21).
+
+    A stored document keeps the org-less ``/p/{slug}/...`` route it was built
+    with: ``route_path`` is part of ``content_hash``, so writing the
+    organization into it would change every hash and re-embed the whole corpus
+    once, for a link that can be completed here for free. The organization slug
+    is immutable, so completing it at read time is exact. Returns a copy; the
+    folded variants are qualified the same way.
+    """
+    group = result.variant_group
+    update: dict[str, object] = {
+        "route_path": qualify_project_path(org_slug, result.route_path),
+    }
+    if group is not None:
+        update["variant_group"] = group.model_copy(
+            update={
+                "variants": [
+                    variant.model_copy(
+                        update={"route_path": qualify_project_path(org_slug, variant.route_path)}
+                    )
+                    for variant in group.variants
+                ]
+            }
+        )
+    return result.model_copy(update=update)
 
 
 async def _project_slug(session: AsyncSession, project_id: uuid.UUID) -> str:

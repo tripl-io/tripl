@@ -165,28 +165,35 @@ def test_project_members_migration_skips_the_backfill_off_postgresql(monkeypatch
 def test_project_members_backfill_runs_on_postgres(monkeypatch) -> None:
     """The captured backfill SQL, executed on a real PostgreSQL schema.
 
-    The table and enum come from the models (identical to the migration's DDL);
-    the rows come from the migration's own statements.
+    The table and enum come from the models (identical to the migration's DDL),
+    with the legacy ``users.role`` the backfill reads put back
+    (``_legacy_role_schema``); the rows come from the migration's own statements.
     """
     from sqlalchemy.orm import Session
 
-    from tripl.models import Base
     from tripl.models.project import Project
     from tripl.models.project_member import ProjectMember
     from tripl.models.user import User
+    from tripl.tests._legacy_role_schema import (
+        create_legacy_role_schema,
+        drop_legacy_role_schema,
+        set_user_role,
+    )
     from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
 
     statements = _capture_project_members_backfill(monkeypatch, dialect="postgresql")
     engine = _engine_or_skip()
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    drop_legacy_role_schema(engine)
+    create_legacy_role_schema(engine)
     try:
         with Session(engine, expire_on_commit=False) as session:
-            owner = User(email="owner@example.com", name="O", password_hash="x", role="owner")
-            editor = User(email="editor@example.com", name="E", password_hash="x", role="editor")
-            viewer = User(email="viewer@example.com", name="V", password_hash="x", role="viewer")
+            owner = User(email="owner@example.com", name="O", password_hash="x")
+            editor = User(email="editor@example.com", name="E", password_hash="x")
+            viewer = User(email="viewer@example.com", name="V", password_hash="x")
             session.add_all([owner, editor, viewer])
             session.flush()
+            for user, role in ((owner, "owner"), (editor, "editor"), (viewer, "viewer")):
+                set_user_role(session, user.id, role)
             real_a = Project(name="A", slug="real-a", created_by_user_id=editor.id)
             real_b = Project(name="B", slug="real-b")
             editor_demo = Project(
@@ -234,7 +241,7 @@ def test_project_members_backfill_runs_on_postgres(monkeypatch) -> None:
             ("demo-owner", "owner", "editor"),
         }
     finally:
-        Base.metadata.drop_all(engine)
+        drop_legacy_role_schema(engine)
         engine.dispose()
 
 

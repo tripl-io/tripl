@@ -105,7 +105,7 @@ class World:
 
 
 def _user(session: Session, email: str, name: str) -> uuid.UUID:
-    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x", role="editor")
+    user = User(id=uuid.uuid4(), email=email, name=name, password_hash="x")
     session.add(user)
     session.flush()
     return user.id
@@ -347,3 +347,51 @@ def test_enqueue_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(notification_email.send_notification_emails, "delay", _boom)
     notification_email.enqueue_notification_emails([uuid.uuid4()])
     notification_email.enqueue_notification_emails([])
+
+
+def test_digest_mails_each_organization_through_its_own_relay(
+    factory: sessionmaker[Session], outbox: Outbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One user, rows in two organizations: one digest per organization, each
+    through that organization's relay; an organization with no relay leaves its
+    rows unsent (and unstamped) while the other's go out (F20 PR9)."""
+    from tripl.models.organization import DEFAULT_ORG_ID, Organization
+
+    other_org = uuid.uuid4()
+    relays: dict[uuid.UUID, str] = {DEFAULT_ORG_ID: "default-relay.example.com", other_org: ""}
+    monkeypatch.setattr(
+        app_settings_service,
+        "get_email_config_sync",
+        lambda _session, *, org_id: _email_config(relays[org_id]),
+    )
+    with factory() as session:
+        world = _world(session)
+        session.add(Organization(id=other_org, slug="other", name="Other"))
+        session.flush()
+        elsewhere = Project(
+            id=uuid.uuid4(), name="Elsewhere", slug="elsewhere", organization_id=other_org
+        )
+        session.add(elsewhere)
+        session.add(ProjectMember(project_id=elsewhere.id, user_id=world.oleg, role="editor"))
+        session.commit()
+        here = _note(session, world.oleg, world.project_id, title="Here")
+        there = _note(session, world.oleg, elsewhere.id, title="There")
+
+    result = notification_email.send_notification_digest.run("daily")
+
+    assert result["sent"] == 1
+    assert [mail["smtp_host"] for mail in outbox.emails] == ["default-relay.example.com"]
+    assert "Here" in str(outbox.emails[0]["body"])
+    assert "There" not in str(outbox.emails[0]["body"])
+    assert _emailed(factory, here) is not None
+    assert _emailed(factory, there) is None
+
+    # The other organization sets its relay: its row goes out through it, alone.
+    relays[other_org] = "other-relay.example.com"
+    notification_email.send_notification_digest.run("daily")
+    assert [mail["smtp_host"] for mail in outbox.emails] == [
+        "default-relay.example.com",
+        "other-relay.example.com",
+    ]
+    assert "There" in str(outbox.emails[1]["body"])
+    assert _emailed(factory, there) is not None

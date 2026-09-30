@@ -34,6 +34,7 @@ from tripl.services.monitoring_utils import (
     LATEST_SCAN_STALE_INTERVALS,
     scan_interval_to_timedelta,
 )
+from tripl.services.project_links import project_org_slugs, qualify_project_path
 from tripl.services.project_lookup import project_slug_clause, resolve_project_id
 
 # The activity rail surfaces "recent" signals, not the full anomaly history.
@@ -117,9 +118,10 @@ async def list_activity(
     """The activity rail, limited to the projects the caller may see.
 
     ``visible_project_ids`` is ``project_access.member_project_ids`` for the
-    caller: ``None`` means every project (an instance owner), a set limits every
-    source query to those projects. It is required, with no default, so a new
-    caller cannot silently fall back to the whole instance. A non-member never
+    caller: a set limits every source query to those projects (``None``, every
+    project on the instance, is kept for scripts; no request passes it). It is
+    required, with no default, so a new caller cannot silently fall back to the
+    whole instance. A non-member never
     sees a project exist, so a slug outside the set is "Project not found",
     exactly as for a slug that does not exist.
     """
@@ -138,7 +140,31 @@ async def list_activity(
     items.extend(await _event_items(session, scope=scope, limit=limit))
     items.extend(await _auto_transition_items(session, scope=scope, limit=limit))
 
-    return sorted(items, key=lambda item: _utc_sort_key(item.occurred_at), reverse=True)[:limit]
+    page = sorted(items, key=lambda item: _utc_sort_key(item.occurred_at), reverse=True)[:limit]
+    return await _org_qualified(session, page)
+
+
+async def _org_qualified(
+    session: AsyncSession, items: list[ActivityItemResponse]
+) -> list[ActivityItemResponse]:
+    """The items with ``target_path`` naming each project's organization (F20 PR8).
+
+    The source queries build ``/p/{slug}/...``; a project slug is unique only
+    inside its organization, so the path is completed here, per item, from the
+    project's own organization — one query for the page rather than a join in
+    each of the six sources.
+    """
+    org_slugs = await project_org_slugs(session, {item.project_id for item in items})
+    return [
+        item.model_copy(
+            update={
+                "target_path": qualify_project_path(org_slugs[item.project_id], item.target_path)
+            }
+        )
+        if item.target_path is not None and item.project_id in org_slugs
+        else item
+        for item in items
+    ]
 
 
 async def _anomaly_items(

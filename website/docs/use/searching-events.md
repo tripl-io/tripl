@@ -8,7 +8,7 @@ sidebar_position: 8
 Press ⌘K (Ctrl+K on Windows and Linux) anywhere inside a project and type at
 least two characters. Alongside the pages and commands, the palette searches the
 project's catalog on the branch you are on: events, event types, fields, meta
-fields, variables, relations, tags, metrics, fact tables, scans and alert rules.
+fields, properties, relations, tags, metrics, fact tables, scans and alert rules.
 Results come back best match first, grouped by type. The
 [feature reference](./feature-reference.md) describes the rest of the palette.
 
@@ -78,3 +78,29 @@ the same answer as before. With it on:
   even if the folded rows fit on the page.
 
 Every other result has `variant_group: null`.
+
+## Search by meaning, per organization
+
+Besides matching words, search can also match by **meaning** when semantic
+search is on for your organization. Each organization chooses its own
+embedding provider under **Settings → Organization → Search**: an
+OpenAI-compatible endpoint, model and API key, or the operator's, which it
+inherits by default. Your projects' text is only ever sent to your
+organization's endpoint, and a query is only compared with vectors your
+organization's endpoint and model produced. Another organization's vectors are
+never compared with yours.
+
+- **Changing the model or endpoint** re-embeds your organization's projects in
+  the background. Until that finishes, results come from word matching plus
+  whatever is already embedded with the new model.
+- **With semantic search off** (switched off, or the operator runs with
+  `ORG_SETTINGS_OPERATOR_FALLBACK=none` and your organization has no endpoint
+  of its own), search still works and ranks by word matching. Over the API the
+  response reports `semantic_used: false`.
+- The **demo project** keeps its built-in example vectors while semantic search
+  is off, so meaning search can be tried without a key.
+
+Owners and admins see where each value comes from and can go back to the
+operator's with **Inherit**. The model must produce 1536-value vectors; a model
+that answers with another size is refused when you save it. See
+[Operator and organization settings](../run/configuration.md#operator-and-organization-settings).

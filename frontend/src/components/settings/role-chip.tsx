@@ -1,11 +1,30 @@
 import { Chip, type ChipTone } from '@/components/primitives/chip'
-import { ROLE_OPTIONS, type Role } from '@/types'
+import { PROJECT_ROLE_OPTIONS, ROLE_OPTIONS, type ProjectMemberRole, type Role } from '@/types'
+
+/**
+ * Either vocabulary a chip may show (F20 PR4): an ORGANIZATION role
+ * (owner | admin | member, Members and Profile) or a PROJECT membership role
+ * (editor | viewer | none, Project settings › Access; `none` reads "No access",
+ * a member opted out of a project the organization's default would give them).
+ */
+export type ChipRole = Role | ProjectMemberRole
 
 /** One tone per role, app-wide: a label maps to exactly one tone (DS-7). */
-const ROLE_TONE: Readonly<Record<Role, ChipTone>> = {
+const ROLE_TONE: Readonly<Record<ChipRole, ChipTone>> = {
   owner: 'accent',
+  admin: 'info',
+  member: 'neutral',
   editor: 'info',
   viewer: 'neutral',
+  none: 'warning',
+}
+
+function roleLabel(role: ChipRole): string {
+  return (
+    ROLE_OPTIONS.find((option) => option.value === role)?.label
+    ?? PROJECT_ROLE_OPTIONS.find((option) => option.value === role)?.label
+    ?? role
+  )
 }
 
 /**
@@ -18,14 +37,13 @@ export function RoleChip({
   size = 'sm',
   className,
 }: {
-  role: Role
+  role: ChipRole
   size?: 'xs' | 'sm' | 'md'
   className?: string
 }) {
-  const label = ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role
   return (
     <Chip tone={ROLE_TONE[role] ?? 'neutral'} size={size} className={className}>
-      {label}
+      {roleLabel(role)}
     </Chip>
   )
 }

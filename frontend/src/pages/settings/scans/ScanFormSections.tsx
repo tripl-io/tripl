@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Play } from 'lucide-react'
-import type { DataSource, EventType, IntervalCode } from '@/types'
+import type { DataSource, EventType, IntervalCode, ScanConfigPreview } from '@/types'
 import { useDataSourceSchema } from '@/hooks/useDataSourceSchema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +13,8 @@ import { JsonValuePathsPicker } from './JsonValuePathsPicker'
 import { MetricBreakdownPicker } from './MetricBreakdownPicker'
 import { ScanCausalNote } from './ScanCausalNote'
 import { ScanPreviewPanel } from './ScanPreviewPanel'
+import { PresetColumnFields, SetupPresetChoice } from './ScanSetupPresetFields'
+import { JsonStringColumnsPicker } from './JsonStringColumnsPicker'
 import { LazySqlEditor } from '@/components/sql-editor-lazy'
 import { Field, NativeSelect, SCard } from '@/components/settings/kit'
 import { FieldError } from '@/components/forms/FieldError'
@@ -175,6 +177,14 @@ function CollapsibleSection({
 const NAMING_TOGGLE_ID = 'scan-naming-toggle'
 
 /**
+ * The preview's columns without the ones parsed as JSON: a parsed column is a
+ * document, never a plain breakdown or drift value (its properties are).
+ */
+function textFreeColumns(preview: ScanConfigPreview, parsed: readonly string[]) {
+  return preview.columns.filter(column => !parsed.includes(column.name))
+}
+
+/**
  * Open "Event names and grouping" and put the reader on the control the dry
  * run's flood warning named: the fix sat in a collapsed section below, and
  * nothing pointed at it (#247 DA-1).
@@ -216,10 +226,11 @@ export function ScanEssentialsSection({
 }: SectionProps) {
   const {
     state, set, preview, dryRun, dryRunStale,
-    setBaseQuery, setDataSourceId, setEventTypeColumn, setTimeColumn, setInterval,
-    previewMut, dryRunMut, loadPreview, runDryRun,
+    setBaseQuery, setDataSourceId, setEventTypeColumn, setTimeColumn, setInterval, setSetupPreset,
+    previewMut, dryRunMut, loadPreview, runDryRun, previewParseStale, toggleJsonStringColumn,
   } = form
   const monitoring = state.mode === 'monitoring'
+  const preset = state.setupPreset === 'event_properties'
   /**
    * Whether the monitoring pair is the FIRST thing standing between this draft
    * and a saved scan — the gate on both warnings below.
@@ -374,6 +385,33 @@ export function ScanEssentialsSection({
         </div>
       </Field>
 
+      {/* How the table lays events out, before the naming questions: the
+          Event + properties preset asks two columns instead of all of them. */}
+      <SetupPresetChoice value={state.setupPreset} onChange={setSetupPreset} />
+      {/* Both setups: a ticked text column is a JSON column from here on, so
+          the preset's properties picker below offers it too. */}
+      <JsonStringColumnsPicker
+        preview={preview}
+        selected={state.jsonStringColumns}
+        dbType={selectedSource?.db_type}
+        stale={previewParseStale}
+        onToggle={toggleJsonStringColumn}
+      />
+      {preset && (
+        <PresetColumnFields
+          preview={preview}
+          eventTypes={eventTypes}
+          jsonStringColumns={state.jsonStringColumns}
+          summaryStale={previewParseStale}
+          eventNameColumn={state.eventNameColumn}
+          propertiesColumn={state.propertiesColumn}
+          eventTypeId={state.eventTypeId}
+          onEventNameColumnChange={value => set('eventNameColumn', value)}
+          onPropertiesColumnChange={value => set('propertiesColumn', value)}
+          onEventTypeIdChange={value => set('eventTypeId', value)}
+        />
+      )}
+
       {/* "Where does the event name come from?" is ONE question, so it is asked
           in one place. It used to be split: an "Auto-detect" default here, and
           the column auto-detect actually reads hidden in a collapsed section
@@ -381,22 +419,24 @@ export function ScanEssentialsSection({
           neither set, `run_scan` and the dry-run planner both abort, so every
           scan created on the defaults failed its first run. "Auto-detect" is
           gone with it; the empty option now names the answer it stands for. */}
-      <Field
-        label="Event type"
-        htmlFor="scan-event-type"
-        hint="Give every row the same event type, or read each event's name from a column."
-      >
-        <NativeSelect
-          id="scan-event-type"
-          value={state.eventTypeId}
-          onChange={value => set('eventTypeId', value)}
-          options={[
-            { value: '', label: 'Name events from a column' },
-            ...eventTypes.map(et => ({ value: et.id, label: et.display_name })),
-          ]}
-        />
-      </Field>
-      {namesEventsFromColumn && (
+      {!preset && (
+        <Field
+          label="Event type"
+          htmlFor="scan-event-type"
+          hint="Give every row the same event type, or read each event's name from a column."
+        >
+          <NativeSelect
+            id="scan-event-type"
+            value={state.eventTypeId}
+            onChange={value => set('eventTypeId', value)}
+            options={[
+              { value: '', label: 'Name events from a column' },
+              ...eventTypes.map(et => ({ value: et.id, label: et.display_name })),
+            ]}
+          />
+        </Field>
+      )}
+      {!preset && namesEventsFromColumn && (
         <Field
           label="Event type column"
           htmlFor="scan-event-type-column"
@@ -557,7 +597,8 @@ export function ScanEssentialsSection({
               and did disagree about the same columns on the same screen. Hidden
               while the answer is stale: those column names belong to the draft
               the dry run ran on, which is no longer this one. */}
-          {dryRun && !dryRunStale && state.eventTypeId && (
+          {/* The preset creates its own two fields when it runs. */}
+          {dryRun && !dryRunStale && state.eventTypeId && !preset && (
             <CreateMissingFieldsButton
               slug={slug}
               eventType={eventTypes.find(et => et.id === state.eventTypeId)}
@@ -579,6 +620,8 @@ export function EventNamingSection({ form, readOnly }: SectionProps) {
     state, set, preview, fieldErrors,
     toggleJsonValuePath, discoverJsonMut, discoverJsonPaths,
   } = form
+  // Event + properties derives every field here from its two columns.
+  if (state.setupPreset === 'event_properties') return null
   // "Event type column" is no longer here — it is half of the essentials'
   // "where does the event name come from?" question, and burying the field a
   // scan cannot run without behind a header saying to leave it alone is what
@@ -699,7 +742,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
     <CollapsibleSection
       readOnly={readOnly}
       title="Metric breakdowns and drift"
-      explanation="Extra columns to split metrics by, and columns whose value mix you want watched for drift. Leave this alone to collect one series per event."
+      explanation="Extra columns or properties (JSON paths) to split metrics by, and those whose value mix you want watched for drift. Leave this alone to collect one series per event."
       defaultOpen={defaultOpen}
     >
       {/* Field rows like the essentials card and App version, so the section
@@ -711,16 +754,17 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
           <Field
             label="Metric breakdowns"
             htmlFor={false}
-            hint="Each selected column gets its own series per value (e.g. one per platform), grouped in the warehouse."
+            hint="Each selected column or property gets its own series per value (e.g. one per platform), grouped in the warehouse."
           >
             <MetricBreakdownPicker
-              columns={preview.columns}
+              columns={textFreeColumns(preview, state.jsonStringColumns)}
               selectedColumns={state.metricBreakdownColumns}
               eventTypeColumn={state.eventTypeColumn}
               timeColumn={state.timeColumn}
               appVersionColumn={state.appVersionColumn}
               platformColumn={state.platformColumn}
               onToggleColumn={toggleMetricBreakdownColumn}
+              jsonColumns={preview.json_columns}
             />
           </Field>
           {/* The label matches SCAN_NUMERIC_FIELD_LABEL, which the blocked-save
@@ -756,13 +800,14 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
             last
           >
             <DistributionDriftPicker
-              columns={preview.columns}
+              columns={textFreeColumns(preview, state.jsonStringColumns)}
               selectedFields={state.distributionDriftFields}
               eventTypeColumn={state.eventTypeColumn}
               timeColumn={state.timeColumn}
               appVersionColumn={state.appVersionColumn}
               platformColumn={state.platformColumn}
               onToggleField={toggleDistributionDriftField}
+              jsonColumns={preview.json_columns}
             />
           </Field>
         </>

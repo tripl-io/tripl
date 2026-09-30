@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { settingsPath } from '@/lib/activeOrg'
 import { LogOut, Palette, Settings, UserCircle } from 'lucide-react'
 import {
   DropdownMenuContent,
@@ -51,7 +52,7 @@ export function AccountMenuContent({
         </Link>
       </DropdownMenuItem>
       <DropdownMenuItem asChild>
-        <Link to="/settings" className="flex items-center gap-2 text-body-sm no-underline">
+        <Link to={settingsPath('/settings')} className="flex items-center gap-2 text-body-sm no-underline">
           <Settings className="size-4" aria-hidden="true" />
           Workspace settings
         </Link>

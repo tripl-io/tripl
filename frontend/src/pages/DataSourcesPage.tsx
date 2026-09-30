@@ -80,6 +80,7 @@ import { getErrorMessage } from '@/lib/utils'
 import { formatDate, formatRelativeTime } from '@/lib/datetime'
 import { dataSourcesKey } from '@/lib/queryKeys'
 import { isOwner } from '@/lib/permissions'
+import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
 
 const EMPTY_DATA_SOURCES: DataSource[] = []
 
@@ -246,7 +247,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       // away rather than a trip back to Overview (#250 JR-3).
       const onboarding = parseOnboardingReturn(location.pathname, location.search)
       if (onboarding?.step === 'source') {
-        const scansHref = onboardingStepHref(`/p/${onboarding.slug}/scans`, 'scan', onboarding.slug)
+        const scansHref = onboardingStepHref(projectPath(currentOrgSlug(), onboarding.slug, '/scans'), 'scan', onboarding.slug)
         toast.success(`Data source "${created.name}" connected`, {
           action: { label: 'Next: Run a catalog + monitoring scan', onClick: () => navigate(scansHref) },
         })
@@ -376,7 +377,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
 
   const startEdit = useCallback((ds: DataSource) => {
     populateEditForm(ds)
-    navigate(`/settings/data-sources/${ds.id}`, { replace: true })
+    navigate(settingsPath(`/settings/data-sources/${ds.id}`), { replace: true })
   }, [navigate, populateEditForm])
 
   // Every caller has already settled the draft: the dialog guard asked, or
@@ -393,7 +394,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     setEditErrors(NO_CONNECTION_ERRORS)
     setEditNameError(null)
     resetUpdate()
-    navigate('/settings/data-sources', { replace: true, state: LEAVE_CONFIRMED })
+    navigate(settingsPath('/settings/data-sources'), { replace: true, state: LEAVE_CONFIRMED })
   }
 
   useEffect(() => {
@@ -406,7 +407,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     }
 
     if (openDsId && !canManageDataSources) {
-      navigate('/settings/data-sources', { replace: true })
+      navigate(settingsPath('/settings/data-sources'), { replace: true })
       return
     }
 

@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import InvitePage from './InvitePage'
+import InvitePage, { type InviteSignedInAccount } from './InvitePage'
+import { AUTH_QUERY_KEY } from '@/components/auth-context'
 import { at } from '@/test/at'
 
 
@@ -19,12 +20,16 @@ function urlOf(input: RequestInfo | URL) {
 
 const TOKEN = 'invite-token-abc'
 
-function renderInvitePage(qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function renderInvitePage(
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  signedIn?: InviteSignedInAccount,
+) {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/invite/${TOKEN}`]}>
         <Routes>
-          <Route path="/invite/:token" element={<InvitePage />} />
+          <Route path="/invite/:token" element={<InvitePage signedIn={signedIn} />} />
+          <Route path="/o/:org" element={<div>Joined organization home</div>} />
           <Route path="/" element={<div>Signed in home</div>} />
           <Route path="/auth" element={<div>Sign in screen</div>} />
         </Routes>
@@ -45,7 +50,7 @@ describe('InvitePage', () => {
         return Promise.resolve(
           jsonResponse({
             email: 'invitee@example.com',
-            role: 'editor',
+            role: 'member',
             expires_at: '2026-08-01T00:00:00Z',
           }),
         )
@@ -56,10 +61,14 @@ describe('InvitePage', () => {
     renderInvitePage()
 
     expect(await screen.findByText('invitee@example.com')).toBeInTheDocument()
-    expect(screen.getByText('Editor')).toBeInTheDocument()
+    // The invitation grants an organization role (F20 PR4: owner | admin |
+    // member); what a member may do in each project lives on the project row.
+    expect(screen.getByText('Member')).toBeInTheDocument()
     // The role is explained, not just named (SH-32).
     expect(
-      screen.getByText('Editor can change the tracking plan and alerts, and run scans.'),
+      screen.getByText(
+        'Member sees the projects they are added to, as an editor or a viewer of each.',
+      ),
     ).toBeInTheDocument()
     // The address is fixed by the invitation, so there must be no way to
     // redirect it to a different identity.
@@ -105,7 +114,7 @@ describe('InvitePage', () => {
         return Promise.resolve(
           jsonResponse({
             email: 'invitee@example.com',
-            role: 'viewer',
+            role: 'member',
             expires_at: '2026-08-01T00:00:00Z',
           }),
         )
@@ -136,14 +145,14 @@ describe('InvitePage', () => {
         if (url.includes(`/auth/invitations/${TOKEN}/accept`)) {
           accepted(JSON.parse(String(init?.body)))
           return Promise.resolve(
-            jsonResponse({ id: 'u1', email: 'invitee@example.com', role: 'editor' }, 201),
+            jsonResponse({ id: 'u1', email: 'invitee@example.com', role: 'member' }, 201),
           )
         }
         if (url.includes(`/auth/invitations/${TOKEN}`)) {
           return Promise.resolve(
             jsonResponse({
               email: 'invitee@example.com',
-              role: 'editor',
+              role: 'member',
               expires_at: '2026-08-01T00:00:00Z',
             }),
           )
@@ -175,7 +184,7 @@ describe('InvitePage', () => {
     expect(qc.getQueryData(['auth', 'me'])).toEqual({
       id: 'u1',
       email: 'invitee@example.com',
-      role: 'editor',
+      role: 'member',
     })
   })
   it('marks a missing password under the field instead of a browser bubble (AU-4)', async () => {
@@ -188,7 +197,7 @@ describe('InvitePage', () => {
       }
       if (url.includes(`/auth/invitations/${TOKEN}`)) {
         return Promise.resolve(
-          jsonResponse({ email: 'invitee@example.com', role: 'editor', expires_at: '2026-08-01T00:00:00Z' }),
+          jsonResponse({ email: 'invitee@example.com', role: 'member', expires_at: '2026-08-01T00:00:00Z' }),
         )
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
@@ -211,7 +220,7 @@ describe('InvitePage', () => {
       const url = urlOf(input)
       if (url.includes(`/auth/invitations/${TOKEN}`)) {
         return Promise.resolve(
-          jsonResponse({ email: 'invitee@example.com', role: 'viewer', expires_at: '2026-08-01T00:00:00Z' }),
+          jsonResponse({ email: 'invitee@example.com', role: 'member', expires_at: '2026-08-01T00:00:00Z' }),
         )
       }
       return Promise.reject(new Error(`Unexpected request: ${url}`))
@@ -225,5 +234,87 @@ describe('InvitePage', () => {
     fireEvent.click(toggle)
     expect(password).toHaveAttribute('type', 'text')
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  describe('signed in (F20)', () => {
+    const PREVIEW = { email: 'member@example.com', role: 'member', expires_at: '2026-12-01T00:00:00Z' }
+    const ME = {
+      id: 'user-2',
+      email: 'member@example.com',
+      name: null,
+      role: 'owner',
+      is_platform_admin: false,
+      email_verified: false,
+      orgs: [{ slug: 'own-org', name: 'Own Org', role: 'owner' }],
+      created_at: '2026-09-28T00:00:00Z',
+      updated_at: '2026-09-28T00:00:00Z',
+    }
+
+    function signedInAs(email: string, signOut = vi.fn()): InviteSignedInAccount {
+      return { email, isSigningOut: false, signOut }
+    }
+
+    it("shows the API's refusal for an unverified address in its own words", async () => {
+      const bodies: unknown[] = []
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = urlOf(input)
+        if (url.endsWith(`/auth/invitations/${TOKEN}/accept`)) {
+          bodies.push(JSON.parse(String(init?.body ?? '{}')))
+          return Promise.resolve(
+            jsonResponse({ detail: 'Verify your email address before accepting an invitation.' }, 403),
+          )
+        }
+        if (url.endsWith(`/auth/invitations/${TOKEN}`)) return Promise.resolve(jsonResponse(PREVIEW))
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      renderInvitePage(undefined, signedInAs('member@example.com'))
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Accept with this account' }))
+
+      expect(
+        await screen.findByText('Verify your email address before accepting an invitation.'),
+      ).toBeInTheDocument()
+      // No password is asked for or sent: the account keeps its own.
+      expect(screen.queryByLabelText('Password')).toBeNull()
+      expect(bodies).toEqual([{}])
+    })
+
+    it('joins the signed-in account and opens the organization it joined', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith(`/auth/invitations/${TOKEN}/accept`)) {
+          return Promise.resolve(
+            jsonResponse({
+              ...ME,
+              email_verified: true,
+              orgs: [...ME.orgs, { slug: 'acme', name: 'Acme', role: 'member' }],
+            }),
+          )
+        }
+        if (url.endsWith(`/auth/invitations/${TOKEN}`)) return Promise.resolve(jsonResponse(PREVIEW))
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      qc.setQueryData(AUTH_QUERY_KEY, { ...ME, email_verified: true })
+      renderInvitePage(qc, signedInAs('member@example.com'))
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Accept with this account' }))
+
+      expect(await screen.findByText('Joined organization home')).toBeInTheDocument()
+    })
+
+    it('offers to sign out and redeem the link into another account', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith(`/auth/invitations/${TOKEN}`)) return Promise.resolve(jsonResponse(PREVIEW))
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+      const signOut = vi.fn()
+      renderInvitePage(undefined, signedInAs('someone@example.com', signOut))
+
+      expect(await screen.findByText('someone@example.com')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Sign out and use another account' }))
+      expect(signOut).toHaveBeenCalledTimes(1)
+    })
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { SETTINGS_NAV } from '@/components/settings/nav'
+import { stripOrgPrefix } from '@/lib/activeOrg'
 
 /**
  * Centralized per-page document-title mechanism.
@@ -56,7 +57,7 @@ const PROJECT_SURFACE_LABELS: Record<string, string> = {
   events: 'Events',
   'event-types': 'Event types',
   'meta-fields': 'Meta fields',
-  variables: 'Variables',
+  variables: 'Properties',
   relations: 'Relations',
   branches: 'Plan branches',
   history: 'Plan history',
@@ -105,7 +106,7 @@ const PROJECT_SUBSURFACE_LABELS: Record<string, Record<string, string>> = {
   settings: {
     'event-types': 'Event types',
     'meta-fields': 'Meta fields',
-    variables: 'Variables',
+    variables: 'Properties',
     relations: 'Relations',
     branches: 'Plan branches',
     history: 'Plan history',
@@ -148,7 +149,8 @@ const SETTINGS_PARENT_LABELS: Record<string, string> = {
  * mount outside the app shell. Pure and DOM-free for unit-testing.
  */
 export function resolveTitleFromPath(pathname: string): { label: string; slug?: string } {
-  const parts = pathname.split('/').filter(Boolean)
+  // `/o/{org}/p/…` titles as `/p/…`, `/o/{org}` as the workspace (F20 PR7).
+  const parts = stripOrgPrefix(pathname).split('/').filter(Boolean)
   const [head, second] = parts
   if (head === undefined) return { label: 'All projects' } // "/"
   if (parts[0] === 'auth') return { label: 'Sign in' }
@@ -212,7 +214,7 @@ const DETAIL_SURFACE_KINDS: Record<string, string> = {
  * "Alert rule"), or null when the path is not a detail route. Pure.
  */
 export function resolveEntityKind(pathname: string): string | null {
-  const [head, slug, surface, sub, id] = pathname.split('/').filter(Boolean)
+  const [head, slug, surface, sub, id] = stripOrgPrefix(pathname).split('/').filter(Boolean)
   if (head !== 'p' || !slug || !surface || !sub) return null
   if (surface === 'monitoring') return id ? (MONITORING_SCOPE_KINDS[sub] ?? null) : null
   return DETAIL_SURFACE_KINDS[surface] ?? null

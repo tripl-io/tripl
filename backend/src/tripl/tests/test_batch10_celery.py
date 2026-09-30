@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
@@ -13,7 +14,14 @@ from tripl.worker import celery_app as module
 def test_beat_schedule_uses_fixed_utc_boundaries() -> None:
     assert module.celery_app.conf.timezone == "UTC"
     schedule = module.celery_app.conf.beat_schedule
-    assert all(isinstance(entry["schedule"], crontab) for entry in schedule.values())
+    # The audit webhook poller (F20) is the one interval entry: it has no
+    # wall-clock boundary, and a minute of lag shows in a SIEM.
+    assert all(
+        isinstance(entry["schedule"], crontab)
+        for name, entry in schedule.items()
+        if name != "deliver-audit-webhooks"
+    )
+    assert schedule["deliver-audit-webhooks"]["schedule"] == timedelta(seconds=30)
     assert schedule["check-metrics-due"]["schedule"].minute == set(range(0, 60, 5))
     assert schedule["flush-due-alert-digests"]["schedule"].minute == set(range(60))
     assert schedule["cleanup-scan-jobs"]["task"] == (

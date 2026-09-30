@@ -146,6 +146,9 @@ export const scansApi = {
     time_column?: string | null
     scan_lookback_hours?: number | null
     include_json_paths?: boolean
+    event_name_column?: string | null
+    properties_column?: string | null
+    json_string_columns?: string[]
   }) => api.post<ScanPreviewJob>(`/projects/${slug}/scans/preview`, data),
 
   getPreviewJob: (slug: string, jobId: string) =>
@@ -163,6 +166,9 @@ export const scansApi = {
     time_column?: string | null
     scan_lookback_hours?: number | null
     include_json_paths?: boolean
+    event_name_column?: string | null
+    properties_column?: string | null
+    json_string_columns?: string[]
   }, signal?: AbortSignal): Promise<ScanConfigPreview> => {
     const job = await scansApi.startPreview(slug, data)
     return pollJob(

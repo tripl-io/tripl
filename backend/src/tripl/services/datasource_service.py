@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from tripl import cache
 from tripl.core.adapters.errors import WarehouseCapabilityError
 from tripl.crypto import encrypt_value
+from tripl.middleware.org_context import require_org_id
 from tripl.models.data_source import DataSource, DBType, TestStatus
 from tripl.models.project import Project
 from tripl.models.scan_config import ScanConfig
@@ -48,14 +49,16 @@ async def list_data_sources(
     """Every data source the caller may see, with usage counted over the same set.
 
     ``visible_project_ids`` is ``project_access.member_project_ids`` for the
-    caller (``None`` = every project, an instance owner). A workspace-global
+    caller (``None`` = every project, for scripts; a request always passes the
+    caller's set, which for an organization owner/admin is every project of
+    that organization). A workspace-global
     source (``project_id`` NULL) is listed for everyone; a source bound to a
     project the caller is not a member of is left out entirely, since a
     non-member must not learn the project exists. The cached list is
-    instance-wide and filtered after the read, so one entry serves every user of
-    an organization; the entry is keyed by the bound organization (F20 PR3) so
-    no two organizations share it. The defensive cap applies per organization,
-    so one organization's sources can never crowd another's out of the list.
+    per organization and filtered after the read, so one entry serves every user
+    of an organization; the entry is keyed by the bound organization (F20 PR3) so
+    no two organizations share it. Only the bound organization's sources are
+    read (F20 PR4): another organization's warehouses do not exist here.
     """
     list_key = cache.key_data_sources_list(owning_org_id())
     cached = await cache.get_json(list_key)
@@ -69,17 +72,11 @@ async def list_data_sources(
             visible_project_ids=visible_project_ids,
         )
 
-    ranked = select(
-        DataSource.id,
-        func.row_number()
-        .over(partition_by=DataSource.organization_id, order_by=DataSource.created_at.desc())
-        .label("position"),
-    ).subquery()
     result = await session.execute(
         select(DataSource)
-        .join(ranked, ranked.c.id == DataSource.id)
-        .where(ranked.c.position <= _LIST_LIMIT_PER_ORG)
+        .where(DataSource.organization_id == owning_org_id())
         .order_by(DataSource.created_at.desc())
+        .limit(_LIST_LIMIT_PER_ORG)
     )
     rows = result.scalars().all()
     responses = [_to_response(ds) for ds in rows]
@@ -137,7 +134,8 @@ async def _with_usage(
     project path invalidates the data-source cache.
 
     Counts and refs cover only scans in ``visible_project_ids`` (``None`` = all,
-    for an instance owner and the owner-only write paths). A shared source read
+    for the org-admin write paths, which answer about one of their
+    organization's sources). A shared source read
     by a project the caller is not a member of must not reveal that project's
     name, slug or even its scan volume.
     """
@@ -298,15 +296,18 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
             detail="Synthetic data sources are created only by demo projects, not directly.",
         )
 
-    # Check for duplicates
-    existing = await session.execute(select(DataSource).where(DataSource.name == data.name))
-    if existing.scalar_one_or_none():
+    # The bound organization owns the source; with none bound this raises rather
+    # than defaulting (F20 PR5). Names are unique per organization.
+    organization_id = require_org_id()
+    if await _name_taken(session, organization_id, data.name):
         raise HTTPException(status_code=409, detail="Data source with this name already exists")
 
     raw_settings = data.model_dump(exclude_unset=True).get("connection_settings")
     settings = _validated_settings(data.db_type.value, raw_settings)
 
     ds = DataSource(
+        # The bound organization, where every data-source route looks it up.
+        organization_id=organization_id,
         name=data.name,
         db_type=data.db_type,
         host=data.host,
@@ -322,7 +323,7 @@ async def create_data_source(session: AsyncSession, data: DataSourceCreate) -> D
     await session.commit()
     await session.refresh(ds)
     await cache.delete_prefix(cache.prefix_data_sources())
-    # Owner-only write path: the owner sees every project's usage.
+    # Org-admin write path: an owner/admin sees every project's usage of it.
     return (await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0]
 
 
@@ -333,12 +334,15 @@ async def update_data_source(
     update_dict = data.model_dump(exclude_unset=True)
     _reject_synthetic_conversion(ds, update_dict)
 
-    if "name" in update_dict and update_dict["name"] != ds.name:
-        existing = await session.execute(
-            select(DataSource.id).where(DataSource.name == update_dict["name"])
-        )
-        if existing.scalar_one_or_none() is not None:
-            raise HTTPException(status_code=409, detail="Data source with this name already exists")
+    # Read now: the rollback below expires the row, and an async session cannot
+    # lazy-load it back.
+    organization_id = ds.organization_id
+    if (
+        "name" in update_dict
+        and update_dict["name"] != ds.name
+        and await _name_taken(session, organization_id, update_dict["name"], exclude_id=ds.id)
+    ):
+        raise HTTPException(status_code=409, detail="Data source with this name already exists")
 
     # Handle password separately
     if "password" in update_dict:
@@ -362,28 +366,42 @@ async def update_data_source(
     try:
         await session.commit()
     except IntegrityError as exc:
-        # tripl-0zpq.370: the pre-check above is a plain SELECT holding nothing,
-        # so two concurrent renames to the same free name both pass it and the
-        # loser meets uq_data_source_name at the commit. Rolled back, the name
-        # is looked up again: if another source now holds it, this is that race
-        # and gets the pre-check's 409. Any other integrity failure is re-raised.
+        # tripl-0zpq.370: the pre-check above is a plain SELECT holding nothing, so two
+        # concurrent renames to the same free name both pass it and the loser meets
+        # uq_data_sources_organization_name at the commit. Rolled back, the name is
+        # looked up again: if another source now holds it, this is that race and gets
+        # the pre-check's 409. Any other integrity failure is re-raised.
         await session.rollback()
-        if new_name is not None and await _name_taken_by_other(session, new_name, ds_id):
+        if new_name is not None and await _name_taken(
+            session, organization_id, new_name, exclude_id=ds_id
+        ):
             raise HTTPException(
                 status_code=409, detail="Data source with this name already exists"
             ) from exc
         raise
     await session.refresh(ds)
     await cache.delete_prefix(cache.prefix_data_sources())
-    # Owner-only write path: the owner sees every project's usage.
+    # Org-admin write path: an owner/admin sees every project's usage of it.
     return (await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0]
 
 
-async def _name_taken_by_other(session: AsyncSession, name: str, ds_id: uuid.UUID) -> bool:
-    result = await session.execute(
-        select(DataSource.id).where(DataSource.name == name, DataSource.id != ds_id)
+async def _name_taken(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    name: str,
+    *,
+    exclude_id: uuid.UUID | None = None,
+) -> bool:
+    """Whether ``name`` names a source of ``organization_id`` (other than ``exclude_id``).
+
+    Per organization since F20 PR5, like ``uq_data_sources_organization_name``.
+    """
+    statement = select(DataSource.id).where(
+        DataSource.organization_id == organization_id, DataSource.name == name
     )
-    return result.first() is not None
+    if exclude_id is not None:
+        statement = statement.where(DataSource.id != exclude_id)
+    return (await session.execute(statement.limit(1))).first() is not None
 
 
 async def _refresh_main_search_indexes(session: AsyncSession, project_ids: list[uuid.UUID]) -> None:
@@ -461,7 +479,12 @@ async def delete_data_source(session: AsyncSession, ds_id: uuid.UUID) -> None:
 async def _fetch_data_source(
     session: AsyncSession, ds_id: uuid.UUID, *, with_scan_configs: bool = False
 ) -> DataSource:
-    query = select(DataSource).where(DataSource.id == ds_id)
+    # Fenced to the bound organization (F20 PR4): another organization's source
+    # is "not found", the same 404 an unknown id gets, for every caller —
+    # get, update, delete, test and schema introspection.
+    query = select(DataSource).where(
+        DataSource.id == ds_id, DataSource.organization_id == owning_org_id()
+    )
     if with_scan_configs:
         query = query.options(selectinload(DataSource.scan_configs))
     result = await session.execute(query)
@@ -619,7 +642,7 @@ async def test_data_source_connection(
         success=success,
         message=message,
         tested_at=tested_at,
-        # Owner-only: the owner sees every project's usage.
+        # Org-admin only: an owner/admin sees every project's usage of it.
         data_source=(await _with_usage(session, [_to_response(ds)], visible_project_ids=None))[0],
     )
 

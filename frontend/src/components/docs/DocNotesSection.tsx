@@ -6,7 +6,7 @@ import { docsApi } from '@/api/docs'
 import { Panel } from '@/components/settings/kit'
 import { Chip } from '@/components/primitives/chip'
 import { Button } from '@/components/ui/button'
-import { newNoteHref } from '@/lib/docLinks'
+import { DOC_LINK_KIND_NOUN, newNoteHref } from '@/lib/docLinks'
 import { docRoute } from '@/lib/docTree'
 import { docBacklinksKey } from '@/lib/docsQueryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -14,17 +14,13 @@ import { useCanWriteProject } from '@/lib/permissions'
 import type { DocBacklinkItem, DocLinkKind } from '@/types/docs'
 
 /*
- * The "Notes" card on event, event-type and field pages (F22): the docs-catalog
- * notes that link here with `[[event:…]]` and friends. A plain list on
+ * The "Notes" card on entity pages (F22, F24): the docs-catalog notes that
+ * link here with `[[event:…]]`, `[[variable:…]]`, `[[metric:…]]` and friends —
+ * event, event-type and field pages, the variable page and the metric page.
+ * The server lists only notes the reader can read. A plain list on
  * purpose — it must NOT import the Markdown renderer, which stays in the docs
  * page's own chunk so the event page does not pay for it.
  */
-
-const KIND_NOUN: Record<DocLinkKind, string> = {
-  event: 'event',
-  event_type: 'event type',
-  field: 'field',
-}
 
 export function DocNotesSection({
   slug,
@@ -61,7 +57,7 @@ export function DocNotesSection({
       <div className={className}>
         <p className="m-0 flex flex-wrap items-center gap-2 text-body-sm text-fg-tertiary">
           <FileText className="size-3.5" aria-hidden />
-          No notes link to this {KIND_NOUN[kind]} yet.
+          No notes link to this {DOC_LINK_KIND_NOUN[kind]} yet.
           <Link
             to={newNoteHref(slug, kind, name, qualifier)}
             className="text-[var(--accent)] underline-offset-2 hover:underline"
@@ -77,7 +73,7 @@ export function DocNotesSection({
     <Panel
       className={className}
       title="Notes"
-      subtitle={`Docs that link to this ${KIND_NOUN[kind]}`}
+      subtitle={`Docs that link to this ${DOC_LINK_KIND_NOUN[kind]}`}
       right={
         canWrite ? (
           <Button asChild variant="ghost" size="sm">

@@ -175,6 +175,21 @@ def test_every_string_query_parameter_is_guarded_against_a_nul() -> None:
     )
 
 
+def test_the_link_picker_query_carries_the_guard_on_its_type() -> None:
+    """``/docs/link-suggestions`` (F24 part 2) guards ``q`` itself, unlike ``/search``.
+
+    Its ``q`` is optional and has no ``min_length``, so the NUL guard can sit on
+    the parameter without turning ``?q=%00`` into a 422: it strips to "" and
+    lists by name. ``_GUARDED_ELSEWHERE['q']`` therefore does not cover it.
+    """
+    routes = [
+        route for route in _api_routes(app.router) if route.path.endswith("/docs/link-suggestions")
+    ]
+    assert len(routes) == 1
+    hints = get_type_hints(routes[0].endpoint, include_extras=True)
+    assert _carries_the_guard(hints["q"])
+
+
 def test_the_route_walk_finds_the_whole_api() -> None:
     """Guards the pin above, which silently passed while checking six routes.
 

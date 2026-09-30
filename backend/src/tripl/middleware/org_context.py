@@ -47,10 +47,18 @@ from starlette.requests import HTTPConnection
 
 @dataclass(frozen=True)
 class OrgRef:
-    """The organization a request acts in. Id and slug travel together."""
+    """The organization a request acts in. Id and slug travel together.
+
+    ``step_in_user_id`` is set when the caller acts in it through a platform
+    admin's read-only step-in (F20 PR14) rather than a membership: that user's
+    id. ``services.project_access`` reads it (:func:`stepped_in`) to answer
+    organization role ``member`` and project role ``viewer``; ``api.deps``
+    refuses every write under it.
+    """
 
     id: uuid.UUID
     slug: str
+    step_in_user_id: uuid.UUID | None = None
 
 
 _org_var: ContextVar[OrgRef | None] = ContextVar("tripl_org", default=None)
@@ -92,6 +100,18 @@ def current_org() -> OrgRef | None:
 def current_org_id() -> uuid.UUID | None:
     ref = _org_var.get()
     return None if ref is None else ref.id
+
+
+def stepped_in(user_id: uuid.UUID, org_id: uuid.UUID | None = None) -> bool:
+    """Whether ``user_id`` acts in the bound organization through a step-in.
+
+    ``org_id`` narrows it to that organization: a step-in never reaches another
+    one, whatever the caller passes.
+    """
+    ref = _org_var.get()
+    if ref is None or ref.step_in_user_id is None or ref.step_in_user_id != user_id:
+        return False
+    return org_id is None or ref.id == org_id
 
 
 def require_org_id() -> uuid.UUID:

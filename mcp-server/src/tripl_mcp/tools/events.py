@@ -31,6 +31,7 @@ async def list_events(
     silent_since_days: int | None = None,
     reviewed: bool | None = None,
     has_open_questions: bool | None = None,
+    property: str | None = None,
     offset: int | None = None,
     limit: int | None = None,
     order_by: EventOrderBy | None = None,
@@ -53,6 +54,7 @@ async def list_events(
             silent_since_days=silent_since_days,
             reviewed=reviewed,
             has_open_questions=has_open_questions,
+            property=property,
             offset=offset,
             limit=limit,
             order_by=order_by,
@@ -79,6 +81,16 @@ async def get_event(
 ) -> Any:
     client = client_for(ctx)
     return await send(client, events.get_event(slug, event_id, branch=branch_id))
+
+
+async def get_event_properties(
+    slug: str,
+    event_id: str,
+    ctx: Context,  # type: ignore[type-arg]
+    branch_id: str | None = None,
+) -> Any:
+    client = client_for(ctx)
+    return await send(client, events.get_event_properties(slug, event_id, branch=branch_id))
 
 
 async def create_event(
@@ -137,7 +149,8 @@ def register(mcp: FastMCP) -> None:
             "'tag', "
             "substring 'field_value' e.g. a screen name, substring 'meta_value' "
             "e.g. a ticket key, 'event_type_id', 'silent_since_days', "
-            "'reviewed' true/false, 'has_open_questions' true/false). "
+            "'reviewed' true/false, 'has_open_questions' true/false, 'property' "
+            "- a property name or id, keeps events whose property list carries it). "
             "'reviewed' is an axis of its own, not a "
             "spelling of 'status' - an event can be reviewed and still sit at "
             "in_review - and omitting it means either. "
@@ -157,11 +170,22 @@ def register(mcp: FastMCP) -> None:
         annotations=READ_ONLY,
         description=(
             "Fetch one event's full canonical detail by id: field values, meta values, "
-            "tags, lifecycle state, event type brief, and variable value contexts. "
+            "tags, lifecycle state, event type brief, and property value contexts. "
             "Use after search_plan/list_events; treat the returned name/id as "
             "canonical. Requires a tk_r_ or tk_w_ key."
         ),
     )(get_event)
+    mcp.tool(
+        name="get_event_properties",
+        annotations=READ_ONLY,
+        description=(
+            "Fetch one event's typed property list: each property the event carries "
+            "with its variable_type, json_schema, whether it is required, the "
+            "effective allowed values for this event, the measured presence_rate and "
+            "suggested_required. Use it to build or check an event's properties "
+            "payload. Requires a tk_r_ or tk_w_ key."
+        ),
+    )(get_event_properties)
     mcp.tool(
         name="create_event",
         annotations=WRITE,

@@ -21,6 +21,7 @@ TOOL_ENDPOINTS: dict[str, tuple[tuple[str, str], ...]] = {
     "search_plan": (("get", search.SEARCH),),
     "list_events": (("get", events.LIST),),
     "get_event": (("get", events.DETAIL),),
+    "get_event_properties": (("get", events.PROPERTIES),),
     "create_event": (("post", events.LIST),),
     "update_event": (("patch", events.DETAIL),),
     "list_event_types": (("get", event_types.LIST),),

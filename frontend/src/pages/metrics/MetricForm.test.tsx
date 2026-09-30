@@ -104,6 +104,8 @@ import { eventTypesApi } from '@/api/eventTypes'
 import { dataSourcesApi } from '@/api/dataSources'
 import { previewMetricSeries } from './catalogRequests'
 import { at } from '@/test/at'
+import { personaAuth } from '@/test/persona'
+import { SessionProject } from '@/test/PersonaProject'
 
 // Radix drives the dropdown through pointer-capture APIs jsdom omits.
 beforeAll(() => {
@@ -1394,7 +1396,7 @@ describe('MetricForm unsaved-changes guard (MET-5)', () => {
   })
 })
 
-const VIEWER = authAs('viewer')
+const VIEWER = personaAuth('viewer')
 
 describe('MetricForm for a viewer', () => {
   it('shows the SQL read-only and never asks for the editor-only schema', () => {
@@ -1402,12 +1404,12 @@ describe('MetricForm for a viewer', () => {
       createElement(
         AuthContext.Provider,
         { value: VIEWER },
-        createElement(MetricForm, {
+        createElement(SessionProject, { session: VIEWER }, createElement(MetricForm, {
           slug: 'demo',
           metric: EDIT_METRIC,
           dataSources: DATA_SOURCES,
           onClose: vi.fn(),
-        }),
+        })),
       ),
       { wrapper: formWrapper },
     )
@@ -1850,12 +1852,12 @@ describe('MetricEditPage (MET-28, MET-29)', () => {
     return createElement('button', { type: 'button', onClick: () => navigate(-1) }, 'Go back')
   }
 
-  function renderPage(path: string, history: string[] = [], auth = authAs('editor')) {
+  function renderPage(path: string, history: string[] = [], auth = authAs('member')) {
     render(
       createElement(
         AuthContext.Provider,
         { value: auth },
-        createElement(
+        createElement(SessionProject, { session: auth }, createElement(
           MemoryRouter,
           { initialEntries: [...history, path], initialIndex: history.length },
           createElement(
@@ -1872,7 +1874,7 @@ describe('MetricEditPage (MET-28, MET-29)', () => {
               element: createElement('div', null, createElement('p', null, 'drilldown'), createElement(BackButton)),
             }),
           ),
-        ),
+        )),
       ),
       { wrapper },
     )
@@ -1881,14 +1883,14 @@ describe('MetricEditPage (MET-28, MET-29)', () => {
   it('sends a viewer to the metric’s read view instead of a disabled form (#237 MT-28)', async () => {
     vi.mocked(dataSourcesApi.list).mockResolvedValue(DATA_SOURCES)
     vi.mocked(metricsCatalogApi.get).mockResolvedValue(EDIT_METRIC)
-    renderPage('/p/demo/metrics/metric-1/edit', [], authAs('viewer'))
+    renderPage('/p/demo/metrics/metric-1/edit', [], personaAuth('viewer'))
 
     expect(await screen.findByText('drilldown')).toBeInTheDocument()
     expect(screen.queryByRole('group')).toBeNull()
   })
 
   it('sends a viewer away from "New metric" to the catalog', async () => {
-    renderPage('/p/demo/metrics/new', [], authAs('viewer'))
+    renderPage('/p/demo/metrics/new', [], personaAuth('viewer'))
 
     expect(await screen.findByText('catalog')).toBeInTheDocument()
   })
@@ -1952,8 +1954,8 @@ describe('MetricEditPage header link (MT-31)', () => {
     render(
       createElement(
         AuthContext.Provider,
-        { value: authAs('editor') },
-        createElement(
+        { value: authAs('member') },
+        createElement(SessionProject, { session: authAs('member') }, createElement(
           MemoryRouter,
           { initialEntries: ['/p/demo/monitoring/metric/metric-1', '/p/demo/metrics/metric-1/edit'], initialIndex: 1 },
           createElement(
@@ -1966,7 +1968,7 @@ describe('MetricEditPage header link (MT-31)', () => {
               element: createElement('p', null, 'drilldown'),
             }),
           ),
-        ),
+        )),
       ),
       { wrapper },
     )

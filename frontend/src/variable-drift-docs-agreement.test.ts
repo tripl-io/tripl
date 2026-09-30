@@ -32,7 +32,7 @@ const COLLAPSED_NOUNS = [
   collapsedDriftLabel({ snoozed: 1, resolved: 1 }),
 ]
 
-describe('variable drift docs agree with the panels', () => {
+describe('property drift docs agree with the panels', () => {
   it('emits exactly the three collapse nouns the docs have to cover', () => {
     // Pins the shape the assertions below depend on: a fourth branch in
     // `collapsedDriftLabel` would otherwise slip past them unnoticed.

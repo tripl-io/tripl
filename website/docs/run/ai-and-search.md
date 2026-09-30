@@ -149,6 +149,19 @@ finishes, affected searches use their keyword results. This re-embedding calls
 the configured provider and may take several sweep cycles for large projects.
 :::
 
+:::info Per-organization embeddings
+These variables are the **operator's** values. Each organization may use its
+own endpoint, provider, model and key instead (**Settings → Organization →
+Search**), and each organization's vectors are stamped and queried in its own
+space: the endpoint and model it runs with. An organization that sets none
+inherits the operator's (or, with `ORG_SETTINGS_OPERATOR_FALLBACK=none`, has
+semantic search off). Saving an organization's own model runs a test embedding
+and is refused unless it returns 1536 values; the change then reindexes that
+organization's projects only. The stale sweep and the stranded-embedding chaser
+decide per organization. See
+[Operator and organization settings](./configuration.md#operator-and-organization-settings).
+:::
+
 ---
 
 ## How to set these
