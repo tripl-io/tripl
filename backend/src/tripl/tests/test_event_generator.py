@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tripl.core.adapters.base import ColumnInfo
 from tripl.core.analyzers._event_generator_variables import (
+    SCAN_PROVENANCE_DESCRIPTION,
     VARIABLE_VALUE_SAMPLE_LIMIT,
     preserve_existing_variable_context_values,
 )
@@ -824,7 +825,7 @@ class TestEventGeneration:
                 column=ColumnInfo("payload", "JSON"),
                 count=1,
                 is_low=False,
-                json_path_combos=[("user.id",)],
+                json_path_combos=[("user_id",)],
             ),
         }
         analysis = _make_analysis(cardinality)
@@ -832,7 +833,7 @@ class TestEventGeneration:
         sync_session.commit()
 
         context = sync_session.execute(select(VariableValue)).scalar_one()
-        assert context.source_column == "payload.user.id"
+        assert context.source_column == "payload.user_id"
         assert context.observed_count == 0
         assert context.values == []
 
@@ -878,14 +879,14 @@ class TestEventGeneration:
             sync_session,
             project.id,
             et.id,
-            self._json_path_analysis("user.plan"),
+            self._json_path_analysis("plan"),
             fds,
-            json_path_samples={"payload": {"user.plan": ["free", "pro"]}},
+            json_path_samples={"payload": {"plan": ["free", "pro"]}},
         )
         sync_session.commit()
 
         context = sync_session.execute(select(VariableValue)).scalar_one()
-        assert context.source_column == "payload.user.plan"
+        assert context.source_column == "payload.plan"
         assert context.observed_count == 2
         assert context.values == ["free", "pro"]
         # High even though two values is far under the cardinality threshold: a
@@ -912,7 +913,7 @@ class TestEventGeneration:
             sync_session,
             project.id,
             et.id,
-            self._json_path_analysis("user.plan"),
+            self._json_path_analysis("plan"),
             fds,
         )
         sync_session.commit()
@@ -934,7 +935,7 @@ class TestEventGeneration:
         test fails with values == ["b", "e"].
         """
         project, et, fds = project_and_type
-        analysis = self._json_path_analysis("user.plan")
+        analysis = self._json_path_analysis("plan")
 
         generate_events(
             sync_session,
@@ -942,7 +943,7 @@ class TestEventGeneration:
             et.id,
             analysis,
             fds,
-            json_path_samples={"payload": {"user.plan": ["a", "b", "c", "d"]}},
+            json_path_samples={"payload": {"plan": ["a", "b", "c", "d"]}},
         )
         sync_session.commit()
 
@@ -952,7 +953,7 @@ class TestEventGeneration:
             et.id,
             analysis,
             fds,
-            json_path_samples={"payload": {"user.plan": ["b", "e"]}},
+            json_path_samples={"payload": {"plan": ["b", "e"]}},
         )
         sync_session.commit()
 
@@ -1105,7 +1106,7 @@ class TestEventGeneration:
         otherwise the count reads as churn that never happened.
         """
         project, et, fds = project_and_type
-        analysis = self._json_path_analysis("user.plan")
+        analysis = self._json_path_analysis("plan")
 
         def _generate(samples: list[str] | None):
             return generate_events(
@@ -1114,9 +1115,7 @@ class TestEventGeneration:
                 et.id,
                 analysis,
                 fds,
-                json_path_samples=(
-                    None if samples is None else {"payload": {"user.plan": samples}}
-                ),
+                json_path_samples=(None if samples is None else {"payload": {"plan": samples}}),
             )
 
         minted = _generate(None)
@@ -3077,7 +3076,7 @@ def test_json_path_sampling_collects_only_the_paths_that_need_values(
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan")
     variable = sync_session.execute(select(Variable)).scalar_one()
     event = _seed_event(sync_session, project, et, "Signup")
     _seed_context_row(sync_session, variable, event, fds["payload"], observed_count=0, values=[])
@@ -3088,7 +3087,7 @@ def test_json_path_sampling_collects_only_the_paths_that_need_values(
             # repeat, so the formatting and dedup on the way in are exercised.
             return {
                 "payload": {
-                    "user.plan": ['"pro"', '"free"', '"pro"'],
+                    "plan": ['"pro"', '"free"', '"pro"'],
                     "user.unwatched": ['"noise"'],
                 }
             }
@@ -3103,7 +3102,7 @@ def test_json_path_sampling_collects_only_the_paths_that_need_values(
         time_to_dt=datetime(2026, 8, 30, 1, tzinfo=UTC),
     )
 
-    assert samples.samples == {"payload": {"user.plan": ["pro", "free"]}}
+    assert samples.samples == {"payload": {"plan": ["pro", "free"]}}
     assert samples.ring_size == 1
     assert samples.paths_sampled == 1
     assert samples.paths_with_samples == 1
@@ -3149,7 +3148,7 @@ def test_json_path_sampling_skips_a_variable_whose_every_context_is_observed(
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan")
     variable = sync_session.execute(select(Variable)).scalar_one()
     event = _seed_event(sync_session, project, et, "Signup")
     _seed_context_row(
@@ -3197,7 +3196,7 @@ def test_json_path_sampling_asks_again_while_one_context_is_still_empty(
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan")
     variable = sync_session.execute(select(Variable)).scalar_one()
     filled = _seed_event(sync_session, project, et, "Signup")
     later = _seed_event(sync_session, project, et, "Checkout", order=1)
@@ -3211,7 +3210,7 @@ def test_json_path_sampling_asks_again_while_one_context_is_still_empty(
     class _Adapter:
         def get_json_path_samples(self, *args: object, **kwargs: object):
             calls.append(args)
-            return {"payload": {"user.plan": ['"pro"', '"free"']}}
+            return {"payload": {"plan": ['"pro"', '"free"']}}
 
     samples = _collect_json_path_samples(
         sync_session,
@@ -3223,7 +3222,7 @@ def test_json_path_sampling_asks_again_while_one_context_is_still_empty(
         time_to_dt=datetime(2026, 8, 30, 1, tzinfo=UTC),
     )
 
-    assert samples.samples == {"payload": {"user.plan": ["pro", "free"]}}
+    assert samples.samples == {"payload": {"plan": ["pro", "free"]}}
     # Recorded out here for the same reason as above: the collector swallows
     # adapter exceptions, so an assert inside the double would pass silently.
     assert len(calls) == 1, "an unobserved context must still be worth one query"
@@ -3241,7 +3240,7 @@ def test_json_path_sampling_degrades_to_empty_when_the_adapter_raises(
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan")
     variable = sync_session.execute(select(Variable)).scalar_one()
     event = _seed_event(sync_session, project, et, "Signup")
     _seed_context_row(sync_session, variable, event, fds["payload"], observed_count=0, values=[])
@@ -3288,9 +3287,7 @@ def test_json_path_sampling_bounds_the_adapter_query_by_the_collection_window(
     )
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(
-        sync_session, project, source_name="payload.user.plan", time_column="ts"
-    )
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan", time_column="ts")
     variable = sync_session.execute(select(Variable)).scalar_one()
     event = _seed_event(sync_session, project, et, "Signup")
     _seed_context_row(sync_session, variable, event, fds["payload"], observed_count=0, values=[])
@@ -3301,7 +3298,7 @@ def test_json_path_sampling_bounds_the_adapter_query_by_the_collection_window(
     class _Adapter:
         def get_json_path_samples(self, *args: object, **kwargs: object):
             calls.append((args, kwargs))
-            return {"payload": {"user.plan": ['"pro"']}}
+            return {"payload": {"plan": ['"pro"']}}
 
     samples = _collect_json_path_samples(
         sync_session,
@@ -3313,7 +3310,7 @@ def test_json_path_sampling_bounds_the_adapter_query_by_the_collection_window(
         time_to_dt=window_to,
     )
 
-    assert samples.samples == {"payload": {"user.plan": ["pro"]}}
+    assert samples.samples == {"payload": {"plan": ["pro"]}}
     # Recorded and asserted out here: the collector swallows adapter exceptions,
     # so an assert raised inside the double would be logged and the test pass.
     assert len(calls) == 1
@@ -3450,12 +3447,10 @@ def test_json_path_sampling_rotates_on_the_scheduled_interval_not_the_window(
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(
-        sync_session, project, source_name="payload.user.plan", time_column="ts"
-    )
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan", time_column="ts")
     config.interval = "1h"
     plan_variable = sync_session.execute(select(Variable)).scalar_one()
-    tier_variable = _add_path_variable(sync_session, project, "payload.user.tier")
+    tier_variable = _add_path_variable(sync_session, project, "payload.tier")
     event = _seed_event(sync_session, project, et, "Signup")
     _seed_context_row(
         sync_session, plan_variable, event, fds["payload"], observed_count=0, values=[]
@@ -3469,7 +3464,7 @@ def test_json_path_sampling_rotates_on_the_scheduled_interval_not_the_window(
 
     class _Adapter:
         def get_json_path_samples(self, *args: object, **kwargs: object):
-            return {"payload": {"user.plan": ['"pro"'], "user.tier": ['"gold"']}}
+            return {"payload": {"plan": ['"pro"'], "tier": ['"gold"']}}
 
     def _sample(window_end: datetime):
         window_from = window_end - timedelta(hours=6)
@@ -3528,7 +3523,7 @@ def _json_scan_analysis(*, screens: tuple[str, ...] = ("home",)) -> BreakdownAna
                 column=_JSON_SCAN_COLUMNS[1],
                 count=1,
                 is_low=False,
-                json_path_combos=[("user.plan",)],
+                json_path_combos=[("plan",)],
             ),
         }
     )
@@ -3546,7 +3541,7 @@ class _SamplingAdapter:
 
     def get_json_path_samples(self, *args: object, **kwargs: object):
         self.sample_calls += 1
-        return {"payload": {"user.plan": ['"pro"', '"free"']}}
+        return {"payload": {"plan": ['"pro"', '"free"']}}
 
 
 def _seed_json_scan_config(sync_session: Session, project, *, grouped: bool):
@@ -3667,7 +3662,7 @@ def test_scheduled_single_scan_fills_a_json_variable_from_the_warehouse(
     _run_scheduled_tick(sync_session, config, adapter)
 
     minted = _only_context(sync_session)
-    assert minted.source_column == "payload.user.plan"
+    assert minted.source_column == "payload.plan"
     assert minted.observed_count == 0, "the tick that mints the variable has nothing to sample"
 
     _run_scheduled_tick(sync_session, config, adapter)
@@ -3696,7 +3691,7 @@ def test_scheduled_grouped_scan_fills_a_json_variable_from_the_warehouse(
     _run_scheduled_tick(sync_session, config, adapter)
 
     filled = _only_context(sync_session)
-    assert filled.source_column == "payload.user.plan"
+    assert filled.source_column == "payload.plan"
     assert filled.observed_count == 2
     assert filled.values == ["pro", "free"]
     assert adapter.sample_calls == 1
@@ -5254,7 +5249,7 @@ def test_json_path_sampling_reads_each_paths_type_before_the_values_turn_to_text
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan")
     event = _seed_event(sync_session, project, et, "Signup")
     for source_name in ("payload.cart.qty", "payload.user.code"):
         extra = _add_path_variable(sync_session, project, source_name)
@@ -5268,7 +5263,7 @@ def test_json_path_sampling_reads_each_paths_type_before_the_values_turn_to_text
         def get_json_path_samples(self, *args: object, **kwargs: object):
             return {
                 "payload": {
-                    "user.plan": ['"pro"', "null"],
+                    "plan": ['"pro"', "null"],
                     "cart.qty": ["2", "10"],
                     "user.code": ['"42"', "42"],
                 }
@@ -5285,9 +5280,7 @@ def test_json_path_sampling_reads_each_paths_type_before_the_values_turn_to_text
     )
 
     # A string beside a number is a conflict, so user.code gets no type.
-    assert sampling.types == {
-        "payload": {"user.plan": ("string", None), "cart.qty": ("number", None)}
-    }
+    assert sampling.types == {"payload": {"plan": ("string", None), "cart.qty": ("number", None)}}
 
 
 def test_decoded_samples_are_not_decoded_twice(sync_session: Session, project_and_type):
@@ -5296,14 +5289,14 @@ def test_decoded_samples_are_not_decoded_twice(sync_session: Session, project_an
     from tripl.worker.tasks.metrics.catalog_sync import _collect_json_path_samples
 
     project, et, fds = project_and_type
-    config = _sampling_fixtures(sync_session, project, source_name="payload.user.plan")
+    config = _sampling_fixtures(sync_session, project, source_name="payload.plan")
     plan = sync_session.execute(select(Variable)).scalar_one()
     event = _seed_event(sync_session, project, et, "Signup")
     _seed_context_row(sync_session, plan, event, fds["payload"], observed_count=0, values=[])
 
     class _Adapter:
         def get_json_path_samples(self, *args: object, **kwargs: object):
-            return {"payload": {"user.plan": ["123", "true"]}}
+            return {"payload": {"plan": ["123", "true"]}}
 
     sampling = _collect_json_path_samples(
         sync_session,
@@ -5314,7 +5307,7 @@ def test_decoded_samples_are_not_decoded_twice(sync_session: Session, project_an
         time_from_dt=datetime(2026, 8, 30, tzinfo=UTC),
         time_to_dt=datetime(2026, 8, 30, 1, tzinfo=UTC),
     )
-    assert sampling.types == {"payload": {"user.plan": ("string", None)}}
+    assert sampling.types == {"payload": {"plan": ("string", None)}}
 
 
 def test_inferred_types_land_only_on_untyped_scan_variables(
@@ -5370,6 +5363,152 @@ def test_inferred_types_land_only_on_untyped_scan_variables(
     assert (described.variable_type, described.json_schema) == ("string", None)
     assert (retyped.variable_type, retyped.json_schema) == ("number", None)
     assert (excluded.variable_type, excluded.json_schema) == ("string", None)
+
+
+# --- typing properties observed before F23.4 (F23.4d) ------------------------
+
+
+class _TypedSamplingAdapter:
+    """``_SamplingAdapter`` with the JSON text a real adapter returns, so the
+    kind of each value survives to type inference."""
+
+    json_path_samples_are_text = True
+
+    def __init__(self, values: list[str]) -> None:
+        self.values = values
+        self.sample_calls = 0
+
+    def get_json_path_samples(self, *args: object, **kwargs: object):
+        self.sample_calls += 1
+        return {"payload": {"plan": list(self.values)}}
+
+
+def _observed_before_f23(sync_session: Session) -> Variable:
+    """Two ticks mint and fill the variable; then put it back the way a scan
+    before F23.4 left it: still ``string``, never checked, context filled."""
+    variable = sync_session.execute(select(Variable)).scalar_one()
+    variable.variable_type = "string"
+    variable.json_schema = None
+    variable.type_checked_at = None
+    context = _only_context(sync_session)
+    context.values = ["7"]
+    context.observed_count = 1
+    sync_session.commit()
+    return variable
+
+
+def test_a_variable_observed_before_f23_is_typed_once(sync_session: Session, project_and_type):
+    project, _, _ = project_and_type
+    config = _seed_json_scan_config(sync_session, project, grouped=False)
+    adapter = _TypedSamplingAdapter(["2", "10"])
+    _run_scheduled_tick(sync_session, config, adapter)
+    _run_scheduled_tick(sync_session, config, adapter)
+    variable = _observed_before_f23(sync_session)
+    assert adapter.sample_calls == 1
+
+    _run_scheduled_tick(sync_session, config, adapter)
+
+    sync_session.refresh(variable)
+    assert (variable.variable_type, variable.json_schema) == ("number", None)
+    assert variable.description == SCAN_PROVENANCE_DESCRIPTION, "a scan change, not an edit"
+    assert adapter.sample_calls == 2
+    context = _only_context(sync_session)
+    assert (context.values, context.observed_count) == (["7"], 1), (
+        "the backfill samples for the type alone; the filled context is not rewritten"
+    )
+
+    _run_scheduled_tick(sync_session, config, adapter)
+    assert adapter.sample_calls == 2, "checked once: a converged project queries nothing"
+    sync_session.refresh(variable)
+    assert variable.variable_type == "number"
+
+
+@pytest.mark.parametrize(
+    "values",
+    [pytest.param(['"pro"', '"free"'], id="text"), pytest.param(['"42"', "42"], id="mixed")],
+)
+def test_a_backfilled_variable_whose_values_stay_text_leaves_the_candidates(
+    sync_session: Session, project_and_type, values: list[str]
+):
+    """The ring bloat ``_unfilled_json_path_candidates`` documents must not come
+    back: a property that samples as text or mixed is asked about once."""
+    project, _, _ = project_and_type
+    config = _seed_json_scan_config(sync_session, project, grouped=False)
+    adapter = _TypedSamplingAdapter(values)
+    _run_scheduled_tick(sync_session, config, adapter)
+    _run_scheduled_tick(sync_session, config, adapter)
+    variable = _observed_before_f23(sync_session)
+
+    _run_scheduled_tick(sync_session, config, adapter)
+    _run_scheduled_tick(sync_session, config, adapter)
+
+    sync_session.refresh(variable)
+    assert (variable.variable_type, variable.json_schema) == ("string", None)
+    assert variable.type_checked_at is not None
+    assert adapter.sample_calls == 2, "one backfill query, then none"
+
+
+def test_type_backfill_takes_only_untyped_observed_scan_variables_a_batch_at_a_time(
+    sync_session: Session, project_and_type
+):
+    from tripl.worker.tasks.metrics.catalog_sync import (
+        _mark_type_checked,
+        _type_backfill_candidates,
+    )
+
+    project, et, fds = project_and_type
+    event = _seed_event(sync_session, project, et, "Signup")
+
+    def variable(source_name: str, *, observed: int | None = 1, **overrides: object) -> Variable:
+        row = _add_path_variable(sync_session, project, source_name)
+        row.description = SCAN_PROVENANCE_DESCRIPTION
+        for key, value in overrides.items():
+            setattr(row, key, value)
+        sync_session.commit()
+        if observed is not None:
+            _seed_context_row(
+                sync_session,
+                row,
+                event,
+                fds["payload"],
+                observed_count=observed,
+                values=["x"] * observed,
+            )
+        return row
+
+    for name in ("payload.a.one", "payload.a.two", "payload.a.three"):
+        variable(name)
+    variable("payload.b.described", description="What the plan is")
+    variable("payload.b.typed", variable_type="number")
+    variable("payload.b.schema", variable_type="json", json_schema={"type": "array"})
+    variable("payload.b.excluded", excluded_from_scans=True)
+    variable("payload.b.checked", type_checked_at=datetime(2026, 9, 1, tzinfo=UTC))
+    variable("payload.b.unfilled", observed=0)
+    variable("payload.b.unused", observed=None)
+    variable("screen.b.column")
+
+    def candidates(limit: int) -> list[tuple[str, str]]:
+        return _type_backfill_candidates(
+            sync_session,
+            project_id=project.id,
+            branch_id=None,
+            json_columns={"payload"},
+            limit=limit,
+        )
+
+    assert candidates(10) == [("payload", "a.one"), ("payload", "a.three"), ("payload", "a.two")]
+
+    first = candidates(2)
+    assert first == [("payload", "a.one"), ("payload", "a.three")]
+    stamped = _mark_type_checked(
+        sync_session,
+        project_id=project.id,
+        branch_id=None,
+        tokens={f"{column}.{path}" for column, path in first},
+    )
+    sync_session.commit()
+    assert stamped == 2
+    assert candidates(2) == [("payload", "a.two")], "the next run takes the next batch"
 
 
 def test_collapsing_rows_keep_every_json_key_with_its_presence(

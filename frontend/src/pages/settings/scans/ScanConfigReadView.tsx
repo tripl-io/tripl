@@ -46,6 +46,22 @@ export function ScanConfigReadView({
   const eventType = eventTypes.find(et => et.id === sc.event_type_id)
   const mode = scanModeOf(sc)
   const monitoring = mode === 'monitoring'
+  // The preset's naming is its two columns; the fields it derives from them
+  // (format, kept JSON values, group rules) would only repeat them.
+  const preset = sc.setup_preset === 'event_properties'
+  const naming: DefinitionItem[] = preset
+    ? [
+        { label: 'Setup', value: 'Event + properties' },
+        { label: 'Event column', value: token(sc.event_name_column ?? null) },
+        { label: 'Properties column', value: token(sc.properties_column ?? null) },
+        { label: 'Event type', value: eventType?.display_name ?? null },
+      ]
+    : [
+        sc.event_type_id
+          ? { label: 'Event type', value: eventType?.display_name ?? null }
+          : { label: 'Event type column', value: token(sc.event_type_column) },
+        { label: 'Event name format', value: token(sc.event_name_format) },
+      ]
 
   const items: DefinitionItem[] = [
     { label: 'What it does', value: SCAN_MODE_DETAIL_LABEL[mode] },
@@ -62,10 +78,10 @@ export function ScanConfigReadView({
         </pre>
       ),
     },
-    sc.event_type_id
-      ? { label: 'Event type', value: eventType?.display_name ?? null }
-      : { label: 'Event type column', value: token(sc.event_type_column) },
-    { label: 'Event name format', value: token(sc.event_name_format) },
+    ...(sc.json_string_columns?.length
+      ? [{ label: 'Parsed as JSON', value: tokens(sc.json_string_columns) }]
+      : []),
+    ...naming,
     { label: 'Time column', value: token(sc.time_column) },
     {
       label: 'Schedule',
@@ -75,7 +91,7 @@ export function ScanConfigReadView({
       label: 'Lookback',
       value: sc.scan_lookback_hours ? `Last ${countOf(sc.scan_lookback_hours, 'hour', 'hours')}` : 'Whole query',
     },
-    { label: 'JSON values kept', value: tokens(sc.json_value_paths) },
+    ...(preset ? [] : [{ label: 'JSON values kept', value: tokens(sc.json_value_paths) }]),
     {
       label: 'Event groups',
       block: sc.event_group_rules.length > 0,

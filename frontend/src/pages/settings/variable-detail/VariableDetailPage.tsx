@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { propertyEntriesApi } from '@/api/propertyEntries'
 import { variableOverridesApi } from '@/api/variableOverrides'
 import { variablesApi } from '@/api/variables'
 import { EmptyState } from '@/components/empty-state'
@@ -21,7 +22,7 @@ import { useActiveBranchId } from '@/hooks/useBranch'
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { useCanWriteProject } from '@/lib/permissions'
-import { variableOverridesKey, variablesKey } from '@/lib/queryKeys'
+import { propertyEventsKey, variableOverridesKey, variablesKey } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { Variable } from '@/types'
 import { bindingExample } from '../bindingExample'
@@ -31,6 +32,7 @@ import { VariableDefinitionFields } from './VariableDefinitionFields'
 import { VariableDriftSection } from './VariableDriftSection'
 import { VariableObservedSection } from './VariableObservedSection'
 import { VariableOverridesSection } from './VariableOverridesSection'
+import { PropertyEventsSection } from './PropertyEventsSection'
 import {
   isVariableDetailTab,
   VARIABLE_DETAIL_TABS,
@@ -186,7 +188,13 @@ function VariableDetailBody({
     queryFn: () => variableOverridesApi.list(slug, variable.id, branchId),
   })
 
+  const { data: propertyEvents } = useQuery({
+    queryKey: propertyEventsKey(slug, branchId, variable.id),
+    queryFn: () => propertyEntriesApi.forProperty(slug, variable.id, branchId),
+  })
+
   const counts: Partial<Record<VariableDetailTab, number | undefined>> = {
+    events: propertyEvents?.length,
     drift: variable.open_drift_count,
     // Property-only entries (F23) have no values of their own and are not overrides.
     overrides: overrides?.filter(entry => entry.values !== null).length,
@@ -198,7 +206,9 @@ function VariableDetailBody({
       ? (draft.updateMut.isSuccess ? 'Saved' : 'No changes')
       : draft.typeChangeBlocked
         ? 'Fix the values the new type refuses'
-        : 'Unsaved changes'
+        : draft.schemaIssues.length > 0
+          ? 'Fix the schema'
+          : 'Unsaved changes'
 
   return (
     <PageContainer className="space-y-3.5">
@@ -276,7 +286,7 @@ function VariableDetailBody({
                 <Button
                   type="submit"
                   size="sm"
-                  disabled={!draft.dirty || draft.updateMut.isPending || draft.typeChangeBlocked}
+                  disabled={!draft.dirty || draft.updateMut.isPending || draft.typeChangeBlocked || draft.schemaIssues.length > 0}
                 >
                   Save changes
                 </Button>
@@ -287,6 +297,10 @@ function VariableDetailBody({
           {/* Docs-catalog notes that link here by name (F24). Links resolve
               against main, so the card is for the main plan only. */}
           {branchId === null && <DocNotesSection slug={slug} kind="variable" name={variable.name} />}
+        </TabsContent>
+
+        <TabsContent value="events" className="max-w-[1100px]">
+          <PropertyEventsSection slug={slug} branchId={branchId} variable={variable} canWrite={canWrite} />
         </TabsContent>
 
         <TabsContent value="drift" className="max-w-[880px]">

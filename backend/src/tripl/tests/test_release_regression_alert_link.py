@@ -656,6 +656,9 @@ _AUDIT_LINK_DECISION: dict[MetricScopeType, bool] = {
     # An event lifecycle finding (#258): the event page shows the finding and
     # the migration numbers; every item reaches its incident anyway.
     MetricScopeType.lifecycle: False,
+    # A property drift (F23): the event page lists the event's property
+    # drifts with their actions; a type change has no event and no link.
+    MetricScopeType.property_drift: False,
 }
 
 

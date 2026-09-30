@@ -141,6 +141,8 @@ describe('EventsPage', () => {
       if (url.endsWith('/api/v1/projects/demo/events/ev-1/comments')) {
         return mockJsonResponse([])
       }
+      // The event's property list (F23), read by the edit page's grid.
+      if (url.includes('/api/v1/projects/demo/events/ev-1/properties')) return mockJsonResponse([])
       if (url.includes('/api/v1/projects/demo/events/ev-1')) {
         return mockJsonResponse(
           makeEvent({ id: 'ev-1', name: 'checkout_started', branch_id: 'feat-1' }),

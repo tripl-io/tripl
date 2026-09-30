@@ -17,6 +17,9 @@ import { EmptyState } from '@/components/empty-state'
 import { EntityBranchBanner } from '@/components/EntityBranchBanner'
 import EventPhotosSection from '@/components/event-photos-section'
 import { EventValueDriftPanel } from '@/pages/events/EventValueDriftPanel'
+import { EventPropertiesGrid } from '@/pages/events/EventPropertiesGrid'
+import { useEventPropertyIds } from '@/pages/events/useEventPropertyIds'
+import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
 import { EventHealthCard } from '@/pages/events/EventHealthCard'
 import { EventSpecCard } from '@/components/EventSpecCard'
 import { MetricDefinitionCard } from '@/components/monitoring/metric-definition-card'
@@ -147,6 +150,9 @@ export default function MonitoringDetailPage() {
     enabled: scope === 'event' && !!slug && !!scopeId,
     meta: SILENT_ERROR_META,
   })
+  // The event's property list, for the drift list's type changes (F23); the
+  // grid below reads the same cached query.
+  const eventPropertyIds = useEventPropertyIds(slug, branchId, scope === 'event' ? scopeId : undefined)
   const event = eventQuery.data
 
   const historyQuery = useQuery({
@@ -694,6 +700,18 @@ export default function MonitoringDetailPage() {
         </div>
       )}
 
+      {/* The event's property list (F23), read-only here: it is edited on the
+          event's own page. */}
+      {isEventScope && event && slug && (
+        <EventPropertiesGrid
+          slug={slug}
+          branchId={branchId}
+          eventId={event.id}
+          threshold={event.required_presence_threshold ?? null}
+          canWrite={false}
+        />
+      )}
+
       {isEventScope && event && slug && LIVE_STATUSES.has(event.status) && (
         <EventSpecCard slug={slug} event={event} eventType={eventType} metaFieldMap={metaFieldMap} />
       )}
@@ -892,6 +910,15 @@ export default function MonitoringDetailPage() {
 
       {scope === 'event' && scopeId && (
         <EventValueDriftPanel slug={slug!} eventId={scopeId} />
+      )}
+      {/* Property drift (F23): detected against main, and Accept edits main. */}
+      {scope === 'event' && scopeId && branchId === null && (
+        <PropertyDriftList
+          slug={slug!}
+          eventId={scopeId}
+          variableIds={eventPropertyIds}
+          readOnly={!canWrite}
+        />
       )}
       {scope === 'event' && scopeId && (
         <EventPhotosSection slug={slug!} eventId={scopeId} />

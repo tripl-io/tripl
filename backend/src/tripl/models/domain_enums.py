@@ -115,6 +115,9 @@ class MetricScopeType(enum.StrEnum):
     # An open lifecycle finding (#258): sunset overdue or successor silent.
     # Added via ALTER TYPE migration d5f7b9c1e3a8.
     lifecycle = "lifecycle"
+    # An open property drift (F23, #306): an event's property list against
+    # what a scan saw. Added via ALTER TYPE migration c3e5a7b9d1f2.
+    property_drift = "property_drift"
 
 
 class MetricKind(enum.StrEnum):
@@ -253,6 +256,14 @@ class AlertDriftType(enum.StrEnum):
     # d5f7b9c1e3a8.
     sunset_overdue = "sunset_overdue"
     successor_silent = "successor_silent"
+    # Written by the property-drift candidate builder (F23, #306): the drift
+    # kind of a ``property_drift`` scope, the same values as
+    # ``PropertyDriftKind``. ``type_change`` is a property's type and is not
+    # the schema drift's ``type_changed`` (a meta field's). Added to the type
+    # by c3e5a7b9d1f2.
+    new_property = "new_property"
+    missing_required = "missing_required"
+    type_change = "type_change"
 
 
 class ReleaseRegressionKind(enum.StrEnum):

@@ -116,6 +116,26 @@ describe('useEventsQuery.fetchAllMatchingIds', () => {
     )
   })
 
+  it('sends the property filter to the server, and clears it back to the default request', async () => {
+    const { result } = renderEventsQuery()
+    await waitFor(() => expect(result.current.eventsQuery.isSuccess).toBe(true))
+    expect(
+      vi.mocked(eventsApi.list).mock.calls.every(([, params]) => params?.property === undefined),
+    ).toBe(true)
+
+    act(() => result.current.setFilterProperty('currency'))
+    expect(result.current.filterProperty).toBe('currency')
+    await waitFor(() =>
+      expect(
+        vi.mocked(eventsApi.list).mock.calls.some(([, params]) => params?.property === 'currency'),
+      ).toBe(true),
+    )
+
+    act(() => result.current.setFilterProperty(''))
+    expect(result.current.filterProperty).toBe('')
+    expect(result.current.serverFilters.property).toBeUndefined()
+  })
+
   it('returns an empty list without hitting the API when nothing matches', async () => {
     vi.mocked(eventsApi.list).mockResolvedValue({ items: [], total: 0 })
     const { result } = renderEventsQuery()

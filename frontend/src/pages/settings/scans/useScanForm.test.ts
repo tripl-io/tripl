@@ -20,6 +20,10 @@ import { at } from '@/test/at'
 function formState(overrides: Partial<ScanFormState> = {}): ScanFormState {
   return {
     mode: 'monitoring',
+    setupPreset: 'custom',
+    eventNameColumn: '',
+    propertiesColumn: '',
+    jsonStringColumns: [],
     dataSourceId: 'ds-1',
     name: 'Main scan',
     baseQuery: 'SELECT * FROM analytics.events',

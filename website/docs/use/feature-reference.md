@@ -667,7 +667,10 @@ Drift is detected when incoming data diverges from an event type's declared
 schema and is surfaced as the **schema-drift badge** beside the heading of the
 catalog. Drift kinds are `new_field`, `missing_field`, `type_changed`,
 `enum_violation`, `required_null_violation`, `regex_violation`, and
-`range_violation`. Per drift you can **accept**, **snooze** (defaults to 7 days,
+`range_violation`. The four contract kinds also come from typed properties: a
+drift whose field is a dotted JSON path (`props.plan`) is a property contract,
+labelled **property** in the badge (see
+[Properties as breakdowns, drift fields and contracts](variables-and-templates.md#properties-as-breakdowns-drift-fields-and-contracts)). Per drift you can **accept**, **snooze** (defaults to 7 days,
 and the date you pick has to be in the future), mark **false positive**, or
 **reopen**. Only a snooze takes a `snoozed_until`; sending one with any other
 action is refused with `422` rather than silently ignored. A resolution note is
@@ -773,7 +776,9 @@ form then shows the first one, and the next save of that event keeps only it.
 from event field and meta values. Each property separates **documented values**
 from scan-observed contexts, and can bind to one or more warehouse columns or
 dotted JSON paths. A per-event override replaces the global documented list for
-that event.
+that event. A scan turns a nested JSON object into one `json` property whose
+schema describes the object's keys, not one property per nested key — see
+[Nested objects](./variables-and-templates.md#nested-objects).
 
 The table shows documented/observed samples, binding paths, the events a
 property was **Observed in**, and open value drift; type chips show the schema
@@ -2192,7 +2197,7 @@ The weights are fixed (not configurable per project in v1):
 | --- | --- | --- |
 | Implemented & seen | 25 | `implemented`/`live`: 1 if seen in the last 7 days, 0.5 within 30 days, 0 if never or older. `deprecated`: 0 with an open *sunset overdue* finding, 0.5 with *successor silent*, otherwise 1. |
 | Contract | 20 | Share of the event type's contract rules (required, enum, regex, range) without an active violation drift. |
-| Drifts | 15 | 1 − 0.25 per open drift: schema drifts (new, missing or changed field), value drifts on the event, and fields with a significant distribution drift in the last 7 days. |
+| Drifts | 15 | 1 − 0.25 per open drift: schema drifts (new, missing or changed field), value drifts on the event, property drifts on the event (a new property or a missing required one; a type change is about a property, not an event, and is not charged), and fields with a significant distribution drift in the last 7 days. |
 | Signals | 15 | 1 − 0.5 per open, significant event signal that has no verdict yet. |
 | Freshness | 10 | Worst freshness of the scans covering the event: fresh 1, late 0.5, overdue 0. |
 | Documentation | 15 | 0.5 for a description, 0.5 for an owner (on the event or its event type). |
@@ -2331,7 +2336,11 @@ raise a signal or send an alert. See
 
 **Always visible (the essentials), in the order they appear:** the mode choice,
 **Name**, **Data source**, **Base query** (used as a subquery), the **Load
-preview** button, **Event type** and **Event type column**, **Time column**
+preview** button, **How events are stored** (the
+[Event + properties](#event-properties-setup) setup or **Custom**),
+[**Parse as JSON**](#parse-as-json) (ClickHouse and BigQuery sources), then either
+**Event column**, **Properties column** and **Event type**, or **Event type**
+and **Event type column**, **Time column**
 (required in Catalog + monitoring, an optional run bound in Catalog only), — in
 Catalog + monitoring only — **Schedule**, and finally the preview panel. The schedule is one of *Every 15 min* (`15m`),
 *Every hour* (`1h`), *Every 6 hours* (`6h`), *Every day* (`1d`), or *Every week*
@@ -2345,6 +2354,98 @@ required in both modes: a config with neither cannot name anything, so no run of
 it can ingest an event. **Create scan** and **Save** stay disabled until it is
 answered, and the preview panel says the same thing rather than asking your
 warehouse a question with no answer.
+
+#### The Event + properties setup {#event-properties-setup}
+
+Many event tables keep one row per event: a column holds the event's name and
+a JSON column holds its properties — Segment, RudderStack, Amplitude and
+Mixpanel exports look like this. **How events are stored → Event + properties**
+sets such a table up in one step. You pick two columns after loading the
+preview:
+
+- **Event column** — the column holding each row's event name. Every distinct
+  value becomes one event. Only non-JSON columns are offered.
+- **Properties column** — the JSON column holding the event's properties.
+  JSON-typed columns are offered (JSON, Map, struct, `jsonb`…), and so is a
+  text column once you tick it under [**Parse as JSON**](#parse-as-json).
+
+Both are pre-filled when a column has a conventional name (`event`,
+`event_name`, … and `properties`, `params`, `payload`, …, or the only JSON
+column there is). **Event type** is the folder the events are filed under;
+leave it on *Events (created if missing)* and saving the scan finds or creates
+an event type called **Events**. The **Time column**, schedule, App version and
+Limits work as for any scan.
+
+What a run then does:
+
+- **Event names come from the event column only.** Rows of one event that
+  carry different JSON keys stay one event; the JSON never splits events.
+- **Every key of the properties column is catalogued** as a property of the
+  event — the union of the keys its rows carried, each with its presence rate
+  and a type inferred from the values (see
+  [Properties](./variables-and-templates.md)). There are no JSON paths to pick.
+- **Only the columns the setup needs are read.** Besides the two columns, a run
+  reads the time column and the columns other settings name (app version,
+  platform, metric breakdowns, distribution drift). Other columns of a
+  `SELECT *` query are left out, so a user-id column cannot multiply the scan
+  into its row cap.
+- The event type gets a field for each of the two columns; a run adds them
+  when they are missing.
+
+The setup fills in the **Event names and grouping** settings for you — the
+event name format is `{<event column>}`, no JSON values are kept as literals,
+there is no Event type column and no group rules — so that section is hidden.
+Switch to **Custom** to change any of them; the form keeps what you had entered
+for each setup, so switching back restores it.
+
+With both columns chosen, **Reload preview** also lists what the sample rows
+give: each event, and each of its keys with its type and the share of the
+event's sample rows that carried it. It is a sample of the preview rows; **What
+this scan would create** below it answers for the whole lookback window. If the
+event or properties column is missing from the query, or the properties column
+is not JSON (nor ticked under **Parse as JSON**), the preview, the dry run and
+every run say so.
+
+Through the API, send `setup_preset: "event_properties"` with
+`event_name_column` and `properties_column` on `POST`/`PATCH
+/projects/<slug>/scans` (and on the dry run). The response carries the derived
+`event_name_format`, `json_value_paths` and `event_type_id`. Sending a
+conflicting `event_name_format`, a non-empty `json_value_paths`, an
+`event_type_column` or group rules with the preset is a `422`;
+`setup_preset: "custom"` switches back.
+
+#### Parse as JSON {#parse-as-json}
+
+Some tables keep the properties as JSON *text* in a plain column: `String` on
+ClickHouse, `STRING` on BigQuery. Tick such a column under **Parse as JSON**
+(it lists the preview's text columns) and the scan reads it as a JSON column,
+in both setups:
+
+- its keys are discovered and typed, and become properties with a presence
+  rate, exactly like a JSON column's — nested objects included (see
+  [Properties](./variables-and-templates.md#text-columns-parsed-as-json));
+- the Event + properties setup offers it as the **Properties column**;
+- its properties (`<column>.<key>`) work as metric breakdowns, distribution
+  drift fields and contracts, in runs, scheduled collection, replay, the dry
+  run and the preview.
+
+A row whose text is not a JSON **object** — malformed JSON, a bare number or
+string, an array, an empty value or `NULL` — does not fail the scan: it reads
+as a row carrying none of the keys, so it lowers their presence rate. The
+column itself is no longer a plain value for the scan, so it cannot also be
+the event column, the Event type column, the time, app version or platform
+column, or a plain breakdown or drift field (pick one of its properties
+instead). After ticking or unticking a column, **Reload preview** to see it
+read the new way; the pickers count a ticked column as JSON straight away.
+
+Only ClickHouse and BigQuery sources can parse text: the scan wraps the base
+query and parses the column once per row it reads (ClickHouse
+`isValidJSON`/`JSONType` guarding a cast to `JSON`, BigQuery
+`SAFE.PARSE_JSON`), so the rows a run reads are bounded exactly as before.
+ClickHouse needs a server with the `JSON` type (25.x). PostgreSQL is not
+supported. Through the API, send `json_string_columns: ["<column>", …]` (at
+most 5 plain column names) on `POST`/`PATCH /projects/<slug>/scans`, the
+preview and the dry run; on a PostgreSQL source it is a `422`.
 
 The event-type picker uses the project's main plan even when you are viewing a
 plan branch. A scan writes catalog changes to main, so create, update and dry-run

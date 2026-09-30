@@ -16,6 +16,7 @@ from tripl.models.variable_value import VariableValue, VariableValueKind
 from tripl.schemas.variable import SUMMARY_EVENT_LIMIT, SUMMARY_VALUE_LIMIT, VariableEventRef
 from tripl.services.plan_branch_service import resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
+from tripl.services.property_events_service import get_listed_event_counts
 from tripl.services.variable_value_drift_service import get_open_drift_counts
 
 
@@ -82,6 +83,7 @@ async def attach_variable_summaries(
         )
 
     drift_counts = await get_open_drift_counts(session, variable_ids)
+    listed_counts = await get_listed_event_counts(session, variables)
 
     # Where ``excluded_from_scans`` bites on this row, and where it must not.
     #
@@ -102,6 +104,10 @@ async def attach_variable_summaries(
     for variable in variables:
         variable.event_count = len(event_ids_by_variable.get(variable.id, set()))  # type: ignore[attr-defined]
         variable.context_count = context_counts.get(variable.id, 0)  # type: ignore[attr-defined]
+        # The event property lists (F23), apart from what scans observed.
+        listed, required = listed_counts.get(variable.id, (0, 0))
+        variable.listed_event_count = listed  # type: ignore[attr-defined]
+        variable.required_event_count = required  # type: ignore[attr-defined]
         variable.low_context_count = low_counts.get(variable.id, 0)  # type: ignore[attr-defined]
         variable.high_context_count = high_counts.get(variable.id, 0)  # type: ignore[attr-defined]
         variable.sample_values = sample_values.get(variable.id, [])  # type: ignore[attr-defined]

@@ -89,6 +89,9 @@ def list_events(
     # unanswered again — the server decides that when it reads, so there is
     # nothing for a caller to compute.
     has_open_questions: bool | None = None,
+    # Events whose property list carries this property (F23): its id, or its
+    # name so a link survives a branch switch. The server resolves either.
+    property: str | None = None,
     offset: int | None = None,
     limit: int | None = None,
     # One of ORDER_BY, or None to take the route's own default (ORDER_BY_DEFAULT
@@ -111,6 +114,7 @@ def list_events(
             "silent_since_days": silent_since_days,
             "reviewed": reviewed,
             "has_open_questions": has_open_questions,
+            "property": property,
             "offset": offset,
             "limit": limit,
             "order_by": order_by,

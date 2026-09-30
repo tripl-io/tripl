@@ -279,6 +279,10 @@ export interface Variable {
   json_schema?: PropertySchema | null
   excluded_from_scans?: boolean
   open_drift_count?: number
+  /** Events whose property list carries it (F23); `event_count` is where scans saw it. */
+  listed_event_count?: number
+  /** Of those, the events that require it. */
+  required_event_count?: number
   event_count?: number
   context_count?: number
   low_context_count?: number

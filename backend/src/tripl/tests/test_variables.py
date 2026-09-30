@@ -421,6 +421,47 @@ async def test_binding_conflicts_with_other_variable_source_name(client: AsyncCl
 
 
 @pytest.mark.asyncio
+async def test_new_bindings_reopen_the_scans_type_check(client: AsyncClient):
+    """F23.4d: the scan types an already-observed property once; bindings that
+    point it at other paths clear the stamp, and any other edit keeps it."""
+    await _setup_project(client, "var-typecheck")
+    created = await client.post(
+        "/api/v1/projects/var-typecheck/variables",
+        json={"name": "plan", "bindings": ["payload.user.plan"]},
+    )
+    var_id = uuid.UUID(created.json()["id"])
+    checked_at = datetime(2026, 9, 1, tzinfo=UTC)
+
+    async def stamp() -> None:
+        async with TestSessionLocal() as session, session.begin():
+            var = await session.get(Variable, var_id)
+            assert var is not None
+            var.type_checked_at = checked_at
+
+    async def stamped() -> bool:
+        async with TestSessionLocal() as session:
+            var = await session.get(Variable, var_id)
+            assert var is not None
+            return var.type_checked_at is not None
+
+    await stamp()
+    same = await client.patch(
+        f"/api/v1/projects/var-typecheck/variables/{var_id}",
+        json={"bindings": ["payload.user.plan"], "allowed_values": ["pro"]},
+    )
+    assert same.status_code == 200
+    assert await stamped()
+
+    moved = await client.patch(
+        f"/api/v1/projects/var-typecheck/variables/{var_id}",
+        json={"bindings": ["payload.account.plan"]},
+    )
+    assert moved.status_code == 200
+    assert not await stamped()
+    assert "type_checked_at" not in moved.json(), "scan bookkeeping, not an API field"
+
+
+@pytest.mark.asyncio
 async def test_rename_to_dotted_name_rejected_but_legacy_editable(client: AsyncClient):
     await _setup_project(client, "var-legacy")
     created = await client.post("/api/v1/projects/var-legacy/variables", json={"name": "plain_var"})

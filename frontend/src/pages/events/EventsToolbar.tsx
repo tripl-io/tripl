@@ -1,5 +1,5 @@
 import { useId, useState } from 'react'
-import { ArrowDownUp, ChevronDown, Download, ListFilter, ListPlus, MoreHorizontal, Plus } from 'lucide-react'
+import { ArrowDownUp, ChevronDown, Download, ListFilter, ListPlus, MoreHorizontal, Plus, X } from 'lucide-react'
 import type { FieldDefinition, MetaFieldDefinition } from '@/types'
 import { EVENT_STATUS_LABELS, EVENT_STATUSES, type EventStatus } from '@/lib/eventStatus'
 import { Button } from '@/components/ui/button'
@@ -59,6 +59,8 @@ export function EventsToolbar({
   onFilterReviewedChange,
   filterOpenQuestions,
   onFilterOpenQuestionsChange,
+  filterProperty = '',
+  onClearFilterProperty,
   sortOrder,
   onSortOrderChange,
   healthAvailable = false,
@@ -104,6 +106,10 @@ export function EventsToolbar({
    *  discussion thread. */
   filterOpenQuestions: boolean | undefined
   onFilterOpenQuestionsChange: (value: boolean | undefined) => void
+  /** Only events whose property list carries this property (F23): set from
+   *  the Properties catalog, so the chip only shows it and clears it. */
+  filterProperty?: string
+  onClearFilterProperty?: () => void
   sortOrder: EventsSortOrder
   onSortOrderChange: (value: EventsSortOrder) => void
   /** Health scores exist on the main plan only (F15, #268): the "Least
@@ -159,7 +165,8 @@ export function EventsToolbar({
     (filterStatuses.length > 0 ? 1 : 0) +
     (filterSilentDays !== undefined ? 1 : 0) +
     (filterReviewed !== undefined ? 1 : 0) +
-    (filterOpenQuestions !== undefined ? 1 : 0)
+    (filterOpenQuestions !== undefined ? 1 : 0) +
+    (filterProperty ? 1 : 0)
   // A search is a filter to the reader: "Clear filters" appears for it and
   // clears it too (EV-16).
   const anythingToClear = hasActiveFilters || search.trim() !== ''
@@ -298,6 +305,22 @@ export function EventsToolbar({
             onChange={onFilterStatusesChange}
           />
         </FilterBarItem>
+        {filterProperty && onClearFilterProperty && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-active
+            className={cn(CHIP_TRIGGER_CLASS, CHIP_SET_CLASS, 'max-w-[260px]')}
+            aria-label={`Property filter: ${filterProperty}. Clear it`}
+            title="Events whose property list carries this property"
+            onClick={onClearFilterProperty}
+          >
+            <span className="font-medium">Property:</span>
+            <span className="mono truncate">{filterProperty}</span>
+            <X aria-hidden="true" className="size-3.5 opacity-60" />
+          </Button>
+        )}
         <FilterSelect
           label="Activity"
           value={filterSilentDays === undefined ? ANY : String(filterSilentDays)}

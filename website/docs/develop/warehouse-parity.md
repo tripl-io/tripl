@@ -327,6 +327,8 @@ is a shipping warehouse.
 | Structured fact filters | `AggregateSpec.filter_sql` | full | full | full | bounded [10] |
 | Schema drift | derived from scan output | full | full | full | full |
 | Value / distribution drift | derived from scan output | full | full | full | full |
+| Properties as breakdowns, drift fields and contracts (`<json_column>.<path>`, F23) | `_field_value_expression` / `_field_operand` | full: JSON subcolumn; one `Map` key and named `Tuple` element by hand only, not execution-verified [8] | full: `JSON_VALUE` (JSON), declared STRUCT field | full: `#>>` (`json`/`jsonb`) | **none** — no JSON columns; a property breakdown raises `SyntheticCapabilityError` [10] |
+| Text columns parsed as JSON (`json_string_columns`, F23.9) | `json_string_source`, resolved once per adapter by `core.json_string_columns` | full: `SELECT * REPLACE (CAST(if(isValidJSON(s) AND JSONType(s) = 'Object', s, '{}'), 'JSON') AS c)` — needs the `JSON` type (25.x) | full: `SELECT * REPLACE (IF(JSON_TYPE(SAFE.PARSE_JSON(c, wide_number_mode => 'round')) = 'object', …, NULL) AS c)` | **none** — no non-failing text→`jsonb` cast before PG 16; the API refuses the setting (`422`) and the adapter raises `WarehouseCapabilityError` | **none** — refused like PostgreSQL |
 | **Field contracts** (required/enum/regex/range) | `validate_field_contracts` | **full** | **full** (warehouse-side, full window) | **full** (warehouse-side, full window; range compares in exact decimal, see "PostgreSQL range contracts compare exactly") | bounded [10] |
 | Anomaly detection | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |
 | Alerts | none (post-hoc) | full [11] | full [11] | full [11] | full [11] |
@@ -473,6 +475,14 @@ access the adapter compiles today, which ClickHouse rejects on a Map — that is
 what [tripl-bc1u] covers. (BigQuery `STRUCT`/`RECORD`, which was in the same
 position, is now value-extractable — see caveat [5] for its one remaining
 exclusion.)
+
+One narrow exception since F23.6: a property typed by hand as a breakdown, drift
+field or contract field (`<column>.<path>`) is extracted from these columns too —
+a `Map` by one key (`mapContains` plus a `` `m`['k'] `` subscript, so only a
+one-segment path), a named `Tuple` element by member access. Scans still discover
+no path under them, so nothing offers such a property in the picker unless it is
+typed in. This extraction is covered by SQL-string tests only; the conformance
+gate does not execute it yet.
 
 Verified by execution: the ClickHouse conformance fixture carries a
 `Map(String, String)` and a `Tuple(a Int32, b String)` column alongside its

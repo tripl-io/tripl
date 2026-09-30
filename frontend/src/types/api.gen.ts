@@ -4793,6 +4793,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Event Overrides  Properties
+         * @description Add the property to many events' lists, or apply one patch to each entry:
+         *     the single PUT's semantics, all or nothing (F23.8).
+         */
+        post: operations["bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Event Overrides  Properties
+         * @description Take the property off many events' lists (F23.8). Events that do not
+         *     carry it are skipped, and the audit row names only the entries removed.
+         */
+        post: operations["bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
         parameters: {
             query?: never;
@@ -4806,6 +4848,27 @@ export interface paths {
         post?: never;
         /** Delete Event Override  Properties */
         delete: operations["delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/properties/{variable_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Events  Properties
+         * @description The events whose property list carries this property, with each entry's
+         *     required flag, override and last measured presence (F23.8).
+         */
+        get: operations["list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5781,6 +5844,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Upsert Event Overrides
+         * @deprecated
+         * @description Add the property to many events' lists, or apply one patch to each entry:
+         *     the single PUT's semantics, all or nothing (F23.8).
+         */
+        post: operations["bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Delete Event Overrides
+         * @deprecated
+         * @description Take the property off many events' lists (F23.8). Events that do not
+         *     carry it are skipped, and the audit row names only the entries removed.
+         */
+        post: operations["bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}": {
         parameters: {
             query?: never;
@@ -5800,6 +5907,28 @@ export interface paths {
          * @deprecated
          */
         delete: operations["delete_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/variables/{variable_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Property Events
+         * @deprecated
+         * @description The events whose property list carries this property, with each entry's
+         *     required flag, override and last measured presence (F23.8).
+         */
+        get: operations["list_property_events_api_v1_projects__slug__variables__variable_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6791,7 +6920,7 @@ export interface components {
          * AlertDriftType
          * @enum {string}
          */
-        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent";
+        AlertDriftType: "new_field" | "missing_field" | "type_changed" | "enum_violation" | "required_null_violation" | "regex_violation" | "range_violation" | "distribution_shift" | "missing" | "volume_drop" | "value_drift" | "source_late" | "source_overdue" | "sunset_overdue" | "successor_silent" | "new_property" | "missing_required" | "type_change";
         /** AlertInboxActionRequest */
         AlertInboxActionRequest: {
             /**
@@ -7123,6 +7252,11 @@ export interface components {
              */
             include_project_total: boolean;
             /**
+             * Include Property Drifts
+             * @default false
+             */
+            include_property_drifts: boolean;
+            /**
              * Include Release Regressions
              * @default false
              */
@@ -7251,6 +7385,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -7368,6 +7504,8 @@ export interface components {
             include_metrics?: boolean | null;
             /** Include Project Total */
             include_project_total?: boolean | null;
+            /** Include Property Drifts */
+            include_property_drifts?: boolean | null;
             /** Include Release Regressions */
             include_release_regressions?: boolean | null;
             /** Include Schema Drifts */
@@ -12943,7 +13081,7 @@ export interface components {
          * MetricScopeType
          * @enum {string}
          */
-        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle";
+        MetricScopeType: "project_total" | "event_type" | "event" | "schema" | "distribution" | "release_regression" | "metric" | "variable_value_drift" | "source_freshness" | "lifecycle" | "property_drift";
         /**
          * MetricSeriesPoint
          * @description One densified point of a catalog-metric series.
@@ -13165,6 +13303,8 @@ export interface components {
             include_metrics: boolean;
             /** Include Project Total */
             include_project_total: boolean;
+            /** Include Property Drifts */
+            include_property_drifts: boolean;
             /** Include Release Regressions */
             include_release_regressions: boolean;
             /** Include Schema Drifts */
@@ -13418,7 +13558,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle";
+            kind: "comment" | "reply" | "mention" | "open_question" | "signal" | "branch_review_requested" | "branch_approved" | "branch_merged" | "lifecycle" | "property_drift";
             /**
              * Project Id
              * Format: uuid
@@ -15501,6 +15641,11 @@ export interface components {
              */
             open_incident_count: number;
             /**
+             * Open Property Drift Count
+             * @default 0
+             */
+            open_property_drift_count: number;
+            /**
              * Review Pending Event Count
              * @default 0
              */
@@ -15711,7 +15856,7 @@ export interface components {
         PropertyDriftResponse: {
             /**
              * Detail
-             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change.
+             * @description What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change. For an object property whose sampled objects disagree with its sub-schema, type_change also carries nested_changes (each a path, a change of new_key, missing_required or type_change, and for a type change the expected and observed types), and observed_schema is the stored sub-schema with those changes applied.
              * @default {}
              */
             detail: {
@@ -15751,6 +15896,106 @@ export interface components {
             variable_id: string;
             /** Variable Name */
             variable_name: string;
+        };
+        /**
+         * PropertyEventResponse
+         * @description One event whose property list carries the property, with its entry.
+         */
+        PropertyEventResponse: {
+            /**
+             * Effective Values
+             * @description The allowed values in force for this event: the override when there is one, else the property's global list.
+             * @default []
+             */
+            effective_values: string[];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /** Event Name */
+            event_name: string;
+            /**
+             * Event Type Id
+             * Format: uuid
+             */
+            event_type_id: string;
+            /**
+             * Presence Rate
+             * @description Share of the event's rows that carried the property at the last scan.
+             */
+            presence_rate?: number | null;
+            /**
+             * Required
+             * @default false
+             */
+            required: boolean;
+            /**
+             * Required Presence Threshold
+             * @description The event's own threshold; null means the default (0.95).
+             */
+            required_presence_threshold?: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Suggested Required
+             * @description Whether presence_rate reaches the event's threshold; null when presence is unknown.
+             */
+            suggested_required?: boolean | null;
+            /**
+             * Values
+             * @description This event's override of the allowed values; null when there is none.
+             */
+            values?: string[] | null;
+        };
+        /**
+         * PropertyEventsBulkDelete
+         * @description Take the property off many events' lists (their overrides go with it).
+         */
+        PropertyEventsBulkDelete: {
+            /** Event Ids */
+            event_ids: string[];
+        };
+        /** PropertyEventsBulkResult */
+        PropertyEventsBulkResult: {
+            /**
+             * Created
+             * @description Events the property was added to.
+             */
+            created: number;
+            /**
+             * Removed
+             * @description Events the property was taken off.
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Updated
+             * @description Events whose existing entry was edited.
+             */
+            updated: number;
+        };
+        /**
+         * PropertyEventsBulkUpsert
+         * @description Add the property to many events' lists, or edit its entry on each.
+         *
+         *     The same patch as the single ``PUT .../event-overrides/{event_id}``: a field
+         *     left out keeps what each entry holds, a new entry starts with no override
+         *     and not required, and ``values: null`` drops the override.
+         */
+        PropertyEventsBulkUpsert: {
+            /** Event Ids */
+            event_ids: string[];
+            /**
+             * Required
+             * @description Whether every occurrence of each event must carry the property.
+             */
+            required?: boolean | null;
+            /**
+             * Values
+             * @description Allowed values for these events, replacing the property's global list. null: no override, the global list applies.
+             */
+            values?: string[] | null;
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -16141,6 +16386,8 @@ export interface components {
             distribution_drift_fields?: string[];
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16148,6 +16395,8 @@ export interface components {
             /** Event Type Id */
             event_type_id?: string | null;
             interval?: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /** Metric Breakdown Columns */
@@ -16160,11 +16409,19 @@ export interface components {
             name: string;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };
@@ -16210,6 +16467,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -16223,6 +16482,8 @@ export interface components {
              */
             id: string;
             interval: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths: string[];
             /** Last Collection At */
@@ -16257,11 +16518,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -16279,11 +16548,15 @@ export interface components {
              * Format: uuid
              */
             data_source_id: string;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /**
              * Include Json Paths
              * @default false
              */
             include_json_paths: boolean;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /**
@@ -16291,6 +16564,8 @@ export interface components {
              * @default 10
              */
             limit: number;
+            /** Properties Column */
+            properties_column?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Time Column */
@@ -16328,6 +16603,8 @@ export interface components {
             distribution_drift_fields: string[];
             /** Event Group Rules */
             event_group_rules: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format: string | null;
             /** Event Type Column */
@@ -16341,6 +16618,8 @@ export interface components {
              */
             id: string;
             interval: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths: string[];
             /** Last Collection At */
@@ -16371,11 +16650,19 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours: number | null;
             /** Scan Row Limit */
             scan_row_limit: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column: string | null;
             /**
@@ -16406,6 +16693,8 @@ export interface components {
             distribution_drift_fields?: string[] | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][] | null;
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
@@ -16413,6 +16702,8 @@ export interface components {
             /** Event Type Id */
             event_type_id?: string | null;
             interval?: components["schemas"]["ScanInterval"] | null;
+            /** Json String Columns */
+            json_string_columns?: string[] | null;
             /** Json Value Paths */
             json_value_paths?: string[] | null;
             /** Metric Breakdown Columns */
@@ -16425,11 +16716,15 @@ export interface components {
             name?: string | null;
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             replay_chunk_interval?: components["schemas"]["ScanInterval"] | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
             /** Scan Row Limit */
             scan_row_limit?: number | null;
+            /** Setup Preset */
+            setup_preset?: ("custom" | "event_properties") | null;
             /** Time Column */
             time_column?: string | null;
         };
@@ -16592,16 +16887,22 @@ export interface components {
             data_source_id?: string | null;
             /** Event Group Rules */
             event_group_rules?: components["schemas"]["EventGroupRule"][];
+            /** Event Name Column */
+            event_name_column?: string | null;
             /** Event Name Format */
             event_name_format?: string | null;
             /** Event Type Column */
             event_type_column?: string | null;
             /** Event Type Id */
             event_type_id?: string | null;
+            /** Json String Columns */
+            json_string_columns?: string[];
             /** Json Value Paths */
             json_value_paths?: string[];
             /** Platform Column */
             platform_column?: string | null;
+            /** Properties Column */
+            properties_column?: string | null;
             /**
              * Sample Row Limit
              * @default 5000
@@ -16611,6 +16912,12 @@ export interface components {
             scan_config_id?: string | null;
             /** Scan Lookback Hours */
             scan_lookback_hours?: number | null;
+            /**
+             * Setup Preset
+             * @default custom
+             * @enum {string}
+             */
+            setup_preset: "custom" | "event_properties";
             /** Time Column */
             time_column?: string | null;
         };
@@ -18297,6 +18604,12 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             /**
+             * Listed Event Count
+             * @description Events whose property list carries this property (F23), on the property's branch; unlike 'event_count', which counts where scans saw it.
+             * @default 0
+             */
+            listed_event_count: number;
+            /**
              * Low Context Count
              * @default 0
              */
@@ -18313,6 +18626,12 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /**
+             * Required Event Count
+             * @description Of 'listed_event_count', the events that require the property.
+             * @default 0
+             */
+            required_event_count: number;
             /**
              * Sample Values
              * @description Observed values unioned across every (variable, event, field) context, de-duplicated and capped at 20. Lets a list client render the row's value chips without one /values call per variable.
@@ -25502,6 +25821,8 @@ export interface operations {
                 has_open_questions?: boolean | null;
                 field_value?: string | null;
                 meta_value?: string | null;
+                /** @description Property id or name: only events whose property list carries it. */
+                property?: string | null;
                 offset?: number;
                 limit?: number;
                 order_by?: "catalog" | "volume" | "health";
@@ -28674,6 +28995,84 @@ export interface operations {
             };
         };
     };
+    bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put: {
         parameters: {
             query?: {
@@ -28736,6 +29135,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -30968,6 +31402,84 @@ export interface operations {
             };
         };
     };
+    bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PropertyEventsBulkDelete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventsBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put: {
         parameters: {
             query?: {
@@ -31030,6 +31542,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_property_events_api_v1_projects__slug__variables__variable_id__events_get: {
+        parameters: {
+            query?: {
+                /** @description Plan branch id (UUID) to read and write instead of the main branch. */
+                branch?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                variable_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PropertyEventResponse"][];
+                };
             };
             /** @description Validation Error */
             422: {

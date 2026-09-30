@@ -31,6 +31,9 @@ class NotificationKind(enum.StrEnum):
     branch_approved = "branch_approved"
     branch_merged = "branch_merged"
     lifecycle = "lifecycle"
+    # A scan found a property drift on a watched event (F23, #306). Added to
+    # the check by c3e5a7b9d1f2.
+    property_drift = "property_drift"
 
 
 NOTIFICATION_KIND_CHECK = "kind IN ({})".format(

@@ -36,6 +36,7 @@ import { ReadOnlyNotice } from '@/components/states'
 import { countOf, pluralize } from '@/lib/plural'
 import { projectKey, variablesKey, variablesUsagePageKey } from '@/lib/queryKeys'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
+import { PropertyDriftList } from '@/pages/events/PropertyDriftList'
 
 // Rows rendered at once. The whole set arrives in one request, but a governance
 // project can hold >1k variables and painting them all froze the tab for
@@ -101,6 +102,10 @@ export function VariablesTab({
   const eventHref = useCallback((eventId: string) => projectPath(currentOrgSlug(), slug, `/events/all/${eventId}`), [slug])
   // The `${name}` token opens the variable's own page (AU-26).
   const detailHref = useCallback((variableId: string) => variableDetailPath(slug, variableId), [slug])
+  const listedEventsHref = useCallback(
+    (variableId: string) => variableDetailPath(slug, variableId, 'events'),
+    [slug],
+  )
   const canWrite = useCanWriteProject()
   const focusRef = useRef<HTMLTableRowElement | null>(null)
   // The excluded panel renders <li>s, not table rows, so the focused variable
@@ -526,6 +531,9 @@ export function VariablesTab({
         }
       />
       {!canWrite && <ReadOnlyNotice />}
+      {/* Open property drift across the project (F23): what the sidebar's
+          Properties badge counts. Detected against main, so main only. */}
+      {branchId === null && <PropertyDriftList slug={slug} readOnly={!canWrite} />}
 
       {showForm && (
         <VariablesCreateDialog
@@ -680,6 +688,7 @@ export function VariablesTab({
                         onDelete={handleDelete}
                         eventHref={eventHref}
                         detailHref={detailHref}
+                        listedEventsHref={listedEventsHref}
                       />
                     ))}
                     {pageVariables.length === 0 && (

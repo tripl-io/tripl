@@ -25,6 +25,7 @@ from tripl.core.analyzers._event_generator_variables import (
     VariableIndex,
     build_variable_index,
 )
+from tripl.core.analyzers._json_object_properties import is_object_property
 from tripl.core.analyzers.cardinality import _is_json_type
 from tripl.core.analyzers.event_generator import GenerationResult, event_name_format_columns
 from tripl.core.intervals import get_interval
@@ -217,6 +218,12 @@ def _augment_json_value_paths_for_replay_tokens(
     for event in replay_events:
         for field_value in event.field_values:
             for token in _VARIABLE_NAME_PATTERN.findall(field_value.value):
+                variable = variable_index.resolve(token)
+                if variable is not None and is_object_property(variable):
+                    # An object property (F23.4e): extracting it would make a
+                    # whole object a grouping key of every replay row. Its
+                    # values come from the sampler's whole objects instead.
+                    continue
                 for candidate in _warehouse_token_candidates(token, variable_index):
                     if path_map.admit(candidate):
                         break

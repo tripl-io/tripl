@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query
 from fastapi.routing import APIRoute
 
 from tripl.api.deps import BranchIdDep, EditorUserDep, SessionDep
+from tripl.api.v1.events import bulk_event_audit_payload
 from tripl.models.property_drift import PropertyDriftKind
 from tripl.models.variable import Variable
 from tripl.models.variable_event_value_override import VariableEventValueOverride
@@ -13,6 +14,12 @@ from tripl.schemas.property_drift import (
     PropertyDriftActionRequest,
     PropertyDriftListResponse,
     PropertyDriftResponse,
+)
+from tripl.schemas.property_events import (
+    PropertyEventResponse,
+    PropertyEventsBulkDelete,
+    PropertyEventsBulkResult,
+    PropertyEventsBulkUpsert,
 )
 from tripl.schemas.variable import (
     VariableBulkDelete,
@@ -33,6 +40,7 @@ from tripl.schemas.variable_value_drift import (
 from tripl.services import (
     audit_service,
     property_drift_service,
+    property_events_service,
     variable_service,
     variable_value_drift_service,
     variable_value_service,
@@ -319,6 +327,84 @@ async def list_event_overrides(
     branch_id: BranchIdDep,
 ) -> list[VariableEventValueOverride]:
     return await variable_service.list_event_overrides(session, slug, variable_id, branch_id)
+
+
+@router.get("/{variable_id}/events", response_model=list[PropertyEventResponse])
+async def list_property_events(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID,
+    branch_id: BranchIdDep,
+) -> list[PropertyEventResponse]:
+    """The events whose property list carries this property, with each entry's
+    required flag, override and last measured presence (F23.8)."""
+    return await property_events_service.list_property_events(session, slug, variable_id, branch_id)
+
+
+# Registered before "/{variable_id}/event-overrides/{event_id}" so "bulk" is
+# not read as an event id.
+@router.post("/{variable_id}/event-overrides/bulk", response_model=PropertyEventsBulkResult)
+async def bulk_upsert_event_overrides(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID,
+    data: PropertyEventsBulkUpsert,
+    current_user: EditorUserDep,
+    branch_id: BranchIdDep,
+) -> PropertyEventsBulkResult:
+    """Add the property to many events' lists, or apply one patch to each entry:
+    the single PUT's semantics, all or nothing (F23.8)."""
+    variable_name, touched, result = await property_events_service.bulk_upsert_property_events(
+        session, slug, variable_id, data, branch_id
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="variable.override_bulk_set",
+        target_type="variable",
+        target_id=variable_id,
+        target_name=variable_name,
+        project_slug=slug,
+        payload=bulk_event_audit_payload(
+            [event_id for event_id, _ in touched],
+            event_names=[name for _, name in touched],
+            extra={
+                **data.model_dump(mode="json", exclude_unset=True, exclude={"event_ids"}),
+                "created": result.created,
+            },
+        ),
+    )
+    return result
+
+
+@router.post("/{variable_id}/event-overrides/bulk-delete", response_model=PropertyEventsBulkResult)
+async def bulk_delete_event_overrides(
+    session: SessionDep,
+    slug: str,
+    variable_id: uuid.UUID,
+    data: PropertyEventsBulkDelete,
+    current_user: EditorUserDep,
+    branch_id: BranchIdDep,
+) -> PropertyEventsBulkResult:
+    """Take the property off many events' lists (F23.8). Events that do not
+    carry it are skipped, and the audit row names only the entries removed."""
+    variable_name, removed, result = await property_events_service.bulk_delete_property_events(
+        session, slug, variable_id, data, branch_id
+    )
+    await audit_service.record(
+        session,
+        user=current_user,
+        action="variable.override_bulk_delete",
+        target_type="variable",
+        target_id=variable_id,
+        target_name=variable_name,
+        project_slug=slug,
+        payload=bulk_event_audit_payload(
+            [event_id for event_id, _ in removed],
+            event_names=[name for _, name in removed],
+        ),
+    )
+    return result
 
 
 @router.put(

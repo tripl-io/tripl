@@ -281,6 +281,11 @@ class ProjectSummary(BaseModel):
     # deliver nothing either.
     alert_rule_count: int = 0
     monitoring_signal_count: int = 0
+    # Open property drifts (F23, #306): new properties, missing required ones
+    # and type changes nobody has triaged. Kept apart from
+    # ``monitoring_signal_count``, which must equal the Anomalies page; both
+    # this and the health score read ``_open_signals.open_property_drift_counts``.
+    open_property_drift_count: int = 0
     firing_monitor_count: int = 0
     # Incidents in the Alerting Inbox whose effective status is `open`. The
     # sidebar used to badge Alerting with ``alert_destination_count``, so it read

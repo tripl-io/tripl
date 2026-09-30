@@ -109,7 +109,7 @@ export function VariablesEditDialog({
           )}
           <Button type="button" variant="outline" onClick={onClose}>{canWrite ? 'Cancel' : 'Close'}</Button>
           {canWrite && (
-            <Button type="submit" form={formId} disabled={draft.updateMut.isPending || draft.typeChangeBlocked}>
+            <Button type="submit" form={formId} disabled={draft.updateMut.isPending || draft.typeChangeBlocked || draft.schemaIssues.length > 0}>
               Save
             </Button>
           )}

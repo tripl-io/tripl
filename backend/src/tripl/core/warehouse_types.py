@@ -105,6 +105,17 @@ def is_complex_type(type_name: str) -> bool:
     return classify_complex(type_name) is not None
 
 
+def is_string_type(type_name: str) -> bool:
+    """Whether a column holds plain text a scan may be asked to parse as JSON.
+
+    ClickHouse ``String`` / ``FixedString(N)`` (under any ``Nullable`` /
+    ``LowCardinality`` wrapper) and BigQuery ``STRING``: the two dialects whose
+    adapters implement ``json_string_source`` (F23.9, #306).
+    """
+    name = _normalize(type_name)
+    return name == "string" or name.startswith("fixedstring(")
+
+
 def classify_time(type_name: str) -> TimeKind:
     """Classify a column's suitability as a scan/metric time column.
 

@@ -12,7 +12,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -164,14 +164,8 @@ async def apply_property_drift_action(
 
 
 async def open_property_drift_count(session: AsyncSession, project_id: uuid.UUID) -> int:
-    now = datetime.now(UTC)
-    return int(
-        await session.scalar(
-            select(func.count(PropertyDrift.id)).where(
-                PropertyDrift.project_id == project_id,
-                PropertyDrift.detected_at >= retention_cutoff(now),
-                *_active(now),
-            )
-        )
-        or 0
-    )
+    """The project's open property drifts: the shared count (``_open_signals``)."""
+    from tripl.services._open_signals import open_property_drift_counts
+
+    counts = await open_property_drift_counts(session, [project_id])
+    return counts.get(project_id, 0)

@@ -40,6 +40,7 @@ export function useEventsViewState({
   filterSilentDays,
   filterReviewed,
   filterOpenQuestions,
+  filterProperty = '',
   filterTag,
   hiddenColumns,
   metaFields,
@@ -56,6 +57,8 @@ export function useEventsViewState({
   filterSilentDays: number | undefined
   filterReviewed: boolean | undefined
   filterOpenQuestions: boolean | undefined
+  /** `?property=` (F23): a filter like the rest, cleared with them. */
+  filterProperty?: string
   filterTag: string
   hiddenColumns: Set<string>
   metaFields: MetaFieldDefinition[]
@@ -138,6 +141,7 @@ export function useEventsViewState({
   const hasActiveFilters = filterStatuses.length > 0 || filterTag !== '' || filterSilentDays !== undefined ||
     filterReviewed !== undefined ||
     filterOpenQuestions !== undefined ||
+    filterProperty !== '' ||
     Object.values(fieldFilters).some(v => v !== '') ||
     Object.values(metaFilters).some(v => v !== '')
 
@@ -154,6 +158,7 @@ export function useEventsViewState({
       next.delete('silent_days')
       next.delete('reviewed')
       next.delete('questions')
+      next.delete('property')
       Array.from(next.keys()).filter(k => k.startsWith('f.') || k.startsWith('m.')).forEach(k => next.delete(k))
       return next
     }, { replace: true })

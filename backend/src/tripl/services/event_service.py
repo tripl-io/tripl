@@ -68,6 +68,7 @@ from tripl.services.event_comment_service import (
 from tripl.services.lifecycle_service import attach_event_findings, attach_list_warnings
 from tripl.services.plan_branch_service import ensure_main_branch_id, resolve_branch_id
 from tripl.services.project_lookup import resolve_project_id
+from tripl.services.property_events_service import property_event_ids
 from tripl.services.scan_config_lookup import (
     governing_name_format,
     load_governing_scan_configs,
@@ -743,6 +744,7 @@ async def list_events(
     has_open_questions: bool | None = None,
     branch_id: uuid.UUID | None = None,
     order_by: str = "catalog",
+    property_ref: str | None = None,
 ) -> tuple[list[Event], int]:
     project_id = await resolve_project_id(session, slug)
     requested_branch_id = branch_id
@@ -849,6 +851,12 @@ async def list_events(
         )
         query = query.where(Event.id.in_(mv_filter))
         count_query = count_query.where(Event.id.in_(mv_filter))
+    if property_ref:
+        # Events whose property list carries the property (F23.8): the list is
+        # the plan's answer, not whether a field template mentions ${name}.
+        property_filter = property_event_ids(project_id, branch_id, property_ref.strip())
+        query = query.where(Event.id.in_(property_filter))
+        count_query = count_query.where(Event.id.in_(property_filter))
     if reviewed is not None:
         # Independent of `status`: this narrows by the review FLAG, so
         # ?status=in_review&reviewed=false answers "what is still unreviewed in

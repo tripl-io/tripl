@@ -1616,7 +1616,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
                          [--project SLUG] [--branch REF] [--search TEXT]
                          [--status STATUS] [--tag TAG] [--field-value TEXT]
                          [--meta-value TEXT] [--event-type ID]
-                         [--silent-since-days N]
+                         [--property NAME_OR_ID] [--silent-since-days N]
                          [--reviewed | --unreviewed]
                          [--offset N] [--limit N] [--order-by ORDER] [--json]
                          [--timeout SECONDS]
@@ -1632,6 +1632,7 @@ usage: tripl events list [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--field-value TEXT` | Substring match on any field value — a screen name, typically. Case-insensitive. |
 | `--meta-value TEXT` | Substring match on any meta value — a ticket key, typically. Case-insensitive, so `--meta-value TRIPL-4` also keeps `TRIPL-412`. |
 | `--event-type ID` | Only events of this event type id, from `tripl plan types`. |
+| `--property NAME_OR_ID` | Only events whose property list carries this property, by name or id. |
 | `--silent-since-days N` | Only events the warehouse has not carried for N days, `0`–`3650`. |
 | `--reviewed` / `--unreviewed` | Only events already marked reviewed, or only those not. Mutually exclusive; omitting both asks for either. Reviewing is a separate axis from lifecycle status, so `--reviewed` and `--status in_review` can both match the same event. |
 | `--offset N` | Skip N events, to read the next page. Default `0`. |

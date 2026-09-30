@@ -30,6 +30,8 @@ from tripl.core.analyzers.event_generator import (
 )
 from tripl.core.analyzers.event_plan import breakdown_row_count
 from tripl.core.analyzers.preview import build_json_paths_payload, build_preview_payload
+from tripl.core.json_string_columns import scan_source_query
+from tripl.core.scan_setup_preset import is_event_properties_preset
 from tripl.json_paths import group_json_value_paths
 from tripl.models.data_source import DataSource
 from tripl.models.event import Event
@@ -53,6 +55,7 @@ from tripl.worker.utils.job_status import (
 )
 from tripl.worker.utils.query_windows import TimeWindow, resolve_lookback_window
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
+from tripl.worker.utils.scan_preset import ensure_preset_event_type, preset_scan_columns
 from tripl.worker.variable_sweep import retire_unused_variables, retired_details_line
 
 logger = logging.getLogger(__name__)
@@ -229,9 +232,11 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         adapter.test_connection()
 
         # Get columns from base query, excluding the time column
-        columns = adapter.get_columns(config.base_query)
+        columns = adapter.get_columns(scan_source_query(adapter, config))
         if config.time_column:
             columns = [c for c in columns if c.name != config.time_column]
+        # The "event + properties" preset reads only the columns it needs.
+        columns = preset_scan_columns(config, columns)
         logger.info(f"Found {len(columns)} columns in base query")
         json_value_paths = group_json_value_paths(config.json_value_paths)
         # The project's organization's row-limit defaults, clamped to the
@@ -246,6 +251,9 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
         )
 
         # Resolve event type: either from config or detect from event_type_column
+        if is_event_properties_preset(config.setup_preset):
+            # Also gives the event type its two fields; see ``scan_preset``.
+            ensure_preset_event_type(session, config, columns)
         event_type_id = config.event_type_id
         logger.info(
             "event_type_id=%s, event_type_column=%r",
@@ -274,7 +282,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
             # Single event type scan — bulk cardinality (no grouping)
             analysis = analyze_cardinality(
                 adapter,
-                config.base_query,
+                scan_source_query(adapter, config),
                 columns,
                 threshold=config.cardinality_threshold,
                 json_value_paths=json_value_paths,
@@ -493,7 +501,7 @@ def _scan_with_grouping(
 
     group_values, grouped_results = analyze_cardinality_grouped(
         adapter,
-        config.base_query,
+        scan_source_query(adapter, config),
         columns,
         group_column=col_name,
         threshold=config.cardinality_threshold,
@@ -783,7 +791,7 @@ def preview_scan_config_async(self: object, job_id: str) -> dict[str, object]:
             # Heavy half: enumerate nested JSON keys for the source query.
             payload = build_json_paths_payload(
                 adapter,
-                job.base_query,
+                scan_source_query(adapter, job),
                 list(job.json_value_paths or []),
                 time_column=job.time_column if preview_window else None,
                 time_from=preview_window[0] if preview_window else None,
@@ -793,11 +801,13 @@ def preview_scan_config_async(self: object, job_id: str) -> dict[str, object]:
             # Fast half: columns + sample rows only, no JSON path discovery.
             payload = build_preview_payload(
                 adapter,
-                job.base_query,
+                scan_source_query(adapter, job),
                 job.row_limit,
                 time_column=job.time_column if preview_window else None,
                 time_from=preview_window[0] if preview_window else None,
                 time_to=preview_window[1] if preview_window else None,
+                event_name_column=job.event_name_column,
+                properties_column=job.properties_column,
             )
 
         job.status = ScanJobStatus.completed.value

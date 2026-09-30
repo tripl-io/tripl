@@ -494,6 +494,8 @@ export const eventsListKey = (
     filterReviewed: boolean | undefined
     filterOpenQuestions: boolean | undefined
     sort: string
+    /** F23; last and only when set, so every other key keeps its shape. */
+    filterProperty?: string
   },
 ) =>
   [
@@ -506,6 +508,7 @@ export const eventsListKey = (
     filters.filterReviewed,
     filters.filterOpenQuestions,
     filters.sort,
+    ...(filters.filterProperty ? [filters.filterProperty] : []),
   ] as const
 
 /**
@@ -522,7 +525,7 @@ export const eventNameSampleKey = (
 export const eventsPickerKey = (
   slug: string | undefined,
   branchId: string | null | undefined,
-  picker: 'alert-filter' | 'override-picker' | 'successor-picker' | 'metric-picker',
+  picker: 'alert-filter' | 'override-picker' | 'successor-picker' | 'metric-picker' | 'property-picker',
   search: string,
 ) => [...branchEventsKey(slug, branchId), picker, search] as const
 
@@ -691,11 +694,50 @@ export const eventVariableDriftsKey = (
   eventId: string,
 ) => [...branchVariableDriftsKey(slug, branchId), 'event', eventId] as const
 
+/**
+ * Property drift (F23, #306) — `propertyDriftsApi.list`. Main-only on the
+ * server (drift is detected against main), so no branch segment. Every list
+ * extends the project prefix, so one invalidation after a triage refreshes
+ * the event page's list and the Properties page's roster together.
+ */
+export const projectPropertyDriftsKey = (slug: string | undefined) =>
+  [...orgRoot(), 'property-drifts', slug] as const
+/** The active drifts of one event. */
+export const eventPropertyDriftsKey = (slug: string | undefined, eventId: string) =>
+  [...projectPropertyDriftsKey(slug), 'event', eventId] as const
+/** The active type changes of the project (per property, no event). */
+export const typeChangePropertyDriftsKey = (slug: string | undefined) =>
+  [...projectPropertyDriftsKey(slug), 'type_change'] as const
+/** Every active drift of the project. */
+export const activePropertyDriftsKey = (slug: string | undefined) =>
+  [...projectPropertyDriftsKey(slug), 'active'] as const
+
 export const variableOverridesKey = (
   slug: string | undefined,
   branchId: string | null | undefined,
   variableId: string,
 ) => [...orgRoot(), 'variable-overrides', slug, branchId, variableId] as const
+
+/** Every property-list read on a branch, from either side (F23): one prefix to
+ *  invalidate after any entry write. The per-property overrides list reads the
+ *  same rows and sits under `variableOverridesKey`. */
+export const branchPropertyEntriesKey = (slug: string | undefined, branchId: string | null | undefined) =>
+  [...orgRoot(), 'property-entries', slug, branchId] as const
+/** An event's property list. */
+export const eventPropertiesKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  eventId: string,
+) => [...branchPropertyEntriesKey(slug, branchId), 'event', eventId] as const
+/** The events one property is on. */
+export const propertyEventsKey = (
+  slug: string | undefined,
+  branchId: string | null | undefined,
+  variableId: string,
+) => [...branchPropertyEntriesKey(slug, branchId), 'property', variableId] as const
+/** Prefix of every `variableOverridesKey` on a branch. */
+export const branchVariableOverridesKey = (slug: string | undefined, branchId: string | null | undefined) =>
+  [...orgRoot(), 'variable-overrides', slug, branchId] as const
 
 export const branchVariableValuesKey = (slug: string | undefined, branchId: string | null | undefined) =>
   [...orgRoot(), 'variable-values', slug, branchId] as const

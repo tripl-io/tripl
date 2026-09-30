@@ -40,6 +40,9 @@ export interface AlertRule {
   // Lifecycle alerts: one per open sunset-watch finding (#258). Optional: a
   // server that predates the flag omits it, which reads as off.
   include_lifecycle?: boolean
+  // Property drift alerts: one per open property drift (F23, #306).
+  // Optional: a server that predates the flag omits it, which reads as off.
+  include_property_drifts?: boolean
   notify_on_spike: boolean
   notify_on_drop: boolean
   ai_explanation_enabled: boolean
@@ -671,6 +674,8 @@ export interface MonitorDetail extends MonitorSummaryItem {
   // Lifecycle alerts: one per open sunset-watch finding (#258). Optional: a
   // server that predates the flag omits it, which reads as off.
   include_lifecycle?: boolean
+  // Property drift alerts (F23, #306). Optional like include_lifecycle.
+  include_property_drifts?: boolean
   // Quick fired-history stats (full history via GET /alert-deliveries?rule_id=).
   total_deliveries: number
   last_delivery_at: string | null

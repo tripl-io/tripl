@@ -2182,7 +2182,10 @@
           "source_late",
           "source_overdue",
           "sunset_overdue",
-          "successor_silent"
+          "successor_silent",
+          "new_property",
+          "missing_required",
+          "type_change"
         ],
         "title": "AlertDriftType",
         "type": "string"
@@ -2852,6 +2855,11 @@
             "title": "Include Project Total",
             "type": "boolean"
           },
+          "include_property_drifts": {
+            "default": false,
+            "title": "Include Property Drifts",
+            "type": "boolean"
+          },
           "include_release_regressions": {
             "default": false,
             "title": "Include Release Regressions",
@@ -3091,6 +3099,10 @@
             "title": "Include Project Total",
             "type": "boolean"
           },
+          "include_property_drifts": {
+            "title": "Include Property Drifts",
+            "type": "boolean"
+          },
           "include_release_regressions": {
             "title": "Include Release Regressions",
             "type": "boolean"
@@ -3237,6 +3249,7 @@
           "include_metrics",
           "include_source_freshness",
           "include_lifecycle",
+          "include_property_drifts",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -3499,6 +3512,17 @@
               }
             ],
             "title": "Include Project Total"
+          },
+          "include_property_drifts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Property Drifts"
           },
           "include_release_regressions": {
             "anyOf": [
@@ -17526,7 +17550,8 @@
           "metric",
           "variable_value_drift",
           "source_freshness",
-          "lifecycle"
+          "lifecycle",
+          "property_drift"
         ],
         "title": "MetricScopeType",
         "type": "string"
@@ -18142,6 +18167,10 @@
             "title": "Include Project Total",
             "type": "boolean"
           },
+          "include_property_drifts": {
+            "title": "Include Property Drifts",
+            "type": "boolean"
+          },
           "include_release_regressions": {
             "title": "Include Release Regressions",
             "type": "boolean"
@@ -18322,6 +18351,7 @@
           "include_metrics",
           "include_source_freshness",
           "include_lifecycle",
+          "include_property_drifts",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -18876,7 +18906,8 @@
               "branch_review_requested",
               "branch_approved",
               "branch_merged",
-              "lifecycle"
+              "lifecycle",
+              "property_drift"
             ],
             "title": "Kind",
             "type": "string"
@@ -24103,6 +24134,11 @@
             "title": "Open Incident Count",
             "type": "integer"
           },
+          "open_property_drift_count": {
+            "default": 0,
+            "title": "Open Property Drift Count",
+            "type": "integer"
+          },
           "review_pending_event_count": {
             "default": 0,
             "title": "Review Pending Event Count",
@@ -24656,7 +24692,7 @@
           "detail": {
             "additionalProperties": true,
             "default": {},
-            "description": "What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change.",
+            "description": "What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change. For an object property whose sampled objects disagree with its sub-schema, type_change also carries nested_changes (each a path, a change of new_key, missing_required or type_change, and for a type change the expected and observed types), and observed_schema is the stored sub-schema with those changes applied.",
             "title": "Detail",
             "type": "object"
           },
@@ -24777,6 +24813,196 @@
           "detected_at"
         ],
         "title": "PropertyDriftResponse",
+        "type": "object"
+      },
+      "PropertyEventResponse": {
+        "description": "One event whose property list carries the property, with its entry.",
+        "properties": {
+          "effective_values": {
+            "default": [],
+            "description": "The allowed values in force for this event: the override when there is one, else the property's global list.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Effective Values",
+            "type": "array"
+          },
+          "event_id": {
+            "format": "uuid",
+            "title": "Event Id",
+            "type": "string"
+          },
+          "event_name": {
+            "title": "Event Name",
+            "type": "string"
+          },
+          "event_type_id": {
+            "format": "uuid",
+            "title": "Event Type Id",
+            "type": "string"
+          },
+          "presence_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Share of the event's rows that carried the property at the last scan.",
+            "title": "Presence Rate"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The event's own threshold; null means the default (0.95).",
+            "title": "Required Presence Threshold"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "suggested_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether presence_rate reaches the event's threshold; null when presence is unknown.",
+            "title": "Suggested Required"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "This event's override of the allowed values; null when there is none.",
+            "title": "Values"
+          }
+        },
+        "required": [
+          "event_id",
+          "event_name",
+          "event_type_id",
+          "status"
+        ],
+        "title": "PropertyEventResponse",
+        "type": "object"
+      },
+      "PropertyEventsBulkDelete": {
+        "description": "Take the property off many events' lists (their overrides go with it).",
+        "properties": {
+          "event_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Event Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "event_ids"
+        ],
+        "title": "PropertyEventsBulkDelete",
+        "type": "object"
+      },
+      "PropertyEventsBulkResult": {
+        "properties": {
+          "created": {
+            "description": "Events the property was added to.",
+            "title": "Created",
+            "type": "integer"
+          },
+          "removed": {
+            "default": 0,
+            "description": "Events the property was taken off.",
+            "title": "Removed",
+            "type": "integer"
+          },
+          "updated": {
+            "description": "Events whose existing entry was edited.",
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "created",
+          "updated"
+        ],
+        "title": "PropertyEventsBulkResult",
+        "type": "object"
+      },
+      "PropertyEventsBulkUpsert": {
+        "description": "Add the property to many events' lists, or edit its entry on each.\n\nThe same patch as the single ``PUT .../event-overrides/{event_id}``: a field\nleft out keeps what each entry holds, a new entry starts with no override\nand not required, and ``values: null`` drops the override.",
+        "properties": {
+          "event_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Event Ids",
+            "type": "array"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whether every occurrence of each event must carry the property.",
+            "title": "Required"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Allowed values for these events, replacing the property's global list. null: no override, the global list applies.",
+            "title": "Values"
+          }
+        },
+        "required": [
+          "event_ids"
+        ],
+        "title": "PropertyEventsBulkUpsert",
         "type": "object"
       },
       "RegisterRequest": {
@@ -25661,6 +25887,19 @@
             "title": "Event Group Rules",
             "type": "array"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -25705,6 +25944,13 @@
                 "type": "null"
               }
             ]
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
           },
           "json_value_paths": {
             "items": {
@@ -25763,6 +26009,19 @@
             ],
             "title": "Platform Column"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -25796,6 +26055,15 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -25898,6 +26166,17 @@
             "title": "Event Group Rules",
             "type": "array"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -25949,6 +26228,13 @@
                 "type": "null"
               }
             ]
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
           },
           "json_value_paths": {
             "items": {
@@ -26060,6 +26346,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -26091,6 +26388,15 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -26155,10 +26461,30 @@
             "title": "Data Source Id",
             "type": "string"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "include_json_paths": {
             "default": false,
             "title": "Include Json Paths",
             "type": "boolean"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
           },
           "json_value_paths": {
             "items": {
@@ -26173,6 +26499,19 @@
             "minimum": 1.0,
             "title": "Limit",
             "type": "integer"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
           },
           "scan_lookback_hours": {
             "anyOf": [
@@ -26287,6 +26626,17 @@
             "title": "Event Group Rules",
             "type": "array"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -26338,6 +26688,13 @@
                 "type": "null"
               }
             ]
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
           },
           "json_value_paths": {
             "items": {
@@ -26425,6 +26782,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -26456,6 +26824,15 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -26613,6 +26990,18 @@
             ],
             "title": "Event Group Rules"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -26657,6 +27046,20 @@
                 "type": "null"
               }
             ]
+          },
+          "json_string_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json String Columns"
           },
           "json_value_paths": {
             "anyOf": [
@@ -26735,6 +27138,18 @@
             ],
             "title": "Platform Column"
           },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
           "replay_chunk_interval": {
             "anyOf": [
               {
@@ -26768,6 +27183,21 @@
               }
             ],
             "title": "Scan Row Limit"
+          },
+          "setup_preset": {
+            "anyOf": [
+              {
+                "enum": [
+                  "custom",
+                  "event_properties"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Preset"
           },
           "time_column": {
             "anyOf": [
@@ -27145,6 +27575,19 @@
             "title": "Event Group Rules",
             "type": "array"
           },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
           "event_name_format": {
             "anyOf": [
               {
@@ -27180,6 +27623,13 @@
             ],
             "title": "Event Type Id"
           },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Json String Columns",
+            "type": "array"
+          },
           "json_value_paths": {
             "items": {
               "type": "string"
@@ -27199,6 +27649,19 @@
               }
             ],
             "title": "Platform Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
           },
           "sample_row_limit": {
             "default": 5000,
@@ -27230,6 +27693,15 @@
               }
             ],
             "title": "Scan Lookback Hours"
+          },
+          "setup_preset": {
+            "default": "custom",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "type": "string"
           },
           "time_column": {
             "anyOf": [
@@ -31376,6 +31848,12 @@
             ],
             "title": "Json Schema"
           },
+          "listed_event_count": {
+            "default": 0,
+            "description": "Events whose property list carries this property (F23), on the property's branch; unlike 'event_count', which counts where scans saw it.",
+            "title": "Listed Event Count",
+            "type": "integer"
+          },
           "low_context_count": {
             "default": 0,
             "title": "Low Context Count",
@@ -31394,6 +31872,12 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "required_event_count": {
+            "default": 0,
+            "description": "Of 'listed_event_count', the events that require the property.",
+            "title": "Required Event Count",
+            "type": "integer"
           },
           "sample_values": {
             "default": [],
@@ -43739,6 +44223,24 @@
             }
           },
           {
+            "description": "Property id or name: only events whose property list carries it.",
+            "in": "query",
+            "name": "property",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Property id or name: only events whose property list carries it.",
+              "title": "Property"
+            }
+          },
+          {
             "in": "query",
             "name": "offset",
             "required": false,
@@ -49900,6 +50402,168 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk": {
+      "post": {
+        "description": "Add the property to many events' lists, or apply one patch to each entry:\nthe single PUT's semantics, all or nothing (F23.8).",
+        "operationId": "bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Upsert Event Overrides  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete": {
+      "post": {
+        "description": "Take the property off many events' lists (F23.8). Events that do not\ncarry it are skipped, and the audit row names only the entries removed.",
+        "operationId": "bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Delete Event Overrides  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
       "delete": {
         "operationId": "delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete",
@@ -50056,6 +50720,81 @@
           }
         },
         "summary": "Upsert Event Override  Properties",
+        "tags": [
+          "properties"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/events": {
+      "get": {
+        "description": "The events whose property list carries this property, with each entry's\nrequired flag, override and last measured presence (F23.8).",
+        "operationId": "list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyEventResponse"
+                  },
+                  "title": "Response List Property Events  Properties Api V1 Projects  Slug  Properties  Variable Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Property Events  Properties",
         "tags": [
           "properties"
         ]
@@ -54382,6 +55121,170 @@
         ]
       }
     },
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk": {
+      "post": {
+        "deprecated": true,
+        "description": "Add the property to many events' lists, or apply one patch to each entry:\nthe single PUT's semantics, all or nothing (F23.8).",
+        "operationId": "bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkUpsert"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Upsert Event Overrides",
+        "tags": [
+          "variables"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk-delete": {
+      "post": {
+        "deprecated": true,
+        "description": "Take the property off many events' lists (F23.8). Events that do not\ncarry it are skipped, and the audit row names only the entries removed.",
+        "operationId": "bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkDelete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Delete Event Overrides",
+        "tags": [
+          "variables"
+        ]
+      }
+    },
     "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}": {
       "delete": {
         "deprecated": true,
@@ -54540,6 +55443,82 @@
           }
         },
         "summary": "Upsert Event Override",
+        "tags": [
+          "variables"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/variables/{variable_id}/events": {
+      "get": {
+        "deprecated": true,
+        "description": "The events whose property list carries this property, with each entry's\nrequired flag, override and last measured presence (F23.8).",
+        "operationId": "list_property_events_api_v1_projects__slug__variables__variable_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "variable_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Variable Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+            "in": "query",
+            "name": "branch",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyEventResponse"
+                  },
+                  "title": "Response List Property Events Api V1 Projects  Slug  Variables  Variable Id  Events Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Property Events",
         "tags": [
           "variables"
         ]

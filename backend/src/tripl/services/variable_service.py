@@ -389,6 +389,13 @@ async def update_variable(
     # Readers that must not ACT on an excluded variable filter on the flag too:
     # ``variable_value_service.attach_variable_summaries`` for the drift badge,
     # ``worker.tasks.metrics.signals`` for alert candidates.
+    # New bindings point the property at other warehouse paths, so the scan's
+    # one-off type check (``catalog_sync._type_backfill_candidates``) may run
+    # again against them.
+    if "bindings" in update_data and list(update_data["bindings"] or []) != list(
+        var.bindings or []
+    ):
+        var.type_checked_at = None
     for key, value in update_data.items():
         setattr(var, key, value)
     await session.commit()

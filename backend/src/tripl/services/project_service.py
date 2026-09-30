@@ -43,7 +43,11 @@ from tripl.schemas.project import (
 )
 from tripl.services import alerting_service, plan_branch_service, signal_triage_service
 from tripl.services._monitor_state_intervals import load_monitor_state_intervals
-from tripl.services._open_signals import SCAN_SCOPES, open_counted_scan_signals
+from tripl.services._open_signals import (
+    SCAN_SCOPES,
+    open_counted_scan_signals,
+    open_property_drift_counts,
+)
 from tripl.services.metrics_insights_service import (
     _active_metric_signals_by_project,
 )
@@ -190,11 +194,28 @@ async def _get_project_summaries(
     await _populate_latest_scan_jobs(session, summaries)
     await _populate_failing_scan_configs(session, summaries)
     await _populate_monitoring_signals(session, summaries)
+    await _populate_open_property_drifts(session, summaries)
     await _populate_firing_monitor_counts(session, summaries)
     await _populate_open_incident_counts(session, summaries)
     await _populate_failing_alert_destinations(session, summaries)
 
     return summaries
+
+
+async def _populate_open_property_drifts(
+    session: AsyncSession,
+    summaries: dict[uuid.UUID, ProjectSummary],
+) -> None:
+    """Stamp each summary with its open property drifts (F23, #306).
+
+    The count is the shared one the health score also reads
+    (``_open_signals.open_property_drift_counts``); nothing is restated here.
+    """
+    if not summaries:
+        return
+    counts = await open_property_drift_counts(session, list(summaries))
+    for project_id, count in counts.items():
+        summaries[project_id].open_property_drift_count = count
 
 
 async def _populate_failing_alert_destinations(

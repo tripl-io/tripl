@@ -238,6 +238,25 @@ export function useEventsQuery({
     [setSearchParams],
   )
 
+  // Events whose property list carries a property (F23): the Properties
+  // catalog links here with `?property=<name>`. The name, not the id, so the
+  // link survives a branch switch (branches copy properties under new ids).
+  const filterProperty = searchParams.get('property') || ''
+  const setFilterProperty = useCallback(
+    (v: string) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          if (v) next.set('property', v)
+          else next.delete('property')
+          return next
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
+  )
+
   // Sort order lives in the URL under `sort`; only 'volume' and 'health' are
   // persisted so the default (catalog) request stays byte-identical to today.
   const sort: EventsSortOrder = parseEventsSort(searchParams.get('sort'), branchId, activeTab)
@@ -344,6 +363,7 @@ export function useEventsQuery({
       silent_since_days: filterSilentDays,
       reviewed: filterReviewed,
       has_open_questions: filterOpenQuestions,
+      property: filterProperty || undefined,
       order_by: sort === 'catalog' ? undefined : sort,
     }),
     [
@@ -354,6 +374,7 @@ export function useEventsQuery({
       filterSilentDays,
       filterReviewed,
       filterOpenQuestions,
+      filterProperty,
       sort,
     ],
   )
@@ -381,6 +402,7 @@ export function useEventsQuery({
       filterReviewed,
       filterOpenQuestions,
       sort,
+      filterProperty,
     }),
     queryFn: ({ pageParam }) =>
       eventsApi.list(slug!, {
@@ -467,6 +489,8 @@ export function useEventsQuery({
     setFilterReviewed,
     filterOpenQuestions,
     setFilterOpenQuestions,
+    filterProperty,
+    setFilterProperty,
     sort,
     setSort,
     fieldFilters,

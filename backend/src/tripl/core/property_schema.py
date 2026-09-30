@@ -20,6 +20,7 @@ service checks the fragment against the type the row will end up with.
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 from collections.abc import Mapping, Sequence
@@ -248,8 +249,46 @@ SCAN_INFERRED_SCHEMAS: tuple[dict[str, Any], ...] = (
 )
 
 
+# The only keywords an inferred object sub-schema uses (F23.4e). A schema using
+# anything else — a description, an enum, a bound, a pattern — has a person's
+# hand in it.
+_INFERRED_KEYWORDS = frozenset({"type", "format", "items", "properties", "required"})
+
+
+def _is_inference_shaped(node: object) -> bool:
+    if not isinstance(node, Mapping) or set(node) - _INFERRED_KEYWORDS:
+        return False
+    schema_type = node.get("type")
+    if schema_type not in ("string", "number", "boolean", "array", "object"):
+        return False
+    if "format" in node and (
+        schema_type != "string" or node["format"] not in ("date", "date-time")
+    ):
+        return False
+    if "items" in node and (schema_type != "array" or not _is_inference_shaped(node["items"])):
+        return False
+    if ("properties" in node or "required" in node) and schema_type != "object":
+        return False
+    properties = node.get("properties", {})
+    if not isinstance(properties, Mapping):
+        return False
+    return all(_is_inference_shaped(sub) for sub in properties.values())
+
+
 def is_scan_inferred_schema(schema: Mapping[str, Any] | None) -> bool:
-    return schema is None or dict(schema) in SCAN_INFERRED_SCHEMAS
+    """Whether *schema* says only what a scan could have inferred.
+
+    Besides the fixed fragments, an object schema built from the grammar
+    ``infer_property_type`` writes for sampled objects — types, date formats,
+    item types, properties, ``required`` — reads as the scan's. The
+    approximation is one-directional, like the fixed fragments: a person who
+    only retyped a nested key or edited ``required`` is not told apart, and such
+    a property counts as the scan's in the retirement sweep. What a person
+    usually adds to a schema (a description, an enum, a bound) marks it theirs.
+    """
+    if schema is None or dict(schema) in SCAN_INFERRED_SCHEMAS:
+        return True
+    return schema.get("type") == "object" and _is_inference_shaped(schema)
 
 
 def _kind(value: object) -> str:
@@ -317,5 +356,196 @@ def infer_property_type(values: Sequence[object]) -> tuple[str, dict[str, Any] |
             return None
         return _array_type(arrays)
     if kinds == {"object"}:
-        return "json", {"type": "object"}
+        schema = _object_node([value for value in present if isinstance(value, dict)], depth=1)
+        if len(json.dumps(schema, ensure_ascii=False).encode()) > SCHEMA_MAX_BYTES:
+            return "json", {"type": "object"}
+        return "json", schema
     return None
+
+
+# --- Object sub-schemas (F23.4e) ----------------------------------------------
+#
+# A nested object is one property whose sub-schema is inferred from sampled
+# objects: every key a sample carried, each typed from its values the way a
+# top-level property is, and ``required`` naming the keys EVERY sample carried
+# with a value. A key whose values disagree about their kind (or are all null)
+# is left out rather than guessed, the rule a top-level property follows too.
+
+_NODE_BY_KIND: dict[str, dict[str, Any]] = {
+    "number": {"type": "number"},
+    "boolean": {"type": "boolean"},
+    "date": {"type": "string", "format": "date"},
+    "datetime": {"type": "string", "format": "date-time"},
+    "string": {"type": "string"},
+}
+
+_PROPERTY_NAME_MAX = 200
+
+
+def _node_for(values: Sequence[object], depth: int) -> dict[str, Any] | None:
+    """The schema node a sample of one key's values supports, or ``None``."""
+    present = [value for value in values if value is not None]
+    kinds = {_kind(value) for value in present}
+    if not kinds or "unknown" in kinds:
+        return None
+    if len(kinds) == 1 and next(iter(kinds)) in _NODE_BY_KIND:
+        return dict(_NODE_BY_KIND[next(iter(kinds))])
+    if kinds <= {"date", "datetime"}:
+        return dict(_NODE_BY_KIND["datetime"])
+    if kinds <= {"string", "date", "datetime"}:
+        return dict(_NODE_BY_KIND["string"])
+    if kinds == {"array"}:
+        items = [item for value in present if isinstance(value, list) for item in value]
+        item_node = _node_for(items, depth + 1) if depth < SCHEMA_MAX_DEPTH else None
+        return {"type": "array", "items": item_node} if item_node else {"type": "array"}
+    if kinds == {"object"}:
+        return _object_node([value for value in present if isinstance(value, dict)], depth)
+    return None
+
+
+def _object_node(objects: Sequence[Mapping[str, Any]], depth: int) -> dict[str, Any]:
+    node: dict[str, Any] = {"type": "object"}
+    if depth >= SCHEMA_MAX_DEPTH:
+        return node
+    keys = sorted(
+        {str(key) for obj in objects for key in obj if 0 < len(str(key)) <= _PROPERTY_NAME_MAX}
+    )
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for key in keys:
+        values = [obj[key] for obj in objects if key in obj]
+        sub = _node_for(values, depth + 1)
+        if sub is None:
+            continue
+        properties[key] = sub
+        if len(values) == len(objects) and all(value is not None for value in values):
+            required.append(key)
+    if properties:
+        node["properties"] = properties
+    if required:
+        node["required"] = required
+    return node
+
+
+def _node_kind(node: Mapping[str, Any]) -> str:
+    """A schema node's type, spelled the way ``_kind`` spells a value's."""
+    schema_type = str(node.get("type"))
+    if schema_type == "string":
+        return {"date": "date", "date-time": "datetime"}.get(str(node.get("format")), "string")
+    return "number" if schema_type == "integer" else schema_type
+
+
+def _node_admits(node: Mapping[str, Any], value_kind: str) -> bool:
+    expected = _node_kind(node)
+    if expected == value_kind:
+        return True
+    if expected == "string":
+        return value_kind in ("date", "datetime")
+    return expected == "datetime" and value_kind == "date"
+
+
+# A path inside an object property: key names, ``None`` for "an array's items".
+_SchemaPath = tuple[str | None, ...]
+
+
+def _path_text(path: _SchemaPath) -> str:
+    text = ""
+    for part in path:
+        text += "[]" if part is None else (f".{part}" if text else part)
+    return text
+
+
+def _node_at(schema: dict[str, Any], path: _SchemaPath) -> dict[str, Any] | None:
+    node: Any = schema
+    for part in path:
+        child = node.get("items") if part is None else (node.get("properties") or {}).get(part)
+        if not isinstance(child, dict):
+            return None
+        node = child
+    return node if isinstance(node, dict) else None
+
+
+def object_schema_changes(
+    schema: Mapping[str, Any], samples: Sequence[object]
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Key drift of sampled objects against an object property's sub-schema.
+
+    Returns ``(changes, merged)``. Each change is ``{"path", "change"}`` (plus
+    ``expected_type`` and ``observed_type`` for a type change), where
+    ``change`` is
+
+    * ``new_key`` — a sample carried a key its object lists no property for (an
+      object node without ``properties`` describes nothing, so admits any key);
+    * ``missing_required`` — a sample lacked a key its object's ``required``
+      names, or carried it as null;
+    * ``type_change`` — a value of a kind its node does not admit.
+
+    ``merged`` is *schema* with the changes applied — a new key typed from its
+    values, a changed node retyped, a missing key no longer required — and is
+    what accepting the finding writes, so a person's other annotations survive.
+    Pure; ``samples`` are decoded JSON values.
+    """
+    found: dict[tuple[_SchemaPath, str], list[object]] = {}
+    expected_at: dict[_SchemaPath, str] = {}
+
+    def walk(node: Mapping[str, Any], value: object, path: _SchemaPath) -> None:
+        if value is None:
+            return
+        if not _node_admits(node, _kind(value)):
+            found.setdefault((path, "type_change"), []).append(value)
+            expected_at[path] = _node_kind(node)
+            return
+        if isinstance(value, dict):
+            properties = node.get("properties")
+            if isinstance(properties, Mapping):
+                for key, sub_value in value.items():
+                    sub = properties.get(key)
+                    if isinstance(sub, Mapping):
+                        walk(sub, sub_value, (*path, str(key)))
+                    elif sub_value is not None:
+                        found.setdefault(((*path, str(key)), "new_key"), []).append(sub_value)
+            for key in node.get("required") or ():
+                if value.get(key) is None:
+                    found.setdefault(((*path, str(key)), "missing_required"), [])
+        elif isinstance(value, list) and isinstance(node.get("items"), Mapping):
+            for item in value:
+                walk(node["items"], item, (*path, None))
+
+    for sample in samples:
+        walk(schema, sample, ())
+
+    changes: list[dict[str, Any]] = []
+    merged = copy.deepcopy(dict(schema))
+    for (path, change), values in sorted(
+        found.items(), key=lambda item: (_path_text(item[0][0]), item[0][1])
+    ):
+        entry: dict[str, Any] = {"path": _path_text(path), "change": change}
+        observed = _node_for(values, len(path) + 1) if values else None
+        if change == "new_key" and observed is None:
+            # Values of mixed kinds: inference leaves such a key out of the
+            # sub-schema rather than guess, so it is no news here either.
+            continue
+        if change == "type_change":
+            entry["expected_type"] = expected_at[path]
+            entry["observed_type"] = _node_kind(observed) if observed else "mixed"
+        changes.append(entry)
+        if not path:
+            # Only a type change reaches the root, and a whole object turning
+            # into something else is the top-level ``type_change``'s business.
+            continue
+        parent = _node_at(merged, path[:-1])
+        if parent is None:
+            continue
+        key = path[-1]
+        if change == "missing_required":
+            required = [name for name in parent.get("required") or () if name != key]
+            if required:
+                parent["required"] = required
+            else:
+                parent.pop("required", None)
+        elif observed is not None:
+            if key is None:
+                parent["items"] = observed
+            else:
+                parent.setdefault("properties", {})[key] = observed
+    return changes, merged

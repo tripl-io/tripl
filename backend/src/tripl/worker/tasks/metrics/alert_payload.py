@@ -18,11 +18,13 @@ from tripl.alerting_matching import (
     SCOPE_DISTRIBUTION_DRIFT,
     SCOPE_LIFECYCLE,
     SCOPE_METRIC,
+    SCOPE_PROPERTY_DRIFT,
     SCOPE_RELEASE_REGRESSION,
     SCOPE_SOURCE_FRESHNESS,
     SCOPE_VARIABLE_VALUE_DRIFT,
     AlertMatchCandidate,
 )
+from tripl.alerting_property_drift import property_drift_scope_name
 from tripl.core.analyzers.anomaly_detector import (
     SCOPE_EVENT,
     SCOPE_EVENT_TYPE,
@@ -114,6 +116,21 @@ def _build_alert_scope_names(
             scope_names[(SCOPE_VARIABLE_VALUE_DRIFT, anomaly.scope_ref)] = (
                 f"{event_name}.{drift_field}"
             )
+
+    # A property drift (F23) reads "<event>.<property>", or "All events.<property>"
+    # for a type change, which is per property. Same rule as the replay's
+    # (``alerting_property_drift.property_drift_scope_name``).
+    for anomaly in anomalies:
+        if anomaly.scope_type != SCOPE_PROPERTY_DRIFT:
+            continue
+        event_label = (
+            scope_names.get((SCOPE_EVENT, str(anomaly.event_id)))
+            if anomaly.event_id is not None
+            else None
+        )
+        scope_names[(SCOPE_PROPERTY_DRIFT, anomaly.scope_ref)] = property_drift_scope_name(
+            event_label, getattr(anomaly, "drift_field", None) or anomaly.scope_ref
+        )
 
     # Catalog metric anomalies resolve to the metric's display name (scope_ref is
     # the metric definition id).
