@@ -54,8 +54,9 @@ export default function DocsPage() {
   const path = docPathFromSplat(splat)
   // Which language to show: the link's `?lang`, else this browser's last
   // choice for the project, else the project's default for people. Null until
-  // the tree says what that default is.
-  const [storedLang, setStoredLang] = useState(() => storedDocLanguage(slug))
+  // the tree says what that default is. Read on every render, not kept in
+  // state, so moving to another project picks up that project's own choice.
+  const storedLang = storedDocLanguage(slug)
   const lang =
     searchParams.get('lang') ?? storedLang ?? (tree.data ? (tree.data.language_defaults?.human_lang ?? ORIGINAL_LANG) : null)
   const file = useDocFile(slug, scope, path, lang)
@@ -98,7 +99,6 @@ export default function DocsPage() {
   const changeLang = useCallback(
     (next: string) => {
       storeDocLanguage(slug, next)
-      setStoredLang(next)
       setSearchParams(
         prev => {
           const params = new URLSearchParams(prev)

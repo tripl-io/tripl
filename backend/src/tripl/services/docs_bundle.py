@@ -71,6 +71,7 @@ from tripl.services.docs_paths import (
     path_key,
 )
 from tripl.services.docs_service import _resolve_project
+from tripl.services.docs_translations import MAX_TRANSLATION_BYTES
 
 BUNDLE_FORMAT = "tripl-docs/v1"
 #: Entries of any kind a zip may list, so a million empty entries cannot make
@@ -183,9 +184,13 @@ def parse_zip_upload(
         files: list[DocBundleFile] = []
         for info in candidates:
             path = info.filename[len(wrapper) + 1 :] if wrapper else info.filename
-            if info.file_size > MAX_FILE_BYTES:
+            # A translation may be larger than a note; which a file is gets
+            # decided later, and a note over MAX_FILE_BYTES is refused there.
+            if info.file_size > MAX_TRANSLATION_BYTES:
                 errors.append(
-                    DocImportError(path=path, detail=f"larger than {MAX_FILE_BYTES // 1024} KiB")
+                    DocImportError(
+                        path=path, detail=f"larger than {MAX_TRANSLATION_BYTES // 1024} KiB"
+                    )
                 )
                 continue
             if (
@@ -195,10 +200,12 @@ def parse_zip_upload(
                 errors.append(DocImportError(path=path, detail="compression ratio is too high"))
                 continue
             with archive.open(info) as handle:
-                raw = handle.read(MAX_FILE_BYTES + 1)
-            if len(raw) > MAX_FILE_BYTES:
+                raw = handle.read(MAX_TRANSLATION_BYTES + 1)
+            if len(raw) > MAX_TRANSLATION_BYTES:
                 errors.append(
-                    DocImportError(path=path, detail=f"larger than {MAX_FILE_BYTES // 1024} KiB")
+                    DocImportError(
+                        path=path, detail=f"larger than {MAX_TRANSLATION_BYTES // 1024} KiB"
+                    )
                 )
                 continue
             try:

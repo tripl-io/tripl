@@ -93,23 +93,38 @@ def split(
     """``(notes, translations, errors)`` of a bundle's files (see the module docstring)."""
     explicit = [item for item in files if item.translation_of or item.lang]
     rest = [item for item in files if not (item.translation_of or item.lang)]
-    named: dict[int, re.Match[str]] = {}
-    for index, item in enumerate(rest):
+    named: dict[str, re.Match[str]] = {}
+    plain: set[str] = set(existing_keys)
+    for item in rest:
         match = _TRANSLATION_NAME.match(item.path)
         if match and normalize_lang(match.group("lang")) is not None:
-            named[index] = match
-    note_keys = set(existing_keys) | {
-        _key(item.path) for index, item in enumerate(rest) if index not in named
-    }
+            named[_key(item.path)] = match
+        else:
+            plain.add(_key(item.path))
+    decided: dict[str, bool] = {}
+
+    def is_note(key: str) -> bool:
+        # ``release.en.md`` is a note unless ``release.md`` is one, and then
+        # ``release.en.de.md`` translates it: decided from the shortest name up.
+        if key in plain:
+            return True
+        match = named.get(key)
+        if match is None:
+            return False
+        if key not in decided:
+            decided[key] = not is_note(_key(f"{match.group('stem')}.md"))
+        return decided[key]
+
     notes: list[DocBundleFile] = []
     found: list[BundleTranslation] = []
     errors: list[DocImportError] = []
-    for index, item in enumerate(rest):
-        match = named.get(index)
-        base = _key(f"{match.group('stem')}.md") if match else ""
-        if match is None or _key(item.path) in existing_keys or base not in note_keys:
+    for item in rest:
+        key = _key(item.path)
+        match = named.get(key)
+        if match is None or is_note(key):
             notes.append(item)
             continue
+        base = _key(f"{match.group('stem')}.md")
         found.append(BundleTranslation(item, base, normalize_lang(match.group("lang")) or ""))
     for item in explicit:
         lang = normalize_lang(item.lang or "")
@@ -121,7 +136,7 @@ def split(
             )
             continue
         base = _key(item.translation_of)
-        if base not in note_keys:
+        if not is_note(base):
             errors.append(
                 DocImportError(path=item.path, detail=f"no note {item.translation_of} to translate")
             )
@@ -200,6 +215,12 @@ async def apply(
         if row is not None and effective_status(row) == "pending":
             continue
         if row is not None and row.revision > 0 and row.content == translation.item.content:
+            # The same text: no new revision, but it now matches the note as imported.
+            if row.source_revision != doc.revision:
+                row.source_revision = doc.revision
+                row.updated_by = user_id
+                row.updated_at = datetime.now(UTC)
+                written.append(translation_path(doc.path, lang))
             continue
         if row is None:
             now = datetime.now(UTC)

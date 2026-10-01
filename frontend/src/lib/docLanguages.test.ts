@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
+import { setCurrentOrgSlug } from './activeOrg'
 import { languageName, ORIGINAL_LANG, storeDocLanguage, storedDocLanguage } from './docLanguages'
 
 describe('docLanguages', () => {
@@ -16,5 +17,14 @@ describe('docLanguages', () => {
     storeDocLanguage('demo', 'de')
     expect(storedDocLanguage('demo')).toBe('de')
     expect(storedDocLanguage('other')).toBeNull()
+  })
+
+  it('keeps the choice inside the active organization', () => {
+    setCurrentOrgSlug('acme')
+    storeDocLanguage('demo', 'de')
+    expect(window.localStorage.getItem('o:acme:tripl.docs.lang.demo')).toBe('de')
+    setCurrentOrgSlug('other')
+    expect(storedDocLanguage('demo')).toBeNull()
+    setCurrentOrgSlug(null)
   })
 })

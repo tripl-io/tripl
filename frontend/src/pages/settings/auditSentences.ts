@@ -116,6 +116,11 @@ const ACTION_SENTENCE: Record<string, string> = {
   'doc.folder_delete': 'Deleted a folder of notes',
   'doc.import': 'Imported notes',
   'doc.restore': 'Restored an earlier revision of note',
+  'doc.translate': 'Asked for an AI translation of note',
+  'doc.translation_edit': 'Edited a translation of note',
+  'doc.translation_restore': 'Restored an earlier translation of note',
+  'doc.translation_delete': 'Deleted a translation of note',
+  'project.docs_languages': 'Changed the default docs languages of',
   // The platform console (F20): an operator acting on the organization, which
   // its owners read in their own audit log.
   'org.suspend': 'Suspended the organization',

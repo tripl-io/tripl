@@ -290,7 +290,7 @@ def run_cat(args: argparse.Namespace, config: Config) -> int:
 
     read = run_async(config, body, timeout=float(args.timeout))
     doc = read.items[0] if read.items else {}
-    warnings = _link_warnings(doc)
+    warnings = [*_link_warnings(doc), *_language_notes(doc)]
     if as_json:
         summary = f"{scope} {text_of(doc, 'path') or path} r{doc.get('revision', '?')}"
         emit(read, context, as_json=True, human="\n".join([summary, *warnings]))
@@ -298,7 +298,7 @@ def run_cat(args: argparse.Namespace, config: Config) -> int:
     # Nothing but the note on stdout: no header, no footer, no added newline.
     sys.stdout.write(text_of(doc, "content") or "")
     sys.stdout.flush()
-    for line in [*warnings, *_language_notes(doc)]:
+    for line in warnings:
         print(line, file=sys.stderr)
     return EXIT_OK
 

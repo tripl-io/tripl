@@ -197,6 +197,21 @@ describe('DocTranslationNotice', () => {
   })
 })
 
+describe('DocTranslationNotice while translating again', () => {
+  it('shows the run in progress instead of actions the server would refuse', () => {
+    const doc = note({
+      revision: 3,
+      lang: 'de',
+      translation_outdated: true,
+      translations: [translation({ status: 'pending', outdated: true, revision: 2, source_revision: 1 })],
+    })
+    wrap(<DocTranslationNotice slug="demo" doc={doc} canEdit onChangeLang={vi.fn()} />)
+    expect(screen.getByText('Translating into German again…')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mark as up to date' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Translate again' })).toBeNull()
+  })
+})
+
 describe('DocLanguagesDialog', () => {
   it('saves both defaults, empty meaning the original', async () => {
     vi.mocked(docsApi.updateLanguages).mockResolvedValue({ agent_lang: 'en', human_lang: null })

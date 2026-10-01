@@ -105,6 +105,21 @@ def test_long_notes_go_in_paragraph_chunks_that_join_back() -> None:
     assert len(calls) == len(text.chunks(text.protect(body)[0]))
 
 
+def test_a_paragraph_too_long_for_one_request_is_cut_inside_it() -> None:
+    sentences = "This is a sentence about checkouts. " * 400  # ~14k characters, one paragraph
+    for body in (sentences, "x" * 9000, "abc ⟦T0⟧ " * 2000, "a⟦T0⟧" * 400):
+        pieces = text.chunks(body, limit=1000)
+        assert "".join(pieces) == body
+        assert all(len(piece) <= 1000 for piece in pieces)
+        assert all(piece.count("⟦") == piece.count("⟧") for piece in pieces)
+
+
+def test_frontmatter_values_keep_their_protected_runs() -> None:
+    note = "---\ntitle: Setup\ndescription: See https://example.com/a_b and `run_it`\n---\nBody\n"
+    out = text.translate_content(note, "a.md", "de", upper_model)
+    assert "description: SEE https://example.com/a_b AND `run_it`" in out
+
+
 def test_unclosed_fence_is_protected_to_the_end() -> None:
     protected, kept = text.protect("Intro\n```\nnot closed\nstill code")
     assert protected == "Intro\n⟦T0⟧"

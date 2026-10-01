@@ -397,3 +397,47 @@ async def test_import_refuses_a_translation_of_nothing(client: AsyncClient) -> N
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["errors"][0]["detail"] == "no note x.md to translate"
+
+
+async def test_a_dotted_note_and_its_translation_round_trip(client: AsyncClient) -> None:
+    """``release.en.md`` is a note (no ``release.md``), so ``release.en.de.md`` translates it."""
+    await create_project(client, "dotted")
+    buffer = io.BytesIO()
+    big = "# Groß\n\n" + "Wort " * 70_000  # over a note's 256 KiB, within a translation's limit
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("release.en.md", "# Release notes\n")
+        archive.writestr("release.en.de.md", big)
+    imported = await client.post(
+        _url("dotted", "/import/zip"),
+        params={"scope": "project"},
+        files={"file": ("docs.zip", buffer.getvalue(), "application/zip")},
+    )
+    assert imported.status_code == 200, imported.text
+    body = imported.json()
+    assert body["created"] == ["release.en.md"] and body["errors"] == []
+    assert body["translations"] == ["release.en.de.md"]
+    assert (await read(client, "dotted", "release.en.md", "de"))["lang"] == "de"
+
+
+async def test_reimporting_the_same_translation_makes_it_current(client: AsyncClient) -> None:
+    await create_project(client, "again")
+    files = [
+        {"path": "a.md", "content": NOTE},
+        {"path": "a.de.md", "content": "# Trichter\n", "translation_of": "a.md", "lang": "de"},
+    ]
+    first = await client.post(
+        _url("again", "/import"), params={"scope": "project"}, json={"files": files}
+    )
+    assert first.status_code == 200, first.text
+    await put_doc(client, "again", "a.md", NOTE + "\nMore.\n", base_revision=1)
+    assert (await read(client, "again", "a.md", "de"))["translation_outdated"] is True
+
+    files[0]["content"] = NOTE + "\nMore.\n"
+    second = await client.post(
+        _url("again", "/import"), params={"scope": "project"}, json={"files": files}
+    )
+    assert second.status_code == 200, second.text
+    assert second.json()["translations"] == ["a.de.md"]
+    doc = await read(client, "again", "a.md", "de")
+    assert doc["translation_outdated"] is False
+    assert doc["translations"][0]["revision"] == 1

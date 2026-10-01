@@ -1,3 +1,5 @@
+import { orgStorageKey } from '@/lib/activeOrg'
+
 /** The `lang` a read passes for the original (not a language code). */
 export const ORIGINAL_LANG = 'original'
 
@@ -19,7 +21,8 @@ export function languageName(code: string): string {
   }
 }
 
-const storageKey = (slug: string) => `tripl.docs.lang.${slug}`
+// Inside the active organization: two organizations may each have a project `web`.
+const storageKey = (slug: string) => orgStorageKey(`tripl.docs.lang.${slug}`)
 
 /** The language this browser last chose for a project's notes, if any. */
 export function storedDocLanguage(slug: string): string | null {

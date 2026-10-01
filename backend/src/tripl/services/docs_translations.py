@@ -139,6 +139,9 @@ async def _resolve(session: AsyncSession, project: Project, raw: str) -> str:
             status_code=422,
             detail=f"Type a language code such as 'en' ('{raw}' needs the AI model, which is off)",
         )
+    # End the read transaction: no connection is held open across the call.
+    # The caller re-reads what it is about to change.
+    await session.commit()
     try:
         return await asyncio.to_thread(resolve_lang, raw, model_complete(config, max_tokens=100))
     except TranslationError as exc:
@@ -274,7 +277,12 @@ async def request_translation(
     config = await _ai_config(session, project)
     if not llm_service.is_enabled(config):
         raise HTTPException(status_code=409, detail=AI_OFF)
-    lang = await _resolve(session, project, body.language)
+    if is_plain_code(body.language):
+        lang = lang_param(body.language)
+    else:
+        lang = await _resolve(session, project, body.language)
+        # The model call ended the transaction: check the note and the access again.
+        project, doc = await _editable_doc(session, slug, body.scope, body.path, caller)
     user = caller.user
     now = datetime.now(UTC)
     translation = await _find(session, doc.id, lang, for_update=True)
@@ -543,6 +551,10 @@ async def update_language_defaults(
             values[field] = None
         else:
             values[field] = await _resolve(session, project, raw)
+    if any(raw and not is_plain_code(raw) for raw in (body.agent_lang, body.human_lang)):
+        # A name went to the model, which ended the transaction: look again.
+        project = await project_lookup.resolve_project(session, slug)
+        await require_doc_writer(session, caller, "project", project.organization_id)
     before = language_defaults(project)
     project.docs_agent_lang = values["agent_lang"]
     project.docs_human_lang = values["human_lang"]

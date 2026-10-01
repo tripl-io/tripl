@@ -204,6 +204,17 @@ def test_cat_lang_asks_for_the_translation_and_notes_a_fallback(
     assert _calls(tripl_api, "GET")[-1].url.params["lang"] == "de"
 
 
+def test_cat_json_notes_an_outdated_translation_on_stderr(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    doc = {**make_doc("a.md"), "content": "# A\n", "lang": "de", "translation_outdated": True}
+    _respond(tripl_api, FILE_URL, doc)
+    assert main(["docs", "cat", "a.md", "--project", "prod", "--lang", "de", "--json"]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["items"][0]["lang"] == "de"
+    assert "the de translation is behind the original" in captured.err
+
+
 def test_cat_without_lang_leaves_the_choice_to_the_server(
     tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
 ) -> None:

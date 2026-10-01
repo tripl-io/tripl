@@ -225,6 +225,19 @@ export function DocTranslationNotice({
     </Dialog>
   )
 
+  if (doc.lang && shown?.status === 'pending') {
+    // Translating again over text it already has: nothing to do but wait (the
+    // server refuses another run or a write until this one ends).
+    return (
+      <div role="status" className="rounded-control border border-border bg-bg-sunken px-3 py-2 text-body-sm">
+        <p className="m-0 flex items-center gap-1.5 font-medium">
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          Translating into {languageName(shown.lang)} again…
+        </p>
+        <p className="m-0 mt-1 text-fg-secondary">The current translation is shown until the new one is ready.</p>
+      </div>
+    )
+  }
   if (doc.lang && doc.translation_outdated && shown) {
     return (
       <div role="status" className="rounded-control border border-warning bg-warning-soft px-3 py-2 text-body-sm">

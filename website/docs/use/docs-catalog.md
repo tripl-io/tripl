@@ -340,7 +340,9 @@ An import takes a zip or a JSON bundle:
 - A file named `<note>.<lang>.md` next to `<note>.md` (for example
   `guides/setup.de.md`) is imported as that note's translation, when no note
   lives at that path. `notes.v2.md`, or `release.en.md` with no `release.md`,
-  stay ordinary notes. An imported translation counts as up to date.
+  stay ordinary notes, and then `release.en.de.md` is the German translation
+  of `release.en.md`. An imported translation counts as up to date, even when
+  its text is unchanged.
 - A **dry run** shows what would be created, updated, left unchanged, deleted,
   skipped or refused, and changes nothing.
 - An import with any error (a bad path, invalid frontmatter, a note that is too
@@ -441,6 +443,7 @@ a git repository.
 | Limit | Value |
 | --- | --- |
 | One note | 256 KiB of UTF-8 |
+| One translation | 768 KiB of UTF-8 |
 | Frontmatter block | 16 KiB |
 | Notes per root | 5000 |
 | Files in one import | 2000 |

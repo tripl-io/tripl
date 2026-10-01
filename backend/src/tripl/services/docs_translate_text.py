@@ -172,22 +172,50 @@ def restore(text: str, kept: list[str]) -> str:
     return _PLACEHOLDER.sub(lambda match: kept[int(match.group(1))], text)
 
 
-def chunks(text: str, limit: int = CHUNK_CHARS) -> list[str]:
-    """``text`` cut between paragraphs into pieces of at most ``limit`` characters.
+#: Where a piece too long for one request is cut, best first: paragraphs, lines,
+#: sentences, words. Each keeps its separator, so the pieces join back exactly.
+_BREAKS = (
+    re.compile(r"(\n{2,})"),
+    re.compile(r"(\n)"),
+    re.compile(r"(?<=[.!?。！？])(\s+)"),
+    re.compile(r"(\s+)"),
+)
 
-    A single paragraph longer than ``limit`` is one piece of its own. Joining
-    the pieces gives ``text`` back exactly.
+
+def _hard_cut(text: str, limit: int) -> list[str]:
+    """``text`` in ``limit``-sized pieces, never through a placeholder."""
+    out: list[str] = []
+    start = 0
+    while len(text) - start > limit:
+        end = start + limit
+        opening = text.rfind("⟦", start, end)
+        if opening > start and text.find("⟧", opening) >= end:
+            end = opening
+        out.append(text[start:end])
+        start = end
+    out.append(text[start:])
+    return out
+
+
+def chunks(text: str, limit: int = CHUNK_CHARS, level: int = 0) -> list[str]:
+    """``text`` cut into pieces of at most ``limit`` characters, between paragraphs
+    where it can and inside a long paragraph where it must (lines, then sentences,
+    then words). Joining the pieces gives ``text`` back exactly.
     """
+    if len(text) <= limit:
+        return [text] if text else []
+    if level == len(_BREAKS):
+        return _hard_cut(text, limit)
     out: list[str] = []
     current = ""
-    for part in re.split(r"(\n{2,})", text):
+    for part in _BREAKS[level].split(text):
         if current and len(current) + len(part) > limit and part.strip():
             out.append(current)
             current = ""
         current += part
     if current:
         out.append(current)
-    return out
+    return [piece for chunk in out for piece in chunks(chunk, limit, level + 1)]
 
 
 def _strip_fence(reply: str) -> str:
@@ -243,9 +271,12 @@ def _translate_frontmatter(yaml_text: str, lang: str, complete: Complete) -> str
         for key in ("title", "description")
         if isinstance(value := meta.get(key), str) and value.strip()
     }
-    if not wanted:
+    # The same protection as the body: a URL or `code` in a description survives.
+    held = {key: protect(value) for key, value in wanted.items()}
+    send = {key: text for key, (text, _) in held.items() if _PLACEHOLDER.sub("", text).strip()}
+    if not send:
         return yaml_text
-    reply = complete(_META_SYSTEM.format(lang=lang), json.dumps(wanted, ensure_ascii=False))
+    reply = complete(_META_SYSTEM.format(lang=lang), json.dumps(send, ensure_ascii=False))
     if reply is None:
         raise TranslationError(
             "The AI provider request failed; check the AI settings and try again"
@@ -257,10 +288,10 @@ def _translate_frontmatter(yaml_text: str, lang: str, complete: Complete) -> str
     if not isinstance(parsed, dict):
         raise TranslationError("The model did not return the title and description")
     updated = dict(meta)
-    for key in wanted:
+    for key in send:
         value = parsed.get(key)
         if isinstance(value, str) and value.strip():
-            updated[key] = value.strip()
+            updated[key] = restore(value.strip(), held[key][1])
     dumped: str = yaml.safe_dump(updated, sort_keys=False, allow_unicode=True, width=10_000)
     return dumped.rstrip("\n")
 

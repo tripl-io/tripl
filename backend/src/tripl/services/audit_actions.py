@@ -188,6 +188,12 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             # content), and an org owner/admin read a note hidden from them.
             "doc.share_update",
             "doc.break_glass_read",
+            # A note's stored translations: an AI run asked for, a hand edit or
+            # a restore, a translation removed.
+            "doc.translate",
+            "doc.translation_edit",
+            "doc.translation_restore",
+            "doc.translation_delete",
         ),
     ),
     (
@@ -205,6 +211,8 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "project.reset_anomalies",
             "project.reset_drifts",
             "project.retire_unused_variables",
+            # The docs catalog's default languages for agents and people.
+            "project.docs_languages",
             "chart_annotation.create",
             "chart_annotation.delete",
             # Carries a project only when the key is scoped to one.
