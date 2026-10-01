@@ -20,7 +20,6 @@ from typing import Any, get_args
 import pytest
 from httpx import AsyncClient
 from pydantic import ValidationError
-from sqlalchemy import create_engine, insert, select
 
 from tripl.alerting_validation import validate_sender_address
 from tripl.config import (
@@ -31,14 +30,10 @@ from tripl.config import (
     Settings,
     settings,
 )
-from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
 from tripl.models.organization import DEFAULT_ORG_ID
 from tripl.schemas.app_settings import SmtpSecurity
 from tripl.services.app_settings_service import EmailConfig
-from tripl.tests.test_alembic_revisions import _load_migration
 from tripl.worker.tasks.alerts_channels import _send_email_message
-
-MIGRATION = "a3f7c21e9b64_smtp_security_mode.py"
 
 
 def _fake_smtplib() -> tuple[Any, list[str]]:
@@ -161,98 +156,6 @@ def test_a_misspelled_mode_is_refused_at_startup() -> None:
     """
     with pytest.raises(ValidationError, match="smtp_security must be one of"):
         Settings(smtp_security="ssl")
-
-
-def _settings_engine() -> Any:
-    engine = create_engine("sqlite://")
-    AppSetting.__table__.create(engine)
-    return engine
-
-
-def _stored_value(engine: Any, initial: dict[str, Any], migration: Any) -> dict[str, Any]:
-    with engine.begin() as conn:
-        conn.execute(
-            insert(AppSetting).values(id=uuid.uuid4(), key=SERVICE_SETTINGS_KEY, value=initial)
-        )
-        migration.migrate_smtp_security(conn)
-        value = conn.execute(select(AppSetting.value)).scalar_one()
-    return dict(value)
-
-
-@pytest.mark.parametrize(
-    ("stored", "expected"),
-    [
-        ({"smtp_use_tls": True}, SMTP_SECURITY_STARTTLS),
-        ({"smtp_use_tls": False}, SMTP_SECURITY_NONE),
-    ],
-)
-def test_the_migration_rewrites_a_stored_boolean_as_a_mode(
-    stored: dict[str, Any], expected: str
-) -> None:
-    migration = _load_migration("smtp_security_mode", MIGRATION)
-    engine = _settings_engine()
-    try:
-        value = _stored_value(engine, {"smtp_host": "relay.example.com", **stored}, migration)
-    finally:
-        engine.dispose()
-
-    # The old key is GONE, not merely shadowed: nothing reads it after this
-    # release, so leaving it would strand the operator's choice under a name no
-    # code consults.
-    assert value == {"smtp_host": "relay.example.com", "smtp_security": expected}
-
-
-def test_the_migration_leaves_an_explicit_mode_alone() -> None:
-    """The boolean cannot express implicit TLS, so deriving over it would demote."""
-    migration = _load_migration("smtp_security_mode", MIGRATION)
-    engine = _settings_engine()
-    try:
-        value = _stored_value(
-            engine,
-            {"smtp_use_tls": True, "smtp_security": SMTP_SECURITY_IMPLICIT_TLS},
-            migration,
-        )
-    finally:
-        engine.dispose()
-
-    assert value == {"smtp_security": SMTP_SECURITY_IMPLICIT_TLS}
-
-
-def test_the_migration_touches_nothing_when_no_override_was_stored() -> None:
-    migration = _load_migration("smtp_security_mode", MIGRATION)
-    engine = _settings_engine()
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                insert(AppSetting).values(
-                    id=uuid.uuid4(),
-                    key=SERVICE_SETTINGS_KEY,
-                    value={"smtp_host": "relay.example.com"},
-                )
-            )
-            assert migration.migrate_smtp_security(conn) == 0
-    finally:
-        engine.dispose()
-
-
-def test_the_downgrade_restores_the_boolean() -> None:
-    migration = _load_migration("smtp_security_mode", MIGRATION)
-    engine = _settings_engine()
-    try:
-        with engine.begin() as conn:
-            conn.execute(
-                insert(AppSetting).values(
-                    id=uuid.uuid4(),
-                    key=SERVICE_SETTINGS_KEY,
-                    value={"smtp_security": SMTP_SECURITY_NONE},
-                )
-            )
-            assert migration.revert_smtp_security(conn) == 1
-            value = conn.execute(select(AppSetting.value)).scalar_one()
-    finally:
-        engine.dispose()
-
-    assert value == {"smtp_use_tls": False}
 
 
 @pytest.mark.asyncio

@@ -43,6 +43,7 @@ from tripl.models.event_photo_comment import EventPhotoComment
 from tripl.models.plan_branch import BranchKind, PlanBranch
 from tripl.models.user import User
 from tripl.services import _plan_branch_locks, event_comment_service, plan_branch_merge_service
+from tripl.tests._pg_url import asyncpg_url
 from tripl.tests._project_ids import project_id_by_slug
 from tripl.tests.conftest import TestSessionLocal, engine
 from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
@@ -54,7 +55,6 @@ from tripl.tests.test_plan_branches import (
     _transition,
 )
 from tripl.tests.test_rbac import iter_api_routes
-from tripl.tests.test_repair_migration_pg import _asyncpg_url
 
 # Long enough that a request which is NOT blocked has finished by then on any
 # CI runner; the blocked ones are released explicitly, so this is no timeout.
@@ -332,7 +332,7 @@ async def pg_app() -> AsyncIterator[_PgApp]:
     with sync_engine.begin() as connection:
         connection.execute(text(_SEARCH_CONFIGURATIONS))
     async_engine = create_async_engine(
-        _asyncpg_url(), connect_args={"server_settings": {"application_name": _APPLICATION_NAME}}
+        asyncpg_url(), connect_args={"server_settings": {"application_name": _APPLICATION_NAME}}
     )
     sessions = async_sessionmaker(async_engine, expire_on_commit=False)
 

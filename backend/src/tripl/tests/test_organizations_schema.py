@@ -1,18 +1,9 @@
-"""F20 PR1: the organization schema, its backfill, and the settings scope.
-
-The backfill is driven through the migration's own ``backfill_organizations``
-on a SQLite schema built from the models as they stood before the legacy role
-was dropped (``_legacy_role_schema``; foreign keys enforced), the way
-``test_alembic_revisions`` drives other data migrations; the PostgreSQL round
-trip of the whole revision lives in ``test_organizations_migration_pg``.
-"""
+"""Organization schema constraints and settings scope."""
 
 from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
-from types import ModuleType
 from typing import Any
 
 import pytest
@@ -22,11 +13,10 @@ from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from tripl.models import Base
 from tripl.models.api_key import ApiKey
 from tripl.models.app_setting import SERVICE_SETTINGS_KEY, AppSetting
-from tripl.models.audit_log import AuditLog
 from tripl.models.data_source import DataSource
-from tripl.models.invitation import Invitation
 from tripl.models.organization import (
     DEFAULT_ORG_ID,
     DEFAULT_ORG_SLUG,
@@ -34,292 +24,31 @@ from tripl.models.organization import (
     OrganizationMember,
 )
 from tripl.models.project import Project
-from tripl.models.project_member import ProjectMember
 from tripl.models.user import User
 from tripl.services import app_settings_service
-from tripl.tests._legacy_role_schema import (
-    create_legacy_role_schema,
-    set_invitation_roles,
-    set_user_role,
-)
+from tripl.tests._default_org import seed_default_organization
 from tripl.tests._sqlite import enable_sqlite_foreign_keys
 from tripl.tests.conftest import TestSessionLocal
-from tripl.tests.test_alembic_revisions import _load_migration
-
-MIGRATION = "b8d0f2a4c6e8_organizations_schema_and_default_org.py"
-
-
-@pytest.fixture(scope="module")
-def migration() -> ModuleType:
-    return _load_migration("organizations_migration", MIGRATION)
 
 
 @pytest.fixture
 def engine() -> Iterator[Engine]:
     engine = create_engine("sqlite://")
     enable_sqlite_foreign_keys(engine)
-    create_legacy_role_schema(engine)
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        seed_default_organization(connection)
     try:
         yield engine
     finally:
         engine.dispose()
 
 
-def _user(session: Session, email: str, role: str) -> uuid.UUID:
+def _user(session: Session, email: str) -> uuid.UUID:
     user = User(email=email, name=email, password_hash="x")
     session.add(user)
     session.flush()
-    set_user_role(session, user.id, role)
     return user.id
-
-
-def _seed_instance(engine: Engine) -> dict[str, uuid.UUID]:
-    """Two owners, an editor and a viewer, on two projects."""
-    with Session(engine) as session, session.begin():
-        ids = {
-            "owner1": _user(session, "owner1@example.com", "owner"),
-            "owner2": _user(session, "owner2@example.com", "owner"),
-            "editor": _user(session, "editor@example.com", "editor"),
-            "viewer": _user(session, "viewer@example.com", "viewer"),
-        }
-        for slug in ("alpha", "beta"):
-            project = Project(name=slug, slug=slug)
-            session.add(project)
-            session.flush()
-            ids[slug] = project.id
-        session.add_all(
-            [
-                ProjectMember(project_id=ids["alpha"], user_id=ids["editor"], role="editor"),
-                ProjectMember(project_id=ids["beta"], user_id=ids["editor"], role="viewer"),
-                # A viewer holding an editor grant: the PR1 backfill leaves the
-                # row as it is (PR4's c9e1a3b5d7f9 caps it; test_org_roles_migration).
-                ProjectMember(project_id=ids["alpha"], user_id=ids["viewer"], role="editor"),
-                ProjectMember(project_id=ids["beta"], user_id=ids["viewer"], role="viewer"),
-            ]
-        )
-    return ids
-
-
-def _backfill(
-    engine: Engine,
-    migration: ModuleType,
-    *,
-    mode: str = "self_hosted",
-    emails: tuple[str, ...] = (),
-) -> dict[str, int]:
-    with engine.begin() as connection:
-        result: dict[str, int] = migration.backfill_organizations(
-            connection, deployment_mode=mode, platform_admin_emails=list(emails)
-        )
-    return result
-
-
-def _memberships(engine: Engine) -> dict[uuid.UUID, str]:
-    with Session(engine) as session:
-        rows = session.execute(
-            select(OrganizationMember.user_id, OrganizationMember.role).where(
-                OrganizationMember.organization_id == DEFAULT_ORG_ID
-            )
-        ).all()
-    return {user_id: str(role) for user_id, role in rows}
-
-
-def _platform_admins(engine: Engine) -> set[uuid.UUID]:
-    with Session(engine) as session:
-        return set(session.scalars(select(User.id).where(User.is_platform_admin.is_(True))))
-
-
-# --- the backfill ---------------------------------------------------------------
-
-
-def test_every_user_joins_the_default_org_with_the_mapped_role(
-    engine: Engine, migration: ModuleType
-) -> None:
-    ids = _seed_instance(engine)
-
-    counts = _backfill(engine, migration)
-
-    assert _memberships(engine) == {
-        ids["owner1"]: "owner",
-        ids["owner2"]: "owner",
-        ids["editor"]: "member",
-        ids["viewer"]: "member",
-    }
-    assert counts["members_added"] == 4
-    # The fixture schema already holds the default org; the backfill does not
-    # insert a second one.
-    assert counts["organization_created"] == 0
-    with Session(engine) as session:
-        assert session.scalar(select(sa.func.count()).select_from(Organization)) == 1
-
-
-def test_project_memberships_are_left_unchanged(engine: Engine, migration: ModuleType) -> None:
-    ids = _seed_instance(engine)
-
-    counts = _backfill(engine, migration)
-
-    with Session(engine) as session:
-        rows = session.execute(
-            select(ProjectMember.project_id, ProjectMember.user_id, ProjectMember.role)
-        ).all()
-    roles = {(project_id, user_id): str(role) for project_id, user_id, role in rows}
-    assert roles == {
-        (ids["alpha"], ids["editor"]): "editor",
-        (ids["beta"], ids["editor"]): "viewer",
-        (ids["alpha"], ids["viewer"]): "editor",
-        (ids["beta"], ids["viewer"]): "viewer",
-    }
-    assert "project_memberships_capped" not in counts
-
-
-def test_self_hosted_makes_every_instance_owner_a_platform_admin(
-    engine: Engine, migration: ModuleType
-) -> None:
-    ids = _seed_instance(engine)
-
-    # The email list is ignored when self-hosted.
-    _backfill(engine, migration, mode="self_hosted", emails=("editor@example.com",))
-
-    assert _platform_admins(engine) == {ids["owner1"], ids["owner2"]}
-
-
-def test_hosted_grants_platform_admin_only_from_the_email_list(
-    engine: Engine, migration: ModuleType
-) -> None:
-    ids = _seed_instance(engine)
-
-    _backfill(
-        engine, migration, mode="hosted", emails=(" Editor@Example.COM ", "nobody@example.com")
-    )
-
-    # An instance owner is NOT a platform admin in hosted mode unless listed.
-    assert _platform_admins(engine) == {ids["editor"]}
-
-
-def test_hosted_with_no_emails_grants_nobody(engine: Engine, migration: ModuleType) -> None:
-    _seed_instance(engine)
-
-    counts = _backfill(engine, migration, mode="hosted")
-
-    assert _platform_admins(engine) == set()
-    assert counts["platform_admins_granted"] == 0
-
-
-def test_an_unknown_deployment_mode_is_refused(engine: Engine, migration: ModuleType) -> None:
-    with pytest.raises(RuntimeError, match="DEPLOYMENT_MODE"):
-        _backfill(engine, migration, mode="cloud")
-
-
-def test_the_backfill_is_idempotent(engine: Engine, migration: ModuleType) -> None:
-    ids = _seed_instance(engine)
-    _backfill(engine, migration)
-
-    again = _backfill(engine, migration)
-
-    assert again == {
-        "organization_created": 0,
-        "members_added": 0,
-        "platform_admins_granted": 0,
-    }
-    assert len(_memberships(engine)) == 4
-    assert _platform_admins(engine) == {ids["owner1"], ids["owner2"]}
-
-
-def test_the_backfill_creates_the_default_org_when_it_is_missing(
-    engine: Engine, migration: ModuleType
-) -> None:
-    with engine.begin() as connection:
-        connection.execute(sa.delete(Organization.__table__))
-
-    counts = _backfill(engine, migration)
-
-    assert counts["organization_created"] == 1
-    with Session(engine) as session:
-        org = session.get(Organization, DEFAULT_ORG_ID)
-        assert org is not None
-        assert org.slug == DEFAULT_ORG_SLUG
-        assert org.members_can_create_projects is True
-        assert org.default_project_role == "none"
-
-
-def test_rows_without_an_org_and_project_bound_keys_are_assigned(
-    engine: Engine, migration: ModuleType
-) -> None:
-    other_org = uuid.uuid4()
-    with Session(engine) as session, session.begin():
-        owner = _user(session, "owner@example.com", "owner")
-        session.add(Organization(id=other_org, slug="other", name="Other"))
-        session.flush()
-        elsewhere = Project(name="elsewhere", slug="elsewhere", organization_id=other_org)
-        session.add(elsewhere)
-        session.flush()
-        elsewhere_id = elsewhere.id
-        unbound = ApiKey(
-            user_id=owner, name="free", key_prefix="p2", key_hash="b" * 64, scope="read"
-        )
-        session.add(unbound)
-        session.add(
-            AuditLog(
-                action="x", target_type="project", project_slug="elsewhere", organization_id=None
-            )
-        )
-        invitation = Invitation(
-            email="new@example.com",
-            token_hash="c" * 64,
-            expires_at=datetime.now(UTC) + timedelta(days=1),
-        )
-        session.add(invitation)
-        session.flush()
-        set_invitation_roles(session, invitation.id, "viewer", org_role=None)
-        unbound_id = unbound.id
-
-    # Written as an old container would have: the key never named an org, so it
-    # holds the default — the backfill must move it to its project's. The model
-    # schema refuses that row since F20 PR5 (fk_api_keys_project_organization),
-    # so it goes in with foreign-key checks off, as the pre-PR5 schema took it.
-    bound_id = uuid.uuid4()
-    with engine.connect() as connection:
-        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
-        connection.execute(
-            sa.insert(ApiKey.__table__).values(
-                id=bound_id,
-                user_id=owner,
-                project_id=elsewhere_id,
-                organization_id=DEFAULT_ORG_ID,
-                name="bound",
-                key_prefix="p1",
-                key_hash="a" * 64,
-                scope="read",
-                created_at=datetime.now(UTC),
-                updated_at=datetime.now(UTC),
-            )
-        )
-        connection.commit()
-        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
-
-    _backfill(engine, migration)
-
-    with Session(engine) as session:
-        assert session.get(ApiKey, bound_id).organization_id == other_org  # type: ignore[union-attr]
-        assert session.get(ApiKey, unbound_id).organization_id == DEFAULT_ORG_ID  # type: ignore[union-attr]
-        assert set(session.scalars(select(AuditLog.organization_id))) == {DEFAULT_ORG_ID}
-        invitation = session.scalars(select(Invitation)).one()
-        assert invitation.org_role == "member"
-        assert invitation.organization_id == DEFAULT_ORG_ID
-
-
-def test_the_downgrade_guard_names_organization_scoped_settings(
-    engine: Engine, migration: ModuleType
-) -> None:
-    with Session(engine) as session, session.begin():
-        session.add(AppSetting(key=SERVICE_SETTINGS_KEY, value={}))
-    with engine.connect() as connection:
-        assert migration.organization_scoped_setting_keys(connection) == []
-
-    with Session(engine) as session, session.begin():
-        session.add(AppSetting(key=SERVICE_SETTINGS_KEY, value={}, organization_id=DEFAULT_ORG_ID))
-    with engine.connect() as connection:
-        assert migration.organization_scoped_setting_keys(connection) == [SERVICE_SETTINGS_KEY]
 
 
 # --- the schema -----------------------------------------------------------------
@@ -327,7 +56,7 @@ def test_the_downgrade_guard_names_organization_scoped_settings(
 
 def test_organization_membership_is_unique_per_user(engine: Engine) -> None:
     with Session(engine) as session, session.begin():
-        user = _user(session, "u@example.com", "editor")
+        user = _user(session, "u@example.com")
         session.add(OrganizationMember(organization_id=DEFAULT_ORG_ID, user_id=user, role="member"))
     with pytest.raises(IntegrityError), Session(engine) as session, session.begin():
         session.add(OrganizationMember(organization_id=DEFAULT_ORG_ID, user_id=user, role="admin"))

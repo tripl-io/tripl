@@ -24,13 +24,10 @@ from tripl.services.plan_revision_service import (
     compute_plan_diff_entries,
     with_snapshot_defaults,
 )
-from tripl.tests.conftest import TestSessionLocal, engine
-from tripl.tests.test_alembic_revisions import _load_migration
+from tripl.tests.conftest import TestSessionLocal
 from tripl.tests.test_events import _seed_scan_name_rule
 from tripl.tests.test_metrics_api import _seed_event_metrics_at
 from tripl.tests.test_plan_branches import _create_branch, _seed_plan
-
-REPAIR_MIGRATION = "f3a9b7c15d2e_repair_branch_scan_identities.py"
 
 
 async def _main_type(client: AsyncClient, slug: str, name: str = "track") -> dict:
@@ -177,77 +174,6 @@ async def test_diff_warns_about_branch_events_with_no_scan_identity(client: Asyn
         "No scan identity: the naming rule 'track:{name}' needs name. "
         "Fill those fields so the event merges with its scanned counterpart."
     ]
-
-
-@pytest.mark.asyncio
-async def test_repair_migration_stamps_identities_on_open_branches(client: AsyncClient) -> None:
-    """The data migration rewrites the rows the walk found, and only those."""
-    slug = "handoff-repair"
-    await _seed_plan(client, slug)
-    await _seed_scan_name_rule(slug, (await _main_type(client, slug))["id"], "track:{name}")
-    branch_id = await _create_branch(client, slug)
-    branch_type = await _branch_type(client, slug, branch_id)
-    field_id = _field_id(branch_type)
-
-    async def authored(name_value: str, label: str) -> str:
-        resp = await client.post(
-            f"/api/v1/projects/{slug}/events?branch={branch_id}",
-            json={
-                "event_type_id": branch_type["id"],
-                "name": "x",
-                "field_values": [{"field_definition_id": field_id, "value": name_value}],
-            },
-        )
-        assert resp.status_code == 201, resp.text
-        await _forget_identity(resp.json()["id"], name=label)
-        return resp.json()["id"]
-
-    labelled = await authored("tap", "Tap on a model card")
-    already_identity = await authored("swipe", "track:swipe")
-    # The twin: a second row that derives the same identity as ``labelled``.
-    twin = await authored("tap", "Tap on a model card (again)")
-    main_event = (await client.get(f"/api/v1/projects/{slug}/events")).json()["items"][0]
-    await _forget_identity(main_event["id"], name="purchase:success")
-
-    migration = _load_migration("repair_branch_scan_identities", REPAIR_MIGRATION)
-    async with engine.begin() as conn:
-        outcome = await conn.run_sync(migration.repair_branch_scan_identities)
-
-    def _hex(value: str) -> str:
-        return uuid.UUID(value).hex
-
-    stamped = {_hex(value) for value in outcome["stamped"]}
-    taken = {_hex(value) for value in outcome["taken"]}
-    # Of two rows deriving the same identity, exactly one keeps it — the
-    # earlier-created row, with the id as the tie-break; the tie is real on a
-    # second-resolution clock, so the test pins the split and not the winner.
-    assert {_hex(labelled), _hex(twin)} == (stamped & {_hex(labelled), _hex(twin)}) | taken
-    assert len(taken) == 1
-    assert _hex(already_identity) in stamped
-    assert len(stamped) == 2
-    # The seed event's branch copy has no field values: the rule cannot be filled.
-    assert len(outcome["unfilled"]) == 1
-
-    async with TestSessionLocal() as session:
-        rows = {
-            row.id.hex: row
-            for row in (
-                await session.execute(
-                    select(Event).where(Event.project_id == uuid.UUID(branch_type["project_id"]))
-                )
-            ).scalars()
-        }
-    winner, loser = (labelled, twin) if _hex(labelled) in stamped else (twin, labelled)
-    assert (rows[_hex(winner)].name, rows[_hex(winner)].source_name) == ("track:tap", "track:tap")
-    assert rows[_hex(winner)].title.startswith("Tap on a model card")
-    assert rows[_hex(loser)].source_name is None
-    assert rows[_hex(loser)].name.startswith("Tap on a model card")
-    assert (rows[_hex(already_identity)].source_name, rows[_hex(already_identity)].title) == (
-        "track:swipe",
-        "",
-    )
-    # Main is not a working branch: untouched, whatever its shape.
-    assert rows[_hex(main_event["id"])].source_name is None
 
 
 # --------------------------------------------------------------------- kjhi.3

@@ -37,8 +37,8 @@ from tripl.services._search_query import (
 )
 from tripl.tests.relevance.corpus import Corpus
 
-#: The width of ``search_documents.embedding``, fixed by e8f9a0b1c2d3's
-#: ``ALTER COLUMN embedding TYPE vector(1536)``. A mismatch is a hard SQL error,
+#: The width of ``search_documents.embedding`` in the baseline schema.
+#: A mismatch is a hard SQL error,
 #: not a silent miss, so this constant cannot drift quietly.
 _DIMENSIONS = 1536
 

@@ -34,7 +34,7 @@ to a NOT NULL column and then reached ``" ".join(None)`` in the search document
 builder inside the same transaction, so the save rolled back as a 500 instead of
 clearing the list.
 
-tripl-0zpq.255: b7f4d02a91c6 took the unbounded meta value into a unique btree,
+tripl-0zpq.255: the previous schema took the unbounded meta value into a unique btree,
 where an entry over 2704 bytes is ProgramLimitExceeded — a 500 on the event save
 for a value that stored fine while the key was the two uuids alone.
 
@@ -1102,7 +1102,7 @@ async def test_a_meta_value_too_long_for_its_unique_index_is_refused_not_500(
 ) -> None:
     """``uq_event_meta_value_event_meta_value`` holds the STORED value in a btree.
 
-    b7f4d02a91c6 widened that key from the two uuids to ``(event_id,
+    The previous schema widened that key from the two uuids to ``(event_id,
     meta_field_definition_id, value)``. A btree entry cannot exceed 2704 bytes,
     so once the value stopped fitting Postgres raised ProgramLimitExceeded at the
     INSERT and the event save came back 500 — for a payload that stored fine

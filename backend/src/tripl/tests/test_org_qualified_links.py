@@ -9,12 +9,10 @@ completed on read (critique #21).
 
 from __future__ import annotations
 
-import importlib.util
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from types import ModuleType
 
 import pytest
 from httpx import AsyncClient
@@ -35,7 +33,6 @@ from tripl.schemas.activity import ActivityItemResponse
 from tripl.services import activity_service, event_photo_service
 from tripl.services._dependency_model import url_for
 from tripl.services.alerting_rendering import render_firings_message
-from tripl.services.incident_summary_facts import PROMPT_VERSION, SummaryFact, compute_facts_hash
 from tripl.services.incident_summary_service import _stored_fact
 from tripl.services.project_links import (
     legacy_project_path,
@@ -217,39 +214,6 @@ def test_signal_dedupe_matches_the_pre_upgrade_url_too() -> None:
 # --- incident summaries ------------------------------------------------------------
 
 
-def _migration() -> ModuleType:
-    path = (
-        Path(__file__).resolve().parents[3]
-        / "alembic"
-        / "versions"
-        / "d4e8f1a2b3c5_incident_summary_hash_without_hrefs.py"
-    )
-    spec = importlib.util.spec_from_file_location("_rehash_migration", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_the_hash_migration_computes_what_the_service_computes() -> None:
-    migration = _migration()
-    assert migration._PROMPT_VERSION == PROMPT_VERSION
-    facts = [
-        SummaryFact(1, "incident", "A drop.", "/p/web/alerting?incident=1"),
-        SummaryFact(2, "scope", "Scope — Checkout.", None),
-    ]
-    stored = [fact.to_payload() for fact in facts]
-    new_hash = migration._hash(stored, with_href=False)
-    assert new_hash == compute_facts_hash(facts)
-    # The same facts with org-qualified links are still the same summary.
-    relinked = [
-        SummaryFact(fact.id, fact.kind, fact.text, qualify_project_path(ACME, fact.href or ""))
-        for fact in facts
-    ]
-    assert compute_facts_hash(relinked) == new_hash
-    assert migration._hash(stored, with_href=True) != new_hash
-
-
 def _summary_row(
     session: Session, project_id: uuid.UUID, facts_hash: str, facts: list
 ) -> uuid.UUID:
@@ -270,51 +234,6 @@ def _stored(session: Session, row_id: uuid.UUID) -> IncidentSummary:
     row = session.get(IncidentSummary, row_id, populate_existing=True)
     assert row is not None
     return row
-
-
-def test_the_hash_migration_rewrites_matching_rows_and_round_trips(
-    sync_session: Session,
-) -> None:
-    migration = _migration()
-    project = _acme_project_sync(sync_session)
-    facts = [
-        SummaryFact(1, "incident", "A drop.", "/p/web/alerting?incident=1"),
-        SummaryFact(2, "scope", "Scope — Checkout.", None),
-    ]
-    stored = [fact.to_payload() for fact in facts]
-    fresh = _summary_row(sync_session, project.id, migration._hash(stored, with_href=True), stored)
-    # Cached under something else (an older prompt, a hand edit): stays as stale as it was.
-    stale = _summary_row(sync_session, project.id, "0" * 64, stored)
-
-    migration._rehash_up(sync_session.connection())
-    sync_session.commit()
-    assert _stored(sync_session, fresh).facts_hash == compute_facts_hash(facts)
-    assert _stored(sync_session, stale).facts_hash == "0" * 64
-
-    # A summary written after the upgrade stores org-qualified hrefs. Downgrade
-    # strips them, so the pre-PR8 hash (over freshly built /p/ hrefs) matches.
-    qualified = [
-        {**fact, "href": qualify_project_path(ACME, fact["href"]) if fact["href"] else None}
-        for fact in stored
-    ]
-    after = _summary_row(sync_session, project.id, compute_facts_hash(facts), qualified)
-
-    migration._rehash_down(sync_session.connection())
-    sync_session.commit()
-    old_hash = migration._hash(stored, with_href=True)
-    assert _stored(sync_session, fresh).facts_hash == old_hash
-    downgraded = _stored(sync_session, after)
-    assert downgraded.facts_hash == old_hash
-    assert downgraded.facts == stored
-    assert _stored(sync_session, stale).facts_hash == "0" * 64
-
-
-def test_the_downgrade_strips_only_org_qualified_project_paths() -> None:
-    migration = _migration()
-    assert migration._legacy_href(f"/o/{ACME}/p/web/alerting") == "/p/web/alerting"
-    assert migration._legacy_href("/p/web/alerting") == "/p/web/alerting"
-    assert migration._legacy_href(f"/o/{ACME}/settings") == f"/o/{ACME}/settings"
-    assert migration._legacy_href(None) is None
 
 
 def test_a_stored_legacy_href_is_org_qualified_on_read() -> None:

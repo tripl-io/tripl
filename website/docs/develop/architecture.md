@@ -80,7 +80,7 @@ Locally, all of the above (except the warehouses) run under Docker Compose:
   run migrations on startup; its lifespan configures logging and asserts
   production readiness.
 - **Migrations are executed in CI, not just parsed.** The `migrations` job stands
-  up the same `pgvector/pgvector` image the Compose stack uses (the chain enables
+  up the same `pgvector/pgvector` image the Compose stack uses (the baseline enables
   `pg_trgm`, `unaccent` and `vector`, so a stock `postgres` image cannot run it)
   and does a full round trip on an empty database: `upgrade head`, then
   `downgrade base`, then `upgrade head` again, asserting after each leg that
@@ -439,8 +439,8 @@ lists the environment settings they will use.
    database would; a create that loses the concurrent INSERT race gets the same
    `409` body (`POST /projects/{slug}/events` and `/events/bulk`, the latter
    prefixed `Event N of M: `), while a scan that loses it adopts the holder
-   inside a savepoint and carries on. The migration that added
-   the key (`340d91a8825a`) repaired existing collisions first: per
+   inside a savepoint and carries on. Before the baseline squash, the migration
+   that added the key repaired existing collisions first: per
    (event type, identity) it kept the row traffic most recently landed on
    (`last_seen_at` desc, then `created_at` asc — the winner rule
    `generate_events` already uses) and left every other row in place with its

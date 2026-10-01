@@ -39,7 +39,6 @@ from tripl.tests._docs_sharing_helpers import (
     user_id,
 )
 from tripl.tests.conftest import TestSessionLocal
-from tripl.tests.test_alembic_revisions import _load_migration
 
 NOTE_ID = "3f2a9c1e-5b7d-4e8f-9a0b-1c2d3e4f5a6b"
 RULE_ID = "7a8b9c0d-1e2f-4a3b-8c4d-5e6f7a8b9c0d"
@@ -125,11 +124,6 @@ def test_a_large_pool_only_ranks_names_that_share_a_trigram() -> None:
 def test_the_suggestion_budget_runs_out() -> None:
     budget = SuggestionBudget(2)
     assert [budget.take() for _ in range(4)] == [True, True, False, False]
-
-
-def test_the_migration_follows_note_sharing() -> None:
-    migration = _load_migration("doc_link_kinds", "d5f7a9b1c3e6_doc_link_kinds.py")
-    assert migration.down_revision == "c4e6a8b0d2f5"
 
 
 # ── Resolution ────────────────────────────────────────────────────────────────

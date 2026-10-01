@@ -157,6 +157,32 @@ Note the absence of `-f compose.yaml` and of `--project-directory`: running from
 
 Schema upgrades are applied by the dedicated **`migrate`** one-shot, which runs `alembic upgrade head` before `app` or the workers start. Because all of them wait on `migrate` completing successfully, a multi-worker deploy never races the schema upgrade. You do not run migrations by hand in the normal flow — they run automatically on every `docker compose up -d` after a version bump.
 
+:::warning Upgrading an existing database across the migration baseline
+The migration history was consolidated into a single baseline revision,
+`a1c3e5f7b9d2`. A fresh database can apply that baseline normally. An existing
+database must already have **exactly `a1c3e5f7b9d2`** in `alembic_version`
+before you deploy a build containing only the baseline. If it is at an older
+revision, first deploy a pre-consolidation build and let its full migration
+chain reach that head, then take a backup and deploy the baseline build. The
+new build cannot traverse revisions that are no longer shipped. Do not manually
+stamp an older database as current: stamping changes the marker without
+applying the missing schema changes.
+
+Check the database before the version bump:
+
+```bash
+docker compose exec -T postgres psql -U tripl -d tripl -Atc 'SELECT version_num FROM alembic_version'
+```
+
+The result must be `a1c3e5f7b9d2`. If the table is absent, determine whether
+the database is genuinely empty before using the new image; do not treat an
+unversioned database containing application tables as a fresh install.
+
+Do not run `alembic downgrade base` on an existing deployment: the single
+baseline downgrade removes the entire application schema. Restore a backup
+when rolling back a deployed release.
+:::
+
 Once the one-shot has run, the applied revision can be confirmed from **Settings → Instance → System** without shelling into a container: the **Schema revision** tile reads the revision this database is stamped with and says whether it matches the head the running build ships. See [System (read-only)](../administer/admin-guide.md#system-read-only).
 
 To run them manually (for example, to inspect output), invoke the same command in a one-off container:

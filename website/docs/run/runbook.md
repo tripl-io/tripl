@@ -73,6 +73,15 @@ docker compose exec -T postgres \
 For a custom-format (`-Fc`) dump, into the existing `tripl` database, dropping
 objects first so the restore is idempotent:
 
+:::warning Migration baseline and older backups
+Before restoring a backup with a build that contains the consolidated migration
+baseline, check its `alembic_version`. A nonempty database restored at a
+revision older than `a1c3e5f7b9d2` must first run the pre-consolidation image's
+full migration chain up to that head. Then take a new backup and deploy the
+baseline build. A fresh empty database can apply the baseline directly. Do not
+stamp an older restored database as current; that skips schema changes.
+:::
+
 ```bash
 docker compose exec -T postgres \
   pg_restore -U tripl -d tripl --clean --if-exists --no-owner < tripl-2026-06-27.dump
@@ -324,9 +333,9 @@ Pulling an older image does **not** revert schema changes that a newer release
 applied. If the version you are rolling back to predates a migration, the old
 code may be incompatible with the upgraded schema.
 
-If you must reverse a schema change, run the Alembic downgrade explicitly with a
-one-off container **before** starting the older app (override the `migrate`
-service's command):
+If you must reverse a schema change **after** the baseline, run the Alembic
+downgrade explicitly with a one-off container **before** starting the older app
+(override the `migrate` service's command):
 
 ```bash
 docker compose run --rm migrate alembic downgrade <target_revision>
@@ -335,12 +344,9 @@ docker compose run --rm migrate alembic downgrade <target_revision>
 Take a fresh backup first (see [Backup & restore](#postgresql-backup--restore))
 — for non-trivial rollbacks, restoring a pre-upgrade dump is often safer than a
 downgrade migration. Validate the rollback in staging where possible.
-
-The `e8b10c257258` migration aligns model and database indexes: it adds the
-search-document branch index, renames two branch-review indexes, and removes
-seven indexes already covered by unique keys or another index. It does not
-delete application rows. On a large database, allow time for its index changes
-before starting the new API and workers.
+The baseline has no historical predecessor in this build: `downgrade base`
+would remove the entire application schema. Restore a backup to return to a
+pre-baseline state.
 :::
 
 ## Post-deploy verification
@@ -419,8 +425,9 @@ lists the prefixed volume (commonly `tripl_photos`).
 ### The scan-identity release: look for events tagged `duplicate-identity`
 
 :::note This upgrade may tag events, and deletes none
-The migration that makes a scan identity unique (`340d91a8825a`, one event per
-identity per event type) first repairs any events that already shared one.
+Before the baseline squash, the migration that made a scan identity unique
+(one event per identity per event type) first repaired any events that already
+shared one.
 Per identity it keeps the row scan traffic most recently landed on — the same
 choice a scan makes — and leaves every other row in place with its identity
 suffixed ` #duplicate-<event id>` and the tag `duplicate-identity`. Nothing is
