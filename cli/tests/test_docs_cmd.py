@@ -186,6 +186,33 @@ def test_cat_json_carries_the_response_as_the_one_item(
     assert _calls(tripl_api, "GET")[-1].url.params["scope"] == "organization"
 
 
+def test_cat_lang_asks_for_the_translation_and_notes_a_fallback(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    doc = {
+        **make_doc("a.md"),
+        "content": "# A\n",
+        "lang": None,
+        "requested_lang": "de",
+        "translation_fallback": "missing",
+    }
+    _respond(tripl_api, FILE_URL, doc)
+    assert main(["docs", "cat", "a.md", "--project", "prod", "--lang", "de"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == "# A\n"
+    assert "printed the original; the de translation is missing" in captured.err
+    assert _calls(tripl_api, "GET")[-1].url.params["lang"] == "de"
+
+
+def test_cat_without_lang_leaves_the_choice_to_the_server(
+    tripl_api: FakeInstance, configured_env: None, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _respond(tripl_api, FILE_URL, {**make_doc("a.md"), "content": "x"})
+    assert main(["docs", "cat", "a.md", "--project", "prod"]) == 0
+    assert "lang" not in _calls(tripl_api, "GET")[-1].url.params
+    assert capsys.readouterr().err == ""
+
+
 # --- pull -------------------------------------------------------------------
 
 

@@ -233,6 +233,7 @@ QUERY_NAMES_AN_A_ROW: tuple[str, ...] = (
     # owner — an org owner/admin sees any folder path — so it needs no entry.)
     "/docs/file/sharing",
     "/docs/revisions",
+    "/docs/translations/revisions",
     "/distribution-drifts",
 )
 
@@ -812,6 +813,10 @@ def _control_url(path: str) -> str:
 def _query(path: str, w: World) -> dict[str, str] | None:
     """Required query parameters, naming A's rows where they can."""
     if path.endswith(("/docs/file", "/docs/revisions", "/docs/file/sharing")):
+        return {"scope": "project", "path": w.a.doc_path}
+    if path.endswith("/docs/translations/revisions"):
+        return {"scope": "project", "path": w.a.doc_path, "lang": "de"}
+    if path.endswith("/docs/translations/revisions/{revision_id}"):
         return {"scope": "project", "path": w.a.doc_path}
     if path.endswith(("/docs/folder", "/docs/folder/sharing")):
         return {"scope": "project", "path": MARKER}

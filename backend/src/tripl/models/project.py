@@ -72,6 +72,11 @@ class Project(UUIDMixin, TimestampMixin, Base):
     timezone: Mapped[str] = mapped_column(
         String(64), default="UTC", server_default="UTC", nullable=False
     )
+    # The docs catalog's default languages (lowercase BCP 47 tags): what an
+    # agent reading a note without asking for a language gets, and what the
+    # app opens notes in for people. NULL serves the original.
+    docs_agent_lang: Mapped[str | None] = mapped_column(String(35), nullable=True, default=None)
+    docs_human_lang: Mapped[str | None] = mapped_column(String(35), nullable=True, default=None)
 
     # ── Demo identity & provisioning lifecycle ─────────────────────────────
     # A demo is a first-class, generated project. Identity is this explicit

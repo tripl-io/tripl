@@ -165,6 +165,39 @@ describe('DocsPage (F22)', () => {
     expect(screen.getByRole('button', { name: 'New note' })).toBeInTheDocument()
   })
 
+  it("opens a note in the project's language for people, unless the link names one", async () => {
+    window.localStorage.clear()
+    vi.mocked(docsApi.tree).mockResolvedValue(tree({ language_defaults: { agent_lang: 'en', human_lang: 'de' } }))
+    renderPage('/p/demo/docs/project/references/queries.md')
+    await waitFor(() =>
+      expect(docsApi.read).toHaveBeenCalledWith('demo', 'project', 'references/queries.md', 'de', expect.anything()),
+    )
+    vi.mocked(docsApi.read).mockClear()
+    renderPage('/p/demo/docs/project/references/queries.md?lang=original')
+    await waitFor(() =>
+      expect(docsApi.read).toHaveBeenCalledWith(
+        'demo',
+        'project',
+        'references/queries.md',
+        'original',
+        expect.anything(),
+      ),
+    )
+  })
+
+  it("remembers the language a person chose for the project's notes", async () => {
+    window.localStorage.setItem('tripl.docs.lang.demo', 'fr')
+    try {
+      vi.mocked(docsApi.tree).mockResolvedValue(tree({ language_defaults: { agent_lang: null, human_lang: 'de' } }))
+      renderPage('/p/demo/docs/project/references/queries.md')
+      await waitFor(() =>
+        expect(docsApi.read).toHaveBeenCalledWith('demo', 'project', 'references/queries.md', 'fr', expect.anything()),
+      )
+    } finally {
+      window.localStorage.clear()
+    }
+  })
+
   it('hides every write control from a viewer', async () => {
     renderPage('/p/demo/docs/project/references/queries.md', 'viewer')
     expect(await screen.findByRole('heading', { name: 'Event query recipes', level: 2 })).toBeInTheDocument()
@@ -177,7 +210,7 @@ describe('DocsPage (F22)', () => {
   it('renders a note: chips, resolved links and the broken-link warning', async () => {
     renderPage('/p/demo/docs/project/references/queries.md')
     expect(await screen.findByRole('heading', { name: 'Event query recipes', level: 2 })).toBeInTheDocument()
-    expect(docsApi.read).toHaveBeenCalledWith('demo', 'project', 'references/queries.md', expect.anything())
+    expect(docsApi.read).toHaveBeenCalledWith('demo', 'project', 'references/queries.md', 'original', expect.anything())
     expect(screen.getByText('For agents')).toBeInTheDocument()
     expect(screen.getByText('#sql')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'checkout_started' })).toHaveAttribute('href', '/p/demo/monitoring/event/e-1')

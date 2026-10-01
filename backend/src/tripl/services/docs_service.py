@@ -55,6 +55,7 @@ from tripl.services import (
     docs_link_suggestions,
     docs_links,
     docs_mentions,
+    docs_translations,
     project_lookup,
 )
 from tripl.services import _docs_store as store
@@ -128,6 +129,7 @@ async def list_tree(session: AsyncSession, slug: str, caller: DocCaller) -> DocT
         ),
         project_docs=[item for item in summaries if item.scope == "project"],
         organization_docs=[item for item in summaries if item.scope == "organization"],
+        language_defaults=docs_translations.language_defaults(project),
         limits=DocLimits(
             max_file_bytes=MAX_FILE_BYTES,
             max_files_per_scope=MAX_FILES_PER_SCOPE,
@@ -145,13 +147,25 @@ async def read_file(
     caller: DocCaller,
     *,
     resolve: bool = True,
+    lang: str | None = None,
 ) -> DocFileResponse:
-    """One note; 404 when hidden, unless an org owner/admin reads it (audited)."""
+    """One note; 404 when hidden, unless an org owner/admin reads it (audited).
+
+    ``lang`` picks a stored translation (``docs_translations.served``): a tag,
+    ``original``, or None for the project's agent default.
+    """
     project = await _resolve_project(session, slug)
     doc = await store.get_doc(session, project, scope, _path(path))
     access, break_glass = await require_readable(session, caller, project, doc, what="file")
     return await file_response_for(
-        session, project, doc, caller, access, resolve=resolve, break_glass=break_glass
+        session,
+        project,
+        doc,
+        caller,
+        access,
+        resolve=resolve,
+        break_glass=break_glass,
+        lang=lang,
     )
 
 
@@ -164,15 +178,21 @@ async def file_response_for(
     *,
     resolve: bool = True,
     break_glass: bool = False,
+    lang: str | None = docs_translations.ORIGINAL,
 ) -> DocFileResponse:
-    """:func:`store.file_response` with the caller's access filled in."""
+    """:func:`store.file_response` with the caller's access and the language filled in.
+
+    ``lang`` defaults to the original here: a write answers with what was
+    written. Only :func:`read_file` passes a read's own choice.
+    """
     if access is None:
         access = (await access_of(session, caller.user.id, [doc.id]))[doc.id]
     rights = await level_rights(session, caller, project)
     permission: DocPermission = (
         "view" if break_glass else my_permission(access, rights, store.scope_of(doc))
     )
-    return await store.file_response(
+    view = await docs_translations.served(session, project, doc, lang)
+    response = await store.file_response(
         session,
         project,
         doc,
@@ -181,6 +201,17 @@ async def file_response_for(
         permission=permission,
         break_glass=break_glass,
         viewer_id=caller.user.id,
+        served_content=view.translation.content if view.translation else None,
+    )
+    return response.model_copy(
+        update={
+            "lang": view.translation.lang if view.translation else None,
+            "requested_lang": view.requested,
+            "translation_fallback": view.fallback,
+            "translation_outdated": view.outdated,
+            "translations": await docs_translations.summaries(session, doc, view.rows),
+            "language_defaults": docs_translations.language_defaults(project),
+        }
     )
 
 

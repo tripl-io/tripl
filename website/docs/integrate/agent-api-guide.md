@@ -2348,6 +2348,15 @@ GET    /api/v1/projects/{slug}/docs/file/sharing?scope=project&path=guides/wareh
 PUT    /api/v1/projects/{slug}/docs/file/sharing?scope=project&path=guides/warehouse.md
 GET    /api/v1/projects/{slug}/docs/folder/sharing?scope=project&path=guides/
 PUT    /api/v1/projects/{slug}/docs/folder/sharing?scope=project&path=guides/
+GET    /api/v1/projects/{slug}/docs/file?scope=project&path=guides/warehouse.md&lang=de
+POST   /api/v1/projects/{slug}/docs/translations
+PUT    /api/v1/projects/{slug}/docs/translations
+DELETE /api/v1/projects/{slug}/docs/translations?scope=project&path=guides/warehouse.md&lang=de
+GET    /api/v1/projects/{slug}/docs/translations/revisions?scope=project&path=guides/warehouse.md&lang=de
+GET    /api/v1/projects/{slug}/docs/translations/revisions/{id}?scope=project&path=guides/warehouse.md
+POST   /api/v1/projects/{slug}/docs/translations/revisions/{id}/restore?scope=project&path=guides/warehouse.md
+GET    /api/v1/projects/{slug}/docs/languages
+PUT    /api/v1/projects/{slug}/docs/languages
 ```
 
 Reads (every `GET`) are open to any project member, including viewers and
@@ -2378,6 +2387,40 @@ empty list.
 `linked_from` lists the notes that link to this one (`scope`, `path`,
 `title`), limited to notes the caller can read. A missing note is `404` with
 `"Doc not found"`.
+
+### Translations {#docs-translations}
+
+A note may carry stored translations ([Translations](../use/docs-catalog.md#translations)).
+`GET /docs/file` takes `lang`:
+
+- no `lang`: the project's agent default (`GET /docs/languages`,
+  `agent_lang`) when that translation exists and is up to date, else the
+  original;
+- `lang=de` (any code): that translation, even when it is behind the original;
+- `lang=original`: the original.
+
+The answer says what you got. `lang` is the language served (`null`: the
+original); `content`, `body`, `title`, `description` and `links` are then the
+translation's, while `revision` stays the original's. `requested_lang` is what
+was asked for (or the agent default), `translation_fallback` why the original
+came back instead (`missing`, `pending`, `failed`, `outdated`), and
+`translation_outdated` is `true` for a translation behind the original.
+`translations` lists every language of the note: `lang`, `status` (`pending`,
+`ready`, `failed`), `revision`, `source_revision`, `outdated`, `machine` (the
+model's text as it came) and `error`.
+
+`POST /docs/translations` with `{"scope", "path", "language"}` queues an AI
+translation with the organization's AI key and answers `202` with the
+translation's summary (`status: "pending"`); `language` is a code or a name.
+It answers `409` while one is running, `409` with `code: "translation_edited"`
+over a translation a person edited (send `"overwrite": true` to replace it),
+`409` when the organization has no AI set up, and `422` for a name the model
+cannot place. `PUT /docs/translations` with `{"scope", "path", "lang",
+"content", "base_revision"}` saves a translation's text by hand (creating it if
+needed); `"mark_current": true` records it as matching the original's current
+revision. Writes need the same rights as writing the note.
+`PUT /docs/languages` takes `{"agent_lang", "human_lang"}`, each a code, a
+name or `null` for the original.
 
 ### Link syntax {#docs-link-syntax}
 

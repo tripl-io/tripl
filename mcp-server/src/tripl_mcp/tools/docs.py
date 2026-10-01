@@ -70,9 +70,10 @@ async def read_doc(
     scope: DocScope,
     path: str,
     ctx: Context,  # type: ignore[type-arg]
+    lang: str | None = None,
 ) -> Any:
     client = client_for(ctx)
-    return trim(await send(client, docs.read_doc(slug, scope, path)), DOC_READ_FIELDS)
+    return trim(await send(client, docs.read_doc(slug, scope, path, lang)), DOC_READ_FIELDS)
 
 
 async def search_docs(
@@ -164,6 +165,14 @@ def register(mcp: FastMCP) -> None:
             "organization owner or admin: they may still read it, the read is "
             "recorded in the audit log, and the answer carries break_glass=true "
             "(do not treat such a note as shared with the user; it stays read-only). "
+            "Notes may carry stored translations ('translations': lang, status, "
+            "outdated). Without 'lang' you get the project's agent default language "
+            "when that translation is up to date, else the original; 'lang' in the "
+            "answer is what you got (null: the original) and 'translation_fallback' "
+            "says why you got the original instead. Pass lang='en' (any listed code) "
+            "for that translation even when it is behind the original "
+            "('translation_outdated'), or lang='original'. Write the original with "
+            "write_doc, never a translation's text. "
             "Requires a tk_r_ or tk_w_ tripl API key."
         ),
     )(read_doc)

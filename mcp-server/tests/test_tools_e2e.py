@@ -750,6 +750,38 @@ async def test_read_doc_sends_scope_and_path_and_drops_the_duplicate_body(
     assert "body" not in payload
     assert "id" not in payload
     assert payload["links"][0]["status"] == "resolved"
+    # No lang: the server picks the project's agent default.
+    assert "lang" not in params
+
+
+@respx.mock
+async def test_read_doc_passes_lang_and_keeps_the_translation_fields(
+    stdio_runtime: Runtime,
+) -> None:
+    route = respx.get(f"{API_BASE}/projects/demo/docs/file").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                **_doc_row("a.md"),
+                "content": "# Hallo\n",
+                "lang": "de",
+                "requested_lang": "de",
+                "translation_fallback": None,
+                "translation_outdated": True,
+                "translations": [{"lang": "de", "status": "ready", "outdated": True}],
+            },
+        )
+    )
+
+    is_error, text = await call_tool(
+        "read_doc", {"slug": "demo", "scope": "project", "path": "a.md", "lang": "de"}
+    )
+
+    assert not is_error
+    assert route.calls.last.request.url.params["lang"] == "de"
+    payload = json.loads(text)
+    assert (payload["lang"], payload["translation_outdated"]) == ("de", True)
+    assert payload["translations"][0]["lang"] == "de"
 
 
 @respx.mock

@@ -14,8 +14,11 @@ export const docsKey = (slug: string) => [...orgRoot(), 'docs', slug] as const
 
 export const docsTreeKey = (slug: string) => [...docsKey(slug), 'tree'] as const
 
-export const docFileKey = (slug: string, scope: DocScope, path: string) =>
-  [...docsKey(slug), 'file', scope, path] as const
+export const docFileKey = (slug: string, scope: DocScope, path: string, lang: string) =>
+  [...docsKey(slug), 'file', scope, path, lang] as const
+
+export const docTranslationRevisionsKey = (slug: string, scope: DocScope, path: string, lang: string) =>
+  [...docsKey(slug), 'translation-revisions', scope, path, lang] as const
 
 /** A note's (`target: 'file'`) or folder's sharing (F24). */
 export const docSharingKey = (slug: string, target: 'file' | 'folder', scope: DocScope, path: string) =>

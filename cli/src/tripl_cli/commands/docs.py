@@ -146,10 +146,17 @@ def _register_cat(
         description=(
             "Print one note exactly as stored, frontmatter included, and nothing else on "
             "stdout, so `tripl docs cat x.md > x.md` round-trips. Broken [[links]] are "
-            "reported on stderr."
+            "reported on stderr. Without --lang it prints the project's agent default "
+            "language when that translation is up to date, else the original."
         ),
     )
     parser.add_argument("path", metavar="<path>", help="the note's path, e.g. guides/setup.md")
+    parser.add_argument(
+        "--lang",
+        metavar="<code>",
+        default=None,
+        help="a stored translation to print (e.g. en), or 'original'",
+    )
     _add_common(parser)
     add_json(parser)
     add_timeout(parser)
@@ -276,7 +283,7 @@ def run_cat(args: argparse.Namespace, config: Config) -> int:
 
     async def body(client: httpx.AsyncClient) -> PlanRead:
         reader = context.reader(client)
-        payload = as_dict(await reader.send(docs_api.read_doc(slug, scope, path)))
+        payload = as_dict(await reader.send(docs_api.read_doc(slug, scope, path, args.lang)))
         return context.read(
             reader, command="docs cat", kind="doc_file", project=slug, branch=MAIN, items=[payload]
         )
@@ -291,9 +298,21 @@ def run_cat(args: argparse.Namespace, config: Config) -> int:
     # Nothing but the note on stdout: no header, no footer, no added newline.
     sys.stdout.write(text_of(doc, "content") or "")
     sys.stdout.flush()
-    for line in warnings:
+    for line in [*warnings, *_language_notes(doc)]:
         print(line, file=sys.stderr)
     return EXIT_OK
+
+
+def _language_notes(doc: JsonDict) -> list[str]:
+    """What the read got, language-wise, when it is not simply what was asked for."""
+    lang = text_of(doc, "lang")
+    requested = text_of(doc, "requested_lang")
+    fallback = text_of(doc, "translation_fallback")
+    if lang and doc.get("translation_outdated"):
+        return [f"note: the {lang} translation is behind the original"]
+    if requested and fallback:
+        return [f"note: printed the original; the {requested} translation is {fallback}"]
+    return []
 
 
 def _link_warnings(doc: JsonDict) -> list[str]:

@@ -8,6 +8,7 @@ import type {
   DocImportMode,
   DocImportRequest,
   DocImportResult,
+  DocLanguageDefaults,
   DocLinkKind,
   DocLinkResolution,
   DocLinkSuggestionsResponse,
@@ -19,6 +20,11 @@ import type {
   DocSearchResponse,
   DocSharing,
   DocSharingUpdate,
+  DocTranslateRequest,
+  DocTranslationRevisionDetail,
+  DocTranslationRevisionSummary,
+  DocTranslationSummary,
+  DocTranslationWrite,
   DocTreeResponse,
   DocWriteRequest,
   DocWriteResponse,
@@ -88,8 +94,39 @@ export const docsApi = {
   tree: (slug: string, signal?: AbortSignal) =>
     api.get<DocTreeResponse>(docsPath(slug), signal),
 
-  read: (slug: string, scope: DocScope, path: string, signal?: AbortSignal) =>
-    api.get<DocFileResponse>(docsPath(slug, `/file${query({ scope, path })}`), signal),
+  /** `lang`: a translation's code, or `original`; the app always names one. */
+  read: (slug: string, scope: DocScope, path: string, lang: string, signal?: AbortSignal) =>
+    api.get<DocFileResponse>(docsPath(slug, `/file${query({ scope, path, lang })}`), signal),
+
+  translate: (slug: string, body: DocTranslateRequest) =>
+    api.post<DocTranslationSummary>(docsPath(slug, '/translations'), body),
+
+  writeTranslation: (slug: string, body: DocTranslationWrite) =>
+    api.put<DocTranslationSummary>(docsPath(slug, '/translations'), body),
+
+  removeTranslation: (slug: string, scope: DocScope, path: string, lang: string) =>
+    api.del<void>(docsPath(slug, `/translations${query({ scope, path, lang })}`)),
+
+  translationRevisions: (slug: string, scope: DocScope, path: string, lang: string, signal?: AbortSignal) =>
+    api.get<DocTranslationRevisionSummary[]>(
+      docsPath(slug, `/translations/revisions${query({ scope, path, lang })}`),
+      signal,
+    ),
+
+  translationRevision: (slug: string, scope: DocScope, path: string, revisionId: string, signal?: AbortSignal) =>
+    api.get<DocTranslationRevisionDetail>(
+      docsPath(slug, `/translations/revisions/${encodeURIComponent(revisionId)}${query({ scope, path })}`),
+      signal,
+    ),
+
+  restoreTranslationRevision: (slug: string, scope: DocScope, path: string, revisionId: string) =>
+    api.post<DocTranslationSummary>(
+      docsPath(slug, `/translations/revisions/${encodeURIComponent(revisionId)}/restore${query({ scope, path })}`),
+      {},
+    ),
+
+  updateLanguages: (slug: string, body: { agent_lang: string | null; human_lang: string | null }) =>
+    api.put<DocLanguageDefaults>(docsPath(slug, '/languages'), body),
 
   write: (slug: string, scope: DocScope, path: string, body: DocWriteRequest) =>
     api.put<DocWriteResponse>(docsPath(slug, `/file${query({ scope, path })}`), body),

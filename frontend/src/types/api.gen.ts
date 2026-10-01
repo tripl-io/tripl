@@ -3022,6 +3022,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/docs/languages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Doc Languages
+         * @description The project's default languages: what agents get, and what the app opens for people.
+         */
+        get: operations["get_doc_languages_api_v1_projects__slug__docs_languages_get"];
+        /**
+         * Update Doc Languages
+         * @description Set both defaults: a code or a name each, empty or null for the original.
+         */
+        put: operations["update_doc_languages_api_v1_projects__slug__docs_languages_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/docs/link-suggestions": {
         parameters: {
             query?: never;
@@ -3146,6 +3170,87 @@ export interface paths {
         get: operations["search_docs_api_v1_projects__slug__docs_search_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/translations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Write Doc Translation
+         * @description Save a translation's text by hand (creates it when the note has none in ``lang``).
+         */
+        put: operations["write_doc_translation_api_v1_projects__slug__docs_translations_put"];
+        /**
+         * Translate Doc
+         * @description Translate the note with the organization's AI model, once; the text is stored.
+         *
+         *     ``language`` is a code or a name ("German", "немецкий"). The run happens in
+         *     the background: the answer is ``pending``, and the note's ``translations``
+         *     say when it is ``ready`` or ``failed``. A translation someone has edited is
+         *     only replaced with ``overwrite`` (409 ``translation_edited`` otherwise).
+         */
+        post: operations["translate_doc_api_v1_projects__slug__docs_translations_post"];
+        /** Delete Doc Translation */
+        delete: operations["delete_doc_translation_api_v1_projects__slug__docs_translations_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/translations/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Doc Translation Revisions */
+        get: operations["list_doc_translation_revisions_api_v1_projects__slug__docs_translations_revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/translations/revisions/{revision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Doc Translation Revision */
+        get: operations["get_doc_translation_revision_api_v1_projects__slug__docs_translations_revisions__revision_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/docs/translations/revisions/{revision_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Doc Translation Revision */
+        post: operations["restore_doc_translation_revision_api_v1_projects__slug__docs_translations_revisions__revision_id__restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9299,10 +9404,14 @@ export interface components {
         DocBundleFile: {
             /** Content */
             content: string;
+            /** Lang */
+            lang?: string | null;
             /** Path */
             path: string;
             /** Sha256 */
             sha256?: string | null;
+            /** Translation Of */
+            translation_of?: string | null;
         };
         /** DocFileResponse */
         DocFileResponse: {
@@ -9345,6 +9454,9 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Lang */
+            lang?: string | null;
+            language_defaults?: components["schemas"]["DocLanguageDefaults"];
             /**
              * Linked From
              * @default []
@@ -9363,6 +9475,8 @@ export interface components {
             my_permission: "view" | "edit";
             /** Path */
             path: string;
+            /** Requested Lang */
+            requested_lang?: string | null;
             /** Revision */
             revision: number;
             /**
@@ -9384,6 +9498,18 @@ export interface components {
             tags: string[];
             /** Title */
             title: string;
+            /** Translation Fallback */
+            translation_fallback?: ("missing" | "pending" | "failed" | "outdated") | null;
+            /**
+             * Translation Outdated
+             * @default false
+             */
+            translation_outdated: boolean;
+            /**
+             * Translations
+             * @default []
+             */
+            translations: components["schemas"]["DocTranslationSummary"][];
             /**
              * Updated At
              * Format: date-time
@@ -9456,6 +9582,16 @@ export interface components {
              */
             skipped: components["schemas"]["DocImportSkipped"][];
             /**
+             * Translations
+             * @default []
+             */
+            translations: string[];
+            /**
+             * Translations Deleted
+             * @default []
+             */
+            translations_deleted: string[];
+            /**
              * Unchanged
              * @default []
              */
@@ -9472,6 +9608,26 @@ export interface components {
             path: string;
             /** Reason */
             reason: string;
+        };
+        /**
+         * DocLanguageDefaults
+         * @description The project's default languages (lowercase BCP 47); None: the original.
+         */
+        DocLanguageDefaults: {
+            /** Agent Lang */
+            agent_lang?: string | null;
+            /** Human Lang */
+            human_lang?: string | null;
+        };
+        /**
+         * DocLanguageDefaultsUpdate
+         * @description Codes or names (``en``, ``English``); null or empty: the original.
+         */
+        DocLanguageDefaultsUpdate: {
+            /** Agent Lang */
+            agent_lang?: string | null;
+            /** Human Lang */
+            human_lang?: string | null;
         };
         /** DocLimits */
         DocLimits: {
@@ -9891,6 +10047,124 @@ export interface components {
              */
             visibility: "private" | "restricted" | "level";
         };
+        /** DocTranslateRequest */
+        DocTranslateRequest: {
+            /** Language */
+            language: string;
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite: boolean;
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+        };
+        /** DocTranslationRevisionDetail */
+        DocTranslationRevisionDetail: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "translate" | "edit" | "restore";
+            /** Author Name */
+            author_name?: string | null;
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            /** Source Revision */
+            source_revision: number;
+        };
+        /** DocTranslationRevisionSummary */
+        DocTranslationRevisionSummary: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "translate" | "edit" | "restore";
+            /** Author Name */
+            author_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            /** Source Revision */
+            source_revision: number;
+        };
+        /** DocTranslationSummary */
+        DocTranslationSummary: {
+            /**
+             * Error
+             * @default
+             */
+            error: string;
+            /** Lang */
+            lang: string;
+            /** Machine */
+            machine: boolean;
+            /** Outdated */
+            outdated: boolean;
+            /** Revision */
+            revision: number;
+            /** Source Revision */
+            source_revision: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "ready" | "failed";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Updated By Name */
+            updated_by_name?: string | null;
+        };
+        /** DocTranslationWrite */
+        DocTranslationWrite: {
+            /** Base Revision */
+            base_revision?: number | null;
+            /** Content */
+            content: string;
+            /** Lang */
+            lang: string;
+            /**
+             * Mark Current
+             * @default false
+             */
+            mark_current: boolean;
+            /** Path */
+            path: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "project" | "organization";
+        };
         /** DocTreeOrganization */
         DocTreeOrganization: {
             /**
@@ -9912,6 +10186,7 @@ export interface components {
         };
         /** DocTreeResponse */
         DocTreeResponse: {
+            language_defaults?: components["schemas"]["DocLanguageDefaults"];
             limits: components["schemas"]["DocLimits"];
             organization: components["schemas"]["DocTreeOrganization"];
             /** Organization Docs */
@@ -9982,6 +10257,9 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Lang */
+            lang?: string | null;
+            language_defaults?: components["schemas"]["DocLanguageDefaults"];
             /**
              * Linked From
              * @default []
@@ -10000,6 +10278,8 @@ export interface components {
             my_permission: "view" | "edit";
             /** Path */
             path: string;
+            /** Requested Lang */
+            requested_lang?: string | null;
             /** Revision */
             revision: number;
             /**
@@ -10021,6 +10301,18 @@ export interface components {
             tags: string[];
             /** Title */
             title: string;
+            /** Translation Fallback */
+            translation_fallback?: ("missing" | "pending" | "failed" | "outdated") | null;
+            /**
+             * Translation Outdated
+             * @default false
+             */
+            translation_outdated: boolean;
+            /**
+             * Translations
+             * @default []
+             */
+            translations: components["schemas"]["DocTranslationSummary"][];
             /**
              * Updated At
              * Format: date-time
@@ -24485,6 +24777,8 @@ export interface operations {
                 scope: "project" | "organization";
                 /** @description The note's path, e.g. guides/setup.md */
                 path: string;
+                /** @description Which language to read: a code such as `en` for that stored translation, `original` for the original, or nothing for the project's agent default (the original when that translation is missing or behind it). */
+                lang?: string | null;
             };
             header?: never;
             path: {
@@ -24857,6 +25151,72 @@ export interface operations {
             };
         };
     };
+    get_doc_languages_api_v1_projects__slug__docs_languages_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocLanguageDefaults"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_doc_languages_api_v1_projects__slug__docs_languages_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocLanguageDefaultsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocLanguageDefaults"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     doc_link_suggestions_api_v1_projects__slug__docs_link_suggestions_get: {
         parameters: {
             query?: {
@@ -25088,6 +25448,224 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocSearchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    write_doc_translation_api_v1_projects__slug__docs_translations_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocTranslationWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocTranslationSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    translate_doc_api_v1_projects__slug__docs_translations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocTranslateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocTranslationSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_doc_translation_api_v1_projects__slug__docs_translations_delete: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+                /** @description A translation's language, e.g. en */
+                lang: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_doc_translation_revisions_api_v1_projects__slug__docs_translations_revisions_get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+                /** @description A translation's language, e.g. en */
+                lang: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocTranslationRevisionSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_doc_translation_revision_api_v1_projects__slug__docs_translations_revisions__revision_id__get: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocTranslationRevisionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_doc_translation_revision_api_v1_projects__slug__docs_translations_revisions__revision_id__restore_post: {
+        parameters: {
+            query: {
+                /** @description Whose notes: the project's or its organization's. */
+                scope: "project" | "organization";
+                /** @description The note's path, e.g. guides/setup.md */
+                path: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                revision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocTranslationSummary"];
                 };
             };
             /** @description Validation Error */

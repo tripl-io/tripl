@@ -48,7 +48,7 @@ from tripl.schemas.docs import (
     DocImportSkipped,
 )
 from tripl.services import _docs_store as store
-from tripl.services import audit_service
+from tripl.services import audit_service, docs_bundle_translations
 from tripl.services.docs_access import (
     DocAccess,
     DocCaller,
@@ -106,7 +106,8 @@ async def export_bundle(
         files=[
             DocBundleFile(path=doc.path, content=doc.content, sha256=doc.content_sha256)
             for doc in docs
-        ],
+        ]
+        + await docs_bundle_translations.export_files(session, docs),
     )
 
 
@@ -305,6 +306,8 @@ async def import_bundle(
     )
     existing = {doc.path_key: doc for doc, _ in with_access}
     access: dict[str, DocAccess] = {doc.path_key: rule for doc, rule in with_access}
+    files, translations, translation_errors = docs_bundle_translations.split(files, set(existing))
+    result.errors.extend(translation_errors)
     seen: dict[str, str] = {}
     plan: list[tuple[str, DocBundleFile, ParsedDoc, DocFile | None]] = []
     for item in files:
@@ -347,6 +350,11 @@ async def import_bundle(
         else []
     )
     result.deleted = sorted(doc.path for doc in stale)
+    stale_keys = {doc.path_key for doc in stale}
+    editable_keys = {key for key in existing if access[key].editable and key not in stale_keys} | {
+        path_key(path) for path, _item, _parsed, _found in plan
+    }
+    result.errors.extend(docs_bundle_translations.check_editable(translations, editable_keys))
     if len(existing) + len(result.created) - len(stale) > MAX_FILES_PER_SCOPE:
         result.errors.append(
             DocImportError(path="*", detail=f"a scope holds at most {MAX_FILES_PER_SCOPE} docs")
@@ -356,7 +364,15 @@ async def import_bundle(
             status_code=422,
             detail={"errors": [error.model_dump() for error in result.errors]},
         )
-    if dry_run or not (plan or stale):
+    if dry_run:
+        result.translations = sorted(
+            docs_bundle_translations.translation_path(existing[t.note_key].path, t.lang)
+            if t.note_key in existing
+            else t.item.path
+            for t in translations
+        )
+        return result
+    if not (plan or stale or translations or mode == "mirror"):
         return result
 
     plan_docs: list[DocFile] = []
@@ -379,6 +395,15 @@ async def import_bundle(
     for doc in stale:
         await session.delete(doc)
     await session.flush()
+    kept = {key: existing[key] for key in editable_keys if key in existing}
+    kept.update({doc.path_key: doc for doc in plan_docs})
+    result.translations, result.translations_deleted = await docs_bundle_translations.apply(
+        session, translations, kept, user_id=user.id, mirror=mode == "mirror"
+    )
+    if not (plan or stale or result.translations or result.translations_deleted):
+        await session.rollback()
+        return result
+    await session.flush()
     await audit_service.record(
         session,
         user=user,
@@ -396,6 +421,8 @@ async def import_bundle(
                 "unchanged": len(result.unchanged),
                 "deleted": len(result.deleted),
                 "skipped": len(result.skipped),
+                "translations": len(result.translations),
+                "translations_deleted": len(result.translations_deleted),
             },
             # Every note a mirror removed, with what it held: revisions go
             # with the note, so this row is the record that it existed.

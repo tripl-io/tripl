@@ -1,7 +1,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowDownUp, FilePlus2, NotebookText, Search } from 'lucide-react'
+import { ArrowDownUp, FilePlus2, Languages, NotebookText, Search } from 'lucide-react'
 import { ErrorState } from '@/components/error-state'
 import { EmptyState } from '@/components/empty-state'
 import { Kbd } from '@/components/primitives/kbd'
@@ -11,6 +11,7 @@ import { EntityNotFound, isNotFoundError, PageSkeleton, SectionSkeleton } from '
 import { usePageTitle } from '@/components/shell-chrome-context'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/hooks/useConfirm'
+import { ORIGINAL_LANG, storeDocLanguage, storedDocLanguage } from '@/lib/docLanguages'
 import { docPathFromSplat, docRoute, isDocScope, isUnder } from '@/lib/docTree'
 import { formatRelativeTime } from '@/lib/datetime'
 import { lazyWithReload } from '@/lib/lazyWithReload'
@@ -22,6 +23,7 @@ import { DocImportExportDialog } from './DocImportExportDialog'
 import { DocShareDialog } from './DocShareDialog'
 import { DocQuickOpen } from './DocQuickOpen'
 import { DocsTree } from './DocsTree'
+import { DocLanguageBar, DocLanguagesDialog, DocTranslationNotice, TranslationHistoryDialog } from './DocTranslations'
 import { DocView } from './DocView'
 import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree, type DocSharingTarget } from './useDocs'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
@@ -50,7 +52,16 @@ export default function DocsPage() {
   const tree = useDocTree(slug)
   const scope: DocScope | null = isDocScope(scopeParam) ? scopeParam : null
   const path = docPathFromSplat(splat)
-  const file = useDocFile(slug, scope, path)
+  // Which language to show: the link's `?lang`, else this browser's last
+  // choice for the project, else the project's default for people. Null until
+  // the tree says what that default is.
+  const [storedLang, setStoredLang] = useState(() => storedDocLanguage(slug))
+  const lang =
+    searchParams.get('lang') ?? storedLang ?? (tree.data ? (tree.data.language_defaults?.human_lang ?? ORIGINAL_LANG) : null)
+  const file = useDocFile(slug, scope, path, lang)
+  const servedTranslation = file.data?.lang
+    ? file.data.translations?.find(t => t.lang === file.data?.lang)
+    : undefined
   // F24: the server also says what the caller may do with this note — a note
   // shared with them view-only, or someone else's private note opened by an
   // organization admin (break-glass, audited), is read-only.
@@ -58,6 +69,7 @@ export default function DocsPage() {
   const editing = canEditNote && searchParams.get('edit') === '1'
 
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [languagesOpen, setLanguagesOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
   const [transferOpen, setTransferOpen] = useState(false)
   const [shareTarget, setShareTarget] = useState<DocSharingTarget | null>(null)
@@ -81,6 +93,22 @@ export default function DocsPage() {
         { replace: true },
       ),
     [setSearchParams],
+  )
+
+  const changeLang = useCallback(
+    (next: string) => {
+      storeDocLanguage(slug, next)
+      setStoredLang(next)
+      setSearchParams(
+        prev => {
+          const params = new URLSearchParams(prev)
+          params.set('lang', next)
+          return params
+        },
+        { replace: true },
+      )
+    },
+    [slug, setSearchParams],
   )
 
   // "New note about this" from an event or event-type page arrives as
@@ -191,6 +219,10 @@ export default function DocsPage() {
               Open note
               <Kbd className="ml-1">Ctrl P</Kbd>
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setLanguagesOpen(true)}>
+              <Languages aria-hidden />
+              Languages
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
               <ArrowDownUp aria-hidden />
               {canEdit ? 'Import / export' : 'Export'}
@@ -229,10 +261,13 @@ export default function DocsPage() {
           ) : editing ? (
             <Suspense fallback={<SectionSkeleton label="Loading editor…" />}>
               <DocEditor
-                key={`${file.data.scope}:${file.data.path}`}
+                key={`${file.data.scope}:${file.data.path}:${file.data.lang ?? ORIGINAL_LANG}`}
                 slug={slug}
                 doc={file.data}
-                maxBytes={data.limits.max_file_bytes}
+                // A translation may run up to three times the original's bytes
+                // (two- and three-byte scripts); the server holds the same line.
+                maxBytes={data.limits.max_file_bytes * (servedTranslation ? 3 : 1)}
+                translation={servedTranslation ? { lang: servedTranslation.lang, revision: servedTranslation.revision } : null}
                 onDone={() => setEditing(false)}
               />
             </Suspense>
@@ -246,14 +281,44 @@ export default function DocsPage() {
               onHistory={() => setHistoryOpen(true)}
               onMove={() => setMoveReq({ scope: file.data.scope, from: file.data.path, folder: false })}
               onDelete={() => void onDeleteNote()}
+              languages={
+                <>
+                  <DocLanguageBar
+                    slug={slug}
+                    doc={file.data}
+                    lang={lang ?? ORIGINAL_LANG}
+                    canEdit={canEditNote}
+                    onChangeLang={changeLang}
+                  />
+                  <DocTranslationNotice slug={slug} doc={file.data} canEdit={canEditNote} onChangeLang={changeLang} />
+                </>
+              }
             />
           )}
         </main>
       </div>
 
-      {scope && path && (
+      {scope && path && !servedTranslation && (
         <DocHistoryPanel slug={slug} scope={scope} path={path} open={historyOpen} onOpenChange={setHistoryOpen} canEdit={canEditNote} />
       )}
+      {scope && path && servedTranslation && (
+        <TranslationHistoryDialog
+          slug={slug}
+          scope={scope}
+          path={path}
+          lang={servedTranslation.lang}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          canEdit={canEditNote}
+        />
+      )}
+      <DocLanguagesDialog
+        slug={slug}
+        defaults={data.language_defaults ?? { agent_lang: null, human_lang: null }}
+        open={languagesOpen}
+        onOpenChange={setLanguagesOpen}
+        canEdit={canEditScope('project')}
+      />
       <DocShareDialog
         slug={slug}
         target={shareTarget}

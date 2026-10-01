@@ -94,12 +94,20 @@ class DocLimits(BaseModel):
     max_bundle_bytes: int
 
 
+class DocLanguageDefaults(BaseModel):
+    """The project's default languages (lowercase BCP 47); None: the original."""
+
+    agent_lang: str | None = None
+    human_lang: str | None = None
+
+
 class DocTreeResponse(BaseModel):
     project: DocTreeProject
     organization: DocTreeOrganization
     project_docs: list[DocSummary]
     organization_docs: list[DocSummary]
     limits: DocLimits
+    language_defaults: DocLanguageDefaults = Field(default_factory=DocLanguageDefaults)
 
 
 class DocLinkRef(BaseModel):
@@ -144,6 +152,32 @@ class DocBacklinkItem(BaseModel):
     link_raw: str
 
 
+#: ``pending`` while the AI run is queued or running, ``ready`` once it holds
+#: text, ``failed`` when the last run produced none (``error`` says why).
+DocTranslationStatus = Literal["pending", "ready", "failed"]
+#: Why a read got the original rather than the language it asked for (or the
+#: project's agent default): no translation in it, one still being made, one
+#: whose last run failed with no text, or, for the default only, one that is
+#: behind the original.
+DocTranslationFallback = Literal["missing", "pending", "failed", "outdated"]
+
+
+class DocTranslationSummary(BaseModel):
+    lang: str
+    status: DocTranslationStatus
+    # Saves of the text; 0 while the first AI run has not landed.
+    revision: int
+    # The original's revision the text was made from; ``outdated`` when the
+    # original has moved on since.
+    source_revision: int
+    outdated: bool
+    # True while the text is the model's as it came; a person's edit clears it.
+    machine: bool
+    error: str = ""
+    updated_at: datetime
+    updated_by_name: str | None = None
+
+
 class DocFileResponse(DocSummary):
     id: uuid.UUID
     content: str
@@ -159,6 +193,18 @@ class DocFileResponse(DocSummary):
     # F24: true when an organization owner or admin opened a note hidden from
     # them (an audited break-glass read); such a read never grants editing.
     break_glass: bool = False
+    # Translations. ``lang`` is the language served (None: the original);
+    # ``content``, ``body``, ``title``, ``description`` and ``links`` are then
+    # the translation's, and ``revision`` stays the original's.
+    # ``requested_lang`` is what the read asked for, or the project's agent
+    # default when it asked for nothing; ``translation_fallback`` says why it
+    # got the original instead.
+    lang: str | None = None
+    requested_lang: str | None = None
+    translation_fallback: DocTranslationFallback | None = None
+    translation_outdated: bool = False
+    translations: list[DocTranslationSummary] = []
+    language_defaults: DocLanguageDefaults = Field(default_factory=DocLanguageDefaults)
 
 
 class DocWriteRequest(BaseModel):
@@ -276,6 +322,11 @@ class DocBundleFile(BaseModel):
     path: str = Field(min_length=1, max_length=1024)
     content: str
     sha256: str | None = None
+    # A stored translation: the note it translates and its language. An export
+    # sets both and names the file ``<note>.<lang>.md``; an import also takes a
+    # ``<note>.<lang>.md`` without them as one, when ``<note>.md`` is a note.
+    translation_of: str | None = Field(default=None, max_length=1024)
+    lang: str | None = Field(default=None, max_length=64)
 
 
 class DocBundle(BaseModel):
@@ -312,6 +363,10 @@ class DocImportResult(BaseModel):
     deleted: list[str] = []
     skipped: list[DocImportSkipped] = []
     errors: list[DocImportError] = []
+    # Translation files written, and (``mirror``) the translations removed, as
+    # ``<note>.<lang>.md``.
+    translations: list[str] = []
+    translations_deleted: list[str] = []
 
 
 # ── Sharing (F24, GH #308) ────────────────────────────────────────────────────
@@ -354,3 +409,43 @@ class DocSharingUpdate(BaseModel):
     visibility: DocVisibility = "level"
     inherited: bool = False
     shares: list[DocShareInput] = Field(default=[], max_length=200)
+
+
+class DocTranslateRequest(BaseModel):
+    scope: DocScope
+    path: str = Field(min_length=1, max_length=1024)
+    # What the person typed: a code (``en``, ``pt-BR``) or a name in any
+    # language (``немецкий``); the model turns a name into a code.
+    language: str = Field(min_length=1, max_length=64)
+    # Replace a translation a person has edited (it stays in its history).
+    overwrite: bool = False
+
+
+class DocTranslationWrite(BaseModel):
+    scope: DocScope
+    path: str = Field(min_length=1, max_length=1024)
+    lang: str = Field(min_length=1, max_length=64)
+    content: str = Field(max_length=12 * MAX_FILE_BYTES)
+    base_revision: int | None = Field(default=None, ge=0)
+    # Say the text matches the original's current revision (clears "outdated").
+    mark_current: bool = False
+
+
+class DocTranslationRevisionSummary(BaseModel):
+    id: uuid.UUID
+    number: int
+    action: Literal["translate", "edit", "restore"]
+    source_revision: int
+    author_name: str | None = None
+    created_at: datetime
+
+
+class DocTranslationRevisionDetail(DocTranslationRevisionSummary):
+    content: str
+
+
+class DocLanguageDefaultsUpdate(BaseModel):
+    """Codes or names (``en``, ``English``); null or empty: the original."""
+
+    agent_lang: str | None = Field(default=None, max_length=64)
+    human_lang: str | None = Field(default=None, max_length=64)

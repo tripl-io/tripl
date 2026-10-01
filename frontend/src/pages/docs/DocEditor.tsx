@@ -21,6 +21,7 @@ import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard'
 import { relinkDocLinks, relinkWritten } from '@/lib/docLinks'
 import { applyPick, type LinkTrigger } from '@/lib/docLinkTrigger'
 import { splitFrontmatter } from '@/lib/docFrontmatter'
+import { languageName, ORIGINAL_LANG } from '@/lib/docLanguages'
 import { formatBytes } from '@/lib/docTree'
 import { cn, getErrorMessage } from '@/lib/utils'
 import type { DocFileResponse, DocLinkResolution, DocLinkSuggestion, DocWriteResponse } from '@/types/docs'
@@ -29,7 +30,13 @@ import { docLinkPickerExtension, insertPick, LinkPickerBridgeBox, measureTrigger
 import { DocMarkdown } from './DocMarkdown'
 import { BrokenLinksBanner } from './DocView'
 import { useDocLinkPicker } from './useDocLinkPicker'
-import { useDraftLinkResolutions, useWriteDoc } from './useDocs'
+import { useDraftLinkResolutions, useWriteDoc, useWriteTranslation } from './useDocs'
+
+/** The revision to save against: the original's, or the translation's own. */
+function revisionOf(doc: DocFileResponse, lang: string | undefined): number {
+  if (!lang) return doc.revision
+  return doc.translations?.find(t => t.lang === lang)?.revision ?? 0
+}
 
 const encoder = new TextEncoder()
 
@@ -56,21 +63,30 @@ export function DocEditor({
   doc,
   maxBytes,
   onDone,
+  translation = null,
 }: {
   slug: string
   doc: DocFileResponse
   maxBytes: number
   /** Called after a save (with the response) or a cancel (with null). */
   onDone: (saved: DocWriteResponse | null) => void
+  /**
+   * Edit a stored translation instead of the original: `doc` is the note as
+   * read in `lang`, and the save goes to that translation, against its own
+   * `revision`.
+   */
+  translation?: { lang: string; revision: number } | null
 }) {
   const [draft, setDraft] = useState(doc.content)
-  const [baseRevision, setBaseRevision] = useState(doc.revision)
+  const [baseRevision, setBaseRevision] = useState(translation ? translation.revision : doc.revision)
   const [message, setMessage] = useState('')
   const [conflict, setConflict] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [baseline, setBaseline] = useState(doc.content)
   const write = useWriteDoc(slug)
+  const writeTranslation = useWriteTranslation(slug)
+  const readLang = translation?.lang ?? ORIGINAL_LANG
   const dirty = draft !== baseline
   const guard = useUnsavedChangesGuard(dirty, { alsoBlock: leavesEditMode })
 
@@ -130,6 +146,20 @@ export function DocEditor({
       setBusy(true)
       setError(null)
       try {
+        if (translation) {
+          await writeTranslation.mutateAsync({
+            scope: doc.scope,
+            path: doc.path,
+            lang: translation.lang,
+            content: draft,
+            base_revision: base,
+          })
+          guard.release()
+          setBaseline(draft)
+          toast.success(`Saved the ${languageName(translation.lang)} translation`)
+          onDone(null)
+          return
+        }
         const saved = await write.mutateAsync({
           scope: doc.scope,
           path: doc.path,
@@ -151,7 +181,7 @@ export function DocEditor({
         setBusy(false)
       }
     },
-    [busy, tooBig, write, doc.scope, doc.path, draft, message, guard, onDone],
+    [busy, tooBig, write, writeTranslation, translation, doc.scope, doc.path, draft, message, guard, onDone],
   )
 
   // Ctrl/Cmd+S saves while the editor is open — but not under the conflict
@@ -184,12 +214,13 @@ export function DocEditor({
   const reloadTheirs = async () => {
     setBusy(true)
     try {
-      const latest = await docsApi.read(slug, doc.scope, doc.path)
+      const latest = await docsApi.read(slug, doc.scope, doc.path, readLang)
+      const revision = revisionOf(latest, translation?.lang)
       setDraft(latest.content)
       setBaseline(latest.content)
-      setBaseRevision(latest.revision)
+      setBaseRevision(revision)
       setConflict(false)
-      toast.info(`Loaded revision ${latest.revision}; your edits were discarded`)
+      toast.info(`Loaded revision ${revision}; your edits were discarded`)
     } catch (err) {
       setError(getErrorMessage(err))
       setConflict(false)
@@ -202,7 +233,7 @@ export function DocEditor({
     setBusy(true)
     let latestRevision: number
     try {
-      latestRevision = (await docsApi.read(slug, doc.scope, doc.path)).revision
+      latestRevision = revisionOf(await docsApi.read(slug, doc.scope, doc.path, readLang), translation?.lang)
     } catch (err) {
       setError(getErrorMessage(err))
       setConflict(false)
@@ -219,15 +250,18 @@ export function DocEditor({
     <section aria-label={`Editing ${doc.path}`} className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
         <h2 className="m-0 min-w-0 flex-1 truncate text-heading font-semibold">
-          Editing <span className="mono text-fg-secondary">{doc.path}</span>
+          Editing {translation ? `the ${languageName(translation.lang)} translation of ` : ''}
+          <span className="mono text-fg-secondary">{doc.path}</span>
         </h2>
-        <Input
-          value={message}
-          onChange={e => setMessage(e.target.value.slice(0, 500))}
-          placeholder="What changed? (optional)"
-          aria-label="Revision message"
-          className="h-7 w-64 max-w-full"
-        />
+        {!translation && (
+          <Input
+            value={message}
+            onChange={e => setMessage(e.target.value.slice(0, 500))}
+            placeholder="What changed? (optional)"
+            aria-label="Revision message"
+            className="h-7 w-64 max-w-full"
+          />
+        )}
         <Button variant="outline" size="sm" onClick={cancel} disabled={busy}>
           Cancel
         </Button>
@@ -279,7 +313,7 @@ export function DocEditor({
       <Dialog open={conflict} onOpenChange={open => { if (!open) setConflict(false) }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>This note changed while you were editing</DialogTitle>
+            <DialogTitle>This {translation ? 'translation' : 'note'} changed while you were editing</DialogTitle>
             <DialogDescription>
               Someone saved a newer revision of {doc.path} after revision {baseRevision}. Load theirs and discard
               your edits, or save yours over it (their revision stays in the history).

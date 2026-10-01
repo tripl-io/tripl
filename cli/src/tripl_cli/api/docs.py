@@ -81,9 +81,17 @@ def list_docs(slug: str) -> ApiRequest:
     return ApiRequest("GET", TREE.format(slug=slug))
 
 
-def read_doc(slug: str, scope: str, path: str) -> ApiRequest:
-    """``DocFileResponse``: the raw content, the parsed frontmatter, the links with status."""
-    return ApiRequest("GET", FILE.format(slug=slug), params={"scope": scope, "path": path})
+def read_doc(slug: str, scope: str, path: str, lang: str | None = None) -> ApiRequest:
+    """``DocFileResponse``: the raw content, the parsed frontmatter, the links with status.
+
+    ``lang`` reads a stored translation (``en``), or ``original``; without it the
+    server answers with the project's agent default language, falling back to
+    the original when that translation is missing or behind it.
+    """
+    params = {"scope": scope, "path": path}
+    if lang is not None:
+        params["lang"] = lang
+    return ApiRequest("GET", FILE.format(slug=slug), params=params)
 
 
 def write_doc(

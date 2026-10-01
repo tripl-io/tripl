@@ -21,12 +21,11 @@ def _script() -> ScriptDirectory:
     return ScriptDirectory.from_config(config)
 
 
-def test_alembic_has_exactly_one_baseline_revision() -> None:
+def test_alembic_chain_starts_at_the_baseline_and_has_one_head() -> None:
     script = _script()
-    assert script.get_heads() == [_BASELINE_REVISION]
     assert script.get_bases() == [_BASELINE_REVISION]
     assert script.get_revision(_BASELINE_REVISION).down_revision is None
-    assert len(list(script.walk_revisions())) == 1
+    assert len(script.get_heads()) == 1
 
 
 def test_reported_head_matches_the_migration_graph() -> None:
