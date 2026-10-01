@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DocScope, DocSummary, DocTreeResponse } from '@/types/docs'
 import { DocsTree, type FolderActions } from './DocsTree'
 
@@ -236,5 +236,55 @@ describe('DocsTree drag and drop', () => {
     layout()
     await drag(within(projectRoot()).getByRole('link', { name: 'Checkout skill' }), { x: 50, y: 100 })
     expect(onDropMove).not.toHaveBeenCalled()
+  })
+
+  describe('opening a collapsed folder on hover', () => {
+    afterEach(() => vi.useRealTimers())
+
+    function hoverOverReferences() {
+      fireEvent.click(folder(/^references/))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'false')
+      const box = (el: Element, top: number, height: number) =>
+        vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+          x: 0, y: top, top, left: 0, width: 200, height, right: 200, bottom: top + height, toJSON: () => ({}),
+        } as DOMRect)
+      box(projectRoot(), 0, 400)
+      box(folder(/^references/).closest('li')!, 40, 30)
+      // Only the timeouts: dnd-kit's overlay keeps animating on real frames.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      fireEvent.pointerDown(within(projectRoot()).getByRole('link', { name: 'Checkout skill' }), { clientX: 5, clientY: 5, button: 0, isPrimary: true })
+      fireEvent.pointerMove(document, { clientX: 50, clientY: 50 })
+      fireEvent.pointerMove(document, { clientX: 51, clientY: 51 })
+    }
+
+    it('opens after 600 ms over it', async () => {
+      renderTree({ actions: { ...actions(), onDropMove: vi.fn() } })
+      hoverOverReferences()
+      act(() => vi.advanceTimersByTime(599))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'false')
+      act(() => vi.advanceTimersByTime(1))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.pointerUp(document, { clientX: 50, clientY: 300 })
+      // dnd-kit swallows the click right after a drag and lifts that guard on
+      // a timeout; flush it, or it eats the next test's first click.
+      act(() => vi.runOnlyPendingTimers())
+      vi.useRealTimers()
+      await act(() => new Promise(resolve => setTimeout(resolve, 20)))
+    })
+
+    it('stays closed when the drag leaves or is dropped first', async () => {
+      renderTree({ actions: { ...actions(), onDropMove: vi.fn() } })
+      hoverOverReferences()
+      act(() => vi.advanceTimersByTime(300))
+      fireEvent.pointerMove(document, { clientX: 50, clientY: 300 })
+      act(() => vi.advanceTimersByTime(1000))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.pointerUp(document, { clientX: 50, clientY: 300 })
+      // dnd-kit swallows the click right after a drag and lifts that guard on
+      // a timeout; flush it, or it eats the next test's first click.
+      act(() => vi.runOnlyPendingTimers())
+      vi.useRealTimers()
+      await act(() => new Promise(resolve => setTimeout(resolve, 20)))
+    })
   })
 })

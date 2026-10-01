@@ -28,6 +28,17 @@ Folders come from the paths, so there are no empty folders. To create a folder,
 create a note inside it. Renaming or moving a folder moves every note under it,
 and deleting a folder deletes every note under it.
 
+To move a note or a folder, drag it in the tree onto another folder, or onto
+**Project notes** or **Organization notes** to move it to the top level. A
+collapsed folder opens when you hold the dragged item over it for a moment.
+Notes stay in their root: dropping a project note on the organization root, a
+folder into itself or one of its subfolders, or an item on the folder it is
+already in does nothing. Dragging is off while a note is open in the editor.
+The **Undo** button in the confirmation moves the item back. A folder move is
+undone only while that folder holds exactly the notes the drag moved: when it
+already had notes of its own, or a note was added since, move them back with
+**Rename or move**. That dialog is also the way to move without a mouse.
+
 Path rules:
 
 - The path is relative and ends in `.md`. `SKILL.md`, `README.md` and

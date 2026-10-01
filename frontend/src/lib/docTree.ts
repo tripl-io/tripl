@@ -110,6 +110,17 @@ export function dropPath(from: string, folder: boolean, target: string): string 
   return to
 }
 
+/**
+ * Whether the notes under `prefix` are exactly `paths` (case-insensitive);
+ * false with no notes to look at. Undoing a folder drop is only safe then.
+ */
+export function folderHoldsOnly(docs: readonly { path: string }[] | undefined, prefix: string, paths: readonly string[]): boolean {
+  if (!docs) return false
+  const under = docs.filter(doc => isUnder(doc.path, prefix)).map(doc => doc.path.toLowerCase())
+  const expected = new Set(paths.map(path => path.toLowerCase()))
+  return under.length === expected.size && under.every(path => expected.has(path))
+}
+
 /** The in-app address of a note; each segment is encoded, slashes kept. */
 export function docRoute(slug: string, scope: DocScope, path: string): string {
   const encoded = path.split('/').map(encodeURIComponent).join('/')
