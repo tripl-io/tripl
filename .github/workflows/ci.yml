@@ -316,7 +316,7 @@ jobs:
       postgres:
         # THE image the compose stack runs, and the same one the alembic round trip
         # uses — for the same reason: the harness migrates a real database to head, and
-        # e8f9a0b1c2d3 does `CREATE EXTENSION vector`, which stock postgres cannot
+        # the baseline creates the vector extension, which stock postgres cannot
         # satisfy. Pinned by digest: a gate whose database can change underneath it is
         # not a gate.
         image: pgvector/pgvector:0.8.2-pg18-trixie@sha256:b7337db8fe39d12fe8ecb0003c72680f24479813a744b43154eee6f2eab5a5f3
@@ -429,15 +429,10 @@ jobs:
               sys.exit("::error::relevance failures: " + ", ".join(broken))
           PY
 
-  # Everything else this repo does about alembic is STATIC. The backend job lints
-  # and format-checks alembic/versions, and test_alembic_revisions.py parses the
-  # revision graph — which caught a duplicate revision id on 2026-08-05, but
-  # cannot catch a statement Postgres rejects, a server_default that will not
-  # cast, or a data step that touches the wrong rows. All 86 revisions had
-  # therefore never been EXECUTED by CI, while the deployment entrypoint runs
-  # `alembic upgrade head` on every single release (tripl-s9nm). The enum-cast
-  # failures this repo has already hit — the variables.variable_type default, the
-  # duplicate-variable rewrite — are exactly what a from-empty run catches.
+  # Static lint and revision-graph tests cannot prove PostgreSQL accepts a
+  # migration or that its downgrade leaves a replayable schema. The separate
+  # migration job executes the baseline on real PostgreSQL whenever Alembic
+  # changes, just as the deployment entrypoint runs `alembic upgrade head`.
   #
   # Two jobs rather than one, deliberately. The scope probe always runs and always
   # reports, so the expensive job can be gated without the "skipped but required"
@@ -533,9 +528,9 @@ jobs:
             echo "::warning::no merge base with $BASE_SHA; running the round trip anyway."
             exit 0
           fi
-          # ci.yml is in the filter on purpose: a PR that edits this gate must run
-          # the gate it edited.
-          changed=$(git diff --name-only "$merge_base" HEAD -- backend/alembic .github/workflows/ci.yml)
+          # The workflow and parity helper are in the filter: a PR that edits
+          # this gate must run the gate it edited.
+          changed=$(git diff --name-only "$merge_base" HEAD -- backend/alembic .github/workflows/ci.yml bin/compare-migration-schema.py)
           if [ -n "$changed" ]; then
             echo "alembic=true" >> "$GITHUB_OUTPUT"
             echo "migration-relevant changes:"
@@ -550,14 +545,14 @@ jobs:
     needs: migration-scope
     if: needs.migration-scope.outputs.alembic == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
     services:
       postgres:
         # THE image the compose stack runs (compose.yaml and compose.dev.yaml),
-        # not stock postgres: e8f9a0b1c2d3 does `CREATE EXTENSION vector`, which a
+        # not stock postgres: the baseline creates the vector extension, which a
         # stock image cannot satisfy, so the chain would die 20 revisions in and
         # the gate would be testing the wrong database anyway. pg_trgm and
         # unaccent ship with contrib. Pinned by digest for the reason the
@@ -594,6 +589,18 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      - id: baseline
+        name: Detect the single baseline revision
+        run: |
+          revision_count=$(find alembic/versions -maxdepth 1 -name '*.py' | wc -l)
+          head=$(uv run alembic heads | awk 'NR==1 {print $1}')
+          if [ "$revision_count" -eq 1 ] && [ "$head" = a1c3e5f7b9d2 ]; then
+            echo "compare=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "compare=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::the historical schema comparison applies only to the a1c3e5f7b9d2 baseline"
+          fi
+
       - name: Wait for an EMPTY Postgres
         # pg_isready answers happily on a server that will still reject the login,
         # so the probe authenticates and runs a real query — the same reasoning as
@@ -628,8 +635,8 @@ jobs:
           PY
 
       - name: Upgrade head from empty
-        # The leg every deploy runs. From EMPTY, so all 86 revisions execute in
-        # order against real Postgres instead of being read by a graph parser.
+        # The leg every fresh install runs. From EMPTY, so the baseline (and any
+        # later revisions) executes against real Postgres.
         # `alembic current` is compared to `alembic heads` because `upgrade` exits
         # 0 on a chain that did nothing at all.
         run: |
@@ -642,21 +649,62 @@ jobs:
             exit 1
           fi
 
+      # This pins the pre-squash chain to an immutable main commit. Its final
+      # schema must match the new baseline exactly, including indexes, checks,
+      # enum types, functions, and extension state. The comparison is relevant
+      # only while a1c3e5f7b9d2 is the sole revision; later migrations keep the
+      # round-trip gate above and below without comparing to historical head.
+      - uses: actions/checkout@v7
+        if: steps.baseline.outputs.compare == 'true'
+        with:
+          ref: 19eea9a9a433a05c97a03e371f06b4bb16759fdc
+          path: legacy
+
+      - name: Upgrade the pre-squash chain in a second database
+        if: steps.baseline.outputs.compare == 'true'
+        working-directory: legacy/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://tripl:tripl@localhost:5432/tripl_legacy
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER" createdb -U tripl tripl_legacy
+          uv sync --extra dev
+          uv run alembic upgrade head
+          head=$(uv run alembic heads | awk 'NR==1 {print $1}')
+          current=$(uv run alembic current | awk 'NR==1 {print $1}')
+          if [ "$head" != a1c3e5f7b9d2 ] || [ "$current" != "$head" ]; then
+            echo "::error::pre-squash chain ended at '$current', expected a1c3e5f7b9d2"
+            exit 1
+          fi
+
+      - name: Compare pre-squash and baseline PostgreSQL schemas
+        if: steps.baseline.outputs.compare == 'true'
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$POSTGRES_CONTAINER" pg_dump -U tripl --schema-only --no-owner --no-privileges --restrict-key=triplcischemacompare2026 --exclude-table=public.alembic_version tripl_legacy > "$RUNNER_TEMP/legacy-schema.sql"
+          docker exec "$POSTGRES_CONTAINER" pg_dump -U tripl --schema-only --no-owner --no-privileges --restrict-key=triplcischemacompare2026 --exclude-table=public.alembic_version tripl > "$RUNNER_TEMP/baseline-schema.sql"
+          # pg_dump can print the same varchar[] CHECK ANY expression with a
+          # whole-array text[] cast or per-element text casts after restore.
+          # The helper normalizes only that exact expression; all other DDL
+          # and every constraint value/name still receive a strict comparison.
+          if ! uv run python ../bin/compare-migration-schema.py "$RUNNER_TEMP/legacy-schema.sql" "$RUNNER_TEMP/baseline-schema.sql"; then
+            echo "::error::baseline schema differs from the pre-squash migration chain"
+            exit 1
+          fi
+          expected='00000000-0000-0000-0000-00000000d0f1|default|Default organization'
+          for database in tripl_legacy tripl; do
+            actual=$(docker exec "$POSTGRES_CONTAINER" psql -U tripl -d "$database" -Atc "SELECT id, slug, name FROM organizations ORDER BY id")
+            if [ "$actual" != "$expected" ]; then
+              echo "::error::$database default organization seed differs from the pre-squash chain"
+              exit 1
+            fi
+          done
+
       - name: Downgrade to base and prove nothing is left behind
-        # The whole chain, unwound. This leg was retreated to `downgrade -1` when
-        # the first run of this job found it could not complete (tripl-eyrs).
-        # That is fixed, so the strong leg is back.
-        #
-        # Worth recording HOW the defect was missed, because the same reasoning
-        # will be tempting again: every downgrade in the tree was read first, and
-        # each one is self-consistent — nothing raises, and every object a
-        # downgrade drops is created by its own upgrade. `d4f5e6a7b8c9` is a
-        # REPAIR whose upgrade adds constraints only `IF NOT EXISTS`, so on a
-        # chain-ordered database it creates nothing, while its downgrade dropped
-        # two constraints belonging to `4e5f60718293` — which then failed
-        # dropping what was already gone. That is cross-revision, so reading
-        # files in isolation cannot see it. Only executing the chain can, which
-        # is the argument for this job existing at all.
+        # Unwind the current chain (the baseline alone, until later revisions).
+        # An apparently successful downgrade can leave tables or enum types
+        # behind, so both the revision marker and physical schema are checked.
         #
         # `alembic current` must print NOTHING at base; it exits 0 either way.
         # The two SQL checks catch the downgrade that drops its table and keeps

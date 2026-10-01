@@ -74,36 +74,3 @@ def test_alembic_env_accepts_percent_encoded_password() -> None:
     ):
         runpy.run_path(str(ALEMBIC_DIR / "env.py"))
     assert seen == [url]
-
-
-def test_schema_migration_changes_live_indexes() -> None:
-    migration = runpy.run_path(
-        str(ALEMBIC_DIR / "versions" / "e8b10c257258_align_model_indexes.py")
-    )
-    calls: list[tuple[str, str]] = []
-    operation = SimpleNamespace(
-        create_index=lambda name, *_args, **_kwargs: calls.append(("create", name)),
-        drop_index=lambda name, **_kwargs: calls.append(("drop", name)),
-        execute=lambda statement: calls.append(("sql", statement)),
-    )
-    upgrade = migration["upgrade"]
-    with patch.dict(upgrade.__globals__, {"op": operation}):
-        upgrade()
-    assert ("create", "ix_search_documents_branch_id") in calls
-    assert ("drop", "ix_metric_anomaly_scope_bucket") in calls
-    assert ("drop", "ix_coverage_metric_config_bucket") in calls
-    assert ("drop", "ix_metric_breakdown_anomaly_scope_bucket") in calls
-    assert ("drop", "ix_release_regression_scan_scope") in calls
-    assert ("drop", "ix_alert_pending_item_destination") in calls
-    assert ("drop", "ix_event_photo_comment_event") in calls
-    assert ("drop", "ix_variable_values_variable") in calls
-    assert any(
-        "RENAME TO ix_plan_branch_approvals_branch_id" in sql
-        for kind, sql in calls
-        if kind == "sql"
-    )
-    assert any(
-        "RENAME TO ix_plan_branch_reviewers_branch_id" in sql
-        for kind, sql in calls
-        if kind == "sql"
-    )

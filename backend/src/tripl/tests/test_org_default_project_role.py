@@ -11,7 +11,7 @@ Covered on every surface that answers "who reaches this project":
 the route gate and write gate over HTTP, ``member_project_ids``,
 ``members_among``, the sync notification fan-out, and the SSE ``still_member``
 check; then ``PATCH /orgs/{org}`` (validation, audit), the project-member API's
-``none`` role, and the migration's place in the chain.
+``none`` role.
 """
 
 from __future__ import annotations
@@ -34,7 +34,6 @@ from tripl.models.user import User
 from tripl.services import notification_service, project_access
 from tripl.tests._members import add_member_by_slug
 from tripl.tests.conftest import TestSessionLocal
-from tripl.tests.test_alembic_revisions import _load_migration
 from tripl.tests.test_org_roles_matrix import (
     People,
     _create_project,
@@ -42,12 +41,10 @@ from tripl.tests.test_org_roles_matrix import (
     _set_org_role,
     _user,
 )
-from tripl.tests.test_organizations_migration_pg import LATER_MIGRATIONS
 
 API = "/api/v1"
 ORG_URL = f"{API}/orgs/default"
 SLUG = "roleplay"
-MIGRATION = "d2f4a6c8e0b1_default_project_role.py"
 
 
 @pytest.fixture
@@ -333,13 +330,3 @@ async def test_members_api_sets_none_for_a_member_and_refuses_it_for_an_admin(
     # ``owner`` is no project member role.
     owner = await people["boss"].patch(f"{members_url}/{people.ids['ada']}", json={"role": "owner"})
     assert owner.status_code == 422, owner.text
-
-
-# ── the migration ───────────────────────────────────────────────────────────
-
-
-def test_migration_is_in_the_later_migration_chain() -> None:
-    index = LATER_MIGRATIONS.index(MIGRATION)
-    migration = _load_migration("default_project_role_migration", MIGRATION)
-    assert migration.revision == "d2f4a6c8e0b1"
-    assert migration.down_revision == LATER_MIGRATIONS[index + 1].split("_", 1)[0]

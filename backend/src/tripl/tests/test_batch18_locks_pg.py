@@ -35,9 +35,9 @@ from tripl.models.organization import DEFAULT_ORG_ID, OrganizationMember
 from tripl.models.user import User
 from tripl.schemas.auth import RegisterRequest
 from tripl.services import auth_service, metric_definition_service
+from tripl.tests._pg_url import asyncpg_url
 from tripl.tests.test_alert_digest_concurrency_pg import _engine_or_skip
 from tripl.tests.test_batch18_merge_races_pg import _SEARCH_CONFIGURATIONS
-from tripl.tests.test_repair_migration_pg import _asyncpg_url
 from tripl.worker.tasks.metrics.schedule import _METRIC_DEFINITION_DISPATCH_ADVISORY_LOCK_KEY
 
 # Long enough that a call which is NOT blocked has finished by then on any CI
@@ -66,7 +66,7 @@ async def pg_sessions() -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     with sync_engine.begin() as connection:
         connection.execute(text(_SEARCH_CONFIGURATIONS))
     async_engine = create_async_engine(
-        _asyncpg_url(), connect_args={"server_settings": {"application_name": _APPLICATION_NAME}}
+        asyncpg_url(), connect_args={"server_settings": {"application_name": _APPLICATION_NAME}}
     )
     try:
         yield async_sessionmaker(async_engine, expire_on_commit=False)

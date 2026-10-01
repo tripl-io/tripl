@@ -122,8 +122,8 @@ async def test_the_drift_door_busts_mains_event_type_cache_and_only_mains(
 
     * Phase 1 reddens on restoring ``if event_type.branch_id is None:`` in
       ``schema_drift_service.apply_drift_action``. That condition is
-      UNREACHABLE — ``event_types.branch_id`` has been NOT NULL since
-      4e5f60718293 — so the bust never happens and
+      UNREACHABLE — ``event_types.branch_id`` is NOT NULL in the current
+      schema — so the bust never happens and
       ``assert cache.prefix_event_types(project_id) in dropped`` fails.
     * Phase 2 reddens on deleting the ``branch is not None and branch.kind ==
       BranchKind.main.value`` guard and busting unconditionally, which is the

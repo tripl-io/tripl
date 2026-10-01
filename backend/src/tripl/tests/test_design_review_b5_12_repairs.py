@@ -7,13 +7,9 @@ backfill refusing to read meaning out of a look-alike free-text summary.
 
 from __future__ import annotations
 
-import importlib.util
 import uuid
-from pathlib import Path
-from typing import Any
 
 import pytest
-import sqlalchemy as sa
 from httpx import AsyncClient
 from sqlalchemy import select
 
@@ -173,81 +169,3 @@ async def test_deleting_a_metric_drops_it_from_rule_filters(client: AsyncClient)
 # --------------------------------------------------------------------------- #
 # PL-21 migration backfill: ``kind = 'merge'`` only through a merged branch
 # --------------------------------------------------------------------------- #
-
-
-def _kind_migration() -> Any:
-    path = (
-        Path(__file__).resolve().parents[3]
-        / "alembic"
-        / "versions"
-        / "e2b9f4c7a1d6_plan_revision_kind_and_branch.py"
-    )
-    spec = importlib.util.spec_from_file_location("plan_revision_kind_migration", path)
-    assert spec is not None and spec.loader is not None
-    migration = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(migration)
-    return migration
-
-
-def test_merge_backfill_ignores_a_user_snapshot_that_only_reads_like_a_merge() -> None:
-    migration = _kind_migration()
-    engine = sa.create_engine("sqlite://")
-    project, other_project = "p1", "p2"
-    with engine.begin() as conn:
-        conn.execute(
-            sa.text(
-                "CREATE TABLE plan_branches (id TEXT PRIMARY KEY, project_id TEXT,"
-                " name TEXT, kind TEXT, status TEXT, base_revision_id TEXT)"
-            )
-        )
-        conn.execute(
-            sa.text(
-                "CREATE TABLE plan_revisions (id TEXT PRIMARY KEY, project_id TEXT,"
-                " summary TEXT, kind TEXT NOT NULL DEFAULT 'snapshot', branch_id TEXT)"
-            )
-        )
-        conn.execute(
-            sa.text(
-                "INSERT INTO plan_revisions (id, project_id, summary) VALUES"
-                " ('base', :p, 'Base snapshot for branch ''feature'''),"
-                " ('merge', :p, 'Merged branch ''feature'''),"
-                # A user's own snapshot, quoting a branch that never existed.
-                " ('lookalike', :p, 'Merged branch ''imaginary'''),"
-                # Quotes a branch that is still open, not merged.
-                " ('open', :p, 'Merged branch ''draft'''),"
-                # Quotes a merged branch, but of ANOTHER project.
-                " ('foreign', :p, 'Merged branch ''elsewhere'''),"
-                # Quotes main, which is stored as merged but is never merged.
-                " ('main', :p, 'Merged branch ''main'''),"
-                " ('plain', :p, 'Weekly snapshot')"
-            ),
-            {"p": project},
-        )
-        conn.execute(
-            sa.text(
-                "INSERT INTO plan_branches (id, project_id, name, kind, status, base_revision_id)"
-                " VALUES ('b-feature', :p, 'feature', 'working', 'merged', 'base'),"
-                " ('b-draft', :p, 'draft', 'working', 'open', NULL),"
-                " ('b-main', :p, 'main', 'main', 'merged', NULL),"
-                " ('b-elsewhere', :o, 'elsewhere', 'working', 'merged', NULL)"
-            ),
-            {"p": project, "o": other_project},
-        )
-
-        conn.execute(sa.text(migration.BACKFILL_BRANCH_BASE))
-        conn.execute(sa.text(migration.BACKFILL_MERGE))
-
-        rows = {
-            row.id: (row.kind, row.branch_id)
-            for row in conn.execute(sa.text("SELECT id, kind, branch_id FROM plan_revisions"))
-        }
-
-    assert rows == {
-        "base": ("branch_base", "b-feature"),
-        "merge": ("merge", "b-feature"),
-        "lookalike": ("snapshot", None),
-        "open": ("snapshot", None),
-        "foreign": ("snapshot", None),
-        "main": ("snapshot", None),
-        "plain": ("snapshot", None),
-    }
