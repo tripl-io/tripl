@@ -316,7 +316,7 @@ jobs:
       postgres:
         # THE image the compose stack runs, and the same one the alembic round trip
         # uses — for the same reason: the harness migrates a real database to head, and
-        # The baseline creates the vector extension, which stock postgres cannot
+        # the baseline creates the vector extension, which stock postgres cannot
         # satisfy. Pinned by digest: a gate whose database can change underneath it is
         # not a gate.
         image: pgvector/pgvector:0.8.2-pg18-trixie@sha256:b7337db8fe39d12fe8ecb0003c72680f24479813a744b43154eee6f2eab5a5f3
