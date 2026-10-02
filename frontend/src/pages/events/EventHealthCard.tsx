@@ -17,20 +17,25 @@ import { eventHealthKey } from '@/lib/queryKeys'
  *
  * Health is about the MAIN plan: on a branch the card is not rendered, and an
  * event outside the scored population (archived, or a branch row) answers 404,
- * which renders nothing too. Silent on failure, and nothing while it loads: the
- * card sits below the page's own content.
+ * which renders nothing too. An archived event is known before asking, so it is
+ * not asked about: the 404 was a red line in every archived event's console.
+ * Silent on failure, and nothing while it loads: the card sits below the page's
+ * own content.
  */
 export function EventHealthCard({
   slug,
   eventId,
+  status,
   className,
 }: {
   slug: string
   eventId: string
+  /** The event's status, once known: an archived event is never scored. */
+  status?: string
   className?: string
 }) {
   const branchId = useActiveBranchId()
-  const onMain = !branchId
+  const onMain = !branchId && status !== undefined && status !== 'archived'
   const { data } = useQuery({
     queryKey: eventHealthKey(slug, eventId),
     queryFn: ({ signal }) => healthApi.event(slug, eventId, signal),
