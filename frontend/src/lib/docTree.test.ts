@@ -6,6 +6,8 @@ import {
   docMatchScore,
   docPathFromSplat,
   docRoute,
+  dropPath,
+  folderHoldsOnly,
   folderOf,
   fuzzyScore,
   isUnder,
@@ -57,6 +59,31 @@ describe('path helpers', () => {
     expect(docRoute('demo', 'organization', 'a b/c#1.md')).toBe('/p/demo/docs/organization/a%20b/c%231.md')
     expect(docPathFromSplat('guides/setup.md/')).toBe('guides/setup.md')
     expect(docPathFromSplat(undefined)).toBe('')
+  })
+
+  it('computes where a dropped note or folder lands', () => {
+    expect(dropPath('a/b/c.md', false, 'x/')).toBe('x/c.md')
+    expect(dropPath('a/b/c.md', false, '')).toBe('c.md')
+    expect(dropPath('a/b/', true, 'x/')).toBe('x/b/')
+    expect(dropPath('a/b/', true, '')).toBe('b/')
+  })
+
+  it('refuses a drop that moves nothing or nests a folder in itself', () => {
+    expect(dropPath('a/c.md', false, 'A/')).toBeNull()
+    expect(dropPath('a/b/', true, 'a/')).toBeNull()
+    expect(dropPath('a/b/', true, 'a/b/')).toBeNull()
+    expect(dropPath('a/b/', true, 'a/b/deep/')).toBeNull()
+    expect(dropPath('a/b/', true, 'a/bc/')).toBe('a/bc/b/')
+  })
+
+  it('tells whether a folder holds exactly the notes a drop moved', () => {
+    const docs = [doc('x/b/one.md'), doc('x/b/Two.md'), doc('x/bc/three.md')]
+    expect(folderHoldsOnly(docs, 'x/b/', ['x/b/one.md', 'x/b/two.md'])).toBe(true)
+    // A note that was already there, or landed since, blocks the undo.
+    expect(folderHoldsOnly(docs, 'x/b/', ['x/b/one.md'])).toBe(false)
+    // A moved note no longer there (moved again) blocks it too.
+    expect(folderHoldsOnly(docs, 'x/b/', ['x/b/one.md', 'x/b/two.md', 'x/b/gone.md'])).toBe(false)
+    expect(folderHoldsOnly(undefined, 'x/b/', [])).toBe(false)
   })
 })
 

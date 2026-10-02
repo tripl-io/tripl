@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DocScope, DocSummary, DocTreeResponse } from '@/types/docs'
 import { DocsTree, type FolderActions } from './DocsTree'
 
@@ -177,5 +177,114 @@ describe('DocsTree sharing (F24)', () => {
   it('hides folder sharing when the page does not wire it', () => {
     renderTree({ actions: actions() })
     expect(screen.queryByRole('button', { name: 'Share references/' })).toBeNull()
+  })
+})
+
+describe('DocsTree drag and drop', () => {
+  // jsdom lays nothing out: give the drop targets boxes, nested like the real
+  // tree (the project root holds `references/`, which holds `deep/`), and drive
+  // dnd-kit's pointer sensor with coordinates.
+  function layout() {
+    const box = (el: Element, top: number, height: number) =>
+      vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+        x: 0, y: top, top, left: 0, width: 200, height, right: 200, bottom: top + height, toJSON: () => ({}),
+      } as DOMRect)
+    box(projectRoot(), 0, 400)
+    box(folder(/^references/).closest('li')!, 40, 200)
+    box(folder(/^deep/).closest('li')!, 80, 60)
+    box(screen.getByRole('region', { name: /Organization notes/ }), 500, 100)
+  }
+
+  async function drag(source: Element, to: { x: number; y: number }) {
+    fireEvent.pointerDown(source, { clientX: 5, clientY: 5, button: 0, isPrimary: true })
+    fireEvent.pointerMove(document, { clientX: to.x, clientY: to.y })
+    fireEvent.pointerMove(document, { clientX: to.x + 1, clientY: to.y + 1 })
+    fireEvent.pointerUp(document, { clientX: to.x + 1, clientY: to.y + 1 })
+    // The drag overlay settles on the next frame.
+    await act(() => new Promise(resolve => setTimeout(resolve, 20)))
+  }
+
+  it('moves a note into the innermost folder under the pointer', async () => {
+    const onDropMove = vi.fn()
+    renderTree({ actions: { ...actions(), onDropMove } })
+    layout()
+    await drag(within(projectRoot()).getByRole('link', { name: 'Checkout skill' }), { x: 50, y: 100 })
+    expect(onDropMove).toHaveBeenCalledWith({ scope: 'project', from: 'SKILL.md', to: 'references/deep/SKILL.md', folder: false })
+  })
+
+  it('moves a folder to the top level', async () => {
+    const onDropMove = vi.fn()
+    renderTree({ actions: { ...actions(), onDropMove } })
+    layout()
+    await drag(folder(/^deep/), { x: 50, y: 300 })
+    expect(onDropMove).toHaveBeenCalledWith({ scope: 'project', from: 'references/deep/', to: 'deep/', folder: true })
+  })
+
+  it('ignores a drop into another scope, into itself, or where the item already is', async () => {
+    const onDropMove = vi.fn()
+    renderTree({ actions: { ...actions(), onDropMove } })
+    layout()
+    await drag(within(projectRoot()).getByRole('link', { name: 'Checkout skill' }), { x: 50, y: 550 })
+    await drag(folder(/^references/), { x: 50, y: 100 })
+    await drag(within(projectRoot()).getByRole('link', { name: 'Event query recipes' }), { x: 50, y: 50 })
+    expect(onDropMove).not.toHaveBeenCalled()
+  })
+
+  it('does not drag for a scope the viewer cannot edit', async () => {
+    const onDropMove = vi.fn()
+    renderTree({ actions: { ...actions(scope => scope === 'organization'), onDropMove } })
+    layout()
+    await drag(within(projectRoot()).getByRole('link', { name: 'Checkout skill' }), { x: 50, y: 100 })
+    expect(onDropMove).not.toHaveBeenCalled()
+  })
+
+  describe('opening a collapsed folder on hover', () => {
+    afterEach(() => vi.useRealTimers())
+
+    function hoverOverReferences() {
+      fireEvent.click(folder(/^references/))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'false')
+      const box = (el: Element, top: number, height: number) =>
+        vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+          x: 0, y: top, top, left: 0, width: 200, height, right: 200, bottom: top + height, toJSON: () => ({}),
+        } as DOMRect)
+      box(projectRoot(), 0, 400)
+      box(folder(/^references/).closest('li')!, 40, 30)
+      // Only the timeouts: dnd-kit's overlay keeps animating on real frames.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      fireEvent.pointerDown(within(projectRoot()).getByRole('link', { name: 'Checkout skill' }), { clientX: 5, clientY: 5, button: 0, isPrimary: true })
+      fireEvent.pointerMove(document, { clientX: 50, clientY: 50 })
+      fireEvent.pointerMove(document, { clientX: 51, clientY: 51 })
+    }
+
+    it('opens after 600 ms over it', async () => {
+      renderTree({ actions: { ...actions(), onDropMove: vi.fn() } })
+      hoverOverReferences()
+      act(() => vi.advanceTimersByTime(599))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'false')
+      act(() => vi.advanceTimersByTime(1))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.pointerUp(document, { clientX: 50, clientY: 300 })
+      // dnd-kit swallows the click right after a drag and lifts that guard on
+      // a timeout; flush it, or it eats the next test's first click.
+      act(() => vi.runOnlyPendingTimers())
+      vi.useRealTimers()
+      await act(() => new Promise(resolve => setTimeout(resolve, 20)))
+    })
+
+    it('stays closed when the drag leaves or is dropped first', async () => {
+      renderTree({ actions: { ...actions(), onDropMove: vi.fn() } })
+      hoverOverReferences()
+      act(() => vi.advanceTimersByTime(300))
+      fireEvent.pointerMove(document, { clientX: 50, clientY: 300 })
+      act(() => vi.advanceTimersByTime(1000))
+      expect(folder(/^references/)).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.pointerUp(document, { clientX: 50, clientY: 300 })
+      // dnd-kit swallows the click right after a drag and lifts that guard on
+      // a timeout; flush it, or it eats the next test's first click.
+      act(() => vi.runOnlyPendingTimers())
+      vi.useRealTimers()
+      await act(() => new Promise(resolve => setTimeout(resolve, 20)))
+    })
   })
 })

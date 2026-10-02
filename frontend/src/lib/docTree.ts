@@ -96,6 +96,31 @@ export function isUnder(path: string, prefix: string): boolean {
   return prefix === '' || path.toLowerCase().startsWith(prefix.toLowerCase())
 }
 
+/**
+ * Where a note or folder lands when dropped on the folder `target` (`''` is
+ * the scope root): the target plus the dragged item's own name. `null` when
+ * the drop moves nothing (its own folder) or cannot happen (a folder onto
+ * itself or one of its subfolders).
+ */
+export function dropPath(from: string, folder: boolean, target: string): string | null {
+  const name = folder ? `${baseName(from.slice(0, -1))}/` : baseName(from)
+  const to = `${target}${name}`
+  if (to.toLowerCase() === from.toLowerCase()) return null
+  if (folder && target !== '' && target.toLowerCase().startsWith(from.toLowerCase())) return null
+  return to
+}
+
+/**
+ * Whether the notes under `prefix` are exactly `paths` (case-insensitive);
+ * false with no notes to look at. Undoing a folder drop is only safe then.
+ */
+export function folderHoldsOnly(docs: readonly { path: string }[] | undefined, prefix: string, paths: readonly string[]): boolean {
+  if (!docs) return false
+  const under = docs.filter(doc => isUnder(doc.path, prefix)).map(doc => doc.path.toLowerCase())
+  const expected = new Set(paths.map(path => path.toLowerCase()))
+  return under.length === expected.size && under.every(path => expected.has(path))
+}
+
 /** The in-app address of a note; each segment is encoded, slashes kept. */
 export function docRoute(slug: string, scope: DocScope, path: string): string {
   const encoded = path.split('/').map(encodeURIComponent).join('/')
