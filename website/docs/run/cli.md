@@ -2516,8 +2516,9 @@ shape with `kind: "doc"`, and each item is the API's `DocSummary` as sent.
 
 ```
 usage: tripl docs cat [-h] [--url URL] [--api-key KEY] [--config PATH]
-                      [--project SLUG] [--scope {project,organization}]
-                      [--json] [--timeout SECONDS]
+                      [--lang <code>] [--project SLUG]
+                      [--scope {project,organization}] [--json]
+                      [--timeout SECONDS]
                       <path>
 ```
 
@@ -2526,8 +2527,13 @@ usage: tripl docs cat [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `<path>` | The note's path, e.g. `guides/setup.md`. |
 | `--project SLUG` | **Required**, exactly once. |
 | `--scope SCOPE` | `project` or `organization`, default `project`. |
+| `--lang CODE` | A stored translation to print (e.g. `en`), or `original`. Without it, the project's language for agents when that translation is up to date, else the original. |
 | `--json` | One JSON document on stdout, every human line on stderr. |
 | `--timeout SECONDS` | Per-request timeout, default `10.0`, range 0.1–600. |
+
+When the language printed is not the one asked for (no translation, one still
+being made or failed, or one behind the original), a `note:` line on stderr
+says so. See [Translations](../use/docs-catalog.md#translations).
 
 Prints the note **exactly as stored**, frontmatter included, and nothing else on
 stdout: no header and no added newline. `tripl docs cat x.md > x.md` therefore

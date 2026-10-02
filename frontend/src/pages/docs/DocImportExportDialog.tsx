@@ -262,6 +262,8 @@ function ImportPreview({ result }: { result: DocImportResult }) {
     { label: 'Update', paths: result.updated },
     { label: 'Delete', paths: result.deleted, tone: 'text-danger' },
     { label: 'Unchanged', paths: result.unchanged },
+    { label: 'Translation', paths: result.translations ?? [] },
+    { label: 'Delete translation', paths: result.translations_deleted ?? [], tone: 'text-danger' },
     { label: 'Skipped', paths: result.skipped.map(s => `${s.path} — ${s.reason}`) },
     { label: 'Error', paths: result.errors.map(e => `${e.path} — ${e.detail}`), tone: 'text-danger' },
   ]

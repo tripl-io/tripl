@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { AlertTriangle, Copy, FileText, FolderInput, History, Lock, Pencil, Share2, Trash2, Users } from 'lucide-react'
@@ -27,6 +28,7 @@ export function DocView({
   onMove,
   onDelete,
   onShare,
+  languages,
 }: {
   slug: string
   doc: DocFileResponse
@@ -37,6 +39,8 @@ export function DocView({
   onDelete: () => void
   /** Opens the Share dialog (F24); anyone who reads the note sees who else can. */
   onShare?: () => void
+  /** The language row and its notice (translations), under the header. */
+  languages?: ReactNode
 }) {
   const { copy } = useCopyToClipboard()
   const unresolved = doc.links.filter(link => link.status !== 'resolved')
@@ -113,6 +117,8 @@ export function DocView({
         </div>
         {doc.description && <p className="m-0 text-body text-fg-secondary">{doc.description}</p>}
       </header>
+
+      {languages}
 
       {doc.break_glass && <BreakGlassBanner />}
 

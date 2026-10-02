@@ -40,6 +40,8 @@ from tripl.schemas.docs import (
     DocImportMode,
     DocImportRequest,
     DocImportResult,
+    DocLanguageDefaults,
+    DocLanguageDefaultsUpdate,
     DocLinkKind,
     DocLinkResolution,
     DocLinkSuggestionsResponse,
@@ -51,12 +53,24 @@ from tripl.schemas.docs import (
     DocSearchResponse,
     DocSharingResponse,
     DocSharingUpdate,
+    DocTranslateRequest,
+    DocTranslationRevisionDetail,
+    DocTranslationRevisionSummary,
+    DocTranslationSummary,
+    DocTranslationWrite,
     DocTreeResponse,
     DocWriteRequest,
     DocWriteResponse,
 )
 from tripl.schemas.text_filters import FreeTextFilter
-from tripl.services import docs_bundle, docs_revisions, docs_search, docs_service, docs_sharing
+from tripl.services import (
+    docs_bundle,
+    docs_revisions,
+    docs_search,
+    docs_service,
+    docs_sharing,
+    docs_translations,
+)
 from tripl.services.docs_access import DocCaller
 from tripl.services.docs_link_suggestions import MAX_SUGGESTIONS
 from tripl.services.docs_paths import MAX_ZIP_UPLOAD_BYTES, DocScope
@@ -70,6 +84,20 @@ PathQuery = Annotated[
     str, Query(min_length=1, max_length=1024, description="The note's path, e.g. guides/setup.md")
 ]
 FolderQuery = Annotated[str, Query(min_length=1, max_length=1024, description="A folder prefix.")]
+LangQuery = Annotated[
+    str, Query(min_length=1, max_length=64, description="A translation's language, e.g. en")
+]
+LangReadQuery = Annotated[
+    str | None,
+    Query(
+        max_length=64,
+        description=(
+            "Which language to read: a code such as `en` for that stored translation, "
+            "`original` for the original, or nothing for the project's agent default "
+            "(the original when that translation is missing or behind it)."
+        ),
+    ),
+]
 MAX_LINK_REFS = 200
 
 
@@ -92,8 +120,11 @@ async def read_doc(
     scope: ScopeQuery,
     path: PathQuery,
     current_user: CurrentUserDep,
+    lang: LangReadQuery = None,
 ) -> DocFileResponse:
-    return await docs_service.read_file(session, slug, scope, path, _caller(request, current_user))
+    return await docs_service.read_file(
+        session, slug, scope, path, _caller(request, current_user), lang=lang
+    )
 
 
 @router.get("/file/sharing", response_model=DocSharingResponse)
@@ -415,4 +446,128 @@ async def import_docs_zip(
         mode=mode,
         dry_run=dry_run,
         caller=_caller(request, current_user),
+    )
+
+
+# ── Translations ──────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/translations",
+    response_model=DocTranslationSummary,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def translate_doc(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    body: DocTranslateRequest,
+    current_user: EditorUserDep,
+) -> DocTranslationSummary:
+    """Translate the note with the organization's AI model, once; the text is stored.
+
+    ``language`` is a code or a name ("German", "немецкий"). The run happens in
+    the background: the answer is ``pending``, and the note's ``translations``
+    say when it is ``ready`` or ``failed``. A translation someone has edited is
+    only replaced with ``overwrite`` (409 ``translation_edited`` otherwise).
+    """
+    return await docs_translations.request_translation(
+        session, slug, body, _caller(request, current_user)
+    )
+
+
+@router.put("/translations", response_model=DocTranslationSummary)
+async def write_doc_translation(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    body: DocTranslationWrite,
+    current_user: EditorUserDep,
+) -> DocTranslationSummary:
+    """Save a translation's text by hand (creates it when the note has none in ``lang``)."""
+    return await docs_translations.write_translation(
+        session, slug, body, _caller(request, current_user)
+    )
+
+
+@router.delete("/translations", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_doc_translation(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    scope: ScopeQuery,
+    path: PathQuery,
+    lang: LangQuery,
+    current_user: EditorUserDep,
+) -> Response:
+    await docs_translations.delete_translation(
+        session, slug, scope, path, lang, _caller(request, current_user)
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/translations/revisions", response_model=list[DocTranslationRevisionSummary])
+async def list_doc_translation_revisions(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    scope: ScopeQuery,
+    path: PathQuery,
+    lang: LangQuery,
+    current_user: CurrentUserDep,
+) -> list[DocTranslationRevisionSummary]:
+    return await docs_translations.list_revisions(
+        session, slug, scope, path, lang, _caller(request, current_user)
+    )
+
+
+@router.get("/translations/revisions/{revision_id}", response_model=DocTranslationRevisionDetail)
+async def get_doc_translation_revision(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    revision_id: uuid.UUID,
+    scope: ScopeQuery,
+    path: PathQuery,
+    current_user: CurrentUserDep,
+) -> DocTranslationRevisionDetail:
+    return await docs_translations.get_revision(
+        session, slug, scope, path, revision_id, _caller(request, current_user)
+    )
+
+
+@router.post("/translations/revisions/{revision_id}/restore", response_model=DocTranslationSummary)
+async def restore_doc_translation_revision(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    revision_id: uuid.UUID,
+    scope: ScopeQuery,
+    path: PathQuery,
+    current_user: EditorUserDep,
+) -> DocTranslationSummary:
+    return await docs_translations.restore_revision(
+        session, slug, scope, path, revision_id, _caller(request, current_user)
+    )
+
+
+@router.get("/languages", response_model=DocLanguageDefaults)
+async def get_doc_languages(
+    session: SessionDep, slug: str, current_user: CurrentUserDep
+) -> DocLanguageDefaults:
+    """The project's default languages: what agents get, and what the app opens for people."""
+    return await docs_translations.get_language_defaults(session, slug)
+
+
+@router.put("/languages", response_model=DocLanguageDefaults)
+async def update_doc_languages(
+    request: Request,
+    session: SessionDep,
+    slug: str,
+    body: DocLanguageDefaultsUpdate,
+    current_user: EditorUserDep,
+) -> DocLanguageDefaults:
+    """Set both defaults: a code or a name each, empty or null for the original."""
+    return await docs_translations.update_language_defaults(
+        session, slug, body, _caller(request, current_user)
     )

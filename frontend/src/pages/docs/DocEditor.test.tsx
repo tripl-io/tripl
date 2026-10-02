@@ -41,7 +41,7 @@ vi.mock('./docLinkEditorExtension', async importOriginal => ({
 }))
 
 vi.mock('@/api/docs', () => ({
-  docsApi: { write: vi.fn(), read: vi.fn(), links: vi.fn(), linkSuggestions: vi.fn() },
+  docsApi: { write: vi.fn(), writeTranslation: vi.fn(), read: vi.fn(), links: vi.fn(), linkSuggestions: vi.fn() },
 }))
 
 import { docsApi } from '@/api/docs'
@@ -97,6 +97,7 @@ function type(text: string) {
 describe('DocEditor (F22)', () => {
   beforeEach(() => {
     vi.mocked(docsApi.write).mockReset()
+    vi.mocked(docsApi.writeTranslation).mockReset()
     vi.mocked(docsApi.read).mockReset()
     vi.mocked(docsApi.links).mockReset()
     vi.mocked(docsApi.links).mockResolvedValue([])
@@ -131,6 +132,47 @@ describe('DocEditor (F22)', () => {
 
     await waitFor(() => expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ revision: 6 })))
     expect(vi.mocked(docsApi.write).mock.calls[1]?.[3]).toEqual({ content: 'mine', base_revision: 5, message: '' })
+  })
+
+  it('edits a translation: saves it against its own revision, without a message', async () => {
+    vi.mocked(docsApi.writeTranslation)
+      .mockRejectedValueOnce(new ApiError('The translation changed concurrently', 409))
+      .mockResolvedValueOnce({ lang: 'de', revision: 5 } as never)
+    vi.mocked(docsApi.read).mockResolvedValue(
+      doc({ revision: 9, lang: 'de', content: 'theirs', translations: [{ lang: 'de', revision: 4 } as never] }),
+    )
+    const onDone = vi.fn()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <DocEditor
+            slug="demo"
+            doc={doc({ lang: 'de', content: '# Einrichtung\n' })}
+            maxBytes={262144}
+            onDone={onDone}
+            translation={{ lang: 'de', revision: 2 }}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(screen.getByRole('heading', { name: /Editing the German translation of/ })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Revision message')).toBeNull()
+    type('mine')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('heading', { name: 'This translation changed while you were editing' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Overwrite with mine' }))
+
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(null))
+    expect(docsApi.read).toHaveBeenCalledWith('demo', 'project', 'guides/setup.md', 'de')
+    expect(vi.mocked(docsApi.writeTranslation).mock.calls[1]?.[1]).toEqual({
+      scope: 'project',
+      path: 'guides/setup.md',
+      lang: 'de',
+      content: 'mine',
+      base_revision: 4,
+    })
+    expect(docsApi.write).not.toHaveBeenCalled()
   })
 
   it('ignores Ctrl+S while the conflict dialog asks for a choice', async () => {

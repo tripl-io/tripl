@@ -118,6 +118,11 @@ DOC_READ_FIELDS = (
     "my_permission",
     # True on an org owner/admin's audited break-glass read of a hidden note.
     "break_glass",
+    "lang",
+    "requested_lang",
+    "translation_fallback",
+    "translation_outdated",
+    "translations",
     "extra_frontmatter",
     "links",
     "content",

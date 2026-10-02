@@ -53,14 +53,14 @@ describe('docsApi JSON requests', () => {
 
   it('reads, writes and deletes a file by scope and path', async () => {
     const spy = stubFetch(() => jsonResponse({}))
-    await docsApi.read('demo', 'organization', 'a b/c.md')
+    await docsApi.read('demo', 'organization', 'a b/c.md', 'de')
     await docsApi.write('demo', 'project', 'c.md', { content: '# C', base_revision: 2 })
     await docsApi.remove('demo', 'project', 'c.md')
     await docsApi.removeFolder('demo', 'organization', 'guides/')
 
     const read = call(spy, 0)
     expect(read.url.pathname).toBe('/api/v1/projects/demo/docs/file')
-    expect(Object.fromEntries(read.url.searchParams)).toEqual({ scope: 'organization', path: 'a b/c.md' })
+    expect(Object.fromEntries(read.url.searchParams)).toEqual({ scope: 'organization', path: 'a b/c.md', lang: 'de' })
 
     const write = call(spy, 1)
     expect(write.init.method).toBe('PUT')

@@ -198,7 +198,7 @@ and not by the tool schema.
 | `reconciliation_status` | `slug` | Reconciliation coverage + dead/shadow event counts |
 | `list_projects` | — | `GET /api/v1/projects` |
 | `list_docs` | `slug, scope?, audience?` | `GET /projects/{slug}/docs` — both roots unless `scope` narrows it; **trimmed** rows without content. A note marked `both` matches either `audience` |
-| `read_doc` | `slug, scope, path` | `GET /projects/{slug}/docs/file` — raw Markdown with frontmatter, parsed fields, revision, and every `[[link]]` with its status on the main plan |
+| `read_doc` | `slug, scope, path, lang?` | `GET /projects/{slug}/docs/file` — raw Markdown with frontmatter, parsed fields, revision, and every `[[link]]` with its status on the main plan. Without `lang`, the project's agent language when that translation is up to date, else the original; `lang` names a stored translation or `original` ([Translations](../use/docs-catalog.md#translations)) |
 | `search_docs` | `slug, q, scope?, limit?` | `GET /projects/{slug}/docs/search` — ranked, not paged; `limit` at most 50 |
 
 :::warning `list_scans` changed shape in 0.2.0

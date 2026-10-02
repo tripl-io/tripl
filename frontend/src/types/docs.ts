@@ -101,6 +101,8 @@ export interface DocTreeResponse {
   project_docs: DocSummary[]
   organization_docs: DocSummary[]
   limits: DocTreeLimits
+  /** Optional: an older server leaves it out. */
+  language_defaults?: DocLanguageDefaults
 }
 
 export interface DocLinkRef {
@@ -182,6 +184,75 @@ export interface DocFileResponse extends DocSummary {
    * an audited break-glass read (`doc.break_glass_read`) that never grants editing.
    */
   break_glass?: boolean
+  /**
+   * Translations. `lang` is the language served (null: the original); the
+   * content, body, title, description and links are then the translation's,
+   * and `revision` stays the original's. `requested_lang` is what the read
+   * asked for (or the project's agent default), `translation_fallback` why it
+   * got the original instead. Optional: a write response may leave them out.
+   */
+  lang?: string | null
+  requested_lang?: string | null
+  translation_fallback?: DocTranslationFallback | null
+  translation_outdated?: boolean
+  translations?: DocTranslationSummary[]
+  language_defaults?: DocLanguageDefaults
+}
+
+/** `pending` while the AI run is queued or running; `failed` with `error`. */
+export type DocTranslationStatus = 'pending' | 'ready' | 'failed'
+/** Why a read got the original rather than the language it asked for. */
+export type DocTranslationFallback = 'missing' | 'pending' | 'failed' | 'outdated'
+
+export interface DocTranslationSummary {
+  lang: string
+  status: DocTranslationStatus
+  /** Saves of the text; 0 while the first AI run has not landed. */
+  revision: number
+  /** The original's revision the text was made from. */
+  source_revision: number
+  outdated: boolean
+  /** True while the text is the model's as it came; a person's edit clears it. */
+  machine: boolean
+  error: string
+  updated_at: string
+  updated_by_name: string | null
+}
+
+/** The project's default languages (lowercase BCP 47); null: the original. */
+export interface DocLanguageDefaults {
+  agent_lang: string | null
+  human_lang: string | null
+}
+
+export interface DocTranslateRequest {
+  scope: DocScope
+  path: string
+  /** A code or a name in any language; the model turns a name into a code. */
+  language: string
+  overwrite?: boolean
+}
+
+export interface DocTranslationWrite {
+  scope: DocScope
+  path: string
+  lang: string
+  content: string
+  base_revision?: number | null
+  mark_current?: boolean
+}
+
+export interface DocTranslationRevisionSummary {
+  id: string
+  number: number
+  action: 'translate' | 'edit' | 'restore'
+  source_revision: number
+  author_name: string | null
+  created_at: string
+}
+
+export interface DocTranslationRevisionDetail extends DocTranslationRevisionSummary {
+  content: string
 }
 
 export interface DocWriteRequest {
@@ -278,6 +349,9 @@ export interface DocBundleFile {
   path: string
   content: string
   sha256: string | null
+  /** A stored translation (`<note>.<lang>.md`): the note it translates and its language. */
+  translation_of?: string | null
+  lang?: string | null
 }
 
 export interface DocBundle {
@@ -304,6 +378,9 @@ export interface DocImportResult {
   deleted: string[]
   skipped: { path: string; reason: string }[]
   errors: { path: string; detail: string }[]
+  /** Translation files written, and (mirror) translations removed. */
+  translations?: string[]
+  translations_deleted?: string[]
 }
 
 /** One share of a note or folder: a person or an organization group. */

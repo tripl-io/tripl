@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/client'
 import {
   useDeleteDoc,
+  TRANSLATION_POLL_MS,
+  translationPollInterval,
   useDeleteDocFolder,
   useDocFile,
   useDocRevision,
@@ -56,15 +58,25 @@ describe('docs queries', () => {
     expect(docsApi.tree).toHaveBeenCalledWith('demo', expect.anything())
   })
 
-  it('reads a file only with a scope and a path, and does not retry a failure', async () => {
+  it('reads a file only with a scope, a path and a language, and does not retry a failure', async () => {
     vi.mocked(docsApi.read).mockRejectedValue(new ApiError('Doc not found', 404))
     const { wrapper } = setup()
-    const idle = renderHook(() => useDocFile('demo', null, 'a.md'), { wrapper })
+    const idle = renderHook(() => useDocFile('demo', null, 'a.md', 'original'), { wrapper })
     expect(idle.result.current.fetchStatus).toBe('idle')
-    const { result } = renderHook(() => useDocFile('demo', 'organization', 'a.md'), { wrapper })
+    // The page does not know the language yet (the tree is loading): wait.
+    const waiting = renderHook(() => useDocFile('demo', 'organization', 'a.md', null), { wrapper })
+    expect(waiting.result.current.fetchStatus).toBe('idle')
+    const { result } = renderHook(() => useDocFile('demo', 'organization', 'a.md', 'de'), { wrapper })
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(docsApi.read).toHaveBeenCalledTimes(1)
-    expect(docsApi.read).toHaveBeenCalledWith('demo', 'organization', 'a.md', expect.anything())
+    expect(docsApi.read).toHaveBeenCalledWith('demo', 'organization', 'a.md', 'de', expect.anything())
+  })
+
+  it('re-reads the note only while one of its translations is being made', () => {
+    const doc = (status: string) => ({ translations: [{ lang: 'de', status }] }) as never
+    expect(translationPollInterval(doc('pending'))).toBe(TRANSLATION_POLL_MS)
+    expect(translationPollInterval(doc('ready'))).toBe(false)
+    expect(translationPollInterval(undefined)).toBe(false)
   })
 
   it('lists revisions only while enabled and reads one by id', async () => {

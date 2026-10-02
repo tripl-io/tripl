@@ -6269,6 +6269,24 @@
             }
           },
           {
+            "name": "property",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Property id or name: only events whose property list carries it.",
+              "title": "Property"
+            },
+            "description": "Property id or name: only events whose property list carries it."
+          },
+          {
             "name": "offset",
             "in": "query",
             "required": false,
@@ -7038,6 +7056,81 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/events/{event_id}/properties": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "List Event Properties",
+        "description": "The event's property list (F23). Edit an entry through\n``PUT /variables/{variable_id}/event-overrides/{event_id}``.",
+        "operationId": "list_event_properties_api_v1_projects__slug__events__event_id__properties_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventPropertyResponse"
+                  },
+                  "title": "Response List Event Properties Api V1 Projects  Slug  Events  Event Id  Properties Get"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -8344,6 +8437,1371 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/properties/bulk-update": {
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Bulk Update Variables  Properties",
+        "operationId": "bulk_update_variables__properties_api_v1_projects__slug__properties_bulk_update_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableBulkUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/bulk-delete": {
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Bulk Delete Variables  Properties",
+        "operationId": "bulk_delete_variables__properties_api_v1_projects__slug__properties_bulk_delete_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableBulkDelete"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/property-drifts": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Property Drifts  Properties",
+        "description": "New, missing-required and type-changed properties a scan saw (F23).",
+        "operationId": "list_property_drifts__properties_api_v1_projects__slug__properties_property_drifts_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PropertyDriftKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Active Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/property-drifts/{drift_id}/action": {
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Apply Property Drift Action  Properties",
+        "operationId": "apply_property_drift_action__properties_api_v1_projects__slug__properties_property_drifts__drift_id__action_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "drift_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drift Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyDriftActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/drifts": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Value Drifts  Properties",
+        "operationId": "list_value_drifts__properties_api_v1_projects__slug__properties_drifts_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableValueDriftListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/drifts/{drift_id}/action": {
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Apply Value Drift Action  Properties",
+        "operationId": "apply_value_drift_action__properties_api_v1_projects__slug__properties_drifts__drift_id__action_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "drift_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drift Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableValueDriftActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableValueDriftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Variables  Properties",
+        "operationId": "list_variables__properties_api_v1_projects__slug__properties_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "usage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "all",
+                "used",
+                "unused"
+              ],
+              "type": "string",
+              "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0).",
+              "default": "all",
+              "title": "Usage"
+            },
+            "description": "Narrow to the variables nothing refers to ('unused' \u2014 exactly the set the retirement sweep would take) or to their complement ('used'). Declared as an enum rather than a free string so an unknown value is a 422 and not a 500 (tripl-57g0)."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Create Variable  Properties",
+        "operationId": "create_variable__properties_api_v1_projects__slug__properties_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/values": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Variable Values  Properties",
+        "operationId": "list_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VariableValueContextResponse"
+                  },
+                  "title": "Response List Variable Values  Properties Api V1 Projects  Slug  Properties  Variable Id  Values Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Clear Variable Values  Properties",
+        "description": "Drop the variable's observed contexts and keep the variable.\n\nDeleting the variable was the only reset available and it takes the\ndescription, documented values, bindings, overrides and drift triage with\nit \u2014 none of which a scan rebuilds.",
+        "operationId": "clear_variable_values__properties_api_v1_projects__slug__properties__variable_id__values_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "context_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse \u2014 the same value /values already returns, so a client can scope the clear to a single (event, field).",
+              "title": "Context Id"
+            },
+            "description": "Clear one context row instead of all of them. The id is the `id` on VariableValueContextResponse \u2014 the same value /values already returns, so a client can scope the clear to a single (event, field)."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Event Overrides  Properties",
+        "operationId": "list_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VariableEventOverrideResponse"
+                  },
+                  "title": "Response List Event Overrides  Properties Api V1 Projects  Slug  Properties  Variable Id  Event Overrides Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/events": {
+      "get": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "List Property Events  Properties",
+        "description": "The events whose property list carries this property, with each entry's\nrequired flag, override and last measured presence (F23.8).",
+        "operationId": "list_property_events__properties_api_v1_projects__slug__properties__variable_id__events_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyEventResponse"
+                  },
+                  "title": "Response List Property Events  Properties Api V1 Projects  Slug  Properties  Variable Id  Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk": {
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Bulk Upsert Event Overrides  Properties",
+        "description": "Add the property to many events' lists, or apply one patch to each entry:\nthe single PUT's semantics, all or nothing (F23.8).",
+        "operationId": "bulk_upsert_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkUpsert"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/bulk-delete": {
+      "post": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Bulk Delete Event Overrides  Properties",
+        "description": "Take the property off many events' lists (F23.8). Events that do not\ncarry it are skipped, and the audit row names only the entries removed.",
+        "operationId": "bulk_delete_event_overrides__properties_api_v1_projects__slug__properties__variable_id__event_overrides_bulk_delete_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkDelete"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}/event-overrides/{event_id}": {
+      "put": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Upsert Event Override  Properties",
+        "operationId": "upsert_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableEventOverrideUpsert"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableEventOverrideResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Delete Event Override  Properties",
+        "operationId": "delete_event_override__properties_api_v1_projects__slug__properties__variable_id__event_overrides__event_id__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/properties/{variable_id}": {
+      "patch": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Update Variable  Properties",
+        "operationId": "update_variable__properties_api_v1_projects__slug__properties__variable_id__patch",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariableUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VariableResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "properties"
+        ],
+        "summary": "Delete Variable  Properties",
+        "operationId": "delete_variable__properties_api_v1_projects__slug__properties__variable_id__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/variables/bulk-update": {
       "post": {
         "tags": [
@@ -8351,6 +9809,7 @@
         ],
         "summary": "Bulk Update Variables",
         "operationId": "bulk_update_variables_api_v1_projects__slug__variables_bulk_update_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8414,6 +9873,7 @@
         ],
         "summary": "Bulk Delete Variables",
         "operationId": "bulk_delete_variables_api_v1_projects__slug__variables_bulk_delete_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8470,6 +9930,173 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/variables/property-drifts": {
+      "get": {
+        "tags": [
+          "variables"
+        ],
+        "summary": "List Property Drifts",
+        "description": "New, missing-required and type-changed properties a scan saw (F23).",
+        "operationId": "list_property_drifts_api_v1_projects__slug__variables_property_drifts_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PropertyDriftKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "active_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Active Only"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/variables/property-drifts/{drift_id}/action": {
+      "post": {
+        "tags": [
+          "variables"
+        ],
+        "summary": "Apply Property Drift Action",
+        "operationId": "apply_property_drift_action_api_v1_projects__slug__variables_property_drifts__drift_id__action_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "drift_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Drift Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyDriftActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyDriftResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/variables/drifts": {
       "get": {
         "tags": [
@@ -8477,6 +10104,7 @@
         ],
         "summary": "List Value Drifts",
         "operationId": "list_value_drifts_api_v1_projects__slug__variables_drifts_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8553,6 +10181,7 @@
         ],
         "summary": "Apply Value Drift Action",
         "operationId": "apply_value_drift_action_api_v1_projects__slug__variables_drifts__drift_id__action_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8615,6 +10244,7 @@
         ],
         "summary": "List Variables",
         "operationId": "list_variables_api_v1_projects__slug__variables_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8713,6 +10343,7 @@
         ],
         "summary": "Create Variable",
         "operationId": "create_variable_api_v1_projects__slug__variables_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8783,6 +10414,7 @@
         ],
         "summary": "List Variable Values",
         "operationId": "list_variable_values_api_v1_projects__slug__variables__variable_id__values_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8856,6 +10488,7 @@
         "summary": "Clear Variable Values",
         "description": "Drop the variable's observed contexts and keep the variable.\n\nDeleting the variable was the only reset available and it takes the\ndescription, documented values, bindings, overrides and drift triage with\nit \u2014 none of which a scan rebuilds.",
         "operationId": "clear_variable_values_api_v1_projects__slug__variables__variable_id__values_delete",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -8938,6 +10571,7 @@
         ],
         "summary": "List Event Overrides",
         "operationId": "list_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -9005,6 +10639,246 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/variables/{variable_id}/events": {
+      "get": {
+        "tags": [
+          "variables"
+        ],
+        "summary": "List Property Events",
+        "description": "The events whose property list carries this property, with each entry's\nrequired flag, override and last measured presence (F23.8).",
+        "operationId": "list_property_events_api_v1_projects__slug__variables__variable_id__events_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PropertyEventResponse"
+                  },
+                  "title": "Response List Property Events Api V1 Projects  Slug  Variables  Variable Id  Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk": {
+      "post": {
+        "tags": [
+          "variables"
+        ],
+        "summary": "Bulk Upsert Event Overrides",
+        "description": "Add the property to many events' lists, or apply one patch to each entry:\nthe single PUT's semantics, all or nothing (F23.8).",
+        "operationId": "bulk_upsert_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkUpsert"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/bulk-delete": {
+      "post": {
+        "tags": [
+          "variables"
+        ],
+        "summary": "Bulk Delete Event Overrides",
+        "description": "Take the property off many events' lists (F23.8). Events that do not\ncarry it are skipped, and the audit row names only the entries removed.",
+        "operationId": "bulk_delete_event_overrides_api_v1_projects__slug__variables__variable_id__event_overrides_bulk_delete_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "variable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Variable Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Plan branch id (UUID) to read and write instead of the main branch.",
+              "title": "Branch"
+            },
+            "description": "Plan branch id (UUID) to read and write instead of the main branch."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyEventsBulkDelete"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyEventsBulkResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/variables/{variable_id}/event-overrides/{event_id}": {
       "put": {
         "tags": [
@@ -9012,6 +10886,7 @@
         ],
         "summary": "Upsert Event Override",
         "operationId": "upsert_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__put",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -9100,6 +10975,7 @@
         ],
         "summary": "Delete Event Override",
         "operationId": "delete_event_override_api_v1_projects__slug__variables__variable_id__event_overrides__event_id__delete",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -9173,6 +11049,7 @@
         ],
         "summary": "Update Variable",
         "operationId": "update_variable_api_v1_projects__slug__variables__variable_id__patch",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -9251,6 +11128,7 @@
         ],
         "summary": "Delete Variable",
         "operationId": "delete_variable_api_v1_projects__slug__variables__variable_id__delete",
+        "deprecated": true,
         "parameters": [
           {
             "name": "slug",
@@ -14668,6 +16546,25 @@
               "title": "Path"
             },
             "description": "The note's path, e.g. guides/setup.md"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Which language to read: a code such as `en` for that stored translation, `original` for the original, or nothing for the project's agent default (the original when that translation is missing or behind it).",
+              "title": "Lang"
+            },
+            "description": "Which language to read: a code such as `en` for that stored translation, `original` for the original, or nothing for the project's agent default (the original when that translation is missing or behind it)."
           }
         ],
         "responses": {
@@ -16023,6 +17920,525 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DocImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/translations": {
+      "post": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Translate Doc",
+        "description": "Translate the note with the organization's AI model, once; the text is stored.\n\n``language`` is a code or a name (\"German\", \"\u043d\u0435\u043c\u0435\u0446\u043a\u0438\u0439\"). The run happens in\nthe background: the answer is ``pending``, and the note's ``translations``\nsay when it is ``ready`` or ``failed``. A translation someone has edited is\nonly replaced with ``overwrite`` (409 ``translation_edited`` otherwise).",
+        "operationId": "translate_doc_api_v1_projects__slug__docs_translations_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocTranslateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocTranslationSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Write Doc Translation",
+        "description": "Save a translation's text by hand (creates it when the note has none in ``lang``).",
+        "operationId": "write_doc_translation_api_v1_projects__slug__docs_translations_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocTranslationWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocTranslationSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Delete Doc Translation",
+        "operationId": "delete_doc_translation_api_v1_projects__slug__docs_translations_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "A translation's language, e.g. en",
+              "title": "Lang"
+            },
+            "description": "A translation's language, e.g. en"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/translations/revisions": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "List Doc Translation Revisions",
+        "operationId": "list_doc_translation_revisions_api_v1_projects__slug__docs_translations_revisions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "A translation's language, e.g. en",
+              "title": "Lang"
+            },
+            "description": "A translation's language, e.g. en"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DocTranslationRevisionSummary"
+                  },
+                  "title": "Response List Doc Translation Revisions Api V1 Projects  Slug  Docs Translations Revisions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/translations/revisions/{revision_id}": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Get Doc Translation Revision",
+        "operationId": "get_doc_translation_revision_api_v1_projects__slug__docs_translations_revisions__revision_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocTranslationRevisionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/translations/revisions/{revision_id}/restore": {
+      "post": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Restore Doc Translation Revision",
+        "operationId": "restore_doc_translation_revision_api_v1_projects__slug__docs_translations_revisions__revision_id__restore_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "revision_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Revision Id"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "project",
+                "organization"
+              ],
+              "type": "string",
+              "description": "Whose notes: the project's or its organization's.",
+              "title": "Scope"
+            },
+            "description": "Whose notes: the project's or its organization's."
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "description": "The note's path, e.g. guides/setup.md",
+              "title": "Path"
+            },
+            "description": "The note's path, e.g. guides/setup.md"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocTranslationSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{slug}/docs/languages": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Get Doc Languages",
+        "description": "The project's default languages: what agents get, and what the app opens for people.",
+        "operationId": "get_doc_languages_api_v1_projects__slug__docs_languages_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocLanguageDefaults"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "Update Doc Languages",
+        "description": "Set both defaults: a code or a name each, empty or null for the original.",
+        "operationId": "update_doc_languages_api_v1_projects__slug__docs_languages_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocLanguageDefaultsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocLanguageDefaults"
                 }
               }
             }
@@ -24089,7 +26505,10 @@
           "source_late",
           "source_overdue",
           "sunset_overdue",
-          "successor_silent"
+          "successor_silent",
+          "new_property",
+          "missing_required",
+          "type_change"
         ],
         "title": "AlertDriftType"
       },
@@ -24777,6 +27196,11 @@
             "title": "Include Lifecycle",
             "default": false
           },
+          "include_property_drifts": {
+            "type": "boolean",
+            "title": "Include Property Drifts",
+            "default": false
+          },
           "notify_on_spike": {
             "type": "boolean",
             "title": "Notify On Spike",
@@ -25005,6 +27429,10 @@
             "type": "boolean",
             "title": "Include Lifecycle"
           },
+          "include_property_drifts": {
+            "type": "boolean",
+            "title": "Include Property Drifts"
+          },
           "notify_on_spike": {
             "type": "boolean",
             "title": "Notify On Spike"
@@ -25144,6 +27572,7 @@
           "include_metrics",
           "include_source_freshness",
           "include_lifecycle",
+          "include_property_drifts",
           "notify_on_spike",
           "notify_on_drop",
           "ai_explanation_enabled",
@@ -25436,6 +27865,17 @@
               }
             ],
             "title": "Include Lifecycle"
+          },
+          "include_property_drifts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Property Drifts"
           },
           "notify_on_spike": {
             "anyOf": [
@@ -27859,6 +30299,13 @@
             "type": "boolean",
             "title": "Deprecated",
             "default": false
+          },
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/CodegenProperty"
+            },
+            "type": "array",
+            "title": "Properties"
           }
         },
         "type": "object",
@@ -27975,6 +30422,74 @@
         ],
         "title": "CodegenField"
       },
+      "CodegenProperty": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "variable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variable"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "json_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Json Schema"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "literal": {
+            "title": "Literal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "path"
+        ],
+        "title": "CodegenProperty",
+        "description": "One typed property of an event: a leaf of one of its JSON fields (F23)."
+      },
       "CodegenVariable": {
         "properties": {
           "name": {
@@ -27994,6 +30509,23 @@
             },
             "type": "array",
             "title": "Tokens"
+          },
+          "variable_type": {
+            "type": "string",
+            "title": "Variable Type",
+            "default": "string"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema"
           }
         },
         "type": "object",
@@ -29761,6 +32293,30 @@
               }
             ],
             "title": "Sha256"
+          },
+          "translation_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translation Of"
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lang"
           }
         },
         "type": "object",
@@ -29914,6 +32470,61 @@
             "type": "boolean",
             "title": "Break Glass",
             "default": false
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lang"
+          },
+          "requested_lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Lang"
+          },
+          "translation_fallback": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "missing",
+                  "pending",
+                  "failed",
+                  "outdated"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translation Fallback"
+          },
+          "translation_outdated": {
+            "type": "boolean",
+            "title": "Translation Outdated",
+            "default": false
+          },
+          "translations": {
+            "items": {
+              "$ref": "#/components/schemas/DocTranslationSummary"
+            },
+            "type": "array",
+            "title": "Translations",
+            "default": []
+          },
+          "language_defaults": {
+            "$ref": "#/components/schemas/DocLanguageDefaults"
           }
         },
         "type": "object",
@@ -30057,6 +32668,22 @@
             "type": "array",
             "title": "Errors",
             "default": []
+          },
+          "translations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Translations",
+            "default": []
+          },
+          "translations_deleted": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Translations Deleted",
+            "default": []
           }
         },
         "type": "object",
@@ -30084,6 +32711,66 @@
           "reason"
         ],
         "title": "DocImportSkipped"
+      },
+      "DocLanguageDefaults": {
+        "properties": {
+          "agent_lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Lang"
+          },
+          "human_lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Lang"
+          }
+        },
+        "type": "object",
+        "title": "DocLanguageDefaults",
+        "description": "The project's default languages (lowercase BCP 47); None: the original."
+      },
+      "DocLanguageDefaultsUpdate": {
+        "properties": {
+          "agent_lang": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Lang"
+          },
+          "human_lang": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Lang"
+          }
+        },
+        "type": "object",
+        "title": "DocLanguageDefaultsUpdate",
+        "description": "Codes or names (``en``, ``English``); null or empty: the original."
       },
       "DocLimits": {
         "properties": {
@@ -30959,6 +33646,268 @@
         ],
         "title": "DocSummary"
       },
+      "DocTranslateRequest": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Language"
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "language"
+        ],
+        "title": "DocTranslateRequest"
+      },
+      "DocTranslationRevisionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "translate",
+              "edit",
+              "restore"
+            ],
+            "title": "Action"
+          },
+          "source_revision": {
+            "type": "integer",
+            "title": "Source Revision"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "action",
+          "source_revision",
+          "created_at",
+          "content"
+        ],
+        "title": "DocTranslationRevisionDetail"
+      },
+      "DocTranslationRevisionSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "translate",
+              "edit",
+              "restore"
+            ],
+            "title": "Action"
+          },
+          "source_revision": {
+            "type": "integer",
+            "title": "Source Revision"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "action",
+          "source_revision",
+          "created_at"
+        ],
+        "title": "DocTranslationRevisionSummary"
+      },
+      "DocTranslationSummary": {
+        "properties": {
+          "lang": {
+            "type": "string",
+            "title": "Lang"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "source_revision": {
+            "type": "integer",
+            "title": "Source Revision"
+          },
+          "outdated": {
+            "type": "boolean",
+            "title": "Outdated"
+          },
+          "machine": {
+            "type": "boolean",
+            "title": "Machine"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "default": ""
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "updated_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lang",
+          "status",
+          "revision",
+          "source_revision",
+          "outdated",
+          "machine",
+          "updated_at"
+        ],
+        "title": "DocTranslationSummary"
+      },
+      "DocTranslationWrite": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "project",
+              "organization"
+            ],
+            "title": "Scope"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "lang": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Lang"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 3145728,
+            "title": "Content"
+          },
+          "base_revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Revision"
+          },
+          "mark_current": {
+            "type": "boolean",
+            "title": "Mark Current",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope",
+          "path",
+          "lang",
+          "content"
+        ],
+        "title": "DocTranslationWrite"
+      },
       "DocTreeOrganization": {
         "properties": {
           "id": {
@@ -31025,6 +33974,9 @@
           },
           "limits": {
             "$ref": "#/components/schemas/DocLimits"
+          },
+          "language_defaults": {
+            "$ref": "#/components/schemas/DocLanguageDefaults"
           }
         },
         "type": "object",
@@ -31218,6 +34170,61 @@
             "type": "boolean",
             "title": "Break Glass",
             "default": false
+          },
+          "lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lang"
+          },
+          "requested_lang": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested Lang"
+          },
+          "translation_fallback": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "missing",
+                  "pending",
+                  "failed",
+                  "outdated"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translation Fallback"
+          },
+          "translation_outdated": {
+            "type": "boolean",
+            "title": "Translation Outdated",
+            "default": false
+          },
+          "translations": {
+            "items": {
+              "$ref": "#/components/schemas/DocTranslationSummary"
+            },
+            "type": "array",
+            "title": "Translations",
+            "default": []
+          },
+          "language_defaults": {
+            "$ref": "#/components/schemas/DocLanguageDefaults"
           },
           "created": {
             "type": "boolean",
@@ -32352,6 +35359,19 @@
             "title": "Metric Breakdown Columns",
             "default": []
           },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
+          },
           "tags": {
             "items": {
               "type": "string"
@@ -32796,6 +35816,17 @@
           "description": {
             "type": "string",
             "title": "Description"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
           },
           "order": {
             "type": "integer",
@@ -33488,6 +36519,17 @@
             "type": "string",
             "title": "Description"
           },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
+          },
           "order": {
             "type": "integer",
             "title": "Order"
@@ -33972,6 +37014,106 @@
         ],
         "title": "EventPhotoStorageBackend"
       },
+      "EventPropertyResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "variable_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Variable Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "variable_type": {
+            "$ref": "#/components/schemas/VariableType"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values",
+            "description": "This event's override of the allowed values; null when there is none."
+          },
+          "effective_values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Effective Values",
+            "description": "The allowed values in force for this event: the override when there is one, else the variable's global list.",
+            "default": []
+          },
+          "presence_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Rate",
+            "description": "Share of this event's scanned rows that carried the property, from the last scan that measured it; null when unknown."
+          },
+          "suggested_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Required",
+            "description": "Whether presence_rate reaches the event's required_presence_threshold (default 0.95); null when presence is unknown. A suggestion: 'required' is only ever set by a person."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "variable_id",
+          "name",
+          "variable_type"
+        ],
+        "title": "EventPropertyResponse",
+        "description": "One entry of an event's property list, with the variable it names."
+      },
       "EventReorder": {
         "properties": {
           "event_ids": {
@@ -34033,6 +37175,17 @@
           "description": {
             "type": "string",
             "title": "Description"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
           },
           "order": {
             "type": "integer",
@@ -34706,6 +37859,19 @@
               }
             ],
             "title": "Metric Breakdown Columns"
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold"
           },
           "tags": {
             "anyOf": [
@@ -39182,7 +42348,8 @@
           "metric",
           "variable_value_drift",
           "source_freshness",
-          "lifecycle"
+          "lifecycle",
+          "property_drift"
         ],
         "title": "MetricScopeType"
       },
@@ -39906,6 +43073,10 @@
             "type": "boolean",
             "title": "Include Lifecycle"
           },
+          "include_property_drifts": {
+            "type": "boolean",
+            "title": "Include Property Drifts"
+          },
           "total_deliveries": {
             "type": "integer",
             "title": "Total Deliveries"
@@ -39977,6 +43148,7 @@
           "include_metrics",
           "include_source_freshness",
           "include_lifecycle",
+          "include_property_drifts",
           "total_deliveries",
           "last_delivery_at",
           "last_delivery_status",
@@ -40510,7 +43682,8 @@
               "branch_review_requested",
               "branch_approved",
               "branch_merged",
-              "lifecycle"
+              "lifecycle",
+              "property_drift"
             ],
             "title": "Kind"
           },
@@ -43821,7 +46994,8 @@
               "missing_required_field",
               "value_not_allowed",
               "dynamic_value",
-              "too_dynamic"
+              "too_dynamic",
+              "wrong_type"
             ],
             "title": "Code"
           },
@@ -45732,6 +48906,11 @@
             "title": "Monitoring Signal Count",
             "default": 0
           },
+          "open_property_drift_count": {
+            "type": "integer",
+            "title": "Open Property Drift Count",
+            "default": 0
+          },
           "firing_monitor_count": {
             "type": "integer",
             "title": "Firing Monitor Count",
@@ -46230,6 +49409,398 @@
         },
         "type": "object",
         "title": "ProjectUpdate"
+      },
+      "PropertyDriftActionRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "snooze",
+              "false_positive",
+              "reopen"
+            ],
+            "title": "Action"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "snoozed_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snoozed Until"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "PropertyDriftActionRequest",
+        "description": "Triage one property drift.\n\n``accept`` changes the plan to match what the scan saw: a new property\njoins the event's property list, a missing one stops being required, and\na type change retypes the variable to the observed type."
+      },
+      "PropertyDriftKind": {
+        "type": "string",
+        "enum": [
+          "new_property",
+          "missing_required",
+          "type_change"
+        ],
+        "title": "PropertyDriftKind"
+      },
+      "PropertyDriftListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PropertyDriftResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PropertyDriftListResponse"
+      },
+      "PropertyDriftResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "variable_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Variable Id"
+          },
+          "variable_name": {
+            "type": "string",
+            "title": "Variable Name"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "event_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name"
+          },
+          "scan_config_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Config Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PropertyDriftKind"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Detail",
+            "description": "What the scan saw: presence_rate (and threshold) for new_property and missing_required; expected_type, observed_type and observed_schema for type_change. For an object property whose sampled objects disagree with its sub-schema, type_change also carries nested_changes (each a path, a change of new_key, missing_required or type_change, and for a type change the expected and observed types), and observed_schema is the stored sub-schema with those changes applied.",
+            "default": {}
+          },
+          "status": {
+            "$ref": "#/components/schemas/SchemaDriftStatus",
+            "default": "open"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "snoozed_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snoozed Until"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By"
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Detected At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "variable_id",
+          "variable_name",
+          "kind",
+          "detected_at"
+        ],
+        "title": "PropertyDriftResponse"
+      },
+      "PropertyEventResponse": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "event_name": {
+            "type": "string",
+            "title": "Event Name"
+          },
+          "event_type_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Type Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values",
+            "description": "This event's override of the allowed values; null when there is none."
+          },
+          "effective_values": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Effective Values",
+            "description": "The allowed values in force for this event: the override when there is one, else the property's global list.",
+            "default": []
+          },
+          "presence_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Rate",
+            "description": "Share of the event's rows that carried the property at the last scan."
+          },
+          "required_presence_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Presence Threshold",
+            "description": "The event's own threshold; null means the default (0.95)."
+          },
+          "suggested_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Required",
+            "description": "Whether presence_rate reaches the event's threshold; null when presence is unknown."
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_name",
+          "event_type_id",
+          "status"
+        ],
+        "title": "PropertyEventResponse",
+        "description": "One event whose property list carries the property, with its entry."
+      },
+      "PropertyEventsBulkDelete": {
+        "properties": {
+          "event_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Event Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_ids"
+        ],
+        "title": "PropertyEventsBulkDelete",
+        "description": "Take the property off many events' lists (their overrides go with it)."
+      },
+      "PropertyEventsBulkResult": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "description": "Events the property was added to."
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated",
+            "description": "Events whose existing entry was edited."
+          },
+          "removed": {
+            "type": "integer",
+            "title": "Removed",
+            "description": "Events the property was taken off.",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "updated"
+        ],
+        "title": "PropertyEventsBulkResult"
+      },
+      "PropertyEventsBulkUpsert": {
+        "properties": {
+          "event_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Event Ids"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required",
+            "description": "Whether every occurrence of each event must carry the property."
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values",
+            "description": "Allowed values for these events, replacing the property's global list. null: no override, the global list applies."
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_ids"
+        ],
+        "title": "PropertyEventsBulkUpsert",
+        "description": "Add the property to many events' lists, or edit its entry on each.\n\nThe same patch as the single ``PUT .../event-overrides/{event_id}``: a field\nleft out keeps what each entry holds, a new entry starts with no override\nand not required, and ``values: null`` drops the override."
       },
       "RegisterRequest": {
         "properties": {
@@ -47106,6 +50677,48 @@
             "type": "array",
             "title": "Event Group Rules"
           },
+          "setup_preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "default": "custom"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Json String Columns"
+          },
           "metric_breakdown_columns": {
             "items": {
               "type": "string"
@@ -47352,6 +50965,44 @@
             },
             "type": "array",
             "title": "Event Group Rules"
+          },
+          "setup_preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "default": "custom"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Json String Columns"
           },
           "metric_breakdown_columns": {
             "items": {
@@ -47650,6 +51301,39 @@
             "type": "boolean",
             "title": "Include Json Paths",
             "default": false
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Json String Columns"
           }
         },
         "type": "object",
@@ -47742,6 +51426,44 @@
             },
             "type": "array",
             "title": "Event Group Rules"
+          },
+          "setup_preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "default": "custom"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Json String Columns"
           },
           "metric_breakdown_columns": {
             "items": {
@@ -48060,6 +51782,59 @@
               }
             ],
             "title": "Event Group Rules"
+          },
+          "setup_preset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "custom",
+                  "event_properties"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Setup Preset"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
+          "json_string_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json String Columns"
           },
           "metric_breakdown_columns": {
             "anyOf": [
@@ -48641,6 +52416,48 @@
             },
             "type": "array",
             "title": "Json Value Paths"
+          },
+          "setup_preset": {
+            "type": "string",
+            "enum": [
+              "custom",
+              "event_properties"
+            ],
+            "title": "Setup Preset",
+            "default": "custom"
+          },
+          "event_name_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name Column"
+          },
+          "properties_column": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Properties Column"
+          },
+          "json_string_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Json String Columns"
           },
           "cardinality_threshold": {
             "type": "integer",
@@ -52602,6 +56419,19 @@
             "type": "array",
             "maxItems": 100,
             "title": "Bindings"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema",
+            "description": "JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type."
           }
         },
         "type": "object",
@@ -52632,12 +56462,23 @@
             "title": "Event Name"
           },
           "values": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Values",
-            "default": []
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
           }
         },
         "type": "object",
@@ -52652,19 +56493,37 @@
       "VariableEventOverrideUpsert": {
         "properties": {
           "values": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 500,
-            "title": "Values"
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values",
+            "description": "Allowed values for this event, replacing the variable's global list. null: no override, the global list applies."
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required",
+            "description": "Whether every occurrence of the event must carry this property."
           }
         },
         "type": "object",
-        "required": [
-          "values"
-        ],
-        "title": "VariableEventOverrideUpsert"
+        "title": "VariableEventOverrideUpsert",
+        "description": "Add the variable to the event's property list, or edit its entry.\n\nA patch: a field left out keeps what the entry holds, and a new entry\nstarts with no override and not required. ``values: null`` removes the\noverride and keeps the property; deleting the entry removes both."
       },
       "VariableEventRef": {
         "properties": {
@@ -52762,6 +56621,18 @@
             "title": "Excluded From Scans",
             "default": false
           },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema"
+          },
           "event_count": {
             "type": "integer",
             "title": "Event Count",
@@ -52795,6 +56666,18 @@
           "open_drift_count": {
             "type": "integer",
             "title": "Open Drift Count",
+            "default": 0
+          },
+          "listed_event_count": {
+            "type": "integer",
+            "title": "Listed Event Count",
+            "description": "Events whose property list carries this property (F23), on the property's branch; unlike 'event_count', which counts where scans saw it.",
+            "default": 0
+          },
+          "required_event_count": {
+            "type": "integer",
+            "title": "Required Event Count",
+            "description": "Of 'listed_event_count', the events that require the property.",
             "default": 0
           },
           "event_names": {
@@ -52989,6 +56872,19 @@
               }
             ],
             "title": "Excluded From Scans"
+          },
+          "json_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Json Schema",
+            "description": "JSON Schema fragment refining variable_type: type, format, items, properties, required and the numeric, string and array constraints. Must agree with variable_type (number may narrow to integer, json is an object or array). Documented values stay in allowed_values. null: the type is just variable_type."
           }
         },
         "type": "object",
@@ -53321,8 +57217,12 @@
       "description": "Project-wide meta/context fields."
     },
     {
+      "name": "properties",
+      "description": "Event properties: typed, documented values referenced by the plan (`${name}`), with per-event lists and drift."
+    },
+    {
       "name": "variables",
-      "description": "Reusable variables referenced by the plan."
+      "description": "Deprecated alias of `properties` (the former name), kept for one release."
     },
     {
       "name": "relations",

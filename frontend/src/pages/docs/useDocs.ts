@@ -12,9 +12,19 @@ import {
   docRevisionsKey,
   docSharingKey,
   docsKey,
+  docTranslationRevisionsKey,
   docsTreeKey,
 } from '@/lib/docsQueryKeys'
-import type { DocLinkKind, DocMoveRequest, DocScope, DocSharingUpdate, DocWriteRequest } from '@/types/docs'
+import type {
+  DocFileResponse,
+  DocLinkKind,
+  DocMoveRequest,
+  DocScope,
+  DocSharingUpdate,
+  DocTranslateRequest,
+  DocTranslationWrite,
+  DocWriteRequest,
+} from '@/types/docs'
 
 /** The live preview asks the server to resolve links this long after typing stops. */
 export const LINK_PREVIEW_DEBOUNCE_MS = 400
@@ -27,14 +37,36 @@ export function useDocTree(slug: string) {
   })
 }
 
-export function useDocFile(slug: string, scope: DocScope | null, path: string) {
+/** While a translation is being made, the open note re-reads this often. */
+export const TRANSLATION_POLL_MS = 3000
+
+/**
+ * One note in `lang` (a translation's code, or `original`); null waits until
+ * the page knows which language to show. Re-reads while a translation of it
+ * is being made, so the page sees it land.
+ */
+export function useDocFile(slug: string, scope: DocScope | null, path: string, lang: string | null) {
   return useQuery({
-    queryKey: docFileKey(slug, scope ?? 'project', path),
-    queryFn: ({ signal }) => docsApi.read(slug, scope ?? 'project', path, signal),
-    enabled: Boolean(slug && scope && path),
+    queryKey: docFileKey(slug, scope ?? 'project', path, lang ?? ''),
+    queryFn: ({ signal }) => docsApi.read(slug, scope ?? 'project', path, lang ?? 'original', signal),
+    enabled: Boolean(slug && scope && path && lang),
     // The page renders its own not-found and error states.
     meta: SILENT_ERROR_META,
     retry: false,
+    refetchInterval: query => translationPollInterval(query.state.data),
+  })
+}
+
+/** How often to re-read a note: while a translation of it is being made, and never otherwise. */
+export function translationPollInterval(doc: DocFileResponse | undefined): number | false {
+  return doc?.translations?.some(t => t.status === 'pending') ? TRANSLATION_POLL_MS : false
+}
+
+export function useTranslationRevisions(slug: string, scope: DocScope, path: string, lang: string, enabled: boolean) {
+  return useQuery({
+    queryKey: docTranslationRevisionsKey(slug, scope, path, lang),
+    queryFn: ({ signal }) => docsApi.translationRevisions(slug, scope, path, lang, signal),
+    enabled: enabled && Boolean(slug && path && lang),
   })
 }
 
@@ -201,6 +233,56 @@ export function useUpdateDocSharing(slug: string) {
         : docsApi.updateFolderSharing(slug, vars.target.scope, vars.target.path, vars.body),
     onSuccess: () => invalidate(),
     // The dialog shows a refusal (403) in place.
+    meta: SILENT_ERROR_META,
+  })
+}
+
+/** Ask for an AI translation; the dialog shows a refusal (409 edited, 422 language) itself. */
+export function useTranslateDoc(slug: string) {
+  const invalidate = useInvalidateDocs(slug)
+  return useMutation({
+    mutationFn: (body: DocTranslateRequest) => docsApi.translate(slug, body),
+    onSuccess: () => invalidate(),
+    meta: SILENT_ERROR_META,
+  })
+}
+
+export function useWriteTranslation(slug: string) {
+  const invalidate = useInvalidateDocs(slug)
+  return useMutation({
+    mutationFn: (body: DocTranslationWrite) => docsApi.writeTranslation(slug, body),
+    onSuccess: () => invalidate(),
+    // The editor shows conflicts and validation errors in place.
+    meta: SILENT_ERROR_META,
+  })
+}
+
+export function useRemoveTranslation(slug: string) {
+  const invalidate = useInvalidateDocs(slug)
+  return useMutation({
+    mutationFn: (vars: { scope: DocScope; path: string; lang: string }) =>
+      docsApi.removeTranslation(slug, vars.scope, vars.path, vars.lang),
+    onSuccess: () => invalidate(),
+    meta: SILENT_ERROR_META,
+  })
+}
+
+export function useRestoreTranslationRevision(slug: string) {
+  const invalidate = useInvalidateDocs(slug)
+  return useMutation({
+    mutationFn: (vars: { scope: DocScope; path: string; revisionId: string }) =>
+      docsApi.restoreTranslationRevision(slug, vars.scope, vars.path, vars.revisionId),
+    onSuccess: () => invalidate(),
+  })
+}
+
+export function useUpdateDocLanguages(slug: string) {
+  const invalidate = useInvalidateDocs(slug)
+  return useMutation({
+    mutationFn: (body: { agent_lang: string | null; human_lang: string | null }) =>
+      docsApi.updateLanguages(slug, body),
+    onSuccess: () => invalidate(),
+    // The dialog shows a refusal (a name the model could not place) in place.
     meta: SILENT_ERROR_META,
   })
 }

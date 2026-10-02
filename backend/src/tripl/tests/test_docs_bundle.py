@@ -12,7 +12,8 @@ from httpx import ASGITransport, AsyncClient
 from tripl.main import app
 from tripl.services.docs_access import ORG_NOTES_ADMIN_REQUIRED
 from tripl.services.docs_bundle import parse_zip_upload
-from tripl.services.docs_paths import MAX_FILE_BYTES, MAX_ZIP_UPLOAD_BYTES
+from tripl.services.docs_paths import MAX_ZIP_UPLOAD_BYTES
+from tripl.services.docs_translations import MAX_TRANSLATION_BYTES
 from tripl.tests._docs_helpers import create_project, get_doc, put_doc, register
 from tripl.tests._members import add_member_by_slug
 
@@ -80,14 +81,15 @@ def test_zip_guards() -> None:
     _, _, errors = parse_zip_upload(
         _zip(
             {
-                "big.md": "a" * (MAX_FILE_BYTES + 1),
+                # A translation may be 3x a note; a note's own limit applies at import.
+                "big.md": "a" * (MAX_TRANSLATION_BYTES + 1),
                 "latin1.md": "café".encode("latin-1"),
                 "bomb.md": "a" * 200_000,
             }
         )
     )
     assert {(error.path, error.detail) for error in errors} == {
-        ("big.md", "larger than 256 KiB"),
+        ("big.md", "larger than 768 KiB"),
         ("latin1.md", "not valid UTF-8 text"),
         ("bomb.md", "compression ratio is too high"),
     }

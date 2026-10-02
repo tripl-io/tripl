@@ -168,6 +168,11 @@ def _load_mapping(yaml_text: str) -> dict[str, Any]:
     return {str(key): value for key, value in loaded.items()}
 
 
+def load_frontmatter_mapping(yaml_text: str) -> dict[str, Any]:
+    """A frontmatter block read the safe way (no aliases, bounded size), as a mapping."""
+    return _load_mapping(yaml_text)
+
+
 def _text(meta: dict[str, Any], key: str, limit: int) -> str | None:
     if key not in meta or meta[key] is None:
         return None

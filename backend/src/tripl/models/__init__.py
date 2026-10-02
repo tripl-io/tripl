@@ -19,6 +19,7 @@ from tripl.models.data_source import DataSource
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.doc_file import DocFile, DocLink, DocRevision
 from tripl.models.doc_share import DocFolderSetting, DocFolderShare, DocShare
+from tripl.models.doc_translation import DocTranslation, DocTranslationRevision
 from tripl.models.duplicate_dismissal import DuplicateDismissal
 from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.event import Event
@@ -180,6 +181,8 @@ __all__ = [
     "DocLink",
     "DocRevision",
     "DocShare",
+    "DocTranslation",
+    "DocTranslationRevision",
     "DocFolderSetting",
     "DocFolderShare",
     "DuplicateDismissal",

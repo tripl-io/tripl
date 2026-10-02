@@ -154,6 +154,12 @@ _GUARDED_ELSEWHERE: dict[str, str] = {
         "Stripping would silently address a different note. test_docs_api.py pins "
         "?path=a%00b.md to 422 on all three."
     ),
+    "lang": (
+        "A docs translation's language (/docs/file, /docs/translations, "
+        "/docs/translations/revisions) is not a text filter: "
+        "docs_translations.lang_param matches it against a language-tag pattern "
+        "before any query and answers 422 for anything else, U+0000 included."
+    ),
 }
 
 

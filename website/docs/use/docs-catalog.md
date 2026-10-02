@@ -278,6 +278,60 @@ only the notes you can read, with no visibility in their frontmatter. An
 import ignores any visibility key in frontmatter: imported notes get the
 default, or their folder's setting.
 
+## Translations {#translations}
+
+A note can carry stored translations, one per language. They are made once
+and kept; they never change by themselves.
+
+**Translate with AI** on an open note asks *Which language?* Type a name in
+any language or a code: `English`, `Deutsch`, `немецкий`, `pt-BR`. A
+two-letter code is used as typed; anything else is turned into a code (BCP 47,
+such as `de` or `pt-br`) by your organization's AI model. The translation then
+runs in the background with the organization's AI key (Settings → AI); the
+note shows *Translating into German…* until it is ready. Editors of the note
+can translate it; there is no spending limit.
+
+What the model must not change is kept out of its reach: code blocks, inline
+code, `[[…]]` links, link targets, URLs and HTML. A reply that drops or
+repeats one of them is refused and the translation fails with a message; it
+never breaks a link. In the frontmatter only `title` and `description` are
+translated.
+
+A translation is ordinary text afterwards:
+
+- **Edit** while it is shown edits the translation, not the original. Every
+  save is kept in its own history (**History** while it is shown), and any
+  version can be restored. **Translate again** over a translation someone
+  edited asks first; the edited text stays in the history.
+- When the original changes, the translation is **behind the original**: it
+  says which revision it was made from. **Translate again** makes it anew;
+  **Mark as up to date** keeps the text and records it as matching the current
+  revision.
+- Delete a translation from the language row. Deleting the note deletes its
+  translations.
+
+A translation has no sharing of its own: whoever can read the note can read
+its translations, and whoever can edit the note can edit them. Search covers
+the originals only.
+
+### Default languages
+
+**Languages** on the Docs page sets two defaults for the project:
+
+- **For agents**: what the API, the MCP server and the CLI return when they
+  read a note without naming a language. They get the translation only when it
+  exists and is up to date; otherwise they get the original, with a field
+  saying why (`translation_fallback`: `missing`, `pending`, `failed` or
+  `outdated`). An agent may ask for any language with `lang=de`, and gets that
+  translation even when it is behind (`translation_outdated: true`), or for
+  `lang=original`.
+- **For people**: the language the app opens notes in. Anyone can switch the
+  language of a note in its language row; the choice is kept in their browser
+  for that project and is part of the page address (`?lang=de`), so a link
+  opens the same language.
+
+Empty means the original.
+
 ## Import and export
 
 A root can be exported as a zip of `.md` files or as a JSON bundle. The export
@@ -293,7 +347,13 @@ An import takes a zip or a JSON bundle:
   that folder unless you choose to keep it. So an agent-skill folder imports as
   `SKILL.md` plus `references/`.
 - **Merge** creates and updates notes. **Mirror** also deletes the notes that
-  the import does not contain.
+  the import does not contain, and the translations it does not contain.
+- A file named `<note>.<lang>.md` next to `<note>.md` (for example
+  `guides/setup.de.md`) is imported as that note's translation, when no note
+  lives at that path. `notes.v2.md`, or `release.en.md` with no `release.md`,
+  stay ordinary notes, and then `release.en.de.md` is the German translation
+  of `release.en.md`. An imported translation counts as up to date, even when
+  its text is unchanged.
 - A **dry run** shows what would be created, updated, left unchanged, deleted,
   skipped or refused, and changes nothing.
 - An import with any error (a bad path, invalid frontmatter, a note that is too
@@ -310,8 +370,9 @@ notes, and mirroring them needs one signed in to the web app.
 
 A zip export is named `<project-slug>-docs.zip` for project notes and
 `<organization-slug>-docs.zip` for organization notes. Every note is one entry
-at its own path, with its content exactly as stored. The zip has no index file
-and no wrapper folder. `tripl docs pull` writes the same layout into a local
+at its own path, with its content exactly as stored, and each translation is
+`<note>.<lang>.md` beside its note (left out if a note already has that path).
+The zip has no index file and no wrapper folder. `tripl docs pull` writes the same layout into a local
 folder.
 
 ### Example: an agent skill
@@ -393,6 +454,7 @@ a git repository.
 | Limit | Value |
 | --- | --- |
 | One note | 256 KiB of UTF-8 |
+| One translation | 768 KiB of UTF-8 |
 | Frontmatter block | 16 KiB |
 | Notes per root | 5000 |
 | Files in one import | 2000 |
@@ -413,4 +475,7 @@ tools `list_docs`, `read_doc`, `search_docs` and `write_doc`, and the CLI
 (`tripl docs ls`, `cat`, `pull` and `push`). See the
 [Agent API guide](../integrate/agent-api-guide.md#docs-catalog).
 An agent sees what the user behind its API key sees: notes that are not shared
-with that user are missing from every list, search and read.
+with that user are missing from every list, search and read. A read without a
+language returns the project's language for agents when that translation is up
+to date (see [Default languages](#default-languages)); `read_doc` and
+`tripl docs cat` take `lang` (`--lang`) to ask for one.

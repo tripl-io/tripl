@@ -233,6 +233,20 @@ def safe_parse(doc: DocFile) -> ParsedDoc:
         )
 
 
+def _parse_served(doc: DocFile, content: str) -> ParsedDoc:
+    """A stored translation, parsed; it was valid when saved, so fall back rather than fail."""
+    try:
+        return parse_frontmatter(content, doc.path)
+    except DocContentError:
+        return ParsedDoc(
+            title=doc.title,
+            description=doc.description,
+            tags=list(doc.tags or []),
+            audience=doc.audience,
+            body=content,
+        )
+
+
 def summary(
     doc: DocFile,
     names: dict[uuid.UUID, str],
@@ -267,9 +281,15 @@ async def file_response(
     permission: DocPermission = "view",
     break_glass: bool = False,
     viewer_id: uuid.UUID | None = None,
+    served_content: str | None = None,
 ) -> DocFileResponse:
-    """The note as ``viewer_id`` reads it: links to notes they cannot see say so."""
-    parsed = safe_parse(doc)
+    """The note as ``viewer_id`` reads it: links to notes they cannot see say so.
+
+    ``served_content`` is a translation's text to show in place of the
+    original's: its body, title, description and links, the original's
+    revision and everything else.
+    """
+    parsed = safe_parse(doc) if served_content is None else _parse_served(doc, served_content)
     names = await user_names(session, [doc.created_by, doc.updated_by])
     links: list[DocLinkResolution] = []
     linked_from: list[DocBacklinkItem] = []
@@ -286,10 +306,19 @@ async def file_response(
         linked_from = await docs_links.backlinks(
             session, project, "doc", str(doc.id), user_id=viewer_id
         )
+    listed = summary(doc, names, access, permission)
+    if served_content is not None:
+        listed = listed.model_copy(
+            update={
+                "title": parsed.title,
+                "description": parsed.description,
+                "size_bytes": content_bytes(served_content),
+            }
+        )
     return DocFileResponse(
-        **summary(doc, names, access, permission).model_dump(),
+        **listed.model_dump(),
         id=doc.id,
-        content=doc.content,
+        content=doc.content if served_content is None else served_content,
         body=parsed.body,
         extra_frontmatter=parsed.extra,
         links=links,
