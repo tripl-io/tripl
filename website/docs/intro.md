@@ -18,12 +18,19 @@ existing data warehouse — **ClickHouse**, **BigQuery**, or **PostgreSQL** — 
 reads the events that are already landing there. There's no new SDK to ship and
 nothing to re-instrument.
 
+![A tripl project's Overview: open signals, plan coverage, a week of volume and the busiest events](/img/screenshots/overview.light.webp#gh-light-mode-only)
+![A tripl project's Overview: open signals, plan coverage, a week of volume and the busiest events](/img/screenshots/overview.dark.webp#gh-dark-mode-only)
+
 ## Start with whichever of these you are
 
 **"I work with the numbers."** Product manager, analyst, growth, data — you want
 to know what this does for you and what a week with it looks like.
 → **[Start here](./use/start-here)**, then
 [Concepts](./use/concepts) and the [User Guide](./use/user-guide).
+
+**"I have one thing to do."** Connect a warehouse, set up an alert, invite the
+team, look into a chart that moved.
+→ **[How-to guides](./how-to/index.md)**: one task per page, with screenshots.
 
 **"I need to get it running."** You have Docker and half an hour, and you want a
 working instance pointed at a real warehouse.

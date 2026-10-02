@@ -507,6 +507,9 @@ Always call out in the PR description when a change touches:
 - **Alerting** — channels, templates, or delivery behavior.
 - **Environment variables** — and keep `.env.example`, the Compose env blocks,
   and `backend/src/tripl/config.py` synchronized.
+- **A screen the docs show** — the docs site's screenshots are taken by a
+  script; retake the ones your change affects
+  ([website/screenshots/README.md](website/screenshots/README.md)).
 
 For deeper area-by-area pointers (which service, schema, task, and test files
 correspond to each feature), see
