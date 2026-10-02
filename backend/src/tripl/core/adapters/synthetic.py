@@ -337,7 +337,7 @@ _ONGOING_TEXTURE_PCT = 1
 # A generated demo seeds one spike: one event at this multiple of its volume for
 # one hour, with almost all of the excess from iOS so the signal's "Why" panel has
 # a story to tell. The demo's warehouse builder writes it into the stored series
-# and the synthetic source is told the hour (``SyntheticSettings.spike_hour``), so
+# and the synthetic source is told the hour (``stored_spike`` below), so
 # the scheduled collection that re-reads that hour reads the same spike back
 # instead of overwriting it with an ordinary hour.
 SPIKE_MULTIPLIER = 3
@@ -350,6 +350,27 @@ class SyntheticSpike:
 
     event_name: str
     hour: datetime
+
+
+# Where the demo seeder records the spike on its data source's ``extra_params``.
+# Seeder-only keys, read here and nowhere else: they are not connection settings
+# a user can set, so they stay out of ``SyntheticSettings`` and the API schema.
+SPIKE_EVENT_KEY = "spike_event"
+SPIKE_HOUR_KEY = "spike_hour"
+
+
+def stored_spike(extra_params: object) -> SyntheticSpike | None:
+    """The spike a demo seeded into this source, or ``None`` (any other source)."""
+    if not isinstance(extra_params, dict):
+        return None
+    event_name = extra_params.get(SPIKE_EVENT_KEY)
+    hour = extra_params.get(SPIKE_HOUR_KEY)
+    if not isinstance(event_name, str) or not isinstance(hour, str):
+        return None
+    try:
+        return SyntheticSpike(event_name=event_name, hour=to_utc(datetime.fromisoformat(hour)))
+    except ValueError:
+        return None
 
 
 def _projection_columns(base_query: str) -> tuple[str, ...] | None:

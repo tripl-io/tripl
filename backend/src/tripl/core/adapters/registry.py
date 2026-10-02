@@ -13,7 +13,6 @@ from tripl.schemas.data_source import (
     BigQuerySettings,
     ClickHouseSettings,
     PostgresSettings,
-    SyntheticSettings,
 )
 
 AdapterFactory = Callable[[DataSource, str], BaseAdapter]
@@ -149,17 +148,14 @@ def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     # The synthetic warehouse is local and in-memory: host/port/credentials are
     # ignored entirely (no socket is ever opened). A per-source seed derived from
     # the DataSource id keeps each demo project's data stable-but-distinct.
-    from tripl.core.adapters.synthetic import SyntheticAdapter, SyntheticSpike, _digest_int
-    from tripl.core.bucketing import to_utc
+    from tripl.core.adapters.synthetic import SyntheticAdapter, _digest_int, stored_spike
 
     seed = _digest_int("synthetic", str(ds.id)) % (2**31)
-    settings = SyntheticSettings.model_validate(_stored_settings(ds))
-    spike = (
-        SyntheticSpike(event_name=settings.spike_event, hour=to_utc(settings.spike_hour))
-        if settings.spike_event and settings.spike_hour
-        else None
+    return SyntheticAdapter(
+        seed=seed,
+        timeout_seconds=_effective_timeout_seconds(ds),
+        spike=stored_spike(ds.extra_params),
     )
-    return SyntheticAdapter(seed=seed, timeout_seconds=_effective_timeout_seconds(ds), spike=spike)
 
 
 register_adapter("clickhouse", _build_clickhouse)

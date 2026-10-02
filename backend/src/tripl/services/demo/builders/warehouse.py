@@ -20,7 +20,12 @@ from datetime import datetime, timedelta
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.core.adapters.synthetic import SPIKE_PLATFORM_SPLIT, SYNTHETIC_EVENT_NAMES
+from tripl.core.adapters.synthetic import (
+    SPIKE_EVENT_KEY,
+    SPIKE_HOUR_KEY,
+    SPIKE_PLATFORM_SPLIT,
+    SYNTHETIC_EVENT_NAMES,
+)
 from tripl.models.data_source import DataSource, TestStatus
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
@@ -138,8 +143,8 @@ async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
         # source has to serve the same spike or the first collection after
         # generation erases the demo's one seeded signal.
         extra_params={
-            "spike_event": SPIKE_EVENT_NAME,
-            "spike_hour": _newest_seeded_bucket(ctx.now).isoformat(),
+            SPIKE_EVENT_KEY: SPIKE_EVENT_NAME,
+            SPIKE_HOUR_KEY: _newest_seeded_bucket(ctx.now).isoformat(),
         },
     )
     session.add(data_source)
