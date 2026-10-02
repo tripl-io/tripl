@@ -7,7 +7,7 @@
 # distribution is never published, so its name is internal and nobody outside
 # the repo ever types it (tripl-ey6j.6).
 name = "tripl-server"
-version = "0.2.2"
+version = "0.2.3"
 description = "Analytics tracking plan service"
 requires-python = ">=3.14"
 # The service itself is copyleft: running a modified tripl as a network service
