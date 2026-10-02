@@ -23,10 +23,16 @@
 }
 
 /* App screenshots: each is published twice, `#gh-light-mode-only` and
-   `#gh-dark-mode-only`, and Docusaurus hides the one that does not match the
-   theme (see screenshots/README.md). Only the visible one is styled here, so
-   these rules never undo that hiding. A frame keeps a light screenshot from
-   melting into a light page. */
+   `#gh-dark-mode-only` (see screenshots/README.md). Docusaurus 3 does not hide
+   the copy that does not match the theme, so these rules do; the same markup
+   then also renders correctly on GitHub. */
+[data-theme='light'] img[src*='#gh-dark-mode-only'],
+[data-theme='dark'] img[src*='#gh-light-mode-only'] {
+  display: none;
+}
+
+/* The visible copy gets a frame, which keeps a light screenshot from melting
+   into a light page. */
 [data-theme='light'] .markdown img[src*='#gh-light-mode-only'],
 [data-theme='dark'] .markdown img[src*='#gh-dark-mode-only'] {
   display: block;
