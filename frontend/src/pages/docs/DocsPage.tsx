@@ -1,5 +1,6 @@
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowDownUp, FilePlus2, Languages, NotebookText, Search } from 'lucide-react'
 import { ErrorState } from '@/components/error-state'
@@ -12,20 +13,22 @@ import { usePageTitle } from '@/components/shell-chrome-context'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/hooks/useConfirm'
 import { ORIGINAL_LANG, storeDocLanguage, storedDocLanguage } from '@/lib/docLanguages'
-import { docPathFromSplat, docRoute, isDocScope, isUnder } from '@/lib/docTree'
+import { docPathFromSplat, docRoute, folderHoldsOnly, isDocScope, isUnder } from '@/lib/docTree'
+import { docsTreeKey } from '@/lib/docsQueryKeys'
 import { formatRelativeTime } from '@/lib/datetime'
 import { lazyWithReload } from '@/lib/lazyWithReload'
 import { useCanWriteProject, useIsOwner } from '@/lib/permissions'
-import type { DocScope, DocSummary, DocTreeResponse } from '@/types/docs'
+import type { DocMoveResponse, DocScope, DocSummary, DocTreeResponse } from '@/types/docs'
 import { MoveDocDialog, NewDocDialog, type MoveRequest, type NewDocRequest } from './DocFileDialogs'
+import { moveErrorMessage } from './docMoveError'
 import { DocHistoryPanel } from './DocHistoryPanel'
 import { DocImportExportDialog } from './DocImportExportDialog'
 import { DocShareDialog } from './DocShareDialog'
 import { DocQuickOpen } from './DocQuickOpen'
-import { DocsTree } from './DocsTree'
+import { DocsTree, type DropMove } from './DocsTree'
 import { DocLanguageBar, DocLanguagesDialog, DocTranslationNotice, TranslationHistoryDialog } from './DocTranslations'
 import { DocView } from './DocView'
-import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree, type DocSharingTarget } from './useDocs'
+import { useDeleteDoc, useDeleteDocFolder, useDocFile, useDocTree, useMoveDoc, type DocSharingTarget } from './useDocs'
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 // The editor carries CodeMirror and its Markdown grammar; readers never load it.
@@ -79,6 +82,15 @@ export default function DocsPage() {
   const { confirm, dialog: confirmDialog } = useConfirm()
   const deleteDoc = useDeleteDoc(slug)
   const deleteFolder = useDeleteDocFolder(slug)
+  const moveDoc = useMoveDoc(slug)
+  const queryClient = useQueryClient()
+  // A drop can be undone from its toast after the page has followed the note,
+  // so "which note is open" is read when the move lands, not when it started.
+  const openNote = useRef({ scope, path })
+  useEffect(() => {
+    openNote.current = { scope, path }
+  }, [scope, path])
+
 
   usePageTitle(file.data?.title ?? null)
 
@@ -187,10 +199,55 @@ export default function DocsPage() {
     }
   }
 
+  const followMoved = (moved: DocMoveResponse['moved'], movedScope: DocScope) => {
+    const open = openNote.current
+    if (open.scope !== movedScope) return
+    const mine = moved.find(m => m.from_path.toLowerCase() === open.path.toLowerCase())
+    if (mine) navigate(docRoute(slug, movedScope, mine.to_path), { replace: true })
+  }
+
+  const onDropMove = async (drop: DropMove, { undo = false } = {}) => {
+    try {
+      const result = await moveDoc.mutateAsync({
+        scope: drop.scope,
+        from_path: drop.from,
+        to_path: drop.to,
+        folder: drop.folder,
+      })
+      followMoved(result.moved, drop.scope)
+      if (undo) {
+        toast.success('Move undone')
+        return
+      }
+      const movedTo = result.moved.map(m => m.to_path)
+      toast.success(drop.folder ? `Moved ${drop.from} to ${drop.to}` : movedMessage(result.moved), {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            // A folder move can merge into a folder that already had notes, and
+            // notes can land there afterwards; a reverse prefix move would
+            // take those along. Undo only while the folder holds exactly what
+            // this drop moved (a stale tree reads as "changed", the safe side).
+            if (drop.folder && !folderHoldsOnly(scopeDocs(queryClient.getQueryData(docsTreeKey(slug)), drop.scope), drop.to, movedTo)) {
+              toast.error(`Cannot undo: ${drop.to} also holds other notes now. Move them back with Rename or move.`)
+              return
+            }
+            void onDropMove({ ...drop, from: drop.to, to: drop.from }, { undo: true })
+          },
+        },
+      })
+    } catch (err) {
+      toast.error(moveErrorMessage(err))
+    }
+  }
+
   const folderActions = canEdit
     ? {
         onNewInFolder: (s: DocScope, prefix: string) => setNewDoc({ scope: s, folder: prefix }),
         onMoveFolder: (s: DocScope, prefix: string) => setMoveReq({ scope: s, from: prefix, folder: true }),
+        // Not while the editor is open: moving the note (or its folder) under
+        // an unsaved draft would pull the page away from it.
+        onDropMove: editing ? undefined : (drop: DropMove) => void onDropMove(drop),
         onDeleteFolder: (s: DocScope, prefix: string, count: number) => void onDeleteFolder(s, prefix, count),
         onShareFolder: (s: DocScope, prefix: string) => setShareTarget({ kind: 'folder', scope: s, path: prefix }),
         canEditScope,
@@ -365,14 +422,21 @@ export default function DocsPage() {
         onClose={() => setMoveReq(null)}
         onMoved={(moved, req) => {
           setMoveReq(null)
-          toast.success(moved.length === 1 ? `Moved to ${moved[0]?.to_path}` : `Moved ${moved.length} notes`)
-          const mine = scope === req.scope ? moved.find(m => m.from_path.toLowerCase() === path.toLowerCase()) : undefined
-          if (mine) navigate(docRoute(slug, req.scope, mine.to_path), { replace: true })
+          toast.success(movedMessage(moved))
+          followMoved(moved, req.scope)
         }}
       />
       {confirmDialog}
     </PageContainer>
   )
+}
+
+function scopeDocs(tree: DocTreeResponse | undefined, scope: DocScope): DocSummary[] | undefined {
+  return tree && (scope === 'project' ? tree.project_docs : tree.organization_docs)
+}
+
+function movedMessage(moved: DocMoveResponse['moved']): string {
+  return moved.length === 1 ? `Moved to ${moved[0]?.to_path}` : `Moved ${moved.length} notes`
 }
 
 /** The landing view: what is there, most recently updated first. */

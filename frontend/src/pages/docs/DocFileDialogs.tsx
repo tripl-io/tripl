@@ -13,10 +13,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SegmentedControl } from '@/components/ui/segmented-control'
-import { ApiError } from '@/api/client'
 import { checkDocPath, newDocTemplate } from '@/lib/docTree'
 import { getErrorMessage } from '@/lib/utils'
 import type { DocScope, DocWriteResponse } from '@/types/docs'
+import { moveErrorMessage } from './docMoveError'
 import { useMoveDoc, useWriteDoc } from './useDocs'
 
 export interface NewDocRequest {
@@ -282,15 +282,4 @@ function MoveForm({
       </form>
     </DialogContent>
   )
-}
-
-/** A 409 from move carries the colliding paths; name them. */
-function moveErrorMessage(err: unknown): string {
-  if (err instanceof ApiError && err.status === 409 && err.detail && typeof err.detail === 'object') {
-    const detail = err.detail as { message?: unknown; collisions?: unknown; paths?: unknown }
-    const paths = Array.isArray(detail.collisions) ? detail.collisions : Array.isArray(detail.paths) ? detail.paths : []
-    const lead = typeof detail.message === 'string' ? detail.message : 'These paths are already taken'
-    if (paths.length > 0) return `${lead}:\n${paths.map(String).join('\n')}`
-  }
-  return getErrorMessage(err)
 }
