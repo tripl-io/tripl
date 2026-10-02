@@ -94,5 +94,12 @@ ds-bundle/
 .design-sync/previews/
 frontend/.ds-styles.css
 
-# Codex CLI local workspace
+# Local AI-agent tooling (Claude Code, Codex, ECC, Serena). Personal to each
+# contributor's setup, so never committed; AGENTS.md and CLAUDE.md at the root
+# are the shared guidance for agents.
+.claude/
 .codex/
+.agents/
+.ecc/
+.serena/
+.aws/

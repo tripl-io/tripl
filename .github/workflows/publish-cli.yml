@@ -23,15 +23,6 @@ on:
   push:
     tags:
       - "cli-v*"
-  # Rehearsal path: run against TestPyPI without cutting a tag.
-  workflow_dispatch:
-    inputs:
-      index:
-        description: "Which index to publish to"
-        type: choice
-        options: [testpypi, pypi]
-        default: testpypi
-        required: true
 
 # Least privilege, matching publish-mcp.yml. `contents: read` is the documented
 # minimum for actions/checkout; it is redundant on a public repo but is what
@@ -55,8 +46,8 @@ jobs:
           enable-cache: true
 
       # Repeated from ci.yml's `cli` job on purpose: a release must never be the
-      # first time these run, and this workflow can be dispatched manually
-      # without a PR having gone through CI. --locked, not --frozen: it FAILS
+      # first time these run, and a tag can be pushed on a commit that never
+      # went through CI. --locked, not --frozen: it FAILS
       # when uv.lock no longer describes pyproject.toml, whereas --frozen would
       # quietly gate on a dependency set the built wheel does not describe.
       - name: Lint, type-check and test
@@ -116,12 +107,12 @@ jobs:
           path: cli/dist/
 
   publish:
-    name: Publish to ${{ inputs.index || 'pypi' }}
+    name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
     # The environment name is part of what PyPI verifies for a trusted publisher,
     # and it is where a manual approval gate can be added later.
-    environment: ${{ inputs.index || 'pypi' }}
+    environment: pypi
     permissions:
       # Job-level permissions REPLACE the workflow-level block rather than
       # extending it, so contents is restated here even though this job only
@@ -137,8 +128,6 @@ jobs:
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          # Both branches name a URL explicitly. Leaving the false branch as ""
-          # would hand the action an empty repository-url rather than letting it
-          # fall back to its default, which is a needless thing to gamble a first
-          # publish on.
-          repository-url: ${{ inputs.index == 'testpypi' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
+          # Named explicitly rather than left to the action's default, which is a
+          # needless thing to gamble a publish on.
+          repository-url: https://upload.pypi.org/legacy/
