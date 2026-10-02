@@ -354,17 +354,20 @@ export function DemoScenarioStrip() {
   const canEdit = useCanWriteProject()
   const canManage = useCanManageProject(useContext(ActiveProjectContext))
 
-  // The user is standing on the step's own surface (query params aside), yet no
-  // coach mark for the step is mounted — the control is filtered out, on another
-  // tab, or not rendered at all. Muting hints silences this too: it keys off the
-  // same visibility the marks themselves report. Steps without an on-surface
-  // anchor (deep-link and explore steps) expect no mark, so they stay quiet.
+  // The user is standing on the step's own surface, yet no coach mark for the
+  // step is mounted — the control is filtered out or not rendered at all. A
+  // step that names a tab is on its surface only on that tab: from another one
+  // the link below takes the user there, and the warning would be wrong.
+  // Muting hints silences this too: it keys off the same visibility the marks
+  // themselves report. Steps without an on-surface anchor (deep-link and
+  // explore steps) expect no mark, so they stay quiet.
   const stepPath = step.to.split('?')[0] ?? step.to
   const targetMissing =
     active &&
     !hintsMuted &&
     step.coach !== undefined &&
     location.pathname.startsWith(stepPath) &&
+    searchMatches(location.search, step.to) &&
     !present.has(step.id)
   const showTargetMissing = useDeferredFlag(targetMissing, MISSING_TARGET_DELAY_MS)
   // The page itself, not a page under it: from a scan's detail the link back

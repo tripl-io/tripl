@@ -368,6 +368,17 @@ describe('DemoScenarioStrip — when the coached control is nowhere on screen', 
     expect(cta(/Open Scans/)).toHaveAttribute('href', `/p/${SLUG}/scans`)
   })
 
+  it('stays quiet on another tab of the step page, where the link leads to the control', () => {
+    renderStrip(chapterState('alerting', 'alerting/create-rule'), demoProject(), `/p/${SLUG}/alerting`)
+
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(missingLine()).toBeNull()
+    expect(cta(/Open Rules/)).toHaveAttribute('href', `/p/${SLUG}/alerting?section=monitors`)
+  })
+
   it('expects no mark on a deep-link step with no on-surface anchor', () => {
     renderStrip(
       chapterState('variables', 'variables/open-variables'),

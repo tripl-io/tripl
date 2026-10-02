@@ -90,6 +90,26 @@ describe('ConflictsPanel', () => {
     expect(within(card('paywall')).getByRole('button', { name: 'Keep this branch' })).toBeEnabled()
   })
 
+  it('holds one field to one save at a time, so two cannot race the same row', async () => {
+    vi.mocked(planBranchesApi.getConflicts).mockResolvedValue(CONFLICTS)
+    vi.mocked(planBranchesApi.saveResolution).mockReturnValue(new Promise(() => {}))
+    renderPanel()
+    await screen.findByText('2 unresolved')
+
+    const home = within(card('home'))
+    fireEvent.click(home.getByRole('button', { name: 'Take main' }))
+    await home.findByText("Resolved: main's value")
+    // A double-click, and a quick change of side, while the first save runs.
+    fireEvent.click(home.getByRole('button', { name: 'Take main' }))
+    fireEvent.click(home.getByRole('button', { name: 'Keep this branch' }))
+
+    expect(home.getByRole('button', { name: 'Keep this branch' })).toBeDisabled()
+    expect(planBranchesApi.saveResolution).toHaveBeenCalledTimes(1)
+    // Another row is not held up.
+    fireEvent.click(within(card('paywall')).getByRole('button', { name: 'Keep this branch' }))
+    await waitFor(() => expect(planBranchesApi.saveResolution).toHaveBeenCalledTimes(2))
+  })
+
   it('puts the field back when the save fails, and says so', async () => {
     vi.mocked(planBranchesApi.getConflicts).mockResolvedValue(CONFLICTS)
     vi.mocked(planBranchesApi.saveResolution).mockRejectedValue(new Error('boom'))
@@ -98,7 +118,7 @@ describe('ConflictsPanel', () => {
 
     fireEvent.click(within(card('home')).getByRole('button', { name: 'Take main' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the choice')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the choice for home')
     await waitFor(() => expect(within(card('home')).getByText('Unresolved')).toBeInTheDocument())
   })
 

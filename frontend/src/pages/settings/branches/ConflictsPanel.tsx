@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { planBranchesApi } from '@/api/planBranches'
 import { Panel } from '@/components/settings/kit'
@@ -49,6 +49,8 @@ interface ConflictListProps {
     choice: ResolutionChoice,
   ) => void
   pending?: boolean
+  /** A field whose own choice is still being saved (the Conflicts panel). */
+  pendingOf?: (entity: PlanBranchConflictEntity, field: PlanBranchConflictField) => boolean
 }
 
 /**
@@ -57,7 +59,13 @@ interface ConflictListProps {
  * Conflicts panel and the "Update from main" dialog, so a choice reads the
  * same in both (PL-8).
  */
-export function ConflictList({ entities, choiceOf, onResolve, pending = false }: ConflictListProps) {
+export function ConflictList({
+  entities,
+  choiceOf,
+  onResolve,
+  pending = false,
+  pendingOf,
+}: ConflictListProps) {
   const groups = new Map<string, { title: string; entities: PlanBranchConflictEntity[] }>()
   for (const entity of entities) {
     const parent = entity.parent ?? null
@@ -97,7 +105,7 @@ export function ConflictList({ entities, choiceOf, onResolve, pending = false }:
                     entity={entity}
                     field={field}
                     choice={choiceOf(entity, field)}
-                    pending={pending}
+                    pending={pending || (pendingOf?.(entity, field) ?? false)}
                     onResolve={onResolve ? (choice) => onResolve(entity, field, choice) : undefined}
                   />
                 ))}
@@ -131,6 +139,13 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
   })
 
   const resolutionMutationKey = ['plan-branch-resolution', slug, branch.id]
+  // Rows save side by side, but one field waits for its own save: two in
+  // flight for the same field race to insert the same row, and the older
+  // one's rollback could undo the newer pick.
+  const savingFields = useMutationState({
+    filters: { mutationKey: resolutionMutationKey, status: 'pending' },
+    select: (mutation) => mutation.state.variables as ResolveVars | undefined,
+  })
   const resolutionMut = useMutation({
     mutationKey: resolutionMutationKey,
     // Rendered inline below, beside the choice that failed (PLAN-7).
@@ -188,6 +203,14 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
         <ConflictList
           entities={conflicts.entities}
           choiceOf={(_entity, field) => field.choice}
+          pendingOf={(entity, field) =>
+            savingFields.some(
+              (vars) =>
+                vars?.entity_type === entity.entity_type &&
+                vars.entity_name === entity.name &&
+                vars.field === field.field,
+            )
+          }
           onResolve={
             canWrite
               ? (entity, field, choice) =>
@@ -202,7 +225,9 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
         />
         {resolutionMut.isError ? (
           <p role="alert" className="text-caption text-danger">
-            Could not save the choice: {getErrorMessage(resolutionMut.error)}
+            {/* Named: other rows keep saving, so "the choice" alone may not be the last one clicked. */}
+            Could not save the choice for {resolutionMut.variables?.entity_name}:{' '}
+            {getErrorMessage(resolutionMut.error)}
           </p>
         ) : null}
       </div>
@@ -293,7 +318,11 @@ function ConflictFieldRow({
               // fill, and every pick would look undone while the update runs.
               // Pressing it again picks what is already picked.
               disabled={pending && choice !== option}
-              onClick={() => onResolve(option)}
+              // Picking the side already picked changes nothing; sending it
+              // would only race the save before it.
+              onClick={() => {
+                if (choice !== option) onResolve(option)
+              }}
             >
               {CHOICE_LABEL[option]}
             </Button>
