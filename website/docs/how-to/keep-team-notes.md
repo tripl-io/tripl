@@ -12,8 +12,9 @@ checkout funnel, why amounts are in cents, which table double-counts retries)
 in one place that people and AI agents both read.
 
 **You need:** to be an **editor** of the project to write project notes.
-Organization-wide notes are written by owners and admins. Everyone in the project
-can read.
+Organization-wide notes are written by owners and admins. By default everyone in
+the project can read a note; its author can narrow that to chosen people and
+groups, or to *Only me*.
 
 ![Plan → Docs: the notes tree on the left, a note with links to events on the right](/img/screenshots/docs-note.light.webp#gh-light-mode-only)
 ![Plan → Docs: the notes tree on the left, a note with links to events on the right](/img/screenshots/docs-note.dark.webp#gh-dark-mode-only)

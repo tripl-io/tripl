@@ -99,7 +99,10 @@ async function signIn(page) {
   if (r.status >= 300) throw new Error(`Sign-in failed: ${r.status} ${r.text.slice(0, 200)}`)
 }
 
-/** Waits until nothing on the page says it is loading, then a beat more. */
+/**
+ * Waits until nothing on the page says it is loading, then a beat more. Throws
+ * if the page never goes quiet, so a loading skeleton is never saved as a shot.
+ */
 async function settle(page, { timeout = 20_000 } = {}) {
   const started = Date.now()
   let quietSince = 0
@@ -109,13 +112,16 @@ async function settle(page, { timeout = 20_000 } = {}) {
     )
     if (busy === 0) {
       if (!quietSince) quietSince = Date.now()
-      if (Date.now() - quietSince > 700) break
+      if (Date.now() - quietSince > 700) {
+        await new Promise(r => setTimeout(r, 400))
+        return
+      }
     } else {
       quietSince = 0
     }
     await new Promise(r => setTimeout(r, 150))
   }
-  await new Promise(r => setTimeout(r, 400))
+  throw new Error(`Page still loading after ${timeout / 1000}s`)
 }
 
 function helpers(page) {

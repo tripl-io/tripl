@@ -78,8 +78,11 @@ good place to tell agents how your team works with the plan.
 
 :::tip Letting it change the plan
 A **Read & write** key lets an agent propose changes. By default the MCP server
-only writes to a [branch](./propose-changes-on-a-branch.md), never to the live
-plan, so its changes go through the same review as anyone's.
+makes plan changes (events, event types) only on a
+[branch](./propose-changes-on-a-branch.md), never on the live plan, so they go
+through the same review as anyone's. The same key can also start a scan and
+write [Docs notes](./keep-team-notes.md); notes are not on branches, so a note
+it writes is live at once.
 :::
 
 **More detail:** [MCP server](../integrate/mcp-server.md) lists every tool, and

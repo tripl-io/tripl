@@ -13,8 +13,9 @@ description: Invite people into the organization, then give them access to a pro
 Access has two layers, and it helps to know them before you start:
 
 - **The organization role** (*owner*, *admin* or *member*) says who runs the
-  place. Owners and admins see every project and manage people, data sources and
-  API keys. Most people are *members*.
+  place. Owners and admins see every project and manage people and data sources.
+  Most people are *members*. (API keys are personal: everyone creates and revokes
+  their own.)
 - **The project role** (*editor* or *viewer*) says what a member may do in one
   project. Editors change the plan and the alerts; viewers read.
 
