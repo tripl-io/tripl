@@ -158,6 +158,8 @@ The middleware reads `CONTENT_SECURITY_POLICY`, `SERVE_FRONTEND`, `HSTS_ENABLED`
 | `GET /api/v1/auth/sso/{org}/start` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
 | `GET /api/v1/auth/sso/{org}/callback` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
 | `POST /api/v1/auth/sso/{org}/saml/acs` | Own SSO limiter (fixed, not configurable), shared by start, callback and ACS | 20 / minute |
+| `GET /api/v1/auth/google/start` | The same SSO limiter | 20 / minute |
+| `GET /api/v1/auth/google/callback` | The same SSO limiter | 20 / minute |
 | `GET /api/v1/auth/sso/link` | Shared status limiter | 30 / minute |
 | `POST /api/v1/auth/sso/link` | `RATE_LIMIT_LOGIN_PER_MINUTE` | 5 / minute |
 | `/scim/v2/{org}/*` | Own SCIM limiter, keyed per token (not per address) | 600 / minute |
