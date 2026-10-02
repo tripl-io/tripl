@@ -32,6 +32,12 @@ export interface AuthStatusResponse {
   /** True exactly in hosted mode: an unverified session is refused everywhere
    *  but `/auth/*`, so the app shows the "check your inbox" screen instead. */
   email_verification_required?: boolean
+  /** The operator configured a Google client: the page offers "Continue with
+   *  Google" (tripl-sav5.2). */
+  google_sign_in?: boolean
+  /** A public demo: no password sign-ups (Google only), and the app refuses
+   *  whatever would reach outside the instance. */
+  public_demo?: boolean
 }
 
 export type DeploymentMode = 'self_hosted' | 'hosted'
