@@ -69,7 +69,10 @@ async def _org(
 
 async def _status(org_id: uuid.UUID) -> str | None:
     async with TestSessionLocal() as session:
-        return await session.scalar(select(Organization.status).where(Organization.id == org_id))
+        status: str | None = await session.scalar(
+            select(Organization.status).where(Organization.id == org_id)
+        )
+        return status
 
 
 async def test_only_organizations_left_idle_are_retired() -> None:
