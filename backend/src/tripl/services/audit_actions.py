@@ -288,6 +288,8 @@ WORKSPACE_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "user.sso_login",
             "user.sso_provision",
             "user.sso_link",
+            # Sign in with Google, the instance's own client (sav5.2).
+            "user.google_sign_in",
         ),
     ),
     (

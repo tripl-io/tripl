@@ -220,7 +220,7 @@ async def callback(
     await audit_service.record(
         session,
         user=user,
-        action="auth.google_sign_in",
+        action="user.google_sign_in",
         target_type="user",
         target_id=user.id,
         target_name=user.email,

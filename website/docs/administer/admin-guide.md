@@ -738,7 +738,8 @@ rename as `org.rename`),
 `org.group.member_remove`, and for invitations
 `user.invite`, `user.invite_revoke` and `user.invite_accept`, and for
 [single sign-on](#single-sign-on) `org.sso.*`, `user.sso_login`,
-`user.sso_provision` and `user.sso_link`, and for [SCIM provisioning](#scim)
+`user.sso_provision` and `user.sso_link` (and `user.google_sign_in` for Sign in
+with Google), and for [SCIM provisioning](#scim)
 `org.scim.*` plus the changes SCIM makes (marked `via: "scim"`). They appear under
 **Organization** and **Workspace** in the Audit tab's action filter.
 

@@ -154,6 +154,14 @@ PUBLIC_OR_INSTANCE_WIDE: dict[str, str] = {
         "SAML SP metadata (F20): unauthenticated and public by nature (tripl's entity "
         "id and ACS URL for the organization's slug); reads no tenant data"
     ),
+    f"{API}/auth/google/start": (
+        "Sign in with Google (sav5.2): the instance's own OAuth client, unauthenticated, "
+        "acts in no organization; test_google_sign_in.py pins the flow"
+    ),
+    f"{API}/auth/google/callback": (
+        "Sign in with Google (sav5.2): Google's redirect back, authorized by the "
+        "encrypted state cookie bound to the browser; test_google_sign_in.py pins the flow"
+    ),
     f"{API}/auth/sso/link": (
         "SSO account link (F20): addressed by its secret single-use ticket; confirming "
         "also needs a session of the ticket's account (checked in the handler)"
