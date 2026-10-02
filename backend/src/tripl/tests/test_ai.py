@@ -89,6 +89,24 @@ def test_llm_is_enabled_requires_api_key(monkeypatch: pytest.MonkeyPatch):
     assert llm_service.is_enabled(env_ai_config()) is True
 
 
+def test_a_public_demo_has_no_ai_whatever_the_operator_configured(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Every call a visitor triggers would run on the operator's key (tripl-sav5.4)."""
+    monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
+    monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-test")
+    monkeypatch.setattr(llm_service.settings, "search_embeddings_enabled", True)
+    monkeypatch.setattr(llm_service.settings, "public_demo", True)
+
+    config = env_ai_config()
+
+    assert llm_service.is_enabled(config) is False
+    assert config.ai_api_key == ""
+    assert config.search_embeddings_enabled is False
+    assert config.search_embedding_api_key == ""
+    assert llm_service.complete("system", "user", config=config) is None
+
+
 def _success_body(text: str = "ok") -> str:
     return json.dumps({"choices": [{"message": {"content": text}}]})
 
