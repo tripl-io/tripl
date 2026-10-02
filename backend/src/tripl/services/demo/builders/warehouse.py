@@ -20,7 +20,12 @@ from datetime import datetime, timedelta
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.core.adapters.synthetic import SYNTHETIC_EVENT_NAMES
+from tripl.core.adapters.synthetic import (
+    SPIKE_EVENT_KEY,
+    SPIKE_HOUR_KEY,
+    SPIKE_PLATFORM_SPLIT,
+    SYNTHETIC_EVENT_NAMES,
+)
 from tripl.models.data_source import DataSource, TestStatus
 from tripl.models.event_metric import EventMetric
 from tripl.models.event_metric_breakdown import EventMetricBreakdown
@@ -133,6 +138,14 @@ async def _build_data_source(session: AsyncSession, ctx: DemoContext) -> None:
         last_test_status=TestStatus.success,
         last_test_at=ctx.now,
         last_test_message="Synthetic warehouse (demo)",
+        # The hour ``_build_event_metrics`` injects the spike into. The scheduled
+        # collection re-reads the newest hours and rewrites them, so the synthetic
+        # source has to serve the same spike or the first collection after
+        # generation erases the demo's one seeded signal.
+        extra_params={
+            SPIKE_EVENT_KEY: SPIKE_EVENT_NAME,
+            SPIKE_HOUR_KEY: _newest_seeded_bucket(ctx.now).isoformat(),
+        },
     )
     session.add(data_source)
     await session.flush()
@@ -288,7 +301,8 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
 # iOS, so the signal's "Why" panel has a clear story to tell ("85% of the spike
 # comes from platform = ios"). The ordinary part of the spike bucket keeps the
 # drifting mix every other bucket has.
-_SPIKE_PLATFORM_SPLIT = {"ios": 0.85, "android": 0.10, "web": 0.05}
+# The synthetic source serves the spike with the same mix (``SPIKE_PLATFORM_SPLIT``).
+_SPIKE_PLATFORM_SPLIT = SPIKE_PLATFORM_SPLIT
 
 
 def _platform_counts(

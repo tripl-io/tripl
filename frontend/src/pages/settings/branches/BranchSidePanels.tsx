@@ -118,24 +118,29 @@ export function CommentsPanel({
   // heading, two titles with the inner one larger (PL-18).
   return (
     <section aria-label="Comments" className="rounded-card border border-border bg-surface">
+      {/* A DOM element under the mark: the coach anchors on the ref it clones
+          onto its child, and CommentThread takes none, so wrapping the thread
+          directly left the step "not visible" on the very page it lives on. */}
       <ScenarioCoachMark step="branches/comment">
-        <CommentThread
-          queryKey={planBranchCommentsKey(slug, branchId)}
-          list={() => planBranchesApi.listComments(slug, branchId)}
-          create={(body, parentId) =>
-            planBranchesApi.createComment(slug, branchId, body, parentId ?? undefined)
-          }
-          remove={(commentId) => planBranchesApi.deleteComment(slug, branchId, commentId)}
-          authorName={(comment) => displayUser(usersById, comment.user_id)}
-          // Posting review feedback lands the branches chapter's last step.
-          onCreated={() => notifyStepCompleted('branches/comment')}
-          heading="Comments"
-          emptyText="No comments yet."
-          composerId="branch-comment-body"
-          // @ offers the project's members; a mention notifies them (#259).
-          mentionSlug={slug}
-          className="flex flex-col gap-2 p-4"
-        />
+        <div>
+          <CommentThread
+            queryKey={planBranchCommentsKey(slug, branchId)}
+            list={() => planBranchesApi.listComments(slug, branchId)}
+            create={(body, parentId) =>
+              planBranchesApi.createComment(slug, branchId, body, parentId ?? undefined)
+            }
+            remove={(commentId) => planBranchesApi.deleteComment(slug, branchId, commentId)}
+            authorName={(comment) => displayUser(usersById, comment.user_id)}
+            // Posting review feedback lands the branches chapter's last step.
+            onCreated={() => notifyStepCompleted('branches/comment')}
+            heading="Comments"
+            emptyText="No comments yet."
+            composerId="branch-comment-body"
+            // @ offers the project's members; a mention notifies them (#259).
+            mentionSlug={slug}
+            className="flex flex-col gap-2 p-4"
+          />
+        </div>
       </ScenarioCoachMark>
     </section>
   )

@@ -148,7 +148,10 @@ services:
     volumes:
       - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # As the rabbitmq user: run as root, a probe that fires before the server
+      # has written its Erlang cookie writes a root-owned one, and the server then
+      # dies with eacces reading it.
+      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 10s
       retries: 10

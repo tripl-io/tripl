@@ -148,10 +148,14 @@ def _build_synthetic(ds: DataSource, password: str) -> BaseAdapter:
     # The synthetic warehouse is local and in-memory: host/port/credentials are
     # ignored entirely (no socket is ever opened). A per-source seed derived from
     # the DataSource id keeps each demo project's data stable-but-distinct.
-    from tripl.core.adapters.synthetic import SyntheticAdapter, _digest_int
+    from tripl.core.adapters.synthetic import SyntheticAdapter, _digest_int, stored_spike
 
     seed = _digest_int("synthetic", str(ds.id)) % (2**31)
-    return SyntheticAdapter(seed=seed, timeout_seconds=_effective_timeout_seconds(ds))
+    return SyntheticAdapter(
+        seed=seed,
+        timeout_seconds=_effective_timeout_seconds(ds),
+        spike=stored_spike(ds.extra_params),
+    )
 
 
 register_adapter("clickhouse", _build_clickhouse)

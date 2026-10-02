@@ -364,7 +364,12 @@ export default function EventEditPage() {
           </div>
           {/* Health (F15, #268): what the event scores on the main plan and
               why. Renders nothing on a branch or for an archived event. */}
-          <EventHealthCard slug={slug} eventId={eventId} className="mb-6" />
+          <EventHealthCard
+            slug={slug}
+            eventId={eventId}
+            status={eventQuery.data?.status}
+            className="mb-6"
+          />
           {handoff?.commentError && (
             <p role="alert" className="mb-2 text-body-sm text-destructive">
               {handoff.commentError}

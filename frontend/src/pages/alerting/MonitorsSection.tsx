@@ -905,37 +905,41 @@ function RuleRow({
         )}
         {/* Exactly one rule coaches the simulate step: the seeded firing rule,
             whose window is guaranteed to hold anomalies. Replay sits in the
-            editor's menu, so the mark points at the menu. */}
+            editor's menu, so the mark points at the menu. The span is the
+            anchor: the mark clones its ref onto its child, and RuleActionsMenu
+            takes none, so the step read as "not visible" beside the menu. */}
         <ScenarioCoachMark
           step="alerting/simulate"
           when={rule.name === SCENARIO_SEEDED.firingRuleName}
         >
-          {canWrite ? (
-            <RuleActionsMenu
-              ruleName={rule.name}
-              muted={rule.muted}
-              isMutePending={isMutePending}
-              isDeletePending={isDeletePending}
-              deleteImpact={describeDeletionImpact(rule.total_deliveries, rule.incident_count)}
-              onMute={onMute}
-              onReplay={onReplay}
-              onDelete={onDelete}
-            />
-          ) : (
-            // Replay stays for everyone: it is the one control here the API
-            // does not gate, because it saves nothing (backend alerting.py has
-            // no EditorUserDep on /simulate). A viewer has nothing else to put
-            // in a menu, so it is a labelled button.
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onReplay}
-              aria-label={`Replay ${rule.name}`}
-            >
-              <History aria-hidden="true" />
-              Replay
-            </Button>
-          )}
+          <span className="inline-flex">
+            {canWrite ? (
+              <RuleActionsMenu
+                ruleName={rule.name}
+                muted={rule.muted}
+                isMutePending={isMutePending}
+                isDeletePending={isDeletePending}
+                deleteImpact={describeDeletionImpact(rule.total_deliveries, rule.incident_count)}
+                onMute={onMute}
+                onReplay={onReplay}
+                onDelete={onDelete}
+              />
+            ) : (
+              // Replay stays for everyone: it is the one control here the API
+              // does not gate, because it saves nothing (backend alerting.py has
+              // no EditorUserDep on /simulate). A viewer has nothing else to put
+              // in a menu, so it is a labelled button.
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onReplay}
+                aria-label={`Replay ${rule.name}`}
+              >
+                <History aria-hidden="true" />
+                Replay
+              </Button>
+            )}
+          </span>
         </ScenarioCoachMark>
       </span>
     </div>

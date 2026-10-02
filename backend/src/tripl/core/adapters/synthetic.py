@@ -70,6 +70,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
 
@@ -331,6 +332,45 @@ _ONGOING_RECENT_DRIFT = 0.04
 # inside the detector's drop band (worst-case |z| ~= 2.65 vs the 3-sigma gate)
 # even at the low-volume trough of a mid-volume event.
 _ONGOING_TEXTURE_PCT = 1
+
+# --- the demo's seeded spike ---------------------------------------------------
+# A generated demo seeds one spike: one event at this multiple of its volume for
+# one hour, with almost all of the excess from iOS so the signal's "Why" panel has
+# a story to tell. The demo's warehouse builder writes it into the stored series
+# and the synthetic source is told the hour (``stored_spike`` below), so
+# the scheduled collection that re-reads that hour reads the same spike back
+# instead of overwriting it with an ordinary hour.
+SPIKE_MULTIPLIER = 3
+SPIKE_PLATFORM_SPLIT: dict[str, float] = {"ios": 0.85, "android": 0.10, "web": 0.05}
+
+
+@dataclass(frozen=True)
+class SyntheticSpike:
+    """The hour and event a demo seeded its spike into."""
+
+    event_name: str
+    hour: datetime
+
+
+# Where the demo seeder records the spike on its data source's ``extra_params``.
+# Seeder-only keys, read here and nowhere else: they are not connection settings
+# a user can set, so they stay out of ``SyntheticSettings`` and the API schema.
+SPIKE_EVENT_KEY = "spike_event"
+SPIKE_HOUR_KEY = "spike_hour"
+
+
+def stored_spike(extra_params: object) -> SyntheticSpike | None:
+    """The spike a demo seeded into this source, or ``None`` (any other source)."""
+    if not isinstance(extra_params, dict):
+        return None
+    event_name = extra_params.get(SPIKE_EVENT_KEY)
+    hour = extra_params.get(SPIKE_HOUR_KEY)
+    if not isinstance(event_name, str) or not isinstance(hour, str):
+        return None
+    try:
+        return SyntheticSpike(event_name=event_name, hour=to_utc(datetime.fromisoformat(hour)))
+    except ValueError:
+        return None
 
 
 def _projection_columns(base_query: str) -> tuple[str, ...] | None:
@@ -868,19 +908,47 @@ def _event_row(
     }
 
 
+def _spike_platform(seed: int, *occ: object) -> str:
+    """The platform of one row of a spike's EXCESS, drawn by ``SPIKE_PLATFORM_SPLIT``."""
+    roll = (_digest_int(seed, "spike_plat", *occ) % 10_000) / 10_000
+    for platform, share in SPIKE_PLATFORM_SPLIT.items():
+        if roll < share:
+            return platform
+        roll -= share
+    return next(iter(SPIKE_PLATFORM_SPLIT))
+
+
 def _ongoing_hour_rows(
-    seed: int, bucket: datetime, epoch_hour: int, session_span: int, day_ordinal: int
+    seed: int,
+    bucket: datetime,
+    epoch_hour: int,
+    session_span: int,
+    day_ordinal: int,
+    spike: SyntheticSpike | None = None,
 ) -> list[dict[str, object]]:
-    """One ongoing-window hour: each event at its seeded ``ongoing_base`` volume."""
+    """One ongoing-window hour: each event at its seeded ``ongoing_base`` volume.
+
+    The hour a demo seeded its spike into carries that spike here too: the spiked
+    event at ``SPIKE_MULTIPLIER`` times its volume, the excess split by
+    ``SPIKE_PLATFORM_SPLIT``. The scheduled collection re-reads the newest hours
+    and rewrites them, so a warehouse without the spike erased the demo's seeded
+    signal at the first top of the hour after the demo was generated.
+    """
     out: list[dict[str, object]] = []
     for event_def in _EVENT_DEFS:
         if event_def.retired:
             continue
         event_name = event_def.event_name
         count = _ongoing_hourly_count(seed, event_def.ongoing_base, event_name, bucket)
-        for k in range(count):
+        total = count
+        if spike is not None and spike.event_name == event_name and spike.hour == bucket:
+            total = count * SPIKE_MULTIPLIER
+        for k in range(total):
             occ = (epoch_hour, event_name, k)
-            out.append(_event_row(seed, bucket, event_def, session_span, day_ordinal, *occ))
+            row = _event_row(seed, bucket, event_def, session_span, day_ordinal, *occ)
+            if k >= count:
+                row["platform"] = _spike_platform(seed, *occ)
+            out.append(row)
     return out
 
 
@@ -926,7 +994,11 @@ def _session_span(seed: int, day_ordinal: int) -> int:
 
 
 def _generate_events(
-    seed: int, anchor: datetime, history_days: int, max_rows: int
+    seed: int,
+    anchor: datetime,
+    history_days: int,
+    max_rows: int,
+    spike: SyntheticSpike | None = None,
 ) -> list[dict[str, object]]:
     """Deterministic hourly events over the last ``history_days`` before ``anchor``.
 
@@ -960,7 +1032,7 @@ def _generate_events(
         bucket, epoch_hour, day_ordinal = hour_keys(hour)
         ongoing.extend(
             _ongoing_hour_rows(
-                seed, bucket, epoch_hour, _session_span(seed, day_ordinal), day_ordinal
+                seed, bucket, epoch_hour, _session_span(seed, day_ordinal), day_ordinal, spike
             )
         )
     ongoing = ongoing[:max_rows]
@@ -1041,6 +1113,7 @@ class SyntheticAdapter(BaseAdapter):
         history_days: int = SYNTHETIC_HISTORY_DAYS,
         timeout_seconds: int | None = None,
         max_rows: int = SYNTHETIC_MAX_ROWS,
+        spike: SyntheticSpike | None = None,
     ) -> None:
         self._seed = seed
         self._history_days = history_days
@@ -1070,7 +1143,7 @@ class SyntheticAdapter(BaseAdapter):
         # anchor for exactness (a midnight anchor floors identically either way).
         base = to_utc(anchor) if anchor is not None else datetime.now(UTC)
         self._anchor = base.replace(minute=0, second=0, microsecond=0)
-        self._events = _generate_events(seed, self._anchor, history_days, max_rows)
+        self._events = _generate_events(seed, self._anchor, history_days, max_rows, spike)
         self._orders = _generate_orders(seed, self._anchor, history_days, max_rows)
         self._enforce_budget("events", self._events)
         self._enforce_budget("orders", self._orders)

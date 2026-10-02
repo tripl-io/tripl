@@ -886,7 +886,7 @@ export default function MonitoringDetailPage() {
       {/* The event's health score and its breakdown (F15, #268). Main-plan
           only: the card renders nothing on a branch or for an archived event. */}
       {scope === 'event' && scopeId && slug && (
-        <EventHealthCard slug={slug} eventId={scopeId} />
+        <EventHealthCard slug={slug} eventId={scopeId} status={event?.status} />
       )}
 
       {/* What depends on this event or metric (#257): the metrics built on the

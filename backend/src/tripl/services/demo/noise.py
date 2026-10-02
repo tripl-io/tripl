@@ -16,6 +16,7 @@ import hashlib
 import math
 from datetime import datetime, timedelta
 
+from tripl.core.adapters.synthetic import SPIKE_MULTIPLIER
 from tripl.core.analyzers.anomaly_detector import AnomalyDetectionSettings
 
 # Wall-clock length of the seeded hourly history. The seasonal (hour-of-week)
@@ -27,7 +28,8 @@ from tripl.core.analyzers.anomaly_detector import AnomalyDetectionSettings
 # (``LATEST_SCAN_STALE_INTERVALS`` = 3 intervals).
 DEMO_HISTORY_DAYS = 23
 DEMO_EVAL_WINDOW_HOURS = 48
-DEMO_SPIKE_MULTIPLIER = 3
+# The synthetic source reproduces the spike at the same multiple, so it owns it.
+DEMO_SPIKE_MULTIPLIER = SPIKE_MULTIPLIER
 
 # Distribution-drift showcase: the platform mix drifts only over the final
 # ``DEMO_DRIFT_SPAN_DAYS`` days so the real PSI climbs a stable -> minor ->

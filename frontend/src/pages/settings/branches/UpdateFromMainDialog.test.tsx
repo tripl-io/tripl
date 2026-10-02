@@ -154,6 +154,25 @@ describe('UpdateFromMainDialog', () => {
     expect(screen.queryByText(/\bours\b|\btheirs\b/)).not.toBeInTheDocument()
   })
 
+  it('keeps the picks on screen while the update runs', async () => {
+    // An update that never answers: the screen while it waits.
+    vi.mocked(planBranchesApi.updateFromMain).mockReturnValue(new Promise(() => {}))
+    renderDialog()
+
+    await screen.findByText('Events: 3 changed, 1 added')
+    const [takeMain] = screen.getAllByRole('button', { name: 'Take main' })
+    fireEvent.click(takeMain!)
+    fireEvent.click(updateButton())
+
+    expect(await screen.findByRole('button', { name: 'Updating…' })).toBeDisabled()
+    // The chosen side keeps its fill; only the other one is shut off.
+    expect(takeMain).toBeEnabled()
+    expect(takeMain).toHaveAttribute('aria-pressed', 'true')
+    for (const button of screen.getAllByRole('button', { name: 'Keep this branch' })) {
+      if (button.getAttribute('aria-pressed') !== 'true') expect(button).toBeDisabled()
+    }
+  })
+
   it('holds the update until every overlap has a side, then sends the choices and the hash', async () => {
     vi.mocked(planBranchesApi.updateFromMain).mockResolvedValue(result())
     renderDialog()
