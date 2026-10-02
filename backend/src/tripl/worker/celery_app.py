@@ -105,6 +105,12 @@ celery_app.conf.beat_schedule = {
         # all it costs meanwhile is a slug and some storage.
         "schedule": crontab(minute=17),
     },
+    "retire-idle-organizations": {
+        "task": "tripl.worker.tasks.org_delete.retire_idle_organizations",
+        # Daily: a no-op unless IDLE_ORG_RETENTION_DAYS is set on a hosted
+        # instance (a public demo), where it keeps the database from only growing.
+        "schedule": crontab(minute=41, hour=3),
+    },
     "send-weekly-plan-digest": {
         "task": "tripl.worker.tasks.alerts.send_weekly_plan_digest",
         "schedule": crontab(day_of_week=1, hour=8, minute=0),

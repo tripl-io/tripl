@@ -304,6 +304,13 @@ class Settings(BaseSettings):
     # own; see website/docs/run/public-demo.md for the whole recipe.
     public_demo: bool = False
 
+    # Hosted only: an organization nobody has signed in to, or opened a project
+    # of, for this many days is deleted by a daily sweep, through the same purge
+    # an owner's delete runs (tripl-sav5.5). 0 keeps every organization — the
+    # default, since on a real instance an idle organization is still a
+    # customer. A public demo sets it, or its database only ever grows.
+    idle_org_retention_days: int = Field(default=0, ge=0)
+
     # AI features (LLM-powered descriptions, Q&A). Disabled by default because
     # plan content — event names, descriptions, field names — is sent to the
     # configured provider when enabled.
