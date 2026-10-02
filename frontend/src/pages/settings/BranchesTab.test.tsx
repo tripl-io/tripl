@@ -2280,7 +2280,7 @@ describe('BranchesTab review flows (frontend review batch 14)', () => {
       }),
     )
     // A failed save used to leave the buttons as they were and say nothing.
-    expect(await screen.findByText('Could not save the choice: Forbidden')).toBeInTheDocument()
+    expect(await screen.findByText('Could not save the choice for checkout: Forbidden')).toBeInTheDocument()
   })
 
   it('does not compute conflicts for a landed branch (PLAN-5)', async () => {
