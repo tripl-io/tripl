@@ -47,6 +47,9 @@ var/
 .claude/
 .codex/
 .agents/
+.ecc/
+.serena/
+.aws/
 .omc/
 .beads/
 .design-sync/
