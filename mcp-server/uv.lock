@@ -883,7 +883,7 @@ wheels = [
 
 [[package]]
 name = "tripl"
-version = "0.2.2"
+version = "0.2.3"
 source = { directory = "../cli" }
 dependencies = [
     { name = "httpx" },
