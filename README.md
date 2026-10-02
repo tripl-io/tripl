@@ -6,193 +6,160 @@
 
 <p align="center"><strong>Keep your product analytics honest.</strong></p>
 
-tripl is the single place where your team writes down what you *intend* to
-track, checks it against what your apps are *actually* sending, and gets a
-heads-up the moment the numbers start to look wrong.
+<p align="center">
+  <a href="https://vladenisov.github.io/tripl/">Docs</a> ·
+  <a href="website/docs/quick-start.md">Quick start</a> ·
+  <a href="website/docs/use/demo-workspace.md">Try the demo</a>
+</p>
 
-**tripl works with the analytics data you already have.** It connects to your
-existing data warehouse — **ClickHouse**, **BigQuery**, or **PostgreSQL** — and
-reads the events that are already landing there. There's no new SDK to ship and
-nothing to re-instrument: you point tripl at your data, and it takes care of the
-rest. Your warehouse stays yours; tripl only ever reads from it.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="website/static/img/screenshots/event-monitoring.dark.webp" />
+  <img src="website/static/img/screenshots/event-monitoring.light.webp" alt="An event in tripl the morning after a release: a +197% spike flagged against its baseline, the week of volume behind it, a verdict to give, and the breakdown showing 85% of the jump comes from iOS" />
+</picture>
 
 ---
 
-## The problem tripl solves
+## A Tuesday morning, with and without tripl
 
-Most teams describe their analytics in a spreadsheet or a wiki page. That
-document is correct on the day it's written — and slowly drifts from reality
-after that. An event quietly stops firing. A field changes shape. A new release
-doubles the volume of one event and zeroes out another. Nobody notices until a
-dashboard looks strange weeks later and someone has to reverse-engineer what
-happened.
+A release went out last night. By morning, *Home Screen View* is firing three
+times as often as it should.
 
-tripl closes that gap:
+**Without tripl**, nobody notices. Two weeks later a PM asks why engagement
+jumped, an analyst spends a day in SQL, and the answer turns out to be an iOS
+build that logs the screen twice. Every report built on those two weeks is
+quietly wrong.
 
-- **One source of truth** for every event, field, and value your product tracks.
-- **Changes reviewed like code** — propose, review, and merge edits to the plan
-  on a branch, so the live plan is never broken by accident.
-- **Plan checked against real data** pulled straight from your data warehouse.
-- **Automatic alerts** when volume, shape, or schema drifts away from what's
-  expected.
+**With tripl**, a message lands in your team's channel that morning: *volume
+spike, +197% against the usual for this hour*. You open it and see the screen
+above. The jump is real, and 85% of it comes from iOS. You mark it **Tracking
+bug**, the event's owner hears about it, and the fix ships the same day.
+
+That's the whole idea. tripl keeps a written-down **tracking plan** of what your
+product *should* send, compares it with what your apps *actually* send, and
+tells you the moment the two disagree.
+
+**It works with the data you already have.** tripl connects to your existing
+warehouse — **ClickHouse**, **BigQuery**, or **PostgreSQL** — and reads the
+events already landing there. There's no SDK to ship and nothing to
+re-instrument, and tripl only ever reads from your warehouse.
 
 It's built for **product managers, analysts, and data engineers** who own a
-tracking plan and are tired of finding out about broken analytics from a
-stakeholder instead of from a tool.
+tracking plan. If you've ever heard about broken analytics from a stakeholder
+before a tool told you, it's for you.
 
 ---
 
-## See it without setting anything up
-
-You don't need a data warehouse to explore tripl. On the projects screen click
-**Generate demo project** and tripl builds a complete, realistic project for
-you — event types, events, fields, collected metrics, a few anomalies, and some
-schema drift. The data lives in a **local synthetic warehouse** (nothing leaves
-the server, nothing is sent anywhere), but the product is not faked around it:
-real scans, metric collection, anomaly detection, and reconciliation run over
-that source, and a background clock keeps it fresh. Reset or delete it any time;
-it never touches your real projects. See
-[The demo workspace](website/docs/use/demo-workspace.md) for exactly what is
-synthetic, what is really executed, and what is intentionally unavailable.
-
----
-
-## What you can do with it
-
-tripl is organised around three jobs in the project navigation — **Plan**,
-**Observe**, and **Govern** — with workspace and instance configuration kept in
-**Settings**.
-
-### 📐 Plan — design what should be tracked
-
-- A clean, searchable **catalog** of every event, grouped by event type.
-- **Fields, variables, and relations** describe the shape of each event and the
-  values it can carry. Variables are typed `${placeholders}` with documented
-  values, warehouse bindings, per-event overrides, and drift review.
-- Move events through a lifecycle from draft and review to implementation,
-  live operation, deprecation, and archive; assign owners and tags along the
-  way.
-- **Plan branches**: make changes on a branch, get them reviewed, and merge —
-  exactly like a pull request, but for your tracking plan. The live plan stays
-  stable while work is in progress, and merges are smart enough to keep the
-  history, metrics, and alerts attached to each event.
-- Flag fields that carry personal or sensitive data.
-
-### 📊 Observe — watch the real data
-
-- An **Overview** that shows the health of a project at a glance.
-- Automatic **anomaly detection** that learns the normal rhythm of each event
-  (including time-of-day and day-of-week patterns) and raises a signal when
-  something spikes, drops, or changes shape. A short forecast shows where the
-  next data point is expected to land. **Monitors** — alert rules with live
-  state — decide which signals matter and where they go.
-- A project-wide **metrics catalog** for SQL, reusable fact-table aggregations,
-  ratios, and event-composition metrics, with the same monitoring drilldowns as
-  event volume.
-- **Schema drift** detection — get told when a field appears, disappears, or
-  starts carrying values it never used to — plus variable-value drift,
-  distribution drift, and release regressions when a new app version rolls out.
-- Drill into any signal to see what moved, when, and which slice of the data
-  caused it.
-
-### 🛡️ Govern — stay in control
-
-- **Reconciliation** compares the plan to reality and answers two questions at
-  once: *what is documented but no longer arriving* (dead events), and *what is
-  arriving but isn't documented yet*.
-- **Coverage** shows which active definitions are implemented and which planned
-  events have gone quiet in real data.
-- An **audit log** records who changed what, with filters to find any change.
-- **Roles** (owner / editor / viewer) and revocable **API keys** keep access
-  appropriate, so scripts and AI agents get exactly the permissions they need
-  and nothing more.
-
-### 🔌 Settings — connect and administer
-
-- Connect a **data warehouse** under workspace settings: ClickHouse, BigQuery,
-  or PostgreSQL.
-- **Scans** read your real tables and propose events, fields, and value lists
-  automatically — a fast way to bootstrap a plan from data you already have, or
-  to keep an existing plan in step with what's flowing through.
-- Owners can manage members, API keys, security, storage, email, AI/search, and
-  observability settings without mixing those controls into project navigation.
-
-### 🔔 Alerting
-
-When a monitor fires, tripl can deliver the alert wherever your team already
-works: **Slack, Telegram, email, a generic webhook, Jira, or Linear**. Rules let
-you decide what's worth interrupting people for — direction (spike or drop),
-size of the change, quiet periods so you're not paged twice for the same cause,
-and message templates. A built-in **simulator** lets you replay recent data
-against a rule before you turn it on, so you can tune it without the noise.
-
----
-
-## Quick start
-
-Try it locally — the dev stack builds from source with hot-reload and needs no
-secrets:
+## Try it in two minutes, no warehouse needed
 
 ```bash
 cp .env.example .env
 docker compose -f compose.dev.yaml up --build
 ```
 
-Then open the app, create the first account on the sign-in page, and click
-**Generate demo project** to explore — or connect your own warehouse under
-**Settings → Data sources**.
+Open <http://localhost:5173>, create the first account, and click **Generate
+demo project**. In about fifteen seconds you have a realistic project: events,
+fields, a week of metrics, a few anomalies (the spike above among them), and a
+guided tour through it.
 
-For a guided first session — the demo scenario, connecting your own warehouse,
-your first scan, metrics, and a working alert — follow the
-**[Quick Start guide](website/docs/quick-start.md)**.
+The demo's data comes from a **local synthetic warehouse**, so nothing leaves
+your machine. Everything else is the real product. Scans, metric collection,
+anomaly detection, and reconciliation all actually run, and a background clock
+keeps the data fresh. [The demo workspace](website/docs/use/demo-workspace.md)
+lists exactly what is synthetic.
 
-| Where | URL |
+When you're ready for your own data, add your warehouse under **Settings → Data
+sources** and follow the **[Quick Start guide](website/docs/quick-start.md)**,
+from a first scan to your own metrics and a working alert.
+
+---
+
+## What's inside
+
+tripl is organised around three jobs: **Plan**, **Observe**, and **Govern**.
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="website/static/img/screenshots/branches.dark.webp" />
+        <img src="website/static/img/screenshots/branches.light.webp" alt="A plan branch under review: its status, the change it makes, and what it would affect downstream" />
+      </picture>
+      <p><strong>📐 Plan</strong><br/>Every event, field, and value in one searchable catalog. Changes go on a <em>branch</em> and are reviewed before they merge, like a pull request for your tracking plan.</p>
+    </td>
+    <td width="33%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="website/static/img/screenshots/overview.dark.webp" />
+        <img src="website/static/img/screenshots/overview.light.webp" alt="A project's Overview: open signals, plan coverage, a week of volume and the busiest events" />
+      </picture>
+      <p><strong>📊 Observe</strong><br/>Anomaly detection that learns each event's daily and weekly rhythm, plus schema drift, release regressions, and a metrics catalog. Every signal shows <em>which slice</em> of the data moved.</p>
+    </td>
+    <td width="33%" valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="website/static/img/screenshots/reconciliation.dark.webp" />
+        <img src="website/static/img/screenshots/reconciliation.light.webp" alt="Reconciliation: how much of the real data matches the plan, events seen but not documented, and documented events that stopped arriving" />
+      </picture>
+      <p><strong>🛡️ Govern</strong><br/>Reconciliation answers two questions: <em>what's documented but no longer arriving</em>, and <em>what's arriving but was never documented</em>. Coverage, an audit log, and roles round it out.</p>
+    </td>
+  </tr>
+</table>
+
+A few more things worth knowing:
+
+- **Scans bootstrap the plan for you.** Point a scan at a real table and tripl
+  proposes the events, fields, and value lists it finds there.
+- **Alerts go where your team already is**: Slack, Telegram, email, a webhook,
+  Jira, or Linear. Before turning a rule on, you can replay recent data through
+  it to see how noisy it would be.
+- **Scripts and AI agents are welcome.** Revocable API keys, a CLI
+  (`pip install tripl`), and an MCP server (`tripl-mcp`) let an LLM search the
+  plan and propose changes on a branch, with exactly the permissions you give it.
+
+[Concepts](website/docs/use/concepts.md) explains how it all fits together, in
+plain language.
+
+---
+
+## Running it for real
+
+The default `compose.yaml` runs the published release image: set your secrets,
+run `docker compose up -d`, and the app comes up on `:8000`. The
+**[deployment guide](website/docs/run/deployment.md)** covers the rest, and
+cutting a release is one command, `bin/release.sh` (see the
+**[release process](website/docs/run/release.md)**).
+
+| Local dev stack | URL |
 |---|---|
 | App | http://localhost:5173 |
 | API | http://localhost:8000 |
 | API reference (interactive) | http://localhost:8000/docs |
 
-Working on the code? A root `Makefile` collects the common flows — run `make`
-for the list (`make dev`, `make check`, `make sync-types`, `make test-fe`/`make
-test-be`). Full contributor setup lives in [CONTRIBUTING.md](CONTRIBUTING.md).
-
-**Deploying?** The default `compose.yaml` runs the published release image — set
-your secrets and `docker compose up -d` (API + SPA on `:8000`). Cutting a new
-release is one command (`bin/release.sh`). See the **[deployment guide](website/docs/run/deployment.md)** and **[release process](website/docs/run/release.md)**.
-
-
 ---
 
 ## Documentation
 
-📖 The full documentation site lives at **[vladenisov.github.io/tripl](https://vladenisov.github.io/tripl/)** (page sources are under [`website/docs/`](website/docs)).
-
-New to tripl? Start at the top and work down:
+📖 The full documentation lives at **[vladenisov.github.io/tripl](https://vladenisov.github.io/tripl/)**
+(sources under [`website/docs/`](website/docs)). Good places to start:
 
 - **[Quick Start](website/docs/quick-start.md)** — from `docker compose up` to
   a scanned plan, your own metrics, and a first alert.
-- **[Concepts](website/docs/use/concepts.md)** — the ideas behind tripl in plain
-  language: tracking plans, events, branches, monitors, and how they fit
-  together. Read this first.
-- **[User guide](website/docs/use/user-guide.md)** — a hands-on walkthrough, from
+- **[Concepts](website/docs/use/concepts.md)** — tracking plans, events,
+  branches, and monitors, in plain language.
+- **[User guide](website/docs/use/user-guide.md)** — a hands-on walkthrough from
   your first project to a working alert.
 - **[Variables & templates](website/docs/use/variables-and-templates.md)** —
   documented values, source bindings, per-event overrides, and value drift.
-- **[Agent & API guide](website/docs/integrate/agent-api-guide.md)** — how to let an LLM
-  agent or a script read and update the plan through the API.
-
-For people working on tripl itself:
-
-- **[Architecture](website/docs/develop/architecture.md)** — how the system is built and
-  why; the technical details that used to live in this file.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — local setup, commands, and project
-  structure.
-- **[AGENTS.md](AGENTS.md)** — repo navigation map for coding agents.
+- **[Agent & API guide](website/docs/integrate/agent-api-guide.md)** — letting an
+  LLM agent or a script read and update the plan.
 
 ---
 
-## What it's built with, in one line
+## Contributing
 
-A FastAPI + PostgreSQL backend, a Celery worker that talks to your warehouses,
-and a React frontend — all runnable locally with Docker Compose. The full story
-is in **[Architecture](website/docs/develop/architecture.md)**.
+tripl is a FastAPI + PostgreSQL backend, a Celery worker that talks to your
+warehouses, and a React frontend, all runnable locally with Docker Compose.
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — local setup and commands. The root
+  `Makefile` collects the common ones; run `make` to list them.
+- **[Architecture](website/docs/develop/architecture.md)** — how the system is
+  built, and why.
+- **[AGENTS.md](AGENTS.md)** — a navigation map of the repo for coding agents.
