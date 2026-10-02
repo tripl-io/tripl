@@ -185,11 +185,10 @@ created on PyPI before the tag is pushed, under *Your projects → Publishing*:
 | Workflow name | `publish-cli.yml` |
 | Environment name | `pypi` |
 
-Rehearse against TestPyPI first: run the workflow manually
-(*Actions → Publish tripl → Run workflow*) with `index: testpypi`, which needs a
-second pending publisher differing only in the environment name (`testpypi`).
-`workflow_dispatch` only appears once the workflow file is on the **default
-branch**.
+Publishing runs only from a pushed tag; there is no manual run. If the publish
+job fails transiently, open the tag's run in the Actions tab and use **Re-run
+failed jobs** rather than re-tagging: a version number can never be reused on
+PyPI.
 
 ## Re-running a build for an existing tag
 
