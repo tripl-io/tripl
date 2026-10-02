@@ -60,13 +60,17 @@ Hacking on tripl itself? `CONTRIBUTING.md` in the repository covers hot-reload
 ## Step 2 — Create the first account
 
 Open the app and register on the sign-in screen. **The first person to register
-becomes an owner**; everyone who registers after that starts as an editor.
-Owner matters for later steps: only owners can manage data sources and members.
+becomes an owner**; everyone who registers after that joins as a member.
+Owner matters for later steps: only owners and admins manage data sources and
+members.
 
 After signing in you land on the workspace dashboard with two ways forward:
 
 - **Generate demo project** — a complete synthetic project to explore. Start here.
 - **New project** — an empty project for your real work.
+
+![All projects, with Generate demo project and New project at the top right](/img/screenshots/workspace.light.webp#gh-light-mode-only)
+![All projects, with Generate demo project and New project at the top right](/img/screenshots/workspace.dark.webp#gh-dark-mode-only)
 
 ## Step 3 — Explore the demo project
 
@@ -76,6 +80,9 @@ drift — backed by a **local synthetic warehouse**. Nothing leaves the server a
 no connection is made anywhere, but the product is not faked around it: real
 scans, metric collection, anomaly detection, and reconciliation run over that
 synthetic source, and a background clock keeps it fresh.
+
+![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.light.webp#gh-light-mode-only)
+![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.dark.webp#gh-dark-mode-only)
 
 **Run the coached chapters.** The welcome panel's **Start: Run the live loop**
 opens the first of the chapters — short hands-on lessons, one per product area,
@@ -93,7 +100,7 @@ That loop — *scan the warehouse, collect metrics, watch the charts* — is the
 same loop your real project will run on a schedule. The other chapters walk
 the rest hands-on: **Edit an event** (on `Trial Started`, replace the current
 Product ID value with `prod_monthly`; the guide advances automatically, then
-asks you to type `$`, select `${product_id}`, and save), **Variables & value
+asks you to type `$`, select `${product_id}`, and save), **Properties & value
 drift**, **Review a branch**, **Reconcile the plan**, **Route an alert**, and
 **Explore the rest**.
 (Prefer to read first? **Browse chapters** → **Quick overview** walks the same
@@ -135,8 +142,9 @@ events.
 opens as a draft branch to review and merge, and main stays empty until you do.
 See **[Project templates](./use/project-templates.md)**.
 
-1. Open **Settings → Data sources** (under the Workspace group). Data sources
-   are workspace-wide and only **owners** can manage them.
+1. Open **Settings → Data sources** (in the **Organization** group). Data
+   sources are shared by every project in the organization, and only **owners**
+   and **admins** manage them.
 2. Add a connection and fill in the details for your warehouse:
    - **ClickHouse** — host, port (8123), database, username, password.
    - **PostgreSQL** — host, port (5432), database, username, password.
@@ -148,6 +156,9 @@ See **[Project templates](./use/project-templates.md)**.
      default) caps query cost.
 3. Save, then click **Test** on the connection card and wait for it to go
    green.
+
+   ![The New data source dialog, with the fields for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
+   ![The New data source dialog, with the fields for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
 
 :::info The three warehouses are not interchangeable
 They support the same features with different guarantees and dialect details.
@@ -168,6 +179,9 @@ monitored tracking plan.
 
 1. Open **Govern → Scans** in your project (route: `/p/<slug>/scans`) and create
    a scan.
+
+   ![The New scan form: what the scan does, its data source, the base query and the preview](/img/screenshots/scan-new.light.webp#gh-light-mode-only)
+   ![The New scan form: what the scan does, its data source, the base query and the preview](/img/screenshots/scan-new.dark.webp#gh-dark-mode-only)
 2. Answer **What this scan does** — it is the first question on the form, and it
    decides everything else:
    - **Catalog + monitoring** — adds events and fields to your tracking plan
@@ -315,6 +329,9 @@ message like *"run a scan to start collecting volume metrics"* means exactly
 that, not that something is broken.
 :::
 
+![An event with a spike: the chart, the signal and which platform the change came from](/img/screenshots/event-monitoring.light.webp#gh-light-mode-only)
+![An event with a spike: the chart, the signal and which platform the change came from](/img/screenshots/event-monitoring.dark.webp#gh-dark-mode-only)
+
 If detection is too twitchy or too quiet, tune the thresholds in the project's
 **Detection settings** — [How anomaly detection works](./use/anomaly-detection.md)
 explains what each knob does.
@@ -337,6 +354,9 @@ time bucket and is monitored exactly like an event. Pick a kind:
   reusable read-only query you define once under **Observe → Metrics → Fact
   tables** and slice with named filters and breakdowns across many metrics.
 
+![Observe → Metrics: each metric with its latest value, trend and status](/img/screenshots/metrics.light.webp#gh-light-mode-only)
+![Observe → Metrics: each metric with its latest value, trend and status](/img/screenshots/metrics.dark.webp#gh-dark-mode-only)
+
 The create form ends in **Create and start collecting**, or **Save as draft**
 when the definition is not ready: a draft is not collected until you press
 **Activate** on its page. On an active metric, press **Collect now** (or
@@ -358,6 +378,9 @@ A signal only helps if someone hears about it. Open **Observe → Alerting**:
    data against it and shows exactly what it *would* have sent. Tune until it's
    signal rather than noise, then switch it on.
 
+![The New alert rule dialog: what to watch, when, and the cooldown](/img/screenshots/alert-rule-new.light.webp#gh-light-mode-only)
+![The New alert rule dialog: what to watch, when, and the cooldown](/img/screenshots/alert-rule-new.dark.webp#gh-dark-mode-only)
+
 Every alert that goes out is recorded under **Deliveries**, and the **Inbox**
 groups correlated alerts so you can acknowledge, resolve, or mute a whole
 incident at once. The full rule syntax and routing options are in
@@ -370,6 +393,8 @@ keeping it honest on a schedule, detection learning what normal looks like, your
 own metrics collecting, and an alert rule that tells the right person when the
 numbers move. From here:
 
+- **[How-to guides](./how-to/index.md)** — the everyday jobs, one page each,
+  with screenshots.
 - **[User guide](./use/user-guide.md)** — the full task-oriented walkthrough,
   including plan branches with review, variables, event lifecycle, and a
   realistic first-week rollout plan.

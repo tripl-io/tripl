@@ -21,3 +21,21 @@
   --ifm-color-primary-lightest: #dbeafe;
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
+
+/* App screenshots: each is published twice, `#gh-light-mode-only` and
+   `#gh-dark-mode-only`, and Docusaurus hides the one that does not match the
+   theme (see screenshots/README.md). Only the visible one is styled here, so
+   these rules never undo that hiding. A frame keeps a light screenshot from
+   melting into a light page. */
+[data-theme='light'] .markdown img[src*='#gh-light-mode-only'],
+[data-theme='dark'] .markdown img[src*='#gh-dark-mode-only'] {
+  display: block;
+  margin: 1.25rem auto 1.75rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme='dark'] .markdown img[src*='#gh-dark-mode-only'] {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}

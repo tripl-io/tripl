@@ -61,15 +61,24 @@ chart, and recognise the shape — it starts exactly when the 4.2 release rolled
 out. You mute the signal for a day, note the release, and ping the mobile team
 with something specific instead of "analytics looks weird".
 
+![An event with an open spike: the chart, the signal, and which platform the change came from](/img/screenshots/event-monitoring.light.webp#gh-light-mode-only)
+![An event with an open spike: the chart, the signal, and which platform the change came from](/img/screenshots/event-monitoring.dark.webp#gh-dark-mode-only)
+
 **Wednesday.** A PM asks whether you already track "user removed an item from
 the basket". You press `⌘K`, type "remove basket item", and find
 `cart_item_removed` — documented eight months ago, live, with the fields it
 carries. Two minutes instead of two days and a duplicate event.
 
+![Search or jump: typing finds events, tags, branches and pages](/img/screenshots/command-palette.light.webp#gh-light-mode-only)
+![Search or jump: typing finds events, tags, branches and pages](/img/screenshots/command-palette.dark.webp#gh-dark-mode-only)
+
 **Thursday.** You're planning next quarter's checkout revamp. You open a
 **branch** of the plan, draft the four new events with their fields, and share
 it for review. Nothing touches the live plan until it's approved and merged —
 so the debate happens on a proposal, not on production.
+
+![A plan branch with one change, waiting to be submitted for review](/img/screenshots/branches.light.webp#gh-light-mode-only)
+![A plan branch with one change, waiting to be submitted for review](/img/screenshots/branches.dark.webp#gh-dark-mode-only)
 
 **Next Monday.** The weekly digest lands: coverage moved up, two deprecated events
 finally stopped firing, and one undocumented event showed up that nobody claims.
@@ -122,6 +131,8 @@ until you merge it. See [Project templates](./project-templates.md).
 
 ## Where to go next
 
+- **[How-to guides](../how-to/index.md)** — one task per page, with
+  screenshots: connect a warehouse, set up an alert, invite the team.
 - **[Concepts](./concepts.md)** — every idea in the product, in plain language.
   Read once and the rest of the docs stop being cryptic.
 - **[User Guide](./user-guide.md)** — the doing version: empty screen to a

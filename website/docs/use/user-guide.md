@@ -16,6 +16,12 @@ instance and a first working alert. If a term
 here is unfamiliar, the [Concepts](./concepts) page explains every idea in plain
 language; this guide focuses on *doing* rather than *defining*.
 
+:::tip Want just one task?
+The [How-to guides](../how-to/index.md) cover the common jobs one page at a time,
+with a screenshot of every screen: connecting a warehouse, setting up an alert,
+investigating a signal, inviting the team.
+:::
+
 The four steps build on each other:
 
 | Step | What you do there |
@@ -93,6 +99,9 @@ Generate the demo project and open it. You now have a realistic catalog with
 events, collected metrics, detector-produced anomalies, and schema/distribution
 drift — all backed by a **local synthetic warehouse**, and kept fresh over time.
 
+![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.light.webp#gh-light-mode-only)
+![The demo project on first open: the demo banner, the welcome panel and the Overview](/img/screenshots/demo-welcome.dark.webp#gh-dark-mode-only)
+
 :::note The demo project is not your data
 The demo's data lives in a **local synthetic warehouse** — a bounded, in-memory
 dataset that never leaves the server and is never a real connection. But the
@@ -162,6 +171,9 @@ needs.
    (300 by default).
 4. Save, then click **Test** on the connection card.
 
+![The New data source dialog, with the fields for ClickHouse](/img/screenshots/data-source-add.light.webp#gh-light-mode-only)
+![The New data source dialog, with the fields for ClickHouse](/img/screenshots/data-source-add.dark.webp#gh-dark-mode-only)
+
 tripl only ever *reads* from the warehouse; it never writes to it.
 
 :::info The three warehouses are not interchangeable
@@ -225,6 +237,9 @@ commonly — do a bit of both.
 ### Option A — let a scan draft it
 
 1. Create a **scan** that points at the warehouse table where your events land.
+
+![The New scan form: what the scan does, its data source, the base query and the preview](/img/screenshots/scan-new.light.webp#gh-light-mode-only)
+![The New scan form: what the scan does, its data source, the base query and the preview](/img/screenshots/scan-new.dark.webp#gh-dark-mode-only)
 2. **Load the preview** to see the event names and fields tripl would create
    from the real data — worked out by the same planner a real run uses, and
    bounded by the window and sample it says it read — then run it.
@@ -244,6 +259,9 @@ This is the fastest way to turn an existing warehouse into a written plan, and
 it is what populates monitoring later.
 
 ### Option B — write it by hand
+
+![The event form: event type, name, title, description, status and owner](/img/screenshots/event-edit.light.webp#gh-light-mode-only)
+![The event form: event type, name, title, description, status and owner](/img/screenshots/event-edit.dark.webp#gh-dark-mode-only)
 
 1. **Event types** — create folders for related events (for example `Commerce`,
    `Onboarding`) so a catalog of hundreds of events stays organised.
@@ -339,6 +357,9 @@ nothing you could see.
 
 A few more things about the Events page:
 
+![The Events page: every event with its health, recent volume, status and type](/img/screenshots/events.light.webp#gh-light-mode-only)
+![The Events page: every event with its health, recent volume, status and type](/img/screenshots/events.dark.webp#gh-dark-mode-only)
+
 - A row under the title switches between **All**, **Review queue (n)** and
   **Archived**; on the last two the page is titled **Review queue** and
   **Archived events**. The **In review** stat in the header links to the queue.
@@ -371,7 +392,7 @@ branch instead — the same idea as a pull request for code.
    and by default you are switched onto it as soon as it is created.
 2. Make your changes on the branch. A branch switcher keeps every plan page in
    that branch's context, so the live (main) plan is untouched while you work.
-3. Set the branch to **Ready for review** and assign a reviewer. tripl does not
+3. Assign a reviewer with **Reviewer** and press **Submit for review**. tripl does not
    notify a reviewer when they are assigned — no email and no in-app message —
    so send them the branch link yourself.
 4. The reviewer reads the **diff** — exactly what changed on the branch since it
@@ -382,6 +403,10 @@ branch instead — the same idea as a pull request for code.
    the event, event type, or property it describes, opened in that branch. The
    selected branch lives in the page URL, so a review can be shared as a link.
    The reviewer leaves named comments and either requests changes or approves.
+
+   ![A branch with one modified event, its review steps and Submit for review](/img/screenshots/branches.light.webp#gh-light-mode-only)
+   ![A branch with one modified event, its review steps and Submit for review](/img/screenshots/branches.dark.webp#gh-dark-mode-only)
+
 5. **Merge.** tripl matches events by name, so nothing is duplicated and the
    metrics, history, and alerts already attached to an event stay attached.
    Non-conflicting edits on either side merge automatically, including child
@@ -552,6 +577,9 @@ double-counts retries, how to query a checkout funnel, why a field is in cents.
 **Plan › Docs** keeps it as Markdown notes next to the plan, for people and for
 AI agents (they read the same notes through MCP and `tripl docs`).
 
+![A note in Docs, with links to events and the language switch above it](/img/screenshots/docs-note.light.webp#gh-light-mode-only)
+![A note in Docs, with links to events and the language switch above it](/img/screenshots/docs-note.dark.webp#gh-dark-mode-only)
+
 1. Open **Docs** and choose **New note**. A path with a `/` makes the folder
    too — `recipes/checkout-funnel.md`. Pick **This project** or the
    **Organization** root: organization notes show up in every project of the
@@ -621,6 +649,9 @@ shape. That detection is automatic and needs no setup.
 
 Open an event's **monitoring detail** (from the event or one of its signals) to
 see, across tabs:
+
+![An event with a spike: the chart, the signal awaiting a verdict and Why it changed](/img/screenshots/event-monitoring.light.webp#gh-light-mode-only)
+![An event with a spike: the chart, the signal awaiting a verdict and Why it changed](/img/screenshots/event-monitoring.dark.webp#gh-dark-mode-only)
 
 - **Volume** (**Value** for a catalog metric) — every drilldown opens on the
   last 7 days, at hourly granularity or the metric's collection interval if
@@ -710,6 +741,9 @@ mute, edit and delete sit behind each row's **…** menu), **Destinations** (the
 out). A project with nothing configured yet skips the tabs and shows a guided setup
 instead, which also asks which scan the first rule should watch.
 
+![Alerting → Rules: each rule with its condition, destination and live state](/img/screenshots/alert-rules.light.webp#gh-light-mode-only)
+![Alerting → Rules: each rule with its condition, destination and live state](/img/screenshots/alert-rules.dark.webp#gh-dark-mode-only)
+
 ### 1. Add a destination
 
 Create at least one place alerts can go. tripl supports:
@@ -743,6 +777,9 @@ problem doesn't notify you repeatedly), **Where** (the destination), and
 common settings are under **Advanced**. Saving confirms with a toast. Schema drift, distribution drift,
 property value drift, and release regressions are separate opt-in toggles; they
 stay off until the rule explicitly subscribes to them.
+
+![The New alert rule dialog: what to watch, when, and the cooldown](/img/screenshots/alert-rule-new.light.webp#gh-light-mode-only)
+![The New alert rule dialog: what to watch, when, and the cooldown](/img/screenshots/alert-rule-new.dark.webp#gh-dark-mode-only)
 
 :::tip Simulate before you switch it on
 Use the rule's **Replay** (in its **…** menu; it runs as soon as it opens) to run
@@ -796,6 +833,9 @@ Replaying the rule against recent data is the quickest way to confirm whether it
 ---
 
 ## Govern: keep plan and reality honest
+
+![Govern → Reconciliation: data match, undocumented events to accept and dead events to archive](/img/screenshots/reconciliation.light.webp#gh-light-mode-only)
+![Govern → Reconciliation: data match, undocumented events to accept and dead events to archive](/img/screenshots/reconciliation.dark.webp#gh-dark-mode-only)
 
 - **Reconciliation** — run this regularly. It's your gap checklist:
   documented-but-dead events to retire, and live-but-undocumented events to add

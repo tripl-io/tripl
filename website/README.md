@@ -24,6 +24,7 @@ re-trigger an install on every run.
 Content lives in `docs/`, grouped by audience (sidebar order and labels come
 from each folder's `_category_.json`):
 
+- `how-to/` — task-sized guides with screenshots, one job per page
 - `use/` — using tripl (concepts, user guide, variables, monitoring, alerting,
   troubleshooting)
 - `use-cases/` — task-specific guides for search and agent-driven workflows
@@ -31,6 +32,14 @@ from each folder's `_category_.json`):
 - `run/` — self-hosting, deployment, operations, release process
 - `develop/` — architecture & contributing
 - `integrate/` — API & integration guide and the generated OpenAPI reference
+
+## Screenshots
+
+Screenshots of the app live in `static/img/screenshots/`, one per theme
+(`<id>.light.webp`, `<id>.dark.webp`), and are taken by the script in
+`screenshots/` from a running tripl with a demo project. Do not edit them by
+hand: retake them with the script when the UI they show changes. See
+[screenshots/README.md](screenshots/README.md).
 
 ## Notes
 

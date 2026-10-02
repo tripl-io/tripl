@@ -10,6 +10,12 @@ sit next to the tracking plan. People and AI agents both read them. Typical
 notes are warehouse gotchas, event query recipes, naming conventions, or an
 agent skill that teaches an assistant how to query your events.
 
+![Plan → Docs: the notes tree, and a note linking to events](/img/screenshots/docs-note.light.webp#gh-light-mode-only)
+![Plan → Docs: the notes tree, and a note linking to events](/img/screenshots/docs-note.dark.webp#gh-dark-mode-only)
+
+New to it? [Keep team notes next to the plan](../how-to/keep-team-notes.md) is
+the short version, step by step.
+
 ## Two levels: project and organization
 
 Every project shows two roots:
@@ -290,6 +296,9 @@ such as `de` or `pt-br`) by your organization's AI model. The translation then
 runs in the background with the organization's AI key (Settings → AI); the
 note shows *Translating into German…* until it is ready. Editors of the note
 can translate it; there is no spending limit.
+
+![The Translate with AI dialog asking which language](/img/screenshots/docs-translate.light.webp#gh-light-mode-only)
+![The Translate with AI dialog asking which language](/img/screenshots/docs-translate.dark.webp#gh-dark-mode-only)
 
 What the model must not change is kept out of its reach: code blocks, inline
 code, `[[…]]` links, link targets, URLs and HTML. A reply that drops or
