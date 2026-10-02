@@ -423,6 +423,23 @@ def require_write_scope(request: Request) -> None:
         )
 
 
+def refuse_on_public_demo(what: str) -> Callable[[], None]:
+    """A dependency that refuses the route on a public demo instance (403).
+
+    ``what`` completes "This public demo does not …", so the refusal says what
+    is off rather than only that something is (tripl-sav5).
+    """
+
+    def refuse() -> None:
+        if settings.public_demo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This public demo does not {what}.",
+            )
+
+    return refuse
+
+
 async def get_write_user(request: Request, user: CurrentUserDep) -> User:
     require_write_scope(request)
     return user
