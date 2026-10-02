@@ -440,6 +440,22 @@ def refuse_on_public_demo(what: str) -> Callable[[], None]:
     return refuse
 
 
+def refuse_writes_on_public_demo(what: str) -> Callable[[Request], None]:
+    """:func:`refuse_on_public_demo` for a whole router's writes; reads stay open.
+
+    For surfaces whose every write configures traffic out of the instance (an
+    organization's SMTP relay, AI endpoint, SSO, audit webhook, tracker), so the
+    settings pages still load and show what is configured.
+    """
+    refuse = refuse_on_public_demo(what)
+
+    def refuse_writes(request: Request) -> None:
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            refuse()
+
+    return refuse_writes
+
+
 async def get_write_user(request: Request, user: CurrentUserDep) -> User:
     require_write_scope(request)
     return user

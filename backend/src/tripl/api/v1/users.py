@@ -17,9 +17,15 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 
-from tripl.api.deps import OrgMemberUserDep, OwnerUserDep, SessionDep, request_org_role
+from tripl.api.deps import (
+    OrgMemberUserDep,
+    OwnerUserDep,
+    SessionDep,
+    refuse_on_public_demo,
+    request_org_role,
+)
 from tripl.middleware.org_context import require_org_id
 from tripl.models.domain_enums import OrganizationRole
 from tripl.schemas.auth import UserListItem, UserRoleUpdate
@@ -39,6 +45,8 @@ OWNER_MANAGEMENT_REQUIRED = "Only an owner can manage owners"
     "/invitations",
     response_model=InvitationCreatedResponse,
     status_code=status.HTTP_201_CREATED,
+    # An invitation mails a stranger-chosen address from the operator's relay.
+    dependencies=[Depends(refuse_on_public_demo("send invitations"))],
 )
 async def create_invitation(
     request: Request,
