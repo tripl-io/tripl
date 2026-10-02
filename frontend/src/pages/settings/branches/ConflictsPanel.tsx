@@ -10,12 +10,14 @@ import { getErrorMessage } from '@/lib/utils'
 import type {
   PlanBranchConflictEntity,
   PlanBranchConflictField,
+  PlanBranchConflicts,
   PlanBranchSummary,
   ResolutionChoice,
 } from '@/types'
 import { DiffValue } from '../DiffValue'
 import { planBranchConflictsKey } from '@/lib/queryKeys'
 import { entityTypeTitle } from './branchDiffModel'
+import { withChoice } from './conflictModel'
 
 /**
  * The backend's `ours` is main as it is now and `theirs` is this branch
@@ -121,13 +123,16 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
   // Two plan snapshots per call, and a landed branch has nothing left to
   // resolve — so a merged or closed one never asks (PLAN-5).
   const open = branch.status !== 'merged' && branch.status !== 'closed'
+  const conflictsKey = planBranchConflictsKey(slug, branch.id)
   const { data: conflicts } = useQuery({
-    queryKey: planBranchConflictsKey(slug, branch.id),
+    queryKey: conflictsKey,
     queryFn: () => planBranchesApi.getConflicts(slug, branch.id),
     enabled: open,
   })
 
+  const resolutionMutationKey = ['plan-branch-resolution', slug, branch.id]
   const resolutionMut = useMutation({
+    mutationKey: resolutionMutationKey,
     // Rendered inline below, beside the choice that failed (PLAN-7).
     meta: SILENT_ERROR_META,
     mutationFn: ({ entity_type, entity_name, field, choice }: ResolveVars) =>
@@ -137,7 +142,34 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
         field_name: field,
         choice,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: planBranchConflictsKey(slug, branch.id) }),
+    // The choice shows the moment it is clicked. Re-reading the conflicts
+    // builds two plan snapshots, and waiting on that left every button greyed
+    // out with nothing to say which one was pressed.
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: conflictsKey })
+      const current = qc.getQueryData<PlanBranchConflicts>(conflictsKey)
+      const previous =
+        current?.entities
+          .find((e) => e.entity_type === vars.entity_type && e.name === vars.entity_name)
+          ?.fields.find((f) => f.field === vars.field)?.choice ?? null
+      if (current) qc.setQueryData(conflictsKey, withChoice(current, vars, vars.choice))
+      return { previous }
+    },
+    // Undo only this field: restoring a whole snapshot would also undo a
+    // choice made on another row while this one was in flight.
+    onError: (_error, vars, context) => {
+      const current = qc.getQueryData<PlanBranchConflicts>(conflictsKey)
+      if (current) {
+        qc.setQueryData(conflictsKey, withChoice(current, vars, context?.previous ?? null))
+      }
+    },
+    // One re-read once the last click settles, so an earlier re-read cannot
+    // land without a choice still in flight and flick it back.
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey: resolutionMutationKey }) === 1) {
+        void qc.invalidateQueries({ queryKey: conflictsKey })
+      }
+    },
   })
 
   if (!open || !conflicts || conflicts.entities.length === 0) return null
@@ -156,7 +188,6 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
         <ConflictList
           entities={conflicts.entities}
           choiceOf={(_entity, field) => field.choice}
-          pending={resolutionMut.isPending}
           onResolve={
             canWrite
               ? (entity, field, choice) =>
@@ -258,7 +289,10 @@ function ConflictFieldRow({
               size="sm"
               variant={choice === option ? 'default' : 'outline'}
               aria-pressed={choice === option}
-              disabled={pending}
+              // The chosen side stays enabled: a disabled button loses its
+              // fill, and every pick would look undone while the update runs.
+              // Pressing it again picks what is already picked.
+              disabled={pending && choice !== option}
               onClick={() => onResolve(option)}
             >
               {CHOICE_LABEL[option]}

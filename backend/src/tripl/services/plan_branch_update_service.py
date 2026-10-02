@@ -102,6 +102,11 @@ _INCOMPLETE_BASE_MESSAGE = (
 )
 
 
+def _worker_reindexes(session: AsyncSession) -> bool:
+    """A worker serves this database: PostgreSQL, never the SQLite of the tests."""
+    return session.bind.dialect.name == "postgresql"
+
+
 def base_is_complete(base: dict[str, Any] | None) -> bool:
     """Whether the base is a snapshot an update can read three ways."""
     return base is not None and base.get("snapshot_version") == PLAN_SNAPSHOT_VERSION
@@ -353,12 +358,21 @@ async def update_from_main(
     for prefix in (cache.prefix_event_types(project_id), cache.prefix_meta_fields(project_id)):
         await cache.delete_prefix(prefix)
     try:
-        from tripl.services.search_service import reindex_project_branch
+        from tripl.services.search_service import _queue_branch_reindex, reindex_project_branch
 
-        async with AsyncSession(session.bind, expire_on_commit=False) as reindex_session:
-            await reindex_project_branch(
-                reindex_session, project_id=project_id, branch_id=branch_row_id, slug=slug
-            )
+        # The worker rebuilds the branch's search documents: inline, that was
+        # two thirds of the call, with the person who resolved the overlaps
+        # watching "Updating…". A working branch is searched seconds later at
+        # the earliest. Inline only where no worker runs (SQLite) or the broker
+        # refused, so the branch never stays stale.
+        queued = _worker_reindexes(session) and await _queue_branch_reindex(
+            project_id, branch_row_id
+        )
+        if not queued:
+            async with AsyncSession(session.bind, expire_on_commit=False) as reindex_session:
+                await reindex_project_branch(
+                    reindex_session, project_id=project_id, branch_id=branch_row_id, slug=slug
+                )
     except Exception:  # noqa: BLE001 — search staleness must never fail an update
         logger.exception("Failed to reindex search after updating branch %s", branch_row_id)
 

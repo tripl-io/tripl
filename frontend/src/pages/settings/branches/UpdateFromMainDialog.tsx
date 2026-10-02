@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { planBranchesApi } from '@/api/planBranches'
@@ -299,7 +300,14 @@ function UpdateFromMainBody({
           Cancel
         </Button>
         <Button type="button" disabled={!canSubmit} onClick={() => updateMut.mutate()}>
-          {updateMut.isPending ? 'Updating…' : 'Update branch'}
+          {updateMut.isPending ? (
+            <>
+              <Loader2 className="animate-spin" aria-hidden="true" />
+              Updating…
+            </>
+          ) : (
+            'Update branch'
+          )}
         </Button>
       </DialogFooter>
     </div>

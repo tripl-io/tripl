@@ -317,6 +317,40 @@ async def test_update_is_idempotent_and_audited_once(client: AsyncClient) -> Non
     ]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("broker_up", [True, False])
+async def test_search_rebuild_goes_to_the_worker_unless_the_broker_refuses(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, broker_up: bool
+) -> None:
+    """Rebuilt inline, the branch's search index was two thirds of the update."""
+    from tripl.services import search_service
+
+    slug = f"ufm-reindex-{str(broker_up).lower()}"
+    branch_id = await _seed(client, slug)
+    _project_id, main_id = await _ids(slug)
+    await _edit(EventType, main_id, {"name": "track"}, description="main text")
+
+    queued: list[uuid.UUID] = []
+    inline: list[uuid.UUID] = []
+
+    async def fake_queue(_project_id: uuid.UUID, branch: uuid.UUID) -> bool:
+        queued.append(branch)
+        return broker_up
+
+    async def fake_reindex(_session: AsyncSession, *, branch_id: uuid.UUID, **_: Any) -> None:
+        inline.append(branch_id)
+
+    monkeypatch.setattr(plan_branch_update_service, "_worker_reindexes", lambda _session: True)
+    monkeypatch.setattr(search_service, "_queue_branch_reindex", fake_queue)
+    monkeypatch.setattr(search_service, "reindex_project_branch", fake_reindex)
+
+    resp = await client.post(_url(slug, branch_id), json={})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["updated"] is True
+    assert queued == [uuid.UUID(branch_id)]
+    assert inline == ([] if broker_up else [uuid.UUID(branch_id)])
+
+
 # --- overlaps ----------------------------------------------------------------------
 
 
