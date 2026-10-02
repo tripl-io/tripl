@@ -14,42 +14,35 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="website/static/img/screenshots/event-monitoring.dark.webp" />
-  <img src="website/static/img/screenshots/event-monitoring.light.webp" alt="An event in tripl the morning after a release: a +197% spike flagged against its baseline, the week of volume behind it, a verdict to give, and the breakdown showing 85% of the jump comes from iOS" />
+  <img src="website/static/img/screenshots/event-monitoring.light.webp" alt="An event in tripl: a +197% volume spike flagged against its baseline, the week of volume behind it, a verdict to give, and the breakdown attributing 85% of the jump to iOS" />
 </picture>
+<p align="center"><sub>A volume spike on one event, attributed to the slice that caused it.</sub></p>
 
 ---
 
-## A Tuesday morning, with and without tripl
+tripl keeps your **tracking plan** — the events, fields, and values your
+product is supposed to send — and checks it continuously against the events
+that actually land in your warehouse. When the two diverge, it tells you.
 
-A release went out last night. By morning, *Home Screen View* is firing three
-times as often as it should.
+- **Plan as code.** One catalog for every event, field, and value; changes are
+  made on branches, reviewed, and merged.
+- **Checked against real data.** Scans read your warehouse tables and propose
+  events and fields; reconciliation flags what is undocumented and what stopped
+  arriving.
+- **Anomalies with a cause.** Seasonal baselines per event, schema and value
+  drift, release regressions — each signal broken down by the slice that moved.
+- **Alerts where your team works.** Slack, Telegram, email, webhooks, Jira,
+  Linear.
 
-**Without tripl**, nobody notices. Two weeks later a PM asks why engagement
-jumped, an analyst spends a day in SQL, and the answer turns out to be an iOS
-build that logs the screen twice. Every report built on those two weeks is
-quietly wrong.
+**No SDK.** tripl reads from the warehouse you already have — **ClickHouse**,
+**BigQuery**, or **PostgreSQL** — and never writes to it.
 
-**With tripl**, a message lands in your team's channel that morning: *volume
-spike, +197% against the usual for this hour*. You open it and see the screen
-above. The jump is real, and 85% of it comes from iOS. You mark it **Tracking
-bug**, the event's owner hears about it, and the fix ships the same day.
-
-That's the whole idea. tripl keeps a written-down **tracking plan** of what your
-product *should* send, compares it with what your apps *actually* send, and
-tells you the moment the two disagree.
-
-**It works with the data you already have.** tripl connects to your existing
-warehouse — **ClickHouse**, **BigQuery**, or **PostgreSQL** — and reads the
-events already landing there. There's no SDK to ship and nothing to
-re-instrument, and tripl only ever reads from your warehouse.
-
-It's built for **product managers, analysts, and data engineers** who own a
-tracking plan. If you've ever heard about broken analytics from a stakeholder
-before a tool told you, it's for you.
+Built for product managers, analysts, and data engineers who own a tracking
+plan.
 
 ---
 
-## Try it in two minutes, no warehouse needed
+## Quick start
 
 ```bash
 cp .env.example .env
@@ -57,19 +50,19 @@ docker compose -f compose.dev.yaml up --build
 ```
 
 Open <http://localhost:5173>, create the first account, and click **Generate
-demo project**. In about fifteen seconds you have a realistic project: events,
-fields, a week of metrics, a few anomalies (the spike above among them), and a
-guided tour through it.
+demo project**. No warehouse is needed: the demo builds a project with events,
+fields, a week of metrics, and a few anomalies, backed by a local synthetic
+warehouse. Scans, metric collection, anomaly detection, and reconciliation run
+against it for real ([what is synthetic](website/docs/use/demo-workspace.md)).
 
-The demo's data comes from a **local synthetic warehouse**, so nothing leaves
-your machine. Everything else is the real product. Scans, metric collection,
-anomaly detection, and reconciliation all actually run, and a background clock
-keeps the data fresh. [The demo workspace](website/docs/use/demo-workspace.md)
-lists exactly what is synthetic.
+To use your own data, add a warehouse under **Settings → Data sources** and
+follow the **[Quick Start guide](website/docs/quick-start.md)**.
 
-When you're ready for your own data, add your warehouse under **Settings → Data
-sources** and follow the **[Quick Start guide](website/docs/quick-start.md)**,
-from a first scan to your own metrics and a working alert.
+| Local dev stack | URL |
+|---|---|
+| App | http://localhost:5173 |
+| API | http://localhost:8000 |
+| API reference (interactive) | http://localhost:8000/docs |
 
 ---
 
@@ -103,35 +96,21 @@ tripl is organised around three jobs: **Plan**, **Observe**, and **Govern**.
   </tr>
 </table>
 
-A few more things worth knowing:
+**Automation.** Scoped, revocable API keys; a CLI (`pip install tripl`); and an
+MCP server (`tripl-mcp`) through which an LLM agent can search the plan and
+propose changes on a branch.
 
-- **Scans bootstrap the plan for you.** Point a scan at a real table and tripl
-  proposes the events, fields, and value lists it finds there.
-- **Alerts go where your team already is**: Slack, Telegram, email, a webhook,
-  Jira, or Linear. Before turning a rule on, you can replay recent data through
-  it to see how noisy it would be.
-- **Scripts and AI agents are welcome.** Revocable API keys, a CLI
-  (`pip install tripl`), and an MCP server (`tripl-mcp`) let an LLM search the
-  plan and propose changes on a branch, with exactly the permissions you give it.
-
-[Concepts](website/docs/use/concepts.md) explains how it all fits together, in
-plain language.
+See [Concepts](website/docs/use/concepts.md) for how the pieces fit together.
 
 ---
 
-## Running it for real
+## Deployment
 
 The default `compose.yaml` runs the published release image: set your secrets,
 run `docker compose up -d`, and the app comes up on `:8000`. The
 **[deployment guide](website/docs/run/deployment.md)** covers the rest, and
 cutting a release is one command, `bin/release.sh` (see the
 **[release process](website/docs/run/release.md)**).
-
-| Local dev stack | URL |
-|---|---|
-| App | http://localhost:5173 |
-| API | http://localhost:8000 |
-| API reference (interactive) | http://localhost:8000/docs |
 
 ---
 
