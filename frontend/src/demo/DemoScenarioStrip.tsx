@@ -334,6 +334,14 @@ function CompletedStrip({
  * and only clears the active pointer, so the branch below simply stops
  * rendering without demoting a finished chapter.
  */
+/** Every query param the step's link names is present in `search` with the same value. */
+function searchMatches(search: string, to: string): boolean {
+  const query = to.split('?')[1]
+  if (!query) return true
+  const current = new URLSearchParams(search)
+  return [...new URLSearchParams(query)].every(([key, value]) => current.get(key) === value)
+}
+
 export function DemoScenarioStrip() {
   const { active, state, activeChapter, step, steps, nextChapter, isWatching, hintsMuted } =
     useDemoScenario()
@@ -360,8 +368,12 @@ export function DemoScenarioStrip() {
     !present.has(step.id)
   const showTargetMissing = useDeferredFlag(targetMissing, MISSING_TARGET_DELAY_MS)
   // The page itself, not a page under it: from a scan's detail the link back
-  // to the Scans list still goes somewhere.
-  const onStepPage = location.pathname.replace(/\/$/, '') === stepPath.replace(/\/$/, '')
+  // to the Scans list still goes somewhere. A step that names a tab
+  // (`?section=monitors`) is on its page only on that tab, so from another tab
+  // the link stays and takes the user to the control.
+  const onStepPage =
+    location.pathname.replace(/\/$/, '') === stepPath.replace(/\/$/, '') &&
+    searchMatches(location.search, step.to)
   const missingCopy = !canEdit
     ? NEEDS_EDITOR_COPY
     : canManage

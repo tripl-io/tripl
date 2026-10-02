@@ -139,6 +139,23 @@ describe('DemoScenarioStrip — the active chapter', () => {
     expect(screen.getByText('Enter a sample Product ID')).toBeInTheDocument()
   })
 
+  it('points a step on another tab of the same page at that tab', () => {
+    // Alerting opens on the Inbox; "Add rule" lives on the Rules tab. Hiding the
+    // link because the pathname matched left the user on the Inbox with only
+    // "the highlighted control isn't visible" to go on.
+    renderStrip(chapterState('alerting', 'alerting/create-rule'), demoProject(), `/p/${SLUG}/alerting`)
+    expect(cta(/Open Rules/)).toHaveAttribute('href', `/p/${SLUG}/alerting?section=monitors`)
+  })
+
+  it('drops the link once the user is on the step tab', () => {
+    renderStrip(
+      chapterState('alerting', 'alerting/create-rule'),
+      demoProject(),
+      `/p/${SLUG}/alerting?section=monitors`,
+    )
+    expect(screen.queryByRole('link', { name: /Open Rules/ })).not.toBeInTheDocument()
+  })
+
   it('links watch-scan at the run the user started', () => {
     renderStrip(liveLoopState('live-loop/watch-scan', { scan: scanArtifact() }))
 

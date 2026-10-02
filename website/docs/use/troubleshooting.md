@@ -474,6 +474,11 @@ is: it always begins *"Connection test failed"* and never *"Scan failed"* — a
 source you have never scanned cannot report a failed scan.
 
 - *"Connection test failed: the data source did not respond in time."*
+- *"Connection test failed: the server does not offer TLS, and this connection
+  requires it. Enable TLS on the server, or set SSL mode to disable for a server
+  you reach over a trusted network."* — PostgreSQL only. An unset **SSL mode**
+  resolves to `require` for every host except localhost, and a fresh local
+  PostgreSQL (the one in a Docker Compose stack, say) has no TLS.
 - *"Connection test failed: could not reach the data source — check the host,
   port, and network."*
 - *"Connection test failed: authentication was rejected — check the

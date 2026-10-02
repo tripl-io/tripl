@@ -55,7 +55,11 @@ synthetic source:
   active demo fresh over time (new buckets, jobs and signals), with retention caps
   so it never grows without bound. The runtime adds ordinary traffic only, so
   the seeded *Injected demo spike* chart marker is removed together with the
-  anomaly it explains once both age past the retention window. A demo nobody has opened for **six hours**
+  anomaly it explains once both age past the retention window. The synthetic
+  warehouse serves that spike hour too, and the demo scores its newest hour
+  with no ingestion-settling delay (the synthetic source delivers every hour
+  complete), so the scheduled collection that re-reads the hour detects the
+  same spike again rather than erasing it. A demo nobody has opened for **six hours**
   pauses, and resumes on your next visit; the scheduled **scan** collection — the
   event‑volume series and the breakdown and drift work that hangs off it — pauses
   with it, on the same rule, because collecting while the tick is stopped would
@@ -158,8 +162,9 @@ The demo offers two guides, and they do different jobs.
   1. **Run a scan** — from any scan's *Run now*.
   2. **Watch it land** — the run completes and shows what it changed.
   3. **Collect a metric** — from *Collect now* on any metric.
-  4. **See the chart move** — open that metric and find the point your collection
-     added.
+  4. **See the chart move** — open that metric and see the series your
+     collection recomputed (a daily metric gains a new point only once a day
+     has closed).
 
   The other chapters walk one area apiece: **Edit an event** (on `Trial Started`,
   replace the current Product ID value with `prod_monthly`; the guide advances

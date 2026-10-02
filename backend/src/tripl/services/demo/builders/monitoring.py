@@ -62,6 +62,11 @@ async def _build_anomaly_settings(session: AsyncSession, ctx: DemoContext) -> No
             min_history_buckets=settings.min_history_buckets,
             sigma_threshold=settings.sigma_threshold,
             min_expected_count=settings.min_expected_count,
+            # Nothing to settle: the synthetic warehouse serves every hour
+            # complete. The default two-hour allowance withheld the newest bucket,
+            # where the spike is seeded, so the first scheduled collection purged
+            # the demo's seeded anomalies and re-emitted none.
+            anomaly_ingestion_settling_minutes=0,
         )
     )
     await session.flush()

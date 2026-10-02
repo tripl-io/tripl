@@ -565,6 +565,12 @@ _UNREACHABLE_HINTS = (
     "could not translate host name",
 )
 _AUTH_HINTS = ("auth", "password", "access denied", "credential", "permission")
+# psycopg's refusal when the SSL mode demands TLS and the server offers none. It
+# also contains "connection failed", so it has to be read before the
+# unreachable hints: a fresh local PostgreSQL has no TLS and an unset SSL mode
+# resolves to `require` for any host but localhost, so this is the first error
+# most people meet, and "could not reach" sent them to check a network that works.
+_NO_SERVER_TLS_HINTS = ("does not support ssl",)
 
 # Every message below opens with this. A connection probe is not a scan:
 # ``worker.tasks._errors.user_facing_error`` GUARANTEES a "Scan failed" prefix
@@ -595,6 +601,12 @@ def _friendly_test_error(exc: Exception) -> str:
         return f"{_TEST_FAILED}: authentication was rejected — check the credentials."
     if any(hint in text for hint in _TIMEOUT_HINTS):
         return f"{_TEST_FAILED}: the data source did not respond in time."
+    if any(hint in text for hint in _NO_SERVER_TLS_HINTS):
+        return (
+            f"{_TEST_FAILED}: the server does not offer TLS, and this connection requires "
+            "it. Enable TLS on the server, or set SSL mode to disable for a server you "
+            "reach over a trusted network."
+        )
     if any(hint in text for hint in _UNREACHABLE_HINTS):
         return (
             f"{_TEST_FAILED}: could not reach the data source — check the host, port, and network."

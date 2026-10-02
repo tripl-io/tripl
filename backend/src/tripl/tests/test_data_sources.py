@@ -880,6 +880,20 @@ class TestConnectionErrorSanitization:
         for leak in ("ch.internal", "db.internal", "errno", "admin", "httpsconnectionpool"):
             assert leak not in lowered
 
+    def test_a_server_without_tls_is_named_not_called_unreachable(self):
+        """psycopg's no-TLS refusal also says "connection failed"; it is not a network fault."""
+        exc = Exception(
+            'connection failed: connection to server at "172.23.0.4", port 5432 failed: '
+            "server does not support SSL, but SSL was required"
+        )
+
+        msg = datasource_service._friendly_test_error(exc)
+
+        assert "does not offer TLS" in msg
+        assert "SSL mode to disable" in msg
+        assert "could not reach" not in msg
+        assert not any(ch.isdigit() for ch in msg)
+
     def test_a_capability_error_reaches_the_user_verbatim(self):
         """Masking a driver string is right; masking OUR message is not.
 

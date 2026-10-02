@@ -93,8 +93,9 @@ product's core loop end to end:
 1. **Run a scan** — press **Run now** on any scan.
 2. **Watch it land** — the run completes and shows what it changed.
 3. **Collect a metric** — press **Collect now** on any metric.
-4. **See the chart move** — open that metric and find the point your collection
-   added.
+4. **See the chart move** — open that metric and see the series your
+   collection recomputed (a daily metric gains a new point only once a day
+   has closed).
 
 That loop — *scan the warehouse, collect metrics, watch the charts* — is the
 same loop your real project will run on a schedule. The other chapters walk

@@ -595,7 +595,7 @@ export function buildChapterSteps(
         {
           id: 'live-loop/see-chart',
           title: 'See the chart move',
-          instruction: 'Open the metric to see the point your collection just added.',
+          instruction: 'Open the metric to see the series your collection just recomputed.',
           to: metric ? getMetricMonitoringPath(slug, metric.metricId) : `${base}/metrics`,
           ctaLabel: 'Open the chart',
           coach: { side: 'top', align: 'start', emphasis: 'ring' },
@@ -744,16 +744,16 @@ export function buildChapterSteps(
           title: 'Create a rule',
           instruction:
             'Add a rule on the local demo sink — deliveries render locally, nothing is sent.',
-          to: `${base}/alerting`,
-          ctaLabel: 'Open Alerting',
+          to: `${base}/alerting?section=monitors`,
+          ctaLabel: 'Open Rules',
           coach: { side: 'left', align: 'center', emphasis: 'ring' },
         },
         {
           id: 'alerting/simulate',
           title: 'Simulate a firing',
           instruction: `Replay ${SCENARIO_SEEDED.firingRuleName} to preview a delivery over real anomalies.`,
-          to: `${base}/alerting`,
-          ctaLabel: 'Open Alerting',
+          to: `${base}/alerting?section=monitors`,
+          ctaLabel: 'Open Rules',
           coach: { side: 'left', align: 'center', emphasis: 'ring' },
         },
       ]

@@ -142,7 +142,15 @@ class ClickHouseSettings(_ConnectionSettingsBase):
 
 
 class SyntheticSettings(_ConnectionSettingsBase):
-    """The synthetic (demo) warehouse is in-memory: it has nothing to configure."""
+    """The synthetic (demo) warehouse is in-memory: nothing here is a connection.
+
+    The two fields are written by the demo seeder, never by a user: the hour and
+    event it seeded its spike into, so the synthetic source serves that spike to
+    the scans that re-read the hour (``SyntheticAdapter``, ``spike``).
+    """
+
+    spike_event: str | None = Field(default=None, max_length=255)
+    spike_hour: datetime | None = None
 
 
 class PostgresSettings(_ConnectionSettingsBase):
