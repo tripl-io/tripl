@@ -80,6 +80,7 @@ import { getErrorMessage } from '@/lib/utils'
 import { formatDate, formatRelativeTime } from '@/lib/datetime'
 import { dataSourcesKey } from '@/lib/queryKeys'
 import { isOwner } from '@/lib/permissions'
+import { usePublicDemo } from '@/lib/deploymentMode'
 import { currentOrgSlug, projectPath, settingsPath } from '@/lib/navigation'
 
 const EMPTY_DATA_SOURCES: DataSource[] = []
@@ -215,6 +216,9 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   // re-enable A's button mid-test, and A's finish re-enabled B's (DATA-34).
   const [testingIds, setTestingIds] = useState<ReadonlySet<string>>(() => new Set())
   const canManageDataSources = isOwner(user?.role)
+  // A public demo connects to no warehouse of one's own (tripl-sav5).
+  const publicDemo = usePublicDemo()
+  const canAddConnection = canManageDataSources && !publicDemo
 
   const dataSourcesQuery = useQuery({
     queryKey: dataSourcesKey(),
@@ -591,7 +595,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
             tone={!statsPending && warningCount > 0 ? 'danger' : 'neutral'}
           />
         </MiniStatStrip>
-        {canManageDataSources && (
+        {canAddConnection && (
           // Marked for the `c` shortcut, which otherwise looks for "New …".
           <Button onClick={() => setShowForm(true)} size="sm" data-create-action="">
             <Plus className="h-3.5 w-3.5" />
@@ -801,11 +805,13 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
           icon={Database}
           title="No data sources"
           description={
-            canManageDataSources
-              ? 'Add a database connection to start scanning for events.'
-              : 'Data source connections are managed by owners.'
+            publicDemo
+              ? 'This public demo runs on its demo projects; it connects to no warehouse of your own.'
+              : canManageDataSources
+                ? 'Add a database connection to start scanning for events.'
+                : 'Data source connections are managed by owners.'
           }
-          action={canManageDataSources ? (
+          action={canAddConnection ? (
             <Button onClick={() => setShowForm(true)}>
               <Plus className="h-3.5 w-3.5" />
               Add connection

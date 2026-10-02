@@ -29,14 +29,28 @@ export function requiresEmailVerification(status: AuthStatusResponse | null | un
   return status?.email_verification_required === true
 }
 
+/** A public demo (tripl-sav5): the server refuses whatever would reach outside it. */
+export function isPublicDemoStatus(status: AuthStatusResponse | null | undefined): boolean {
+  return status?.public_demo === true
+}
+
+/**
+ * Is this instance a public demo? It runs on demo projects only: no blank
+ * projects, no connections of one's own, no further organizations — the
+ * server refuses them, so the app does not offer them.
+ */
+export function usePublicDemo(): boolean {
+  const { data } = useQuery(authStatusQueryOptions())
+  return isPublicDemoStatus(data)
+}
+
 /**
  * May the signed-in user create an organization? A platform admin always may;
  * in hosted mode every signed-in (verified) account may too — `POST /orgs`
- * answers the same. The status probe is skipped for a platform admin, whose
- * answer does not depend on it.
+ * answers the same. Nobody may on a public demo.
  */
 export function useCanCreateOrg(): boolean {
   const platformAdmin = useIsPlatformAdmin()
-  const { data } = useQuery({ ...authStatusQueryOptions(), enabled: !platformAdmin })
-  return platformAdmin || isHostedStatus(data)
+  const { data } = useQuery(authStatusQueryOptions())
+  return !isPublicDemoStatus(data) && (platformAdmin || isHostedStatus(data))
 }
