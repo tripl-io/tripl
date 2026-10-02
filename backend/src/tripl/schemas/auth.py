@@ -121,6 +121,12 @@ class AuthStatusResponse(BaseModel):
     # Whether a signed-in account must verify its address before using the
     # app: true exactly when hosted.
     email_verification_required: bool = False
+    # Whether "Sign in with Google" is offered (GOOGLE_CLIENT_ID and
+    # GOOGLE_CLIENT_SECRET set; tripl-sav5.2).
+    google_sign_in: bool = False
+    # A public demo instance (PUBLIC_DEMO): the app says so, signs up with
+    # Google only, and hides what it refuses (tripl-sav5.6).
+    public_demo: bool = False
 
 
 class OrgMembershipOut(BaseModel):

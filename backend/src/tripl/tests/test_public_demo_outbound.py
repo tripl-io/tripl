@@ -18,7 +18,8 @@ API = "/api/v1"
 
 
 @pytest.fixture(autouse=True)
-def public_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+def public_demo(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """After ``client`` has signed up: a public demo takes no password sign-ups."""
     monkeypatch.setattr(settings, "public_demo", True)
 
 

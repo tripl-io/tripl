@@ -311,6 +311,16 @@ class Settings(BaseSettings):
     # customer. A public demo sets it, or its database only ever grows.
     idle_org_retention_days: int = Field(default=0, ge=0)
 
+    # "Sign in with Google" on the sign-in page (tripl-sav5.2): an instance-wide
+    # OAuth client, unlike an organization's own SSO. Both set turns the button
+    # on; the redirect URI to register at Google is
+    # ``{APP_BASE_URL}/api/v1/auth/google/callback``. A first Google sign-in
+    # creates the account only where sign-up is open (REGISTRATION_MODE=open),
+    # and, when GOOGLE_ALLOWED_DOMAINS lists domains, only for those addresses.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_allowed_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
+
     # AI features (LLM-powered descriptions, Q&A). Disabled by default because
     # plan content — event names, descriptions, field names — is sent to the
     # configured provider when enabled.
@@ -388,7 +398,7 @@ class Settings(BaseSettings):
         # surrounding whitespace, as registration_mode does.
         return value.strip().lower() if isinstance(value, str) else value
 
-    @field_validator("platform_admin_emails", mode="before")
+    @field_validator("platform_admin_emails", "google_allowed_domains", mode="before")
     @classmethod
     def _split_platform_admin_emails(cls, value: object) -> object:
         if isinstance(value, str):

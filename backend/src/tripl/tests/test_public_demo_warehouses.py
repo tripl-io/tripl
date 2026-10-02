@@ -146,7 +146,8 @@ def test_hosted_bigquery_key_only_exchanges_tokens_with_google(
 
 class TestPublicDemoWarehouses:
     @pytest.fixture(autouse=True)
-    def public_demo(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def public_demo(self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+        """After ``client`` has signed up: a public demo takes no password sign-ups."""
         monkeypatch.setattr(settings, "public_demo", True)
 
     async def test_no_new_warehouse(self, client: AsyncClient) -> None:

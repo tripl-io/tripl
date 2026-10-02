@@ -13,6 +13,7 @@ from tripl.api.v1.app_settings import router as app_settings_router
 from tripl.api.v1.audit import router as audit_router
 from tripl.api.v1.audit_webhook import router as audit_webhook_router
 from tripl.api.v1.auth import router as auth_router
+from tripl.api.v1.auth_google import router as auth_google_router
 from tripl.api.v1.auth_sso import router as auth_sso_router
 from tripl.api.v1.chart_annotations import router as chart_annotations_router
 from tripl.api.v1.data_sources import router as data_sources_router
@@ -83,6 +84,7 @@ def _no_outbound(what: str) -> params.Depends:
 router.include_router(auth_router)
 # Signing in through an organization's identity provider (F20): unauthenticated.
 router.include_router(auth_sso_router)
+router.include_router(auth_google_router)
 router.include_router(activity_router, dependencies=protected_dependencies)
 router.include_router(ai_router, dependencies=protected_dependencies)
 router.include_router(app_settings_router, dependencies=protected_dependencies)

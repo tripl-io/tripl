@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.api.deps import CurrentUserDep, SessionDep
+from tripl.api.deps import CurrentUserDep, SessionDep, refuse_on_public_demo
 from tripl.auth_utils import hash_session_token
 from tripl.config import DEPLOYMENT_HOSTED, settings
 from tripl.middleware.rate_limit import (
@@ -33,6 +33,7 @@ from tripl.services import (
     audit_service,
     auth_service,
     email_verification_service,
+    google_login_service,
     invitation_service,
 )
 
@@ -249,6 +250,8 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
         ),
         deployment_mode=settings.deployment_mode,
         email_verification_required=email_verification_service.verification_required(),
+        google_sign_in=google_login_service.enabled(),
+        public_demo=settings.public_demo,
     )
 
 
@@ -256,7 +259,12 @@ async def get_status(session: SessionDep) -> AuthStatusResponse:
     "/register",
     response_model=AuthUserResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(enforce(register_rate_limiter))],
+    dependencies=[
+        Depends(enforce(register_rate_limiter)),
+        # Visitors sign up with Google: an address it vouches for, and no mail
+        # relay needed to verify a typed one (tripl-sav5.2).
+        Depends(refuse_on_public_demo("take password sign-ups; sign in with Google")),
+    ],
 )
 async def register(
     response: Response,
