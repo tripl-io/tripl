@@ -1,10 +1,9 @@
 [project]
 name = "tripl"
-# 0.2.0: `tripl_cli.api` gained the `page_items` / `page_total` re-exports after
-# 0.1.0 shipped, and `tripl-mcp` imports them. The published 0.1.0 does not have
-# them, so tripl-mcp cannot be released against it — this has to go out FIRST
-# (tag `cli-v0.2.0`), then tripl-mcp 0.2.0 (tripl-yh8t).
-version = "0.2.0"
+# 0.2.2: `tripl_cli.api` gained the `docs` module and typed-property reads
+# that tripl-mcp 0.2.2 imports, so this has to reach the index FIRST (tag
+# `cli-v0.2.2`), then tripl-mcp 0.2.2. Versioned with the service release.
+version = "0.2.2"
 description = "Operator CLI for a tripl tracking-plan instance: diagnostics, health and live monitoring"
 readme = "README.md"
 requires-python = ">=3.12"
