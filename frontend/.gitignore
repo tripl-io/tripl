@@ -25,3 +25,8 @@ dist-ssr
 
 # Test coverage output (pnpm test:coverage)
 coverage
+
+# Playwright (e2e)
+test-results/
+playwright-report/
+blob-report/

@@ -826,6 +826,60 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # A real browser against the dev stack (tripl-fj5g.1): the whole pipeline a
+  # visitor drives, worker and synthetic warehouse included. The stack is the
+  # one `compose.dev.yaml` gives a developer, with sign-up rate limits off so
+  # every test can sign up an account of its own.
+  e2e:
+    name: E2E (Playwright against the dev stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start the dev stack
+        env:
+          RATE_LIMIT_ENABLED: "false"
+        run: |
+          docker compose -f compose.dev.yaml up --build -d api celery-worker celery-beat frontend
+          for i in $(seq 1 90); do
+            curl -sf -o /dev/null http://127.0.0.1:5173/api/v1/auth/status && exit 0
+            sleep 5
+          done
+          docker compose -f compose.dev.yaml ps
+          exit 1
+
+      - name: Install pnpm and Node
+        uses: pnpm/setup@v3
+        with:
+          working-directory: frontend
+          runtime: node@26
+          cache: true
+          require-lockfile: true
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the e2e tests
+        working-directory: frontend
+        run: pnpm test:e2e
+
+      - name: Stack logs
+        if: ${{ failure() }}
+        run: docker compose -f compose.dev.yaml logs --no-color --tail 300 api celery-worker frontend
+
+      - name: Upload the Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
   image-scope:
     name: Detect image-definition changes
     runs-on: ubuntu-latest
