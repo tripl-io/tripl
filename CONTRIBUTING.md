@@ -286,6 +286,26 @@ How the test suite is set up (`vite.config.ts`, `src/test-setup.ts`):
 - `src/test/axe.ts` runs axe over a rendered tree; `src/test/storage.ts` makes
   storage throw the way private mode does.
 
+### End-to-end tests (Playwright)
+
+`frontend/e2e/` drives a real browser against a running stack: the whole
+pipeline a visitor drives, worker and synthetic warehouse included. The tests
+do not start the stack; bring up the dev stack first, with sign-up rate limits
+off so every test can sign up an account of its own:
+
+```bash
+RATE_LIMIT_ENABLED=false docker compose -f compose.dev.yaml up --build -d api celery-worker celery-beat frontend
+cd frontend
+pnpm exec playwright install chromium   # once
+pnpm test:e2e                           # against http://127.0.0.1:5173
+```
+
+`E2E_BASE_URL` points the tests at another instance. `E2E_CHROMIUM` uses an
+installed Chromium (`E2E_CHROMIUM=/usr/bin/chromium`) where Playwright ships no
+browser, an arm64 Linux host for one. A failure leaves a trace, screenshot and
+video under `frontend/test-results/` (`pnpm exec playwright show-trace <zip>`).
+CI runs the same tests in the `E2E` job.
+
 The typed API client is generated from the backend's OpenAPI schema. If you
 change request/response contracts, regenerate it:
 
