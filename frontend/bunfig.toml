@@ -1,0 +1,9 @@
+# Bun is the package manager and script runtime (tripl: pnpm -> bun).
+[install]
+# Each package sees only the dependencies it declares, as under pnpm: a
+# phantom import of something hoisted from another package's tree fails here
+# rather than in production.
+linker = "isolated"
+# Supply-chain cooling-off: a version must be a day old before an install picks
+# it, as pnpm 11's default did. Locked versions are unaffected.
+minimumReleaseAge = 86400

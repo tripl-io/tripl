@@ -10,7 +10,9 @@ updates:
           - minor
           - patch
 
-  - package-ecosystem: npm
+  # Dependabot's bun ecosystem reads bun.lock (the npm one would look for a
+  # package-lock.json that no longer exists).
+  - package-ecosystem: bun
     directory: /frontend
     schedule:
       interval: weekly

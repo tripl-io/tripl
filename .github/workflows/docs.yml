@@ -2,9 +2,15 @@ name: Docs
 
 # Build the Docusaurus site in website/ and publish it to GitHub Pages
 # (https://vladenisov.github.io/tripl/). Runs when docs sources change on main,
-# on release tags, and on manual dispatch. One-time setup: in repo Settings ->
+# on release tags, and on manual dispatch. A pull request that touches them
+# builds the site without publishing it. One-time setup: in repo Settings ->
 # Pages, set Source = "GitHub Actions".
 on:
+  pull_request:
+    paths:
+      - 'website/**'
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
   push:
     branches: [main]
     tags: ['v*']
@@ -20,9 +26,10 @@ permissions:
   id-token: write
 
 # Allow one concurrent deployment; don't cancel an in-progress production deploy.
+# A pull request's build-only run queues on its own group, never behind a deploy.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('docs-pr-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -32,21 +39,25 @@ jobs:
         working-directory: website
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      # Bun installs and builds; the version comes from website/package.json
+      # "packageManager". Dependency lifecycle scripts do not run (none is
+      # listed in "trustedDependencies"), as the static build needs none.
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
-          node-version: 22
-      - name: Enable corepack (pnpm from packageManager field)
-        run: corepack enable
-      - name: Install (no postinstall scripts needed for a static build)
-        run: corepack pnpm install --frozen-lockfile --ignore-scripts
+          bun-version-file: website/package.json
+      - name: Install
+        run: bun ci
       - name: Build
-        run: corepack pnpm build
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+        run: bun --bun run build
+      - if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
         with:
           path: website/build
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

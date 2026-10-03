@@ -289,9 +289,9 @@ services:
         - action: rebuild
           path: ./frontend/package.json
         - action: rebuild
-          path: ./frontend/pnpm-lock.yaml
+          path: ./frontend/bun.lock
         - action: rebuild
-          path: ./frontend/pnpm-workspace.yaml
+          path: ./frontend/bunfig.toml
         - action: rebuild
           path: ./frontend/.node-version
         - action: rebuild

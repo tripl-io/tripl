@@ -1,9 +1,0 @@
-# pnpm 11 reads build-script and run settings from here (not package.json).
-# Don't auto-run `install` before `pnpm <script>`:
-verifyDepsBeforeRun: false
-# Approve core-js's (harmless funding) postinstall so `pnpm install` exits 0:
-onlyBuiltDependencies:
-  - core-js
-  - core-js-pure
-allowBuilds:
-  core-js: set this to true or false

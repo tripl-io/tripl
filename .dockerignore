@@ -27,7 +27,7 @@
 cli/dist/
 mcp-server/dist/
 
-# Node (image runs `pnpm install` + `pnpm build` itself)
+# Node (image runs `bun install` + `bun run build` itself)
 **/node_modules/
 frontend/dist/
 **/.vite/

@@ -3,10 +3,10 @@
 #
 # One command for the two-step flow that keeps the FE <-> BE contract in sync:
 #   1. Dump the OpenAPI schema to backend/openapi.json — the committed snapshot
-#      that tests/test_openapi_contract.py guards and `pnpm gen:api` consumes.
+#      that tests/test_openapi_contract.py guards and `bun run gen:api` consumes.
 #      The format MUST match the contract test: json.dumps(app.openapi(),
 #      indent=2, sort_keys=True) plus the single trailing newline `print` adds.
-#   2. Regenerate frontend/src/types/api.gen.ts via `pnpm gen:api`.
+#   2. Regenerate frontend/src/types/api.gen.ts via `bun run gen:api`.
 #
 # Run after any change to the HTTP API surface (routes, request/response models,
 # status codes). Requires backend deps (`cd backend && uv sync`).
@@ -25,7 +25,7 @@ echo "→ dumping OpenAPI schema to backend/openapi.json"
 echo "→ regenerating frontend/src/types/api.gen.ts"
 (
   cd "$root/frontend"
-  pnpm gen:api
+  bun run gen:api
 )
 
 echo "✓ API types in sync (backend/openapi.json + frontend/src/types/api.gen.ts)"

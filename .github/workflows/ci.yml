@@ -774,46 +774,52 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # pnpm/setup installs pnpm's self-contained binary (version from
-      # frontend/package.json "packageManager") and Node in one step, with no
-      # npm bootstrap and no self-update — pnpm/action-setup printed a
-      # "pnpm v10 installation layout" warning on every run (tripl-fj5g.24).
-      - name: Install pnpm and Node
-        uses: pnpm/setup@v3
+      # Bun installs the dependencies and runs the scripts (vite, vitest,
+      # openapi-typescript) on its own runtime; the version comes from
+      # frontend/package.json "packageManager".
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2.2.0
         with:
-          working-directory: frontend
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+          bun-version-file: frontend/package.json
+
+      # Node runs one step only: the project lint-rule tests. Oxlint's
+      # RuleTester refuses any runtime but Node.
+      - name: Install Node (lint-rule tests)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.node-version
+
+      - name: Install dependencies
+        run: bun ci
 
       # backend/openapi.json is gated by test_openapi_contract.py, whose failure
-      # message tells you to run `pnpm gen:api` — but nothing checked that anyone
+      # message tells you to run `bun run gen:api` — but nothing checked that anyone
       # did. A PR could refresh the snapshot and leave src/types/api.gen.ts
       # stale, and `tsc -b` only notices when the frontend happens to reference
       # a field that changed. Regenerate and require the tree to be unchanged.
       - name: API types match backend/openapi.json
         run: |
-          pnpm gen:api
+          bun run gen:api
           git diff --exit-code -- src/types/api.gen.ts
 
       - name: Lint
-        run: pnpm lint
+        run: bun run lint
 
       - name: Build
-        run: pnpm build
+        run: bun run build
 
       # The JavaScript a first page load fetches (entry + modulepreloads) has a
       # ratcheting byte budget, and chunks split out to load on demand must stay
       # off that path. Budgets live in scripts/check-bundle-budget.mjs.
       - name: Bundle budget
-        run: pnpm check:bundle
+        run: bun run check:bundle
 
-      # Same test set as `pnpm test`, plus v8 coverage. The thresholds in
+      # Same test set as `bun run test`, plus v8 coverage. The thresholds in
       # vite.config.ts fail this step when coverage drops below them; they are
       # 0 until the first measured baseline is recorded (CONTRIBUTING.md,
       # "Coverage"), so for now this step reports and does not gate.
       - name: Test (with coverage)
-        run: pnpm test:coverage
+        run: bun run test:coverage
 
       # The summary is uploaded even from a red run, so a threshold failure can
       # be compared against the numbers without re-running locally.
@@ -849,21 +855,22 @@ jobs:
           docker compose -f compose.dev.yaml ps
           exit 1
 
-      - name: Install pnpm and Node
-        uses: pnpm/setup@v3
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2.2.0
         with:
-          working-directory: frontend
-          runtime: node@26
-          cache: true
-          require-lockfile: true
+          bun-version-file: frontend/package.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: bun ci
 
       - name: Install Chromium
         working-directory: frontend
-        run: pnpm exec playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium
 
       - name: Run the e2e tests
         working-directory: frontend
-        run: pnpm test:e2e
+        run: bun run test:e2e
 
       - name: Stack logs
         if: ${{ failure() }}
@@ -922,7 +929,7 @@ jobs:
           changed=$(git diff --name-only "$merge_base" HEAD -- \
             Dockerfile .dockerignore mcp-server/Dockerfile \
             backend/pyproject.toml backend/uv.lock backend/.python-version \
-            frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml \
+            frontend/package.json frontend/bun.lock frontend/bunfig.toml \
             cli/pyproject.toml mcp-server/pyproject.toml mcp-server/uv.lock \
             .github/workflows/ci.yml)
           if [ -n "$changed" ]; then

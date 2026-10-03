@@ -83,7 +83,7 @@ which has two jobs:
 1. **CI gate (`ci`)** — reuses
    [`ci.yml`](https://github.com/vladenisov/tripl/blob/main/.github/workflows/ci.yml)
    via `workflow_call`: the backend job (`ruff` + `mypy` + `pytest`) and the
-   frontend job (`pnpm lint` + `pnpm build` + `pnpm test`). The image job
+   frontend job (`bun run lint` + `bun run build` + `bun run test`). The image job
    `needs: ci`, so **no image is ever published from red code**.
 2. **Build & push image (`image`)** — after CI is green:
    - Sets up QEMU + Buildx and logs in to GHCR.
@@ -107,7 +107,7 @@ Tags are computed by `docker/metadata-action`:
 
 :::note arm64 is cross-built via QEMU
 arm64 is emulated on the amd64 runner, so release builds are slower than a
-native build (`pnpm build` and `uv sync` especially). This is acceptable for
+native build (`bun run build` and `uv sync` especially). This is acceptable for
 tagged releases. For faster builds later, move to a native arm64 runner.
 :::
 

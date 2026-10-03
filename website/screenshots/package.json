@@ -4,10 +4,10 @@
   "private": true,
   "license": "AGPL-3.0-or-later",
   "type": "module",
-  "packageManager": "pnpm@11.19.0",
+  "packageManager": "bun@1.4.2",
   "description": "Captures the docs site's screenshots from a running tripl with a demo project.",
   "scripts": {
-    "capture": "node capture.mjs"
+    "capture": "bun capture.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^24.43.1"

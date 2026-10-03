@@ -909,7 +909,7 @@
  *
  * NOT via `EditorView.lineWrapping`: that has to be imported as a VALUE from
  * '@uiw/react-codemirror' — package.json declares no @codemirror/view and
- * pnpm's strict layout does not symlink it — and seven suites mock that module
+ * the isolated install layout does not link it — and seven suites mock that module
  * with a default-only factory, so every one fails with
  * 'No "EditorView" export is defined on the mock'.
  *

@@ -1,7 +1,7 @@
 # tripl — convenience commands. Run `make` (or `make help`) for the list.
 #
-# The backend uses uv (backend/, uv.lock); the frontend uses pnpm
-# (frontend/, pnpm-lock.yaml). Targets cd into the right subproject, so you can
+# The backend uses uv (backend/, uv.lock); the frontend uses bun
+# (frontend/, bun.lock). Targets cd into the right subproject, so you can
 # run everything from the repo root. These wrap the exact commands documented in
 # CONTRIBUTING.md — nothing here changes how the tools are invoked, it just puts
 # the common flows one keystroke away.
@@ -29,8 +29,8 @@ install: install-be install-fe install-hooks ## Install backend + frontend deps 
 install-be: ## Install backend deps incl. dev extras (uv sync --extra dev)
 	cd $(BACKEND) && uv sync --extra dev
 
-install-fe: ## Install frontend deps (pnpm install)
-	cd $(FRONTEND) && pnpm install
+install-fe: ## Install frontend deps (bun install)
+	cd $(FRONTEND) && bun install
 
 # beads owns the hooks: it points core.hooksPath at .beads/hooks, which git then
 # uses INSTEAD of .git/hooks. That path is an absolute, machine-specific value in
@@ -50,7 +50,7 @@ dev: ## Run the full stack via docker compose (watch mode)
 	docker compose -f $(ROOT)/compose.dev.yaml up --watch
 
 dev-fe: ## Run just the frontend dev server (Vite :5173)
-	cd $(FRONTEND) && pnpm dev
+	cd $(FRONTEND) && bun run dev
 
 ##@ API types
 .PHONY: sync-types
@@ -67,7 +67,7 @@ lint-be: ## Lint backend (ruff check + format --check)
 	cd $(BACKEND) && uv run ruff check && uv run ruff format --check
 
 lint-fe: ## Lint frontend (oxlint plus the project rule tests; zero warnings)
-	cd $(FRONTEND) && pnpm lint
+	cd $(FRONTEND) && bun run lint
 
 format: ## Auto-format backend (ruff format)
 	cd $(BACKEND) && uv run ruff format
@@ -78,7 +78,7 @@ typecheck-be: ## Type-check backend (mypy, strict)
 	cd $(BACKEND) && uv run mypy
 
 typecheck-fe: ## Type-check frontend (tsc -b, TypeScript 7)
-	cd $(FRONTEND) && pnpm exec tsc -b
+	cd $(FRONTEND) && bunx tsc -b
 
 test: test-be test-fe ## Run backend + frontend tests
 
@@ -86,10 +86,10 @@ test-be: ## Run backend tests (pytest). Extra args: make test-be ARGS="-k diff -
 	cd $(BACKEND) && uv run pytest $(ARGS)
 
 test-fe: ## Run frontend tests (vitest run). Extra args: make test-fe ARGS=BranchesTab
-	cd $(FRONTEND) && pnpm test $(ARGS)
+	cd $(FRONTEND) && bun run test $(ARGS)
 
 build-fe: ## Production build of the frontend (tsc -b + vite build)
-	cd $(FRONTEND) && pnpm build
+	cd $(FRONTEND) && bun run build
 
 ##@ Database
 .PHONY: migrate migration
