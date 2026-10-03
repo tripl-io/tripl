@@ -50,6 +50,7 @@ dependencies = [
     "dnspython>=2.8.0",
     "signxml>=5.1",
     "lxml>=6",
+    "holidays>=0.105",
 ]
 
 [project.scripts]

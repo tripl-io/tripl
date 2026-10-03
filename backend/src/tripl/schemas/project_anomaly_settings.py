@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from tripl.services.holiday_calendar import is_supported_country
 
 
 class ProjectAnomalySettingsUpdate(BaseModel):
@@ -30,6 +32,19 @@ class ProjectAnomalySettingsUpdate(BaseModel):
     # to half of the collision. It is enforced on the merged settings in
     # ``project_anomaly_settings_service.update_project_anomaly_settings``.
     anomaly_ingestion_settling_minutes: int | None = Field(None, ge=0, le=1440)
+    # A country's public holidays as planned events (F18): an ISO 3166-1
+    # alpha-2 code from GET .../holiday-countries, or null to turn it off.
+    holiday_country: str | None = Field(None, min_length=2, max_length=2)
+
+    @field_validator("holiday_country")
+    @classmethod
+    def _check_country(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        code = value.upper()
+        if not is_supported_country(code):
+            raise ValueError("holiday_country must be a country with a holiday calendar")
+        return code
 
 
 def settling_window_conflict(
@@ -89,6 +104,7 @@ class ProjectAnomalySettingsResponse(BaseModel):
     min_expected_count: int
     recent_signal_window_hours: int
     anomaly_ingestion_settling_minutes: int
+    holiday_country: str | None = None
     created_at: datetime
     updated_at: datetime
 

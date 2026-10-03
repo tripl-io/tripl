@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, UniqueConstraint, func
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, UUIDMixin
@@ -66,6 +66,10 @@ class ProjectAnomalySettings(UUIDMixin, Base):
         default=DEFAULT_ANOMALY_INGESTION_SETTLING_MINUTES,
         server_default="120",
     )
+    # A country's public holidays as project-wide planned events (F18): an
+    # ISO 3166-1 alpha-2 code, NULL for none. ``holiday_calendar`` keeps the
+    # rows in step with it.
+    holiday_country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         server_default=func.now(),

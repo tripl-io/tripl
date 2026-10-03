@@ -61,6 +61,9 @@ class PlannedEventResponse(BaseModel):
     direction: AnomalyDirection | None
     scope_type: ChartAnnotationScopeType | None
     scope_ref: str | None
+    # ``manual`` or ``holiday`` (written by the project's holiday calendar,
+    # which owns it: it cannot be edited or deleted by hand).
+    source: str = "manual"
     created_by_user_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime

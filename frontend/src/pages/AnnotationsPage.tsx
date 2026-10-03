@@ -190,8 +190,10 @@ export default function AnnotationsPage() {
                   <span className="min-w-0 break-words font-medium">{row.label}</span>
                   <Chip variant="outline" size="xs">{plannedEventExpectation(row.direction)}</Chip>
                   <ScopeCell slug={slug} row={row} />
+                  {row.source === 'holiday' && <Chip variant="outline" size="xs">Holiday</Chip>}
                 </div>
-                {canWrite && (
+                {/* The holiday calendar owns its rows: changed in Detection settings. */}
+                {canWrite && row.source !== 'holiday' && (
                   <IconButton
                     variant="ghost"
                     className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"

@@ -29,6 +29,7 @@ function settingsPayload(overrides: Record<string, unknown> = {}) {
     min_expected_count: 100,
     recent_signal_window_hours: 24,
     anomaly_ingestion_settling_minutes: 120,
+    holiday_country: null,
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z',
     ...overrides,
@@ -61,6 +62,9 @@ function mockSettingsFetch(
   let remaining = scopeOverrides
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
+    if (url.includes('/anomaly-settings/holiday-countries')) {
+      return jsonResponse(['DE', 'FR', 'US'])
+    }
     if (url.includes('/anomaly-settings/scope-overrides')) {
       if (init?.method === 'DELETE') {
         const id = url.split('/').pop() ?? ''
@@ -245,6 +249,7 @@ describe('MonitoringTab — settling allowance vs open signal window (tripl-l429
   it('surfaces the backend refusal instead of failing silently', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
+      if (url.includes('/anomaly-settings/holiday-countries')) return jsonResponse(['US'])
       if (url.includes('/anomaly-settings/scope-overrides')) {
         return jsonResponse({ items: [], total: 0 })
       }
@@ -348,6 +353,7 @@ describe('MonitoringTab — false-positive scope overrides', () => {
     // operator their scopes are untouched when nobody knows (tripl-l429.24).
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
+      if (url.includes('/anomaly-settings/holiday-countries')) return jsonResponse(['US'])
       if (url.includes('/anomaly-settings/scope-overrides')) {
         return new Response(JSON.stringify({ detail: 'Database is unavailable' }), {
           status: 500,
@@ -415,6 +421,7 @@ describe('MonitoringTab — a failed settings load (PLAN-41)', () => {
   it('shows an error with a retry instead of loading forever', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
+      if (url.includes('/anomaly-settings/holiday-countries')) return jsonResponse(['US'])
       if (url.includes('/anomaly-settings/scope-overrides')) {
         return jsonResponse({ items: [], total: 0 })
       }
@@ -439,6 +446,7 @@ describe('MonitoringTab — a failed refresh after an autosave (review 204)', ()
     let getCount = 0
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
+      if (url.includes('/anomaly-settings/holiday-countries')) return jsonResponse(['US'])
       if (url.includes('/anomaly-settings/scope-overrides')) {
         return jsonResponse({ items: [], total: 0 })
       }
@@ -525,5 +533,30 @@ describe('MonitoringTab — turning detection off (AL-45)', () => {
     renderTab()
 
     expect(await screen.findByText(/Detection is off for this project/)).toBeInTheDocument()
+  })
+})
+
+describe('MonitoringTab — holiday calendar (F18)', () => {
+  it('lists countries by name and patches the chosen one', async () => {
+    const { patches } = mockSettingsFetch()
+    renderTab()
+
+    const select = await screen.findByLabelText('Country')
+    await waitFor(() => expect(select).not.toBeDisabled())
+    expect(within(select).getByRole('option', { name: 'Germany (DE)' })).toBeInTheDocument()
+    expect(select).toHaveValue('')
+
+    fireEvent.change(select, { target: { value: 'DE' } })
+    await waitFor(() => expect(patches).toEqual([{ holiday_country: 'DE' }]))
+  })
+
+  it('clears the calendar with None', async () => {
+    const { patches } = mockSettingsFetch({ holiday_country: 'US' })
+    renderTab()
+
+    const select = await screen.findByLabelText('Country')
+    await waitFor(() => expect(select).toHaveValue('US'))
+    fireEvent.change(select, { target: { value: '' } })
+    await waitFor(() => expect(patches).toEqual([{ holiday_country: null }]))
   })
 })

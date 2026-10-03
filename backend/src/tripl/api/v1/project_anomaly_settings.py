@@ -10,6 +10,7 @@ from tripl.schemas.project_anomaly_settings import (
     ProjectAnomalySettingsUpdate,
 )
 from tripl.services import audit_service, project_anomaly_settings_service
+from tripl.services.holiday_calendar import supported_countries
 
 router = APIRouter(
     prefix="/projects/{slug}/anomaly-settings",
@@ -21,6 +22,12 @@ _editor_required = [Depends(get_editor_user)]
 @router.get("", response_model=ProjectAnomalySettingsResponse)
 async def get_project_anomaly_settings(session: SessionDep, slug: str) -> ProjectAnomalySettings:
     return await project_anomaly_settings_service.get_project_anomaly_settings(session, slug)
+
+
+@router.get("/holiday-countries", response_model=list[str])
+async def list_holiday_countries(slug: str) -> list[str]:
+    """ISO 3166-1 alpha-2 codes ``holiday_country`` accepts (F18)."""
+    return list(supported_countries())
 
 
 @router.patch(

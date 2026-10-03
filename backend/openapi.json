@@ -23158,6 +23158,11 @@
               }
             ]
           },
+          "source": {
+            "default": "manual",
+            "title": "Source",
+            "type": "string"
+          },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
@@ -23845,6 +23850,17 @@
             "title": "Detect Project Total",
             "type": "boolean"
           },
+          "holiday_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holiday Country"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -23978,6 +23994,19 @@
               }
             ],
             "title": "Detect Project Total"
+          },
+          "holiday_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holiday Country"
           },
           "min_expected_count": {
             "anyOf": [
@@ -40489,6 +40518,53 @@
           }
         },
         "summary": "Update Project Anomaly Settings",
+        "tags": [
+          "anomaly-settings"
+        ]
+      }
+    },
+    "/api/v1/projects/{slug}/anomaly-settings/holiday-countries": {
+      "get": {
+        "description": "ISO 3166-1 alpha-2 codes ``holiday_country`` accepts (F18).",
+        "operationId": "list_holiday_countries_api_v1_projects__slug__anomaly_settings_holiday_countries_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response List Holiday Countries Api V1 Projects  Slug  Anomaly Settings Holiday Countries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Holiday Countries",
         "tags": [
           "anomaly-settings"
         ]

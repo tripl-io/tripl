@@ -43,6 +43,7 @@ const PLANNED: PlannedEvent = {
   direction: 'spike',
   scope_type: 'metric',
   scope_ref: 'm-1',
+  source: 'manual',
   scope_name: 'Revenue',
   created_by_user_id: null,
   created_at: '2026-05-01T00:00:00Z',
@@ -119,6 +120,19 @@ describe('AnnotationsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Releases' }))
     expect(within(list).getAllByRole('listitem')).toHaveLength(1)
     expect(within(list).getByText('Release 1.4.0')).toBeInTheDocument()
+  })
+
+  it('marks holiday rows and offers no delete for them', async () => {
+    vi.mocked(plannedEventsApi.list).mockResolvedValue([
+      PLANNED,
+      { ...PLANNED, id: 'h', label: 'Labour Day', source: 'holiday', scope_type: null, scope_ref: null },
+    ])
+    renderPage(personaAuth('editor'))
+
+    const planned = await screen.findByTestId('planned-events-list')
+    expect(within(planned).getByText('Holiday')).toBeInTheDocument()
+    expect(within(planned).getByRole('button', { name: 'Delete planned event Spring promo' })).toBeInTheDocument()
+    expect(within(planned).queryByRole('button', { name: 'Delete planned event Labour Day' })).not.toBeInTheDocument()
   })
 
   it('offers a viewer no delete', async () => {

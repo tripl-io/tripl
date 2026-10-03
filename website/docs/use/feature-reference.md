@@ -1922,6 +1922,18 @@ chart annotation's: `scope_type` and `scope_ref` both set, or both null for the
 whole project. The [demo workspace](./demo-workspace.md) seeds one, *Spring promo
 (planned)*, over its catalog-metric spike.
 
+**Holiday calendar.** Detection settings › **Holiday calendar** takes a country,
+and its public holidays become project-wide planned events that expect either
+direction — one UTC day each, for last year, this year and next, rolled into the
+new year by a nightly job. They come from the
+[`holidays`](https://pypi.org/project/holidays/) package, under their English
+names, and are listed with a **Holiday** chip. The calendar owns them: they
+cannot be edited or deleted one by one (`PATCH`/`DELETE` answers `409`), and
+choosing **None** removes them all. Through the API, `holiday_country` (an
+ISO 3166-1 alpha-2 code, or null) on `PATCH /projects/{slug}/anomaly-settings`;
+`GET /projects/{slug}/anomaly-settings/holiday-countries` lists the codes it
+accepts. Planned events carry `source`: `manual` or `holiday`.
+
 ### Alerting
 
 **Where:** Observe › Alerting (Inbox, Rules, Destinations, Delivery log). Destination channels:

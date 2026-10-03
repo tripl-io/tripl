@@ -24,6 +24,7 @@ import { SILENT_ERROR_META } from "@/lib/errorFeedback"
 import { useCanWriteProject } from "@/lib/permissions"
 import { getErrorMessage } from '@/lib/utils'
 import { anomalyScopeOverridesKey, projectAnomalySettingsKey } from '@/lib/queryKeys'
+import { HolidayCalendarPanel } from './HolidayCalendarPanel'
 
 // How long the "Saved" hint stays up after an autosave lands.
 const SAVED_HINT_MS = 2000
@@ -684,6 +685,8 @@ export function MonitoringTab({ slug }: { slug: string }) {
           </div>
         </Panel>
       )}
+
+      <HolidayCalendarPanel slug={slug} country={settings.holiday_country} canWrite={canWrite} />
 
       <ScopeOverridesCard slug={slug} canWrite={canWrite} />
     </PageContainer>

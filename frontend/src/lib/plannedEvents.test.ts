@@ -16,6 +16,7 @@ const EVENT: PlannedEvent = {
   direction: 'spike',
   scope_type: null,
   scope_ref: null,
+  source: 'manual',
   created_by_user_id: null,
   created_at: '2026-05-01T00:00:00Z',
   updated_at: '2026-05-01T00:00:00Z',
