@@ -38,6 +38,8 @@ class MetricSeriesPoint(BaseModel):
     z_score: float | None = None
     # See ``EventMetricPoint.verdict`` (F01, #254); omitted when NULL.
     verdict: SignalVerdictInfo | None = Field(default=None, exclude_if=lambda value: value is None)
+    # See ``EventMetricPoint.planned_event_id`` (F18); omitted when NULL.
+    planned_event_id: uuid.UUID | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class MetricSeriesResponse(BaseModel):

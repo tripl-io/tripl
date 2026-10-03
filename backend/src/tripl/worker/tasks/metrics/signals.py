@@ -196,6 +196,10 @@ def _latest_anomaly_per_scope(
     row, and loading every stored row to keep one per scope in Python grew with
     the table — the metric-scope rows are never aged out at all (tripl-0zpq.9).
     ``join_event`` outer-joins ``Event`` so ``criteria`` may filter on it.
+
+    Rows a planned event expected (``planned_event_id`` set, F18) are never
+    candidates: every alert path reads its anomalies through here, so a planned
+    spike neither fires nor keeps a rule state open.
     """
     ranked = select(
         MetricAnomaly.id.label("anomaly_id"),
@@ -208,7 +212,7 @@ def _latest_anomaly_per_scope(
     )
     if join_event:
         ranked = ranked.outerjoin(Event, MetricAnomaly.event_id == Event.id)
-    latest = ranked.where(*criteria).subquery()
+    latest = ranked.where(MetricAnomaly.planned_event_id.is_(None), *criteria).subquery()
     return (
         select(MetricAnomaly)
         .join(latest, MetricAnomaly.id == latest.c.anomaly_id)

@@ -97,6 +97,8 @@ async def _get_latest_anomaly_rows_multi(
         .where(
             ScanConfig.project_id == project_id,
             MetricAnomaly.scope_type.in_(scope_types),
+            # Expected by a planned event (F18): drawn on the chart, never open.
+            MetricAnomaly.planned_event_id.is_(None),
         )
         .group_by(
             MetricAnomaly.scan_config_id,
@@ -276,6 +278,7 @@ async def _get_active_metric_signals(
             .where(
                 MetricAnomaly.scope_type == SCOPE_METRIC,
                 MetricAnomaly.scope_ref.in_(scope_refs),
+                MetricAnomaly.planned_event_id.is_(None),
             )
             .order_by(MetricAnomaly.bucket.desc())
         )
@@ -443,6 +446,7 @@ async def _active_metric_signals_by_project(
             .where(
                 MetricAnomaly.scope_type == SCOPE_METRIC,
                 MetricAnomaly.scope_ref.in_(scope_refs),
+                MetricAnomaly.planned_event_id.is_(None),
             )
             .order_by(MetricAnomaly.bucket.desc())
         )

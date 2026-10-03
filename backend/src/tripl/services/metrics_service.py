@@ -704,6 +704,13 @@ def _served_detector_kind(anomaly: MetricAnomaly | MetricBreakdownAnomaly) -> st
     return getattr(anomaly, "detector_kind", None)
 
 
+def _served_planned_event_id(
+    anomaly: MetricAnomaly | MetricBreakdownAnomaly,
+) -> uuid.UUID | None:
+    """The planned event that expected the bucket (F18); breakdown rows carry none."""
+    return getattr(anomaly, "planned_event_id", None)
+
+
 def _baseline_fields(baseline: _BucketBaseline | None) -> dict[str, float | None]:
     """``EventMetricPoint`` baseline fields for one bucket, NULL when unscored."""
     if baseline is None:
@@ -771,6 +778,11 @@ def _build_metric_points(
                     if point.bucket in anomalies_by_bucket
                     else None
                 ),
+                planned_event_id=(
+                    _served_planned_event_id(anomalies_by_bucket[point.bucket])
+                    if point.bucket in anomalies_by_bucket
+                    else None
+                ),
                 **_baseline_fields(baselines_by_bucket.get(point.bucket)),
             )
             for point in expanded
@@ -801,6 +813,11 @@ def _build_metric_points(
                 ),
                 z_score=(
                     anomalies_by_bucket[bucket].z_score if bucket in anomalies_by_bucket else None
+                ),
+                planned_event_id=(
+                    _served_planned_event_id(anomalies_by_bucket[bucket])
+                    if bucket in anomalies_by_bucket
+                    else None
                 ),
                 **_baseline_fields(baselines_by_bucket.get(bucket)),
             )

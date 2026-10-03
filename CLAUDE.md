@@ -30,7 +30,7 @@ The JSONL exports are gitignored on purpose: this repository is public, and the 
 
 Before ending a session, leave nothing only on this machine that someone else needs: file beads issues for follow-up work, close what is finished, and make sure committed work is on a pushed branch.
 
-Changes reach `main` through a pull request unless the owner asks for a direct push: merging `main` deploys production, so a merge happens on green CI and with the owner's go-ahead. Before every push, `git diff origin/main...HEAD -- .beads/` must be empty — `bd` sometimes commits a config change to local `main` on its own. Pushing a branch is a git operation only; it never includes `bd dolt push`.
+Changes reach `main` through a pull request unless the owner asks for a direct push: a merge happens on green CI and with the owner's go-ahead. Merging `main` does not deploy the product (production is deployed by hand); it does publish the docs site to GitHub Pages. Before every push, `git diff origin/main...HEAD -- .beads/` must be empty — `bd` sometimes commits a config change to local `main` on its own. Pushing a branch is a git operation only; it never includes `bd dolt push`.
 <!-- END BEADS INTEGRATION -->
 
 

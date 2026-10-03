@@ -4780,6 +4780,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/planned-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Planned Events */
+        get: operations["list_planned_events_api_v1_projects__slug__planned_events_get"];
+        put?: never;
+        /** Create Planned Event */
+        post: operations["create_planned_event_api_v1_projects__slug__planned_events_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{slug}/planned-events/{planned_event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Planned Event */
+        delete: operations["delete_planned_event_api_v1_projects__slug__planned_events__planned_event_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Planned Event */
+        patch: operations["update_planned_event_api_v1_projects__slug__planned_events__planned_event_id__patch"];
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/properties": {
         parameters: {
             query?: never;
@@ -11190,6 +11226,8 @@ export interface components {
              * @default false
              */
             is_anomaly: boolean;
+            /** Planned Event Id */
+            planned_event_id?: string | null;
             /** Stddev */
             stddev?: number | null;
             verdict?: components["schemas"]["SignalVerdictInfo"] | null;
@@ -13446,6 +13484,8 @@ export interface components {
              * @default false
              */
             is_anomaly: boolean;
+            /** Planned Event Id */
+            planned_event_id?: string | null;
             /** Stddev */
             stddev?: number | null;
             /** Value */
@@ -15283,6 +15323,94 @@ export interface components {
              * @enum {string}
              */
             kind: "added" | "removed" | "changed";
+        };
+        /**
+         * PlannedEventCreate
+         * @description A window in which the project expects its numbers to move (F18).
+         *
+         *     ``direction`` NULL expects either way. The scope pairs like a chart
+         *     annotation's: both NULL covers every series in the project.
+         */
+        PlannedEventCreate: {
+            /** Description */
+            description?: string | null;
+            direction?: components["schemas"]["AnomalyDirection"] | null;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Label */
+            label: string;
+            /** Scope Ref */
+            scope_ref?: string | null;
+            scope_type?: components["schemas"]["ChartAnnotationScopeType"] | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** PlannedEventResponse */
+        PlannedEventResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By User Id */
+            created_by_user_id: string | null;
+            /** Description */
+            description: string | null;
+            direction: components["schemas"]["AnomalyDirection"] | null;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Project Id
+             * Format: uuid
+             */
+            project_id: string;
+            /** Scope Ref */
+            scope_ref: string | null;
+            scope_type: components["schemas"]["ChartAnnotationScopeType"] | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * PlannedEventUpdate
+         * @description A partial edit; the merged event is validated as a whole by the route.
+         */
+        PlannedEventUpdate: {
+            /** Description */
+            description?: string | null;
+            direction?: components["schemas"]["AnomalyDirection"] | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Label */
+            label?: string | null;
+            /** Scope Ref */
+            scope_ref?: string | null;
+            scope_type?: components["schemas"]["ChartAnnotationScopeType"] | null;
+            /** Starts At */
+            starts_at?: string | null;
         };
         /**
          * PlatformAdminGrant
@@ -29273,6 +29401,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanValidationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_planned_events_api_v1_projects__slug__planned_events_get: {
+        parameters: {
+            query?: {
+                scope_type?: components["schemas"]["ChartAnnotationScopeType"] | null;
+                scope_ref?: string | null;
+                time_from?: string | null;
+                time_to?: string | null;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlannedEventResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_planned_event_api_v1_projects__slug__planned_events_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlannedEventCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlannedEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_planned_event_api_v1_projects__slug__planned_events__planned_event_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                planned_event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_planned_event_api_v1_projects__slug__planned_events__planned_event_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                planned_event_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlannedEventUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlannedEventResponse"];
                 };
             };
             /** @description Validation Error */

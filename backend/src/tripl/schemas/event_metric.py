@@ -71,6 +71,9 @@ class EventMetricPoint(BaseModel):
     # marker's tooltip (F01, #254). Only on the drilldown routes, only on
     # flagged buckets, and omitted from the JSON when NULL.
     verdict: SignalVerdictInfo | None = Field(default=None, exclude_if=lambda value: value is None)
+    # The planned event that expected this flagged bucket (F18): the chart
+    # mutes the marker and names the event. Omitted from the JSON when NULL.
+    planned_event_id: uuid.UUID | None = Field(default=None, exclude_if=lambda value: value is None)
     # The per-bucket baseline the detector scored this bucket against, flagged
     # or not (tripl-i9mt.25): the expected value and the floored effective
     # stddev, so ``baseline_expected ± sigma_threshold * baseline_stddev`` is the

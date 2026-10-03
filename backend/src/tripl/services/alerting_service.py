@@ -814,6 +814,9 @@ async def simulate_rule(
                     ScanConfig.project_id == project.id,
                     MetricAnomaly.bucket >= window_from,
                     MetricAnomaly.bucket < window_to,
+                    # A planned event's anomalies never fire (F18), so the
+                    # replay does not count them either.
+                    MetricAnomaly.planned_event_id.is_(None),
                 )
                 .order_by(MetricAnomaly.bucket)
             )
@@ -845,6 +848,7 @@ async def simulate_rule(
                         MetricAnomaly.scope_ref.in_(project_metric_scope_refs),
                         MetricAnomaly.bucket >= window_from,
                         MetricAnomaly.bucket < window_to,
+                        MetricAnomaly.planned_event_id.is_(None),
                     )
                     .order_by(MetricAnomaly.bucket)
                 )

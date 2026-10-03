@@ -216,6 +216,15 @@ export const appVersionSeriesRangeKey = (
 /** Chart annotations shown on one entity's drilldown. */
 export const projectChartAnnotationsKey = (slug: string | undefined) =>
   [...orgRoot(), 'chartAnnotations', slug] as const
+/** Every planned-event list of one project (F18), for invalidation. */
+export const projectPlannedEventsKey = (slug: string | undefined) =>
+  [...orgRoot(), 'plannedEvents', slug] as const
+export const plannedEventsRangeKey = (
+  slug: string | undefined,
+  scope: string,
+  scopeId: string,
+  rangeDays: number,
+) => [...projectPlannedEventsKey(slug), scope, scopeId, rangeDays] as const
 export const chartAnnotationsKey = (slug: string | undefined, scope: string, scopeId: string) =>
   [...projectChartAnnotationsKey(slug), scope, scopeId] as const
 export const chartAnnotationsRangeKey = (

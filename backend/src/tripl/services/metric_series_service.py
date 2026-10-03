@@ -395,6 +395,7 @@ def _build_metric_series_points(
                 is_anomaly=anomaly is not None,
                 anomaly_direction=anomaly.direction if anomaly else None,
                 z_score=anomaly.z_score if anomaly else None,
+                planned_event_id=anomaly.planned_event_id if anomaly else None,
             )
         )
     return points

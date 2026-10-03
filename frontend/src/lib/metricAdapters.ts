@@ -118,6 +118,7 @@ export function metricPointToEventPoint(point: MetricSeriesPoint): EventMetricPo
     anomaly_direction: point.anomaly_direction ?? null,
     z_score: point.z_score ?? null,
     ...verdictFieldsOf(point),
+    ...(point.planned_event_id ? { planned_event_id: point.planned_event_id } : {}),
   }
 }
 

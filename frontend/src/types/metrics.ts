@@ -47,6 +47,11 @@ export interface EventMetricPoint {
    */
   verdict?: SignalVerdict | null
   incident?: SignalIncidentRef | null
+  /**
+   * The planned event that expected this flagged bucket (F18): the chart mutes
+   * its marker and names the event. Absent on every other bucket.
+   */
+  planned_event_id?: string | null
 }
 
 /**
@@ -362,6 +367,26 @@ export interface ChartAnnotation {
   url: string | null
   created_by_user_id: string | null
   created_at: string
+}
+
+/**
+ * A window in which the project expects its numbers to move (F18): a campaign,
+ * a sale, a holiday. Anomalies inside it are drawn but raise no alert.
+ * `direction` null expects either way; a null scope covers every chart.
+ */
+export interface PlannedEvent {
+  id: string
+  project_id: string
+  label: string
+  description: string | null
+  starts_at: string
+  ends_at: string
+  direction: 'spike' | 'drop' | null
+  scope_type: 'project_total' | 'event_type' | 'event' | 'metric' | null
+  scope_ref: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface SeasonalityCell {

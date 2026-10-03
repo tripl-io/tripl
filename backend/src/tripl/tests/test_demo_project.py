@@ -13,6 +13,7 @@ from tripl.core.adapters.registry import build_adapter
 from tripl.core.analyzers.anomaly_detector import SCOPE_EVENT
 from tripl.core.analyzers.distribution_drift import PSI_BAND_MINOR, PSI_BAND_SIGNIFICANT
 from tripl.core.bucketing import floor_to_bucket
+from tripl.models.alert_rule_state import AlertRuleState
 from tripl.models.data_source import DataSource, TestStatus
 from tripl.models.distribution_drift import DistributionDrift
 from tripl.models.domain_enums import MetricScopeType, ProjectGenerationStatus
@@ -23,6 +24,7 @@ from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.plan_branch import BranchKind, PlanBranch
+from tripl.models.planned_event import PlannedEvent
 from tripl.models.project import Project
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
@@ -33,6 +35,7 @@ from tripl.models.variable_value_drift import VariableValueDrift
 from tripl.services import demo_service, plan_branch_service
 from tripl.services.demo import DemoContext, noise, seed_demo_content
 from tripl.services.demo.builders import plan
+from tripl.services.demo.builders.alerts import DEMO_PLANNED_EVENT_LABEL
 from tripl.services.demo.builders.variables import DRIFT_OBSERVED_VALUES
 from tripl.services.demo.scenario import DEMO_SEED
 from tripl.services.project_service import demo_data_source_name
@@ -837,6 +840,36 @@ async def test_seeded_metric_anomaly_sits_on_the_metrics_own_bucket_grid() -> No
     assert anomaly.expected_count == pytest.approx(
         median(by_bucket[b] for b in sorted(by_bucket)[:-1])
     )
+
+
+@pytest.mark.asyncio
+async def test_a_planned_promo_covers_the_seeded_metric_spike() -> None:
+    """F18's done-when: a planned window suppresses a seeded spike in the demo.
+
+    The catalog-metric spike is stored and tagged with the promo that expected
+    it, so the chart draws it inside the window while no simulated firing,
+    open rule state or delivery item names it.
+    """
+    async with TestSessionLocal() as session:
+        project_id = await _seed_fixture(session, "demo-planned")
+        anomaly, _metric = await _seeded_metric_anomaly(session, project_id)
+        planned = (
+            await session.execute(select(PlannedEvent).where(PlannedEvent.project_id == project_id))
+        ).scalar_one()
+        assert planned.label == DEMO_PLANNED_EVENT_LABEL
+        assert anomaly.planned_event_id == planned.id
+        assert planned.starts_at <= anomaly.bucket.replace(tzinfo=planned.starts_at.tzinfo)
+        assert anomaly.bucket.replace(tzinfo=planned.ends_at.tzinfo) < planned.ends_at
+        assert (planned.scope_type, planned.scope_ref) == ("metric", anomaly.scope_ref)
+
+        metric_states = (
+            await session.execute(
+                select(func.count())
+                .select_from(AlertRuleState)
+                .where(AlertRuleState.scope_ref == anomaly.scope_ref)
+            )
+        ).scalar_one()
+        assert metric_states == 0
 
 
 @pytest.mark.asyncio

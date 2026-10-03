@@ -813,6 +813,18 @@ without a verdict — the Anomalies page's default. Per-project totals are one
 call, `GET /projects/{slug}/signals/verdict-counts` (see the
 [Agent API guide](../integrate/agent-api-guide.md#signal-verdicts)).
 
+### Planned events: expected moves {#planned-events}
+
+A [planned event](./feature-reference.md#planned-events) marks a window in which
+a move is expected. Detection does not change inside it — the baseline, the
+score and the stored record are exactly what they would be without it — but
+each anomaly whose bucket is inside the window, whose direction matches and
+whose series the event covers is tagged with it. A tagged anomaly is drawn,
+muted, and is never a signal: alert candidacy, notifications, the Anomalies
+page and the badge counts all skip it. The tag is recomputed for the project
+after every detection run and every change to its planned events, so a window
+added after the spike was detected covers it too.
+
 ### Alert rules are an additional gate
 
 Detection deciding a bucket is anomalous is **not** the same as you getting notified. Each alert rule applies its **own** set of gates on top of detection before anything is delivered:

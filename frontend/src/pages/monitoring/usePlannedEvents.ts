@@ -1,0 +1,38 @@
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { plannedEventsApi } from '@/api/plannedEvents'
+import { SILENT_ERROR_META } from '@/lib/errorFeedback'
+import type { MonitoringScope } from '@/lib/monitoring'
+import { plannedEventsRangeKey } from '@/lib/queryKeys'
+
+/**
+ * The planned events of one drilldown (F18), shared by the volume chart (the
+ * shaded windows) and the Planned events card. Keyed on the range length like
+ * `useChartAnnotations`, so the live window's moving bounds do not refetch.
+ */
+export function usePlannedEvents({
+  slug,
+  scope,
+  scopeId,
+  rangeDays,
+  timeRange,
+}: {
+  slug: string | undefined
+  scope: MonitoringScope
+  scopeId: string
+  rangeDays: number
+  timeRange: { from: string; to: string }
+}) {
+  return useQuery({
+    queryKey: plannedEventsRangeKey(slug, scope, scopeId, rangeDays),
+    queryFn: () =>
+      plannedEventsApi.list(slug!, {
+        scope_type: scope,
+        scope_ref: scopeId,
+        from: timeRange.from,
+        to: timeRange.to,
+      }),
+    enabled: !!slug && !!scopeId,
+    placeholderData: keepPreviousData,
+    meta: SILENT_ERROR_META,
+  })
+}
