@@ -192,6 +192,9 @@ Frontend layers:
 - `frontend/src/components`: layout and shared UI.
 - `frontend/src/types/index.ts`: frontend domain types.
 - `frontend/src/**/*.test.*`: Vitest coverage.
+- `frontend/e2e/*.spec.ts`: Playwright end-to-end tests. **Every new
+  user-facing feature ships with one** (see CONTRIBUTING.md, "End-to-end
+  tests"); run them in CI, not on this host.
 
 CLI layers (`cli/src/tripl_cli`):
 - `client.py`: the shared async `TriplClient`. **Also imported by `mcp-server`** —

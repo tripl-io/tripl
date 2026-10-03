@@ -300,6 +300,18 @@ bunx playwright install chromium   # once
 bun run test:e2e                   # against http://127.0.0.1:5173
 ```
 
+**A new feature ships with an end-to-end test.** A pull request that adds
+user-facing functionality — a page, a card, a flow, a new kind of object a
+person creates or acts on — adds a spec under `frontend/e2e/` that walks it in
+the browser: the happy path from where a person finds it to the result they
+see, including the write and its undo where there is one. Unit and API tests
+still cover the edge cases; the end-to-end test proves the pieces meet. Specs
+build on the shared fixtures (`fixtures.ts`): a fresh `account` per test, and
+`generateDemo` / `deleteDemo` when the feature is easiest to reach on the demo
+workspace. A fix or refactor of an existing flow extends that flow's spec when
+the change is visible in it. Say in the pull request which spec covers the
+feature, or why none can.
+
 `E2E_BASE_URL` points the tests at another instance. `E2E_CHROMIUM` uses an
 installed Chromium (`E2E_CHROMIUM=/usr/bin/chromium`) where Playwright ships no
 browser, an arm64 Linux host for one. A failure leaves a trace, screenshot and

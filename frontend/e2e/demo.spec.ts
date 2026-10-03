@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { deleteDemo, expect, generateDemo, test } from './fixtures'
 
 /**
  * The demo, the first thing a new account does (tripl-fj5g.1): generate it
@@ -8,14 +8,9 @@ import { expect, test } from './fixtures'
  */
 test('a new account generates a demo, looks around and deletes it', async ({ page, account }) => {
   void account
-  await page.goto('/')
-
-  // The empty workspace offers the demo first.
-  await page.getByRole('button', { name: 'Generate demo project' }).click()
-  await expect(page.getByRole('heading', { name: 'Generating demo workspace' })).toBeVisible()
-
-  // Generation ends on the demo's overview, under the demo banner.
-  await page.waitForURL(/\/p\/demo-[a-z0-9-]+\/overview$/, { timeout: 150_000 })
+  // The empty workspace offers the demo first; generation ends on the demo's
+  // overview, under the demo banner.
+  await generateDemo(page)
   const banner = page.locator('[data-demo-banner]')
   await expect(banner.getByText('Demo workspace', { exact: true })).toBeVisible()
 
@@ -29,8 +24,5 @@ test('a new account generates a demo, looks around and deletes it', async ({ pag
   })
 
   // Delete it; the workspace is empty again and offers the demo anew.
-  await banner.getByRole('button', { name: /^Manage demo/ }).click()
-  await page.getByRole('menuitem', { name: 'Delete…' }).click()
-  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete demo' }).click()
-  await expect(page.getByRole('button', { name: 'Generate demo project' })).toBeVisible()
+  await deleteDemo(page)
 })
