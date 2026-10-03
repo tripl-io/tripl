@@ -173,7 +173,7 @@ cannot be changed in **Settings → Instance**.
 | `GOOGLE_CLIENT_SECRET` | empty | With `GOOGLE_CLIENT_ID` | The client's secret. Keep it out of the repository, like every other secret. |
 | `GOOGLE_ALLOWED_DOMAINS` | empty | No | Comma-separated email domains that may **sign up** with Google (`gmail.com,example.com`). Empty allows any. An existing account outside the list is refused too, unless it is a platform admin. |
 | `PUBLIC_DEMO` | `false` | No | A public demo instance: password sign-up is refused (Google only), and so is everything that would reach outside the instance — new warehouse connections, blank projects, further organizations, invitations, outbound webhooks, tracker integrations, SSO and SCIM, organization AI/SMTP settings — and AI is off whatever the settings say. Demo projects keep working. See [Running a public demo](./public-demo.md). |
-| `IDLE_ORG_RETENTION_DAYS` | `0` | No | `hosted` only. Every night, organizations created more than this many days ago, with no member signed in and no demo project opened in that time, are deleted as an owner's delete would. `0` deletes none. The default organization is never deleted. |
+| `IDLE_ORG_RETENTION_DAYS` | `0` | No | `hosted` only. Every night, organizations created more than this many days ago, with no member signed in and no demo project opened in that time, are deleted as an owner's delete would, and so are accounts left in no organization that have not signed in in that time (never a platform admin). `0` deletes none. The default organization is never deleted. |
 
 Single sign-on (OpenID Connect or SAML 2.0) has no environment variables: each
 organization's owners configure it in the app (see

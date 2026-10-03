@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import select
 
 from tripl.config import settings
+from tripl.models.audit_log import AuditLog
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.project import Project
 from tripl.models.user import User
@@ -116,8 +117,12 @@ def test_the_task_queues_the_owner_delete_purge(monkeypatch: pytest.MonkeyPatch)
     async def _no_db(run: Any) -> None:
         await run(None)
 
+    async def _orphans(_session: Any) -> int:
+        return 3
+
     queued: list[str] = []
     monkeypatch.setattr(org_idle_service, "retire_idle_organizations", _retire)
+    monkeypatch.setattr(org_idle_service, "delete_orphan_accounts", _orphans)
     monkeypatch.setitem(
         org_delete.retire_idle_organizations.run.__globals__,
         "run_with_async_worker_session",
@@ -128,10 +133,92 @@ def test_the_task_queues_the_owner_delete_purge(monkeypatch: pytest.MonkeyPatch)
     result = org_delete.retire_idle_organizations.run()
 
     assert queued == [str(org_id) for org_id in idle]
-    assert result == {"retired": queued}
+    assert result == {"retired": queued, "accounts_deleted": 3}
     from tripl.worker.celery_app import celery_app
 
     assert any(
         entry["task"] == "tripl.worker.tasks.org_delete.retire_idle_organizations"
         for entry in celery_app.conf.beat_schedule.values()
     )
+
+
+async def _account(
+    *,
+    created: datetime = LONG_AGO,
+    signed_in: datetime | None = None,
+    org_id: uuid.UUID | None = None,
+    platform_admin: bool = False,
+) -> uuid.UUID:
+    """An account, optionally in an organization, with a session when asked."""
+    suffix = uuid.uuid4().hex[:8]
+    async with TestSessionLocal() as session:
+        user = User(
+            email=f"acct-{suffix}@example.com",
+            name="Visitor",
+            password_hash="x",
+            created_at=created,
+            is_platform_admin=platform_admin,
+        )
+        session.add(user)
+        await session.flush()
+        if org_id is not None:
+            session.add(OrganizationMember(organization_id=org_id, user_id=user.id, role="member"))
+        if signed_in is not None:
+            session.add(
+                UserSession(
+                    user_id=user.id,
+                    session_token_hash=uuid.uuid4().hex,
+                    expires_at=signed_in + timedelta(days=30),
+                    created_at=signed_in,
+                    updated_at=signed_in,
+                )
+            )
+        session.add(
+            AuditLog(
+                user_id=user.id,
+                user_email=user.email,
+                action="user.login",
+                target_type="user",
+                target_id=user.id,
+            )
+        )
+        await session.commit()
+        return user.id
+
+
+async def test_accounts_left_in_no_organization_are_deleted() -> None:
+    orphan = await _account(signed_in=LONG_AGO)
+    never_signed_in = await _account()
+    member = await _account(org_id=DEFAULT_ORG_ID)
+    recent = await _account(signed_in=RECENTLY)
+    new = await _account(created=RECENTLY)
+    admin = await _account(platform_admin=True)
+
+    async with TestSessionLocal() as session:
+        assert await org_idle_service.delete_orphan_accounts(session, now=NOW) == 2
+
+    async with TestSessionLocal() as session:
+        left = set(await session.scalars(select(User.id)))
+        assert orphan not in left and never_signed_in not in left
+        assert {member, recent, new, admin} <= left
+        # The audit trail stays, without the deleted accounts' addresses.
+        rows = list(
+            await session.execute(
+                select(AuditLog.user_id, AuditLog.user_email).where(
+                    AuditLog.target_id.in_([orphan, never_signed_in])
+                )
+            )
+        )
+        assert rows and all(user_id is None and email == "" for user_id, email in rows)
+        sessions = await session.scalar(select(UserSession.id).where(UserSession.user_id == orphan))
+        assert sessions is None
+
+
+async def test_no_account_is_deleted_unless_the_sweep_is_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "idle_org_retention_days", 0)
+    orphan = await _account()
+    async with TestSessionLocal() as session:
+        assert await org_idle_service.delete_orphan_accounts(session, now=NOW) == 0
+        assert await session.get(User, orphan) is not None
