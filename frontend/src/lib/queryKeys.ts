@@ -925,6 +925,9 @@ export const anomalyScopeOverridesKey = (slug: string | undefined) =>
   [...orgRoot(), 'anomalyScopeOverrides', slug] as const
 export const projectAnomalySettingsKey = (slug: string | undefined) =>
   [...orgRoot(), 'projectAnomalySettings', slug] as const
+/** The fixed list of countries a holiday calendar can use. */
+export const holidayCountriesKey = (slug: string | undefined) =>
+  [...orgRoot(), 'holidayCountries', slug] as const
 
 /** The Overview page. Keyed kind-first, so the root covers every project's. */
 export const overviewRootKey = () => [...orgRoot(), 'overview'] as const

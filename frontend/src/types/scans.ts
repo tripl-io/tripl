@@ -299,6 +299,8 @@ export interface ProjectAnomalySettings {
   // Wall-clock allowance for the warehouse to finish delivering a bucket before
   // that bucket is scored. Holds the newest buckets back from raising signals.
   anomaly_ingestion_settling_minutes: number
+  // ISO 3166-1 alpha-2 code whose public holidays are planned events; null for none.
+  holiday_country: string | null
   created_at: string
   updated_at: string
 }

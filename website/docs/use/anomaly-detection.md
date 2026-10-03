@@ -825,6 +825,10 @@ page and the badge counts all skip it. The tag is recomputed for the project
 after every detection run and every change to its planned events, so a window
 added after the spike was detected covers it too.
 
+A project's [holiday calendar](./feature-reference.md#planned-events) adds one
+such window, project-wide and in either direction, for each public holiday of
+its country. Holidays are UTC days, since buckets are UTC.
+
 ### Alert rules are an additional gate
 
 Detection deciding a bucket is anomalous is **not** the same as you getting notified. Each alert rule applies its **own** set of gates on top of detection before anything is delivered:

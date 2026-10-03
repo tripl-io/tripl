@@ -2079,6 +2079,53 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/anomaly-settings/holiday-countries": {
+      "get": {
+        "tags": [
+          "anomaly-settings"
+        ],
+        "summary": "List Holiday Countries",
+        "description": "ISO 3166-1 alpha-2 codes ``holiday_country`` accepts (F18).",
+        "operationId": "list_holiday_countries_api_v1_projects__slug__anomaly_settings_holiday_countries_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response List Holiday Countries Api V1 Projects  Slug  Anomaly Settings Holiday Countries Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/anomaly-settings/scope-overrides": {
       "get": {
         "tags": [
@@ -47846,6 +47893,11 @@
             ],
             "title": "Scope Ref"
           },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "default": "manual"
+          },
           "created_by_user_id": {
             "anyOf": [
               {
@@ -48577,6 +48629,17 @@
             "type": "integer",
             "title": "Anomaly Ingestion Settling Minutes"
           },
+          "holiday_country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holiday Country"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -48738,6 +48801,19 @@
               }
             ],
             "title": "Anomaly Ingestion Settling Minutes"
+          },
+          "holiday_country": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holiday Country"
           }
         },
         "type": "object",

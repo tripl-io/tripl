@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from tripl.models.domain_enums import MetricScopeType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
-from tripl.models.planned_event import PlannedEvent
+from tripl.models.planned_event import PLANNED_EVENT_SOURCE_HOLIDAY, PlannedEvent
 from tripl.models.scan_config import ScanConfig
 from tripl.services.project_lookup import resolve_project_id
 
@@ -183,10 +183,23 @@ async def get_planned_event(session: AsyncSession, slug: str, event_id: uuid.UUI
     return event
 
 
+HOLIDAY_READ_ONLY_DETAIL = (
+    "This planned event comes from the project's holiday calendar; change the calendar "
+    "in the anomaly detection settings instead."
+)
+
+
+def ensure_editable(event: PlannedEvent) -> None:
+    """Refuse a hand edit or delete of a row the holiday calendar owns."""
+    if event.source == PLANNED_EVENT_SOURCE_HOLIDAY:
+        raise HTTPException(status_code=409, detail=HOLIDAY_READ_ONLY_DETAIL)
+
+
 async def update_planned_event(
     session: AsyncSession, event: PlannedEvent, changes: Mapping[str, object]
 ) -> PlannedEvent:
     """Apply already-validated ``changes`` to ``event`` and retag its project."""
+    ensure_editable(event)
     for field, value in changes.items():
         if field == "label" and isinstance(value, str):
             value = value.strip()
@@ -201,6 +214,7 @@ async def update_planned_event(
 
 
 async def delete_planned_event(session: AsyncSession, event: PlannedEvent) -> None:
+    ensure_editable(event)
     project_id = event.project_id
     await session.delete(event)
     await session.flush()

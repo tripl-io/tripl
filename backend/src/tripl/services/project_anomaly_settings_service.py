@@ -15,6 +15,7 @@ from tripl.schemas.project_anomaly_settings import (
     ProjectAnomalySettingsUpdate,
     settling_window_conflict,
 )
+from tripl.services.holiday_calendar import sync_project_holidays
 from tripl.services.project_lookup import resolve_project_id
 
 
@@ -104,8 +105,15 @@ async def update_project_anomaly_settings(
     patch = data.model_dump(exclude_unset=True, exclude_none=True)
     _reject_incoherent_timings(patch, settings)
     _reject_incoherent_history(patch, settings)
+    # The one field null means something for: it turns the calendar off.
+    calendar_set = "holiday_country" in data.model_fields_set
+    patch.pop("holiday_country", None)
     for key, value in patch.items():
         setattr(settings, key, value)
+    if calendar_set:
+        settings.holiday_country = data.holiday_country
+        await session.flush()
+        await session.run_sync(sync_project_holidays, project_id)
     await session.commit()
     await session.refresh(settings)
     return settings

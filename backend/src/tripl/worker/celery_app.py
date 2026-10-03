@@ -119,6 +119,11 @@ celery_app.conf.beat_schedule = {
         # instance (a public demo), where it keeps the database from only growing.
         "schedule": crontab(minute=41, hour=3),
     },
+    "sync-holiday-calendars": {
+        "task": "tripl.worker.tasks.holiday_calendar.sync_holiday_calendars",
+        # Daily: keeps each project's holiday planned events one year ahead.
+        "schedule": crontab(minute=17, hour=2),
+    },
     "send-weekly-plan-digest": {
         "task": "tripl.worker.tasks.alerts.send_weekly_plan_digest",
         "schedule": crontab(day_of_week=1, hour=8, minute=0),
@@ -299,6 +304,7 @@ import tripl.worker.tasks.audit_webhook  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.docs_translate  # noqa: F401, E402
 import tripl.worker.tasks.health  # noqa: F401, E402
+import tripl.worker.tasks.holiday_calendar  # noqa: F401, E402
 import tripl.worker.tasks.implementation_tickets  # noqa: F401, E402
 import tripl.worker.tasks.lifecycle  # noqa: F401, E402
 import tripl.worker.tasks.maintenance  # noqa: F401, E402

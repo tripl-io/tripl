@@ -2390,6 +2390,26 @@ export interface paths {
         patch: operations["update_project_anomaly_settings_api_v1_projects__slug__anomaly_settings_patch"];
         trace?: never;
     };
+    "/api/v1/projects/{slug}/anomaly-settings/holiday-countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Holiday Countries
+         * @description ISO 3166-1 alpha-2 codes ``holiday_country`` accepts (F18).
+         */
+        get: operations["list_holiday_countries_api_v1_projects__slug__anomaly_settings_holiday_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/anomaly-settings/scope-overrides": {
         parameters: {
             query?: never;
@@ -15388,6 +15408,11 @@ export interface components {
             scope_ref: string | null;
             scope_type: components["schemas"]["ChartAnnotationScopeType"] | null;
             /**
+             * Source
+             * @default manual
+             */
+            source: string;
+            /**
              * Starts At
              * Format: date-time
              */
@@ -15643,6 +15668,8 @@ export interface components {
             detect_metrics: boolean;
             /** Detect Project Total */
             detect_project_total: boolean;
+            /** Holiday Country */
+            holiday_country?: string | null;
             /**
              * Id
              * Format: uuid
@@ -15683,6 +15710,8 @@ export interface components {
             detect_metrics?: boolean | null;
             /** Detect Project Total */
             detect_project_total?: boolean | null;
+            /** Holiday Country */
+            holiday_country?: string | null;
             /** Min Expected Count */
             min_expected_count?: number | null;
             /** Min History Buckets */
@@ -23925,6 +23954,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectAnomalySettingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_holiday_countries_api_v1_projects__slug__anomaly_settings_holiday_countries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
             /** @description Validation Error */

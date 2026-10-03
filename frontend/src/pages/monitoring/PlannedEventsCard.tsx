@@ -231,8 +231,10 @@ export function PlannedEventsCard({
                     {event.scope_type === null && (
                       <Chip variant="outline" size="xs">project-wide</Chip>
                     )}
+                    {event.source === 'holiday' && <Chip variant="outline" size="xs">Holiday</Chip>}
                   </div>
-                  {canWrite && (
+                  {/* The holiday calendar owns its rows: changed in Detection settings. */}
+                  {canWrite && event.source !== 'holiday' && (
                     <IconButton
                       variant="ghost"
                       className="h-7 w-7 shrink-0 text-fg-tertiary hover:text-destructive"

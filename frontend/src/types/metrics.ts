@@ -386,6 +386,8 @@ export interface PlannedEvent {
   direction: 'spike' | 'drop' | null
   scope_type: 'project_total' | 'event_type' | 'event' | 'metric' | null
   scope_ref: string | null
+  /** `holiday` rows come from the project's holiday calendar and are read-only. */
+  source: 'manual' | 'holiday'
   created_by_user_id: string | null
   created_at: string
   updated_at: string

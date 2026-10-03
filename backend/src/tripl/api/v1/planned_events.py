@@ -114,6 +114,7 @@ async def update_planned_event(
     current_user: EditorUserDep,
 ) -> PlannedEventResponse:
     event = await planned_event_service.get_planned_event(session, slug, planned_event_id)
+    planned_event_service.ensure_editable(event)
     changes = data.model_dump(exclude_unset=True)
     current = {
         "label": event.label,

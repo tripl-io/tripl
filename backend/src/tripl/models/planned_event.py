@@ -8,6 +8,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from tripl.models.base import Base, TimestampMixin, UtcDateTime, UUIDMixin
 
+PLANNED_EVENT_SOURCE_MANUAL = "manual"
+PLANNED_EVENT_SOURCE_HOLIDAY = "holiday"
+
 
 class PlannedEvent(UUIDMixin, TimestampMixin, Base):
     """A window in which the project expects its numbers to move (F18, #271).
@@ -40,6 +43,7 @@ class PlannedEvent(UUIDMixin, TimestampMixin, Base):
             "('project_total', 'event_type', 'event', 'metric')",
             name="ck_planned_event_scope_type",
         ),
+        CheckConstraint("source IN ('manual', 'holiday')", name="ck_planned_event_source"),
         Index("ix_planned_event_project_window", "project_id", "starts_at", "ends_at"),
     )
 
@@ -51,6 +55,12 @@ class PlannedEvent(UUIDMixin, TimestampMixin, Base):
     direction: Mapped[str | None] = mapped_column(String(8), nullable=True)
     scope_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
     scope_ref: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # ``holiday`` rows are written by the project's holiday calendar
+    # (``holiday_calendar``) and follow it: they cannot be edited or deleted by
+    # hand, only by changing the calendar.
+    source: Mapped[str] = mapped_column(
+        String(8), default=PLANNED_EVENT_SOURCE_MANUAL, server_default=PLANNED_EVENT_SOURCE_MANUAL
+    )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
