@@ -81,6 +81,7 @@ from tripl.models.event_metric_breakdown import EventMetricBreakdown
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
+from tripl.models.planned_event import PlannedEvent
 from tripl.models.project import Project
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
@@ -88,12 +89,14 @@ from tripl.models.scan_job import ScanJob, ScanJobStatus
 from tripl.models.schema_drift import SchemaDrift
 from tripl.services.active_org_scope import project_in_active_org
 from tripl.services.demo import noise
+from tripl.services.demo.builders.alerts import DEMO_PLANNED_EVENT_LABEL
 from tripl.services.demo.builders.plan import event_specs
 from tripl.services.demo.builders.warehouse import (
     SPIKE_ANNOTATION_LABEL,
     SPIKE_EVENT_NAME,
 )
 from tripl.services.demo.scenario import DEMO_SEED
+from tripl.services.planned_event_service import retag_planned_anomalies
 from tripl.services.source_freshness import (
     advance_last_event_at,
     compute_config_freshness,
@@ -644,6 +647,10 @@ def _recompute_anomalies(
             eval_end=eval_end,
             hold_drops=hold_drops,
         )
+        # The rows just re-inserted lost their planned-event tags (F18); a
+        # user's planned event in the demo must keep covering them.
+        session.flush()
+        retag_planned_anomalies(session, project_id)
         # "Why did it change?" (#255): the scope upserts above replaced the
         # anomaly rows (their attributions went with them), so re-attribute the
         # window with the worker's own pass — the demo's Why panel and alerts
@@ -783,6 +790,15 @@ def _prune_retention(
             ChartAnnotation.project_id == project_id,
             ChartAnnotation.label == SPIKE_ANNOTATION_LABEL,
             ChartAnnotation.bucket < cutoff,
+        )
+    )
+    # The seeded planned promo (F18) retires the same way, once its window ends
+    # behind the cutoff; a planned event the user added is left alone.
+    session.execute(
+        delete(PlannedEvent).where(
+            PlannedEvent.project_id == project_id,
+            PlannedEvent.label == DEMO_PLANNED_EVENT_LABEL,
+            PlannedEvent.ends_at < cutoff,
         )
     )
     # Catalog metric values for THIS project (both scan-scoped and NULL-scoped).

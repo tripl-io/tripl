@@ -1197,6 +1197,55 @@ describe('anomaly marks and tooltip lines (MON-17)', () => {
     expect(at(marks, 0).getAttribute('points')).toMatch(/^10,5 /)
     expect(at(marks, 1).getAttribute('points')).toMatch(/^30,15 /)
   })
+
+  it('mutes an anomaly a planned event expected (F18)', () => {
+    const { container } = render(
+      <svg>
+        <AnomalyMark cx={10} cy={10} direction="spike" mini={false} planned />
+      </svg>,
+    )
+
+    const mark = container.querySelector('polygon[data-testid="anomaly-dot"]')
+    expect(mark?.getAttribute('fill')).toBe('var(--fg-subtle)')
+    expect(mark?.getAttribute('data-planned')).toBe('true')
+  })
+})
+
+describe('planned events on the chart (F18)', () => {
+  it('names each planned window for screen readers', () => {
+    render(
+      <MetricsChart
+        granularity="day"
+        data={['2026-05-01', '2026-05-02', '2026-05-03'].map(day => ({
+          bucket: `${day}T00:00:00Z`,
+          count: 10,
+          expected_count: null,
+          stddev: null,
+          is_anomaly: false,
+          anomaly_direction: null,
+          z_score: null,
+        }))}
+        plannedEvents={[
+          {
+            id: 'pe-1',
+            project_id: 'p-1',
+            label: 'Spring promo',
+            description: null,
+            starts_at: '2026-05-02T00:00:00Z',
+            ends_at: '2026-05-03T00:00:00Z',
+            direction: 'spike',
+            scope_type: null,
+            scope_ref: null,
+            created_by_user_id: null,
+            created_at: '2026-05-01T00:00:00Z',
+            updated_at: '2026-05-01T00:00:00Z',
+          },
+        ]}
+      />,
+    )
+
+    expect(screen.getByTestId('planned-window')).toHaveTextContent('Planned: Spring promo')
+  })
 })
 
 describe('chart surface accessibility', () => {

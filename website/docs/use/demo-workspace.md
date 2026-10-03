@@ -30,7 +30,10 @@ executed, and what is intentionally unavailable.
   shell, so the recipe also backfills the past it presents: earlier scan runs,
   volume and metric series, the signals on them, and one recorded local alert
   delivery. That history is written by the recipe rather than replayed from real
-  runs; the scans and collections *you* start are real (next section).
+  runs; the scans and collections *you* start are real (next section). It also
+  holds one [planned event](./feature-reference.md#planned-events), *Spring
+  promo (planned)*, over the spike on the first catalog metric: that chart shades
+  the window and draws the spike muted, and it raises no alert.
 
 ## What is really executed (the same code paths as a real project)
 

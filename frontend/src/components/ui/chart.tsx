@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   ErrorBar,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -44,8 +45,10 @@ import type {
   ChartAnnotationSource,
   EventMetricPoint,
   ForecastPoint,
+  PlannedEvent,
   SignalVerdict,
 } from '@/types'
+import { plannedEventExpectation, snapPlannedEventsToBuckets } from '@/lib/plannedEvents'
 import {
   annotationMarkerColor,
   annotationSourceLabel,
@@ -71,6 +74,11 @@ interface MetricsChartProps {
   data: EventMetricPoint[]
   forecast?: ForecastPoint[]
   annotations?: ChartAnnotation[]
+  /**
+   * Planned events (F18): each window is shaded, and a flagged bucket one of
+   * them expected is drawn muted and named in the tooltip.
+   */
+  plannedEvents?: PlannedEvent[]
   className?: string
   color?: string
   height?: number
@@ -289,6 +297,10 @@ interface ChartDataPoint {
   z_score?: number | null
   /** The verdict on this flagged bucket's signal (#254), shown in the tooltip. */
   verdict?: SignalVerdict | null
+  /** The planned event that expected this flagged bucket (F18). */
+  planned_event_id?: string | null
+  /** That event's label and expectation, for the tooltip; set by the chart. */
+  planned_note?: string
   band?: [number, number]
   /** `band` as offsets from `expected_count`, the shape ErrorBar reads. */
   expected_error?: [number, number]
@@ -582,6 +594,11 @@ export function CustomTooltip({
         />
       )}
       {point.is_anomaly && point.verdict && <VerdictTooltipLine verdict={point.verdict} />}
+      {point.is_anomaly && point.planned_note && (
+        <p className="text-body-sm text-fg-tertiary" data-testid="planned-tooltip-line">
+          {point.planned_note}
+        </p>
+      )}
       {partialNote && <p className="text-body-sm text-fg-tertiary">{partialNote}</p>}
     </div>
   )
@@ -928,6 +945,7 @@ export function MetricsChart({
   data,
   forecast,
   annotations,
+  plannedEvents,
   className,
   color,
   height = 300,
@@ -949,12 +967,19 @@ export function MetricsChart({
   const clampAtZero = nonNegative ?? valueFormatter === undefined
   const chartData = useMemo(
     () =>
-      padChartData(
-        buildChartData(data, forecast, sigmaThreshold, clampAtZero, partial),
-        { from, to: forecast?.length ? undefined : to },
-        granularity,
+      withPlannedNotes(
+        padChartData(
+          buildChartData(data, forecast, sigmaThreshold, clampAtZero, partial),
+          { from, to: forecast?.length ? undefined : to },
+          granularity,
+        ),
+        plannedEvents,
       ),
-    [data, forecast, sigmaThreshold, clampAtZero, partial, from, to, granularity],
+    [data, forecast, sigmaThreshold, clampAtZero, partial, from, to, granularity, plannedEvents],
+  )
+  const plannedWindows = useMemo(
+    () => snapPlannedEventsToBuckets(plannedEvents, chartData),
+    [plannedEvents, chartData],
   )
   const [showReleases, setShowReleases] = useShowReleases()
   const allSnappedAnnotations = useMemo(
@@ -1043,6 +1068,21 @@ export function MetricsChart({
             </span>
           </>
         )}
+        {plannedWindows.length > 0 && (
+          <>
+            {' '}
+            {plannedWindows.map((window, index) => (
+              <Fragment key={window.id}>
+                {index > 0 && '; '}
+                <span data-testid="planned-window">
+                  Planned: {window.label}, {formatTooltipLabel(window.x1, granularity)} to{' '}
+                  {formatTooltipLabel(window.x2, granularity)}
+                </span>
+              </Fragment>
+            ))}
+            .
+          </>
+        )}
         {/* Humanized like every other bucket in this summary, and separated:
             the raw ISO instants used to run together
             ("2026-09-24T10:00:00Z: Deploy2026-…", DS-25). */}
@@ -1101,6 +1141,27 @@ export function MetricsChart({
               />
             }
           />
+          {/* Planned events (F18): a soft wash over each expected window,
+              behind everything else, labelled at its top. */}
+          {plannedWindows.map(window => (
+            <ReferenceArea
+              key={window.id}
+              x1={window.x1}
+              x2={window.x2}
+              fill="var(--fg-faint)"
+              fillOpacity={0.12}
+              stroke="var(--fg-subtle)"
+              strokeOpacity={0.4}
+              strokeDasharray="3 3"
+              ifOverflow="extendDomain"
+              label={{
+                value: truncateAnnotationLabel(window.label),
+                position: 'insideTop',
+                fill: 'var(--fg-tertiary)',
+                fontSize: 'var(--text-micro)',
+              }}
+            />
+          ))}
           {/* Normal range — recharts renders a 2-tuple dataKey as a vertical
               range area, a soft fill where consecutive buckets carry one. */}
           <Area
@@ -1175,7 +1236,13 @@ export function MetricsChart({
                 if (!point || (!point.partial_from && !point.partial_through)) return <></>
                 if (point.is_anomaly) {
                   return (
-                    <AnomalyMark cx={props.cx} cy={props.cy} direction={point.anomaly_direction} mini={false} />
+                    <AnomalyMark
+                      cx={props.cx}
+                      cy={props.cy}
+                      direction={point.anomaly_direction}
+                      mini={false}
+                      planned={Boolean(point.planned_event_id)}
+                    />
                   )
                 }
                 if (props.cx === undefined || props.cy === undefined) return <></>
@@ -1555,6 +1622,7 @@ export function renderCountSeries({
         cy={props.cy}
         direction={props.payload.anomaly_direction}
         mini={mini}
+        planned={Boolean(props.payload.planned_event_id)}
       />
     )
   }
@@ -1612,11 +1680,14 @@ export function AnomalyMark({
   cy,
   direction,
   mini,
+  planned = false,
 }: {
   cx?: number
   cy?: number
   direction?: 'spike' | 'drop' | null
   mini: boolean
+  /** Expected by a planned event (F18): drawn in a muted ink, not a signal colour. */
+  planned?: boolean
 }) {
   if (cx === undefined || cy === undefined) return <></>
   const r = mini ? 3.5 : 5
@@ -1627,10 +1698,11 @@ export function AnomalyMark({
         cx={cx}
         cy={cy}
         r={mini ? 3 : 4}
-        fill="var(--destructive)"
+        fill={planned ? PLANNED_MARK_COLOR : 'var(--destructive)'}
         stroke="var(--background)"
         strokeWidth={strokeWidth}
         data-testid="anomaly-dot"
+        data-planned={planned || undefined}
       />
     )
   }
@@ -1639,14 +1711,36 @@ export function AnomalyMark({
   return (
     <polygon
       points={`${cx},${tip} ${cx - r},${base} ${cx + r},${base}`}
-      fill={signalDirectionColor(direction)}
+      fill={planned ? PLANNED_MARK_COLOR : signalDirectionColor(direction)}
       stroke="var(--background)"
       strokeWidth={strokeWidth}
       strokeLinejoin="round"
       data-testid="anomaly-dot"
       data-direction={direction}
+      data-planned={planned || undefined}
     />
   )
+}
+
+/** The ink of an anomaly a planned event expected (F18): present, not alarming. */
+const PLANNED_MARK_COLOR = 'var(--fg-subtle)'
+
+/**
+ * Name the planned event on each flagged bucket it expected, for the tooltip.
+ * An event the chart was not handed (outside the listed range) still says the
+ * bucket was planned, without its name.
+ */
+function withPlannedNotes(rows: ChartDataPoint[], events: PlannedEvent[] | undefined): ChartDataPoint[] {
+  if (!rows.some(row => row.planned_event_id)) return rows
+  const byId = new Map((events ?? []).map(event => [event.id, event]))
+  return rows.map(row => {
+    if (!row.planned_event_id) return row
+    const event = byId.get(row.planned_event_id)
+    const note = event
+      ? `Planned: ${event.label} · ${plannedEventExpectation(event.direction)}`
+      : 'Expected by a planned event'
+    return { ...row, planned_note: note }
+  })
 }
 
 type AnomalyBarProps = {
@@ -1688,9 +1782,11 @@ function AnomalyBar({
   // Fill AND an outline in the direction's colour: a changed fill alone was the
   // only cue, and at a bar's width a red and an amber fill are hard to tell
   // apart from the series colour (MON-17).
-  const tone = payload.anomaly_direction
-    ? signalDirectionColor(payload.anomaly_direction)
-    : 'var(--destructive)'
+  const tone = payload.planned_event_id
+    ? PLANNED_MARK_COLOR
+    : payload.anomaly_direction
+      ? signalDirectionColor(payload.anomaly_direction)
+      : 'var(--destructive)'
   return (
     <rect
       x={x}

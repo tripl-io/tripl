@@ -12,14 +12,17 @@ import type { MetricsGranularity } from '@/lib/metrics'
 import type { MonitoringScope } from '@/lib/monitoring'
 import type { EventMetricPoint, EventMetricsResponse } from '@/types'
 import { AnnotationsCard } from './AnnotationsCard'
+import { PlannedEventsCard } from './PlannedEventsCard'
 import { chartCaption } from './chartCaption'
 import { ChartCardHeader, MetricsRangeControls } from './MetricsRangeControls'
 import { SignalSummary } from './SignalSummary'
 import type { useChartAnnotations } from './useChartAnnotations'
+import { usePlannedEvents } from './usePlannedEvents'
 
 /**
  * The Volume (or, on a catalog metric, Value) tab: the latest signal in one
- * sentence, what moved it, the series chart, and the annotations on it.
+ * sentence, what moved it, the series chart, and the annotations and planned
+ * events (F18) on it.
  */
 export function VolumeTab({
   slug,
@@ -82,6 +85,7 @@ export function VolumeTab({
   // rolled up (for example 1h -> day), that single point is not a forecast for
   // the whole display bucket and can even duplicate the last x-axis date.
   const chartForecast = nativeGranularity === granularity ? metrics?.forecast : undefined
+  const plannedEventsQuery = usePlannedEvents({ slug, scope, scopeId, rangeDays, timeRange })
 
   return (
     <>
@@ -147,6 +151,7 @@ export function VolumeTab({
               data={chartData}
               forecast={chartForecast}
               annotations={annotationsQuery.data ?? []}
+              plannedEvents={plannedEventsQuery.data ?? []}
               height={200}
               // The entity's own colour when it has one; otherwise the
               // chart's fixed single-series default (DS-27), not an
@@ -197,6 +202,16 @@ export function VolumeTab({
           query={annotationsQuery}
           prefillBucket={annotatePrefill}
           dataEnd={dataEnd}
+        />
+      )}
+
+      {slug && (
+        <PlannedEventsCard
+          slug={slug}
+          scope={scope}
+          scopeId={scopeId}
+          canWrite={canWrite}
+          query={plannedEventsQuery}
         />
       )}
     </>

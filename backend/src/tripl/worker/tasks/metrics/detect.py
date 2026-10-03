@@ -46,6 +46,7 @@ from tripl.models.metric_value import MetricValue
 from tripl.models.project_anomaly_settings import ProjectAnomalySettings
 from tripl.models.scan_config import ScanConfig
 from tripl.observability.metrics import anomalies_detected_total
+from tripl.services.planned_event_service import retag_planned_anomalies
 from tripl.worker.analyzers.metric_value_kind import is_count_shaped
 from tripl.worker.tasks.metrics.coverage import covered_buckets_from_scan_jobs
 
@@ -1861,6 +1862,9 @@ def _recalculate_metric_anomalies(
         )
 
     session.flush()
+    # Rows just written inside a planned event's window are tagged before the
+    # dispatch pass reads them, so a planned spike never reaches an alert (F18).
+    retag_planned_anomalies(session, config.project_id)
     return anomalies_detected
 
 

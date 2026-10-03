@@ -108,6 +108,8 @@ def _latest_anomalies_stmt(
     filters = [
         ScanConfig.project_id.in_(list(project_ids)),
         MetricAnomaly.scope_type.in_(list(scope_types)),
+        # A planned event expected these (F18): drawn on the chart, never open.
+        MetricAnomaly.planned_event_id.is_(None),
     ]
     if scope_refs is not None:
         filters.append(MetricAnomaly.scope_ref.in_(list(scope_refs)))

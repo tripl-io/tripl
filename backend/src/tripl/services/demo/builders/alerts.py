@@ -49,6 +49,7 @@ from tripl.models.event_type import EventType
 from tripl.models.metric_anomaly import MetricAnomaly
 from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
+from tripl.models.planned_event import PlannedEvent
 from tripl.models.project import Project
 from tripl.schemas.alerting import SimulatedRuleFiring
 from tripl.services.alerting_rendering import render_firings_message
@@ -57,6 +58,7 @@ from tripl.services.demo.builders.warehouse import (
     SPIKE_EVENT_NAME,
 )
 from tripl.services.demo.scenario import DemoContext
+from tripl.services.planned_event_service import retag_planned_anomalies
 from tripl.services.project_links import project_org_slugs
 from tripl.services.release_annotations import (
     RELEASE_ANNOTATION_COLOR,
@@ -89,6 +91,14 @@ _METRIC_ANOMALY_MIN_POINTS = 3
 _METRIC_ANOMALY_Z_SCORE = 3.0
 _METRIC_ANOMALY_MIN_STDDEV = 0.001
 
+# The planned event over the seeded catalog-metric spike (F18): a promo that was
+# expected to lift the metric, spanning the day before the spike and its own.
+# The demo runtime prunes it by this label once it ends behind the retention
+# cutoff, like the spike marker.
+DEMO_PLANNED_EVENT_LABEL = "Spring promo (planned)"
+_DEMO_PLANNED_EVENT_LEAD = timedelta(days=1)
+_DEMO_PLANNED_EVENT_SPAN = timedelta(days=2)
+
 # One FAILED earlier attempt at the same incident. The Audit table only offers
 # Retry on a failed row, and the local sink cannot fail, so without a seeded
 # failure the retry the docs promise is unreachable in a demo (tripl-jfm3.59).
@@ -106,10 +116,13 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
     if project is None or ctx.scan_config_id is None:
         return
 
-    # A metric-scope anomaly over a seeded catalog metric, so the firing rule's
-    # ``include_metrics`` opt-in covers a REAL signal (catalog metrics otherwise
-    # ship values but no anomaly). Project-global rows carry NULL scan_config_id.
+    # A metric-scope anomaly over a seeded catalog metric (catalog metrics
+    # otherwise ship values but no anomaly). Project-global rows carry NULL
+    # scan_config_id. A planned promo covers it (F18), so the demo shows a spike
+    # that was EXPECTED: drawn inside the event's band, raising no alert.
     metric_anomaly = await _seed_catalog_metric_anomaly(session, ctx)
+    if metric_anomaly is not None:
+        await _seed_planned_promo(session, ctx, metric_anomaly)
 
     # The demo-only local sink + a visibly-disabled external example. The
     # disabled destination carries NO credentials and is clearly labelled
@@ -166,7 +179,7 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
     # The latest anomaly per seeded scope (+ the catalog metric anomaly) drives
     # both the active rule-state rows (=> a "firing" monitor) and the recorded
     # local delivery. The healthy rule intentionally gets no states (=> healthy).
-    firing_anomalies = await _select_firing_anomalies(session, ctx, metric_anomaly)
+    firing_anomalies = await _select_firing_anomalies(session, ctx)
     if not firing_anomalies:
         # Defensive: no seeded anomalies. Leave the destinations + rules so the
         # demo still shows a local sink and a healthy monitor.
@@ -462,6 +475,31 @@ async def _seed_catalog_metric_anomaly(
     return anomaly
 
 
+async def _seed_planned_promo(
+    session: AsyncSession, ctx: DemoContext, metric_anomaly: MetricAnomaly
+) -> None:
+    """The planned event that expected the seeded metric spike, and its tag."""
+    session.add(
+        PlannedEvent(
+            project_id=ctx.project_id,
+            label=DEMO_PLANNED_EVENT_LABEL,
+            description=(
+                "Controlled demo scenario: a promotion planned to lift this metric. "
+                "The spike inside the window is expected, so it is drawn but raises "
+                "no alert."
+            ),
+            starts_at=metric_anomaly.bucket - _DEMO_PLANNED_EVENT_LEAD,
+            ends_at=metric_anomaly.bucket - _DEMO_PLANNED_EVENT_LEAD + _DEMO_PLANNED_EVENT_SPAN,
+            direction=AnomalyDirection.spike.value,
+            scope_type=ChartAnnotationScopeType.metric.value,
+            scope_ref=metric_anomaly.scope_ref,
+            created_by_user_id=ctx.created_by,
+        )
+    )
+    await session.flush()
+    await session.run_sync(retag_planned_anomalies, ctx.project_id)
+
+
 def _pick_metric_anomaly_bucket(
     stored: Sequence[tuple[datetime, float]],
 ) -> tuple[datetime, float, float] | None:
@@ -487,13 +525,17 @@ def _pick_metric_anomaly_bucket(
 async def _select_firing_anomalies(
     session: AsyncSession,
     ctx: DemoContext,
-    metric_anomaly: MetricAnomaly | None,
 ) -> list[MetricAnomaly]:
+    # A planned anomaly never fires (F18), so the seeded catalog-metric spike,
+    # which the promo covers, is not among them.
     rows = (
         (
             await session.execute(
                 select(MetricAnomaly)
-                .where(MetricAnomaly.scan_config_id == ctx.scan_config_id)
+                .where(
+                    MetricAnomaly.scan_config_id == ctx.scan_config_id,
+                    MetricAnomaly.planned_event_id.is_(None),
+                )
                 .order_by(MetricAnomaly.bucket.desc())
             )
         )
@@ -507,8 +549,6 @@ async def _select_firing_anomalies(
         latest_by_scope.values(),
         key=lambda anomaly: (anomaly.scope_type, anomaly.scope_ref),
     )
-    if metric_anomaly is not None:
-        selected.append(metric_anomaly)
     return selected
 
 

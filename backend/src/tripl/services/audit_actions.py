@@ -215,6 +215,10 @@ PROJECT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "project.docs_languages",
             "chart_annotation.create",
             "chart_annotation.delete",
+            # F18: windows in which anomalies are expected and not alerted.
+            "planned_event.create",
+            "planned_event.update",
+            "planned_event.delete",
             # Carries a project only when the key is scoped to one.
             "api_key.create",
         ),

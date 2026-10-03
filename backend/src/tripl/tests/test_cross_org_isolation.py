@@ -273,6 +273,7 @@ KNOWN_PARAMS = frozenset(
         "metric_id",
         "owner_id",
         "photo_id",
+        "planned_event_id",
         "relation_id",
         "revision_id",
         "rule_id",
@@ -532,6 +533,17 @@ async def _seed_plan(seed: OrgSeed, p: str) -> None:
         )
     )
     ids["annotation_id"] = annotation["id"]
+    planned = await _ok(
+        await c.post(
+            f"{base}/planned-events",
+            json={
+                "label": f"{p} sale",
+                "starts_at": "2026-05-01T00:00:00Z",
+                "ends_at": "2026-05-02T00:00:00Z",
+            },
+        )
+    )
+    ids["planned_event_id"] = planned["id"]
 
     revision = await _ok(await c.post(f"{base}/revisions", json={"summary": f"{p} snapshot"}))
     ids["plan_revision_id"] = revision["id"]
@@ -1042,6 +1054,7 @@ async def _snapshot(w: World) -> dict[str, str]:
         f"{base}/meta-fields",
         f"{base}/variables",
         f"{base}/annotations",
+        f"{base}/planned-events",
         f"{base}/branches",
         f"{base}/revisions",
         f"{base}/docs",

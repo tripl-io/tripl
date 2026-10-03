@@ -1886,6 +1886,36 @@ in the project and leaves
 your `manual` annotations exactly where they were. It is remembered per user,
 in this browser, and starts on.
 
+### Planned events {#planned-events}
+
+A **planned event** names a window in which you expect a series to move — a
+campaign, a sale, a holiday, a maintenance window — so the move is not reported
+as news. The **Planned events** card on the monitoring Volume tab creates one
+for the chart in view: a label, a start and an end in your local time, and what
+it expects (**a rise**, **a drop**, or **either**).
+
+An anomaly whose bucket falls inside `[start, end)`, whose direction matches,
+and whose series is the event's (or any series, for a project-wide event) is
+still detected, stored and drawn, but it is marked *planned*:
+
+- the chart shades the window, draws the anomaly's marker in a muted ink, and
+  its tooltip reads **Planned: *label* · Expected rise**;
+- it raises **no alert**, no notification, no open signal on the Anomalies page
+  and no badge count, and an alert rule's replay does not count it.
+
+A sale that brings a *drop* is still news when the event expects a rise. Where
+two events overlap, the one that started first claims the anomaly. Adding,
+editing or deleting an event re-marks the stored anomalies at once; deleting it
+makes the anomalies inside it ordinary signals again. Every change is recorded
+in the audit log (`planned_event.create`, `.update`, `.delete`).
+
+Through the API: `GET`/`POST /projects/{slug}/planned-events` and
+`PATCH`/`DELETE /projects/{slug}/planned-events/{planned_event_id}` (editors and
+owners write; a `tk_w_` key bound to the project may too). The scope pairs like a
+chart annotation's: `scope_type` and `scope_ref` both set, or both null for the
+whole project. The [demo workspace](./demo-workspace.md) seeds one, *Spring promo
+(planned)*, over its catalog-metric spike.
+
 ### Alerting
 
 **Where:** Observe › Alerting (Inbox, Rules, Destinations, Delivery log). Destination channels:

@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # it and does not compare it. So bump when the recipe gains something a reader
 # can navigate to that an older demo lacks AND the fixture is regenerated with
 # it; tripl-wkwv.14 adds rows to surfaces a recipe-4 demo already has, and
-# indexes nothing new.
+# indexes nothing new. Nor for F18's seeded planned promo, for the same reason.
 DEMO_RECIPE_VERSION = "4"
 
 # Default scenario seed. Fixed so the seeded metrics/anomalies/drift are

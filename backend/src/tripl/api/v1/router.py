@@ -50,6 +50,7 @@ from tripl.api.v1.plan_branches import router as plan_branches_router
 from tripl.api.v1.plan_export import router as plan_export_router
 from tripl.api.v1.plan_revisions import router as plan_revisions_router
 from tripl.api.v1.plan_validation import router as plan_validation_router
+from tripl.api.v1.planned_events import router as planned_events_router
 from tripl.api.v1.platform_console import router as platform_console_router
 from tripl.api.v1.platform_settings import router as platform_settings_router
 from tripl.api.v1.project_anomaly_settings import router as project_anomaly_settings_router
@@ -126,6 +127,7 @@ router.include_router(metrics_catalog_router, dependencies=protected_dependencie
 router.include_router(fact_tables_router, dependencies=protected_dependencies)
 router.include_router(docs_router, dependencies=protected_dependencies)
 router.include_router(chart_annotations_router, dependencies=protected_dependencies)
+router.include_router(planned_events_router, dependencies=protected_dependencies)
 router.include_router(plan_branches_router, dependencies=protected_dependencies)
 router.include_router(dependencies_router, dependencies=protected_dependencies)
 router.include_router(implementation_tickets_router, dependencies=protected_dependencies)
