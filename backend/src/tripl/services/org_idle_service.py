@@ -10,6 +10,9 @@ purge that is lost.
 a sign-in (a session row touched) and a demo project opened (its
 ``demo_last_accessed_at``), both against the cutoff. A new organization is
 never idle, and the default organization is never touched.
+
+:func:`delete_orphan_accounts` then removes the accounts those purges leave in
+no organization (tripl-sav5.8).
 """
 
 from __future__ import annotations
@@ -17,13 +20,15 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import exists, select, update
+from sqlalchemy import delete, exists, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.config import DEPLOYMENT_HOSTED, settings
+from tripl.models.audit_log import AuditLog
 from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.project import Project
+from tripl.models.user import User
 from tripl.models.user_session import UserSession
 
 
@@ -77,3 +82,50 @@ async def retire_idle_organizations(
         )
         await session.commit()
     return ids
+
+
+async def delete_orphan_accounts(session: AsyncSession, *, now: datetime | None = None) -> int:
+    """Delete accounts left in no organization and unused since the cutoff (tripl-sav5.8).
+
+    An idle organization's purge removes its memberships but not its members'
+    accounts, so a public demo would keep every visitor's email and name for
+    good. Deleted here: an account that belongs to no organization, is not a
+    platform admin, was created before the cutoff and has no session touched
+    since it. Every foreign key onto ``users`` cascades or sets NULL, so the
+    rows that point at it go with it or keep pointing at nobody; the audit log's
+    copy of the address is blanked first, since a NULL ``user_id`` would leave
+    the email behind. Returns how many were deleted. Commits.
+    """
+    cutoff = retention_cutoff(now)
+    if cutoff is None:
+        return 0
+    member = exists().where(OrganizationMember.user_id == User.id)
+    recent_session = exists().where(
+        UserSession.user_id == User.id,
+        UserSession.updated_at >= cutoff,
+    )
+    ids = list(
+        (
+            await session.scalars(
+                select(User.id).where(
+                    ~member,
+                    ~recent_session,
+                    User.is_platform_admin.is_(False),
+                    User.created_at < cutoff,
+                )
+            )
+        ).all()
+    )
+    if not ids:
+        return 0
+    await session.execute(
+        update(AuditLog)
+        .where(AuditLog.user_id.in_(ids))
+        .values(user_email="")
+        .execution_options(synchronize_session=False)
+    )
+    await session.execute(
+        delete(User).where(User.id.in_(ids), ~member).execution_options(synchronize_session=False)
+    )
+    await session.commit()
+    return len(ids)

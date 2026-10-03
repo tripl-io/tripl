@@ -105,4 +105,14 @@ def retire_idle_organizations() -> dict[str, object]:
             logger.exception("could not queue the purge of idle organization %s", org_id)
     if retired:
         logger.info("retired %d idle organizations", len(retired))
-    return {"retired": [str(org_id) for org_id in retired]}
+    # Accounts an earlier day's purges left in no organization. Today's retired
+    # organizations are still being purged, so their members go on a later run.
+    orphans: list[int] = []
+
+    async def _sweep(session: AsyncSession) -> None:
+        orphans.append(await org_idle_service.delete_orphan_accounts(session))
+
+    asyncio.run(run_with_async_worker_session(_sweep))
+    if orphans[0]:
+        logger.info("deleted %d accounts left in no organization", orphans[0])
+    return {"retired": [str(org_id) for org_id in retired], "accounts_deleted": orphans[0]}

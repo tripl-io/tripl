@@ -75,5 +75,9 @@ demo project in it has been opened. Deletion is the same purge as an owner's
 delete. The default organization is never deleted. A visitor who signs in
 again later gets a fresh organization.
 
-Accounts are kept when their organization goes; only the organization and its
-data are removed.
+The same nightly run then deletes the accounts those purges left in no
+organization: an account in no organization, created more than that many days
+ago, with no sign-in in that time. Platform admins are never deleted. The audit
+log keeps its rows but drops the deleted accounts' email addresses. Because a
+purge finishes after the run that started it, an account goes on the next
+night's run.
