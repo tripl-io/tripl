@@ -31,7 +31,10 @@ test('the annotations page lists every marker and planned event, and deletes one
   // A route's first visit compiles it on the dev server: give it time.
   const annotations = page.getByTestId('annotations-list')
   await expect(annotations.getByText('E2E deploy')).toBeVisible({ timeout: 60_000 })
-  await expect(annotations.getByRole('link', { name: event.name })).toBeVisible()
+  // Its row names the event it is on, linking to that chart (the event may
+  // carry seeded markers of its own, so look inside this row only).
+  const row = annotations.getByRole('listitem').filter({ hasText: 'E2E deploy' })
+  await expect(row.getByRole('link', { name: event.name })).toBeVisible()
   await expect(annotations.getByText('Injected demo spike')).toBeVisible()
   await expect(page.getByTestId('planned-events-list').getByText('Spring promo (planned)')).toBeVisible()
 
