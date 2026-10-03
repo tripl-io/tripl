@@ -18,13 +18,13 @@ light and the dark theme. The pictures land in
 
    ```bash
    cd website/screenshots
-   corepack pnpm install --frozen-lockfile
+   bun install --frozen-lockfile
    ```
 
 3. Capture:
 
    ```bash
-   TRIPL_URL=http://localhost:5173 corepack pnpm capture
+   TRIPL_URL=http://localhost:5173 bun run capture
    ```
 
    | Variable | Default | Meaning |

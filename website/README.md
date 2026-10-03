@@ -5,19 +5,17 @@ https://vladenisov.github.io/tripl/ by `.github/workflows/docs.yml`.
 
 ## Local development
 
-This package uses pnpm via [corepack](https://nodejs.org/api/corepack.html).
-Install with `--ignore-scripts` (a transitive `core-js` postinstall is only a
-funding notice and is not needed to build the site):
+Bun is the package manager and runtime (version pinned in `package.json`
+"packageManager"). Dependency lifecycle scripts do not run unless listed in
+"trustedDependencies"; none is, as the site needs none (a transitive `core-js`
+postinstall is only a funding notice).
 
 ```bash
-corepack pnpm install --frozen-lockfile --ignore-scripts
-corepack pnpm start      # dev server with hot reload
-corepack pnpm build      # production build into build/
-corepack pnpm serve      # serve the production build locally
+bun install --frozen-lockfile
+bun run start        # dev server with hot reload
+bun --bun run build  # production build into build/
+bun run serve        # serve the production build locally
 ```
-
-`pnpm-workspace.yaml` sets `verifyDepsBeforeRun: false` so `pnpm build` does not
-re-trigger an install on every run.
 
 ## Structure
 

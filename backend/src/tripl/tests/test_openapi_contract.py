@@ -1,7 +1,7 @@
 """Guard against drift between the live OpenAPI schema and the committed snapshot.
 
 The committed ``backend/openapi.json`` is the source of truth the frontend
-codegen (``pnpm gen:api`` -> ``src/types/api.gen.ts``) consumes. Any backend
+codegen (``bun run gen:api`` -> ``src/types/api.gen.ts``) consumes. Any backend
 change that alters the API surface (routes, request/response models, status
 codes, etc.) changes ``app.openapi()`` and so must be reflected in the snapshot.
 
@@ -25,7 +25,7 @@ _OPENAPI_SNAPSHOT = Path(__file__).resolve().parents[3] / "openapi.json"
 _REGENERATE_HINT = (
     'cd backend && uv run python -c "import json; from tripl.main import app; '
     'print(json.dumps(app.openapi(), indent=2, sort_keys=True))" > openapi.json'
-    "\nThen regenerate the frontend types: cd frontend && pnpm gen:api"
+    "\nThen regenerate the frontend types: cd frontend && bun run gen:api"
 )
 
 

@@ -71,7 +71,7 @@ Backend:
 - `statsmodels` for anomaly logic
 
 Frontend:
-- `pnpm`
+- `bun` (package manager, scripts and runtime; `bun.lock`)
 - React `19`
 - TypeScript `7` for type checking (`tsc`); TypeScript 6 stays installed as
   `typescript` for tools that load its API (see CONTRIBUTING.md)
@@ -593,7 +593,7 @@ Operational assumptions to preserve unless intentionally changing them:
 ## Commands
 
 Prefer the root `Makefile` — run `make` (or `make help`) for the grouped list.
-It wraps the underlying uv/pnpm/compose commands so common flows are one keystroke
+It wraps the underlying uv/bun/compose commands so common flows are one keystroke
 from the repo root. The ones you'll reach for most:
 - `make check` — every gate (lint + typecheck + tests), CI parity
 - `make sync-types` — regenerate `backend/openapi.json` + `frontend/src/types/api.gen.ts` after any HTTP API change (guarded by `test_openapi_contract`)
@@ -610,10 +610,10 @@ Backend:
 - `uv run mypy`
 
 Frontend:
-- `pnpm install`
-- `pnpm lint` (oxlint with the project rules in `oxlint-plugins/`, then their tests)
-- `pnpm test`
-- `pnpm exec tsc -b` (TypeScript 7)
+- `bun install`
+- `bun run lint` (oxlint with the project rules in `oxlint-plugins/`, then their tests)
+- `bun run test`
+- `bunx tsc -b` (TypeScript 7)
 
 ### Running tests: no database, no services
 
@@ -646,7 +646,7 @@ in-memory SQLite connection depends on the single session loop.
 
 Scoped runs:
 - `cd backend && uv run pytest src/tripl/tests/test_events.py -k "diff" -q`
-- `cd frontend && pnpm vitest run src/pages/settings/BranchesTab.test.tsx`
+- `cd frontend && bunx --bun vitest run src/pages/settings/BranchesTab.test.tsx`
 
 Compose:
 - `docker compose up -d --build`

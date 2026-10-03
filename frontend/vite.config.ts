@@ -121,13 +121,14 @@ export default defineConfig({
     // runs, left at the default in CI where the runner is sized for it.
     //
     // This has to be declarative rather than a flag on the command: passing
-    // `pnpm test -- --maxWorkers=2` silently does NOTHING, because pnpm appends
-    // the flag after vitest's own `--` passthrough separator and cac files it
-    // into args['--'] without either applying or rejecting it. The run then
+    // `pnpm test -- --maxWorkers=2` silently did NOTHING (under pnpm, before
+    // bun), because pnpm appended the flag after vitest's own `--` passthrough
+    // separator and cac filed it into args['--'] without either applying or
+    // rejecting it. The run then
     // looks capped while executing at full concurrency (tripl-jfm3.87). Set
     // here, it cannot be bypassed by how the suite happens to be invoked.
     maxWorkers: process.env.CI ? undefined : 2,
-    // `pnpm test:coverage` (CI runs it in place of `pnpm test`, same test set).
+    // `bun run test:coverage` (CI runs it in place of `bun run test`, same test set).
     // `include` is what makes a source file no test imports count as 0% rather
     // than vanish from the report. The thresholds are a ratchet: raise them to
     // the new measured value when coverage rises, never lower them to get a

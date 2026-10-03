@@ -38,8 +38,8 @@ Changes reach `main` through a pull request unless the owner asks for a direct p
 
 Build, test, lint, and migration commands live in **[CONTRIBUTING.md](CONTRIBUTING.md)** —
 the single source of truth. The one rule worth repeating: the backend uses `uv`
-(`uv.lock`) and the frontend uses `pnpm` (`pnpm-lock.yaml`); never use `pip`,
-`poetry`, `npm`, or `yarn`, or the lockfiles drift from CI.
+(`uv.lock`) and the frontend uses `bun` (`bun.lock`); never use `pip`,
+`poetry`, `npm`, `pnpm`, or `yarn`, or the lockfiles drift from CI.
 
 ## Architecture Overview
 

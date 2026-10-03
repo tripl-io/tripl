@@ -4,21 +4,21 @@
   "license": "AGPL-3.0-or-later",
   "version": "0.2.3",
   "type": "module",
-  "packageManager": "pnpm@11.19.0",
+  "packageManager": "bun@1.4.2",
   "engines": {
-    "node": ">=26 <27",
-    "pnpm": ">=11.6.0 <12"
+    "bun": ">=1.4.2",
+    "node": ">=26 <27"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "bun --bun vite",
+    "build": "tsc -b && bun --bun vite build",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives && node --test oxlint-plugins/*.test.js",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "check:bundle": "node scripts/check-bundle-budget.mjs",
-    "gen:api": "openapi-typescript ../backend/openapi.json -o src/types/api.gen.ts"
+    "preview": "bun --bun vite preview",
+    "test": "bun --bun vitest run",
+    "test:coverage": "bun --bun vitest run --coverage",
+    "test:e2e": "bun --bun playwright test",
+    "check:bundle": "bun scripts/check-bundle-budget.mjs",
+    "gen:api": "bun --bun openapi-typescript ../backend/openapi.json -o src/types/api.gen.ts"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
@@ -85,5 +85,13 @@
     "vite-plugin-compression2": "^2.5.3",
     "vitest": "^5.0.1",
     "vitest-axe": "^0.1.0"
+  },
+  "overrides": {
+    "@codemirror/language": "6.12.4",
+    "@codemirror/state": "6.7.1",
+    "@codemirror/view": "6.43.6",
+    "@lezer/common": "1.5.3",
+    "js-yaml": "^4.3.2",
+    "undici": "^7.28.0"
   }
 }

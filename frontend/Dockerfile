@@ -1,18 +1,12 @@
 # syntax=docker/dockerfile:1
 
-FROM node:26-trixie-slim AS base
-
-ARG PNPM_VERSION=11.19.0
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-
-RUN npm install --global pnpm@${PNPM_VERSION}
+FROM oven/bun:1.4.2-slim AS base
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm config set store-dir /pnpm/store && pnpm install --frozen-lockfile
+COPY package.json bun.lock bunfig.toml ./
+RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 COPY . .
 
@@ -20,12 +14,11 @@ FROM base AS dev
 
 EXPOSE 5173
 
-CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
+CMD ["bun", "run", "dev", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
 
 FROM base AS build
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm build
+RUN bun run build
 
 # Install nginx AND the brotli module from the same alpine repo so their
 # versions match. The official `nginx:*-alpine` image compiles nginx itself,

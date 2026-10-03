@@ -1,0 +1,8 @@
+# Bun is the package manager here too (tripl: pnpm -> bun). Dependency
+# lifecycle scripts do not run unless listed in package.json
+# "trustedDependencies"; none is (core-js's postinstall is a funding notice).
+[install]
+linker = "isolated"
+# A version must be a day old before an install picks it. Locked versions are
+# unaffected.
+minimumReleaseAge = 86400

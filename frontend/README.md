@@ -19,7 +19,7 @@ which is your cue to re-run this):
 uv run python -c "import json; from tripl.main import app; print(json.dumps(app.openapi(), indent=2, sort_keys=True))" > openapi.json
 
 # 2. Regenerate the frontend types (run from the frontend/ directory)
-pnpm gen:api
+bun run gen:api
 ```
 
 ### Incremental adoption
@@ -41,6 +41,6 @@ everything at once.
 
 ## Linting
 
-Oxlint is the only linter; `pnpm lint` runs it together with the project rule
+Oxlint is the only linter; `bun run lint` runs it together with the project rule
 tests, with zero warnings allowed. See the **Linting** section of
 [CONTRIBUTING.md](../CONTRIBUTING.md#linting).

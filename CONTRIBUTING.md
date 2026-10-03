@@ -19,19 +19,19 @@ sections below accurate.
 |---|---|---|
 | [uv](https://docs.astral.sh/uv/) | latest | Backend Python env, deps, and task runner |
 | Python | 3.14 (pinned in `backend/.python-version`) | Backend runtime — `uv` will fetch it for you |
-| Node.js | `>=26 <27` (pinned in `frontend/.node-version`) | Frontend build/test |
-| [pnpm](https://pnpm.io/) | `11.19.0` (pinned via `packageManager`) | Frontend deps and scripts |
+| [Bun](https://bun.com/) | `1.4.2` (pinned via `packageManager`) | Frontend and docs deps, scripts and runtime |
+| Node.js | `>=26 <27` (pinned in `frontend/.node-version`) | Only the project lint-rule tests in `bun run lint`: Oxlint's RuleTester refuses any other runtime |
 | Docker + Compose v2 | recent | Local dev stack |
 
 The repo pins the package managers, so use **`uv`** for the backend and
-**`pnpm`** for the frontend. Do **not** use `pip`, `poetry`, `npm`, or `yarn` —
-they bypass `uv.lock` / `pnpm-lock.yaml` and CI will diverge from your machine.
+**`bun`** for the frontend and the docs site. Do **not** use `pip`, `poetry`,
+`npm`, `pnpm` or `yarn` — they bypass `uv.lock` / `bun.lock` and CI will diverge
+from your machine.
 
-Enable the pinned pnpm with Corepack (ships with Node):
+Install the pinned Bun:
 
 ```bash
-corepack enable
-corepack prepare pnpm@11.19.0 --activate
+curl -fsSL https://bun.com/install | bash -s "bun-v1.4.2"
 ```
 
 :::note ClickHouse / BigQuery / Postgres warehouses are external
@@ -260,13 +260,13 @@ The frontend lives in [`frontend/`](https://github.com/vladenisov/tripl/blob/mai
 
 ```bash
 cd frontend
-pnpm install        # install deps from pnpm-lock.yaml
-pnpm dev            # Vite dev server on :5173
-pnpm test           # vitest run
-pnpm test:coverage  # the same run with v8 coverage and its thresholds (see "Coverage")
-pnpm lint           # oxlint plus the project rule tests  (zero-warning policy)
-pnpm build          # tsc -b && vite build  (full type check with TypeScript 7 + production build)
-pnpm check:bundle   # after a build: first-load JavaScript stays inside its budget
+bun install                # install deps from bun.lock
+bun run dev                # Vite dev server on :5173
+bun run test               # vitest run
+bun run test:coverage      # the same run with v8 coverage and its thresholds (see "Coverage")
+bun run lint               # oxlint plus the project rule tests  (zero-warning policy)
+bun run build              # tsc -b && vite build  (full type check with TypeScript 7 + production build)
+bun run check:bundle       # after a build: first-load JavaScript stays inside its budget
 ```
 
 How the test suite is set up (`vite.config.ts`, `src/test-setup.ts`):
@@ -274,7 +274,7 @@ How the test suite is set up (`vite.config.ts`, `src/test-setup.ts`):
 - `*.test.ts` files run in the `node` environment and `*.test.tsx` files in
   `jsdom`. A `.ts` test that needs a DOM (a hook tested through `renderHook`)
   starts with `// @vitest-environment jsdom`. Run one side with
-  `pnpm exec vitest run --project node` (or `--project jsdom`).
+  `bunx --bun vitest run --project node` (or `--project jsdom`).
 - A test fails if it prints through `console.error` or `console.warn`: that is
   how React reports invalid DOM nesting and updates outside `act()`, and how
   react-query reports a query that resolved to `undefined` (usually a bare
@@ -296,29 +296,29 @@ off so every test can sign up an account of its own:
 ```bash
 RATE_LIMIT_ENABLED=false docker compose -f compose.dev.yaml up --build -d api celery-worker celery-beat frontend
 cd frontend
-pnpm exec playwright install chromium   # once
-pnpm test:e2e                           # against http://127.0.0.1:5173
+bunx playwright install chromium   # once
+bun run test:e2e                   # against http://127.0.0.1:5173
 ```
 
 `E2E_BASE_URL` points the tests at another instance. `E2E_CHROMIUM` uses an
 installed Chromium (`E2E_CHROMIUM=/usr/bin/chromium`) where Playwright ships no
 browser, an arm64 Linux host for one. A failure leaves a trace, screenshot and
-video under `frontend/test-results/` (`pnpm exec playwright show-trace <zip>`).
+video under `frontend/test-results/` (`bunx playwright show-trace <zip>`).
 CI runs the same tests in the `E2E` job.
 
 The typed API client is generated from the backend's OpenAPI schema. If you
 change request/response contracts, regenerate it:
 
 ```bash
-pnpm gen:api        # regenerates src/types/api.gen.ts from ../backend/openapi.json
+bun run gen:api     # regenerates src/types/api.gen.ts from ../backend/openapi.json
 ```
 
-`pnpm lint` enforces a zero-warning policy and `pnpm build` runs a full
+`bun run lint` enforces a zero-warning policy and `bun run build` runs a full
 type-check, so both must be clean before you push frontend changes.
 
 ### Linting
 
-`pnpm lint` runs [Oxlint](https://oxc.rs/docs/guide/usage/linter)
+`bun run lint` runs [Oxlint](https://oxc.rs/docs/guide/usage/linter)
 (`oxlint --deny-warnings --report-unused-disable-directives`, about a second)
 and then the tests of the project's own lint rules
 (`node --test oxlint-plugins/*.test.js`). `.oxlintrc.json` is the whole rule
@@ -356,14 +356,14 @@ runs them through Oxlint's `RuleTester`.
 ### TypeScript 6 and 7 side by side
 
 Type checking uses TypeScript 7 (the native compiler, `tsc -b` in about 4 s
-instead of about 50 s). `openapi-typescript` (`pnpm gen:api`) loads the
+instead of about 50 s). `openapi-typescript` (`bun run gen:api`) loads the
 TypeScript API and still needs TypeScript 6, which has no successor API until
 7.1. `package.json` therefore installs both, as the TypeScript 7.0 release
 notes describe:
 `"typescript": "npm:@typescript/typescript6@…"` keeps `import 'typescript'`
 on TypeScript 6 (its command is `tsc6`), and
 `"@typescript/native": "npm:typescript@^7…"` provides `tsc`. So
-`pnpm exec tsc` is TypeScript 7 and `pnpm exec tsc6` is TypeScript 6.
+`bunx tsc` is TypeScript 7 and `bunx tsc6` is TypeScript 6.
 
 ## Coverage
 
@@ -378,7 +378,7 @@ nothing fails on them.
 uv run pytest -m "not conformance and not relevance and not pg_concurrency" \
   --cov=tripl --cov-report=term-missing:skip-covered
 # frontend, from frontend/
-pnpm test:coverage
+bun run test:coverage
 ```
 
 - **Backend:** pytest-cov over the `tripl` package, test modules and
@@ -472,7 +472,7 @@ When adding an HTTP feature:
 2. Put business logic in `services/<area>_service.py`.
 3. Add SQLAlchemy models in `models/` and Pydantic request/response models in
    `schemas/`. Update both together when a payload changes, and regenerate the
-   frontend types (`pnpm gen:api`) so `frontend/src/types` stays in sync.
+   frontend types (`bun run gen:api`) so `frontend/src/types` stays in sync.
 
 When adding heavy, retryable, or scheduled work:
 
@@ -502,7 +502,7 @@ sources; and API, worker, and beat must all stay runnable together via Compose.
   [`.env.example`](https://github.com/vladenisov/tripl/blob/main/.env.example).
 - **`alembic` shebang errors.** Use `uv run python -m alembic ...` (see the
   migrations section).
-- **Lockfile drift / CI mismatch.** Always use `uv` and `pnpm`. A stray `pip`,
+- **Lockfile drift / CI mismatch.** Always use `uv` and `bun`. A stray `pip`,
   `npm`, or `yarn` install will desync the lockfiles.
 - **Port already in use.** The dev stack binds `5173`, `8000`, `5432`, `5672`,
   `6379`, and `15672`. Stop conflicting services or remap ports.
@@ -515,12 +515,12 @@ sources; and API, worker, and beat must all stay runnable together via Compose.
 - **Title format:** `[analytics] <Title>`.
 - Keep PRs focused and run the checks for the side(s) you touched: backend
   (`pytest`, `ruff check`, `ruff format --check`, `mypy`) and/or frontend
-  (`pnpm lint`, `pnpm test`, `pnpm build`). Run `docker compose -f
+  (`bun run lint`, `bun run test`, `bun run build`). Run `docker compose -f
   compose.dev.yaml config` when you change Compose or env wiring.
 
 Always call out in the PR description when a change touches:
 
-- **API contracts** — request/response shapes (and regenerate `pnpm gen:api`).
+- **API contracts** — request/response shapes (and regenerate `bun run gen:api`).
 - **Event/tracking-plan schema** — models or Pydantic schemas.
 - **Queue, task, or schedule** behavior — Celery tasks or the beat schedule.
 - **Metrics or anomaly semantics** — collection, bucketing, or detection logic.

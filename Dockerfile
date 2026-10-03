@@ -10,17 +10,13 @@
 # nginx) remain as an alternative deploy.
 
 # ---- frontend build -> dist/ ----
-FROM node:26-trixie-slim AS frontend-build
-ARG PNPM_VERSION=11.19.0
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN npm install --global pnpm@${PNPM_VERSION}
+FROM oven/bun:1.4.2-slim AS frontend-build
 WORKDIR /app
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm config set store-dir /pnpm/store && pnpm install --frozen-lockfile
+COPY frontend/package.json frontend/bun.lock frontend/bunfig.toml ./
+RUN --mount=type=cache,id=bun,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 COPY frontend/ ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm build
+RUN bun run build
 
 # ---- backend deps + source ----
 FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS backend-base

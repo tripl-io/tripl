@@ -1,5 +1,5 @@
-// Tests for the project lint rules in tripl.js. `pnpm lint` runs them with
-// Node's test runner (`node --test oxlint-plugins/*.test.js`); Oxlint's
+// Tests for the project lint rules in tripl.js. `bun run lint` runs them with
+// Node's test runner (Oxlint's RuleTester refuses any other runtime) (`node --test oxlint-plugins/*.test.js`); Oxlint's
 // RuleTester parses each case with the same parser the linter uses. Which
 // files a rule covers is .oxlintrc.json's business and is not tested here.
 import { describe, it } from 'node:test'
