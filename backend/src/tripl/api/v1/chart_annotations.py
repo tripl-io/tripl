@@ -13,6 +13,7 @@ from tripl.models.domain_enums import ChartAnnotationScopeType
 from tripl.schemas.chart_annotation import ChartAnnotationCreate, ChartAnnotationResponse
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_service, chart_annotation_service
+from tripl.services.annotation_scope_names import resolve_scope_names
 
 router = APIRouter(
     prefix="/projects/{slug}/annotations",
@@ -49,7 +50,19 @@ async def list_chart_annotations(
         time_from=time_from,
         time_to=time_to,
     )
-    return [ChartAnnotationResponse.model_validate(row) for row in rows]
+    names = (
+        await resolve_scope_names(
+            session, rows[0].project_id, ((row.scope_type, row.scope_ref) for row in rows)
+        )
+        if rows
+        else {}
+    )
+    return [
+        ChartAnnotationResponse.model_validate(row).model_copy(
+            update={"scope_name": names.get((str(row.scope_type), str(row.scope_ref)))}
+        )
+        for row in rows
+    ]
 
 
 @router.post(

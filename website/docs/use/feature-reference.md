@@ -1886,6 +1886,12 @@ in the project and leaves
 your `manual` annotations exactly where they were. It is remembered per user,
 in this browser, and starts on.
 
+**The Annotations page.** Observe › **Annotations** lists every annotation in the
+project in one place, newest first, with the series each one is on (linking to
+its chart) or *project-wide*, and a filter by source (manual, releases, API).
+Planned events are listed above them. Editors and owners can delete either from
+here.
+
 ### Planned events {#planned-events}
 
 A **planned event** names a window in which you expect a series to move — a

@@ -64,5 +64,9 @@ class PlannedEventResponse(BaseModel):
     created_by_user_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
+    # The series' name (event, event type, metric or scan), filled on the list
+    # for the project-wide Annotations page; null when project-wide or when the
+    # series no longer exists.
+    scope_name: str | None = None
 
     model_config = {"from_attributes": True}

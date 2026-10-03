@@ -247,3 +247,20 @@ async def test_writes_are_audited(client: AsyncClient) -> None:
             )
         )
     assert actions == {"planned_event.create", "planned_event.update", "planned_event.delete"}
+
+
+@pytest.mark.asyncio
+async def test_the_list_names_the_scoped_series(client: AsyncClient) -> None:
+    slug = "planned-names"
+    _type, _event, scan_config_id = await _make_project_with_scan(client, slug)
+    await client.post(
+        f"/api/v1/projects/{slug}/planned-events",
+        json={
+            "label": "Scoped",
+            "scope_type": "project_total",
+            "scope_ref": scan_config_id,
+            **_window(_recent_bucket()),
+        },
+    )
+    rows = (await client.get(f"/api/v1/projects/{slug}/planned-events")).json()
+    assert [row["scope_name"] for row in rows] == ["Production scan"]

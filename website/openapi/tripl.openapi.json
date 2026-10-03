@@ -30612,6 +30612,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "scope_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
           }
         },
         "type": "object",
@@ -47856,6 +47867,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "scope_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
           }
         },
         "type": "object",

@@ -219,6 +219,11 @@ export const projectChartAnnotationsKey = (slug: string | undefined) =>
 /** Every planned-event list of one project (F18), for invalidation. */
 export const projectPlannedEventsKey = (slug: string | undefined) =>
   [...orgRoot(), 'plannedEvents', slug] as const
+/** The project-wide Annotations page's unfiltered lists. */
+export const allPlannedEventsKey = (slug: string | undefined) =>
+  [...projectPlannedEventsKey(slug), 'all'] as const
+export const allChartAnnotationsKey = (slug: string | undefined) =>
+  [...projectChartAnnotationsKey(slug), 'all'] as const
 export const plannedEventsRangeKey = (
   slug: string | undefined,
   scope: string,

@@ -8661,6 +8661,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Scope Name */
+            scope_name?: string | null;
             /** Scope Ref */
             scope_ref: string | null;
             scope_type: components["schemas"]["ChartAnnotationScopeType"] | null;
@@ -15380,6 +15382,8 @@ export interface components {
              * Format: uuid
              */
             project_id: string;
+            /** Scope Name */
+            scope_name?: string | null;
             /** Scope Ref */
             scope_ref: string | null;
             scope_type: components["schemas"]["ChartAnnotationScopeType"] | null;
