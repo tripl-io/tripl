@@ -12,7 +12,7 @@ const SQL_TEMPLATE_IDS: SqlTemplateId[] = ['daily-active-users', 'event-volume']
 
 describe('starterSql', () => {
   it('emits a bucket expression each warehouse actually has', () => {
-    // These are the exact forms executed against ClickHouse 25.8, PostgreSQL 18 and
+    // These are the exact forms executed against ClickHouse 26.8, PostgreSQL 18 and
     // BigQuery's ZetaSQL analyzer. The old single `date_trunc('day', ts)` form ran on
     // the first two and was a hard error on BigQuery ("A valid date part name is
     // required but found created_at"), which is the bug this module exists to fix.

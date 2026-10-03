@@ -22,9 +22,9 @@ several roles — only the command differs:
 
 | Service | Image / command | Persistence | Docker healthcheck |
 | --- | --- | --- | --- |
-| `postgres` | `pgvector/pgvector:0.8.2-pg18-trixie` | **Durable** — named volume `pgdata18` | `pg_isready -U tripl` |
-| `rabbitmq` | `rabbitmq:3.13-management` | **Ephemeral** — no data volume | `rabbitmq-diagnostics -q ping` |
-| `redis` | `redis:8.6.2-alpine` (`--maxmemory 256mb --maxmemory-policy allkeys-lru --save ""`) | **Ephemeral** — no volume, no RDB/AOF | `redis-cli ping` |
+| `postgres` | `pgvector/pgvector:0.8.7-pg18-trixie` | **Durable** — named volume `pgdata18` | `pg_isready -U tripl` |
+| `rabbitmq` | `rabbitmq:4.3-management` | **Ephemeral** — no data volume | `rabbitmq-diagnostics -q ping` |
+| `redis` | `redis:8.8.3-alpine` (`--maxmemory 256mb --maxmemory-policy allkeys-lru --save ""`) | **Ephemeral** — no volume, no RDB/AOF | `redis-cli ping` |
 | `migrate` | `alembic upgrade head` (one-shot) | — | — |
 | `app` | API + built SPA on `:8000` | **Durable** — named volume `photos` at `/app/var/photos` (uploaded event photos, local photo backend) | **None** (probe externally — see [Health checks](#health-checks)) |
 | `celery-worker` | `celery -A tripl.worker.celery_app worker --loglevel=info` | Same `photos` volume as `app` (for the daily orphan photo sweep) | **Disabled** (`healthcheck.disable: true`) |

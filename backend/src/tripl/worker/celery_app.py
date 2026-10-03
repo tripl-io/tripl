@@ -21,6 +21,14 @@ celery_app.conf.task_serializer = "json"
 celery_app.conf.accept_content = ["json"]
 celery_app.conf.timezone = "UTC"
 celery_app.conf.broker_connection_retry_on_startup = True
+# RabbitMQ 4 refuses transient non-exclusive queues (the deprecated feature
+# `transient_nonexcl_queues`). Celery's remote-control queues (the worker's
+# pidbox, and the reply queue `mingle` and `inspect` declare) and its event
+# queue (`gossip`'s celeryev) are exactly that by default, so the worker failed
+# at startup and died (RestartFreqExceeded). Exclusive, they live and die with
+# the connection that declared them, which is all they were for.
+celery_app.conf.control_queue_exclusive = True
+celery_app.conf.event_queue_exclusive = True
 
 # A request-path publish must fail fast. Most dispatches happen inside async API
 # handlers — services/_celery_dispatch.py keeps them off the event loop, but a

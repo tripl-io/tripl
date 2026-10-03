@@ -64,7 +64,7 @@ export const DB_TYPES: readonly DbType[] = ['clickhouse', 'postgres', 'bigquery'
  * hard error on BigQuery, whose GoogleSQL `DATE_TRUNC` takes `(date_expr,
  * date_part)` and answers the string-first form with "A valid date part name is
  * required but found created_at". Every expression below was executed against a
- * real engine (ClickHouse 25.8, PostgreSQL 18, and BigQuery's own ZetaSQL
+ * real engine (ClickHouse 26.8, PostgreSQL 18, and BigQuery's own ZetaSQL
  * analyzer via the emulator).
  */
 function bucketExpression(db: DbType | undefined, unit: 'day' | 'hour'): string {
