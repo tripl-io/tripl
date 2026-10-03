@@ -101,6 +101,38 @@ gateway, proxy, or self-hosted model server works in place of OpenAI — set
 `AI_BASE_URL` to its address and `AI_API_KEY` to whatever credential it expects.
 :::
 
+### Claude, Gemini and OpenRouter {#provider-presets}
+
+The AI settings (Instance › AI for the operator, Organization › AI for an
+organization) open with a **Provider** picker. Picking one fills **Base URL**
+and **Model** with that provider's OpenAI-compatible endpoint and a small model;
+both stay editable, and a model you typed yourself is kept when you switch.
+Add the provider's key and save.
+
+| Provider | Base URL | Starting model | Notes |
+|----------|----------|----------------|-------|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` | |
+| Anthropic (Claude) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | No embeddings API: keep search embeddings on another provider. |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash` | A key from Google AI Studio. Also serves embeddings (`gemini-embedding-001`). |
+| OpenRouter | `https://openrouter.ai/api/v1` | `google/gemini-2.5-flash` | Models are `vendor/model`. tripl sends OpenRouter's optional `X-Title` and `HTTP-Referer` (your `APP_BASE_URL`) headers. |
+
+Any other address shows as **Custom**. Where a provider's compatible endpoint
+refuses a parameter tripl sends (structured `response_format`, `temperature`,
+`max_tokens`), tripl drops or renames that parameter and retries once per
+parameter, whether the provider reports it OpenAI-style or only in the error
+message (Anthropic, Gemini).
+
+With environment variables only, set the same pair:
+
+```bash
+AI_BASE_URL=https://api.anthropic.com/v1
+AI_MODEL=claude-haiku-4-5
+AI_API_KEY=sk-ant-...
+```
+
+Set `AI_API_KEY` explicitly for a non-OpenAI provider: its fallback,
+`OPENAI_API_KEY`, would otherwise be sent to that provider.
+
 ---
 
 ## The privacy trade-off

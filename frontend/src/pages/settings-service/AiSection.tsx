@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { KeyRound } from 'lucide-react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { AiProviderPicker } from '@/components/settings/AiProviderPicker'
 import { serviceSettingsApi, type AiPromptDefaults } from '@/api/serviceSettings'
 import { aiPromptDefaultsKey } from '@/lib/queryKeys'
 import { SILENT_ERROR_META } from '@/lib/errorFeedback'
@@ -94,6 +95,14 @@ export function AiSection({
             valid — but visibly idle while the switch is off (ST-26). */}
         <InactiveGroup inactive={!form.ai.ai_enabled} reason="Not used while AI is off.">
         <OperatorFields locked={!platformAdmin}>
+        <AiProviderPicker
+          baseUrl={form.ai.ai_base_url}
+          model={form.ai.ai_model}
+          onChange={next => {
+            setField('ai', 'ai_base_url', next.baseUrl)
+            setField('ai', 'ai_model', next.model)
+          }}
+        />
         <Field
           label="Base URL"
           labelRight={<SourceBadge source={sourceFor(settings, 'ai', 'ai_base_url')} />}

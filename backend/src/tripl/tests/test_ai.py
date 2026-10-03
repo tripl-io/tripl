@@ -667,3 +667,83 @@ def test_build_ai_explanation_without_a_session_is_unchanged(monkeypatch: pytest
         == "First time."
     )
     assert "Previously sent" not in captured["user_prompt"]
+
+
+# --- non-OpenAI providers behind their OpenAI-compatible endpoints ---
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        # Anthropic: no code/param, the refusal is in the message.
+        {"type": "invalid_request_error", "message": "response_format: not supported"},
+        # Gemini: an INVALID_ARGUMENT status with the field named in the message.
+        {
+            "code": 400,
+            "status": "INVALID_ARGUMENT",
+            "message": "Invalid JSON payload: unknown name response_format",
+        },
+    ],
+)
+def test_llm_complete_drops_a_parameter_a_provider_refuses_in_words(
+    monkeypatch: pytest.MonkeyPatch, error: dict[str, object]
+):
+    monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
+    monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-test")
+    sent = []
+
+    def fake_post(url, payload, api_key, timeout):
+        sent.append(dict(payload))
+        if "response_format" in payload:
+            return None, error
+        return _success_body("ok"), None
+
+    monkeypatch.setattr(llm_service, "_post_chat_completions", fake_post)
+    result = llm_service.complete(
+        "system", "user", response_format={"type": "json_object"}, config=env_ai_config()
+    )
+    assert result == "ok"
+    assert len(sent) == 2
+    assert "response_format" not in sent[1]
+
+
+def test_llm_complete_does_not_retry_an_error_that_names_no_refused_parameter(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
+    monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-test")
+    calls = []
+
+    def fake_post(url, payload, api_key, timeout):
+        calls.append(payload)
+        return None, {"type": "authentication_error", "message": "invalid x-api-key"}
+
+    monkeypatch.setattr(llm_service, "_post_chat_completions", fake_post)
+    assert llm_service.complete("system", "user", config=env_ai_config()) is None
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ('{"type": "error", "error": {"type": "invalid_request_error", "message": "m"}}', "m"),
+        ('[{"error": {"code": 400, "message": "g"}}]', "g"),
+        ('{"error": {"code": "unsupported_parameter", "message": "o"}}', "o"),
+        ("not json", None),
+    ],
+)
+def test_provider_errors_are_unwrapped_from_each_shape(body: str, expected: str | None):
+    import contextlib
+
+    error = {}
+    with contextlib.suppress(json.JSONDecodeError):
+        error = llm_service._provider_error(json.loads(body))
+    assert error.get("message") == expected
+
+
+def test_openrouter_requests_carry_its_attribution_headers(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(llm_service.settings, "app_base_url", "https://tripl.example.com")
+    headers = llm_service._provider_headers("https://openrouter.ai/api/v1/chat/completions")
+    assert headers == {"X-Title": "tripl", "HTTP-Referer": "https://tripl.example.com"}
+    assert llm_service._provider_headers("https://api.openai.com/v1/chat/completions") == {}
+    assert llm_service._provider_headers("https://openrouter.ai.evil.test/v1") == {}

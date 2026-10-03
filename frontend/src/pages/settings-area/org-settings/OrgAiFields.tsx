@@ -1,6 +1,7 @@
 import { KeyRound } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { orgSettingsApi } from '@/api/orgSettings'
+import { AiProviderPicker } from '@/components/settings/AiProviderPicker'
 import { Button } from '@/components/ui/button'
 import { Field, SCard, TextArea, TextInput, ToggleRow } from '@/components/settings/kit'
 import { DisabledReason, disabledReasonAria } from '@/components/states'
@@ -91,6 +92,14 @@ export function OrgAiFields({
               'No API key of this organization’s: the operator’s key is never sent to an endpoint set here, so add one.'}
           </p>
         )}
+        <AiProviderPicker
+          baseUrl={String(displayValue(settings, draft, section, 'ai_base_url') ?? '')}
+          model={String(displayValue(settings, draft, section, 'ai_model') ?? '')}
+          onChange={next => {
+            setField('ai_base_url', next.baseUrl)
+            setField('ai_model', next.model)
+          }}
+        />
         <OrgTextField
           {...props}
           field="ai_base_url"

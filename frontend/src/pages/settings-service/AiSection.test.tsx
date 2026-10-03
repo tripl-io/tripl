@@ -353,3 +353,15 @@ describe('Instance AI — restore a default prompt (ST-30)', () => {
     expect(screen.queryByRole('button', { name: 'Restore the default ask prompt' })).toBeNull()
   })
 })
+
+describe('Instance AI — provider presets', () => {
+  it('fills the base URL and model when Claude is picked', () => {
+    const setField = vi.fn()
+    renderSection(settingsFixture(), undefined, setField)
+
+    fireEvent.change(screen.getByLabelText('AI provider'), { target: { value: 'anthropic' } })
+
+    expect(setField).toHaveBeenCalledWith('ai', 'ai_base_url', 'https://api.anthropic.com/v1')
+    expect(setField).toHaveBeenCalledWith('ai', 'ai_model', 'claude-haiku-4-5')
+  })
+})

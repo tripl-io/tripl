@@ -15,6 +15,8 @@ const executablePath = process.env.E2E_CHROMIUM || undefined
 
 export default defineConfig({
   testDir: './e2e',
+  // Signs up the organization owner the settings tests act as.
+  globalSetup: './e2e/global-setup.ts',
   // A demo takes a while to generate, and the stack is shared: one at a time.
   fullyParallel: false,
   workers: 1,

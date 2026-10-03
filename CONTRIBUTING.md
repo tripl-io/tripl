@@ -308,7 +308,10 @@ see, including the write and its undo where there is one. Unit and API tests
 still cover the edge cases; the end-to-end test proves the pieces meet. Specs
 build on the shared fixtures (`fixtures.ts`): a fresh `account` per test, and
 `generateDemo` / `deleteDemo` when the feature is easiest to reach on the demo
-workspace. A fix or refactor of an existing flow extends that flow's spec when
+workspace, and `signInAsOwner` for organization settings: global setup
+(`e2e/global-setup.ts`) signs up the stack's first account, its owner, before
+any test runs. Against a stack that already has an owner, pass one in with
+`E2E_OWNER_EMAIL` and `E2E_OWNER_PASSWORD`. A fix or refactor of an existing flow extends that flow's spec when
 the change is visible in it. Say in the pull request which spec covers the
 feature, or why none can.
 
