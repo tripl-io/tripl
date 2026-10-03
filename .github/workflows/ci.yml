@@ -55,6 +55,10 @@ jobs:
       # summary line still counts every selected test: compare it with
       # `pytest --collect-only -q` under the same -m expression (tripl-la1i).
       #
+      # Coverage measures through sys.monitoring ([tool.coverage.run] core =
+      # "sysmon"): under the C settrace tracer this step took ~22 minutes, under
+      # sysmon ~8.5, with the same total.
+      #
       # Coverage (pytest-cov, which combines the xdist workers' data): the floor
       # is [tool.coverage.report] fail_under in pyproject.toml, which pytest-cov
       # applies on its own, so no --cov-fail-under here to drift from it. It is
