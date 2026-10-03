@@ -1,5 +1,5 @@
 import { api } from './client'
-import type { PlannedEvent } from '../types'
+import type { PlannedEvent, PlannedWindowSuggestion } from '../types'
 
 export interface PlannedEventInput {
   label: string
@@ -30,6 +30,10 @@ export const plannedEventsApi = {
     const qs = sp.toString()
     return api.get<PlannedEvent[]>(`/projects/${slug}/planned-events${qs ? `?${qs}` : ''}`)
   },
+
+  /** Recurring windows the project's expected verdicts point at (#271). */
+  suggestions: (slug: string) =>
+    api.get<PlannedWindowSuggestion[]>(`/projects/${slug}/planned-events/suggestions`),
 
   create: (slug: string, data: PlannedEventInput) =>
     api.post<PlannedEvent>(`/projects/${slug}/planned-events`, data),

@@ -73,3 +73,28 @@ class PlannedEventResponse(BaseModel):
     scope_name: str | None = None
 
     model_config = {"from_attributes": True}
+
+
+class SuggestedWindowResponse(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PlannedWindowSuggestionResponse(BaseModel):
+    """A recurring window people keep marking expected, proposed as planned events."""
+
+    scope_type: ChartAnnotationScopeType
+    scope_ref: str
+    scope_name: str | None = None
+    # 0 = Monday; UTC.
+    weekday: int
+    hour: int
+    direction: AnomalyDirection | None
+    verdict_count: int
+    last_bucket: datetime
+    note: str | None
+    windows: list[SuggestedWindowResponse]
+
+    model_config = {"from_attributes": True}

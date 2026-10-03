@@ -89,6 +89,9 @@ class DemoContext:
     # later builder can point at the spike without re-deriving where it landed —
     # ``None`` until the warehouse builder has run.
     spike_bucket: datetime | None = None
+    # The weekly promo's past sends, ``(bucket, actual, usual)``, for the alerts
+    # builder to record as anomalies people marked expected (#271).
+    weekly_promo_points: list[tuple[datetime, int, int]] = field(default_factory=list)
 
 
 Builder = Callable[[AsyncSession, DemoContext], Awaitable[None]]

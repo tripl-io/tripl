@@ -19004,6 +19004,53 @@
         }
       }
     },
+    "/api/v1/projects/{slug}/planned-events/suggestions": {
+      "get": {
+        "tags": [
+          "planned-events"
+        ],
+        "summary": "List Planned Window Suggestions",
+        "description": "Recurring windows the project's ``expected`` verdicts point at (#271).\n\nAccepting one is creating its ``windows`` as planned events; it then drops\nout of this list.",
+        "operationId": "list_planned_window_suggestions_api_v1_projects__slug__planned_events_suggestions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlannedWindowSuggestionResponse"
+                  },
+                  "title": "Response List Planned Window Suggestions Api V1 Projects  Slug  Planned Events Suggestions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{slug}/planned-events/{planned_event_id}": {
       "patch": {
         "tags": [
@@ -48038,6 +48085,87 @@
         "title": "PlannedEventUpdate",
         "description": "A partial edit; the merged event is validated as a whole by the route."
       },
+      "PlannedWindowSuggestionResponse": {
+        "properties": {
+          "scope_type": {
+            "$ref": "#/components/schemas/ChartAnnotationScopeType"
+          },
+          "scope_ref": {
+            "type": "string",
+            "title": "Scope Ref"
+          },
+          "scope_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
+          },
+          "weekday": {
+            "type": "integer",
+            "title": "Weekday"
+          },
+          "hour": {
+            "type": "integer",
+            "title": "Hour"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnomalyDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verdict_count": {
+            "type": "integer",
+            "title": "Verdict Count"
+          },
+          "last_bucket": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Bucket"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedWindowResponse"
+            },
+            "type": "array",
+            "title": "Windows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scope_type",
+          "scope_ref",
+          "weekday",
+          "hour",
+          "direction",
+          "verdict_count",
+          "last_bucket",
+          "note",
+          "windows"
+        ],
+        "title": "PlannedWindowSuggestionResponse",
+        "description": "A recurring window people keep marking expected, proposed as planned events."
+      },
       "PlatformAdminGrant": {
         "properties": {
           "grant": {
@@ -56601,6 +56729,26 @@
           "reasons"
         ],
         "title": "SubscriptionState"
+      },
+      "SuggestedWindowResponse": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "SuggestedWindowResponse"
       },
       "SyntheticSettings": {
         "properties": {},

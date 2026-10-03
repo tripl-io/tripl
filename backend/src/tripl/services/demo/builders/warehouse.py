@@ -44,6 +44,25 @@ SPIKE_EVENT_NAME = "Home Screen View"
 # the anomaly it explains (tripl-0zpq.322).
 SPIKE_ANNOTATION_LABEL = "Injected demo spike"
 
+# A weekly promo email lifts this event at one hour of one weekday. Its last
+# sends were marked *expected*, so the Annotations page suggests planning the
+# next ones (#271). The sends sit 194 hours and more behind the spike: outside
+# every baseline the real detector scores the spike against (168 buckets), so
+# they cannot dull it, and still inside the seeded history.
+WEEKLY_PROMO_EVENT_NAME = "Paywall View"
+WEEKLY_PROMO_MULTIPLIER = 3
+WEEKLY_PROMO_SENDS = 3
+_WEEKLY_PROMO_OFFSET = timedelta(hours=26)
+
+
+def weekly_promo_buckets(spike_bucket: datetime) -> list[datetime]:
+    """The weekly promo's past sends, oldest first."""
+    return [
+        spike_bucket - _WEEKLY_PROMO_OFFSET - timedelta(weeks=week)
+        for week in range(WEEKLY_PROMO_SENDS, 0, -1)
+    ]
+
+
 # The dead-event example: this authored event's warehouse volume dried up this
 # many days ago — old enough to surface in the dead-events review. Owned here,
 # not by the governance builder that stamps ``last_seen_at``, because this
@@ -230,6 +249,7 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
     buckets = noise.hour_buckets(ctx.now, days=noise.DEMO_HISTORY_DAYS)
     total_buckets = len(buckets)
     spike_bucket = buckets[-1]  # newest full hour, ~1h before now (fresh signal)
+    promo_buckets = set(weekly_promo_buckets(spike_bucket))
 
     type_bucket_counts: dict[tuple[uuid.UUID, datetime], int] = {}
     home_series: dict[datetime, int] = {}
@@ -259,6 +279,10 @@ async def _build_event_metrics(session: AsyncSession, ctx: DemoContext) -> None:
             count = noise.hourly_volume(spec.base, bucket, idx, noise_seed, total_buckets)
             if is_spike and bucket == spike_bucket:
                 count *= noise.DEMO_SPIKE_MULTIPLIER
+            if spec.name == WEEKLY_PROMO_EVENT_NAME and bucket in promo_buckets:
+                usual = count
+                count *= WEEKLY_PROMO_MULTIPLIER
+                ctx.weekly_promo_points.append((bucket, count, usual))
             event_rows.append(
                 {
                     "scan_config_id": ctx.scan_config_id,

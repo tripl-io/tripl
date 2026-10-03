@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ vi.mock('@/api/chartAnnotations', () => ({
   chartAnnotationsApi: { list: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('@/api/plannedEvents', () => ({
-  plannedEventsApi: { list: vi.fn(), delete: vi.fn() },
+  plannedEventsApi: { list: vi.fn(), delete: vi.fn(), suggestions: vi.fn(), create: vi.fn() },
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -88,6 +88,7 @@ beforeEach(() => {
     },
   ])
   vi.mocked(plannedEventsApi.list).mockResolvedValue([PLANNED])
+  vi.mocked(plannedEventsApi.suggestions).mockResolvedValue([])
 })
 
 describe('AnnotationsPage', () => {
@@ -133,6 +134,41 @@ describe('AnnotationsPage', () => {
     expect(within(planned).getByText('Holiday')).toBeInTheDocument()
     expect(within(planned).getByRole('button', { name: 'Delete planned event Spring promo' })).toBeInTheDocument()
     expect(within(planned).queryByRole('button', { name: 'Delete planned event Labour Day' })).not.toBeInTheDocument()
+  })
+
+  it('plans a suggested recurring window as its next planned events', async () => {
+    vi.mocked(plannedEventsApi.suggestions).mockResolvedValue([
+      {
+        scope_type: 'event',
+        scope_ref: 'e-1',
+        scope_name: 'Paywall View',
+        weekday: 0,
+        hour: 9,
+        direction: 'spike',
+        verdict_count: 3,
+        last_bucket: '2026-09-28T09:00:00Z',
+        note: 'Weekly promo email',
+        windows: [
+          { starts_at: '2026-10-05T09:00:00Z', ends_at: '2026-10-05T10:00:00Z' },
+          { starts_at: '2026-10-12T09:00:00Z', ends_at: '2026-10-12T10:00:00Z' },
+        ],
+      },
+    ])
+    vi.mocked(plannedEventsApi.create).mockResolvedValue(PLANNED)
+    renderPage()
+
+    const list = await screen.findByTestId('planned-window-suggestions')
+    expect(within(list).getByText('Every Monday at 09:00 UTC')).toBeInTheDocument()
+    fireEvent.click(within(list).getByRole('button', { name: 'Plan the next 2 windows on Paywall View' }))
+
+    await waitFor(() => expect(plannedEventsApi.create).toHaveBeenCalledTimes(2))
+    expect(plannedEventsApi.create).toHaveBeenCalledWith('demo', expect.objectContaining({
+      label: 'Weekly promo email',
+      starts_at: '2026-10-12T09:00:00Z',
+      direction: 'spike',
+      scope_type: 'event',
+      scope_ref: 'e-1',
+    }))
   })
 
   it('offers a viewer no delete', async () => {

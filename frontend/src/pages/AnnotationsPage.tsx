@@ -36,6 +36,7 @@ import {
 } from '@/lib/queryKeys'
 import { getErrorMessage } from '@/lib/utils'
 import type { ChartAnnotation, MetricScopeType, PlannedEvent } from '@/types'
+import { PlannedWindowSuggestions } from './annotations/PlannedWindowSuggestions'
 
 type SourceFilter = 'all' | 'manual' | 'release' | 'api'
 
@@ -163,6 +164,8 @@ export default function AnnotationsPage() {
         title="Annotations"
         description="Every chart marker in the project — deploys, releases and notes — and the planned events in which anomalies are expected rather than alerted."
       />
+
+      {canWrite && <PlannedWindowSuggestions slug={slug} />}
 
       <Panel
         title={`Planned events (${planned.length})`}
