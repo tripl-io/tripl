@@ -39,9 +39,9 @@ test('the annotations page lists every marker and planned event, and deletes one
   await expect(page.getByTestId('planned-events-list').getByText('Spring promo (planned)')).toBeVisible()
 
   // The source filter narrows to the worker's release markers.
-  await page.getByRole('button', { name: 'Releases' }).click()
+  await page.getByRole('button', { name: 'Releases', exact: true }).click()
   await expect(annotations.getByText('E2E deploy')).toHaveCount(0)
-  await page.getByRole('button', { name: 'All' }).click()
+  await page.getByRole('button', { name: 'All', exact: true }).click()
 
   await annotations.getByRole('button', { name: 'Delete annotation E2E deploy' }).click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
