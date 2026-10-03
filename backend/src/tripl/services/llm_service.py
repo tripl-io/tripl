@@ -79,6 +79,38 @@ _NO_REDIRECT_OPENER = urllib.request.build_opener(_RefuseRedirects)
 NO_REDIRECT_OPENER = _NO_REDIRECT_OPENER
 
 
+_OPENROUTER_HOST = "openrouter.ai"
+
+
+def _provider_headers(url: str) -> dict[str, str]:
+    """Headers one provider asks for beyond the OpenAI shape.
+
+    OpenRouter attributes traffic to the app named by ``HTTP-Referer`` and
+    ``X-Title``; they are optional and carry nothing secret.
+    """
+    hostname = (urlparse(url).hostname or "").lower()
+    if hostname == _OPENROUTER_HOST or hostname.endswith("." + _OPENROUTER_HOST):
+        headers = {"X-Title": "tripl"}
+        if settings.app_base_url:
+            headers["HTTP-Referer"] = settings.app_base_url
+        return headers
+    return {}
+
+
+def _provider_error(parsed: object) -> dict[str, Any]:
+    """The ``error`` object of a provider's error body, whatever its wrapping.
+
+    OpenAI and Anthropic answer ``{"error": {...}}`` (Anthropic adds a
+    top-level ``"type": "error"``); Gemini's OpenAI-compatible endpoint can
+    answer a one-element list ``[{"error": {...}}]``.
+    """
+    if isinstance(parsed, list) and parsed:
+        parsed = parsed[0]
+    if isinstance(parsed, dict) and isinstance(parsed.get("error"), dict):
+        return dict(parsed["error"])
+    return {}
+
+
 def _post_chat_completions(
     url: str, payload: dict[str, Any], api_key: str, timeout: float
 ) -> tuple[str | None, dict[str, Any] | None]:
@@ -94,6 +126,7 @@ def _post_chat_completions(
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            **_provider_headers(url),
         },
         method="POST",
     )
@@ -113,17 +146,45 @@ def _post_chat_completions(
             url,
             error_body,
         )
-        error: dict[str, Any] = {}
         try:
-            parsed = json.loads(error_body)
-            if isinstance(parsed, dict) and isinstance(parsed.get("error"), dict):
-                error = parsed["error"]
+            return None, _provider_error(json.loads(error_body))
         except json.JSONDecodeError:
-            pass
-        return None, error
+            return None, {}
     except OSError, http.client.HTTPException, UnicodeError, TimeoutError:
         logger.exception("AI completion request failed")
         return None, None
+
+
+# Words a provider's message uses when it refuses a parameter rather than the
+# request (a bad key or an unknown model is not worth a retry).
+_REFUSAL_WORDS = (
+    "unsupported",
+    "not supported",
+    "unknown",
+    "unrecognized",
+    "not allowed",
+    "invalid",
+)
+_RETRYABLE_PARAMS = ("response_format", "max_tokens", "temperature")
+
+
+def _param_named_in_message(error: dict[str, Any], payload: dict[str, Any]) -> str | None:
+    """The parameter a provider without OpenAI's ``code``/``param`` refused.
+
+    Anthropic's and Gemini's compatible endpoints describe the problem in
+    ``message`` only ("response_format is not supported..."). A sent parameter
+    named there next to a refusal word is the one to adjust.
+    """
+    message = error.get("message")
+    if not isinstance(message, str):
+        return None
+    lowered = message.lower()
+    if not any(word in lowered for word in _REFUSAL_WORDS):
+        return None
+    for param in _RETRYABLE_PARAMS:
+        if param in payload and param in lowered:
+            return param
+    return None
 
 
 def _adjust_payload_for_error(payload: dict[str, Any], error: dict[str, Any]) -> bool:
@@ -134,9 +195,12 @@ def _adjust_payload_for_error(payload: dict[str, Any], error: dict[str, Any]) ->
     OpenAI-compatible servers do not support ``response_format``.
     Returns True when the payload changed and the request is worth retrying.
     """
-    if error.get("code") not in {"unsupported_parameter", "unsupported_value"}:
+    if error.get("code") in {"unsupported_parameter", "unsupported_value"}:
+        param = error.get("param")
+    else:
+        param = _param_named_in_message(error, payload)
+    if param is None:
         return False
-    param = error.get("param")
     if param == "max_tokens" and "max_tokens" in payload:
         payload["max_completion_tokens"] = payload.pop("max_tokens")
         return True

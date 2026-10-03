@@ -28,6 +28,19 @@ export const test = base.extend<{ account: Account }>({
 })
 
 /**
+ * Sign the page in as the organization owner global setup made (or was given
+ * through E2E_OWNER_EMAIL / E2E_OWNER_PASSWORD), for organization settings.
+ * Skips the test when there is none: a local stack whose owner is someone else.
+ */
+export async function signInAsOwner(page: Page): Promise<void> {
+  const email = process.env.E2E_OWNER_EMAIL
+  const password = process.env.E2E_OWNER_PASSWORD
+  test.skip(!email || !password, 'no organization owner: set E2E_OWNER_EMAIL and E2E_OWNER_PASSWORD')
+  const resp = await page.request.post('/api/v1/auth/login', { data: { email, password } })
+  expect(resp.status(), await resp.text()).toBe(200)
+}
+
+/**
  * Generate the demo from the empty workspace and wait for its overview.
  * Returns the demo project's slug. Generation runs the real worker against the
  * synthetic warehouse, so it takes a while.
