@@ -171,9 +171,14 @@ ignore_missing_imports = true
 [tool.coverage.run]
 source = ["tripl"]
 omit = ["*/tripl/tests/*", "*/alembic/*"]
-# The async request path runs ORM calls inside SQLAlchemy's greenlet bridge;
-# without "greenlet" the lines executed there are reported as missed.
-concurrency = ["greenlet", "thread"]
+# sys.monitoring (PEP 669) instead of a settrace tracer: the suite ran in ~22
+# minutes on CI under the C tracer and ~8.5 under sysmon, against ~6.5 with no
+# coverage at all, for the same total (60512 statements, 3896 vs 3897 missed).
+# sysmon sees every frame, greenlets included, so SQLAlchemy's greenlet bridge
+# (the async request path's ORM calls) needs no `concurrency = greenlet`, which
+# exists only to hand settrace across greenlet switches.
+core = "sysmon"
+concurrency = ["thread"]
 
 [tool.coverage.report]
 # A ratchet: raise it when coverage rises, never lower it to get a red run
