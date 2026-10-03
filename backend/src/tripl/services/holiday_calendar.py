@@ -41,10 +41,13 @@ def is_supported_country(code: str) -> bool:
 def holidays_for(country: str, years: range) -> dict[date, str]:
     """``{day: name}`` for the country's public holidays in ``years``.
 
-    The package already joins two holidays falling on one day into one name,
-    so a day is one planned event.
+    Named in English wherever the package has an English calendar for the
+    country: left to itself it picks the country's own language (or the
+    process locale's), so the same project read "Tag der Deutschen Einheit" on
+    one host and "German Unity Day" on another. The package already joins two
+    holidays falling on one day into one name, so a day is one planned event.
     """
-    calendar = holidays.country_holidays(country, years=list(years))
+    calendar = holidays.country_holidays(country, years=list(years), language="en_US")
     return dict(sorted(calendar.items()))
 
 

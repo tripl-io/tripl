@@ -127,7 +127,7 @@ describe('AnnotationsPage', () => {
       PLANNED,
       { ...PLANNED, id: 'h', label: 'Labour Day', source: 'holiday', scope_type: null, scope_ref: null },
     ])
-    renderPage(personaAuth('editor'))
+    renderPage()
 
     const planned = await screen.findByTestId('planned-events-list')
     expect(within(planned).getByText('Holiday')).toBeInTheDocument()
