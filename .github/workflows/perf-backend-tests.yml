@@ -1,0 +1,58 @@
+name: Backend test timing (experiment)
+
+# Temporary: measures where the backend suite's ~22 minutes go. Not a gate;
+# removed once the faster setup lands in ci.yml.
+on:
+  push:
+    branches: [perf/backend-tests]
+  workflow_dispatch: {}
+
+jobs:
+  timing:
+    name: pytest (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [ctrace-cov, no-cov, sysmon-cov]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: nproc
+
+      - name: Coverage config for sysmon
+        if: matrix.variant == 'sysmon-cov'
+        run: |
+          cat > ../sysmon.coveragerc <<'EOF'
+          [run]
+          core = sysmon
+          source = tripl
+          omit = */tripl/tests/*, */alembic/*
+          concurrency = thread
+          [report]
+          skip_empty = true
+          EOF
+
+      - name: Pytest
+        run: |
+          case "${{ matrix.variant }}" in
+            ctrace-cov) cov="--cov=tripl --cov-report=term:skip-covered" ;;
+            no-cov) cov="" ;;
+            sysmon-cov) cov="--cov=tripl --cov-config=../sysmon.coveragerc --cov-report=term:skip-covered" ;;
+          esac
+          /usr/bin/time -v uv run pytest -q -n auto --dist worksteal --durations=40 \
+            -m "not conformance and not relevance and not pg_concurrency" \
+            --junitxml=../junit-${{ matrix.variant }}.xml $cov 2>&1 | tail -120
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: junit-${{ matrix.variant }}
+          path: junit-${{ matrix.variant }}.xml
+          retention-days: 7
