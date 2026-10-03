@@ -19,6 +19,7 @@ from tripl.schemas.planned_event import (
 )
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_service, planned_event_service
+from tripl.services.annotation_scope_names import resolve_scope_names
 
 router = APIRouter(
     prefix="/projects/{slug}/planned-events",
@@ -56,7 +57,19 @@ async def list_planned_events(
         time_from=time_from,
         time_to=time_to,
     )
-    return [PlannedEventResponse.model_validate(row) for row in rows]
+    names = (
+        await resolve_scope_names(
+            session, rows[0].project_id, ((row.scope_type, row.scope_ref) for row in rows)
+        )
+        if rows
+        else {}
+    )
+    return [
+        PlannedEventResponse.model_validate(row).model_copy(
+            update={"scope_name": names.get((str(row.scope_type), str(row.scope_ref)))}
+        )
+        for row in rows
+    ]
 
 
 @router.post("", response_model=PlannedEventResponse, status_code=status.HTTP_201_CREATED)

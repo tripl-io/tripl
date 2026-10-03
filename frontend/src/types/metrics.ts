@@ -367,6 +367,8 @@ export interface ChartAnnotation {
   url: string | null
   created_by_user_id: string | null
   created_at: string
+  /** The scoped series' name; only on list responses, null when project-wide or gone. */
+  scope_name?: string | null
 }
 
 /**
@@ -387,6 +389,8 @@ export interface PlannedEvent {
   created_by_user_id: string | null
   created_at: string
   updated_at: string
+  /** The scoped series' name; only on list responses, null when project-wide or gone. */
+  scope_name?: string | null
 }
 
 export interface SeasonalityCell {

@@ -197,3 +197,40 @@ async def test_list_rejects_unknown_scope_type(client: AsyncClient) -> None:
             params={"scope_type": scope_type, "scope_ref": "00000000-0000-0000-0000-000000000001"},
         )
         assert accepted.status_code == 200, f"{scope_type} was rejected: {accepted.text}"
+
+
+@pytest.mark.asyncio
+async def test_the_list_names_each_scoped_series(client: AsyncClient) -> None:
+    """The project-wide Annotations page shows which chart a marker is on."""
+    slug = await _setup_project(client, slug="ann-names")
+    event_type = (
+        await client.post(
+            f"/api/v1/projects/{slug}/event-types",
+            json={"name": "screen_view", "display_name": "Screen View"},
+        )
+    ).json()
+    await client.post(
+        f"/api/v1/projects/{slug}/annotations",
+        json={"bucket": "2026-05-01T10:00:00Z", "label": "global"},
+    )
+    for label, ref in (
+        ("named", event_type["id"]),
+        ("gone", "00000000-0000-0000-0000-000000000009"),
+    ):
+        await client.post(
+            f"/api/v1/projects/{slug}/annotations",
+            json={
+                "bucket": "2026-05-02T10:00:00Z",
+                "label": label,
+                "scope_type": "event_type",
+                "scope_ref": ref,
+            },
+        )
+
+    rows = {
+        row["label"]: row
+        for row in (await client.get(f"/api/v1/projects/{slug}/annotations")).json()
+    }
+    assert rows["global"]["scope_name"] is None
+    assert rows["named"]["scope_name"] == "Screen View"
+    assert rows["gone"]["scope_name"] is None

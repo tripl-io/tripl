@@ -5867,6 +5867,17 @@
             "title": "Project Id",
             "type": "string"
           },
+          "scope_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
+          },
           "scope_ref": {
             "anyOf": [
               {
@@ -23114,6 +23125,17 @@
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
+          },
+          "scope_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Name"
           },
           "scope_ref": {
             "anyOf": [

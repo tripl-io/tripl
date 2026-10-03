@@ -46,6 +46,7 @@ const ProjectSettingsPage = lazyWithReload(() => import('./pages/ProjectSettings
 const ProjectScansPage = lazyWithReload(() => import('./pages/ProjectScansPage'))
 const ReconciliationPage = lazyWithReload(() => import('./pages/ReconciliationPage'))
 const DuplicatesPage = lazyWithReload(() => import('./pages/DuplicatesPage'))
+const AnnotationsPage = lazyWithReload(() => import('./pages/AnnotationsPage'))
 const AnomaliesPage = lazyWithReload(() => import('./pages/AnomaliesPage'))
 const MetricsPage = lazyWithReload(() => import('./pages/metrics/MetricsPage'))
 const MetricEditPage = lazyWithReload(() => import('./pages/metrics/MetricForm'))
@@ -400,6 +401,7 @@ function projectRoutes() {
       <Route path="reconciliation" element={withSuspense('reconciliation', <ReconciliationPage />)} />
       <Route path="duplicates" element={withSuspense('duplicates', <DuplicatesPage />)} />
       <Route path="anomalies" element={withSuspense('anomalies', <AnomaliesPage />)} />
+      <Route path="annotations" element={withSuspense('annotations', <AnnotationsPage />)} />
       <Route path="metrics/new" element={withMetricSuspense('metrics-new', <MetricEditPage />, 'form')} />
       <Route path="metrics/:metricId/edit" element={withMetricSuspense('metrics-edit', <MetricEditPage />, 'form')} />
       {/* Fact tables live as a tab inside Metrics — create/edit forms first,

@@ -14,6 +14,7 @@ import {
   ScanLine,
   ScrollText,
   ShieldCheck,
+  StickyNote,
   Table2,
   Tag,
   Variable,
@@ -259,6 +260,14 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           tone: openSignals > 0 ? 'warning' : undefined,
         },
         {
+          // Every chart annotation and planned event in one list (F18).
+          id: 'annotations',
+          label: 'Annotations',
+          icon: StickyNote,
+          href: `${base}/annotations`,
+          match: (p) => p.startsWith(`${base}/annotations`),
+        },
+        {
           id: 'alerting',
           label: 'Alerting',
           icon: Bell,
@@ -443,6 +452,7 @@ const PORTABLE_SURFACES: ReadonlySet<string> = new Set<string>([
   'events',
   'metrics',
   'anomalies',
+  'annotations',
   'reconciliation',
   'coverage',
   'scans',
