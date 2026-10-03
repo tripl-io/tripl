@@ -16,10 +16,13 @@ from tripl.schemas.planned_event import (
     PlannedEventCreate,
     PlannedEventResponse,
     PlannedEventUpdate,
+    PlannedWindowSuggestionResponse,
 )
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import audit_service, planned_event_service
 from tripl.services.annotation_scope_names import resolve_scope_names
+from tripl.services.planned_window_suggestions import suggest_recurring_windows
+from tripl.services.project_lookup import resolve_project_id
 
 router = APIRouter(
     prefix="/projects/{slug}/planned-events",
@@ -69,6 +72,28 @@ async def list_planned_events(
             update={"scope_name": names.get((str(row.scope_type), str(row.scope_ref)))}
         )
         for row in rows
+    ]
+
+
+@router.get("/suggestions", response_model=list[PlannedWindowSuggestionResponse])
+async def list_planned_window_suggestions(
+    session: SessionDep, slug: str
+) -> list[PlannedWindowSuggestionResponse]:
+    """Recurring windows the project's ``expected`` verdicts point at (#271).
+
+    Accepting one is creating its ``windows`` as planned events; it then drops
+    out of this list.
+    """
+    project_id = await resolve_project_id(session, slug)
+    suggestions = await suggest_recurring_windows(session, project_id)
+    names = await resolve_scope_names(
+        session, project_id, ((s.scope_type, s.scope_ref) for s in suggestions)
+    )
+    return [
+        PlannedWindowSuggestionResponse.model_validate(s).model_copy(
+            update={"scope_name": names.get((s.scope_type, s.scope_ref))}
+        )
+        for s in suggestions
     ]
 
 

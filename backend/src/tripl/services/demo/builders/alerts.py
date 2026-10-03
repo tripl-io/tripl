@@ -43,6 +43,8 @@ from tripl.models.domain_enums import (
     ChartAnnotationScopeType,
     ChartAnnotationSource,
     MetricScopeType,
+    SignalExpectedReason,
+    SignalTriageAction,
 )
 from tripl.models.event import Event
 from tripl.models.event_type import EventType
@@ -51,11 +53,13 @@ from tripl.models.metric_definition import MetricDefinition
 from tripl.models.metric_value import MetricValue
 from tripl.models.planned_event import PlannedEvent
 from tripl.models.project import Project
+from tripl.models.signal_triage import SignalTriage
 from tripl.schemas.alerting import SimulatedRuleFiring
 from tripl.services.alerting_rendering import render_firings_message
 from tripl.services.demo.builders.warehouse import (
     SPIKE_ANNOTATION_LABEL,
     SPIKE_EVENT_NAME,
+    WEEKLY_PROMO_EVENT_NAME,
 )
 from tripl.services.demo.scenario import DemoContext
 from tripl.services.planned_event_service import retag_planned_anomalies
@@ -99,6 +103,11 @@ DEMO_PLANNED_EVENT_LABEL = "Spring promo (planned)"
 _DEMO_PLANNED_EVENT_LEAD = timedelta(days=1)
 _DEMO_PLANNED_EVENT_SPAN = timedelta(days=2)
 
+# The note on each weekly promo send's *expected* verdict; the suggestion it
+# leads to on the Annotations page quotes it.
+DEMO_WEEKLY_PROMO_NOTE = "Weekly promo email"
+_WEEKLY_PROMO_Z_SCORE = 4.0
+
 # One FAILED earlier attempt at the same incident. The Audit table only offers
 # Retry on a failed row, and the local sink cannot fail, so without a seeded
 # failure the retry the docs promise is unreachable in a demo (tripl-jfm3.59).
@@ -123,6 +132,7 @@ async def build_alerts(session: AsyncSession, ctx: DemoContext) -> None:
     metric_anomaly = await _seed_catalog_metric_anomaly(session, ctx)
     if metric_anomaly is not None:
         await _seed_planned_promo(session, ctx, metric_anomaly)
+    await _seed_weekly_promo_verdicts(session, ctx)
 
     # The demo-only local sink + a visibly-disabled external example. The
     # disabled destination carries NO credentials and is clearly labelled
@@ -498,6 +508,47 @@ async def _seed_planned_promo(
     )
     await session.flush()
     await session.run_sync(retag_planned_anomalies, ctx.project_id)
+
+
+async def _seed_weekly_promo_verdicts(session: AsyncSession, ctx: DemoContext) -> None:
+    """The weekly promo's past sends as anomalies someone marked expected.
+
+    Three in a row, at one hour of one weekday, are what the planned-window
+    suggestions look for (#271), so the demo shows one ready to accept.
+    """
+    event_id = ctx.event_ids.get(WEEKLY_PROMO_EVENT_NAME)
+    if event_id is None or ctx.scan_config_id is None:
+        return
+    for bucket, actual, usual in ctx.weekly_promo_points:
+        session.add(
+            MetricAnomaly(
+                scan_config_id=ctx.scan_config_id,
+                scope_type=MetricScopeType.event.value,
+                scope_ref=str(event_id),
+                event_id=event_id,
+                event_type_id=None,
+                bucket=bucket,
+                actual_count=actual,
+                expected_count=usual,
+                stddev=(actual - usual) / _WEEKLY_PROMO_Z_SCORE,
+                z_score=_WEEKLY_PROMO_Z_SCORE,
+                direction=AnomalyDirection.spike.value,
+            )
+        )
+        session.add(
+            SignalTriage(
+                project_id=ctx.project_id,
+                scan_config_id=ctx.scan_config_id,
+                scope_type=MetricScopeType.event.value,
+                scope_ref=str(event_id),
+                action=SignalTriageAction.expected.value,
+                bucket=bucket,
+                note=DEMO_WEEKLY_PROMO_NOTE,
+                expected_reason=SignalExpectedReason.campaign.value,
+                created_by_user_id=ctx.created_by,
+            )
+        )
+    await session.flush()
 
 
 def _pick_metric_anomaly_bucket(

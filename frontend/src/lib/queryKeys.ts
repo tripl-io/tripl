@@ -222,6 +222,9 @@ export const projectPlannedEventsKey = (slug: string | undefined) =>
 /** The project-wide Annotations page's unfiltered lists. */
 export const allPlannedEventsKey = (slug: string | undefined) =>
   [...projectPlannedEventsKey(slug), 'all'] as const
+/** Suggested recurring windows; under the planned-event root, so planning one refreshes it. */
+export const plannedWindowSuggestionsKey = (slug: string | undefined) =>
+  [...projectPlannedEventsKey(slug), 'suggestions'] as const
 export const allChartAnnotationsKey = (slug: string | undefined) =>
   [...projectChartAnnotationsKey(slug), 'all'] as const
 export const plannedEventsRangeKey = (

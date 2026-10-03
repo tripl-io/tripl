@@ -395,6 +395,25 @@ export interface PlannedEvent {
   scope_name?: string | null
 }
 
+/**
+ * A recurring window people keep marking expected (#271): the same series at
+ * the same UTC weekday and hour. Accepting it is creating `windows` as planned
+ * events.
+ */
+export interface PlannedWindowSuggestion {
+  scope_type: 'project_total' | 'event_type' | 'event' | 'metric'
+  scope_ref: string
+  scope_name: string | null
+  /** 0 = Monday, UTC. */
+  weekday: number
+  hour: number
+  direction: 'spike' | 'drop' | null
+  verdict_count: number
+  last_bucket: string
+  note: string | null
+  windows: { starts_at: string; ends_at: string }[]
+}
+
 export interface SeasonalityCell {
   weekday: number
   hour: number

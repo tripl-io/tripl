@@ -1934,6 +1934,17 @@ ISO 3166-1 alpha-2 code, or null) on `PATCH /projects/{slug}/anomaly-settings`;
 `GET /projects/{slug}/anomaly-settings/holiday-countries` lists the codes it
 accepts. Planned events carry `source`: `manual` or `holiday`.
 
+**Suggested recurring windows.** When signals on one series at the same hour of
+the same weekday (UTC) are marked *expected* in three different weeks within the
+last eight, the Annotations page suggests the move is a schedule: **Plan next
+4** creates the next four one-hour windows at that slot as planned events on the
+series, labelled with the newest verdict's note and expecting the direction the
+anomalies moved in (either, if they moved both ways). A suggestion drops out
+once a planned event — on the series or project-wide — covers its next slot.
+Editors and owners see them; through the API,
+`GET /projects/{slug}/planned-events/suggestions`, and accepting one is creating
+its `windows` with `POST /projects/{slug}/planned-events`.
+
 ### Alerting
 
 **Where:** Observe › Alerting (Inbox, Rules, Destinations, Delivery log). Destination channels:

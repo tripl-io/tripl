@@ -4818,6 +4818,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{slug}/planned-events/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Planned Window Suggestions
+         * @description Recurring windows the project's ``expected`` verdicts point at (#271).
+         *
+         *     Accepting one is creating its ``windows`` as planned events; it then drops
+         *     out of this list.
+         */
+        get: operations["list_planned_window_suggestions_api_v1_projects__slug__planned_events_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{slug}/planned-events/{planned_event_id}": {
         parameters: {
             query?: never;
@@ -15442,6 +15465,33 @@ export interface components {
             starts_at?: string | null;
         };
         /**
+         * PlannedWindowSuggestionResponse
+         * @description A recurring window people keep marking expected, proposed as planned events.
+         */
+        PlannedWindowSuggestionResponse: {
+            direction: components["schemas"]["AnomalyDirection"] | null;
+            /** Hour */
+            hour: number;
+            /**
+             * Last Bucket
+             * Format: date-time
+             */
+            last_bucket: string;
+            /** Note */
+            note: string | null;
+            /** Scope Name */
+            scope_name?: string | null;
+            /** Scope Ref */
+            scope_ref: string;
+            scope_type: components["schemas"]["ChartAnnotationScopeType"];
+            /** Verdict Count */
+            verdict_count: number;
+            /** Weekday */
+            weekday: number;
+            /** Windows */
+            windows: components["schemas"]["SuggestedWindowResponse"][];
+        };
+        /**
          * PlatformAdminGrant
          * @description Grant (``true``) or revoke (``false``) the platform-admin flag.
          */
@@ -18742,6 +18792,19 @@ export interface components {
             reasons: ("author" | "owner" | "commenter" | "reviewer" | "manual")[];
             /** Watching */
             watching: boolean;
+        };
+        /** SuggestedWindowResponse */
+        SuggestedWindowResponse: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /**
          * SyntheticSettings
@@ -29536,6 +29599,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlannedEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_planned_window_suggestions_api_v1_projects__slug__planned_events_suggestions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlannedWindowSuggestionResponse"][];
                 };
             };
             /** @description Validation Error */
