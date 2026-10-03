@@ -39,6 +39,7 @@ from tripl.api.deps import (
     PathOrgMemberUserDep,
     PathOrgOwnerUserDep,
     SessionDep,
+    refuse_on_public_demo,
     require_org_creator,
 )
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
@@ -94,7 +95,13 @@ async def list_orgs(
 OrgCreatorDep = Annotated[User, Depends(require_org_creator)]
 
 
-@router.post("", response_model=OrgResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=OrgResponse,
+    status_code=status.HTTP_201_CREATED,
+    # A visitor gets one organization at sign-up; more would only grow the database.
+    dependencies=[Depends(refuse_on_public_demo("create more organizations"))],
+)
 async def create_org(
     session: SessionDep, data: OrgCreate, current_user: OrgCreatorDep
 ) -> OrgResponse:

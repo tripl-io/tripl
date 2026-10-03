@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any
 
+from tripl.config import settings
 from tripl.services._app_settings_core import build_service_values
 from tripl.services.ai_defaults import (
     DEFAULT_ALERT_EXPLANATION_SYSTEM_PROMPT,
@@ -78,7 +79,7 @@ def build_ai_config(overrides: dict[str, Any]) -> AiConfig:
 def _ai_config_from(
     values: Mapping[str, Any], *, host_guard: bool = False, embedding_host_guard: bool = False
 ) -> AiConfig:
-    return AiConfig(
+    config = AiConfig(
         ai_enabled=bool(values["ai_enabled"]),
         ai_base_url=str(values["ai_base_url"]),
         ai_model=str(values["ai_model"]),
@@ -96,6 +97,24 @@ def _ai_config_from(
         host_guard=host_guard,
         embedding_host_guard=embedding_host_guard,
     )
+    if settings.public_demo:
+        # Every call a stranger can trigger would run on the operator's key, so
+        # a public demo has no AI whatever the settings say (tripl-sav5.4). Demo
+        # projects still search semantically from their bundled embedding
+        # fixture, which needs no provider.
+        return _without_credentials(config)
+    return config
+
+
+def _without_credentials(config: AiConfig) -> AiConfig:
+    return replace(
+        config,
+        ai_enabled=False,
+        ai_api_key="",
+        search_embeddings_enabled=False,
+        search_embedding_api_key="",
+        search_embedding_base_url="",
+    )
 
 
 def disabled_ai_config() -> AiConfig:
@@ -104,14 +123,7 @@ def disabled_ai_config() -> AiConfig:
     Built from the env values with every credential removed, so nothing in it
     can reach the operator's provider (critique #19: fail closed in org scope).
     """
-    return replace(
-        env_ai_config(),
-        ai_enabled=False,
-        ai_api_key="",
-        search_embeddings_enabled=False,
-        search_embedding_api_key="",
-        search_embedding_base_url="",
-    )
+    return _without_credentials(env_ai_config())
 
 
 def ai_prompt_defaults() -> dict[str, str]:

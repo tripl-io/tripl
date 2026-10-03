@@ -72,6 +72,33 @@ def build_adapter(ds: DataSource) -> BaseAdapter:
     return factory(ds, password)
 
 
+def vetted_address(ds: DataSource) -> str | None:
+    """The address to connect to, after the host is checked; None when unchecked.
+
+    On a hosted instance the host an organization typed must be public: a
+    warehouse connection is outbound traffic like a webhook, and a private one
+    would let a tenant read the instance's own database, cache or broker (or a
+    cloud metadata endpoint) through scans. The name is resolved here, every
+    address it gives is vetted, and the driver connects to the vetted one, so a
+    short-TTL name cannot answer publicly for the check and privately for the
+    connection. Self-hosted instances keep the old rule: an operator may point
+    at an internal warehouse on purpose.
+    """
+    from tripl.config import DEPLOYMENT_HOSTED, settings
+    from tripl.core.adapters.errors import WarehouseCapabilityError
+    from tripl.services.safe_http import PrivateHostError, public_address
+
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        return None
+    try:
+        return public_address(ds.host, ds.port, field="host")
+    except PrivateHostError:
+        raise WarehouseCapabilityError(
+            "this instance only connects to warehouses on the public internet, "
+            "and the host resolves to a private or internal address."
+        ) from None
+
+
 def _build_clickhouse(ds: DataSource, password: str) -> BaseAdapter:
     from tripl.core.adapters.clickhouse import ClickHouseAdapter
 
@@ -84,8 +111,14 @@ def _build_clickhouse(ds: DataSource, password: str) -> BaseAdapter:
         "send_receive_timeout": timeout,
     }
 
+    address = vetted_address(ds)
+    if address is not None:
+        # Connect to the vetted address; TLS still checks the certificate
+        # against the name the source was configured with.
+        kwargs["server_host_name"] = ds.host
+
     return ClickHouseAdapter(
-        host=ds.host,
+        host=address or ds.host,
         port=ds.port,
         database=ds.database_name,
         username=ds.username,
@@ -102,6 +135,8 @@ def _build_postgres(ds: DataSource, password: str) -> BaseAdapter:
 
     return PostgresAdapter(
         host=ds.host,
+        # libpq connects to hostaddr and keeps host for TLS verification.
+        hostaddr=vetted_address(ds),
         port=ds.port,
         database=ds.database_name,
         username=ds.username,

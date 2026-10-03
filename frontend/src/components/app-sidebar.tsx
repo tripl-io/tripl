@@ -40,6 +40,7 @@ import { TrifoldMark } from '@/components/states/brand-mark'
 import { useActiveBranchId } from '@/hooks/useBranch'
 import { buildNavGroups, currentOrgSlug, type NavGroup, projectPath, settingsPath, stripOrgPrefix, switchProjectPath, workspacePath } from '@/lib/navigation'
 import { cn } from '@/lib/utils'
+import { usePublicDemo } from '@/lib/deploymentMode'
 import { commandPaletteShortcutLabel } from '@/lib/platform'
 import type { Project } from '@/types'
 import { eventTypesKey, projectsQueryOptions } from '@/lib/queryKeys'
@@ -218,7 +219,9 @@ export function AppSidebar({
   const signOut = () => {
     void auth.logout()
   }
-  const canCreateProject = canWrite(auth.user?.role)
+  // A public demo runs on demo projects only (tripl-sav5).
+  const publicDemo = usePublicDemo()
+  const canCreateProject = canWrite(auth.user?.role) && !publicDemo
 
   if (collapsed && !drawer) {
     return (

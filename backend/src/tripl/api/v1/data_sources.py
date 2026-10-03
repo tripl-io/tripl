@@ -8,6 +8,7 @@ from tripl.api.deps import (
     SessionDep,
     get_editor_user,
     get_owner_user,
+    refuse_on_public_demo,
 )
 from tripl.schemas.data_source import (
     ConnectionSettingsResponse,
@@ -45,6 +46,10 @@ _owner_required = [Depends(get_owner_user)]
 # project (a non-member gets 404, as on every other surface of that project);
 # workspace-global sources remain available to all editors.
 _editor_required = [Depends(get_editor_user)]
+
+# A visitor to a public demo explores the synthetic source the demo generator
+# adds; connecting to anything else is the host's network, not theirs (tripl-sav5).
+_own_warehouses_refused = Depends(refuse_on_public_demo("connect to warehouses of your own"))
 
 
 # What a non-admin legitimately needs from a data source, and nothing else.
@@ -115,7 +120,12 @@ async def list_data_sources(
     return [_visible_to(ds, is_admin) for ds in sources]
 
 
-@router.post("", response_model=DataSourceResponse, status_code=201)
+@router.post(
+    "",
+    response_model=DataSourceResponse,
+    status_code=201,
+    dependencies=[_own_warehouses_refused],
+)
 async def create_data_source(
     session: SessionDep,
     data: DataSourceCreate,
@@ -137,7 +147,7 @@ async def create_data_source(
 @router.post(
     "/test",
     response_model=DataSourceConnectionTestResponse,
-    dependencies=_owner_required,
+    dependencies=[*_owner_required, _own_warehouses_refused],
 )
 async def test_unsaved_data_source_connection(
     data: DataSourceConnectionTest,
@@ -182,7 +192,7 @@ async def get_data_source_schema(
     return await datasource_schema_service.get_schema_tables(session, ds_id)
 
 
-@router.patch("/{ds_id}", response_model=DataSourceResponse)
+@router.patch("/{ds_id}", response_model=DataSourceResponse, dependencies=[_own_warehouses_refused])
 async def update_data_source(
     session: SessionDep,
     ds_id: uuid.UUID,

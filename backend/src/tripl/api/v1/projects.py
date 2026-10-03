@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.api.deps import (
@@ -11,6 +11,7 @@ from tripl.api.deps import (
     ProjectRoleDep,
     SessionDep,
     can_mutate_project,
+    refuse_on_public_demo,
 )
 from tripl.config import settings
 from tripl.models.project import Project
@@ -184,6 +185,9 @@ async def list_projects(
     "",
     response_model=ProjectCreateResponse,
     status_code=201,
+    # Only a generated demo is zero-egress: a real project could gain Slack,
+    # webhook or email destinations and send through them (tripl-sav5.3).
+    dependencies=[Depends(refuse_on_public_demo("create projects other than demo ones"))],
 )
 async def create_project(
     session: SessionDep, request: Request, current_user: EditorUserDep, data: ProjectCreate

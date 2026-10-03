@@ -507,4 +507,57 @@ describe('AuthPage single sign-on (F20)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with a password instead' }))
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
+
+  describe('Sign in with Google (tripl-sav5.2)', () => {
+    function mockInstance(status: Record<string, unknown>) {
+      vi.restoreAllMocks()
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.endsWith('/api/v1/auth/status')) {
+          return Promise.resolve(
+            jsonResponse({ has_users: true, registration_enabled: true, ...status }),
+          )
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      })
+    }
+
+    it('offers Google when the instance has a client, keeping where to land', async () => {
+      mockInstance({ google_sign_in: true })
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={[{ pathname: '/auth', state: { from: { pathname: '/projects' } } }]}>
+            <AuthPage />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      )
+
+      const link = await screen.findByRole('link', { name: 'Continue with Google' })
+      expect(link.getAttribute('href')).toBe('/api/v1/auth/google/start?next=%2Fprojects')
+      // The password form stays for accounts that have one.
+      expect(screen.getByLabelText('Password')).toBeInTheDocument()
+    })
+
+    it('shows no Google button without a client', async () => {
+      mockInstance({ google_sign_in: false })
+      renderAuth()
+      await screen.findByRole('button', { name: 'Create account' })
+      expect(screen.queryByRole('link', { name: 'Continue with Google' })).not.toBeInTheDocument()
+    })
+
+    it('a public demo takes no password sign-ups', async () => {
+      mockInstance({ google_sign_in: true, public_demo: true })
+      renderAuth()
+      await screen.findByRole('link', { name: 'Continue with Google' })
+      expect(screen.queryByRole('button', { name: 'Create account' })).not.toBeInTheDocument()
+    })
+
+    it('explains a closed sign-up', async () => {
+      mockInstance({ google_sign_in: true })
+      renderAuth('/auth?sso_error=signup_closed')
+      expect(
+        await screen.findByText(/this instance is not taking new sign-ups/),
+      ).toBeInTheDocument()
+    })
+  })
 })

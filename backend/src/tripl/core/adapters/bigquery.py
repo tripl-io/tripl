@@ -233,6 +233,24 @@ def _declared_struct_paths(field: bigquery.SchemaField) -> dict[str, bool]:
     return dict(sorted(paths.items()))
 
 
+def _hosted_service_account(info: dict[str, object]) -> dict[str, object]:
+    """The key as given; on a hosted instance, one that only talks to Google.
+
+    google-auth POSTs a signed JWT to the key's ``token_uri`` on every token
+    refresh, so a tenant's key could otherwise point the server at any host,
+    an internal one included. Same rule as an organization's storage key.
+    """
+    from tripl.config import DEPLOYMENT_HOSTED, settings
+    from tripl.storage.photo_storage import UnsafeServiceAccount, pinned_service_account_info
+
+    if settings.deployment_mode != DEPLOYMENT_HOSTED:
+        return info
+    try:
+        return pinned_service_account_info(info)
+    except UnsafeServiceAccount as exc:
+        raise WarehouseCapabilityError(f"BigQuery: {exc}") from None
+
+
 class BigQueryAdapter(BaseAdapter):
     """BigQuery-backed warehouse adapter.
 
@@ -306,6 +324,7 @@ class BigQueryAdapter(BaseAdapter):
             # part of the pasted key can ride out on it.
             msg = f"BigQuery: invalid service-account JSON: {exc}"
             raise WarehouseCapabilityError(msg) from exc
+        info = _hosted_service_account(info)
         creds = cast(
             service_account.Credentials,
             service_account.Credentials.from_service_account_info(info),  # type: ignore[no-untyped-call]

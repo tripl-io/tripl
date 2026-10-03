@@ -9,7 +9,8 @@ interface WorkspaceWelcomeProps {
   canCreateProject: boolean
   isProvisioningDemo: boolean
   onGenerateDemo: () => void
-  onCreateProject: () => void
+  /** Absent where blank projects are not offered (a public demo). */
+  onCreateProject?: () => void
 }
 
 /**
@@ -56,15 +57,17 @@ export function WorkspaceWelcome({
               scans and alert rules. Reset or delete it any time.
             </p>
           </div>
-          <div className="flex flex-col gap-1.5 sm:items-center sm:text-center">
-            <Button size="lg" variant="outline" onClick={onCreateProject}>
-              <Plus className="h-3.5 w-3.5" />
-              New project
-            </Button>
-            <p className="m-0 max-w-[280px] text-caption text-fg-tertiary">
-              Start empty or from an industry template, then connect your own warehouse.
-            </p>
-          </div>
+          {onCreateProject && (
+            <div className="flex flex-col gap-1.5 sm:items-center sm:text-center">
+              <Button size="lg" variant="outline" onClick={onCreateProject}>
+                <Plus className="h-3.5 w-3.5" />
+                New project
+              </Button>
+              <p className="m-0 max-w-[280px] text-caption text-fg-tertiary">
+                Start empty or from an industry template, then connect your own warehouse.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <p

@@ -28,6 +28,7 @@ import { ProjectNotFound } from '@/components/states/project-not-found'
 import { OrgSuspendedState } from '@/components/states/org-suspended'
 import { SsoRequiredState } from '@/components/states/sso-required'
 import { StepInBanner } from '@/components/shell/step-in-banner'
+import { PublicDemoBanner } from '@/components/shell/public-demo-banner'
 import { useActiveOrg } from '@/components/active-org-context'
 import { findSsoRequiredError, orgIsSuspended, ssoStartFromError } from '@/lib/orgStatus'
 import {
@@ -624,6 +625,7 @@ export default function Layout() {
           <div className="flex min-w-0 flex-1 flex-col" inert={drawerActive}>
             {/* A platform admin's read-only step-in to this organization. */}
             <StepInBanner />
+            <PublicDemoBanner />
             <TopBar
               title={headerTitle}
               crumbs={headerCrumbs}

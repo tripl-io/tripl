@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { dataSourcesKey, projectKey, projectsKey, projectsQueryOptions } from '@/lib/queryKeys'
 import { canWrite, isOwner as isOwnerRole } from '@/lib/permissions'
+import { usePublicDemo } from '@/lib/deploymentMode'
 import { AttentionStat, ProjectCard } from './ProjectsPageCards'
 import { CreateProjectDialog } from './ProjectsPageCreateDialog'
 import { reviewQueueHint, summarizePortfolio } from './ProjectsPagePortfolio'
@@ -43,6 +44,7 @@ import { reviewQueueHint, summarizePortfolio } from './ProjectsPagePortfolio'
 export default function MainPage() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const publicDemo = usePublicDemo()
   // `?new=1` opens the create dialog on arrival: the sidebar project
   // switcher's "New project" item lands here (#238 SH-15).
   const [searchParams, setSearchParams] = useSearchParams()
@@ -166,6 +168,8 @@ export default function MainPage() {
       : String(dataSourceCount)
   const isOwner = isOwnerRole(user?.role)
   const canCreateProject = canWrite(user?.role)
+  // A public demo runs on demo projects only: generated, never blank (tripl-sav5).
+  const canCreateBlank = canCreateProject && !publicDemo
   const canDeleteProject = isOwner
   // Loaded-and-empty workspace: the welcome hero replaces the header CTA pair,
   // the all-zero stat band, and the old EmptyState until the first project
@@ -211,10 +215,12 @@ export default function MainPage() {
                   <Sparkles />
                   {isProvisioningDemo ? 'Generating…' : 'Generate demo project'}
                 </Button>
-                <Button size="sm" onClick={() => setShowForm(true)}>
-                  <Plus />
-                  New project
-                </Button>
+                {canCreateBlank && (
+                  <Button size="sm" onClick={() => setShowForm(true)}>
+                    <Plus />
+                    New project
+                  </Button>
+                )}
               </div>
               {demoBlockedReason && (
                 <p
@@ -229,7 +235,7 @@ export default function MainPage() {
         }
       />
 
-      {showForm && canCreateProject && (
+      {showForm && canCreateBlank && (
         <CreateProjectDialog
           onClose={() => setShowForm(false)}
           existingSlugs={projects.map((project) => project.slug)}
@@ -248,7 +254,7 @@ export default function MainPage() {
           canCreateProject={canCreateProject}
           isProvisioningDemo={isProvisioningDemo}
           onGenerateDemo={() => void handleGenerateDemo()}
-          onCreateProject={() => setShowForm(true)}
+          onCreateProject={canCreateBlank ? () => setShowForm(true) : undefined}
         />
       )}
 

@@ -89,6 +89,7 @@ def _format_server_version(version: int) -> str:
 #: silently dropped looks configured but isn't, which for a TLS option means the
 #: operator believes the link is encrypted when it is not.
 _SUPPORTED_PARAMS = (
+    "hostaddr",
     "timeout_seconds",
     "sslmode",
     "sslrootcert",
@@ -401,6 +402,7 @@ class PostgresAdapter(BaseAdapter):
         sslcert: str | None = None,
         sslkey: str | None = None,
         search_path: str | None = None,
+        hostaddr: str | None = None,
         **kwargs: object,
     ) -> None:
         # An unknown connection parameter is a hard error, not something **kwargs
@@ -479,6 +481,9 @@ class PostgresAdapter(BaseAdapter):
         try:
             self._conn = psycopg.connect(
                 host=host,
+                # A vetted address (hosted): libpq connects here and still
+                # verifies TLS against ``host``. None is dropped from the conninfo.
+                hostaddr=hostaddr,
                 port=port,
                 dbname=database,
                 user=username or "postgres",

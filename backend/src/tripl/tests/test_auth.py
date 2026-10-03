@@ -466,6 +466,8 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "email_configured": False,
         "deployment_mode": "self_hosted",
         "email_verification_required": False,
+        "google_sign_in": False,
+        "public_demo": False,
     }
 
     await _register(anon_client, "status-owner@example.com", "Password123!")
@@ -477,4 +479,6 @@ async def test_auth_status_reports_whether_registration_is_accepted(
         "email_configured": False,
         "deployment_mode": "self_hosted",
         "email_verification_required": False,
+        "google_sign_in": False,
+        "public_demo": False,
     }

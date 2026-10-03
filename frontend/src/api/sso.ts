@@ -213,6 +213,13 @@ export function ssoStartUrl(org: string, next?: string | null): string {
   return safe && safe !== '/' ? `${path}?next=${encodeURIComponent(safe)}` : path
 }
 
+/** The address that begins Sign in with Google, the instance-wide client. */
+export function googleStartUrl(next?: string | null): string {
+  const path = '/api/v1/auth/google/start'
+  const safe = safeNextPath(next)
+  return safe && safe !== '/' ? `${path}?next=${encodeURIComponent(safe)}` : path
+}
+
 export const ssoApi = {
   // Configuration: organization OWNERS only, from a signed-in session.
   get: (org: string) => api.get<SsoConfig>(base(org)),
@@ -244,9 +251,11 @@ export const ssoApi = {
 
 /**
  * The codes the callback puts on `/auth?sso_error=`; never the provider's own
- * text. Exactly the constants of `backend/src/tripl/services/sso_login_service.py`.
+ * text. Exactly the constants of `backend/src/tripl/services/sso_login_service.py`,
+ * plus Sign in with Google's `signup_closed` (`google_login_service.py`).
  */
 export type SsoErrorCode =
+  | 'signup_closed'
   | 'sso_unavailable'
   | 'invalid_state'
   | 'idp_error'
@@ -265,6 +274,8 @@ export type SsoErrorCode =
   | 'encrypted_assertion_unsupported'
 
 const SSO_ERROR_MESSAGES: Record<SsoErrorCode, string> = {
+  signup_closed:
+    'No account here has that address, and this instance is not taking new sign-ups. Ask an administrator for an invitation.',
   sso_unavailable: 'Single sign-on is not turned on for this organization.',
   invalid_state:
     'That single sign-on attempt expired or was already used. Start signing in again.',
