@@ -160,7 +160,7 @@ jobs:
       # Images are pinned by digest, not just tag: a gate whose warehouse can change
       # underneath it is not a gate. The digests are multi-arch indexes.
       postgres:
-        image: postgres:18@sha256:22c89fe0d0f507606260237fd55e51f6137f58b2d5bcf6152242b96d9fe8f9a4
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
         env:
           POSTGRES_USER: tripl
           POSTGRES_PASSWORD: tripl
@@ -176,7 +176,7 @@ jobs:
         # No --health-cmd: the image's shell tooling is not something this gate should
         # depend on. The explicit wait step below polls /ping instead, which is both
         # more honest and easier to debug when it fails.
-        image: clickhouse/clickhouse-server:25.8@sha256:a9d328123ff8a61bf6b16448528b577d59deb85758172e13b09054b0727f8adf
+        image: clickhouse/clickhouse-server:26.8@sha256:9716a352d25f538bd19d868b001141e7a60e4d035bc9b823658c6a071660aa61
         ports:
           - 8123:8123
         env:
@@ -319,7 +319,7 @@ jobs:
         # the baseline creates the vector extension, which stock postgres cannot
         # satisfy. Pinned by digest: a gate whose database can change underneath it is
         # not a gate.
-        image: pgvector/pgvector:0.8.2-pg18-trixie@sha256:b7337db8fe39d12fe8ecb0003c72680f24479813a744b43154eee6f2eab5a5f3
+        image: pgvector/pgvector:0.8.7-pg18-trixie@sha256:9d9c930220cb9bf2f956d10a8f909cf9973d9672ca0278aef2c1e6facccad2e0
         env:
           POSTGRES_USER: tripl
           POSTGRES_PASSWORD: tripl
@@ -455,7 +455,7 @@ jobs:
         # running the revision chain, so nothing asks for the vector extension.
         # Pinned by digest for the same reason as every other service in this
         # file — a gate whose database can change underneath it is not a gate.
-        image: postgres:18@sha256:22c89fe0d0f507606260237fd55e51f6137f58b2d5bcf6152242b96d9fe8f9a4
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
         env:
           POSTGRES_USER: tripl
           POSTGRES_PASSWORD: tripl
@@ -558,7 +558,7 @@ jobs:
         # unaccent ship with contrib. Pinned by digest for the reason the
         # conformance warehouses are: a gate whose database can change underneath
         # it is not a gate.
-        image: pgvector/pgvector:0.8.2-pg18-trixie@sha256:b7337db8fe39d12fe8ecb0003c72680f24479813a744b43154eee6f2eab5a5f3
+        image: pgvector/pgvector:0.8.7-pg18-trixie@sha256:9d9c930220cb9bf2f956d10a8f909cf9973d9672ca0278aef2c1e6facccad2e0
         env:
           POSTGRES_USER: tripl
           POSTGRES_PASSWORD: tripl

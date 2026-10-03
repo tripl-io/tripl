@@ -37,7 +37,7 @@ requests remain credential-free and stop at ZetaSQL analysis.
 
 | Warehouse | How CI verifies it | What that authorizes | What it does **not** authorize |
 | --- | --- | --- | --- |
-| **ClickHouse** | **EXECUTED.** A real `clickhouse-server:25.8` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values: bucket timestamps, counts, aggregates, nested paths, contract counts. | — |
+| **ClickHouse** | **EXECUTED.** A real `clickhouse-server:26.8` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values: bucket timestamps, counts, aggregates, nested paths, contract counts. | — |
 | **PostgreSQL** | **EXECUTED.** A real `postgres:18` container runs the SQL the adapter generates and the results are compared against the reference implementation. | SQL validity **and** computed values, exactly as ClickHouse. | — |
 | **BigQuery** | **ANALYZED on every PR; values executed on trusted releases.** The emulator's real ZetaSQL analyzer checks every generated statement. A credentialed job runs for `vX.Y.Z` tags when explicitly enabled. | SQL validity plus exact adapter values; the release gate also compares scan/replay event series, fact and composition metrics, batched collection, idempotency and anomalies against the shared reference while using real PostgreSQL for application state. | Credentialed checks run only on release tags to bound quota usage. |
 | synthetic | In-memory fixture, not a warehouse. | Nothing about a real warehouse. | — |
@@ -646,7 +646,7 @@ in-memory fixture (caveat [10]).
 
 A wrong example in documentation is how `date_trunc` got into the SQL metric
 starter template in the first place. Every expression below was checked against a
-real engine — ClickHouse 25.8 and PostgreSQL 18 by execution, BigQuery by its own
+real engine — ClickHouse 26.8 and PostgreSQL 18 by execution, BigQuery by its own
 ZetaSQL analyzer.
 
 ### Scan base query
@@ -871,7 +871,7 @@ was that comparing a `DateTime` primary key against a `DateTime64(6)` literal wo
 defeat the primary-key range scan and quietly turn every bounded scan into a full
 one.
 
-Measured on a 5M-row `MergeTree ORDER BY ts` (ClickHouse 25.8), with
+Measured on a 5M-row `MergeTree ORDER BY ts` (ClickHouse 26.8), with
 `EXPLAIN indexes=1`:
 
 | window literal | parts | granules |

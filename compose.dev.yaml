@@ -67,7 +67,7 @@ services:
       - prometheus-multiproc:/app/var/prometheus
 
   postgres:
-    image: pgvector/pgvector:0.8.2-pg18-trixie
+    image: pgvector/pgvector:0.8.7-pg18-trixie
     environment:
       POSTGRES_USER: tripl
       POSTGRES_PASSWORD: tripl
@@ -86,7 +86,7 @@ services:
     mem_reservation: 512m
 
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:4.3-management
     # consumer_timeout raised above the Celery collect_metrics hard limit so long
     # metrics replays aren't force-requeued mid-run. See infra/rabbitmq/rabbitmq.conf.
     volumes:
@@ -107,7 +107,7 @@ services:
     mem_reservation: 256m
 
   redis:
-    image: redis:8.6.2-alpine
+    image: redis:8.8.3-alpine
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
     ports:
       - "6379:6379"

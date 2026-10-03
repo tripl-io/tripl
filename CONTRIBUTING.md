@@ -207,7 +207,7 @@ SKIPS, so a plain `uv run pytest` is unaffected; CI runs it as its own job with
 ```bash
 docker run --rm -d --name tripl-relevance -p 55442:5432 \
   -e POSTGRES_USER=tripl -e POSTGRES_PASSWORD=tripl -e POSTGRES_DB=tripl_relevance \
-  pgvector/pgvector:0.8.2-pg18-trixie
+  pgvector/pgvector:0.8.7-pg18-trixie
 
 cd backend
 TRIPL_RELEVANCE_PG_PORT=55442 \

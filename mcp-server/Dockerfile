@@ -8,11 +8,11 @@
 #
 # The in-image layout mirrors the repo (/app/cli, /app/mcp-server) so the
 # ../cli path recorded in uv.lock resolves unchanged.
-FROM python:3.13-slim
+FROM python:3.14-slim-trixie
 
 # Pinned on purpose: :latest makes the image non-reproducible, and uv.lock
 # declares revision = 3, which needs uv >= 0.8. Bump deliberately.
-COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /usr/local/bin/uv
 
 WORKDIR /app/mcp-server
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy

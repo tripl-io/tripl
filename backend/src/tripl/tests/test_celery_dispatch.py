@@ -29,6 +29,16 @@ def test_the_publish_bounds_are_set() -> None:
     assert policy["interval_max"] <= 0.5
 
 
+def test_control_and_event_queues_are_exclusive() -> None:
+    """RabbitMQ 4 refuses the transient non-exclusive queues Celery declares by
+    default for remote control (pidbox, replies) and events (gossip), and the
+    worker dies at startup on them. Exclusive, the broker accepts them."""
+    assert celery_app.conf.control_queue_exclusive is True
+    assert celery_app.conf.event_queue_exclusive is True
+    assert celery_app.control.mailbox.reply_queue.exclusive is True
+    assert celery_app.control.mailbox.get_queue("worker@host").exclusive is True
+
+
 @pytest.mark.asyncio
 async def test_dispatch_runs_the_publish_off_the_event_loop() -> None:
     """The point of the helper: the blocking kombu call leaves the loop thread."""

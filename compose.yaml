@@ -131,7 +131,7 @@ x-app-environment: &app-environment
 services:
   postgres:
     restart: unless-stopped
-    image: pgvector/pgvector:0.8.2-pg18-trixie
+    image: pgvector/pgvector:0.8.7-pg18-trixie
     environment:
       POSTGRES_USER: tripl
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
@@ -147,7 +147,7 @@ services:
 
   rabbitmq:
     restart: unless-stopped
-    image: rabbitmq:3.13-management
+    image: rabbitmq:4.3-management
     environment:
       RABBITMQ_DEFAULT_USER: tripl
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
@@ -165,7 +165,7 @@ services:
 
   redis:
     restart: unless-stopped
-    image: redis:8.6.2-alpine
+    image: redis:8.8.3-alpine
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

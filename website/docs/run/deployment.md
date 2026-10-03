@@ -118,9 +118,9 @@ If you put a trusted reverse proxy or load balancer in front that overwrites `X-
 
 | Service | Image | Role |
 |---|---|---|
-| `postgres` | `pgvector/pgvector:0.8.2-pg18-trixie` | Durable application state (also provides pgvector for hybrid search). Data lives in the `pgdata18` volume. Health-checked with `pg_isready`. |
-| `rabbitmq` | `rabbitmq:3.13-management` | Celery broker (user `tripl`). Mounts `infra/rabbitmq/rabbitmq.conf`. Health-checked with `rabbitmq-diagnostics ping`. |
-| `redis` | `redis:8.6.2-alpine` | Cache only — 256 MB cap, `allkeys-lru`, no persistence. Health-checked with `redis-cli ping`. |
+| `postgres` | `pgvector/pgvector:0.8.7-pg18-trixie` | Durable application state (also provides pgvector for hybrid search). Data lives in the `pgdata18` volume. Health-checked with `pg_isready`. |
+| `rabbitmq` | `rabbitmq:4.3-management` | Celery broker (user `tripl`). Mounts `infra/rabbitmq/rabbitmq.conf`. Health-checked with `rabbitmq-diagnostics ping`. |
+| `redis` | `redis:8.8.3-alpine` | Cache only — 256 MB cap, `allkeys-lru`, no persistence. Health-checked with `redis-cli ping`. |
 | `migrate` | tripl image | One-shot. Runs `alembic upgrade head`, then exits. App and workers wait for it to complete successfully. |
 | `app` | tripl image | The single API + SPA process on port `8000`. Runs uvicorn with `UVICORN_WORKERS` (default 4). Mounts the `photos` volume at `/app/var/photos`, where the local photo backend keeps uploaded event photos. |
 | `celery-worker` | tripl image | Runs `celery -A tripl.worker.celery_app worker`. Executes scans, warehouse queries, monitor evaluation, and alert delivery, plus the daily sweep of orphan photo files. It mounts the same `photos` volume as `app` for that sweep. Its container healthcheck is disabled. |
