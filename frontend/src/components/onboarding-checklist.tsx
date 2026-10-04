@@ -319,7 +319,7 @@ function StepRow({ step, number, state }: { step: OnboardingStep; number: number
         )}
       </Link>
       {/* A second way through the step, outside the row link so the two
-          anchors do not nest (JR-2: no warehouse yet → add events by hand). */}
+          anchors do not nest (no warehouse yet → add events by hand). */}
       {step.alternative && state !== 'done' && (
         <p className="m-0 -mt-1.5 pb-2.5 pl-[50px] pr-4 text-caption">
           <Link to={step.alternative.href} className="text-accent no-underline hover:underline">

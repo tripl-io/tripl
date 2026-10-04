@@ -179,7 +179,7 @@ function renderSection(options: RenderOptions = {}) {
   )
 }
 
-/** Detection is on unless a test says otherwise; the section reads it for AL-45. */
+/** Detection is on unless a test says otherwise; the section reads it. */
 function mockDetection(enabled: boolean) {
   return vi.spyOn(anomalySettingsApi, 'get').mockResolvedValue({
     anomaly_detection_enabled: enabled,

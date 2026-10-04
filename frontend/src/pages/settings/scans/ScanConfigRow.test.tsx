@@ -200,7 +200,7 @@ describe('ScanBadges — metrics bounds belong to the mode that applies them', (
   })
 })
 
-describe('ScanBadges — next metrics run (i9mt.16 DA-5)', () => {
+describe('ScanBadges — next metrics run', () => {
   it('puts the scheduler\'s next run beside the interval of a monitoring scan', () => {
     const inAnHour = new Date(Date.now() + 61 * 60_000).toISOString()
     render(<ScanBadges sc={badgeConfig()} intervalLabel={{ '1h': 'Hourly' }} nextRunAt={inAnHour} />)

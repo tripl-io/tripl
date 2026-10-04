@@ -171,7 +171,7 @@ export function ScanDetail({
   scanConfig: ScanConfig
   eventTypes: EventType[]
   dataSource?: DataSource | null
-  /** The server's metrics schedule (i9mt.16); the job list stands in without it. */
+  /** The server's metrics schedule; the job list stands in without it. */
   metricsSchedule?: MetricsSchedule | null
 }) {
   const qc = useQueryClient()

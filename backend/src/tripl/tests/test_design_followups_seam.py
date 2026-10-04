@@ -2,7 +2,7 @@
 
 The draft destination test reached through ``alerting_service``, a
 catalog run's warehouse rows counted as warehouse rows in the 24h scan
-activity (B15), and the demo's shadow candidate carrying samples.
+activity, and the demo's shadow candidate carrying samples.
 """
 
 from __future__ import annotations

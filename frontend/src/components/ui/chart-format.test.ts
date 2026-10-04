@@ -306,7 +306,7 @@ describe('formatSeriesValue', () => {
   })
 })
 
-// DS-23 / MON-36: fixed hexes that ignored dark mode, and a danger-red series.
+// Fixed hexes that ignored dark mode, and a danger-red series.
 describe('SERIES_COLORS', () => {
   it('reads a theme token for every slot and never the danger colour', () => {
     expect(SERIES_COLORS).toHaveLength(8)

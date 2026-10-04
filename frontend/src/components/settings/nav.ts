@@ -455,7 +455,7 @@ export function sectionIsWide(path: string): boolean {
 /**
  * The words on the way out of the takeover. The label names where the link
  * really goes: with no project bound `backHref` is the workspace list, and a
- * link promising "project" that lands there was the LIVE-34 mismatch.
+ * link promising "project" that lands there was a mismatch.
  */
 export function backToLabel(backHref: string, projectName?: string): string {
   if (stripOrgPrefix(backHref) === '/workspace') return 'Back to workspace'

@@ -81,7 +81,7 @@ export function StorageSection({
         description={backend === 'local' ? undefined : inactiveNote('Google Cloud Storage')}
       >
         {/* Faded as well as described: the note alone left every field looking
-            live (after WS-30). */}
+            live. */}
         <OperatorFields locked={!platformAdmin}>
         <InactiveGroup inactive={backend !== 'local'}>
         <Field

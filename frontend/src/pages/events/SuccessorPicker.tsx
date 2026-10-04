@@ -64,7 +64,7 @@ export function SuccessorPicker({
   const options = useMemo(() => {
     // "name · type": options showed the name alone, so two events of one name
     // under different types could not be told apart. Two namesakes of
-    // one type — the duplicate AU-2 describes — share that label too, so those
+    // one type — the duplicate case — share that label too, so those
     // alone also carry their status and the day they were added, and the id's
     // head when even that matches.
     const typeNames = new Map(eventTypes.map(et => [et.id, et.display_name]))

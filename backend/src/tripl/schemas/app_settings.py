@@ -338,7 +338,7 @@ class RowLimitDefaultsResponse(BaseModel):
     """The instance's effective row caps for a scan with no limit of its own.
 
     Readable by every signed-in user, unlike the rest of ``/settings``: the scan
-    form's Limits hints quote them to whoever is filling it in (B15).
+    form's Limits hints quote them to whoever is filling it in.
     """
 
     scan_row_limit_default: int

@@ -237,7 +237,7 @@ function bellLabel(openIncidentCount: number, unreadCount: number): string {
 }
 
 // The popover body loads on first open (or on hover/focus of the bell): the
-// entry chunk carries only the bell and its badge (i9mt.19).
+// entry chunk carries only the bell and its badge.
 const NotificationsPanel = lazyWithReload(loadNotificationsPanel)
 
 function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {

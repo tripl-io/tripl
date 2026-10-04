@@ -939,7 +939,7 @@ describe('FieldsEditor reordering', () => {
   })
 })
 
-describe('review 204 follow-ups', () => {
+describe('follow-ups', () => {
   it('keeps a field draft on screen when a refetch of the list fails', async () => {
     let failing = false
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {

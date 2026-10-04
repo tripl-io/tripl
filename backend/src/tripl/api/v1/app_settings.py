@@ -281,7 +281,7 @@ async def get_row_limit_defaults(
 
     Admin-only like the rest of this router would hide the real numbers from the
     editors who fill in a scan's Limits, so the form hard-coded the shipped
-    defaults instead (B15). Two integers, nothing about the connection.
+    defaults instead. Two integers, nothing about the connection.
 
     The caller's organization's caps (F20 PR9), resolved like the rest of the
     legacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.

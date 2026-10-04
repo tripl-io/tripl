@@ -5,7 +5,7 @@ import { formatNumber } from '@/lib/format'
 import { rowLimitDefaultsKey } from '@/lib/queryKeys'
 
 /**
- * The organization's real row caps, for the Limits hints (B15; per organization since F20 PR9). Readable by every
+ * The organization's real row caps, for the Limits hints (per organization since F20 PR9). Readable by every
  * signed-in user; silent, because the hints fall back to the shipped defaults.
  */
 export function useRowLimitDefaults(): RowLimitDefaults | undefined {

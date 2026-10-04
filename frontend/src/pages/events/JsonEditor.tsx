@@ -268,7 +268,7 @@ export function JsonEditor({
       <div ref={wrapperRef} className="relative">
         {/* The form's one control style, not the shared Textarea: its border,
             background and focus colour differed from every neighbouring input
-            (the last LIVE-30 holdout). `aria-invalid` draws the danger
+            (the last holdout). `aria-invalid` draws the danger
             edge through INPUT_CLASS. */}
         <textarea
           ref={textareaRef}

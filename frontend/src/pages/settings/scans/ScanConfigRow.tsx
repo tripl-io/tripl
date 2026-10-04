@@ -68,8 +68,8 @@ export function ScanBadges({
   sc: ScanConfig
   intervalLabel: Record<string, string>
   /**
-   * When the scheduler next collects metrics (`next_metrics_run_at`, i9mt.16
-   * DA-5). Shown beside the interval; omitted where the server has not said.
+   * When the scheduler next collects metrics (`next_metrics_run_at`).
+   * Shown beside the interval; omitted where the server has not said.
    */
   nextRunAt?: string | null
 }) {

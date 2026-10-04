@@ -1046,7 +1046,7 @@ describe('ReconciliationPage design review (#248)', () => {
     })
   }
 
-  // DA-29 / JR-4: an empty project read as an all-clear under a big "0%".
+  // An empty project read as an all-clear under a big "0%".
   it('shows one empty state with a path to Scans when there is nothing to reconcile', async () => {
     mockWith(
       { days: 14, summary: { total_count: 0, matched_count: 0, coverage_pct: 0 }, items: [] },
@@ -1122,7 +1122,7 @@ describe('ReconciliationPage design review (#248)', () => {
     expect(screen.queryByText(/on each of the last/)).not.toBeInTheDocument()
   })
 
-  // DA-32 / DA-33: labelled type chip, the scan linked, and the New count
+  // Labelled type chip, the scan linked, and the New count
   // carries the warning instead of the whole panel header.
   it('labels the type chip, links the scan and keeps the inbox header neutral', async () => {
     mockWith(coverage, dead, {

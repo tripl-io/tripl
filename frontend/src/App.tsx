@@ -431,8 +431,7 @@ function projectRoutes() {
           /p/:slug/events (App.test.tsx pins this). */}
       <Route path="settings/scans/:itemId" element={<ScansRedirect />} />
       <Route path="settings/scans" element={<ScansRedirect />} />
-      {/* Plan, Observe and Govern surfaces at their own addresses (#238
-          JR-25). One page renders them all, so they share
+      {/* Plan, Observe and Govern surfaces at their own addresses (#238). One page renders them all, so they share
           a Suspense key and moving between them never remounts the page. */}
       <Route path="event-types/:itemId" element={withSuspense('project-settings', <ProjectSettingsPage surface="event-types" />, 'detail')} />
       <Route path="event-types" element={withSuspense('project-settings', <ProjectSettingsPage surface="event-types" />)} />

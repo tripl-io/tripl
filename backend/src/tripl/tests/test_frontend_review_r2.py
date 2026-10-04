@@ -1,4 +1,4 @@
-"""Backend halves of the round-2 frontend review leftovers (B1-B9).
+"""Backend halves of the round-2 frontend review leftovers.
 
 Each block names the finding it closes. They share one module because each is a
 small contract the frontend now leans on: who may delete a comment,
@@ -94,7 +94,7 @@ async def _project_id(slug: str) -> uuid.UUID:
         return project_id
 
 
-# --- B1 / EVT-29: comment delete is the author's or an owner's ---------------
+# --- comment delete is the author's or an owner's ---------------
 
 
 async def test_an_editor_cannot_delete_another_users_event_comment(
@@ -178,7 +178,7 @@ async def test_comment_delete_rule_covers_orphaned_comments(
     assert getattr(refused.value, "status_code", None) == 403
 
 
-# --- B2 / ALR-24 and B3 / ALR-1: webhook header secret and blank chat id ------
+# --- webhook header secret and blank chat id ------
 
 
 async def _webhook_destination(client: AsyncClient, slug: str) -> str:
@@ -247,7 +247,7 @@ def test_a_blank_chat_id_is_not_given_but_telegram_still_needs_one() -> None:
         )
 
 
-# --- B4 / EVT-28: the photo limit is readable -----------------------------
+# --- the photo limit is readable -----------------------------
 
 
 async def test_every_signed_in_user_can_read_the_photo_limit(
@@ -273,7 +273,7 @@ async def test_the_photo_limit_needs_a_session() -> None:
         assert (await anonymous.get("/api/v1/settings/photo-limits")).status_code == 401
 
 
-# --- B5 / EVT-42: a branch event names its main twin ----------------------
+# --- a branch event names its main twin ----------------------
 
 
 async def test_a_branch_copy_names_its_main_twin(client: AsyncClient) -> None:
@@ -295,7 +295,7 @@ async def test_a_branch_copy_names_its_main_twin(client: AsyncClient) -> None:
     assert on_main.json()["main_event_id"] is None
 
 
-# --- B6 / ALR-12(a): replaying unsaved rule edits ---------------------------
+# --- replaying unsaved rule edits ---------------------------
 
 
 async def test_simulate_replays_a_draft_without_writing_it(client: AsyncClient) -> None:
@@ -351,7 +351,7 @@ async def test_simulate_checks_a_draft_as_save_would(client: AsyncClient) -> Non
     assert "direction" in refused.json()["detail"]
 
 
-# --- B7 / DATA-30: test a connection before saving it -----------------------
+# --- test a connection before saving it -----------------------
 
 
 async def test_an_unsaved_connection_is_tested_and_nothing_is_stored(
@@ -405,7 +405,7 @@ async def test_an_unsaved_connection_test_is_validated_and_owner_only(
     assert (await editor_client.post("/api/v1/data-sources/test", json=body)).status_code == 403
 
 
-# --- B8 / DATA-39: paging and batch triage for shadow events ----------------
+# --- paging and batch triage for shadow events ----------------
 
 
 async def _shadow_setup(client: AsyncClient, slug: str, count: int) -> tuple[str, list[uuid.UUID]]:
@@ -534,7 +534,7 @@ async def test_batch_refuses_a_repeated_candidate(client: AsyncClient) -> None:
     assert repeated.status_code == 422
 
 
-# --- B9 / EVT-37: exact-name identity lookup --------------------------------
+# --- exact-name identity lookup --------------------------------
 
 
 async def test_by_names_answers_with_the_identity_rule_create_enforces(

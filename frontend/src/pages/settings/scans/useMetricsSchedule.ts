@@ -7,7 +7,7 @@ import { scanModeOf } from './scanMode'
 import type { MetricsSchedule } from './scanUtils'
 
 /**
- * A monitoring scan's metrics schedule from `GET /scans/{id}` (i9mt.16 DA-5):
+ * A monitoring scan's metrics schedule from `GET /scans/{id}`:
  * the scheduler's own due check, which the job list cannot reproduce. Shares
  * `scanConfigKey` with the monitoring page, which reads the same response.
  * Null for a scan the scheduler never collects (or not loaded yet), and while

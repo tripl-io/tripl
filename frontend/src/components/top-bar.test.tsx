@@ -512,7 +512,7 @@ describe('TopBar notifications', () => {
   })
 })
 
-describe('TopBar notifications — all projects (i9mt.19)', () => {
+describe('TopBar notifications — all projects', () => {
   function project(slug: string, name: string, openIncidents: number, signals: number) {
     return {
       id: `id-${slug}`,

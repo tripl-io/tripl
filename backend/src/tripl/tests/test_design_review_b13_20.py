@@ -1,12 +1,11 @@
 """Backend asks from design-review batches 13-20.
 
-JR-2 (``ProjectSummary.metric_count``), MT-25 (metric list ``reviewed`` /
-``owner_id`` filters), MT-30 (fact-table list rollups), AL-14 (inbox
-``status_counts``), ST-39 (reset ``dry_run``), B15 (split 24h scan rows, the
-readable row-limit defaults), DA-40 (data-source usage counts), AU-37 (meta
-field usage), ST-24 (``email_configured`` on ``/auth/status``), ST-30 (AI prompt
-defaults), AU-29 (variable ``event_refs``), AU-13 (``PATCH`` a relation) and
-AL-30 (test-send ``error_kind``).
+``ProjectSummary.metric_count``, the metric list's ``reviewed`` /
+``owner_id`` filters, fact-table list rollups, the inbox
+``status_counts``, the reset ``dry_run``, split 24h scan rows and the
+readable row-limit defaults, data-source usage counts, meta field usage,
+``email_configured`` on ``/auth/status``, AI prompt defaults, variable
+``event_refs``, ``PATCH`` on a relation and the test-send ``error_kind``.
 """
 
 from __future__ import annotations
@@ -327,7 +326,7 @@ async def test_reset_anomalies_dry_run_counts_without_deleting(client: AsyncClie
 
 
 # --------------------------------------------------------------------------- #
-# B15: split 24h rows and readable row-limit defaults
+# Split 24h rows and readable row-limit defaults
 # --------------------------------------------------------------------------- #
 
 
@@ -469,7 +468,7 @@ async def test_meta_field_usage_counts_values_and_events(client: AsyncClient) ->
 
 
 # --------------------------------------------------------------------------- #
-# ST-24 / ST-30: auth status email flag, AI prompt defaults
+# Auth status email flag, AI prompt defaults
 # --------------------------------------------------------------------------- #
 
 

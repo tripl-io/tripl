@@ -85,7 +85,7 @@ export function measurePinnedGeometry(
 
 /**
  * The element that scrolls the table sideways: the page's `.tripl-table-wrap`,
- * which since EV-3 scrolls both axes (`Table scroll={false}`), else the
+ * which now scrolls both axes (`Table scroll={false}`), else the
  * table's parent — the `Table` primitive's own x-scroller where it keeps one.
  */
 function horizontalScrollerOf(table: HTMLTableElement): HTMLElement | null {

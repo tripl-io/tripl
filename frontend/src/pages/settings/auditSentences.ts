@@ -65,8 +65,8 @@ export function displayTarget(entry: { target_name?: string | null; target_type:
 }
 
 /** Past-tense verbs for the action codes, so a row reads as a sentence
- * ("Approved branch") instead of a server log line (`plan_branch.approve`,
- * PL-23). An unknown verb is humanised; the raw code stays in the chip's
+ * ("Approved branch") instead of a server log line (`plan_branch.approve`).
+ * An unknown verb is humanised; the raw code stays in the chip's
  * title. */
 const VERB_PAST: Record<string, string> = {
   create: 'Created',

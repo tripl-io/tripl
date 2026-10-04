@@ -29,7 +29,7 @@ const DISABLED_BARE = "disabled:text-[var(--fg-faint)]"
  *   - sm 28px: toolbars, filter rows, table actions. Fixed, not driven by
  *     density: FilterSelect chips, SegmentedControl sm and the FilterBar
  *     search field are 28px too, and a density-driven sm grew taller than
- *     `default` at comfy (DS-9 density lives on rows and panels instead)
+ *     `default` at comfy (density lives on rows and panels instead)
  *   - default 32px: forms and dialogs
  *   - lg 36px: auth screens and empty-state calls to action
  *   - xs 24px: dense inline row actions only

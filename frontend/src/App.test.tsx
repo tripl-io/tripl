@@ -175,7 +175,7 @@ describe('App', () => {
   })
 
   it('redirects the legacy event-detail URL to the canonical monitoring route', async () => {
-    // B1: the legacy `/events/detail/:eventId` route used to mount the detail
+    // The legacy `/events/detail/:eventId` route used to mount the detail
     // page with no `:scope` and crash. It now redirects to the canonical URL.
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url =
@@ -336,7 +336,7 @@ describe('App', () => {
   })
 
   it('redirects "/" into the single project when exactly one exists', async () => {
-    // UX-11 / UX-25: one project ⇒ "/" is a redundant hop, so land directly in
+    // One project ⇒ "/" is a redundant hop, so land directly in
     // that project's overview. Post-redirect page data is irrelevant to the
     // assertion; a 404 lets the overview render its ErrorState rather than crash.
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {

@@ -69,7 +69,7 @@ export interface JobScanned {
   unit: JobScannedUnit
   /**
    * A catalog run that reported both: the distinct combinations its GROUP BY
-   * returned, behind the warehouse rows in `value` (i9mt.16).
+   * returned, behind the warehouse rows in `value`.
    */
   combinations?: number
 }
@@ -174,7 +174,7 @@ export interface MetricsFreshness {
 }
 
 /**
- * The server's answer for one scan (`GET /scans/{id}`, i9mt.16): the newest
+ * The server's answer for one scan (`GET /scans/{id}`): the newest
  * scheduled collection and the scheduler's own next due moment.
  */
 export interface MetricsSchedule {

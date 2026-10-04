@@ -459,7 +459,7 @@ describe('ProjectsPage', () => {
 
     expect(await screen.findByText('Beta')).toBeInTheDocument()
     // Live monitoring signals are the needs-attention lead → saturated danger.
-    // (Chip is class-based since DS-6, so the tone is read off data-tone.)
+    // (Chip is class-based now, so the tone is read off data-tone.)
     const chipOf = (text: string) => screen.getByText(text).closest('[data-slot="chip"]')
     expect(chipOf('1 open signal')).toHaveAttribute('data-tone', 'danger')
     // The review queue renders calm/muted so it does not compete.
@@ -1053,7 +1053,7 @@ describe('ProjectsPage', () => {
   })
 
   it('leaves a failed project list to the shell, and does not call it an empty workspace', async () => {
-    // Layout's "Backend is unavailable" card reports this failure (fj5g.6);
+    // Layout's "Backend is unavailable" card reports this failure;
     // the page's own card said it a second time. See Layout.test.tsx for the
     // two rendered together.
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))

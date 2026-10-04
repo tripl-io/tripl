@@ -90,7 +90,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   })
 
   const sc = scanConfigs.find(s => s.id === scanConfigId)
-  // The scheduler's own next due moment for a monitoring scan (i9mt.16 DA-5):
+  // The scheduler's own next due moment for a monitoring scan:
   // the header chip and the Overview's metrics card both read it.
   const metricsSchedule = useMetricsSchedule(slug, sc)
   usePageTitle(sc?.name)

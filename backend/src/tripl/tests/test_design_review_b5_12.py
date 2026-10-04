@@ -1,10 +1,10 @@
 """Backend asks from design-review batches 5-12.
 
-JR-15 (``metric`` alert-rule filter), AU-9 (demo link template), MO-23
-(``ScanConfig.monitoring_enabled``), MO-15 (failing alert destinations on the
-project summary), SH-11 (branch-scoped summary counts), PL-21 (plan revision
-``kind`` / ``branch_id``), JR-6 (incident on expanded signals), MO-36 (firing
-scopes on the monitor detail) and MO-25 (project volume beside top events).
+The ``metric`` alert-rule filter, the demo link template,
+``ScanConfig.monitoring_enabled``, failing alert destinations on the
+project summary, branch-scoped summary counts, plan revision
+``kind`` / ``branch_id``, the incident on expanded signals, firing
+scopes on the monitor detail and project volume beside top events.
 """
 
 from __future__ import annotations

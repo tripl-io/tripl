@@ -509,7 +509,7 @@ describe('Instance storage backend cards', () => {
   })
 })
 
-describe('Instance settings review 208 follow-ups', () => {
+describe('Instance settings follow-ups', () => {
   it('keeps a failed save error on the section it belongs to', async () => {
     vi.spyOn(serviceSettingsApi, 'get').mockResolvedValue(SETTINGS)
     vi.spyOn(serviceSettingsApi, 'update').mockRejectedValue(new Error('Invalid CORS origin'))

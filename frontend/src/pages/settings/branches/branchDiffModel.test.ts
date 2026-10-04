@@ -226,7 +226,7 @@ describe('describeBranchActionError', () => {
   })
 })
 
-describe('describeBranchActionError after PL-8', () => {
+describe('describeBranchActionError', () => {
   it('points a main-side refusal at Update from main, never at recreating the branch', () => {
     expect(describeBranchActionError(conflict({ conflicts: [{}] }))).toBe(
       'Merge blocked: main changed the same entities. Update the branch from main, then merge.',

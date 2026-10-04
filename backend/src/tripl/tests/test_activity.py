@@ -551,8 +551,8 @@ class TestScanJobDetail:
     def test_catalog_run_names_combinations_not_rows(self):
         """scan_rows_processed counts the catalog analyzer's GROUP BY breakdown:
         distinct column combinations, not warehouse rows. The scan page prints
-        "153 combos" for the same run, so this line must not say "rows" (#247
-        DA-4). A run reporting query_rows_scanned still reads as rows."""
+        "153 combos" for the same run, so this line must not say "rows" (#247).
+        A run reporting query_rows_scanned still reads as rows."""
         catalog = _scan_job_detail("completed", {"scan_rows_processed": 153}, None)
         assert catalog == "153 column combinations"
         assert "row" not in catalog

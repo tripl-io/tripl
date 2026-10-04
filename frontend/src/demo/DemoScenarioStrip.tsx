@@ -1,7 +1,7 @@
 /**
  * The persistent scenario strip.
  *
- * Mounted inside the demo banner's row on every surface (LIVE-9: one bar, not
+ * Mounted inside the demo banner's row on every surface (one bar, not
  * two stacked blocks), so the active chapter's
  * step chain stays visible while the user walks the app. It renders nothing but
  * what the context already decided: the chapter, the step, the deep link,

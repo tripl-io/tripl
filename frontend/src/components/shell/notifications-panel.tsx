@@ -45,7 +45,7 @@ const PROJECT_PREVIEW_LIMIT = 6
 /**
  * The bell's popover body, in its own chunk: the shell only draws the bell and
  * its badge, and nobody pays for these rows, their icons and the retry flow
- * until the popover opens (i9mt.19).
+ * until the popover opens.
  *
  * In a project it lists the open incidents (what the badge counts), then the
  * Significant signals, then the latest deliveries. On a workspace route it

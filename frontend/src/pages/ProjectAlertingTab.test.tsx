@@ -397,7 +397,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     expect(screen.queryByText('Set up alerting')).toBeNull()
 
     // Rules is the fourth, and it is where the rules went. It was
-    // called Monitors until JR-28 gave the object one name.
+    // called Monitors until the object was given one name.
     for (const name of ['Inbox', 'Rules', 'Destinations', 'Delivery log']) {
       expect(screen.getByRole('tab', { name })).toBeInTheDocument()
     }

@@ -1008,7 +1008,7 @@ describe('DataSourcesPage', () => {
     expect(screen.getByText('clickhouse')).toBeInTheDocument()
   })
 
-  // DATA-28 / DATA-29: the dialog must not read as a login form, and no secret
+  // The dialog must not read as a login form, and no secret
   // may go through the browser's spell checker.
   it('keeps browsers from autofilling or spell-checking the credentials', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(listFetchMock([DATA_SOURCE]))

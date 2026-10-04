@@ -141,8 +141,7 @@ export default function ProjectSettingsPage({
   }
 
   return (
-    // No "Project operations" signpost above the header any more (#238 /
-    // AL-42): these are Plan, Observe and Govern pages in the sidebar, and a
+    // No "Project operations" signpost above the header any more (#238): these are Plan, Observe and Govern pages in the sidebar, and a
     // strip framing them as "settings" was the first thing above "Alerting".
     <div className="min-w-0">
       {/* Keyed by tab so moving between surfaces shows the fallback at once

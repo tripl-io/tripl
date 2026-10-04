@@ -83,7 +83,7 @@ describe('AuthProvider session status', () => {
   })
 })
 
-describe('AuthProvider /auth/me refetch failures (fj5g.20)', () => {
+describe('AuthProvider /auth/me refetch failures', () => {
   it('keeps a signed-in user signed in when a refetch fails with a non-401', async () => {
     meMock.mockResolvedValueOnce(makeUser()).mockRejectedValue(new ApiError('Bad gateway', 502))
     const queryClient = renderProvider()

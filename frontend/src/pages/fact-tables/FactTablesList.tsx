@@ -328,7 +328,7 @@ function DataSourceCell({
   state: DataSourceNamesState
 }) {
   // The FK is ON DELETE SET NULL and the editor requires a source, so a null
-  // source means its data source was deleted: that is the main MET-37 case.
+  // source means its data source was deleted: that is the main case.
   if (!hasSource) {
     return (
       <span title="This fact table has no data source; the one it read was deleted. Pick another in the editor.">

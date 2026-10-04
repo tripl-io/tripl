@@ -920,7 +920,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     installEventDetailFetch()
     renderLegacyEventDetail()
 
-    // B1: resolveDetailScope defaults to the event scope when only an eventId is
+    // resolveDetailScope defaults to the event scope when only an eventId is
     // present, so the page renders the event hero instead of throwing.
     expect(await screen.findByRole('heading', { name: 'checkout_completed' })).toBeInTheDocument()
   })
@@ -1934,7 +1934,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
   it('takes an Annotate handed over from the Anomalies list once the definition loads', async () => {
     // The row menu navigates here with the bucket in the location state. The
     // metric page paints a skeleton until its definition arrives, so focusing
-    // on arrival found no form and the handoff looked ignored (i9mt.10).
+    // on arrival found no form and the handoff looked ignored.
     installMetricDetailFetch('1h')
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -2045,12 +2045,12 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     // The percent-aware formatter reached the chart: 0.08 → '8%'.
     expect(chart).toHaveAttribute('data-value-sample', '8%')
     // The latest-signal summary renders the stored fractions ×100 (a sentence
-    // now, not a 4-up stat grid — MO-2).
+    // now, not a 4-up stat grid).
     const summary = screen.getByTestId('signal-summary')
     expect(summary.textContent).toMatch(/: 8%, 60% above the expected 5% \(/)
   })
 
-  // DS-31 / MET-40: only '%' used to get a formatter, so a 0.0045 s latency
+  // Only '%' used to get a formatter, so a 0.0045 s latency
   // ticked and tooltipped as '0' and a '$' metric read '1,234 $' in the tooltip.
   it('formats a sub-1 non-percent metric on the axis and in the tooltip', async () => {
     installMetricDetailFetch('1d', { unit: 's' })

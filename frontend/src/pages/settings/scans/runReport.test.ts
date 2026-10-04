@@ -44,7 +44,7 @@ describe('buildRunReport — "Rows read" covers two populations', () => {
     expect(metricsRows.title).toContain('capped by the metrics row cap')
   })
 
-  it('reads a catalog run in warehouse rows, with its combinations beside them (i9mt.16)', () => {
+  it('reads a catalog run in warehouse rows, with its combinations beside them', () => {
     const summary = { catalog_rows_scanned: 28160, scan_rows_processed: 153 }
     const line = lineById(buildRunReport(job(summary), 'catalog'), 'rows-read')!
     expect(line.text).toBe(

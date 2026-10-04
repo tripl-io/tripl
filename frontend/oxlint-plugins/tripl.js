@@ -86,7 +86,7 @@ const noQueryKeyLiterals = {
 
 // Pages build selects from the kit's NativeSelect, not a raw <select> that
 // copies the control styling by hand and drifts from it: two form-control
-// systems with different sizes, borders and disabled states is how DS-9 began.
+// systems with different sizes, borders and disabled states is how that drift began.
 const noRawSelect = {
   meta: {
     type: 'suggestion',

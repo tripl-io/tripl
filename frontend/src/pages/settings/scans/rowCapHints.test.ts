@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { rowCapHint } from './rowCapHints'
 
-describe('rowCapHint (B15)', () => {
+describe('rowCapHint', () => {
   it("quotes the organization's own caps once they are known", () => {
     const defaults = { scan_row_limit_default: 20_000, metrics_row_limit_default: 250_000 }
     expect(rowCapHint('catalog', defaults)).toBe(

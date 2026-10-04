@@ -112,7 +112,7 @@ describe('jobScanned (#247)', () => {
     expect(jobScanned(job({ result_summary: {} }))).toBeNull()
   })
 
-  it('reads a catalog run in warehouse rows once the worker reports them (i9mt.16)', () => {
+  it('reads a catalog run in warehouse rows once the worker reports them', () => {
     expect(jobScanned(job({ result_summary: { catalog_rows_scanned: 28160, scan_rows_processed: 153 } })))
       .toEqual({ value: 28160, unit: 'rows', combinations: 153 })
     expect(jobRowsScanned(job({ result_summary: { catalog_rows_scanned: 28160, scan_rows_processed: 153 } })))
@@ -159,7 +159,7 @@ describe('metricsFreshness (#247)', () => {
     expect(freshness.overdue).toBe(true)
   })
 
-  it('takes the next run from the scheduler when the server sent it (i9mt.16)', () => {
+  it('takes the next run from the scheduler when the server sent it', () => {
     const jobs = [
       job({ status: 'completed', completed_at: '2026-01-01T11:30:00Z', result_summary: { mode: 'metrics_collection' } }),
     ]

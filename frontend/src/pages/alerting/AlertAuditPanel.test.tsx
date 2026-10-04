@@ -163,7 +163,7 @@ function openDates() {
 }
 
 /**
- * Picks the 12th of the month the calendar opens on (AL-19: the app's
+ * Picks the 12th of the month the calendar opens on (the app's
  * DatePicker, not a native date input). With nothing picked it opens on the
  * current month, so the day is always there; returns the day as `YYYY-MM-DD`.
  */

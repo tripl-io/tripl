@@ -532,7 +532,7 @@ describe('ScanConfigDetail — unsaved configuration edits', () => {
     expect(queryClient.getQueryData(['scanJobs', SLUG, 'scan-1'])).toBeUndefined()
   })
 
-  it('puts the scheduler\'s next metrics run in the header (i9mt.16 DA-5)', async () => {
+  it('puts the scheduler\'s next metrics run in the header', async () => {
     const nextRunAt = new Date(Date.now() + 3 * 24 * 3_600_000 + 60_000).toISOString()
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)

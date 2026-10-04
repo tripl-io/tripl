@@ -332,7 +332,7 @@ describe('Layout suspended organization (F20)', () => {
   })
 })
 
-describe('Layout backend unavailable (fj5g.6)', () => {
+describe('Layout backend unavailable', () => {
   it('shows the card once and no toast on top of it when the project list fails', async () => {
     const toastError = vi.spyOn(toast, 'error')
     // A second reader of the list, as the sidebar and the palette are in the

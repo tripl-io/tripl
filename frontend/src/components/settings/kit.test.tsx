@@ -412,7 +412,7 @@ describe('Kit page headers share PageHeader', () => {
   })
 })
 
-// DS-4 / MO-10: Panel, SCard and ui/Card share one section-card geometry.
+// Panel, SCard and ui/Card share one section-card geometry.
 describe('Section card geometry', () => {
   it('gives SCard the Panel radius, gutter and title size', () => {
     const { container } = render(

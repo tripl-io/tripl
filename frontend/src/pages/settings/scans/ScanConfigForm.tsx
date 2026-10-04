@@ -58,7 +58,7 @@ export function ScanConfigurationTab({
   const { confirm, dialog } = useConfirm()
   const form = useScanForm(slug, scanConfig)
   // Update, preview, replay and delete are all OwnerUserDep: anyone else reads
-  // the configuration as a definition list, with no Save (i9mt.12).
+  // the configuration as a definition list, with no Save.
   const canEdit = useIsOwner()
 
   const { data: dataSources = [] } = useProjectDataSources()
@@ -136,7 +136,7 @@ export function ScanConfigurationTab({
 
   // A reader gets the definition, not the edit form with every control
   // disabled: live borders, pickers and author hints for someone who can only
-  // read (#237 rule 4, i9mt.12). After every hook, so their order holds.
+  // read (#237 rule 4). After every hook, so their order holds.
   if (!canEdit) {
     return (
       <div className="flex flex-col">

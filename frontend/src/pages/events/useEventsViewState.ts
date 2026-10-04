@@ -77,7 +77,7 @@ export function useEventsViewState({
 
   // The volume chart starts collapsed: open, its 260px pushed the table below
   // the fold on every visit, for one unannotated line (it replaces
-  // UX-14's open default). A per-tab toggle is remembered per project, so the
+  // the earlier open default). A per-tab toggle is remembered per project, so the
   // reader who opens it keeps it open across reloads.
   const isTabChartOpen = openCharts[activeTab] ?? false
   const setIsTabChartOpen = useCallback((open: boolean) => {

@@ -106,7 +106,7 @@ function renderCreatePage() {
 
 /**
  * The edit form is an owner's; anyone else gets the read view
- * (i9mt.12), so the form's own tests render as an owner.
+ *, so the form's own tests render as an owner.
  */
 function renderConfigurationTab(scanConfig: ScanConfig, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -126,7 +126,7 @@ afterEach(() => {
 })
 
 describe('ScanFormSections — the New scan page scaffolding', () => {
-  // MT-6 / DA-37: an example query that reads as code already in the editor
+  // An example query that reads as code already in the editor
   // made "SQL is required" baffling; every placeholder line is a comment.
   it('shows the base-query example as a comment, not a runnable query', async () => {
     setupFetch()
@@ -771,7 +771,7 @@ describe('ScanFormSections — batch 4', () => {
     }
   })
 
-  it('shows a non-owner the configuration as a definition, not a disabled form (i9mt.12)', async () => {
+  it('shows a non-owner the configuration as a definition, not a disabled form', async () => {
     setupFetch()
     renderConfigurationTab({
       id: 'sc-1',

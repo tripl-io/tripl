@@ -121,7 +121,7 @@ describe('MiniStatStrip boxed', () => {
   })
 })
 
-// MT-26 / SH-27: four stats as a 2x2 grid on a phone, not a row that orphans
+// Four stats as a 2x2 grid on a phone, not a row that orphans
 // the last one with its own divider.
 describe('MiniStatStrip phoneGrid', () => {
   it('lays the row out as a two-column grid below sm and hides the dividers there', () => {
@@ -172,7 +172,7 @@ describe('MiniStatStrip phoneGrid', () => {
   })
 })
 
-// F31/AL-47: a stat that filters is a real toggle button, not a <dl> inside a
+// F31: a stat that filters is a real toggle button, not a <dl> inside a
 // role="button" div.
 describe('MiniStat pressable', () => {
   it('renders a toggle named "<label> <value>" with no definition list inside', () => {

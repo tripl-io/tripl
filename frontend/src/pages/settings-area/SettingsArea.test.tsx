@@ -257,7 +257,7 @@ describe('SettingsArea project binding', () => {
     expect(screen.queryByText(/Reload the page/i)).toBeNull()
   })
 
-  it('reports a failed project list once on a section that is not project-scoped (fj5g.6)', async () => {
+  it('reports a failed project list once on a section that is not project-scoped', async () => {
     // The list is silent app-wide because Layout owns its error card, and these
     // routes mount outside Layout: without this the failure went unreported.
     vi.spyOn(projectsApi, 'list').mockRejectedValue(new Error('boom'))

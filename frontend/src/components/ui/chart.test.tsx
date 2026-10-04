@@ -721,7 +721,7 @@ describe('CustomTooltip', () => {
     expect(screen.getByText(/^Partial day: data through /)).toBeInTheDocument()
   })
 
-  // DS-31 / MET-40: the axis formatter leaves a trailing unit off; the tooltip
+  // The axis formatter leaves a trailing unit off; the tooltip
   // spells the value out with it, and a currency leads.
   it('prefers tooltipFormatter over the axis formatter', () => {
     render(

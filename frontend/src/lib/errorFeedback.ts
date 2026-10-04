@@ -45,7 +45,7 @@ export function errorToastId(error: unknown): string {
  *
  * Exported for a `SILENT_ERROR_META` write that has no inline place to report
  * but wants its message reworded (alerting strips Pydantic's "Value error, "
- * prefix — ALR-6): `formatMessage` rewrites the text and nothing else, so the
+ * prefix): `formatMessage` rewrites the text and nothing else, so the
  * toast keeps the backstop's behaviour. The dedupe id stays keyed on the raw
  * error, so the same failure still replaces its own toast.
  */

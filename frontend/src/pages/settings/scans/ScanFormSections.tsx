@@ -822,7 +822,7 @@ export function MetricsDriftSection({ form, readOnly }: SectionProps) {
 
 export function LimitsSection({ form, readOnly }: SectionProps) {
   const { state, set, fieldErrors } = form
-  // The instance's real caps for the hints, else the shipped ones (B15).
+  // The instance's real caps for the hints, else the shipped ones.
   const rowLimitDefaults = useRowLimitDefaults()
   const monitoring = state.mode === 'monitoring'
   // A create-page lookback of "24" is this form's own default, not a user choice,

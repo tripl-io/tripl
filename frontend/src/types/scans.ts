@@ -191,7 +191,7 @@ export interface ScanConfig {
    */
   readonly monitoring_enabled?: boolean
   /**
-   * Sent only by `GET /scans/{id}` (i9mt.16 DA-5): when the newest scheduled
+   * Sent only by `GET /scans/{id}`: when the newest scheduled
    * metrics collection finished, and the earliest moment the scheduler
    * considers the scan due again. Null for a scan it never collects.
    */

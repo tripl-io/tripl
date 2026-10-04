@@ -1607,7 +1607,7 @@ describe('VariablesTab — a viewer reads without write controls', () => {
   })
 })
 
-describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
+describe('VariablesTab — review follow-ups', () => {
   it('keeps the filters on screen when a usage filter matches nothing, with a way back', async () => {
     vi.mocked(variablesApi.listPage).mockImplementation(async (_slug, _branch, params) =>
       params?.usage === 'unused'
@@ -1814,7 +1814,7 @@ describe('VariablesTab — review batch 15 (PLAN-23 … PLAN-33)', () => {
   })
 })
 
-describe('VariablesTab — review 204 follow-ups', () => {
+describe('VariablesTab — bulk-add follow-ups', () => {
   it('asks before bulk-adding values the selected types cannot hold', async () => {
     mockList([makeVariable({ id: 'var-1', name: 'count', variable_type: 'number' })])
     vi.mocked(variablesApi.bulkUpdate).mockResolvedValue(undefined)

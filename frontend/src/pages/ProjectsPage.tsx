@@ -246,8 +246,8 @@ export default function MainPage() {
 
       {/* No error card of its own: this page only renders inside Layout, whose
           "Backend is unavailable" card already reports a failed project list,
-          with its own retry. A second card here said the same thing twice
-          (fj5g.6). The empty-workspace hero stays out of it, below. */}
+          with its own retry. A second card here said the same thing twice.
+          The empty-workspace hero stays out of it, below. */}
 
       {isEmptyWorkspace && (
         <WorkspaceWelcome

@@ -47,7 +47,7 @@ function triageQuery(scope: SignalTriageScope, withBucket: boolean): string {
  * Not the metrics catalog. User-defined metrics (fact, SQL and event
  * composition), their CRUD, collection and series live in
  * {@link metricsCatalogApi} (`api/metricsCatalog.ts`). This module was
- * `metricsApi` in `api/metrics.ts` until MET-45 renamed it.
+ * `metricsApi` in `api/metrics.ts` until it was renamed.
  */
 export const eventMetricsApi = {
   // `branchId` scopes the tag / status / search filter to that branch's events;

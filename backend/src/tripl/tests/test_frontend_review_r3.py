@@ -1,9 +1,9 @@
 """Backend follow-ups of the round-3 frontend review (#199, #205, #209).
 
-- ALR-27: keyset cursors on ``GET /alert-inbox`` and ``GET /alert-deliveries``.
-- MON-34 / MON-40: ``unit`` and ``detected_at`` on active signals.
-- DEMO-28: ``state`` on the demo cancel response.
-- LIVE-16: every ``${var}`` token the demo plan seeds names a seeded variable.
+- Keyset cursors on ``GET /alert-inbox`` and ``GET /alert-deliveries``.
+- ``unit`` and ``detected_at`` on active signals.
+- ``state`` on the demo cancel response.
+- Every ``${var}`` token the demo plan seeds names a seeded variable.
 """
 
 from __future__ import annotations
@@ -184,7 +184,7 @@ async def test_delivery_cursor_walks_every_row_once(client: AsyncClient) -> None
     assert set(served) == seeded
 
 
-# ── MON-34 / MON-40: unit and detected_at on signals ────────────────────────
+# ── unit and detected_at on signals ────────────────────────
 
 
 @pytest.mark.asyncio
