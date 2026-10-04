@@ -52,10 +52,10 @@ from tripl_cli.model import to_rfc3339
 # The published image, and the tag `tripl upgrade --to` moves. Same defaults
 # compose.yaml carries in its own `${TRIPL_IMAGE:-...}` fallbacks; written out
 # explicitly in the generated .env so `tripl upgrade` has a line to rewrite.
-DEFAULT_IMAGE = "ghcr.io/vladenisov/tripl"
+DEFAULT_IMAGE = "ghcr.io/tripl-io/tripl"
 # The Enterprise image is private: pulling it needs `docker login ghcr.io` with
 # the credentials that come with a subscription.
-ENTERPRISE_IMAGE = "ghcr.io/vladenisov/tripl-enterprise"
+ENTERPRISE_IMAGE = "ghcr.io/tripl-io/tripl-enterprise"
 # The image each `--edition` runs. `.env` records the image, not the edition.
 EDITION_IMAGES = {"community": DEFAULT_IMAGE, "enterprise": ENTERPRISE_IMAGE}
 DEFAULT_VERSION = "latest"
@@ -72,7 +72,7 @@ ENV_NAME = ".env"
 MODE_PRIVATE = 0o600
 MODE_PUBLIC = 0o644
 
-CONFIG_DOCS_URL = "https://vladenisov.github.io/tripl/run/configuration"
+CONFIG_DOCS_URL = "https://tripl-io.github.io/tripl/run/configuration"
 
 
 def packaged(name: str) -> str:

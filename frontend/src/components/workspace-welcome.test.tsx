@@ -97,7 +97,7 @@ describe('WorkspaceWelcome', () => {
     ).toBeInTheDocument()
 
     const link = screen.getByRole('link', { name: /Read the concepts/ })
-    expect(link).toHaveAttribute('href', 'https://vladenisov.github.io/tripl/')
+    expect(link).toHaveAttribute('href', 'https://tripl-io.github.io/tripl/')
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noreferrer')
     // a link that leaves the app says so in its name.

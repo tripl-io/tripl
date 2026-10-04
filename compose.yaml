@@ -15,7 +15,7 @@
 # — only the command differs.
 #
 # The image and tag are configurable via .env:
-#   TRIPL_IMAGE    (default ghcr.io/vladenisov/tripl)
+#   TRIPL_IMAGE    (default ghcr.io/tripl-io/tripl)
 #   TRIPL_VERSION  (default latest — pin to a released tag e.g. 1.4.0 in prod)
 #
 # Required secrets in .env (generate them — see website/docs/run/deployment.md):
@@ -27,7 +27,7 @@
 #
 # Schema upgrades run once via the `migrate` one-shot before app/workers start,
 # so a multi-worker deploy never races the upgrade.
-x-app-image: &app-image "${TRIPL_IMAGE:-ghcr.io/vladenisov/tripl}:${TRIPL_VERSION:-latest}"
+x-app-image: &app-image "${TRIPL_IMAGE:-ghcr.io/tripl-io/tripl}:${TRIPL_VERSION:-latest}"
 
 x-app-environment: &app-environment
   # Credentials come from .env and MUST NOT be the dev defaults: the app's
@@ -270,7 +270,7 @@ services:
   # checkout, `docker compose --profile mcp build mcp` builds mcp-server/.
   mcp:
     restart: unless-stopped
-    image: "${TRIPL_MCP_IMAGE:-ghcr.io/vladenisov/tripl-mcp}:${TRIPL_VERSION:-latest}"
+    image: "${TRIPL_MCP_IMAGE:-ghcr.io/tripl-io/tripl-mcp}:${TRIPL_VERSION:-latest}"
     # Context is the repo root, not ./mcp-server: tripl-mcp builds against the
     # sibling `tripl` package in ./cli, which a mcp-server/ context cannot see.
     build:

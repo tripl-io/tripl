@@ -36,7 +36,7 @@ ENV_TEMPLATE = (
     "# hand-written header\n"
     f"APP_BASE_URL={APP_URL}\n"
     "\n"
-    "TRIPL_IMAGE=ghcr.io/vladenisov/tripl\n"
+    "TRIPL_IMAGE=ghcr.io/tripl-io/tripl\n"
     "TRIPL_VERSION={version}\n"
     "\n"
     "# a trailing comment\n"

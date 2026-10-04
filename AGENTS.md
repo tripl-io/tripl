@@ -736,7 +736,7 @@ Always call out:
 **After opening a PR, wait for the Copilot review and answer it — the PR is not
 done when the branch is pushed.** Copilot posts an automatic review within a few
 minutes of `gh pr create`; read it with
-`gh api repos/vladenisov/tripl/pulls/<n>/comments`, since `gh pr view` shows only
+`gh api repos/tripl-io/tripl/pulls/<n>/comments`, since `gh pr view` shows only
 the summary and hides the inline comments where the substance is. It has caught
 real defects here more than once (stale counts in `website/docs/run/cli.md` on
 #79, twice in a row). Treat every point as a claim to verify, not an instruction

@@ -734,7 +734,7 @@ docker compose logs --tail=80 celery-worker | grep -i amqp
 
 :::note
 The broker's `consumer_timeout` in
-[`infra/rabbitmq/rabbitmq.conf`](https://github.com/vladenisov/tripl/blob/main/infra/rabbitmq/rabbitmq.conf)
+[`infra/rabbitmq/rabbitmq.conf`](https://github.com/tripl-io/tripl/blob/main/infra/rabbitmq/rabbitmq.conf)
 is raised to 26 hours — above the `collect_metrics` hard time limit (25 hours) —
 so a long metrics replay that holds its delivery unacked for the whole run isn't
 force-requeued mid-run. If you replace that config, keep the consumer timeout
@@ -977,7 +977,7 @@ depending on what the collapsed group is holding at the time.
 All via environment variables / `.env`. See [Configuration](../run/configuration)
 for the full list and [Deployment](../run/deployment) for the compose stack.
 The authoritative defaults live in
-[`backend/src/tripl/config.py`](https://github.com/vladenisov/tripl/blob/main/backend/src/tripl/config.py).
+[`backend/src/tripl/config.py`](https://github.com/tripl-io/tripl/blob/main/backend/src/tripl/config.py).
 
 **How do I run the database migration by hand?**
 In the running stack: `docker compose run --rm migrate`. Locally in the backend:
@@ -989,7 +989,7 @@ console script shebang is broken).
 ## Still stuck?
 
 Collect the relevant logs and open an issue on
-[GitHub](https://github.com/vladenisov/tripl/issues). Useful context to include:
+[GitHub](https://github.com/tripl-io/tripl/issues). Useful context to include:
 
 ```bash
 docker compose ps

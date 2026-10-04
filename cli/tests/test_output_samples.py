@@ -454,7 +454,7 @@ def test_install_dry_run_sample(
         f"tripl install - {install_dir}\n"
         "\n"
         "app url  https://tripl.example.com\n"
-        "image    ghcr.io/vladenisov/tripl:latest\n"
+        "image    ghcr.io/tripl-io/tripl:latest\n"
         "\n"
         "files\n"
         "  compose.yaml                  create  0644\n"

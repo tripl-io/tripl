@@ -44,7 +44,7 @@ From git without a checkout — how you get a revision that is not released yet.
 It resolves, but it is not exercised by CI:
 
 ```bash
-uvx --from "git+https://github.com/vladenisov/tripl.git#subdirectory=cli" tripl --version
+uvx --from "git+https://github.com/tripl-io/tripl.git#subdirectory=cli" tripl --version
 ```
 
 ## Commands
@@ -358,7 +358,7 @@ release. `title`, `summary` and `message` are prose. **Assert on `code` and
 Full reference — every check, every finding code with its `evidence` keys, every
 `watch` event token and the JSON Lines envelope, and what an operator should
 actually do about each one:
-<https://vladenisov.github.io/tripl/run/cli> (source:
+<https://tripl-io.github.io/tripl/run/cli> (source:
 [`website/docs/run/cli.md`](../website/docs/run/cli.md)).
 
 ## Configuration

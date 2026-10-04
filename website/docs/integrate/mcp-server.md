@@ -61,7 +61,7 @@ names no version numbers on purpose: they were hand-maintained and went stale on
 the first release that followed.
 
 The **container** image is published either way —
-`ghcr.io/vladenisov/tripl-mcp`, built alongside the app image on every release —
+`ghcr.io/tripl-io/tripl-mcp`, built alongside the app image on every release —
 and is what `docker compose --profile mcp up` pulls.
 :::
 
@@ -75,7 +75,7 @@ claude mcp add tripl \
 ```
 
 Replace `uvx tripl-mcp` with
-`uvx --from 'git+https://github.com/vladenisov/tripl.git#subdirectory=mcp-server' tripl-mcp`
+`uvx --from 'git+https://github.com/tripl-io/tripl.git#subdirectory=mcp-server' tripl-mcp`
 to run the repository copy rather than the release.
 
 Or check a `.mcp.json` into the project (put the key itself in your shell
