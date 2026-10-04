@@ -1,5 +1,6 @@
 import installed from '@tripl/extensions'
 import { bundledEnterprise } from './bundled'
+import { ENTERPRISE_TEASERS, visibleTeasers, type EnterpriseTeaser } from './teasers'
 import type {
   ExtensionAuthPanel,
   ExtensionRoute,
@@ -37,4 +38,18 @@ export const extensionShellGates: readonly ExtensionShellGate[] = EXTENSIONS.fla
 /** The extension settings section at `path` (under /settings), if any. */
 export function extensionSettingsSection(path: string): ExtensionSettingsSection | undefined {
   return extensionSettingsSections.find((section) => section.item.path === path)
+}
+
+/**
+ * The Enterprise features this build does not have, shown tagged "Enterprise"
+ * where they would be (`teasers.ts`). Empty in an Enterprise build.
+ */
+export const enterpriseTeasers: readonly EnterpriseTeaser[] = visibleTeasers(
+  ENTERPRISE_TEASERS,
+  extensionSettingsSections,
+)
+
+/** The Enterprise teaser at `path` (under /settings), if this build shows one. */
+export function enterpriseTeaser(path: string): EnterpriseTeaser | undefined {
+  return enterpriseTeasers.find((teaser) => teaser.item.path === path)
 }

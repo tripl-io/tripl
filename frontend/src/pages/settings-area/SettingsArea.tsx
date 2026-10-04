@@ -17,7 +17,13 @@ import { activeOrgRole, isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/pe
 import { orgStorageKey } from '@/lib/activeOrg'
 import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
 import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
-import { extensionSettingsSection, extensionSettingsSections } from '@/extensions'
+import {
+  enterpriseTeaser,
+  enterpriseTeasers,
+  extensionSettingsSection,
+  extensionSettingsSections,
+} from '@/extensions'
+import { EnterpriseFeature } from '@/components/settings/EnterpriseFeature'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -240,6 +246,7 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   ...Object.values(ORG_SECTION_PATHS),
   ORG_TRACKERS_PATH,
   ...extensionSettingsSections.map((extension) => extension.item.path),
+  ...enterpriseTeasers.map((teaser) => teaser.item.path),
 ])
 
 function renderSection({
@@ -294,6 +301,19 @@ function renderSection({
       return isOrgOwner ? <Component /> : <OrgOwnerOnly section={section} reason={deniedReason ?? 'this page'} />
     }
     return isOwner ? <Component /> : <OwnerOnly section={section} />
+  }
+  const teaser = enterpriseTeaser(section)
+  if (teaser) {
+    // An Enterprise feature this build does not have: say so, for owners and
+    // admins, who are the ones who could get it.
+    return isOwner ? (
+      <div>
+        <StateHeader section={section} />
+        <EnterpriseFeature teaser={teaser} />
+      </div>
+    ) : (
+      <OwnerOnly section={section} />
+    )
   }
   // One route serves every organization section; an unknown one is not a
   // project section to guess at.

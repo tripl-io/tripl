@@ -112,6 +112,30 @@ A refusal's fields beside `detail` (a `GateRefused`'s `extra`) reach the
 frontend as `ApiError.extra`, so a shell gate can read them, for example
 `sso_start`.
 
+## Enterprise features in Community
+
+When a feature moves to the Enterprise edition, Community keeps showing that
+it exists. The feature does not just disappear from Community.
+
+- **Settings.** `frontend/src/extensions/teasers.ts` lists each Enterprise
+  feature as a teaser: its rail item tagged **Enterprise** and a one-line
+  summary. Its page (`EnterpriseFeature`) says the feature is in Enterprise and
+  links to the [Editions](../editions.md) page. A teaser has the id of the
+  section the Enterprise extension registers, and it is hidden whenever an
+  installed extension provides that id. An Enterprise build therefore shows
+  the real page, and so does Community while the feature is still bundled.
+- **Docs.** The [Editions](../editions.md) page lists every Enterprise
+  feature. A page that documents one opens with this admonition:
+
+  ```md
+  :::info Enterprise
+  This feature is part of the [Enterprise edition](../editions.md).
+  :::
+  ```
+
+Moving a feature out adds its teaser (when it has a settings page), a row on
+the Editions page, and the admonition on its docs pages.
+
 ## The bundled extension
 
 Single sign-on, SCIM provisioning and the audit webhook still live in this
