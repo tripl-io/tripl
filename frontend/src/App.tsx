@@ -294,7 +294,7 @@ function EventDetailRedirect() {
  * `/p/:slug/monitors` → the Monitors section of Alerting.
  *
  * The standalone page rendered the same AlertRule rows the Alerting page
- * already owned, so it was merged in (tripl-89ps). The path stays reachable
+ * already owned, so it was merged in. The path stays reachable
  * because it is in bookmarks and in the "Mute or tune a rule" links written
  * before the merge. The per-rule detail at `/monitors/:monitorId` is NOT
  * redirected — it is the rule's fired history, which no section carries.
@@ -459,7 +459,7 @@ function projectRoutes() {
           global one: only a route under `:slug` puts the param in scope
           for Layout, so an unmatched path under a real project keeps THAT
           project's sidebar and breadcrumb instead of collapsing to the
-          workspace shell (tripl-jfm3.3). */}
+          workspace shell. */}
       <Route path="*" element={<NotFoundPage />} />
     </>
   )

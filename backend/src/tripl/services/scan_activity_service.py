@@ -1,4 +1,4 @@
-"""Per-scan run activity for the Scans list, aggregated in SQL (tripl-fj5g.11).
+"""Per-scan run activity for the Scans list, aggregated in SQL.
 
 The list used to derive three figures from a capped page of each scan's jobs —
 the last run, the current failing streak, and the rows read in the last 24 hours

@@ -45,8 +45,7 @@ _FIGMA_URL_RE = re.compile(
 # Every blob ``upload_photo`` wrote before F20 PR11 lives under this prefix;
 # since then each organization's live under ``orgs/{org_id}/events/``
 # (``photo_storage_service.org_key_prefix``). The orphan sweep lists nothing
-# else: a bucket or directory may be shared with objects tripl did not write
-# (tripl-0zpq.291).
+# else: a bucket or directory may be shared with objects tripl did not write.
 PHOTO_KEY_PREFIX = "events/"
 
 #: One stored blob: ``(storage_backend, storage_key, storage_config_id)``. The
@@ -118,8 +117,8 @@ async def read_upload(file: UploadFile, policy: PhotoPolicy | None = None) -> by
 
     The route used to call ``await file.read()`` ahead of every check, so a
     multi-gigabyte upload, or a video dropped on the photo zone, was loaded
-    whole into one worker's memory before the service got to answer 413 or 415
-    (tripl-0zpq.214, tripl-0zpq.236). The type is checked first, then the size
+    whole into one worker's memory before the service got to answer 413 or 415.
+    The type is checked first, then the size
     Starlette counted while spooling the part, and the read itself never asks
     for more than one byte past the limit — so a file whose size is not known
     up front still cannot buffer more than that.
@@ -166,13 +165,13 @@ async def _get_plan_writable_event(session: AsyncSession, slug: str, event_id: u
     carries them to main, and approval hashes include them. The ``?branch=``
     refusal in ``api/deps.py`` never ran here, because these routes address a
     branch's event by its own id, so a merged branch kept taking screenshots
-    and drifted from the revision it merged (tripl-0zpq.145). Same statuses and
+    and drifted from the revision it merged. Same statuses and
     same wording, read off the event's own branch. Main is stored with
     ``status="merged"``, so it is split off by kind first. Like the ``?branch=``
     refusal, the branch row is re-read ``FOR SHARE`` and held to the write's
     commit, main's included: a write arriving during a merge of its branch
-    waits and then sees ``merged`` (tripl-0zpq.288), and one arriving on main
-    during any merge waits and applies after it (tripl-0zpq.294).
+    waits and then sees ``merged``, and one arriving on main
+    during any merge waits and applies after it.
 
     Comments do not come through here: discussion is not plan content, and
     approval hashes strip it. The routes' editor gate has already run, so a
@@ -274,8 +273,7 @@ async def upload_photo(
         # leaked files. Deliberately swallowed here, where ``delete_photo``
         # lets a failed delete raise: the caller needs the original DB error,
         # not a cleanup failure raised on top of it. A failed cleanup leaves
-        # one unreferenced blob, which is why it is logged rather than ignored
-        # (tripl-jfm3.118).
+        # one unreferenced blob, which is why it is logged rather than ignored.
         try:
             await storage.delete(storage_key)
         except Exception:
@@ -355,8 +353,8 @@ async def delete_unreferenced_blobs(session: AsyncSession, blobs: Iterable[BlobR
     For a caller that has already COMMITTED the removal of rows holding these
     keys without going through ``delete_photo`` — today the branch merge, whose
     bulk delete of the photos a branch removed never touches storage. Deleting a
-    screenshot on a branch leaves the blob to main's row, which still holds it
-    (tripl-0zpq.146); the merge then deleted that row and the object stayed in
+    screenshot on a branch leaves the blob to main's row, which still holds it;
+    the merge then deleted that row and the object stayed in
     the bucket with nothing pointing at it, for good. Each key is checked
     against the committed rows first, so one a twin on another branch — or a
     row the same merge inserted — still holds is left where it is.
@@ -364,7 +362,7 @@ async def delete_unreferenced_blobs(session: AsyncSession, blobs: Iterable[BlobR
     Best-effort by contract: the rows are gone and committed, so the worst a
     failure here can do is leave an object nobody points at. Logged, never
     raised. A ``delete_photo`` or a branch creation copying the same key at the
-    same moment can still race this check (tripl-0zpq.291).
+    same moment can still race this check.
     """
     released = sorted(set(blobs), key=lambda ref: (ref[0], ref[1], str(ref[2] or "")))
     if not released:
@@ -372,7 +370,7 @@ async def delete_unreferenced_blobs(session: AsyncSession, blobs: Iterable[BlobR
     for storage_backend, storage_key, storage_config_id in released:
         # Each key in the store it was WRITTEN to. An instance switched between
         # backends still holds rows from the other one, and the same key there
-        # names a different object, or none (tripl-0zpq.295); an organization's
+        # names a different object, or none; an organization's
         # blob is in the storage version it was written with (F20 PR11).
         try:
             storage = await driver_for_blob(session, storage_backend, storage_config_id)
@@ -415,19 +413,19 @@ async def delete_photo(
     # blob goes with the LAST row that references it, not the first: deleting a
     # screenshot on a branch used to delete the object main and every other
     # branch still pointed at, so their images 404ed on GCS and /file raised
-    # FileNotFoundError on the local backend (tripl-0zpq.146). This is the only
+    # FileNotFoundError on the local backend. This is the only
     # place a blob is deleted for a row that exists, and the merge's
     # ``delete_unreferenced_blobs`` the only one for rows already gone; event,
     # branch and project deletes drop the rows by FK cascade and never touch
-    # storage (tripl-0zpq.291). Still deleted BEFORE the row, so a failed
-    # delete leaves the row to retry (tripl-jfm3.118).
+    # storage. Still deleted BEFORE the row, so a failed
+    # delete leaves the row to retry.
     if (
         photo.kind == PHOTO_KIND_PHOTO
         and photo.storage_key
         and not await _blob_referenced_elsewhere(session, photo)
     ):
         # Through the backend the ROW names: after a backend switch the current
-        # driver would look this key up in the wrong store (tripl-0zpq.295).
+        # driver would look this key up in the wrong store.
         storage = await _storage_of(session, photo)
         if storage is None:
             raise HTTPException(
@@ -615,7 +613,7 @@ async def reorder_photos(
 ) -> list[EventPhoto]:
     # A repeated id passes the set comparison below and then takes the LAST
     # position it is listed at, so [A, B, A] answered 200 while putting B first
-    # and listing A twice in the response (tripl-0zpq.237). Checked before the
+    # and listing A twice in the response. Checked before the
     # lookup, like any other malformed body.
     if len(set(photo_ids)) != len(photo_ids):
         raise HTTPException(
@@ -699,8 +697,7 @@ async def read_blob(session: AsyncSession, photo: EventPhoto) -> bytes:
 
     Reading through the process's current driver instead sent every row written
     before a backend switch to the wrong store, where the key names nothing: a
-    404 for all of them, with no hint that the switch was the cause
-    (tripl-0zpq.295).
+    404 for all of them, with no hint that the switch was the cause.
     """
     storage = await _storage_of(session, photo)
     if storage is None or not photo.storage_key:
@@ -730,7 +727,7 @@ async def url_for(
     frontend iframes.
 
     The download endpoint is org-qualified — ``/api/v1/orgs/{org}/projects/...``
-    — whenever the organization is known (tripl-0chm, F20 PR8): a project slug
+    — whenever the organization is known (F20 PR8): a project slug
     is unique only inside its organization, so the legacy
     ``/api/v1/projects/{slug}/...`` form resolves in whatever organization the
     FETCHING request lands in, which for a multi-org user is not necessarily
@@ -744,7 +741,7 @@ async def url_for(
 
     # The row's OWN backend, not the one new uploads go to: an instance switched
     # from local to GCS (or back) still holds rows from the other store, and the
-    # key only means anything there (tripl-0zpq.295). A row naming a backend
+    # key only means anything there. A row naming a backend
     # this build has no driver for keeps the /file URL, which says so properly.
     storage = await _storage_of(session, photo)
     if photo.storage_key and storage is not None:
@@ -756,7 +753,7 @@ async def url_for(
             # GCS driver never gives. Credentials that cannot sign — ADC on
             # Compute Engine or workload identity, gcloud user credentials —
             # raise instead, and that turned every photo list and every upload
-            # response into a 500 (tripl-0zpq.213). /file reads through the
+            # response into a 500. /file reads through the
             # storage client, which those credentials can do. Logged once per
             # backend and error type: a canvas resolves every photo on every
             # list, and a traceback per photo per request says nothing new.

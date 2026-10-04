@@ -1,4 +1,4 @@
-"""Incremental search reindex (tripl-kt6v).
+"""Incremental search reindex.
 
 ``_reindex_branch_documents`` diffs the rebuilt documents against existing
 rows on ``(entity_type, entity_id)`` + ``content_hash`` instead of doing

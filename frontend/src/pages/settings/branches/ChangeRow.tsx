@@ -86,7 +86,7 @@ export function ChangeRow({
   const fieldChanges = entry.field_changes ?? []
   const hasFieldChanges = fieldChanges.length > 0
   // Reviewer notes that are not changes — nothing the summary counts, so they
-  // hang under the row rather than in it (tripl-kjhi.1, tripl-kjhi.9).
+  // hang under the row rather than in it.
   const warnings = entry.warnings ?? []
   const title = eventTitle(entry)
   const path = entityPath(slug, entry)
@@ -154,7 +154,7 @@ export function ChangeRow({
         </span>
         {title ? (
           // Muted and after the scan name, not instead of it: the name is what
-          // the merge pairs on and what the scanner reports (tripl-kjhi.3).
+          // the merge pairs on and what the scanner reports.
           <span className="min-w-0 truncate text-caption text-fg-tertiary">
             · {title}
           </span>
@@ -442,7 +442,7 @@ function StateView({ state }: { state: Record<string, unknown> }) {
   )
 }
 
-/** The machine's rows, one line, opened on request (tripl-kjhi.12). */
+/** The machine's rows, one line, opened on request. */
 export function HousekeepingFold({ entries }: { entries: PlanDiffEntry[] }) {
   const [expanded, setExpanded] = useState(false)
   const listId = useId()

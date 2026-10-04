@@ -67,7 +67,7 @@ INBOX_LOOKBACK_DAYS = 30
 INBOX_MAX_SOURCE_ITEMS = 2000
 
 #: How many still-silenced incidents the list holds PAST the window, per status
-#: (tripl-zfr3).
+#:.
 #:
 #: The window above is a window on DELIVERIES, and silencing an incident is
 #: precisely the act of stopping its deliveries. A suppressed group's newest
@@ -205,7 +205,7 @@ async def list_deliveries(
     if scan_config_id is not None:
         filters.append(AlertDelivery.scan_config_id == scan_config_id)
     # The alerting page shows deliveries UNDER the incident they belong to, so it
-    # asks for one incident's deliveries at a time (tripl-pq97).
+    # asks for one incident's deliveries at a time.
     #
     # The incident is a property of the ITEM, not of the delivery: one message can
     # carry rows from several incidents, so this matches a delivery that has at
@@ -427,7 +427,7 @@ async def retry_delivery(
     # that has not loaded the app yet therefore lands mid-cycle and raises
     # ImportError, 500ing the retry. Entering at the app loads the task modules
     # in their registration order instead. Reachable since the demo started
-    # seeding a failed delivery for Retry to act on (tripl-jfm3.59).
+    # seeding a failed delivery for Retry to act on.
     import tripl.worker.celery_app  # noqa: F401
     from tripl.worker.tasks.alerts import send_alert_delivery
 
@@ -600,7 +600,7 @@ async def _load_acting_user_names(
     # member, and this endpoint previously exposed only an opaque acted_by UUID,
     # so falling back to the address would have published colleagues' emails on
     # every incident card they touched. The card renders "handled" without a
-    # name (tripl-oxkt.5).
+    # name.
     return {user_id: name for user_id, name in rows if name is not None}
 
 
@@ -642,11 +642,10 @@ def _build_inbox_group_response(
     status = _effective_inbox_status(state, now)
     # Deviations that were MEASURED. A row with no baseline stores 0.0 as a
     # placeholder, and folding it in made a zero-baseline group — the loudest
-    # class there is — sort as the smallest deviation in the inbox
-    # (tripl-l429.24).
+    # class there is — sort as the smallest deviation in the inbox.
     #
     # ``has_baseline``, not ``> 0``: a signed catalog metric has a real baseline
-    # below zero and a real measured percent beside it (tripl-0zpq.102). Asking
+    # below zero and a real measured percent beside it. Asking
     # ``> 0`` here dropped exactly those rows, so ``max_abs_percent_delta`` came
     # back null on a group whose ``percent_delta`` field — built from the SAME
     # item, in the SAME response object below — reported its 200.0%.
@@ -661,7 +660,7 @@ def _build_inbox_group_response(
         # Only while the mute is IN FORCE. A lapsed mute reports `open` above but
         # kept emitting the raw column, so the card rendered an "open" badge next
         # to "muted until <a past date>" — two contradictory claims about the
-        # same row (tripl-oxkt.20).
+        # same row.
         muted_until=state.muted_until if state is not None and status == "muted" else None,
         note=state.note if state else None,
         false_positive_count=state.false_positive_count if state else 0,
@@ -675,8 +674,8 @@ def _build_inbox_group_response(
         actual_count=latest_item.actual_count,
         expected_count=latest_item.expected_count,
         # Through the shared helper, never off the column: the stored 0.0 at a
-        # zero baseline is a PLACEHOLDER and nothing may emit it (tripl-l429.27,
-        # and see worker/tasks/metrics/dispatch.py).
+        # zero baseline is a PLACEHOLDER and nothing may emit it
+        # (see worker/tasks/metrics/dispatch.py).
         percent_delta=percent_delta_or_none(latest_item.percent_delta, latest_item.expected_count),
         max_abs_percent_delta=max(baselined_deltas) if baselined_deltas else None,
         # Routable identity of the newest item, so the incident card can offer
@@ -732,7 +731,7 @@ def _inbox_sort_key(group: AlertInboxGroupResponse) -> tuple[bool, datetime, str
     meant to fix. It did not fix that either: at mute time ``acted_at`` is within
     minutes of the last delivery, so the muted group's key is frozen just the
     same and still crosses rank 20 in ~1.25 days of a 7-day mute. The change
-    bought minutes (tripl-oxkt.2).
+    bought minutes.
 
     Reaching a handled or muted incident is therefore the job of the ``status``
     filter and paging — the frontend half of tripl-oxkt.1/.2 — and NOT of
@@ -785,7 +784,7 @@ async def _load_inbox_source_rows(
     rows), and until this probe existed a caller could not tell "exactly 2000
     rows in the window" from "the window was cut short" — so a shortened list
     was indistinguishable from a quiet project and nothing on the page said
-    otherwise (tripl-39n6).
+    otherwise.
 
     The instant reported is the oldest ADMITTED row's, not the first REJECTED
     one's: an incident is only fully readable if every one of its rows got in,
@@ -826,7 +825,7 @@ async def count_open_incidents(
     """Open Alerting Inbox incidents per project, counted the inbox's own way.
 
     The sidebar badge next to "Alerting" showed the destination count, so it read
-    "Alerting 1" beside a page listing 52 open incidents (tripl-oxkt.16). A badge
+    "Alerting 1" beside a page listing 52 open incidents. A badge
     is only worth anything if it agrees with the page it labels, so this lives
     HERE, next to ``list_alert_inbox``, and reuses its rules rather than
     restating them in the caller: the same ``INBOX_LOOKBACK_DAYS`` window on the
@@ -1053,8 +1052,8 @@ async def list_alert_inbox(
         )
 
     # Incidents the window can no longer see but whose suppression is still in
-    # force, merged in BEFORE the status filter so `?status=muted` can reach them
-    # (tripl-zfr3). `states` is a dict keyed by group id, so the selection helper
+    # force, merged in BEFORE the status filter so `?status=muted` can reach them.
+    # `states` is a dict keyed by group id, so the selection helper
     # gets `.values()` — iterating the dict itself hands it UUIDs.
     #
     # The merge happens here, ahead of `group_states`, so a rescued group goes
@@ -1161,7 +1160,7 @@ async def get_alert_inbox_group(
     Alert messages carry a deep link to the incident they describe, and the
     reader taps it when they get round to it; constraining this to the list's
     ``INBOX_LOOKBACK_DAYS`` window would dead-end exactly the links that most
-    need to land, the old ones (tripl-oxkt.7). The counts it reports are
+    need to land, the old ones. The counts it reports are
     therefore over every delivery the incident ever made, which for a group
     older than the window is more than the list would show.
     """
@@ -1210,7 +1209,7 @@ async def _build_one_inbox_group(
     agree with — the operator reached it through the deep link, and the fallback
     reproduces what THAT showed them. It also keeps an aged incident actionable:
     404ing here after the write had already committed reported an error for a
-    change that landed (tripl-oxkt.20).
+    change that landed.
     """
     rows: list[InboxGroupRow] = []
     if cutoff is not None:
@@ -1301,14 +1300,14 @@ async def _tune_false_positive_thresholds(
     Returns the number of scope overrides written or ratcheted, which is 0 for a
     group made only of scope types outside ``RATCHETABLE_SCOPE_TYPES`` (see the
     skip below). The caller reports it so the UI can stop promising a detection
-    change that did not happen (tripl-oxkt.6).
+    change that did not happen.
 
     PER SCOPE, not project-wide. The ratchet used to raise
     ``sigma_threshold`` / ``min_expected_count`` on ``ProjectAnomalySettings``
     AND on every scan the group touched, so one click on one noisy event made
     every other event, event type, project total and catalog metric in the
     project less sensitive — permanently, and with no record of which click
-    caused which increment. Per-scope correlation groups (tripl-l429.1) put a
+    caused which increment. Per-scope correlation groups put a
     single scope behind that button, so the blast radius had to match it.
 
     The scope key is ``(scan_config_id, scope_type, scope_ref)`` — how a
@@ -1460,8 +1459,8 @@ async def _apply_inbox_action_to_state(
 ) -> int | None:
     """Apply ONE triage decision to ONE already-loaded state row. DOES NOT COMMIT.
 
-    Extracted from ``apply_alert_inbox_action`` so the bulk route can reuse it
-    (tripl-gpfr). The commit that used to sit in the middle of that function was
+    Extracted from ``apply_alert_inbox_action`` so the bulk route can reuse it.
+    The commit that used to sit in the middle of that function was
     the single thing making it undecomposable: a bulk caller needs to mutate N
     rows and commit ONCE, and a helper that commits per group would hand back
     partial success on any failure — which nothing in this repo does. The commit
@@ -1483,7 +1482,7 @@ async def _apply_inbox_action_to_state(
     # ``None`` = "this action cannot tighten anything", which is every action but
     # false_positive. Reporting 0 for them let a client render "no scopes
     # tightened" off ``== 0`` after an Acknowledge, announcing a detection
-    # decision nobody took (tripl-oxkt.6).
+    # decision nobody took.
     overrides_written: int | None = None
     if action == "acknowledge":
         state.status = "acknowledged"
@@ -1519,14 +1518,13 @@ async def _apply_inbox_action_to_state(
     # Only a supplied note replaces the stored one. Assigning unconditionally
     # meant every later action — acknowledge, then resolve — silently erased the
     # note written with the previous one, which is the opposite of what a note
-    # on an incident is for (tripl-jfm3.91).
+    # on an incident is for.
     if note is not None:
         state.note = note.strip() or None
     # Stamped only by an action that actually decided something. The card's
     # "already handled by X on <date>" line is derived from acted_at, so a
     # note-only save that stamped it would forge a decision nobody took and
-    # destroy the signal that tells a re-fired incident from a fresh one
-    # (tripl-oxkt.20).
+    # destroy the signal that tells a re-fired incident from a fresh one.
     if action != "note":
         state.acted_at = now
         state.acted_by = user_id
@@ -1650,7 +1648,7 @@ async def apply_alert_inbox_action(
 
     # Built for THIS group alone, not by re-listing the inbox: rebuilding every
     # group's response on every click was O(project) and 404'd after a SUCCESSFUL
-    # commit whenever the group had aged past INBOX_LOOKBACK_DAYS (tripl-oxkt.20).
+    # commit whenever the group had aged past INBOX_LOOKBACK_DAYS.
     #
     # ...but over the LIST's window, because this response replaces the card the
     # operator just clicked. Rebuilt unwindowed, it answered a different question
@@ -1710,7 +1708,7 @@ def dedupe_correlation_group_ids(correlation_group_ids: list[uuid.UUID]) -> list
     by the route (which writes one audit row per entry), because those two have to
     agree exactly: a repeated id reaching the route's loop would file two audit
     rows claiming two separate decisions on one incident, and a repeated id
-    reaching the rebuild would render the same card twice (tripl-gpfr).
+    reaching the rebuild would render the same card twice.
 
     It is also load-bearing for CORRECTNESS, not only for tidiness. MEASURED by
     neutering this call: ``_load_or_create_correlation_states`` creates a row for
@@ -1759,7 +1757,7 @@ async def _load_or_create_correlation_states(
     completion before anything is created or mutated. ``apply_alert_inbox_action``
     validates INSIDE a call that has already done work, which is harmless when
     there is one group and is not when there are 200: it would leave a
-    half-applied batch behind a 404 (tripl-gpfr). The transaction rule for this
+    half-applied batch behind a 404. The transaction rule for this
     route is all-or-nothing — validate everything, mutate everything, commit
     once — with no partial success and no per-item error array, because nothing
     in this repo does that.
@@ -1830,7 +1828,7 @@ async def _build_inbox_group_batch(
     that function re-runs ``_load_inbox_source_rows`` — the whole project's
     windowed, capped inbox query — every time it is called with a cutoff. Calling
     it once per selected group would run that query N times for one click, which
-    at the 200-group cap is 200 full inbox scans (tripl-gpfr). The rows are loaded
+    at the 200-group cap is 200 full inbox scans. The rows are loaded
     ONCE here and bucketed by group.
 
     Every other per-group read is batched the same way: ONE query for all the
@@ -1928,7 +1926,7 @@ async def apply_alert_inbox_bulk_action(
     data: AlertInboxBulkActionRequest,
     user_id: uuid.UUID,
 ) -> AlertInboxBulkActionResponse:
-    """Apply one triage decision to every selected incident, atomically (tripl-gpfr).
+    """Apply one triage decision to every selected incident, atomically.
 
     The decision is COPIED into each incident's own state row — there is no group
     object and no new table — so afterwards every selected row carries the same

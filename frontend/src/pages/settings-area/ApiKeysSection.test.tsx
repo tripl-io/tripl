@@ -102,7 +102,7 @@ describe('ApiKeysSection', () => {
   })
 
   // The card used to headline "Active keys · 10 keys" from the unfiltered list,
-  // so revoked and expired tokens were counted as live ones (tripl-jfm3.33).
+  // so revoked and expired tokens were counted as live ones.
   it('counts only usable keys in the card heading and names the dead ones', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([
       key({ id: 'k1', name: 'codex' }),

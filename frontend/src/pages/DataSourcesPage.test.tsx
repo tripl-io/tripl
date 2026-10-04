@@ -447,9 +447,9 @@ describe('DataSourcesPage', () => {
   })
 
   it('hides the connection line entirely when the server redacted it', async () => {
-    // A non-owner gets host/port/database_name blanked by the API
-    // (tripl-jfm3.19). The card used to render that as a bare ":0/"
-    // (tripl-jfm3.84) — it must show nothing instead, while still identifying
+    // A non-owner gets host/port/database_name blanked by the API.
+    // The card used to render that as a bare ":0/"
+    // — it must show nothing instead, while still identifying
     // the source by name, type and health.
     const redacted: DataSource = {
       ...DATA_SOURCE,

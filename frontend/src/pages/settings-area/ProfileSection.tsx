@@ -9,8 +9,7 @@ import { ReadOnlyNotice } from '@/components/states'
 /**
  * Timestamps render in *your browser's* timezone, so that is what this page
  * shows. It used to render a hardcoded "Europe/Berlin" from a five-city list,
- * which a reader in Tokyo could only read as their account being set wrong
- * (tripl-hmlx).
+ * which a reader in Tokyo could only read as their account being set wrong.
  */
 function browserTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
@@ -30,7 +29,7 @@ const UNBUILT = [
  * one card for what is not built (WS-37).
  *
  * The preference and notification controls have no backend and nothing reads
- * them. They were first six live controls that persisted nowhere (tripl-z9ot),
+ * them. They were first six live controls that persisted nowhere,
  * then the same controls disabled: honest, but a page of controls that do
  * nothing. "Weekly digest" could never have been a per-person switch at all —
  * the digest is fanned out per project alert destination.

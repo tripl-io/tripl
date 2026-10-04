@@ -5,7 +5,7 @@ classification of every owner-gated route is pinned below. Owner-only means
 security and organization administration, so ``get_owner_user`` refuses a
 Bearer token at any scope. That also blocked the bounded metrics
 replay, which is why tripl-mcp ships no replay tool and the CLI dropped
-``tripl scans replay`` (tripl-cj5z). The replay — and only the replay — now takes
+``tripl scans replay``. The replay — and only the replay — now takes
 ``get_key_reachable_owner_user``, so this module pins all four corners of that
 gate plus the exact route list that carries it: the value of a per-route
 exception is that it stays short and reviewed.

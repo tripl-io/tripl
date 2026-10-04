@@ -78,7 +78,7 @@ import {
 import { SILENT_ERROR_META, surfaceError } from '@/lib/errorFeedback'
 import { lazyWithReload } from '@/lib/lazyWithReload'
 
-// One chunk per section (tripl-fj5g.15). The page was a single ~118 KB chunk,
+// One chunk per section. The page was a single ~118 KB chunk,
 // and a visit only ever shows one of the four: the rule editor and replay
 // behind Monitors, the incident cards behind the Inbox and the delivery rows
 // behind the log load when their tab is opened. The page itself keeps the
@@ -145,7 +145,7 @@ function SectionSuspense({ section, children }: { section: AlertingSection; chil
 
 // The page does four jobs — triage incidents, tune what routes, configure the
 // channels it routes to, audit delivery — and stacking them on one scroll made
-// each of them harder to find (tripl-er99).
+// each of them harder to find.
 //
 // Rules used to be deliberately NOT a section here, on the reasoning that a
 // rule hangs off `destination.rules` and has no existence apart from the
@@ -153,7 +153,7 @@ function SectionSuspense({ section, children }: { section: AlertingSection; chil
 // section already existed, as a separate NAV ITEM called Monitors, rendering
 // the same AlertRule rows under a second noun with the live state this page
 // could not show. Reading a rule and editing it lived under different nav
-// items, which is how the two drifted about mute (tripl-oxkt.18). Merged in
+// items, which is how the two drifted about mute. Merged in
 // tripl-89ps.
 const ALERTING_SECTIONS = ['inbox', 'monitors', 'destinations', 'audit'] as const
 type AlertingSection = (typeof ALERTING_SECTIONS)[number]
@@ -168,18 +168,18 @@ const SECTION_LABELS: Record<AlertingSection, string> = {
   // "Delivery log", not "Audit": the sidebar already has an "Audit log" meaning
   // something else entirely (who changed what), and this list is the messages
   // behind the Inbox's incidents. The section KEY stays `audit` — every alert
-  // deep link written so far carries it (tripl-oxkt.18).
+  // deep link written so far carries it.
   audit: 'Delivery log',
 }
 
 // One page of incidents. 20 was not only too small to reach 37 of 57 production
 // groups — it was TIGHTER than the endpoint's own default of 50 while doing
 // identical database work, because `list_alert_inbox` pulls up to 2000 rows,
-// builds every response and sorts before it slices (tripl-oxkt.1).
+// builds every response and sorts before it slices.
 const INBOX_PAGE_SIZE = 50
 // One page of deliveries. Shared with AlertAuditPanel rather than duplicated
 // there, so the Older step and the request that answers it cannot disagree
-// about how big a page is (tripl-oxkt.12).
+// about how big a page is.
 const DELIVERY_PAGE_SIZE = 50
 
 /**
@@ -188,9 +188,9 @@ const DELIVERY_PAGE_SIZE = 50
  * Split from `InboxBulkActionRequest` — which is what the bar raises — because
  * the bar is deliberately kept ignorant of the ids: it knows a count, the page
  * knows which rows are on screen, and only the page can prune a selection that
- * a filter change or a refetch has invalidated (tripl-gpfr). Extending rather
+ * a filter change or a refetch has invalidated. Extending rather
  * than restating the bar's type keeps `mutedUntil`'s three states and their
- * documented meanings in exactly one place (tripl-a50u).
+ * documented meanings in exactly one place.
  */
 interface InboxBulkActionVariables extends InboxBulkActionRequest {
   correlationGroupIds: string[]
@@ -208,8 +208,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // Every mutation on this page is editor-only (deps.py `require_editor`), and
   // the sections below each hide their own write controls and say why once.
   // The page reads the role for the one write path that is not a button of its
-  // own: this dialog, which can outlive the control that opened it
-  // (tripl-oxkt.9).
+  // own: this dialog, which can outlive the control that opened it.
   const canWrite = useCanWriteProject()
   // What the destination dialog is open for, or null while it is closed. The
   // form itself lives in DestinationDialog (ALR-42), keyed per opening.
@@ -220,7 +219,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // Which destination card should open its rule form by itself — the guided
   // checklist's step 3, handed to the card that owns the destination just
   // created. Cleared the moment the card consumes it, so it cannot re-open the
-  // dialog the reader has just closed (tripl-oxkt.15).
+  // dialog the reader has just closed.
   const [autoOpenRuleForDestinationId, setAutoOpenRuleForDestinationId] =
     useState<string | null>(null)
   const [autoOpenRuleDestinationName, setAutoOpenRuleDestinationName] =
@@ -251,7 +250,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // NOT `{ replace: true }`. Replacing meant the section a reader arrived on
   // was overwritten the moment they moved off it: Back left the page entirely
   // instead of returning to the previous section, and a deep link's original
-  // section was destroyed by the first click (tripl-oxkt.15). Pushing makes the
+  // section was destroyed by the first click. Pushing makes the
   // strip behave like the navigation it looks like.
   const selectSection = (next: AlertingSection) =>
     setSearchParams(current => {
@@ -263,10 +262,10 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // The delivery log's filters and its page, in the URL beside the Inbox's
   // (ALR-36). They were component state, so opening a scope link from a
   // delivery and pressing Back lost both the filter and the page — the Inbox
-  // moved its own filters to the URL for exactly that reason (tripl-ahg5,
-  // tripl-htfn.4). The scan filter is `?scan=` itself, which the route reads
+  // moved its own filters to the URL for exactly that reason.
+  // The scan filter is `?scan=` itself, which the route reads
   // and hands down as `focusScanId`: a scan run's "Alerts queued" counter links
-  // with it (tripl-3y7z.2), and it can change without remounting — deriving
+  // with it, and it can change without remounting — deriving
   // from it, rather than seeding state once, is what keeps the two in step.
   const deliveryFilters = useMemo(
     () => readDeliveryFilters(searchParams, focusScanId),
@@ -329,7 +328,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     queryKey: projectEventTypesKey(slug),
     queryFn: () => eventTypesApi.list(slug),
     // Read only by the rule editor's filter rows, which moved to Monitors with
-    // the rest of the rule form (tripl-89ps).
+    // the rest of the rule form.
     enabled: section === 'monitors',
   })
   const scansQuery = useQuery({
@@ -337,7 +336,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     queryFn: () => scansApi.list(slug),
     // Read by the rule editor's scan binding and by the audit filter bar — and
     // by nothing on the Inbox, which fired this request on every load and never
-    // looked at the answer (tripl-oxkt.20).
+    // looked at the answer.
     enabled: section === 'monitors' || section === 'audit',
   })
   const { data: scans = [], isSuccess: scansLoaded } = scansQuery
@@ -410,7 +409,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     ? focusedDelivery
     : null
   // The status filter, in the URL beside `?section=` and `?scan=` rather than in
-  // component state (tripl-ahg5). An incident card links to its scope's
+  // component state. An incident card links to its scope's
   // monitoring page — off this route entirely — so filtering to Open, opening
   // one to check the metric and pressing Back used to hand back all 93 again;
   // and the filtered queue could not be bookmarked or pasted to a colleague
@@ -446,7 +445,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // Everything the reader narrowed the list to besides status, read from and
   // written to the URL exactly the way status is — so a filtered inbox is a
   // link, and changing a filter changes the query key and restarts paging at
-  // offset 0 by construction (tripl-htfn.4).
+  // offset 0 by construction.
   const inboxFilters = useMemo(() => readInboxFilters(searchParams), [searchParams])
   const setInboxFilters = (next: InboxFilterState) =>
     setSearchParams(
@@ -486,14 +485,14 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // page held open during an incident showed a live CONFIGURATION panel beside a
   // frozen triage queue — a new incident never appeared and a colleague's Ack
   // never showed, while the action endpoint writes status blind and commits over
-  // it (tripl-oxkt.14). Sharing `useAdaptiveRefetchInterval` is what stops the
+  // it. Sharing `useAdaptiveRefetchInterval` is what stops the
   // two from drifting apart again, and it already answers `false` while the SSE
   // stream is live or the tab is hidden.
   const inboxRefetchInterval = useAdaptiveRefetchInterval({ activeMs: 60_000 })
   // Paged, not a single fixed slice. The 20 newest incidents were the ONLY 20
   // an operator could reach, and status is not part of the server sort key, so
   // acting on all of them did not reveal the 21st — the tail was cleared only
-  // by ageing out of the 30-day window (tripl-oxkt.1). Offset lives in the page
+  // by ageing out of the 30-day window. Offset lives in the page
   // param rather than in component state, so "Load more" appends instead of
   // replacing and "Showing N of M" can be honest. Invalidation still matches on
   // the `['alertInbox', slug]` prefix.
@@ -552,7 +551,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   }, [inboxQuery.data])
   // A Telegram alert names its incident, and `?incident=` only pre-expanded a
   // card it never fetched — so a link to anything outside the newest page
-  // rendered nothing at all: no card, no banner, no explanation (tripl-oxkt.13).
+  // rendered nothing at all: no card, no banner, no explanation.
   // Fetched by id through the route that ignores the 30-day list window, and
   // pinned, exactly as the deep-linked delivery above already is.
   const { data: focusedIncident } = useQuery({
@@ -605,8 +604,8 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     // `showGuidedSetup` false, which dropped the reader on the default Inbox
     // section reading "No rules yet, so nothing can raise an incident" — with
     // the destination they just made on a tab they were not on. The checklist
-    // promises "a rule prefilled on the new destination", so open exactly that
-    // (tripl-oxkt.15). The section named here is the one that owns the rule
+    // promises "a rule prefilled on the new destination", so open exactly that.
+    // The section named here is the one that owns the rule
     // form, which is Monitors since tripl-89ps — landing on Destinations would
     // reproduce the original bug with a different tab.
     selectSection('monitors')
@@ -624,7 +623,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       // also takes every delivery, every incident group built from them, and the
       // notes and mutes an operator typed on those incidents. The only place
       // stating the numbers was a `title` on the button behind it — invisible on
-      // touch, and invisible once this dialog is open (tripl-oxkt.13).
+      // touch, and invisible once this dialog is open.
       message: `Delete "${destination.name}" and all its alert rules? `
         + describeDeletionImpact(destination.delivery_count, destination.incident_count),
       confirmLabel: 'Delete',
@@ -637,8 +636,8 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
 
   // Draft note per group. The backend has accepted a note on every inbox action
   // since the feature shipped, but nothing ever sent one — the field was
-  // unreachable, so an operator had no way to record WHY they acked something
-  // (tripl-jfm3.91). Omitting the key leaves the stored note untouched.
+  // unreachable, so an operator had no way to record WHY they acked something.
+  // Omitting the key leaves the stored note untouched.
   //
   // A store, not state (ALR-29): with a `Record` in this component, every
   // keystroke in any card re-rendered this 1,300-line page and every card on
@@ -648,7 +647,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // An alert link names its incident, so the card it points at opens with its
   // deliveries already showing — the reader lands on the alert AND the actions
   // for it, instead of on a delivery whose incident is in another list further
-  // up the page (tripl-pq97). Seeded once: collapsing it must stick.
+  // up the page. Seeded once: collapsing it must stick.
   const [expandedIncidents, setExpandedIncidents] = useState<Set<string>>(
     () => new Set(focusIncidentId ? [focusIncidentId] : []),
   )
@@ -659,7 +658,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       return next
     }), [])
 
-  // Which incidents the bulk bar will act on (tripl-gpfr).
+  // Which incidents the bulk bar will act on.
   //
   // An ARRAY and not a Set, because insertion order is meaningful all the way
   // to the wire: the endpoint answers with the rebuilt cards "in request order
@@ -724,7 +723,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // as it was when the dialog opened — and the pruning above, which runs on
   // render, cannot reach that closure. A colleague resolving three of those rows
   // while the dialog sits open would otherwise have their work undone by the
-  // confirm (tripl-gpfr).
+  // confirm.
   //
   // Synced in an effect, not assigned during render: writing a ref while
   // rendering is what `react-hooks/refs` forbids, and an effect is soon enough
@@ -745,7 +744,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       return current.includes(correlationGroupId) ? current : [...current, correlationGroupId]
     }), [])
   // The batch form, for the header "select all N shown" box and the shift-click
-  // range (tripl-rzkx). One state update for the whole batch rather than a
+  // range. One state update for the whole batch rather than a
   // toggle per id: the pruning pass above runs on every render, so fifty
   // sequential toggles would be fifty renders of a fifty-card list, and the bulk
   // bar's count would tick upward one incident at a time.
@@ -803,7 +802,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     mutationFn: ({ group, action, mutedUntil, note: draft }: InboxActionRequest) => {
       return alertingApi.applyInboxAction(slug, group.correlation_group_id, {
         action,
-        // Two rules, and the split is what makes a note DELETABLE (tripl-pdb2).
+        // Two rules, and the split is what makes a note DELETABLE.
         // The server reads an absent note as "leave the stored one alone" and an
         // empty string as "clear it", so:
         //   any other action  → send it only when there is something to say, or
@@ -815,7 +814,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         ...(action === 'note' || draft ? { note: draft } : {}),
         // Keyed on the ACTION, never on the truthiness of `mutedUntil`: `null`
         // is the open-ended mute and has to reach the wire as an explicit
-        // `muted_until: null` (tripl-a50u). A `&& mutedUntil` here dropped the
+        // `muted_until: null`. A `&& mutedUntil` here dropped the
         // key entirely, so the most far-reaching mute on the page was the one
         // request that said nothing about how long it lasts.
         ...(action === 'mute' ? { muted_until: mutedUntil ?? null } : {}),
@@ -829,7 +828,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       noteDraftStore.clearIfUnchanged(variables.group.correlation_group_id, variables.note)
       // The server returns the group it just wrote, and this used to throw it
       // away and invalidate — so the row the operator touched showed nothing
-      // until a refetch landed (tripl-oxkt.11). Write it into the page that
+      // until a refetch landed. Write it into the page that
       // holds it; the refetch below is then a correction, not the only source
       // of feedback.
       const updated = data.group
@@ -865,13 +864,13 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       // No refetch after a note, which moves no status and so cannot change
       // what this list holds, how it is sorted, or what the filter admits. The
       // group the server returned is already written above, and refetching
-      // every loaded page after a comment is pure cost (tripl-oxkt.20).
+      // every loaded page after a comment is pure cost.
       if (variables.action === 'note') return
       qc.invalidateQueries({ queryKey: alertInboxKey(slug) })
       qc.invalidateQueries({ queryKey: alertDeliveriesKey(slug) })
       // No `['scans']` invalidation: an inbox action cannot change a scan
       // config, and a 20-item triage pass refetched that list 20 times for
-      // nothing (tripl-oxkt.20).
+      // nothing.
     },
   })
   // Stable in TanStack v5, and named so the callback below can depend on it.
@@ -886,7 +885,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
    * tooltip, on a button that swapped places with Mute between rows. Mute is
    * confirmed for a different reason: its blast radius is a five-part key and
    * the card can only show so much of it, so the sentence spells the whole key
-   * before anything goes quiet (tripl-oxkt.7, tripl-oxkt.8).
+   * before anything goes quiet.
    */
   const handleInboxAction = useCallback(async (variables: InboxActionVariables) => {
     if (variables.action === 'false_positive') {
@@ -898,8 +897,8 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       })
       if (!ok) return
     }
-    // Gated on the action alone. `mutedUntil` is `null` for the open-ended mute
-    // (tripl-a50u), so the previous `&& variables.mutedUntil` skipped the
+    // Gated on the action alone. `mutedUntil` is `null` for the open-ended mute,
+    // so the previous `&& variables.mutedUntil` skipped the
     // confirmation for the single most far-reaching mute the page can send —
     // the one that never lapses and can only be lifted by hand.
     if (variables.action === 'mute') {
@@ -921,13 +920,12 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   )
 
   /**
-   * One triage decision, applied to every selected incident in ONE request
-   * (tripl-gpfr).
+   * One triage decision, applied to every selected incident in ONE request.
    *
    * A SEPARATE mutation from `inboxActionMut`, not a widened one, and that is
    * deliberate: the single-incident mutation's response contract, its optimistic
    * cache write and its toast wording were each fixed in response to a specific
-   * reported defect (tripl-oxkt.11, tripl-oxkt.6, tripl-a50u), and the row-level
+   * reported defect, and the row-level
    * `pendingGroupIds` / `actionErrors` it feeds have no meaning for a batch that
    * has no single row. Sharing one mutation would have meant teaching all of
    * that to tell the two apart.
@@ -953,15 +951,15 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         // Keyed on the ACTION, never on the truthiness of `mutedUntil` — the
         // exact rule the single route follows, and for the exact same reason:
         // `null` IS the open-ended mute and has to arrive as an explicit
-        // `muted_until: null`, which an `&& mutedUntil` spread would drop
-        // (tripl-a50u). A bulk indefinite mute is the furthest-reaching request
+        // `muted_until: null`, which an `&& mutedUntil` spread would drop.
+        // A bulk indefinite mute is the furthest-reaching request
         // this page can send, so it is the last one that should be ambiguous
         // about how long it lasts.
         ...(action === 'mute' ? { muted_until: mutedUntil ?? null } : {}),
       }),
     onSuccess: (data, variables) => {
       // Redraw every card the batch rebuilt, from the response, exactly as the
-      // single route does for its one card (tripl-oxkt.11) — the difference is
+      // single route does for its one card — the difference is
       // only that the lookup is a Map instead of an equality test. Without this
       // an operator who just acknowledged twelve incidents watches twelve rows
       // sit unchanged until a refetch lands.
@@ -1008,7 +1006,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       )
     },
     // A toast, because there is no row to put this in. The single route renders
-    // its failure inside the card it belongs to (tripl-oxkt.11); a batch spans
+    // its failure inside the card it belongs to; a batch spans
     // N cards and belongs to none of them, and the one thing worse than a toast
     // here would be the same message stamped onto twelve rows.
     onError: error => {
@@ -1020,8 +1018,8 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     onSettled: (_data, _error, variables) => {
       // …carrying the single route's `note` exemption, which this branch used to
       // say it did not need because "the bar offers only actions that move
-      // status". That stopped being true the moment the bar grew a note
-      // (tripl-saq1), and it is the exemption that matters MOST here: a
+      // status". That stopped being true the moment the bar grew a note,
+      // and it is the exemption that matters MOST here: a
       // note-only batch moves no status on any of up to 200 incidents, so
       // invalidating would refetch every loaded page of an accumulating list to
       // arrive at the cards `onSuccess` has already written.
@@ -1050,7 +1048,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
     // holds what is selected and visible right now, and the intersection means
     // the request can only ever shrink relative to what the operator ticked. It
     // can never grow into a row they did not choose, and it can never include a
-    // row the page pruned while the dialog was open (tripl-gpfr).
+    // row the page pruned while the dialog was open.
     const stillSelected = () => {
       const live = new Set(selectedIncidentIdsInViewRef.current)
       return chosen.filter(id => live.has(id))
@@ -1096,7 +1094,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   // this was true on first paint — a configured project was told it had nothing
   // set up, with the whole tab strip hidden, on every load. A sub-second flash
   // normally; permanent whenever both requests fail, which is exactly when the
-  // page has the least business asserting anything (tripl-oxkt.10).
+  // page has the least business asserting anything.
   const showGuidedSetup =
     destinationsLoaded
     && deliveryProbeAnswered
@@ -1115,7 +1113,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
   }
   // A demo workspace is zero-egress: the API accepts no destination but the local
   // demo sink, so offering the channel buttons would only walk the user into a
-  // rejection. Say why instead (tripl-2su6.12).
+  // rejection. Say why instead.
   const isDemo = project?.is_demo === true
 
   // Every channel button outside guided setup. Adding a channel hands on to a
@@ -1161,8 +1159,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
         title="Alerting"
         // A demo can only reach the local sink, so promising Slack/Telegram
         // delivery at the top of the page sells something this project cannot
-        // do — the honest note used to appear only below the destination cards
-        // (tripl-jfm3.64).
+        // do — the honest note used to appear only below the destination cards.
         description={
           isDemo
             ? 'Route active anomaly signals through rules and destinations. In a demo workspace every destination is a local sink: deliveries are recorded and rendered here, and none of them leave this instance.'
@@ -1183,7 +1180,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       {!showGuidedSetup && (
         // `ui/Tabs` (AL-46): Radix brings the roving tabIndex, the wrapping
         // arrow keys, Home/End and the tab/tabpanel ids the hand-rolled strip
-        // reimplemented (tripl-oxkt.19). Selection follows focus and still
+        // reimplemented. Selection follows focus and still
         // pushes `?section=`, so Back returns to the previous section.
         <TabsList aria-label="Alerting sections">
           {ALERTING_SECTIONS.map(value => (
@@ -1226,7 +1223,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
       <>
       {/* Each section body is the PANEL of the tab above it. `space-y-6` moves
           onto the wrapper because these children used to be direct children of
-          the page's own stack (tripl-oxkt.19). */}
+          the page's own stack. */}
       {section === 'monitors' && (
         <TabsContent value="monitors" className="space-y-6">
         <SectionSuspense section="monitors">
@@ -1349,7 +1346,7 @@ export default function ProjectAlertingTab({ slug, focusDeliveryId, focusItemKey
             braces — but `refresh()` can rewrite the session mid-visit, and a
             selection built as an editor and spent after a demotion is a request
             that round-trips to a 403 for no reason. The destination dialog a few
-            lines below is gated for exactly the same reason (tripl-oxkt.9). */}
+            lines below is gated for exactly the same reason. */}
         {canWrite && (
           <InboxBulkActionBar
             selectedCount={selectedIncidentIdsInView.length}

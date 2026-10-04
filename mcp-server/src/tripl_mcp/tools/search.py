@@ -23,7 +23,7 @@ async def search_plan(
     client = client_for(ctx)
     # A list of Literals so the tool schema enumerates the twelve kinds and a
     # misspelt one is refused before the request, widened for the shared
-    # builder's invariant `list[str]` exactly as list_events does (tripl-i0vd).
+    # builder's invariant `list[str]` exactly as list_events does.
     data = await send(
         client,
         search.search_plan(slug, q, types=as_strings(types), limit=limit, branch=branch_id),
@@ -32,13 +32,13 @@ async def search_plan(
     # the envelope belongs to the route. `semantic_used` moved with it — both
     # surfaces publish it and both had their own `.get` for it, and it now reads
     # False rather than null on a body that omits the key, which is what the
-    # backend's `bool = False` default actually means (tripl-i1dt).
+    # backend's `bool = False` default actually means.
     return {
         "items": [trim(item, SEARCH_RESULT_FIELDS) for item in page_items(data)],
         "total": page_total(data),
         # `total` on THIS route is the size of the response, not a pre-paging
-        # count, so an agent could not tell a complete answer from a clipped one
-        # (tripl-wkwv.3). The route answers it outright, and both surfaces read
+        # count, so an agent could not tell a complete answer from a clipped one.
+        # The route answers it outright, and both surfaces read
         # that one key through this reader — `tripl plan search` falls back to
         # its page-fullness guess only against an instance predating the field.
         # Published as a bool, never null: an envelope key an agent has to test

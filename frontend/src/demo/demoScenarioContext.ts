@@ -1,5 +1,5 @@
 /**
- * Context for the coached demo scenario (tripl-2su6.21.2, chapters in
+ * Context for the coached demo scenario (chapters in
  * tripl-odrj.4).
  *
  * Two contexts, deliberately: the surfaces that merely *report* an action
@@ -15,7 +15,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import type { Project, ScanJob } from '@/types'
 // Types only: this module is on the first load (the palette and every page
 // import it), and the model behind these types loads with the scenario runtime,
-// only for a demo project (tripl-fj5g.15).
+// only for a demo project.
 import type {
   ChapterId,
   ChapterListEntry,
@@ -81,11 +81,11 @@ export interface DemoScenarioActions {
   dismissChapter: (chapter: ChapterId) => void
   muteHints: () => void
   /** Undo a mute without restarting the chapter — muting is not a one-way door
-   *  for the rest of the session (tripl-gr0x). */
+   *  for the rest of the session. */
   unmuteHints: () => void
   /** Drop every chapter's progress. A re-seeded demo is a fresh demo, so the
    *  banner's Reset must not leave the coaching claiming completed chapters
-   *  against data that no longer exists (tripl-imco). */
+   *  against data that no longer exists. */
   resetScenario: () => void
 }
 

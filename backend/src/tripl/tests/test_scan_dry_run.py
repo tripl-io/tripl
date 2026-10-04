@@ -406,7 +406,7 @@ class TestDryRunWorker:
     def test_a_grouped_dry_run_reports_one_total_for_the_rows_it_skipped(
         self, tmp_path, monkeypatch
     ) -> None:
-        """One count, not one line per event type (tripl-wkwv.5).
+        """One count, not one line per event type.
 
         A grouped scan plans once per group value, each plan counts its own
         unnamed rows, and every plan appended its own sentence — so a config

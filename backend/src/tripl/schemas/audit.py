@@ -15,12 +15,12 @@ class AuditEntryResponse(BaseModel):
     of JSON blobs across the wire to be displayed nowhere: on the only project
     with real audit history, ``/p/*/audit`` had the slowest first
     content of the 75 routes in the 2026-08-17 walk. The payload now travels one
-    row at a time, as ``AuditEntryDetailResponse`` (tripl-5ydt).
+    row at a time, as ``AuditEntryDetailResponse``.
 
     ``branch_id`` / ``branch_name`` are the plan branch the write was scoped to.
     Null and empty mean the write was not made through a branch-scoped request —
     main, or an action with no plan-branch dimension (alerting, scans, users) —
-    so a reader must not render them as "main" (tripl-wkwv.6).
+    so a reader must not render them as "main".
     """
 
     id: uuid.UUID

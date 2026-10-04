@@ -75,7 +75,7 @@ export default function EventEditPage() {
 
   // A question raised while the event is being authored. It cannot be a comment
   // yet — a comment hangs off an event — so it is held here and posted the
-  // moment one exists (tripl-htfn.1).
+  // moment one exists.
   const [draftNote, setDraftNote] = useState('')
   // What a previous attempt could not post, handed across the navigation below
   // so the words are not lost with the request that failed.

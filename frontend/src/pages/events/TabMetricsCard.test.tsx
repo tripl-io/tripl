@@ -82,7 +82,7 @@ afterEach(() => {
 })
 
 describe('TabMetricsCard', () => {
-  it('hands the chart the sigma threshold the payload serves (tripl-2yww)', async () => {
+  it('hands the chart the sigma threshold the payload serves', async () => {
     installFetch()
     renderCard(null)
 
@@ -92,7 +92,7 @@ describe('TabMetricsCard', () => {
     expect(chart).toHaveAttribute('data-sigma-threshold', '6')
   })
 
-  it('sends the active branch so the tag and status filter reads its events (tripl-vk1p)', async () => {
+  it('sends the active branch so the tag and status filter reads its events', async () => {
     const fetchSpy = installFetch()
     renderCard('branch-1')
 

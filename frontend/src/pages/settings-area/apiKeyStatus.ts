@@ -23,8 +23,7 @@ export function isKeyInactive(key: Pick<ApiKey, 'revoked_at' | 'expires_at'>, no
 /**
  * Card heading for the key list, e.g. "7 active · 3 revoked or expired".
  * The card used to read "Active keys · 10 keys" off the unfiltered list, so
- * dead tokens were counted as live ones on a credentials surface
- * (tripl-jfm3.33).
+ * dead tokens were counted as live ones on a credentials surface.
  */
 export function describeKeyCounts(active: number, inactive: number): string {
   const activeLabel = `${active} active`

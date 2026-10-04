@@ -6,7 +6,7 @@ is why the ``scans``/``drifts`` documents live here too rather than beside their
 command modules — and it is also why this module sits at the package root rather
 than inside ``diagnostics``: every command emits from it and only ``doctor``
 reaches a verdict, so the package name was a claim about eight of the nine
-builders below that was simply false (tripl-azhh). ``test_contract.py`` now pins
+builders below that was simply false. ``test_contract.py`` now pins
 the promise instead of leaving it to a docstring: ``"schema_version"`` may be
 minted in this module and nowhere else, so "split the builders per command" is
 answered mechanically rather than by whoever reads this paragraph next.
@@ -287,7 +287,7 @@ def drifts_document(snapshot: DriftsSnapshot) -> JsonDict:
     ``event_types_examined`` versus ``event_types_total`` is per project on
     purpose: the budget is spent round-robin, so one instance-wide ratio would
     name no project — and "we did not look there" is only useful when it says
-    where (tripl-ey6j.9).
+    where.
     """
     document = _run_envelope("drifts list", snapshot.run)
     document["status_filter"] = snapshot.status_filter
@@ -327,8 +327,8 @@ def plan_read_document(read: PlanRead) -> JsonDict:
     Rows are the API's own objects VERBATIM — no projection. A CLI writes to a
     pipe, where a trimmed row is a field the operator has to go and fetch again;
     the MCP's ``EVENT_LIST_FIELDS`` and friends exist because a model pays for
-    every token, which is a different cost and stays with its consumer
-    (tripl-i1dt). The one exception in this file remains ``scans list``, whose
+    every token, which is a different cost and stays with its consumer.
+    The one exception in this file remains ``scans list``, whose
     ``base_query`` is kilobytes of free-text SQL.
 
     ``total``/``offset``/``limit`` are null on the routes that answer a bare
@@ -363,7 +363,7 @@ def _local_envelope(command: str, generated_at: str, duration_ms: int) -> JsonDi
 
     No ``instance`` block and no ``requests`` count, deliberately: ``install``
     and ``upgrade`` have no configured base URL and no API key — at install time
-    the first account does not exist, so no key can (tripl-ey6j.3). Inventing an
+    the first account does not exist, so no key can. Inventing an
     empty instance block would let a consumer believe those fields were merely
     unset. ``schema_version`` is shared with every other document; a consumer
     branches on ``command``.
@@ -391,7 +391,7 @@ def _file_document(write: FileWrite, root: Path) -> JsonDict:
         # reads that as a file mode. NULL on append/kept/unchanged: there the
         # command never set a mode and never read one, and `"mode": "0600"` was
         # a machine-readable claim about the permissions of the secrets file
-        # that nothing in this process had checked (tripl-jfm3). The human table
+        # that nothing in this process had checked. The human table
         # has always left that column blank for exactly these actions.
         "mode": f"{write.mode:04o}" if write.sets_mode else None,
         "note": write.note,
@@ -442,7 +442,7 @@ def _health_document(outcome: HealthOutcome | None) -> JsonDict | None:
         # WHY nothing was polled, null unless status is "skipped". Lets a
         # consumer tell "--wait 0, I opted out" from "there was no origin to
         # poll, so nothing verified this upgrade" - which used to be the same
-        # exit 0 with the same sentence (tripl-jfm3).
+        # exit 0 with the same sentence.
         "skipped_reason": outcome.skipped_reason or None,
         "waited_seconds": round(outcome.waited_seconds, 1),
         "attempts": outcome.attempts,

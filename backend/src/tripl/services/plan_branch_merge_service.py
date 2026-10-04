@@ -98,7 +98,7 @@ async def _load_fresh_approver_ids(
 
     An approval stamped for earlier content (or a legacy NULL-hash row) is
     stale — the branch changed after the review, so it must not satisfy any
-    merge gate (tripl-d8v6). Returns ``(fresh_ids, stale_count)``; approvals
+    merge gate. Returns ``(fresh_ids, stale_count)``; approvals
     whose user was deleted (NULL user_id) never count.
     """
     approvals = await session.execute(
@@ -168,7 +168,7 @@ async def _reject_removals_a_scan_names_events_by(
     that drops a FieldDefinition from main is the same ``session.delete(field)``
     with the same consequence: ``generate_events`` builds its format arguments
     only from columns that still have one, so every collection then dies on "the
-    event name format references unknown keys" (tripl-3mmh).
+    event name format references unknown keys".
 
     **Refusing the whole merge**, with a message naming every offending field, is
     the shape chosen over two alternatives:
@@ -243,7 +243,7 @@ async def _rename_main_variables(
     (``models/variable.py``), which is the immediate form — so there is no order
     of the UPDATEs that avoids a duplicate existing between two of them: only a
     third value does. Park every mover on one, flush that, then write the real
-    names (tripl-htcz).
+    names.
 
     ``4e5f60718293`` is the migration that gave the constraint its current
     ``(project_id, branch_id, name)`` shape, not ``d4f5e6a7b8c9``: that later
@@ -599,7 +599,7 @@ async def _blob_keys_of(session: AsyncSession, event_ids: Sequence[uuid.UUID]) -
     Read BEFORE the rows go, because they go by FK cascade: ``EventPhoto``
     declares ``ondelete="CASCADE"`` on ``event_id`` and ``Event`` carries no
     ``photos`` relationship, so deleting an event takes its attachments at the
-    database level with nothing in Python seeing them leave (tripl-0zpq.291).
+    database level with nothing in Python seeing them leave.
     The merge deletes events on two paths — a removed event type takes its
     events, and a removed event goes on its own — and neither reached the photo
     reconciliation that fills ``released_blobs``, so a screenshot on an event
@@ -636,7 +636,7 @@ async def _event_thread_twins(
     identity carries another display name (an accepted shadow event, say): the
     merge then creates a second main row under the branch's name, and moving
     the old thread onto THAT split the discussion between it and the twin that
-    already held every thread started since (tripl-0zpq.122).
+    already held every thread started since.
 
     Bounded by how many branch rows hold a thread of their own, not by the
     size of the catalog every branch copies.
@@ -673,7 +673,7 @@ async def _move_event_threads_to_main(
 ) -> None:
     """Hand main the event discussions that hang on the branch's own rows.
 
-    The discussion is not plan content (tripl-h2sx.25): no snapshot carries it,
+    The discussion is not plan content: no snapshot carries it,
     so no arm above sees it, and the deep copy leaves it on main's row, where a
     branch copy reads and writes it through its twin. What sits on a BRANCH row
     is only what had no twin to go to — the thread of an event created on the
@@ -681,7 +681,7 @@ async def _move_event_threads_to_main(
     main grew a row for that identity. The merge used to leave all of it there:
     main's new row opened with an empty thread, the branch row then read through
     to that empty twin, and deleting the merged branch took the rows with it
-    through the cascade (tripl-0zpq.122).
+    through the cascade.
 
     None of it was ever copied from main, so all of it is the branch's own and
     there is no base to merge three ways against — unlike the photo threads
@@ -702,7 +702,7 @@ async def _move_event_threads_to_main(
     """
     # The UPDATE itself is shared with every door that deletes a branch row
     # which has a main twin, so the two can never disagree about what a moved
-    # thread looks like (tripl-0zpq.289).
+    # thread looks like.
     await move_event_threads(session, target_by_event_id=main_event_id_by_branch_event_id)
 
 
@@ -762,12 +762,12 @@ async def _apply_merge(
 
     Returns the ``(storage_backend, storage_key)`` of every uploaded photo the
     photos arm deleted from main, for ``merge_branch`` to release once the merge
-    has committed (tripl-0zpq.146).
+    has committed.
     """
     resolutions = resolutions or {}
     # Read before anything below writes: the twin each thread-holding branch
     # row reads its discussion through today, which the thread move at the end
-    # prefers over the row the merge lands its key on (tripl-0zpq.122).
+    # prefers over the row the merge lands its key on.
     thread_twins = await _event_thread_twins(session, project_id=project_id, branch_id=branch_id)
     branch_origins_complete = bool(
         await session.scalar(
@@ -853,7 +853,7 @@ async def _apply_merge(
     # The second door onto ``scan_configs.event_type_id``'s ON DELETE SET NULL,
     # after ``event_type_service.delete_event_type``: merging a branch that
     # removed an event type deletes main's copy, and every scan bound to it goes
-    # on running against an empty binding, collecting nothing (tripl-0zpq.254).
+    # on running against an empty binding, collecting nothing.
     # Refused for the reason ``_reject_removals_a_scan_names_events_by`` — the
     # field-removal guard, awaited further down this same function — gives in its
     # docstring: a merge refuses whole rather than skipping the deletion.
@@ -883,7 +883,7 @@ async def _apply_merge(
         #
         # There is no survivor to re-point at: these main events lose their event
         # type outright, so the rule is DROP, exactly as on the three CRUD delete
-        # doors (tripl-a64t).
+        # doors.
         doomed_event_ids = list(
             (
                 await session.execute(
@@ -1063,7 +1063,7 @@ async def _apply_merge(
         ``branch_mf_id_to_name`` holds this branch's own definitions only, so a
         value pointing at another branch's definition was an unqualified
         subscript — the same bare 500, from the same pre-refusal rows, that
-        ``deep_copy_plan_to_branch`` now answers 409 for (tripl-0zpq.123).
+        ``deep_copy_plan_to_branch`` now answers 409 for.
         ``event_service._normalize_meta_values`` refuses to write one today; no
         migration sweeps the ones already stored, and the merge is the second
         place they surface.
@@ -1107,7 +1107,7 @@ async def _apply_merge(
     # applied as the permutation they are: the names through a parking value
     # (``_rename_main_variables``) and the lookups all-at-once
     # (``rekey_in_place``). Doing either one pair at a time re-creates the very
-    # collision the pairing removes (tripl-htcz).
+    # collision the pairing removes.
     var_renames = {
         old_key[0]: new_key[0]
         for old_key, new_key in pair_renames(
@@ -1118,7 +1118,7 @@ async def _apply_merge(
         ).items()
     }
     # A move onto a name a non-moving main row holds is only proposed when the
-    # branch deleted that row (tripl-ifuv). It has to go FIRST and be flushed on
+    # branch deleted that row. It has to go FIRST and be flushed on
     # its own: SQLAlchemy orders a mapper's saves ahead of its deletes, so left
     # to the removal loop below it would still hold the name and the
     # ``source_name`` slot when the renamed row's UPDATE goes out.
@@ -1205,12 +1205,12 @@ async def _apply_merge(
     # The one unambiguous version of that shape — the branch deleted ``b``, whose
     # identity S2 no branch row carries any more, and ``b`` still wears S2 on
     # main as it did at the cut — is now paired, and its occupant deleted and
-    # flushed ahead of the rename above (tripl-ifuv). Every other merge that
+    # flushed ahead of the rename above. Every other merge that
     # wants both the deletion and the move onto the freed name is still
     # ambiguous, and 409 asking the user to rename the clashing entity is the
     # honest answer. Cycles do NOT rely on this order: the parking
     # pass in ``_rename_main_variables`` is what makes a swap or a rotation work,
-    # and it operates on names before either arm runs (tripl-htcz).
+    # and it operates on names before either arm runs.
     for name, m_v in list(main_var_by_name.items()):
         if name in base_var_by_name and name not in branch_var_by_name:
             await session.delete(m_v)
@@ -1258,7 +1258,7 @@ async def _apply_merge(
     # The subscript below was unguarded, and it is the FIRST place a branch event
     # parented by another branch's type lands — the pre-refusal row shape
     # ``event_service`` now blocks, with no migration sweeping the ones already
-    # stored (tripl-0zpq.123). A KeyError here is the same bare 500 on the merge,
+    # stored. A KeyError here is the same bare 500 on the merge,
     # naming nothing, that ``deep_copy_plan_to_branch`` now answers 409 for.
     #
     # Deliberately NOT the deletion main's events get a few lines above: there
@@ -1289,12 +1289,12 @@ async def _apply_merge(
     branch_event_snapshot_by_id: dict[str, dict[str, Any]] = {
         event["id"]: event for event in branch_snapshot_payload.get("events", [])
     }
-    # Row by row, not key by key (tripl-0zpq.292). Main's rows pair with the
+    # Row by row, not key by key. Main's rows pair with the
     # base by their own ids, which the base recorded; the branch's by the main
     # row each copy was made from. Keyed by (type, name) instead, two namesakes
     # collapsed to one on every side: deleting one of them on the branch left
     # both on main, and each copy's edits landed on whichever main namesake the
-    # dict kept (tripl-0zpq.149). The natural key still pairs the rows the ids
+    # dict kept. The natural key still pairs the rows the ids
     # do not place — see ``merge_slots``.
     #
     # A slot whose branch copy moved to another name is a rename, and main's row
@@ -1351,7 +1351,7 @@ async def _apply_merge(
             continue
         if b_ev is None:
             # The branch deleted THIS row — the very main namesake its copy
-            # came from, not whichever shares the key (tripl-0zpq.149).
+            # came from, not whichever shares the key.
             if base_event is not None and slot.branch_known:
                 doomed_main_events.append(m_ev)
             continue
@@ -1482,8 +1482,8 @@ async def _apply_merge(
     # onto a main row; the snapshot carries the successor as a natural key for
     # exactly that reason, so the branch's own pointer is re-resolved against
     # main here — through the landings, so a successor with a namesake resolves
-    # to the main row ITS copy landed on rather than the last row under the key
-    # (tripl-0zpq.292). It runs after the flush because a successor may be an
+    # to the main row ITS copy landed on rather than the last row under the key.
+    # It runs after the flush because a successor may be an
     # event this very merge created, and because the FK is immediate.
     for b_ev, target, base_event in landings:
         snapshot = branch_event_snapshot_by_id.get(str(b_ev.id), {})
@@ -1510,8 +1510,8 @@ async def _apply_merge(
     # and they would come back pointing at an object already gone. But a doomed
     # row gets no replacement — ``_photo_identity`` includes the key, and one
     # identity is never both doomed and added — so it can be the key's LAST
-    # holder: a screenshot deleted on the branch leaves its blob to main's row
-    # (tripl-0zpq.146), and deleting that row here used to strand the object
+    # holder: a screenshot deleted on the branch leaves its blob to main's row,
+    # and deleting that row here used to strand the object
     # for good. Its key is collected instead, and ``merge_branch`` deletes the
     # blob after the commit unless some row still holds it.
     main_events_after = list(
@@ -1559,7 +1559,7 @@ async def _apply_merge(
             .all()
         )
         # Pair the two sides up by what each attachment IS, rather than
-        # replacing main's whole canvas (tripl-h2sx.28), and decide every
+        # replacing main's whole canvas, and decide every
         # attachment three-way against the base. The gate above compares the
         # raw subtree, comments included, so this block also runs when the
         # branch only talked about a photo — and then the branch's photo SET
@@ -1649,7 +1649,7 @@ async def _apply_merge(
     # main deleted it, or it is one of several namesakes nothing tells apart —
     # keeps its thread, as one whose event main deleted always has. The landing
     # is the slot the attribute writes used, so a thread about one namesake can
-    # no longer move onto the other (tripl-0zpq.292).
+    # no longer move onto the other.
     thread_targets: dict[uuid.UUID, uuid.UUID] = {}
     for branch_event_id, twin_id in thread_twins.items():
         landed = main_target_by_branch_id.get(branch_event_id)
@@ -1673,7 +1673,7 @@ async def _apply_merge(
     # --- variable event value overrides: replace only for variables whose
     # branch-side override map changed from the base. Each override follows its
     # branch event to the main row that event landed on, not to whichever main
-    # row shares the event's (type, name) (tripl-0zpq.292).
+    # row shares the event's (type, name).
     main_vars_after = await _load_variables(session, project_id, main_branch_id)
     main_var_name_to_id = {v.name: v.id for v in main_vars_after}
     branch_overrides = await _load_for_branch(
@@ -1723,7 +1723,7 @@ async def _apply_merge(
     # --- relations: three-way apply, row by row. Paired like the events above:
     # main's by their own ids, the branch's by origin id, the natural key only
     # for rows neither places. Nothing makes a relation's four names unique
-    # either (tripl-0zpq.292).
+    # either.
     branch_relations = await _load_for_branch(session, EventTypeRelation, project_id, branch_id)
     branch_fd_id_to_key = {
         fd.id: (branch_et_id_to_name[fd.event_type_id], fd.name)
@@ -1755,7 +1755,7 @@ async def _apply_merge(
             for relation in main_relations
             # ``relation_key`` indexes both maps directly, so a relation naming
             # an end that is not on this side was a KeyError — a 500 on the
-            # merge with nothing saying which relation (tripl-0zpq.128).
+            # merge with nothing saying which relation.
             # ``relation_service.create_relation`` now refuses to write one, but
             # rows stored before that refusal have no migration sweeping them,
             # and the merge is where they surface. Main needs the event-type half
@@ -1858,7 +1858,7 @@ async def _owners_still_members(
     project_id: uuid.UUID,
     owners_by_et: dict[uuid.UUID, set[uuid.UUID]],
 ) -> dict[uuid.UUID, set[uuid.UUID]]:
-    """Drop owners who no longer have a role in the project (tripl-vefw).
+    """Drop owners who no longer have a role in the project.
 
     Removing a member deletes their ownership rows, but a row that predates
     that cleanup (or slipped past it) must neither block a merge on an approval
@@ -1952,7 +1952,7 @@ async def assign_owner_reviewers_for_branch(
     whose approval the merge gate later requires (:func:`_check_owner_approvals`)
     are surfaced as expected reviewers up front, without a manual lookup. The
     branch author is never assigned to review their own branch; whether an author
-    may *approve* their own owned type is a separate policy (tripl-s8t0).
+    may *approve* their own owned type is a separate policy.
 
     Idempotent: the ``(branch_id, user_id)`` unique key plus the pre-read of
     existing reviewers means a re-submit adds nothing new. Does not commit — it
@@ -2092,8 +2092,8 @@ async def _lock_branch_for_merge(
 
     ``_get_branch`` is a plain ``session.get``, so two merges arriving together
     both read ``approved``, both pass the status gate, and both apply the branch
-    onto main — duplicating every add and re-running every field write
-    (tripl-jfm3.113). ``merge_branch`` commits exactly once, at the very end, so
+    onto main — duplicating every add and re-running every field write.
+    ``merge_branch`` commits exactly once, at the very end, so
     a row lock taken here is still held when the winner flips the status: the
     loser blocks until that commit, then re-reads ``merged`` and is rejected by
     the existing 400 below.
@@ -2121,7 +2121,7 @@ class _MergeOutcome(NamedTuple):
     post_payload: dict[str, Any]
     # ``(storage_backend, storage_key, storage_config_id)`` of every uploaded
     # photo the merge deleted from main, for ``_release_photo_blobs``
-    # (tripl-0zpq.146, F20 PR11).
+    # (F20 PR11).
     released_blobs: frozenset[BlobRef]
 
 
@@ -2164,12 +2164,12 @@ async def _commit_merged_plan(
     database constraint can reject a merge. It used to have no answer for that:
     the IntegrityError travelled all the way to ``unhandled_exception_handler``
     and the caller got a bare 500 naming nothing, on a branch that would keep
-    failing the same way until someone renamed a row by hand (tripl-htcz).
+    failing the same way until someone renamed a row by hand.
 
     The known cause — a rename cycle colliding on
     ``uq_variable_project_name`` / ``uq_variable_project_source_name``, or on
     ``uq_event_scan_identity`` now that an event's identity is unique per type
-    (tripl-8tdl) — is settled by the pairing in ``_apply_merge``. What still
+     — is settled by the pairing in ``_apply_merge``. What still
     arrives here is either a shape the pairing declines on purpose — a branch
     that deletes a row and moves another onto its name, where the write of the
     freed identity runs ahead of the removal (the removal-order note in
@@ -2189,7 +2189,7 @@ async def _commit_merged_plan(
     # except arm below would trigger an expired-attribute reload — implicit IO on
     # the sync Session from plain async code, outside ``greenlet_spawn``, i.e.
     # ``MissingGreenlet`` — and the caller would get back exactly the bare 500
-    # this function exists to replace (tripl-htcz).
+    # this function exists to replace.
     branch_id = branch.id
     branch_name = branch.name
     try:
@@ -2255,7 +2255,7 @@ async def merge_branch(
 
     main_branch_id = await ensure_main_branch_id(session, project.id)
     # Main is locked from here to the commit, BEFORE main_payload is read for
-    # the conflict check (tripl-0zpq.294). Without it a main edit committed
+    # the conflict check. Without it a main edit committed
     # between that read and ``_apply_merge`` was invisible to the check, and
     # the apply step, which compares the branch against the BASE, wrote the
     # branch's value over it: no conflict, no warning, no trail. Plan writes to
@@ -2354,7 +2354,7 @@ async def merge_branch(
     await session.refresh(branch)
 
     # The blobs of photos the merge deleted from main that no row holds any
-    # more (tripl-0zpq.146). Best-effort; the merge is already committed.
+    # more. Best-effort; the merge is already committed.
     await _release_photo_blobs(session, branch_id=branch.id, blobs=outcome.released_blobs)
 
     # The merge rewrote main's event types and meta fields behind the service

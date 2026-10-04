@@ -8,7 +8,7 @@ CLI's own pinning test compares its formula to literals inside its own package,
 so it cannot see the backend at all, and its CI job runs from ``cli/``. A backend
 change therefore left every CLI test green while ``deferred_by_seconds_estimate``,
 the published backoff table in ``website/docs/run/cli.md`` and the (since removed,
-tripl-0zpq.343) demo staleness allowance all quietly became wrong (tripl-ey6j.8).
+tripl-0zpq.343) demo staleness allowance all quietly became wrong.
 
 The guard lives HERE rather than in ``cli/tests/`` because this is the suite whose
 CI job has the whole repository checked out. It reads the two CLI modules as text

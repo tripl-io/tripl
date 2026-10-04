@@ -3,7 +3,7 @@ import { UNNAMED_EVENT_LABEL, eventNameLabel } from './eventName'
 
 describe('eventNameLabel', () => {
   it('replaces a name that would paint nothing', () => {
-    // The production row (tripl-wkwv.5) is the first case; the others are the
+    // The production row is the first case; the others are the
     // shapes the same defect arrives in on a nullable API field.
     expect(eventNameLabel('')).toBe(UNNAMED_EVENT_LABEL)
     expect(eventNameLabel('   ')).toBe(UNNAMED_EVENT_LABEL)

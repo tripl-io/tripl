@@ -107,7 +107,7 @@ class _McpTriplClient(TriplClient):
     The one place the shared client's neutral errors are translated. ``get``,
     ``post`` and ``patch`` all funnel through ``request``, so overriding it
     covers every call — including ``ensure_branch_not_main``'s own lookup below,
-    which is not routed through any tools/ module (tripl-ey6j.1).
+    which is not routed through any tools/ module.
     """
 
     async def request(

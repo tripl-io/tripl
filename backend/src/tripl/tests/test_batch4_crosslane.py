@@ -61,7 +61,7 @@ from tripl.worker.tasks.alerts import _claim_delivery
 from tripl.worker.tasks.maintenance import STRANDED_DELIVERY_MINUTES
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.37: Retry has to leave a row the send task it enqueues can claim
+# Retry has to leave a row the send task it enqueues can claim
 # ---------------------------------------------------------------------------
 
 
@@ -225,7 +225,7 @@ async def test_retry_hands_the_send_task_a_row_it_can_claim(tmp_path, monkeypatc
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.253: the demo seeder is a scope_name writer like any other
+# the demo seeder is a scope_name writer like any other
 # ---------------------------------------------------------------------------
 
 # Longer than the column and longer than the ellipsis budget, in the shape the
@@ -325,7 +325,7 @@ async def test_the_demo_seeder_trims_the_scope_label_it_writes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-v422: the destination override accepts what the destination delivers
+# the destination override accepts what the destination delivers
 # ---------------------------------------------------------------------------
 
 # What an operator types into a From: field when they want the alert to arrive

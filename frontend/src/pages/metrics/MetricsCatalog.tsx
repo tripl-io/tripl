@@ -93,7 +93,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 // dot, a truncating name and a nowrap kind chip, so the widest chip ("Event
 // composition", ~109px) left only ~125px for a name needing ~127px at 1.3fr —
 // "Purchase conversion" clipped to save two characters while Latest held
-// "10.95 %" (~55px of glyphs) in ~200px (tripl-862w). 2fr:1fr moves ~50px to the
+// "10.95 %" (~55px of glyphs) in ~200px. 2fr:1fr moves ~50px to the
 // name; Latest still fits its widest realistic value ("1,234,567 sessions").
 const METRIC_GRID =
   'grid grid-cols-[18px_20px_minmax(0,2fr)_minmax(0,1fr)_104px_84px_84px_28px] items-center gap-3 px-4'
@@ -167,7 +167,7 @@ const REVIEW_FILTER_OPTIONS: { value: ReviewFilter; label: string }[] = [
   { value: 'unreviewed', label: 'Not reviewed' },
 ]
 
-// Interval → milliseconds, for the staleness threshold (tripl-nxk2.10).
+// Interval → milliseconds, for the staleness threshold.
 const INTERVAL_MS: Record<MetricScanInterval, number> = {
   '15m': 15 * 60_000,
   '1h': 60 * 60_000,
@@ -232,7 +232,7 @@ function hasActiveSignal(metric: MetricDefinitionListItem): boolean {
   return !!metric.latest_signal && metric.latest_signal.state !== 'recent'
 }
 
-// Staleness path (tripl-nxk2.10): MetricDefinitionListItem DOES carry a
+// Staleness path: MetricDefinitionListItem DOES carry a
 // last-bucket timestamp (`latest_bucket`) alongside the collection `interval`,
 // so we compute real staleness rather than fabricating a signal or falling back
 // to a Draft count. Only ACTIVE metrics can be stale — drafts never started
@@ -252,7 +252,7 @@ function isStaleMetric(metric: MetricDefinitionListItem, now: number): boolean {
 // A metric's internal name is a lowercase [a-z0-9_] identifier. Derive a unique
 // copy name: `<name>_copy`, then `_2` / `_3`… on collision against the loaded
 // catalog. The source name is already a valid identifier, so the suffix keeps it
-// one (tripl-nxk2.9).
+// one.
 // Name clashes the duplicate retries through before giving up (MET-22).
 const MAX_COPY_NAME_ATTEMPTS = 5
 
@@ -400,7 +400,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const canWrite = useCanWriteProject()
   // Every filter lives in the URL rather than in component state: each kind is
   // deep-linkable (the demo's "metric building blocks" link to Fact / SQL /
-  // Event composition, tripl-2su6.19), and opening a metric then pressing Back
+  // Event composition), and opening a metric then pressing Back
   // returns to the same search, status and signal slice instead of a reset
   // catalog (MET-24). Unknown values fall back to "no filter" rather than
   // querying a bogus one. Writes replace the history entry, so typing a search
@@ -419,7 +419,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const reviewFilter: '' | ReviewFilter =
     reviewParam === 'reviewed' || reviewParam === 'unreviewed' ? reviewParam : ''
   // Client-side derived filter driven by the operational stat cells; layered on
-  // top of the server-side status/kind/search filters (tripl-nxk2.10).
+  // top of the server-side status/kind/search filters.
   const signalParam = searchParams.get('signal')
   const signalFilter: SignalFilter | null = SIGNAL_FILTERS.includes(signalParam as SignalFilter)
     ? (signalParam as SignalFilter)
@@ -520,7 +520,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const existingNames = useMemo(() => new Set(metrics.map(m => m.name)), [metrics])
   // Server-side, so it sits on the same basis as the Metrics total beside it.
   // Counting the loaded page made the two stats disagree the moment the catalog
-  // outgrew one page (tripl-jfm3.109).
+  // outgrew one page.
   const summaryTotal = summary ? summary.total : 0
   const active = summary?.active_total ?? summaryItems.filter(m => m.status === 'active').length
   // Staleness is judged against a clock that keeps moving. A "now" frozen at
@@ -529,7 +529,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   // too, so the count agrees with the rows it just received.
   const tickMs = useNow(60_000)
   const nowMs = Math.max(tickMs, metricsQuery.dataUpdatedAt)
-  // Operational rollups over the whole catalog (tripl-nxk2.10, MT-23): no
+  // Operational rollups over the whole catalog (MT-23): no
   // filter — search, status, kind or the stat toggles themselves — changes them.
   const anomalyCount = useMemo(() => summaryItems.filter(hasActiveSignal).length, [summaryItems])
   const staleCount = useMemo(
@@ -537,7 +537,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
     [summaryItems, nowMs],
   )
   // Widest sparkline in the loaded set → the real "last N points" the Trend
-  // column represents (tripl-nxk2.11). Each spark is a trailing, bounded window
+  // column represents. Each spark is a trailing, bounded window
   // of metric-value buckets, so the point count is the honest, data-derived
   // label; the wall-clock window differs per metric interval and isn't knowable
   // at the column level.
@@ -546,13 +546,13 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
     [metrics],
   )
   // Client-side view over the loaded list, applied on top of the server-side
-  // status/kind/search filters (tripl-nxk2.10).
+  // status/kind/search filters.
   const visibleMetrics = useMemo(() => {
     if (signalFilter === 'anomalies') return metrics.filter(hasActiveSignal)
     if (signalFilter === 'stale') return metrics.filter(m => isStaleMetric(m, nowMs))
     return metrics
   }, [metrics, signalFilter, nowMs])
-  // The coached demo scenario (tripl-2su6.21) points at ONE row, not every row:
+  // The coached demo scenario points at ONE row, not every row:
   // the collect step reads as an example ("pick a metric"), so N callouts would
   // be noise. Both ids are null outside a demo scenario, and the mark itself is
   // an early return, so nothing below changes for a real project.
@@ -613,7 +613,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   // across views would let a later bulk action silently hit rows the user
   // no longer sees — so every view change starts with a clean slate. A
   // server-side filter change also swaps the loaded set out from under the
-  // client-side signal filter, so it drops that too (tripl-nxk2.10).
+  // client-side signal filter, so it drops that too.
   const setServerFilter = (param: Exclude<FilterParam, 'signal'>, value: string) => {
     setSelectedIds(new Set())
     setFilterParams({ [param]: value, signal: null })
@@ -763,8 +763,8 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
             value={summary ? formatNumber(active) : <StatValueSkeleton />}
             tone={summary ? 'success' : undefined}
           />
-          {/* A pressable stat doubles as a one-click table filter
-              (tripl-nxk2.10): MiniStat renders the <button aria-pressed>
+          {/* A pressable stat doubles as a one-click table filter:
+              MiniStat renders the <button aria-pressed>
               itself and cancels its own hover padding, so the phone grid's
               second row lines up with the first. */}
           <MiniStat
@@ -774,7 +774,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
             // across every scope (event, event type, project total). A project
             // whose anomalies all sit outside the metric catalog therefore
             // renders 0 here beside a red 3 in the nav ~300px away, and a
-            // reader stops trusting both numbers (tripl-vsw2). "With" keeps
+            // reader stops trusting both numbers. "With" keeps
             // that scope beside the "Metrics" tile without repeating it (MT-26).
             label="With anomalies"
             value={
@@ -962,7 +962,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
               // the drag announcements and moves them out of the grid; it is the
               // shape EventsTable.tsx already uses. SortableContext renders no DOM
               // and every useSortable in MetricRow is still inside the provider, so
-              // nothing about dragging changes (tripl-np3p).
+              // nothing about dragging changes.
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -1100,7 +1100,7 @@ function MetricRow({
   const anomalyIdx = isActiveSignal && metric.spark.length > 0 ? metric.spark.length - 1 : null
   const cell = canWrite ? PHONE_CELL : VIEWER_PHONE_CELL
 
-  // Latest-cell tooltip (tripl-nxk2.11): prefer the actual bucket time of the
+  // Latest-cell tooltip: prefer the actual bucket time of the
   // latest value, then a signal's bucket, else fall back to the collection
   // cadence so the cell always carries some temporal context.
   const bucketIso = metric.latest_bucket ?? metric.latest_signal?.bucket ?? null
@@ -1181,7 +1181,7 @@ function MetricRow({
               // A wide kind chip can still clip a long name, and the name is the
               // one cell a reader cannot reconstruct from the rest of the row —
               // so it carries its own tooltip, as the Latest cell below already
-              // does (tripl-862w).
+              // does.
               title={metric.display_name}
               className="truncate text-body-sm font-medium no-underline hover:underline text-fg"
             >
@@ -1356,13 +1356,13 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
     onSuccess: () => {
       toast.success('Collection started — you will be notified when it finishes.')
       // The slug travels with the watch: leaving the project mid-run must not
-      // repoint the poll at another project's metric id (tripl-htvg).
+      // repoint the poll at another project's metric id.
       startMetricCollectionWatch(
         { slug, metricId: metric.id, displayName: metric.display_name },
         { onSettled: () => invalidateCatalog(qc, slug) },
       )
       // Only a collect the USER started advances the scenario — the demo's tick
-      // manufactures collections of its own (tripl-2su6.21). Inert elsewhere.
+      // manufactures collections of its own. Inert elsewhere.
       notifyMetricCollectStarted(metric.id)
     },
     // Its own toast (silenced in the backstop): what failed, and why.
@@ -1395,7 +1395,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
       </ScenarioCoachMark>
       {/* The portaled content still bubbles clicks through the REACT tree (portal
           synthetic events), so without this stop the row's navigate-on-click fires
-          for every item selection and unmounts the row mid-action (tripl-4mju). */}
+          for every item selection and unmounts the row mid-action. */}
       <DropdownMenuContent
         align="end"
         sideOffset={6}

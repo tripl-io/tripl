@@ -3,20 +3,20 @@
 Five findings, all of which produced a WRONG NUMBER rather than an error, so
 every test here asserts a value relationship rather than "something came back":
 
-* tripl-0zpq.71 — the adapter could not read the dialect it declares. Every
+* the adapter could not read the dialect it declares. Every
   filter the metric collector compiled for it (back-tick quoted, backslash
   escaped) matched nothing on ``=`` and everything on ``!=``, and the per-metric
   collection path's row filter — delivered by WRAPPING the source in a
   ``WHERE`` subquery — was thrown away entirely.
-* tripl-0zpq.73 — every row digest was keyed on its offset from the anchor, and
+* every row digest was keyed on its offset from the anchor, and
   the anchor moves on every scan, so the same absolute hour held different rows
   each time and session pools rolled over at the anchor's hour instead of UTC
   midnight.
-* tripl-0zpq.76 — the seeded sql-metric shape was recognized by probing for
+* the seeded sql-metric shape was recognized by probing for
   three substrings, so an edited query was answered with the unfiltered series.
-* tripl-0zpq.79 — a capability error that could not be surfaced, a budget guard
+* a capability error that could not be surfaced, a budget guard
   that could not fire, and a connection test that could not fail.
-* tripl-0zpq.80 — orders were stamped up to 24h into the future while events
+* orders were stamped up to 24h into the future while events
   stopped at the last complete hour.
 """
 
@@ -108,7 +108,7 @@ def _condition_fragment(operator: str, value: object) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.71 — the adapter reads the dialect it declares
+# the adapter reads the dialect it declares
 # --------------------------------------------------------------------------- #
 
 
@@ -323,7 +323,7 @@ def test_a_value_containing_the_table_name_does_not_switch_tables() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.73 — digests keyed on absolute time
+# digests keyed on absolute time
 # --------------------------------------------------------------------------- #
 
 
@@ -439,7 +439,7 @@ def test_a_naive_anchor_is_read_as_utc() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.76 — the sql-metric shape is recognized exactly
+# the sql-metric shape is recognized exactly
 # --------------------------------------------------------------------------- #
 
 
@@ -510,7 +510,7 @@ def test_recognition_survives_punctuation_and_whitespace() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.79 — errors that surface, guards that fire, checks that can fail
+# errors that surface, guards that fire, checks that can fail
 # --------------------------------------------------------------------------- #
 
 
@@ -556,7 +556,7 @@ def test_budget_guard_rejects_an_oversized_dataset() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.80 — one horizon for both tables
+# one horizon for both tables
 # --------------------------------------------------------------------------- #
 
 # Deliberately NOT midnight: midnight is the single hour at which the old

@@ -14,7 +14,7 @@ export type BulkRowStatus = 'ready' | 'incomplete' | 'invalid' | 'duplicate' | '
 
 /**
  * A required field the name is not built from, carried as a column of its own
- * after the identity columns (tripl-hhw3 / AU-19). Without it a type with one
+ * after the identity columns (AU-19). Without it a type with one
  * such field could not be pasted at all: every event of it would be refused.
  */
 export interface BulkExtraColumn {
@@ -47,7 +47,7 @@ export interface BulkRow {
  *
  * Whatever follows the last column is the title, kept whole with its own
  * delimiters — `weather_alert,show,widget,Weather alert widget shown` is three
- * columns and a label (tripl-kjhi.3). Extra columns (required fields the name
+ * columns and a label. Extra columns (required fields the name
  * is not built from) sit between the identity and the title. Past one identity
  * column, a tab wins over a comma — a paste out of a spreadsheet is
  * tab-separated, and its cells may themselves contain commas.

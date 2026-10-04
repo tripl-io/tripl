@@ -5,7 +5,7 @@ That closed one of three ways to remove a FieldDefinition a scan's
 ``event_name_format`` names events by; the two here are the other two, and both
 end in the same ``session.delete(field)`` and the same dead scan — every
 collection failing on "the event name format references unknown keys"
-(tripl-3mmh, root cause of tripl-lpin).
+(root cause of tripl-lpin).
 
 The delete door and the merge door together also pin the DIVISION between them:
 deleting the field on a BRANCH is allowed (a branch is where you plan a removal

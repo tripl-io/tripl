@@ -30,7 +30,7 @@ _MAX_LEN: Final[int] = 128
 # and Starlette's ServerErrorMiddleware — which serves the app's catch-all
 # ``Exception`` handler — wraps this middleware from the outside. So the handler
 # for the one error class the request id exists to diagnose used to see None and
-# log/echo the "-" placeholder (tripl-qu9m). The ASGI scope is the one carrier
+# log/echo the "-" placeholder. The ASGI scope is the one carrier
 # that outlives the reset: it is the same dict object ServerErrorMiddleware
 # builds its ``Request`` from, so the id is mirrored there on the way in and read
 # back with :func:`request_id_from_scope`.
@@ -61,7 +61,7 @@ def bound_request_id(request_id: str) -> Iterator[None]:
     :func:`current_request_id` and would overwrite an explicit
     ``extra={"request_id": ...}``. Binding the recovered id around the log call
     is therefore the only way to get the real id onto a log line emitted from
-    ServerErrorMiddleware (tripl-qu9m).
+    ServerErrorMiddleware.
     """
     token = _request_id_var.set(request_id)
     try:

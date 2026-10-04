@@ -40,7 +40,7 @@ const OPEN_SIGNALS_HELP =
 // is a separate project-wide query (useEventsPageData `inReviewCount`), while
 // "Events" beside it is the filtered list count. Unlabelled, the row read as one
 // sentence — the archived tab showed "TOTAL 1 · IN REVIEW 6 pending" over a
-// single archived row (tripl-4oqs) — so the delta names the wider scope.
+// single archived row — so the delta names the wider scope.
 const IN_REVIEW_HELP =
   'Events with status In review across the whole project; it ignores the tab, filters and search.'
 
@@ -184,8 +184,7 @@ export function EventsHeader({
    * Events whose STATUS is `in_review` — not the count of unreviewed events.
    * The two are independent axes (an event can be marked reviewed and still be
    * in_review), and the old `unreviewedCount` name claimed otherwise while the
-   * "Mark reviewed" button next to it moved neither this number nor the queue
-   * (tripl-invv).
+   * "Mark reviewed" button next to it moved neither this number nor the queue.
    */
   inReviewCount: number
   inReviewPending?: boolean

@@ -1,5 +1,5 @@
 /**
- * The catalog's half of the coached demo scenario (tripl-2su6.21.5).
+ * The catalog's half of the coached demo scenario.
  *
  * Rendered inside the REAL DemoScenarioProvider rather than a stub: what has to
  * hold is that a collect the user fired binds the scenario to that metric, and
@@ -203,7 +203,7 @@ afterEach(() => {
 // live region inline under DndContext, and ARIA's table role admits only row,
 // rowgroup and caption children — so a DndContext placed inside role="table"
 // puts a foreign role in the grid and axe reports aria-required-children.
-describe('MetricsCatalog — the ARIA table owns no live region (tripl-np3p)', () => {
+describe('MetricsCatalog — the ARIA table owns no live region', () => {
   it("keeps dnd-kit's drag announcements, but outside the table", async () => {
     const { container } = renderCatalog()
     await screen.findByText('Checkout conversion')

@@ -70,7 +70,7 @@ def render_generated_names(writes: tuple[FileWrite, ...]) -> str:
     A secret printed to a terminal is a secret in a scrollback buffer, in a
     ``tee`` log and in whatever the operator pastes into a ticket. There is a
     test that asserts none of the generated values appears in stdout, stderr or
-    the --json document (tripl-ey6j.3).
+    the --json document.
     """
     for write in writes:
         if not (write.secret and write.keys):
@@ -150,8 +150,8 @@ def render_kept_settings(plan: InstallPlan) -> str:
     """Name every flag value the existing ``.env`` overrode, and what to do about it.
 
     Silence here was the actual defect: a re-run with a new ``--app-url``
-    printed the new URL everywhere, changed nothing, and exited 0
-    (tripl-jfm3). A warning rather than a refusal, because the rest of the
+    printed the new URL everywhere, changed nothing, and exited 0.
+    A warning rather than a refusal, because the rest of the
     re-run - converging compose.yaml, `pull`, `up -d` - is exactly what the
     operator asked for and still happens.
     """
@@ -191,7 +191,7 @@ def render_backup_gate(directory: Path, current: str) -> str:
     promise it cannot keep: it cannot know there is disk space, it cannot verify
     the dump, and the dump does NOT contain ENCRYPTION_KEY - without which every
     encrypted column in it is unreadable. Printing the command and refusing to
-    proceed without an acknowledgement is the honest version (tripl-ey6j.3).
+    proceed without an acknowledgement is the honest version.
     """
     return "\n".join(
         [
@@ -209,7 +209,7 @@ def render_health(outcome: HealthOutcome, base_url: str) -> str:
         # this line with base_url="this instance" and print "not waiting for this
         # instance/health (--wait 0)." on a run where --wait was 300 and the real
         # problem was an .env with no APP_BASE_URL - a mangled sentence blaming
-        # the wrong thing, twice over (tripl-jfm3).
+        # the wrong thing, twice over.
         target = f" for {base_url}/health" if base_url else ""
         return f"not waiting{target}: {outcome.skipped_reason}."
     if outcome.ok:
@@ -259,7 +259,7 @@ def render_upgrade_failure(directory: Path, target: str, backup: Path | None) ->
 # --- first-run next steps ---------------------------------------------------
 #
 # `tripl install` automates NONE of "owner account, data source, first scan",
-# and that is a finding rather than a shortcut (tripl-ey6j.3):
+# and that is a finding rather than a shortcut:
 #
 #   * A DATA SOURCE IS UNREACHABLE BY CONSTRUCTION. `POST /data-sources` depends
 #     on `deps.get_owner_user`, which raises 403 whenever
@@ -294,7 +294,7 @@ def render_next_steps(bootstrap: JsonDict | None, base_url: str, *, probed: bool
     sentence from "the request failed". Under ``--wait 0`` this command opens no
     connection to the public URL - that is the whole point of the flag, whose
     documented remedy is for an origin that is not reachable yet - so claiming
-    the state "could not be read" would invent a failed attempt (tripl-jfm3).
+    the state "could not be read" would invent a failed attempt.
     """
     if bootstrap is None and not probed:
         opening = (

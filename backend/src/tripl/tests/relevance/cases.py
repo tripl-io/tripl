@@ -2,8 +2,8 @@
 
 WHY A TABLE AND NOT PROSE ASSERTIONS
 ------------------------------------
-Every entry here was measured against production before it was written down
-(tripl-338u): 26 queries over three real projects, every response HTTP 200. Ten
+Every entry here was measured against production before it was written down:
+26 queries over three real projects, every response HTTP 200. Ten
 cases, each of them "this query must produce exactly this ranking, and here is
 what actually beat it in production".
 
@@ -16,8 +16,8 @@ field rather than borrowing the credibility of the others:
   normalization it pins was invisible to every other case. Its input
   (``corpus._SETTINGS_CARD_TARGETS``) is built to the measured production
   profile even though the query that reads it is constructed here.
-* ``over-stemmed-nominative-is-reachable-from-an-inflected-query``
-  (tripl-uojz). Same shape, different mechanism: no production query could
+* ``over-stemmed-nominative-is-reachable-from-an-inflected-query``.
+  Same shape, different mechanism: no production query could
   distinguish the over-stem fault while every Russian document in the corpus
   held both lexical classes at once. Its input
   (``corpus._SCREEN_KINDS``) is built to the measured production shape — the
@@ -29,7 +29,7 @@ A case makes up to three claims, and they are not equally strong. "The right
 document comes back at all" is retrieval; "it comes back FIRST, ahead of these
 named competitors" is ordering; "this is not served as a certain answer" is
 confidence. ``test_search_relevance`` asserts them in three separate test
-functions on purpose (tripl-uojz).
+functions on purpose.
 
 The reason is a hole this table used to have. ``pytest.mark.xfail`` marks a
 FUNCTION, so while one function asserted retrieval and ordering together, an
@@ -68,7 +68,7 @@ case go red.
 
 The mechanism has now been exercised end to end, exactly once.
 ``russian-phrase-finds-the-event-it-describes`` carried an ``xfail_ordering`` for
-tripl-9t2s — a fault the four fixes did not address, filed rather than tuned
+a fault the four fixes did not address, filed rather than tuned
 away — and the commit that added ``COVERAGE_BONUS`` to
 ``_search_query.postgres_lexical_search`` DELETED that marker. That deletion is
 the proof for that issue, in the workflow this field exists for: the marker was
@@ -79,7 +79,7 @@ measured fault.
 The rule that is NOT negotiable either way: an assertion is never weakened to
 make a case pass.
 
-WHAT EACH CASE CAN AND CANNOT PIN — THE AUDIT, WRITTEN DOWN (tripl-uojz)
+WHAT EACH CASE CAN AND CANNOT PIN — THE AUDIT, WRITTEN DOWN
 ------------------------------------------------------------------------
 "The harness passes" has now been insufficient evidence three times, so every
 case below has been asked the only question that matters about it: could it be
@@ -232,7 +232,7 @@ class RelevanceCase:
     ``xfail_ordering`` is the reason a case's ORDER is EXPECTED to be wrong, or
     ``None``. It excuses nothing else — retrieval and confidence are asserted
     unconditionally, which is what stops a ranking marker from covering a
-    retrieval regression (tripl-uojz; see the module docstring). NO case sets it
+    retrieval regression (see the module docstring). NO case sets it
     today: the one that did (``russian-phrase-...``, for tripl-9t2s) had it
     deleted by the fix, which is the workflow this field exists for.
     """
@@ -368,7 +368,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # 'screen_spot', so the 3.5 keyword-token tier fires on the event's own
         # name, and every identifier is additionally indexed in its spaced form.
         #
-        # AUDIT (tripl-uojz): NOT VERIFIED EITHER WAY, and this now says so
+        # AUDIT: NOT VERIFIED EITHER WAY, and this now says so
         # instead of implying otherwise. The 3.25 stemmed tier arrived AFTER
         # tripl-h9x2 (with tripl-nh5s) and fires on this event's own title
         # regardless of the token regex, and pg_trgm scores 'screen_spot' against
@@ -401,7 +401,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # surface leg in either direction.
         expect_top=EVENT_SCREEN_SPOT,
         must_not_outrank=(EVENT_SCREEN_HOME, FIELD_SCREEN),
-        # THE COVERAGE FAULT, AND THE ARITHMETIC THAT CLOSED IT (tripl-9t2s)
+        # THE COVERAGE FAULT, AND THE ARITHMETIC THAT CLOSED IT
         # This case carried an `xfail_ordering` and no longer does. Measured on
         # this harness, whole result set, three documents:
         #
@@ -440,7 +440,7 @@ CASES: tuple[RelevanceCase, ...] = (
         #   answer. MUTATION: set COVERAGE_BONUS = 4.0 and the top hit is served
         #   at 0.684, so the fix cannot be enlarged into a blunt instrument.
         #
-        # THE (NOW DELETED) MARKER COVERED THE ORDER AND NOTHING ELSE (tripl-uojz)
+        # THE (NOW DELETED) MARKER COVERED THE ORDER AND NOTHING ELSE
         # `screen_spot` going ABSENT from these results — the production fault
         # itself, returning — was asserted against unconditionally by the
         # retrieval test, which reads no xfail field. Until that split, the marker
@@ -453,7 +453,7 @@ CASES: tuple[RelevanceCase, ...] = (
         id="purchase-singular",
         query="purchase",
         measured="production: 19.565, correct entity on top — the control for the pair below",
-        # AUDIT (tripl-uojz): pins NOTHING, by design, and that is its job. It
+        # AUDIT: pins NOTHING, by design, and that is its job. It
         # passed before any fix and must keep passing after every one; it is what
         # shows the harness discriminates instead of failing whatever it is
         # shown. `stem('purchase') == 'purchas'` for the query and the entity
@@ -493,7 +493,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # `test_keyword_tier_premise.test_a_harvested_value_does_not_buy_an_event
         # _the_keyword_tier`, which is where to look when this goes red.
         #
-        # AUDIT (tripl-uojz): this one does pin what it claims. Without the
+        # AUDIT: this one does pin what it claims. Without the
         # stemmer, `purchases` reaches `purchase_completed` by no path at all —
         # not the tsvector, not `LIKE '%purchases%'` against a document spelling
         # `purchase_completed`, not trigram similarity between those two strings.
@@ -534,7 +534,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # retrieval, by `over-stemmed-nominative-is-reachable-from-an-inflected-
         # query` below.
         # THE EXPECTATION FLIPPED, BY AN OWNER DECISION, NOT BY A GREEN RUN
-        # (tripl-dito, 2026-08-16)
+        # (2026-08-16)
         # This case asserted that the EVENT wins. Weighting the title (setweight
         # 'A') puts the two fields whose names ARE the query above it:
         #
@@ -575,7 +575,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # takes the 3.25 tier while the harvested screen name — whose keywords
         # lost their values to tripl-gbxj — is left on its literal 3.0.
         #
-        # WHAT THIS PAIR DOES NOT COVER (tripl-uojz)
+        # WHAT THIS PAIR DOES NOT COVER
         # It cannot detect the over-stemming fault, in either direction, and it
         # certified a fix that was wrong on production — the harness's third
         # false green. The corpus document both cases asserted on carried the
@@ -587,7 +587,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # 'уловы' stems to 'улов' and the document has held 'улов' since
         # a7c3e1b9d5f2, so it is retrieved on the stem leg alone. Green here is
         # not evidence about tripl-uojz and never was.
-        # SAME FLIP, SAME DECISION (tripl-dito). The plural behaves like the
+        # SAME FLIP, SAME DECISION. The plural behaves like the
         # singular once the title carries weight:
         #
         #     q='уловы'  Вес улова 7.178  Тип улова 7.178
@@ -614,7 +614,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # everything: 'screen_spot' stems to 'spot' too and takes the same tier,
         # and 'spot' still wins it on trigram similarity to the query.
         #
-        # AUDIT (tripl-uojz): pins what it claims, with one caveat worth naming.
+        # AUDIT: pins what it claims, with one caveat worth naming.
         # Without the stemmer the `spot` event IS still retrieved — trigram
         # similarity between 'spot' and 'spots' is ~0.57, well over the 0.3
         # threshold — but it earns no boost at all, and `${property.screen_name}`
@@ -688,7 +688,7 @@ CASES: tuple[RelevanceCase, ...] = (
         # issue put a cosine floor under the semantic leg, which is the other
         # way a junk query used to acquire confident-looking results.
         #
-        # AUDIT (tripl-uojz): pins what it claims. Reverting confidence to a
+        # AUDIT: pins what it claims. Reverting confidence to a
         # fraction of the top hit makes the top hit 1.0 by construction, which is
         # twice this bound. The one way it could go quietly vacuous is the corpus
         # ceasing to retrieve anything for this query — `${property.session_key}`

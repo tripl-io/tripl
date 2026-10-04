@@ -177,7 +177,7 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
     # every rule ever created carries, and a rule has no status column to tell
     # "never muted" from "muted forever". Same shape as
     # ``AlertCorrelationState.muted_until`` but read the OPPOSITE way: on an
-    # inbox incident a NULL is the INDEFINITE mute (tripl-a50u). The two checks
+    # inbox incident a NULL is the INDEFINITE mute. The two checks
     # look alike and must not be unified — see
     # ``AlertInboxActionRequest.validate_action``.
     #
@@ -189,7 +189,7 @@ class AlertRule(UUIDMixin, TimestampMixin, Base):
     # The worker suppresses deliveries for a muted rule on BOTH delivery paths.
     # An older version of this comment called that "a separate follow-up", and
     # on the strength of it the Monitors UI shipped a Mute button that wrote
-    # this column and changed nothing (tripl-jfm3.99). Today:
+    # this column and changed nothing. Today:
     # ``metrics.dispatch._prepare_alert_deliveries`` skips a muted rule BEFORE
     # it splits immediate destinations from scheduled ones, so a muted monitor
     # neither mints an ``AlertDelivery`` nor buffers an ``AlertPendingItem``;

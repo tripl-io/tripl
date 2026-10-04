@@ -45,7 +45,7 @@ dependencies = [
     # consumer resolve a future major that moved the API out from under us.
     "httpx>=0.27.0,<1",
     # The HTTP client lives in the `tripl` distribution and is IMPORTED from
-    # there, not copied (tripl-ey6j.1). Copying 179 lines would have been the
+    # there, not copied. Copying 179 lines would have been the
     # fourth instance of this repo's recurring drift defect — query keys drifted
     # four ways, the event-name regex three, plus security headers and the
     # signal significance gate.
@@ -54,7 +54,7 @@ dependencies = [
     # from `tripl_cli.api`, and the published tripl 0.1.0 does not export them —
     # they were added after it shipped. A wheel declaring `>=0.1` therefore
     # resolves happily and then dies on import with ImportError, which is what
-    # the clean-venv smoke test in publish-mcp.yml caught (tripl-yh8t). Bump
+    # the clean-venv smoke test in publish-mcp.yml caught. Bump
     # this floor whenever a symbol is imported that an older `tripl` lacks.
     #
     # [tool.uv.sources] below points `tripl` at the sibling checkout for anything

@@ -9,7 +9,7 @@ import { formatNumber } from '@/lib/format'
  * one in `ScanDryRunSummary.tsx`), and bare inline ternaries elsewhere. Four
  * copies is not a style problem — the copies do not agree, and the surfaces
  * with no copy at all are the ones that shipped "1 scans" to every project that
- * had just finished onboarding (tripl-3y7z).
+ * had just finished onboarding.
  *
  * The two exported shapes are genuinely different jobs, which is why the
  * duplicates diverged:

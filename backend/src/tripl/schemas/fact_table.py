@@ -244,7 +244,7 @@ class FactTableUpdate(BaseModel):
         # ``order`` used to be the only field guarded here, and its comment named
         # exactly the 500 the other NOT NULL fields still reached: an explicit
         # ``"sql": null`` or ``"row_filters": null`` set the column to NULL and
-        # the commit raised (tripl-0zpq.181). ``data_source_id`` stays out of the
+        # the commit raised. ``data_source_id`` stays out of the
         # set — a null there is how the form UNBINDS the warehouse.
         return reject_explicit_nulls(data, _FACT_TABLE_NOT_NULL_UPDATE_FIELDS)
 

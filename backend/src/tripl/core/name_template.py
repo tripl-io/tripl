@@ -10,7 +10,7 @@ replay path in ``worker/tasks/metrics/generation.py`` used to re-declare the
 pattern and keep it in step by a comment here telling all three they "MUST stay
 identical"; they now import it (Copilot, PR #74). Keeping one copy is the point
 — a placeholder the scan recognises but the reserved-column logic does not is
-how production lost a scan for 17 hours (tripl-lpin).
+how production lost a scan for 17 hours.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ class NameFormatError(ValueError):
     It exists because raising a bare ``ValueError`` collapsed the one
     self-diagnosing line ("references unknown keys: action") into "Scan failed
     due to an internal error." for four days of production collection failures
-    (tripl-3mmh, root cause of tripl-lpin). It lives in ``core`` because ``core``
+    (root cause of tripl-lpin). It lives in ``core`` because ``core``
     must never import ``worker`` — admitting it to the curated set in
     ``_errors`` keeps the import direction worker → core and means every caller
     of the name-format code gets the behaviour without opting in.
@@ -140,6 +140,6 @@ def resolve_dotted_keys(fmt: str, values_by_field: dict[str, str]) -> dict[str, 
         # The scan renders a JSON path value with ``format_json_path_value``, so
         # the API must too: ``true``/``false``/``null`` and a container's JSON,
         # never Python's ``True`` or an unresolved key, or a hand-made event and
-        # its scanned twin get two different identities (tripl-0zpq.98).
+        # its scanned twin get two different identities.
         resolved[key] = format_json_path_value(node)
     return resolved

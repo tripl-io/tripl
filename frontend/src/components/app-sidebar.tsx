@@ -187,7 +187,7 @@ export function AppSidebar({
   const project = slug ? projects.find((p) => p.slug === slug) : undefined
   // Owner-only items are dropped rather than shown-and-denied: the routes behind
   // them 403 for everyone else, and a nav entry that always fails reads as a
-  // broken app rather than a permission boundary (tripl-jfm3.110).
+  // broken app rather than a permission boundary.
   const isOwner = isOwnerRole(auth.user?.role)
   // The Plan counts come from the project summary, which is main's. On a
   // branch the Events page lists the branch's rows, so "Events 12" beside a
@@ -219,7 +219,7 @@ export function AppSidebar({
   const signOut = () => {
     void auth.logout()
   }
-  // A public demo runs on demo projects only (tripl-sav5).
+  // A public demo runs on demo projects only.
   const publicDemo = usePublicDemo()
   const canCreateProject = canWrite(auth.user?.role) && !publicDemo
 

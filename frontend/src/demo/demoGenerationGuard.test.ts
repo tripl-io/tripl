@@ -60,7 +60,7 @@ describe('demoGenerationWarning', () => {
     expect(demoGenerationWarning(0)).toBeNull()
   })
 
-  it('asks before minting a second identical-looking workspace (tripl-jfm3.14)', () => {
+  it('asks before minting a second identical-looking workspace', () => {
     const warning = demoGenerationWarning(1)
 
     expect(warning?.canProceed).toBe(true)

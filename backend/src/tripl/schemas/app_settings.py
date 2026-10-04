@@ -10,7 +10,7 @@ from tripl.config import validate_csp, validate_http_token
 
 # Mirrors app_settings_service.SettingSource. "default" means the value equals
 # the built-in default — either nothing was delivered for it, or what was
-# delivered matches it; the two are indistinguishable from here (tripl-wkwv.2).
+# delivered matches it; the two are indistinguishable from here.
 # "override" is always the OPERATOR's override; "org" is an organization's own
 # value and "disabled" a credential group ORG_SETTINGS_OPERATOR_FALLBACK=none
 # withholds from an organization without its own (F20 PR9).
@@ -227,7 +227,7 @@ class AiSettings(BaseModel):
     # The OPERATOR's value is reported, never accepted: absent from
     # AiSettingsUpdate below AND from EDITABLE_FIELDS, so a body carrying it is
     # dropped twice over; leaving it invisible turned a compose allowlist slip
-    # into an unnoticed change of where plan text is sent (tripl-wkwv.2). An
+    # into an unnoticed change of where plan text is sent. An
     # ORGANIZATION sets its own under /orgs/{org}/settings (F20 PR10), where the
     # endpoint is part of its provenance and a change re-embeds only its rows.
     search_embedding_base_url: str
@@ -268,7 +268,7 @@ class SystemSettings(BaseModel):
     # runbook, the deployment docs and the table itself already use, so it is
     # what an operator greps for. All three are nullable: a database that is
     # unreachable, or has never been stamped, degrades to an honest unknown
-    # rather than a guess (tripl-wkwv.7).
+    # rather than a guess.
     alembic_revision: str | None = None
     alembic_head_revision: str | None = None
     #: ``None`` whenever either revision above is unknown. Computed here rather

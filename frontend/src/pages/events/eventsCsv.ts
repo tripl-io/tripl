@@ -64,7 +64,7 @@ export function buildEventsCsvColumns(options: EventsCsvColumnOptions): EventsCs
     { header: 'Event', value: ev => ev.name },
     // The free-text label beside the identity. It has no column of its own in
     // the table (it renders inside the Event cell), so it is exported
-    // unconditionally right after the identity it belongs to (tripl-kjhi.3).
+    // unconditionally right after the identity it belongs to.
     { header: 'Title', value: ev => ev.title },
   ]
 

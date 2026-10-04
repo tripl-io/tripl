@@ -92,7 +92,7 @@ function Step({
 export function AlertingGuidedSetup({ slug, channels, hasScans, onPickChannel }: AlertingGuidedSetupProps) {
   // The steps stay on screen for a viewer — they explain what alerting is on a
   // project that has none, which is exactly the question a viewer landing here
-  // has. Only the controls that would 403 come off (tripl-oxkt.9).
+  // has. Only the controls that would 403 come off.
   const canWrite = useCanWriteProject()
   // Step numbers shift by one when the scan step is shown, so it reads 1-2-3(-4)
   // rather than starting at 0.

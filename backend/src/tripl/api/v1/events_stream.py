@@ -1,4 +1,4 @@
-"""Project-scoped one-way Server-Sent Events stream (tripl-2su6.8).
+"""Project-scoped one-way Server-Sent Events stream.
 
 ``GET /projects/{slug}/events/stream`` relays committed state changes (scan jobs,
 metric collections, activity, signals, project summaries) to the browser so a

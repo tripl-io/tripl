@@ -5,8 +5,8 @@ import { formatDateTime } from './datetime'
 
 /**
  * Where a drift sits in review. THREE states, because the backend has three and
- * reading only two is what put the table badge and the review panels at odds
- * (tripl-lh61): `_active_drift_predicates` counts `open` AND `snoozed` rows and
+ * reading only two is what put the table badge and the review panels at odds:
+ * `_active_drift_predicates` counts `open` AND `snoozed` rows and
  * then drops the ones whose `snoozed_until` is still in the future, so snoozing
  * a variable's last drift feeds a ZERO into `open_drift_count` and the list says
  * nothing needs attention — while the panels, which knew only "resolved vs not",
@@ -152,8 +152,8 @@ const DRIFT_STATUS_LABEL: Record<VariableValueDriftStatus, string> = {
 /**
  * Text for the row's status pill. A snooze is the one state whose useful content
  * is a TIME: "snoozed" on its own never said when the row comes back, and
- * `snoozed_until` was fetched by `api/variableDrifts.ts` and rendered NOWHERE
- * (tripl-lh61). Deferring review is only defensible if the deferral is legible.
+ * `snoozed_until` was fetched by `api/variableDrifts.ts` and rendered NOWHERE.
+ * Deferring review is only defensible if the deferral is legible.
  */
 export function driftStatusNote(
   drift: Pick<VariableValueDrift, 'status' | 'snoozed_until'>,

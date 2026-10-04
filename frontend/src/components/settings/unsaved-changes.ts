@@ -6,13 +6,13 @@ import { createContext, useContext } from 'react'
  *
  * Instance settings are the only section with a real one: the draft is plain
  * state in ServiceSettingsPage, so leaving the instance group threw away a
- * hand-written system prompt with no warning (tripl-l8v2). Switching *within*
+ * hand-written system prompt with no warning. Switching *within*
  * the group keeps it — InstanceSection is a module-scope lazy() ref rendered
  * without a key, so AI → Email preserves the draft — which is why the guard is
  * a predicate over the target path rather than a blanket "is dirty" block.
  *
  * Registering also arms the shell's browser-level guards — Back and
- * reload/close — for as long as the draft is registered (tripl-l33u.6), so a
+ * reload/close — for as long as the draft is registered, so a
  * section that forgets to pass `null` after saving leaves them armed.
  */
 export type UnsavedWork = {

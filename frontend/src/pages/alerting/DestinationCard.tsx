@@ -38,8 +38,8 @@ interface DestinationCardProps {
  * through it.
  *
  * The rules that route to this destination used to be rendered, edited and
- * deleted inside this card. They now live in the Monitors section
- * (tripl-89ps), which is also where their live firing state is — the state
+ * deleted inside this card. They now live in the Monitors section,
+ * which is also where their live firing state is — the state
  * this card never had, and the whole reason a second screen existed to show
  * it. The card keeps the rule COUNT, because "wired up and nothing routes
  * here" is a fact about the destination.
@@ -56,7 +56,7 @@ export function DestinationCard({
 
   // Goes through the one shared invalidation: a destination write also moves
   // the Inbox and the delivery log, and eight hand-kept copies of
-  // `['alertDestinations', slug]` is how none of them did (tripl-oxkt.14).
+  // `['alertDestinations', slug]` is how none of them did.
   //
   // A refusal says why. The switch snaps back to the server's value either
   // way, and on its own that read as a click that did nothing — a 403 after a
@@ -122,8 +122,8 @@ export function DestinationCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           {/* `min-w-0` + `flex-wrap` on the name row: at 390px the row used to
               clip its own tail, and the tail is the chat id — the only value
-              that says WHICH Telegram chat this destination points at
-              (tripl-oxkt.18). */}
+              that says WHICH Telegram chat this destination points at.
+              */}
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               {/* The channel as its icon and its name, not the raw uppercase
@@ -168,7 +168,7 @@ export function DestinationCard({
             )}
             {/* Traffic, not just configuration. A destination that has carried
                 nothing looks identical to a working one everywhere else on
-                this card, and the two are opposite facts (tripl-oxkt.17). The
+                this card, and the two are opposite facts. The
                 rule count stays after the rules themselves moved to Monitors:
                 "enabled, wired up, and nothing routes here" is a state worth
                 reading off the channel. */}
@@ -196,7 +196,7 @@ export function DestinationCard({
             {/* "Configured" and a chat id mean a value is STORED. A revoked
                 token stores exactly as well as a live one, so the only way to
                 answer "did I actually wire this up?" is to push a message
-                through the real channel (tripl-oxkt.17). */}
+                through the real channel. */}
             <Button
               variant="outline"
               size="sm"
@@ -232,7 +232,7 @@ export function DestinationCard({
                 confirm itself lives on the page that owns the delete mutation
                 and states the same cascade through the same helper; the
                 tooltip repeats it on the control, for a reader still deciding
-                whether to press it (tripl-oxkt.13). Absent where the section
+                whether to press it. Absent where the section
                 offers no delete (a demo's local sink). */}
             {onDeleteDestination && (
               <IconButton

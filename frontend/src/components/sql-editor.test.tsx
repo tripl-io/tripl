@@ -59,7 +59,7 @@ describe('SqlEditor', () => {
     expect(content).not.toHaveAttribute('aria-describedby')
   })
 
-  // tripl-h2sx.11: the Format button used to sit ON the editor, covering the
+  // the Format button used to sit ON the editor, covering the
   // first line of any query wider than the box.
   it('puts Format under the editor rather than over it', () => {
     render(
@@ -121,7 +121,7 @@ describe('SqlEditor', () => {
     expect(formatted.toLowerCase()).toContain('from')
   })
 
-  // tripl-h2sx.33: wrapping is CSS, not an extension — `EditorView.lineWrapping`
+  // wrapping is CSS, not an extension — `EditorView.lineWrapping`
   // needs a VALUE import of a module seven suites mock with a default-only
   // factory. jsdom applies no stylesheet, so the component test can only pin the
   // hook, and the rule itself is pinned against the file.

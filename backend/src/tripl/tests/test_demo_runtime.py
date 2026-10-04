@@ -1,4 +1,4 @@
-"""Demo runtime tick (tripl-2su6.7) — fake-clock + multi-worker at the task level.
+"""Demo runtime tick — fake-clock + multi-worker at the task level.
 
 Exercises ``advance_demos`` against an isolated SQLite engine with an explicit
 (fake) clock, mirroring the sync fixtures in ``test_metric_anomaly_scope.py`` /
@@ -45,7 +45,7 @@ from tripl.services.demo.scenario import DEMO_SEED
 from tripl.worker.tasks import demo_runtime
 
 # Imported from the leaf module that now owns it, not off ``demo_runtime``: the
-# constant moved there with the predicate that reads it (tripl-0zpq.72) and is
+# constant moved there with the predicate that reads it and is
 # deliberately not re-exported, because ruff selects "F" — an unused import there
 # would be F401, and an ``import X as X`` alias kept alive for one test line is a
 # second name for one truth.
@@ -545,7 +545,7 @@ def test_paused_demo_is_skipped_and_resumes_on_access(
         assert resumed - before, "resumed demo advanced after access"
 
 
-# ── Deadlock resilience (tripl-q7i1.2) ───────────────────────────────────────
+# ── Deadlock resilience ───────────────────────────────────────
 
 
 def test_persistent_deadlock_gives_up_and_skips_demo(

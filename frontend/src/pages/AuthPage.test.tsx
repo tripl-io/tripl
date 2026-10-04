@@ -261,7 +261,7 @@ describe('AuthPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('offers no sign-up form when the instance has registration closed (tripl-jfm3.79)', async () => {
+  it('offers no sign-up form when the instance has registration closed', async () => {
     mockStatus(true, false)
     renderAuth()
 
@@ -508,7 +508,7 @@ describe('AuthPage single sign-on (F20)', () => {
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 
-  describe('Sign in with Google (tripl-sav5.2)', () => {
+  describe('Sign in with Google', () => {
     function mockInstance(status: Record<string, unknown>) {
       vi.restoreAllMocks()
       vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {

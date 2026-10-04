@@ -55,12 +55,12 @@ function matchesQuery(query: string, row: PaletteRow): boolean {
  * acme-android's knowledge and navigated into it, while offering none of that
  * project's own destinations (its project groups are empty without an active
  * project). The same reasoning that keeps `useSettingsSlug` from falling back to
- * the first project (tripl-jfm3.32) applies to searching from here.
+ * the first project applies to searching from here.
  *
  * So this one offers only what a route with no project in scope can honestly
  * reach: every settings section the rail lists, the projects by name, the way
  * back out, and Sign out. Every row leaves through `onLeave` / `onSignOut`,
- * which is where the unsaved-changes guard sits (tripl-l8v2) — a palette that
+ * which is where the unsaved-changes guard sits — a palette that
  * navigated on its own would walk straight past it.
  */
 export function SettingsCommandPalette({
@@ -89,7 +89,7 @@ export function SettingsCommandPalette({
   /** Guarded navigation. `settingsPath` is null for a destination outside /settings. */
   /** Navigate away. The destination is all a caller needs: the settings
    *  layout's blocker asks about the URL itself, so nothing here has to
-   *  classify it (tripl-l33u.14). */
+   *  classify it. */
   onLeave: (href: string) => void
   /** Rebind the Project sections to this project without leaving settings
    *  (ST-6). Omitted, the palette offers no such rows. */
@@ -101,7 +101,7 @@ export function SettingsCommandPalette({
 
   // Whoever asked for the palette, so Esc can hand focus straight back. Ctrl+K
   // is a window-level shortcut, so on a freshly loaded page nothing is focused
-  // and Radix's own restore target is <body> (tripl-jfm3.68).
+  // and Radix's own restore target is <body>.
   const openerRef = useRef<HTMLElement | null>(null)
 
   // Opening touches the ref, closing must not: every palette row closes the

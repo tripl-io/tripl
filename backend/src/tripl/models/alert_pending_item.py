@@ -68,7 +68,7 @@ class AlertPendingItem(UUIDMixin, TimestampMixin, Base):
         # rows and ships two lines, one in each of the digest's groups. They are
         # two incidents and two Inbox cards; a single `correlation_group_id`
         # column cannot name both, so folding them together would leave one of
-        # the operator's decisions unhonourable (tripl-0zpq.108). What this
+        # the operator's decisions unhonourable. What this
         # aggregates is each INCIDENT up to the moment of sending, not the
         # scope — `dispatch._buffer_pending_items` argues it in full.
         UniqueConstraint(
@@ -128,7 +128,7 @@ class AlertPendingItem(UUIDMixin, TimestampMixin, Base):
     # The NULL also puts metric rows out of reach of the CASCADE below, which
     # is a fix rather than a side effect: while they anchored on a real config,
     # deleting that config destroyed the metric alerts held for the next digest
-    # — never delivered, never recoverable (tripl-0zpq.28). The cascade stays
+    # — never delivered, never recoverable. The cascade stays
     # right for config-scoped rows, whose alerts are about that scan.
     #
     # ``project_id`` above is what the flush uses to resolve a config to RENDER
@@ -189,7 +189,7 @@ class AlertPendingItem(UUIDMixin, TimestampMixin, Base):
     #
     # Both now hash the partition the row STORES — NULL for a project-global
     # metric scope (``dispatch._scope_partition_id``) — so the buffer's key and
-    # the incident's key agree by construction (tripl-0zpq.27). That is a reason
+    # the incident's key agree by construction. That is a reason
     # to keep copying the value across, not a licence to recompute it: agreement
     # today is not a promise that a flush-time derivation would see the same
     # inputs the collection did.

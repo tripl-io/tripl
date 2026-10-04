@@ -460,7 +460,7 @@ _EMBED_FAILURE_POLL_SECONDS = 0.005
 async def test_postgres_search_serves_lexical_results_when_the_embed_leg_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An embed leg that raises degrades to lexical instead of 500ing (tripl-l33u).
+    """An embed leg that raises degrades to lexical instead of 500ing.
 
     ``embed_texts`` degrades to ``[]`` for everything it anticipates, but the
     ``asyncio.gather`` here carried no ``return_exceptions``, so anything it did
@@ -579,8 +579,7 @@ async def test_apply_fixture_falls_back_to_identity_when_a_scan_rewrote_the_text
     templates, catalog sync appends auto-created field descriptors). Keyed on
     embed text alone, one scan orphaned EVERY document and left the whole index
     ``embedding_status='disabled'`` with no provider to re-embed it, so the
-    demo's own advertised "money back" query stopped returning any event
-    (bd tripl-jfm3.8).
+    demo's own advertised "money back" query stopped returning any event.
     """
     pristine = _doc_row(
         title="Refund Processed",
@@ -807,7 +806,7 @@ async def test_shipped_fixture_covers_current_demo_documents() -> None:
         f"{stale_embed_text}"
     )
     # Identity-key coverage is what keeps semantic search alive AFTER a scan
-    # rewrites a document's text (bd tripl-jfm3.8) — a shipped fixture with no
+    # rewrites a document's text — a shipped fixture with no
     # sidecar would silently regress to the pre-fix behaviour.
     assert not missing_identities, (
         "demo documents missing from the fixture's identity sidecar (regenerate via "

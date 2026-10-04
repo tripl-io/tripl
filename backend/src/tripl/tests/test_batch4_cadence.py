@@ -1,6 +1,6 @@
 """Batch 4, the cadence lane: switching a destination back to "Immediately".
 
-tripl-0zpq.38 — a held scope is delivered by exactly ONE of the two paths.
+a held scope is delivered by exactly ONE of the two paths.
 
 A destination on a cadence holds its matched signals in ``alert_pending_items``
 instead of delivering them. Turning the cadence off used to leave that buffer
@@ -757,7 +757,7 @@ def test_the_code_says_which_path_delivers_a_held_scope() -> None:
 
 
 def test_the_rule_mute_comment_reads_as_history_and_the_model_agrees() -> None:
-    """A comment that quotes a sibling file has to age with it (tripl-0zpq.259).
+    """A comment that quotes a sibling file has to age with it.
 
     The rule-mute block narrates its own bug: ``AlertRule.muted_until`` shipped
     with a model comment calling worker-side suppression "a separate

@@ -311,7 +311,7 @@ export function FactDefinitionFields({
       </SCard>
 
       {/* Stacked, not side by side: every row inside is a kit Field, and a
-          half-width card leaves its controls ~125px wide (tripl-vv2f). */}
+          half-width card leaves its controls ~125px wide. */}
       {draft.factComposition === 'single' ? (
         <SCard title="Aggregation">
           <FactOperandEditor

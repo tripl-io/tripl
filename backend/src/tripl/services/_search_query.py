@@ -36,8 +36,8 @@ from tripl.services.embedding_service import embed_query, embedding_provenance, 
 
 logger = logging.getLogger(__name__)
 
-# Cosine similarity a semantic hit must clear to be merged into the result set
-# (tripl-txcz). Below this the vector leg is not "a weaker answer", it is noise:
+# Cosine similarity a semantic hit must clear to be merged into the result set.
+# Below this the vector leg is not "a weaker answer", it is noise:
 # it is a plain nearest-neighbour scan, so it returns `limit` rows for ANY query
 # a branch's embedded documents can be ranked against — there is no such thing
 # as "no match" in it — and `merge_results` then pays each of those rows
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # tail and nothing else.
 _SEMANTIC_MIN_COSINE = 0.35
 
-# The score at which a result is presented as a certain answer (tripl-txcz).
+# The score at which a result is presented as a certain answer.
 # 5.0 (the boost for "the title IS what you typed") + 2.0 (a perfect trigram
 # similarity on that same title) = the score of a document that is exactly the
 # thing the user asked for. Confidence is that fraction, capped at 1.0 — an
@@ -95,7 +95,7 @@ _SEMANTIC_MIN_COSINE = 0.35
 _FULL_CONFIDENCE_SCORE = 7.0
 
 # How much a semantic hit's cosine similarity is worth to the RANKING, i.e. how
-# a vector-only hit is placed among lexical ones (tripl-txcz). It is not, and
+# a vector-only hit is placed among lexical ones. It is not, and
 # cannot be, the scale confidence is read on: it caps a perfect cosine at 2.5,
 # which is a deliberate ranking statement ("a pure vector match ranks around a
 # literal body-token match") and a nonsense certainty statement ("a perfect
@@ -103,16 +103,16 @@ _FULL_CONFIDENCE_SCORE = 7.0
 # two legs on one scale and reports certainty on another; see both docstrings.
 _SEMANTIC_SCORE_WEIGHT = 2.5
 
-# The lowest boost-ladder tier that counts as "this document IS what was typed"
-# (tripl-d5u8). The ladder's top two rungs are equality tests — 5.0 for
+# The lowest boost-ladder tier that counts as "this document IS what was typed".
+# The ladder's top two rungs are equality tests — 5.0 for
 # ``lower(title) = lower(query)`` and 4.0 for ``lower(keywords) = lower(query)``
 # — and every rung below them (3.5 word-boundary, 3.25 stemmed, 3.0 body token
 # or title prefix, 2.25/1.5 substring) says only that the query APPEARS
 # somewhere, which is partial evidence.
 _IDENTITY_BOOST_MIN = 4.0
 
-# What a result that did NOT match by identity may be reported at, at most
-# (tripl-d5u8), regardless of whether lexical score or semantic cosine wins.
+# What a result that did NOT match by identity may be reported at, at most,
+# regardless of whether lexical score or semantic cosine wins.
 #
 # WHY CONFIDENCE COULD NOT BE READ OFF THE SCORE ALONE
 # ----------------------------------------------------
@@ -148,7 +148,7 @@ def sanitize_query(query: str) -> str:
     Postgres ``text`` cannot represent U+0000, so a query containing one aborts
     inside the driver (``asyncpg.exceptions.CharacterNotInRepertoireError``)
     before any SQL runs — ``?q=%00``, the first thing a routine security scan
-    sends, used to surface as a 500 for any authenticated caller (tripl-q4q7).
+    sends, used to surface as a 500 for any authenticated caller.
 
     We strip rather than reject with 422 because stripping is *lossless here*:
     an indexed document cannot contain a NUL either (same column type, same
@@ -164,8 +164,8 @@ def sanitize_query(query: str) -> str:
     empty-result path a whitespace-only query already took.
 
     The NUL removal itself now lives in ``schemas.text_filters``, where a route
-    parameter type applies the identical rule to every other free-text filter
-    (tripl-8wez). One rule, one implementation; this function adds only the
+    parameter type applies the identical rule to every other free-text filter.
+    One rule, one implementation; this function adds only the
     whitespace trim, which is a search concern rather than a driver one.
     """
     cleaned: str = strip_nul_bytes(query)
@@ -253,7 +253,7 @@ async def postgres_search(
     # provider round trip, no demo fixture, lexical rows only. The palette asks
     # for this first and upgrades to the full answer when it lands, because on
     # production the embedding call was the whole difference between a result
-    # list at ~150 ms and one at ~1.5 s (tripl-kjhi.15).
+    # list at ~150 ms and one at ~1.5 s.
     embedding: list[float] | None = None
     is_semantic_eligible = semantic and len(query) >= 3
     lexical = postgres_lexical_search(
@@ -267,7 +267,7 @@ async def postgres_search(
         exclude_doc_ids=exclude_doc_ids,
     )
     # The provider round trip overlaps the lexical query rather than queueing
-    # behind it (tripl-2x5d). ``embed_query`` is a blocking HTTP POST handed to a
+    # behind it. ``embed_query`` is a blocking HTTP POST handed to a
     # thread and the lexical leg is SQL on this session; the thread touches
     # neither the session nor the lexical rows, so awaiting them in sequence made
     # every semantic search cost the SUM of two round trips on a read path
@@ -275,7 +275,7 @@ async def postgres_search(
     # received before and ``merge_results`` is handed the same two lists, so this
     # moves WHEN the vector is fetched and nothing about the ranking.
     #
-    # The two legs fail independently (tripl-l33u), and awaiting the lexical one
+    # The two legs fail independently, and awaiting the lexical one
     # DIRECTLY is what buys that without a gather. An embed failure is simply "no
     # embedding" — the same state an empty provider response produces — so it is
     # logged and the fallback below still runs. A lexical failure is the request
@@ -335,7 +335,7 @@ async def postgres_search(
 
 
 #: The tsquery every lexical search runs with: the STEMMED reading of what was
-#: typed, OR-ed with its SURFACE reading (tripl-uojz). ``||`` on ``tsquery`` is
+#: typed, OR-ed with its SURFACE reading. ``||`` on ``tsquery`` is
 #: OR, not concatenation.
 #:
 #: WHY THIS IS A MODULE CONSTANT AND NOT JUST A LINE OF SQL
@@ -359,7 +359,7 @@ TEXT_QUERY_EXPRESSION = """
 """
 
 
-#: What a document is paid for having answered the WHOLE query (tripl-9t2s).
+#: What a document is paid for having answered the WHOLE query.
 #:
 #: Public, and a module constant, for the same reason :data:`TEXT_QUERY_EXPRESSION`
 #: is: it is interpolated into shipped SQL and imported by the tests that bound it
@@ -440,7 +440,7 @@ COVERAGE_BONUS = 1.0
 
 #: The boost ladder, as a constant so a test can assert the SHIPPED expression.
 #:
-#: WHY IT IS OUT HERE AND NOT INLINE (tripl-0qld)
+#: WHY IT IS OUT HERE AND NOT INLINE
 #: The ladder is where "which text counts as what" turns into a number, and two
 #: of its tiers read the same ``keywords`` column. Whether a harvested value can
 #: buy a document the 3.5 tier is therefore a question with an exact answer, and
@@ -461,14 +461,14 @@ BOOST_LADDER_EXPRESSION = """
                     WHEN lower(d.title) = lower(:query) THEN 5.0
                     WHEN lower(d.keywords) = lower(:query) THEN 4.0
                     -- 3.5 READS THE SAME COLUMN AS 3.25 AND RESTS ON THE SAME
-                    -- PREMISE (tripl-0qld): `keywords` is identity text, not the
+                    -- PREMISE: `keywords` is identity text, not the
                     -- stream of values a user's app emitted. When that stopped
                     -- being true for events, BOTH tiers paid for text nobody
                     -- wrote -- so the two move together or not at all, and the
                     -- docstring's 3.25 bullet is the statement of record for
                     -- both.
                     WHEN :has_token_regex AND d.keywords ~* :token_regex THEN 3.5
-                    -- The stemmed tier (tripl-nh5s). Every other tier compares
+                    -- The stemmed tier. Every other tier compares
                     -- literal characters, so a plural query can only ever reach
                     -- the ladder through a document that spells the plural --
                     -- which is the harvested value, not the entity. See the
@@ -476,7 +476,7 @@ BOOST_LADDER_EXPRESSION = """
                     -- DERIVED FROM THE `q` CTE ABOVE, NOT A SECOND CONSTRUCTION
                     -- SITE: it consumes `q.tsq` and only builds the DOCUMENT
                     -- side. That document side has to carry the same two legs
-                    -- as the stored text_vector (tripl-uojz) or the tier would
+                    -- as the stored text_vector or the tier would
                     -- answer a two-leg query with a one-leg document and fire
                     -- for a strictly narrower set than it retrieves.
                     WHEN (
@@ -552,7 +552,7 @@ async def postgres_lexical_search(
     word-boundary tiers are reachable for ``q='screen spot'`` instead of being
     dead for every multi-word query.
 
-    THE 3.25 TIER: THE BOOST LADDER HAD TO LEARN THE STEMMER TOO (tripl-nh5s)
+    THE 3.25 TIER: THE BOOST LADDER HAD TO LEARN THE STEMMER TOO
     ------------------------------------------------------------------------
     Migration ``a7c3e1b9d5f2`` gives ``tripl_search`` an English and a Russian
     stemmer, which fixes RETRIEVAL: ``q='purchases'`` matches the
@@ -612,7 +612,7 @@ async def postgres_lexical_search(
     that already passed the WHERE, and never over ``body`` — the column that can
     be megabytes on a harvested-value variable.
 
-    THE QUERY IS NOW TWO TSQUERIES OR-ED (tripl-uojz)
+    THE QUERY IS NOW TWO TSQUERIES OR-ED
     -------------------------------------------------
     Snowball over-stems the bare nominative — ``улов`` -> ``ул``, ``экран`` ->
     ``экра`` — onto a lexeme no inflected form of the same word reaches, so a
@@ -666,7 +666,7 @@ async def postgres_lexical_search(
     misfires on the hyphenated identifiers this catalog is full of, and a
     heuristic that is wrong on identifiers is worse than a narrower NOT.
 
-    NOTHING PAID FOR ANSWERING MORE OF THE QUERY (tripl-9t2s)
+    NOTHING PAID FOR ANSWERING MORE OF THE QUERY
     ---------------------------------------------------------
     Three legs, three different things measured, and none of them coverage:
     ``ts_rank_cd`` pays for cover DENSITY, the ladder pays for match SHAPE, the
@@ -728,7 +728,7 @@ async def postgres_lexical_search(
     statement = text(
         f"""
         WITH q AS (
-            -- THE ONE TSQUERY CONSTRUCTION SITE (tripl-uojz). The expression
+            -- THE ONE TSQUERY CONSTRUCTION SITE. The expression
             -- itself lives in TEXT_QUERY_EXPRESSION above so the invariant test
             -- can assert the SHIPPED string instead of a copy of it; the stem
             -- leg is what a7c3e1b9d5f2 built, and the surface leg is what lets a
@@ -750,8 +750,8 @@ async def postgres_lexical_search(
                 d.keywords,
                 d.route_path,
                 -- Normalization 32 == rank/(rank+1): bounded, so raw term
-                -- frequency can no longer outweigh the boost ladder (tripl-gbxj,
-                -- see the docstring for why not 2).
+                -- frequency can no longer outweigh the boost ladder
+                -- (see the docstring for why not 2).
                 COALESCE(ts_rank_cd(d.text_vector, q.tsq, 32), 0.0) AS lexical_score,
                 GREATEST(
                     similarity(d.title, :query),
@@ -760,7 +760,7 @@ async def postgres_lexical_search(
                     similarity(d.body, :query) * 0.5
                 ) AS fuzzy_score,
                 {BOOST_LADDER_EXPRESSION} AS boost,
-                -- COVERAGE, NOT SHAPE (tripl-9t2s). `@@` is the "answered every
+                -- COVERAGE, NOT SHAPE. `@@` is the "answered every
                 -- term" predicate, because websearch_to_tsquery ANDs within each
                 -- leg -- so this is what stops a short almost-exact title from
                 -- beating a document that matched the WHOLE query. Additive and
@@ -803,7 +803,7 @@ async def postgres_lexical_search(
             body,
             keywords,
             route_path,
-            -- Projected as well as summed (tripl-d5u8): the ladder tier is the
+            -- Projected as well as summed: the ladder tier is the
             -- only term in this sum that says WHETHER the document is the thing
             -- named, and confidence needs that separately from the total. See
             -- :data:`_IDENTITY_BOOST_MIN`.
@@ -857,7 +857,7 @@ async def postgres_semantic_search(
     limit: int,
     exclude_doc_ids: Sequence[uuid.UUID] = (),
 ) -> list[SearchResult]:
-    """Nearest documents by cosine similarity, above a floor (tripl-txcz).
+    """Nearest documents by cosine similarity, above a floor.
 
     This leg is a pure ``ORDER BY <=> LIMIT``: it has no notion of "no good
     answer". Every indexed document carries an embedding, so it always returned
@@ -906,7 +906,7 @@ async def postgres_semantic_search(
             :filter_doc_ids IS FALSE
             OR NOT (d.entity_type = 'doc' AND d.entity_id IN :exclude_doc_ids)
           )
-          -- A nearest neighbour is not automatically a match (tripl-txcz).
+          -- A nearest neighbour is not automatically a match.
           AND (1.0 - (d.embedding <=> CAST(:embedding AS vector))) >= :min_cosine
         ORDER BY d.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
@@ -1048,7 +1048,7 @@ def fallback_score(
       x4.0/x2.0 weighting the whole boost ladder is calibrated against does not
       exist here. Two documents that Postgres separates by rank are separated
       here only if they land on different tiers.
-    * **``COVERAGE_BONUS`` (tripl-9t2s), and it needs no analogue.** On Postgres
+    * **``COVERAGE_BONUS``, and it needs no analogue.** On Postgres
       a document is paid a flat 1.0 for satisfying the whole tsquery, which is
       how a complete match stops losing to a short almost-exact title. This
       ladder returns ONE tier per document and never sums evidence, so there is
@@ -1064,7 +1064,7 @@ def fallback_score(
     PostgreSQL, its own CI job) says they come back in the right ORDER. See
     CONTRIBUTING.md, "Search relevance harness".
 
-    WHY THE PARTIAL TIERS MOVED (tripl-txcz)
+    WHY THE PARTIAL TIERS MOVED
     ----------------------------------------
     The ladder used to run 10.0 / 9.0 / 7.0 / 6.8 / 6.5 / 6.0 / 4.0 / 3.0, with
     ``_FULL_CONFIDENCE_SCORE`` at 7.0 — so a bare ``title.startswith(query)``
@@ -1093,7 +1093,7 @@ def fallback_score(
     if keywords == query_norm:
         return _SQLITE_EXACT_KEYWORDS
     # The identifier fold is applied ONLY to the word-boundary tiers, never to
-    # the identity tiers above (tripl-h9x2). That mirrors Postgres exactly:
+    # the identity tiers above. That mirrors Postgres exactly:
     # there ``token_boundary_regex`` feeds the 3.5/3.0 tiers while
     # ``lower(title) = lower(:query)`` compares the raw query, so ``q='screen
     # spot'`` is a strong token match on ``screen_spot`` and not an exact-title
@@ -1171,7 +1171,7 @@ def token_boundary_regex(query: str) -> str | None:
 def identifier_form(query: str) -> str | None:
     """The query folded into its snake_case identifier form, or ``None``.
 
-    Extracted from :func:`token_boundary_regex` (tripl-h9x2) so the SQLite
+    Extracted from :func:`token_boundary_regex` so the SQLite
     fallback scorer can apply the identical fold to its own word-boundary tiers
     rather than carrying a second, subtly different idea of what an identifier
     is — see :func:`fallback_score`. Both dialects therefore agree on which
@@ -1205,10 +1205,10 @@ def merge_results(
 
     The raw cosine is recorded on the result before it is overwritten, because
     it is the only honest measure of how sure the semantic leg is and the merged
-    score destroys it (tripl-txcz). ``finalize_results`` reads it back; nothing
+    score destroys it. ``finalize_results`` reads it back; nothing
     else does, and it never reaches the API response.
 
-    PROVENANCE IS NEITHER OF THOSE TWO NUMBERS (tripl-wkwv.3)
+    PROVENANCE IS NEITHER OF THOSE TWO NUMBERS
     ---------------------------------------------------------
     The legs are SUMMED for ranking and ``max``-ed for confidence, and per-result
     ``semantic_used`` used to be set from a third thing again: whether the vector
@@ -1248,7 +1248,7 @@ def merge_results(
         existing.score += semantic_score
         # No ``existing.semantic_used = True`` here — see the docstring. The
         # cosine below is still recorded, so a hybrid row keeps the stronger of
-        # its two certainties (tripl-txcz); confidence and provenance are
+        # its two certainties; confidence and provenance are
         # different questions and this row can honestly answer 0.9 to the first
         # and "the keyword leg" to the second.
         existing.record_semantic_cosine(cosine)
@@ -1290,7 +1290,7 @@ def finalize_results(items: list[SearchResult], limit: int) -> list[SearchResult
     require guessing a category.
 
 
-    CONFIDENCE IS ABSOLUTE, NOT RELATIVE TO THE TOP HIT (tripl-txcz)
+    CONFIDENCE IS ABSOLUTE, NOT RELATIVE TO THE TOP HIT
     ---------------------------------------------------------------
     This used to divide every score by the top score, which makes the best
     result of ANY result set exactly 1.0 by construction. The number therefore
@@ -1451,8 +1451,7 @@ def row_to_result(row: object, query: str, *, semantic_used: bool) -> SearchResu
     # Shared by both Postgres legs, and only the LEXICAL one projects a ladder
     # tier — the semantic SELECT has no `boost` column because it never runs the
     # ladder. Absent therefore means "no identity evidence", which is the honest
-    # reading for a vector-only hit; its certainty comes from its cosine instead
-    # (tripl-d5u8).
+    # reading for a vector-only hit; its certainty comes from its cosine instead.
     boost_raw = mapping.get("boost")
     boost = float(str(boost_raw)) if boost_raw is not None else 0.0
     result = SearchResult(

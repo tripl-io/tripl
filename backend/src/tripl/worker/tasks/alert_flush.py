@@ -35,7 +35,7 @@ carries that NULL is discarded there and the immediate path delivers it, while a
 row whose scope a digest has already STAMPED is left for the drain arm below —
 for that one the gate needs a strictly newer bucket AND an elapsed cooldown, so
 the immediate path would deliver nothing and discarding it would destroy an
-incident undelivered (tripl-0zpq.38).
+incident undelivered.
 
 **Everything up to the moment of sending.** The digest carries every INCIDENT
 that had committed at the instant of the flush's snapshot, each with the
@@ -45,8 +45,7 @@ buffer is an upsert keyed on the scope AND its direction — the five components
 one window is two incidents and ships two lines; a scope that fired once and
 went quiet still ships its line, because nothing prunes a buffered row before
 its digest. "Up to the moment of sending" is a promise about the NUMBERS being
-current, not that the roster is a snapshot of what is broken right now
-(tripl-0zpq.108).
+current, not that the roster is a snapshot of what is broken right now.
 
 The advisory lock is a coarse guard against overlapping runs, deliberately NOT
 the correctness argument: it is a no-op off Postgres, so the compare-and-set
@@ -208,8 +207,8 @@ def _build_digest(
         ).scalars()
     }
 
-    # A ``metric`` scope is project-global and carries no scan config of its own
-    # (tripl-0zpq.28). The DELIVERY it produces still needs one:
+    # A ``metric`` scope is project-global and carries no scan config of its own.
+    # The DELIVERY it produces still needs one:
     # ``AlertDelivery.scan_config_id`` is NOT NULL, the inbox INNER JOINs
     # ScanConfig on it, and the payload snapshot renders its name. So one is
     # resolved here, deterministically — oldest, id as tie-break — so that the
@@ -231,7 +230,7 @@ def _build_digest(
     # ``correlation_group_id``, while its ``AlertCorrelationState`` (project FK
     # only, never pruned) survives. An indefinite mute then outlives the only UI
     # that could lift it: the list builds cards from items, the silenced-orphan
-    # rescue (tripl-zfr3) needs at least one delivery row to render one, and
+    # rescue needs at least one delivery row to render one, and
     # every inbox action re-checks the same item join and 404s without it.
     #
     # No pick avoids this — any config can be deleted, so there is no safe one to
@@ -410,7 +409,7 @@ def flush_due_alert_digests() -> dict[str, int]:
         # whose scope has never been notified is discarded there, because the
         # IMMEDIATE path fires on that NULL ``AlertRuleState.last_notified_at``
         # regardless of cooldown and would otherwise deliver the same scope this
-        # arm just did (tripl-0zpq.38).
+        # arm just did.
         #
         # What the split leaves is ours to deliver, because nothing else will:
         #

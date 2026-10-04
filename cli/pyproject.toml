@@ -37,7 +37,7 @@ classifiers = [
 ]
 dependencies = [
     # httpx alone, and that is a BUDGET rather than a starting point: tripl-mcp
-    # imports its HTTP client from this distribution (tripl-ey6j.1), so every
+    # imports its HTTP client from this distribution, so every
     # dependency added here is forced onto every MCP-server install too. Config
     # parsing uses stdlib tomllib and argument parsing stdlib argparse for
     # exactly that reason — no click, no rich, no tomli.
@@ -83,12 +83,12 @@ build-backend = "hatchling.build"
 # The import package is tripl_cli, NOT tripl: the service's own source package
 # is backend/src/tripl/, and a distribution installing an importable `tripl`
 # would shadow it in any environment holding both — a contributor's backend
-# venv, for one (tripl-ey6j).
+# venv, for one.
 #
 # No `artifacts` entry is needed for src/tripl_cli/install/files/*: hatchling
 # copies a listed package wholesale, so compose.yaml and rabbitmq.conf ship as
 # package data already. Verified against a built wheel rather than assumed —
-# `uv build --wheel` then unzip, and both files are there (tripl-ey6j.3). They
+# `uv build --wheel` then unzip, and both files are there. They
 # are read through importlib.resources, which is why this matters at all.
 # The same holds for src/tripl_cli/codegen/templates/*.mustache, the built-in
 # `tripl codegen` templates (#262): package data by the same rule, read the same way.
@@ -100,7 +100,7 @@ testpaths = ["tests"]
 # An un-awaited coroutine is a RuntimeWarning printed at garbage-collection time,
 # which in a fan-out test reads as unrelated noise long after the bug. doctor
 # builds its fan-outs from comprehensions over targets precisely so a coroutine
-# is never reused or dropped; this makes the failure mode loud (tripl-ey6j.2).
+# is never reused or dropped; this makes the failure mode loud.
 filterwarnings = ["error::RuntimeWarning"]
 
 [tool.ruff]

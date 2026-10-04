@@ -76,8 +76,8 @@ interface AlertAuditPanelProps {
  * delivery table and its paging.
  *
  * Named "Delivery log" rather than "Audit" — the sidebar already has an "Audit
- * log", which is the who-changed-what trail and a different thing entirely
- * (tripl-oxkt.18). The `audit` section key is deliberately NOT renamed: every
+ * log", which is the who-changed-what trail and a different thing entirely.
+ * The `audit` section key is deliberately NOT renamed: every
  * alert message ever sent carries a deep link built on it.
  */
 export function AlertAuditPanel({
@@ -100,7 +100,7 @@ export function AlertAuditPanel({
   // Every filter write goes through here so none of them can forget the offset
   // reset: the offset is an index INTO the filtered set, so narrowing 115 rows
   // to 4 while parked on page 3 lands the reader on a blank page that reads as
-  // "nothing matches" (tripl-oxkt.12).
+  // "nothing matches".
   const updateFilters = (patch: Partial<DeliveryFilters>) => {
     onDeliveryFiltersChange({ ...deliveryFilters, ...patch })
   }
@@ -109,7 +109,7 @@ export function AlertAuditPanel({
   // anyone who can reach the project. Retry is the section's only mutation, and
   // it is editor-only; the row omits its own button, so this is here purely to
   // say so once instead of leaving a viewer to wonder why failed rows offer
-  // nothing (tripl-oxkt.9).
+  // nothing.
   const canWrite = useCanWriteProject()
   const items = deliveries?.items ?? []
   const total = deliveries?.total ?? 0
@@ -161,7 +161,7 @@ export function AlertAuditPanel({
         <div className="rounded-lg border border-dashed p-4 text-body text-fg-tertiary">
           {/* "No deliveries yet." on a filtered view asserted that the project
               had never delivered — on a project that had delivered 115 times,
-              because Status=Failed matched none of them (tripl-oxkt.10). Say
+              because Status=Failed matched none of them. Say
               which of the two is actually true. */}
           {filtersActive
             ? 'No deliveries match these filters. Clear them to see the full log.'
@@ -263,7 +263,7 @@ export function AlertAuditPanel({
             {/* One chip for the range, as on the Inbox beside it (AL-19). No
                 format hint on the pickers inside: they show the day in the
                 app's own date format, so a hard-coded "(YYYY-MM-DD)" would
-                contradict what the control shows (tripl-jfm3.37). Only the
+                contradict what the control shows. Only the
                 end that changed is rewritten, so the other keeps its bound.
                 Folds into the phone "Filters (n)" sheet with the chips. */}
             <FilterBarItem active={!!(dateFrom || dateTo)}>
@@ -288,7 +288,7 @@ export function AlertAuditPanel({
               {/* The panel used to say "115 deliveries" over 50 rows and never
                   mention the other 65 — the oldest row on screen was four days
                   back, so a reader who scrolled to the bottom concluded their
-                  alert had never been sent (tripl-oxkt.12). Wording follows the
+                  alert had never been sent. Wording follows the
                   sibling page, settings/AuditTab.tsx. */}
               <p className="text-body-sm text-fg-tertiary">
                 {strandedPastEnd

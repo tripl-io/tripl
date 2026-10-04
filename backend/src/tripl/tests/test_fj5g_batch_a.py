@@ -1,11 +1,11 @@
 """Backend + contract slices of the tripl-fj5g leftovers, batch A.
 
-* tripl-0zpq.371 — the dialect lint runs on metric save, not only in the preview;
-* tripl-fj5g.8 — ``GET /metrics/{id}/generated-sql`` has the metric read's gate;
-* tripl-fj5g.4 — ``ProjectResponse.can_mutate`` answers the editor gate per caller;
-* tripl-fj5g.11 — ``GET /projects/{slug}/scans/activity`` is exact over all jobs;
-* tripl-fj5g.17 — the realtime ``hello`` carries the current sequence number;
-* tripl-fj5g.9 — the shared definition-change case table, run through the service.
+* the dialect lint runs on metric save, not only in the preview;
+* ``GET /metrics/{id}/generated-sql`` has the metric read's gate;
+* ``ProjectResponse.can_mutate`` answers the editor gate per caller;
+* ``GET /projects/{slug}/scans/activity`` is exact over all jobs;
+* the realtime ``hello`` carries the current sequence number;
+* the shared definition-change case table, run through the service.
 """
 
 import json
@@ -77,7 +77,7 @@ def _sql_metric(name: str, data_source_id: str, metric_sql: str) -> dict[str, An
     }
 
 
-# ── tripl-0zpq.371: dialect lint on save ────────────────────────────────────
+# ── dialect lint on save ────────────────────────────────────
 
 
 async def test_sql_metric_save_refuses_sql_the_warehouse_cannot_run(client: AsyncClient) -> None:
@@ -224,7 +224,7 @@ async def test_fact_metric_save_lints_filter_sql_against_the_fact_tables_warehou
     assert "countIf" in resp.json()["detail"]
 
 
-# ── tripl-fj5g.8: generated SQL is readable by anyone who reads the metric ──
+# ── generated SQL is readable by anyone who reads the metric ──
 
 
 async def test_viewer_reads_generated_sql(client: AsyncClient) -> None:
@@ -281,7 +281,7 @@ async def test_viewer_reads_generated_sql(client: AsyncClient) -> None:
     assert generated.json()["queries"], generated.text
 
 
-# ── tripl-fj5g.4: can_mutate on ProjectResponse ─────────────────────────────
+# ── can_mutate on ProjectResponse ─────────────────────────────
 
 
 def _new_client() -> AsyncClient:
@@ -367,7 +367,7 @@ async def test_can_mutate_is_false_for_a_read_scope_api_key(client: AsyncClient)
         assert await _can_mutate(bearer_only, "keyed", headers=headers) is False
 
 
-# ── tripl-fj5g.11: exact scan activity ─────────────────────────────────────
+# ── exact scan activity ─────────────────────────────────────
 
 
 async def test_scan_activity_is_exact_over_the_whole_history(client: AsyncClient) -> None:
@@ -470,7 +470,7 @@ async def test_scan_activity_route_is_not_shadowed_by_the_scan_id_route(
     assert resp.json()["items"] == []
 
 
-# ── tripl-fj5g.17: the hello carries the sequence number ───────────────────
+# ── the hello carries the sequence number ───────────────────
 
 
 class _FakePipeline:
@@ -642,7 +642,7 @@ async def test_degraded_hello_has_no_sequence(client: AsyncClient) -> None:
     assert hello["buffer_size"] == realtime.BUFFER_SIZE
 
 
-# ── tripl-fj5g.9: the shared definition-change case table ──────────────────
+# ── the shared definition-change case table ──────────────────
 
 _CASES_PATH = (
     Path(__file__).resolve().parents[4] / "frontend/src/pages/metrics/definition-change-cases.json"

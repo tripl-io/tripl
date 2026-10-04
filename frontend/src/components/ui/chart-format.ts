@@ -13,7 +13,7 @@ import { pluralize } from '@/lib/plural'
 //    (see getBucketStart / backend bucketing.py). They are labelled in UTC:
 //    formatted in the viewer's zone, a Monday week bucket would print as "Week
 //    of Sun Jun 7" west of Greenwich and a day bucket under the wrong date
-//    (tripl-64n8.2).
+//    .
 //  - 15-minute, hour and 6-hour buckets are INSTANTS. They are labelled in the
 //    viewer's local zone, like every other timestamp in the app (formatDateTime,
 //    the signal card, the annotation list, the `datetime-local` annotation
@@ -308,7 +308,7 @@ export function axisWidthForValues(
  * Keeps the recharts <svg class="recharts-surface"> out of the tab order.
  *
  * Recharts focuses its surface by default, which added an unnamed tab stop on
- * every page carrying a chart (tripl-jfm3.67). Each chart wrapper already
+ * every page carrying a chart. Each chart wrapper already
  * carries role="img", an aria-label and an sr-only text summary of the series,
  * so the surface itself has nothing to announce.
  */

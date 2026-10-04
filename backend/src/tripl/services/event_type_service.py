@@ -97,7 +97,7 @@ async def attach_event_name_formats(
     The rule is resolved server-side — through the type's main counterpart for a
     branch copy — so every client reads ONE answer instead of re-deriving it
     from the scan config list, which is how the authoring form silently lost
-    the rule on branches (tripl-kjhi.1).
+    the rule on branches.
     """
     if not event_types:
         return
@@ -192,8 +192,8 @@ async def delete_event_type(
     resolved_branch_id = et.branch_id
     # Refused rather than repaired: the FK is ON DELETE SET NULL, so this delete
     # would succeed and leave every scan that named the type bound to nothing —
-    # a scan that still lists and still runs and collects no events at all
-    # (tripl-0zpq.254). ScanConfig has no disabled flag to set the way
+    # a scan that still lists and still runs and collects no events at all.
+    # ScanConfig has no disabled flag to set the way
     # ``delete_scan_config`` disables its rules, and only the operator knows
     # whether the scan should be rebound, made grouped, or deleted.
     #
@@ -220,7 +220,7 @@ async def delete_event_type(
     # The most common door, and the least visible one: EventType maps no
     # ``events`` relationship, so its events go purely through the database FK
     # cascade and no service ever sees them being deleted. Their dangling
-    # references have to be cleared here or nowhere (tripl-xjuv).
+    # references have to be cleared here or nowhere.
     doomed_event_ids = list(
         (await session.execute(select(Event.id).where(Event.event_type_id == et.id)))
         .scalars()
@@ -228,7 +228,7 @@ async def delete_event_type(
     )
     await drop_dangling_event_references(session, project_id=project_id, event_ids=doomed_event_ids)
     # Same door for the events' discussions: on a branch, a row whose main twin
-    # shows its thread hands it over before the cascade (tripl-0zpq.289).
+    # shows its thread hands it over before the cascade.
     await rescue_branch_event_threads(session, project_id=project_id, event_ids=doomed_event_ids)
     await session.delete(et)
     await session.commit()

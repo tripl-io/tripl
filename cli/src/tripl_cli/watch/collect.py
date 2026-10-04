@@ -93,7 +93,7 @@ def deliveries_of(payload: JsonDict) -> JsonList:
     Kept as a name of its own because WHICH envelope this is, is the fact worth
     writing down here; the unwrapping itself is ``model.page_items``, which every
     reader of that envelope in either distribution now goes through. This was the
-    last hand-written copy of it outside that definition (tripl-i1dt).
+    last hand-written copy of it outside that definition.
     """
     return page_items(payload)
 

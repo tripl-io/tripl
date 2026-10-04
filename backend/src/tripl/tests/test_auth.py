@@ -308,7 +308,7 @@ async def test_password_reset_confirm_enforces_password_policy(
     assert any("new_password" in error.get("loc", []) for error in body["detail"])
 
 
-# --- registration policy (tripl-jfm3.9) -------------------------------------
+# --- registration policy -------------------------------------
 
 
 @pytest.mark.asyncio

@@ -51,7 +51,7 @@ class EventCommentStatus(enum.StrEnum):
     The five columns come from ``SchemaDrift``, but not its vocabulary:
     ``accepted`` and ``false_positive`` are verdicts a detector's finding earns,
     and a question someone typed is neither accepted nor false. A thread is
-    open, answered, or deliberately parked (tripl-h2sx.26).
+    open, answered, or deliberately parked.
     """
 
     open = "open"
@@ -104,7 +104,7 @@ class MetricScopeType(enum.StrEnum):
     distribution = "distribution"
     release_regression = "release_regression"
     # ``metric`` (user-defined MetricDefinition series). Added by the metrics
-    # epic's anomaly-scope ticket (tripl-dxhp.6) via an ALTER TYPE migration.
+    # epic's anomaly-scope ticket via an ALTER TYPE migration.
     metric = "metric"
     # Observed variable values outside the documented list (epic tripl-j94c,
     # S13). Added via ALTER TYPE migration d1c2b3a4f5e6.
@@ -241,8 +241,8 @@ class AlertDriftType(enum.StrEnum):
     volume_drop = "volume_drop"
     # Written by the variable-value-drift candidate builder. The scope shipped
     # in d1c2b3a4f5e6 without this member, so the delivery INSERT failed on the
-    # Postgres enum and took the whole collection transaction with it
-    # (tripl-jfm3.97). Added to the type by e2f3a4b5c6d7.
+    # Postgres enum and took the whole collection transaction with it.
+    # Added to the type by e2f3a4b5c6d7.
     value_drift = "value_drift"
     # Written by the source-freshness candidate builder (#269): the scan's data
     # is late (``source_late``) or the scan itself stopped collecting

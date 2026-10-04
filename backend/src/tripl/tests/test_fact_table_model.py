@@ -1,4 +1,4 @@
-"""Model-level tests for the FactTable catalog entity (tripl-ysji.1)."""
+"""Model-level tests for the FactTable catalog entity."""
 
 import uuid
 from collections.abc import Iterator

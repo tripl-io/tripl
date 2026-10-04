@@ -11,7 +11,7 @@ import { PersonaProject } from '@/test/PersonaProject'
 
 vi.mock('sonner', () => ({ toast: vi.fn() }))
 
-// The checklist is role-aware (tripl-yfsj.4): it reads the current user's role
+// The checklist is role-aware: it reads the current user's role
 // via useAuth(), so tests must render it inside an AuthContext. `role: null`
 // models an unauthenticated context (treated as a non-owner).
 function authValue(role: Role | null): AuthContextValue {
@@ -250,7 +250,7 @@ describe('OnboardingChecklist', () => {
     )
   })
 
-  it('describes the scan step by what a run produces, not by a baseline (tripl-3y7z)', () => {
+  it('describes the scan step by what a run produces, not by a baseline', () => {
     // The step ticks on ANY executed run, including a Catalog only scan's, and
     // the manual Run now it asks for calls `run_scan`, which writes events and
     // fields but never a metric point. "Pull recent volume so tripl can learn
@@ -319,7 +319,7 @@ describe('OnboardingChecklist', () => {
     expect(screen.getByText('1 of 5')).toBeInTheDocument()
   })
 
-  // --- Role-awareness (tripl-yfsj.4) --------------------------------------
+  // --- Role-awareness --------------------------------------
   // Connecting a data source is owner-only. A self-registered / invited user is
   // an editor, so for a non-owner that step must be discoverable-but-non-blocking
   // rather than a silent dead-end that keeps the checklist from ever finishing.
@@ -445,7 +445,7 @@ describe('OnboardingChecklist', () => {
     expect(screen.queryByText('Get started')).not.toBeInTheDocument()
   })
 
-  // --- "Set up alerting" needs a ROUTE, not just a channel (tripl-jfm3.81) ---
+  // --- "Set up alerting" needs a ROUTE, not just a channel ---
   // A destination with no enabled rule delivers nothing: rules decide which
   // signals matter and where they go. Ticking the step on the destination alone
   // let a user stop half-way and read a complete checklist over an alerting
@@ -495,7 +495,7 @@ describe('OnboardingChecklist', () => {
     expect(screen.queryByText(/Add a destination so anomalies reach your team/)).toBeNull()
   })
 
-  it('auto-hides for an established project when only optional steps remain (tripl-7l83.12)', () => {
+  it('auto-hides for an established project when only optional steps remain', () => {
     // acme-android-shaped: high coverage, real scans and sources, but alerting
     // was deliberately never wired up and no metric defined. The core loop is
     // set up, so a "3 of 5" that may never reach 5 should disappear, not become
@@ -535,13 +535,13 @@ describe('OnboardingChecklist', () => {
     expect(screen.getByText(/Almost set up/)).toBeInTheDocument()
   })
 
-  it('names the single remaining step inline in the compact bar (tripl-7l83.12)', () => {
+  it('names the single remaining step inline in the compact bar', () => {
     renderChecklist(nearlyDoneProps())
 
     expect(screen.getByText(/1 step left: Set up alerting/)).toBeInTheDocument()
   })
 
-  it('renders nothing for a demo project even when a step is outstanding (tripl-q7i1.7)', () => {
+  it('renders nothing for a demo project even when a step is outstanding', () => {
     // A demo's only source is synthetic (excluded from sourceCount), so the
     // "Connect a data source" step could never complete — this otherwise yields
     // "4 of 5" and a permanent "Almost set up" bar. Demos own their onboarding

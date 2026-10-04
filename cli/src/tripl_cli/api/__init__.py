@@ -1,4 +1,4 @@
-"""The one home for REST request construction (tripl-ey6j.5).
+"""The one home for REST request construction.
 
 Shared by the ``tripl`` CLI commands and by ``tripl-mcp``'s tools. A path
 template appears here and nowhere else; ``ApiRequest`` is constructed here and
@@ -27,7 +27,7 @@ half-follow.
 The one import out of this package is ``tripl_cli.model``, for its untyped-JSON
 helpers and ``JOBS_WINDOW``. Those are facts about the wire rather than about
 doctor's verdict machinery, which is why that module now sits at the package
-root instead of under ``diagnostics`` (tripl-azhh) — this import used to read as
+root instead of under ``diagnostics`` — this import used to read as
 the request layer depending on the doctor.
 
 ``page_items``/``page_total`` are RE-EXPORTED from there, not redefined: the

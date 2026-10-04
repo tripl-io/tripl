@@ -75,7 +75,7 @@ class EventMetricPoint(BaseModel):
     # mutes the marker and names the event. Omitted from the JSON when NULL.
     planned_event_id: uuid.UUID | None = Field(default=None, exclude_if=lambda value: value is None)
     # The per-bucket baseline the detector scored this bucket against, flagged
-    # or not (tripl-i9mt.25): the expected value and the floored effective
+    # or not: the expected value and the floored effective
     # stddev, so ``baseline_expected ± sigma_threshold * baseline_stddev`` is the
     # band the chart draws on every scored bucket. NULL where the detector
     # stored none — buckets scored before baselines were persisted, buckets it
@@ -178,13 +178,13 @@ class MetricSignalResponse(BaseModel):
     # How big this signal is relative to what was expected — the value the
     # "Significant" magnitude filter and the sidebar badge both gate on. Computed
     # here rather than mirrored client-side: the formula lived in two places and
-    # drifted twice (tripl-yfsj.1, tripl-jfm3.89), and only the server knows
+    # drifted twice, and only the server knows
     # whether a catalog metric's series is count-shaped, which decides whether
-    # the denominator is floored at 1 (tripl-yf8c). Always a FINITE number: an
+    # the denominator is floored at 1. Always a FINITE number: an
     # unbounded move off a zero baseline is reported as
     # ``metrics_insights_service.MAX_RELATIVE_EFFECT``, because ``inf`` serializes
-    # to JSON null and the client then re-derives a magnitude below the gate
-    # (tripl-l33u.3). NULL only on a path that did not compute it; a client seeing
+    # to JSON null and the client then re-derives a magnitude below the gate.
+    # NULL only on a path that did not compute it; a client seeing
     # NULL should fall back to its own count-shaped estimate rather than treat the
     # signal as having no magnitude.
     relative_effect: float | None = None
@@ -193,8 +193,8 @@ class MetricSignalResponse(BaseModel):
     # client can label the row from the signal alone: the AnomaliesPage used to
     # download the whole event catalog (2641 rows / 1.7s on acme-ios) purely to
     # build an id -> name map, and rendered "Spike on Event d4c684dd" until it
-    # landed, while the activity rail called the same incident by its real name
-    # (tripl-y4wt). NULL means the name could not be resolved — the entity was
+    # landed, while the activity rail called the same incident by its real name.
+    # NULL means the name could not be resolved — the entity was
     # deleted out from under the anomaly row, or the scope is ``project_total``,
     # which is named by the project, not by a lookup. Clients must not fall back
     # to ``scope_ref``: a hex prefix reads as a name.
@@ -287,9 +287,9 @@ class SeasonalityHeatmapResponse(BaseModel):
     #: The scan interval the cells were binned from, and whether that interval
     #: actually resolves an hour (an interval of one hour or finer). A daily or
     #: weekly scan puts EVERY bucket in hour 0, and a 6h scan fills only 4 of
-    #: 24 columns (tripl-0zpq.199), so most cells are structurally empty — a 7x24 grid
+    #: 24 columns, so most cells are structurally empty — a 7x24 grid
     #: then reads as missing data instead of as a coarser interval
-    #: (tripl-jfm3.128). Clients render the weekday strip alone when this is
+    #:. Clients render the weekday strip alone when this is
     #: false rather than drawing a grid that can never fill.
     interval: str
     hourly_resolution: bool
@@ -331,7 +331,7 @@ class EventMetricsResponse(BaseModel):
     # project-total and events-total series chart ONE scan config (summing
     # every config double-counts events a legacy/backfill scan also collected),
     # so the UI must be able to name the scan instead of calling a 2.4 %-of-
-    # project series "project total" (tripl-jfm3.20).
+    # project series "project total".
     scan_config_name: str | None = None
     event_id: uuid.UUID | None = None
     event_type_id: uuid.UUID | None = None

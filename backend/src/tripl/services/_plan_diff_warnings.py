@@ -3,7 +3,7 @@
 A diff says what changed between the base and the branch. It cannot say that
 an ADDED event is broken in a way the merge will not fix — and on production
 that was the case for every event authored on a branch before the naming rule
-reached branches (tripl-kjhi.1): no ``source_name``, a free-text ``name``, and
+reached branches: no ``source_name``, a free-text ``name``, and
 a merge that would land a row the scan can never match. The reviewer approving
 the branch is the last person who can catch it, so the diff tells them.
 """

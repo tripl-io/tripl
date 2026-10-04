@@ -1,4 +1,4 @@
-"""PostgreSQL connection hardening: TLS, certificates, search_path (tripl-64n8.7).
+"""PostgreSQL connection hardening: TLS, certificates, search_path.
 
 None of this needs a server — every check here happens *before* ``psycopg.connect``
 is reached, which is the point: a connection whose TLS is misconfigured must be

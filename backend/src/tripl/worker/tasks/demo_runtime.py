@@ -1,4 +1,4 @@
-"""Demo runtime tick — keep an ACTIVE demo fresh after creation (tripl-2su6.7).
+"""Demo runtime tick — keep an ACTIVE demo fresh after creation.
 
 A generated demo is a snapshot: the warehouse builder seeds ~23 days of hourly
 ``EventMetric`` history whose newest bucket sits ~1h before creation time. Without
@@ -42,7 +42,7 @@ The tick only touches ``is_demo`` projects, so REAL scan/metric scheduling is
 entirely unaffected by it. It shares exactly ONE thing with ``check_metrics_due``:
 the idle-pause rule in :mod:`tripl.worker.tasks._demo_pause`, which both must apply
 or a demo this tick has stopped advancing gets collected with a window that
-destroys its history (tripl-0zpq.72, argued in that module). Anomaly re-detection
+destroys its history (argued in that module). Anomaly re-detection
 reuses the REAL ``detect_anomalies`` over the fresh window; the appended series is
 kept fully coherent so a later real collection stays consistent.
 
@@ -118,7 +118,7 @@ DEMO_TICK_FAILED_EVENT = "demo.runtime.tick_failed"
 # has to apply the SAME rule: a demo this tick has stopped advancing must not have
 # its scheduled collection dispatched either, or that collection's window reaches
 # back past the synthetic warehouse's full-volume hours and overwrites real history
-# with sampled near-zero counts (tripl-0zpq.72).
+# with sampled near-zero counts.
 
 # A per-demo advance runs in ONE transaction that can lose a Postgres deadlock race
 # against a concurrent metric-collection run over the same ``metric_anomalies`` rows.
@@ -782,8 +782,8 @@ def _prune_retention(
     # The seeded "Injected demo spike" marker retires with the anomaly it
     # explains: pruned at the same cutoff, so an aging demo never keeps a label
     # pinned over a stretch of plain noise with nothing under it. The runtime
-    # appends no new spike, so re-dating the marker would label nothing either
-    # (tripl-0zpq.322). Matched on the seeder's label, so an annotation the user
+    # appends no new spike, so re-dating the marker would label nothing either.
+    # Matched on the seeder's label, so an annotation the user
     # wrote in the demo is left alone.
     session.execute(
         delete(ChartAnnotation).where(

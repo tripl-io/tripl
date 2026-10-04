@@ -32,7 +32,7 @@ from tripl.services import audit_actions, audit_export_service, audit_service
 # the organization. The feed IS scoped to the request's organization (F20 PR4):
 # list and detail read only rows whose ``organization_id`` is the bound org, so
 # one organization's admin never reads another's payloads. Passwords were never
-# exposed; audit_service._redact strips them (tripl-jfm3.110).
+# exposed; audit_service._redact strips them.
 router = APIRouter(prefix="/audit", tags=["audit"], dependencies=[Depends(get_owner_user)])
 
 
@@ -43,7 +43,7 @@ async def list_audit(
     action: Annotated[FreeTextFilter | None, Query()] = None,
     user_id: Annotated[uuid.UUID | None, Query()] = None,
     # FreeTextFilter: binds into a LIKE, so a NUL aborts inside asyncpg before
-    # SQL runs (tripl-8wez).
+    # SQL runs.
     user_email: Annotated[FreeTextFilter | None, Query()] = None,
     since: Annotated[datetime | None, Query()] = None,
     until: Annotated[datetime | None, Query()] = None,

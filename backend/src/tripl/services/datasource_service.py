@@ -366,7 +366,7 @@ async def update_data_source(
     try:
         await session.commit()
     except IntegrityError as exc:
-        # tripl-0zpq.370: the pre-check above is a plain SELECT holding nothing, so two
+        # the pre-check above is a plain SELECT holding nothing, so two
         # concurrent renames to the same free name both pass it and the loser meets
         # uq_data_sources_organization_name at the commit. Rolled back, the name is
         # looked up again: if another source now holds it, this is that race and gets
@@ -469,7 +469,7 @@ async def delete_data_source(session: AsyncSession, ds_id: uuid.UUID) -> None:
     await cache.delete_prefix(cache.prefix_data_sources())
     # The same cascade that skipped the unbind above also skipped the index
     # refresh ``delete_scan_config`` does, so a deleted scan stayed findable in
-    # the command palette and /search (tripl-9jvz). One whole-branch reindex per
+    # the command palette and /search. One whole-branch reindex per
     # project covers both document kinds this delete moved: the ``scan_config``
     # documents are gone, and the alert rules just unbound above are rebuilt
     # without the scan name their subtitle used to carry.
@@ -584,7 +584,7 @@ def _friendly_test_error(exc: Exception) -> str:
     """Map a raw connection-probe exception to a safe, user-facing message.
 
     THE owner of ``DataSource.last_test_message`` wording for the in-request
-    connection probe. The unused Celery probe was removed (tripl-0zpq.50).
+    connection probe. The unused Celery probe was removed.
 
     Never echoes host/port/driver/credential internals — those go to logs only.
     """

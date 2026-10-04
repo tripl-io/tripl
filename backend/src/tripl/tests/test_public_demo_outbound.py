@@ -1,4 +1,4 @@
-"""A public demo sends nothing out of the instance (tripl-sav5.3).
+"""A public demo sends nothing out of the instance.
 
 Generated demo projects are already zero-egress (their only alert destination
 is the local ``demo_sink``). On a public demo every other way out is closed: a

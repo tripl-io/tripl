@@ -37,7 +37,7 @@ class EventTypeRelation(UUIDMixin, Base):
     # The MAIN relation this branch copy was made from, as ``Event.origin_id``
     # records it for events — and, for the reason given there, not a foreign
     # key: nothing makes the four-part natural key unique, so two relations can
-    # link the same two fields (tripl-0zpq.292). NULL on main and on relations
+    # link the same two fields. NULL on main and on relations
     # created on a branch.
     origin_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
     relation_type: Mapped[str] = mapped_column(String(50), default="belongs_to")

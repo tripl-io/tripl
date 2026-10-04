@@ -67,7 +67,7 @@ function renderPanel(over: Partial<React.ComponentProps<typeof ScanPreviewPanel>
   )
 }
 
-describe('ScanPreviewPanel — the answer leads, the rows are evidence (tripl-3y7z.6)', () => {
+describe('ScanPreviewPanel — the answer leads, the rows are evidence', () => {
   // The inversion this task exists for. The five raw rows used to BE the panel;
   // they answer "did my query run" and nothing else, while the docs promised the
   // panel showed which events and fields tripl would create.
@@ -109,7 +109,7 @@ describe('ScanPreviewPanel — the answer leads, the rows are evidence (tripl-3y
 
   // A format referencing a key the rows cannot supply fails EVERY run of the
   // config. Reading it here instead of after two hundred failed production runs
-  // is the single highest-value thing the dry run does (tripl-lpin).
+  // is the single highest-value thing the dry run does.
   it('puts a name-format error above everything else in the panel', () => {
     renderPanel({
       dryRun: dryRun({
@@ -173,7 +173,7 @@ describe('ScanPreviewPanel — the answer leads, the rows are evidence (tripl-3y
   })
 })
 
-describe('ScanPreviewPanel — a draft that cannot name its events (tripl-3y7z)', () => {
+describe('ScanPreviewPanel — a draft that cannot name its events', () => {
   // The P0. A brand-new scan has no event type and no event type column — the
   // column is picked FROM the rows this panel is showing. The panel used to
   // report the worker's own precondition here as a failure: "Could not work out

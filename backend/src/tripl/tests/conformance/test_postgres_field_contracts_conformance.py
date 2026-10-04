@@ -1,4 +1,4 @@
-"""PostgreSQL field contracts, executed against a real server (tripl-64n8.5).
+"""PostgreSQL field contracts, executed against a real server.
 
 The assertion that matters is here: **the warehouse-side SQL and BaseAdapter's
 Python fallback must return the same violations from the same rows.** The fallback

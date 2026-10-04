@@ -77,7 +77,7 @@ export function ErrorState({
         </div>
         <div className="min-w-0 flex-1">
           {/* h2 for the same reason as EmptyState: an error surface replaces a
-              page's content directly under its h1 (tripl-jfm3.69). On
+              page's content directly under its h1. On
               EmptyState's scale too: heading/body, or body-sm/caption when
               compact, so it no longer out-sizes the panel around it (DS-21). */}
           <Heading className={cn('font-semibold text-foreground', compact ? 'text-body-sm' : 'text-heading')}>{title}</Heading>

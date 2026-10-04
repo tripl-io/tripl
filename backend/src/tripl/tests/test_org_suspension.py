@@ -9,7 +9,7 @@
   a deletion request that races a suspension loses (403, still suspended);
 * a hosted legacy path binds the user's single ACTIVE organization;
 * the scheduled jobs skip its projects (``services.active_org_scope``), and a
-  deleting organization's too (tripl-oam4.9).
+  deleting organization's too.
 """
 
 from __future__ import annotations

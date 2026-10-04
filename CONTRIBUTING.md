@@ -161,7 +161,7 @@ of the suite cannot execute, because it runs on SQLite: the plain
 `SELECT ... FOR UPDATE` in `_build_digest`, which SQLite does not emit at all,
 and `_try_acquire_advisory_lock`, which returns "acquired" off PostgreSQL
 without asking the database. `src/tripl/tests/test_alert_digest_concurrency_pg.py`
-runs both against a real server (tripl-o3ry). Without one it SKIPS, so a plain
+runs both against a real server. Without one it SKIPS, so a plain
 `uv run pytest` is unaffected; CI runs it as its own job with
 `TRIPL_TEST_PG_REQUIRED=1`, which turns that skip into a failure.
 
@@ -200,7 +200,7 @@ Because the suite runs on SQLite, search keeps a Python fallback and the
 **production ranking SQL** — `ts_rank_cd`, the trigram/boost tiers,
 `merge_results`, and the `tripl_search` text-search configuration — is executed by
 nothing else in the repo. `src/tripl/tests/relevance/` ranks a fixed, readable
-corpus with that real SQL on a real PostgreSQL (tripl-338u). Without a server it
+corpus with that real SQL on a real PostgreSQL. Without a server it
 SKIPS, so a plain `uv run pytest` is unaffected; CI runs it as its own job with
 `TRIPL_RELEVANCE_REQUIRED=1`, which turns that skip into a failure.
 

@@ -15,12 +15,12 @@ mounted into the FastAPI app.
   intentionally not exposed in v1.
 - The HTTP client is **not in this package**. It lives in the `tripl`
   distribution (`../cli`) and is imported from there, so the CLI and this server
-  share one implementation rather than two that drift (tripl-ey6j.1).
+  share one implementation rather than two that drift.
 
 ## stdio (Claude Code / Claude Desktop)
 
 No form below needs a checkout of your own, but the first two get `tripl` — the
-distribution this package imports its HTTP client from (tripl-ey6j.1) — from
+distribution this package imports its HTTP client from — from
 different places, and the difference is worth knowing:
 
 - `uvx tripl-mcp` installs the release from PyPI and resolves `tripl` from the

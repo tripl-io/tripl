@@ -279,7 +279,7 @@ function useChartContainerReady() {
 // scan-config one — the scan-config copy has no reader left in the backend.
 // This was 3.0 with a comment claiming the scan-config default, wrong on both
 // counts, so a payload without a threshold drew a band a quarter too narrow and
-// made unflagged buckets look flagged (tripl-0zpq.299).
+// made unflagged buckets look flagged.
 //
 // Every scope now serves a real per-scope sigma (event, event-type and
 // project-total since tripl-0zpq.299; events-total since tripl-e443; the catalog
@@ -353,7 +353,7 @@ function markPartialBuckets(points: ChartDataPoint[], partial: PartialWindow) {
 }
 
 /**
- * The expected value and stddev a bucket's band is drawn from (tripl-i9mt.25).
+ * The expected value and stddev a bucket's band is drawn from.
  * A flagged bucket uses its anomaly row's (`expected_count`/`stddev`): a trend
  * row's expectation is not the per-bucket one. Every other scored bucket uses
  * the baseline the detector stored for it; an unscored bucket has none.
@@ -1176,7 +1176,7 @@ export function MetricsChart({
             legendType="none"
           />
           {/* Expected value: dashed where buckets run together (every bucket
-              the detector scored stores its baseline, tripl-i9mt.25), and a
+              the detector scored stores its baseline), and a
               hollow point with its normal-range whisker where a bucket carries
               one alone — a flagged bucket, or history scored before baselines
               were stored (MO-1). */}
@@ -1189,7 +1189,7 @@ export function MetricsChart({
             dot={(props: { cx?: number; cy?: number; payload?: ChartDataPoint }) => {
               // Per point, not per chart: a flagged or isolated expected value
               // keeps its hollow point however long the chart is, and a run of
-              // scored buckets stays a plain dashed line (tripl-i9mt.25).
+              // scored buckets stays a plain dashed line.
               if (!hasExpectedDot(props.payload) || props.cx === undefined || props.cy === undefined) {
                 return <></>
               }
@@ -1586,7 +1586,7 @@ export function MetricsMultiSeriesChart({
 // an *animated* Area/Line can settle into its empty enter-frame and never paint.
 // When the series is count-only (the events-metrics `events_total` response has
 // no expected/band series to fall back on) that left the whole plot blank while
-// the axes still rendered from the count domain (tripl-yfsj.2).
+// the axes still rendered from the count domain.
 // Exported for unit tests only — recharts never paints in jsdom, so the
 // animation flag is asserted on the returned element rather than on pixels.
 // eslint-disable-next-line react-refresh/only-export-components

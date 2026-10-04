@@ -60,7 +60,7 @@ async def _audit_accept(
     # decided it should. The scan only PROPOSED the identity; accepting it is an
     # editor authoring a plan row, so "events written by a scan are not audited"
     # never covered this, and reading it as if it did left a whole door into the
-    # catalog unrecorded (tripl-wkwv.13).
+    # catalog unrecorded.
     #
     # Not a reconciliation-specific action, deliberately. An owner asking "which
     # events did people create?" filters ``event.create``; an action of its own
@@ -111,7 +111,7 @@ async def _audit_dismiss(
     # The candidate's own row already stores ``resolved_by``/``resolved_at``, and
     # that is NOT a substitute: it is ``ondelete="CASCADE"`` on both project and
     # scan config, so deleting the scan that found the traffic erases every record
-    # of who waved it away. Same failure the event history had (tripl-wkwv.10) —
+    # of who waved it away. Same failure the event history had —
     # the trace dies with the thing it describes.
     #
     # No branch: this route declares no ``BranchIdDep`` because a candidate has no
@@ -258,7 +258,7 @@ async def archive_dead_events(
     # ``event_service.bulk_update_events`` to move events into a terminal
     # lifecycle state. Without this row an editor could retire 40 events from
     # Reconciliation and the audit log — which the docs describe as covering
-    # every event edit — would say nothing (tripl-wkwv.10). Recorded in the
+    # every event edit — would say nothing. Recorded in the
     # router, not the service: the sync worker imports from ``services`` and
     # never from ``api``, so that line is what keeps the scan pipeline — which
     # constructs its ``Event(...)`` rows directly — structurally unable to write

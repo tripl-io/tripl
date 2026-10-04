@@ -20,7 +20,7 @@ class EventMetaValue(UUIDMixin, Base):
     # ``update_event`` deletes and re-inserts the whole set, and a value
     # repeated inside one payload is a mistake either way. Whether a field may
     # hold more than one at all is enforced in the service, where the definition
-    # is in hand (tripl-h2sx.31).
+    # is in hand.
     __table_args__ = (
         UniqueConstraint(
             "event_id",

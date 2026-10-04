@@ -259,9 +259,9 @@ function NotificationsMenu({ projectSlug }: { projectSlug?: string }) {
   // sidebar badge and the Overview headline report. The collapsed variant this
   // used to call queries only project_total/event_type, so a project whose
   // anomalies are all event-scope (prod acme-ios: 150 of them) left the bell
-  // completely clean while every other surface showed 30 (tripl-jfm3.89). The
+  // completely clean while every other surface showed 30. The
   // request is now shared with Overview and Anomalies under one key
-  // (tripl-jfm3.119) — Overview renders this bar, so it used to fetch twice.
+  // — Overview renders this bar, so it used to fetch twice.
   // The panel reads both lists under the same keys.
   const signalsQuery = useExpandedSignals(projectSlug)
   const deliveriesQuery = useTopbarDeliveries(projectSlug)

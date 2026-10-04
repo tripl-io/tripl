@@ -25,9 +25,9 @@ RECENT_SIGNAL_WINDOW = timedelta(hours=24)
 # the configured window and only long grids move. ``worker.tasks.metrics.signals``
 # does NOT import this name: it reaches the constant only through
 # ``classify_signal_state``, so there is no second copy to drift. It used to keep
-# a mirror, and the mirror drifted twice (tripl-l429.14, tripl-l429.19);
+# a mirror, and the mirror drifted twice;
 # ``test_monitors_summary`` pins that the name is absent from ``signals`` so a
-# re-introduced copy fails loudly (tripl-0zpq.170).
+# re-introduced copy fails loudly.
 LATEST_SCAN_STALE_INTERVALS = 3
 
 # ScanInterval enum string (e.g. "1d") -> wall-clock duration. Keyed by string so
@@ -174,7 +174,7 @@ def _outage_is_still_running(
         expected", written by ``_detect_trend_shift`` on a project running
         ``min_expected_count = 0`` — open since the day they were detected,
         invisible below the magnitude gate but permanently inflating the
-        denominator the Anomalies page states out loud (tripl-wkwv.4).
+        denominator the Anomalies page states out loud.
 
     The three inputs are deliberately NOT symmetrical in how ``None`` is read.
     The first two are evidence FOR an outage, so an unanswered one cannot prove
@@ -218,8 +218,8 @@ def classify_signal_state(
     worker's alert-candidacy pass in ``worker.tasks.metrics.signals``. It used to
     be two hand-maintained copies, on the stated grounds that the worker must not
     import the services layer; this module imports no ``tripl`` module at all, so
-    that never applied, and the copies drifted twice inside one PR
-    (tripl-l429.14, tripl-l429.19), each time showing a signal open on the page
+    that never applied, and the copies drifted twice inside one PR,
+    each time showing a signal open on the page
     while the alerting path treated it as closed.
 
     The optional inputs below are the ones only some callers can answer, and each
@@ -240,7 +240,7 @@ def classify_signal_state(
     * ``anomaly_expected_count`` — the third input to that same re-check, and the
       only one whose ``None`` means "ignore" rather than "cannot conclude". Every
       caller that passes the pair above should pass this too; the polarity is
-      explained in ``_outage_is_still_running`` (tripl-wkwv.4).
+      explained in ``_outage_is_still_running``.
     """
     # No stored metric values means there is no live scan to anchor recency on, so
     # there is nothing to keep open — treat the signal as closed.
@@ -363,7 +363,7 @@ def summarize_monitor_states(
     ``max(24h, 3 x interval)`` of its own grid, so a daily or weekly anomaly it
     is still delivering sits well past a bare 24 hours. Judging that against
     ``now - 24h`` read "warning" — firing_count 0, the sidebar badge off —
-    while the alert was being sent (tripl-0zpq.162). ``interval_of`` resolves
+    while the alert was being sent. ``interval_of`` resolves
     each state's grid; a caller that passes nothing, or a state it cannot
     resolve, falls back to the bare 24-hour window.
 

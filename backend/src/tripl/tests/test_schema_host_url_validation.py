@@ -1,4 +1,4 @@
-"""Format-only validation for owner-configurable hosts and URLs (tripl-lyo9.2).
+"""Format-only validation for owner-configurable hosts and URLs.
 
 These guards intentionally do NOT block private/loopback/link-local addresses:
 data sources legitimately point at private DBs and ai_base_url at local LLMs.
@@ -46,7 +46,7 @@ def test_data_source_host_rejects_malformed(host: str) -> None:
 
 def test_data_source_update_host_optional_but_format_checked() -> None:
     # Left UNSET, not sent as null: ``host`` is a NOT NULL column, so an explicit
-    # null is refused by ``_reject_explicit_nulls`` (tripl-0zpq.267). What this
+    # null is refused by ``_reject_explicit_nulls``. What this
     # line pins is that the field is optional, which is what "optional but format
     # checked" means for a PATCH.
     assert DataSourceUpdate().host is None

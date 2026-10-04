@@ -128,7 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         # Reached without a real SIGINT by `tripl watch`, whose loop catches the
         # interrupt only long enough to print its footer and then RE-RAISES so
-        # this stays the only place 130 is decided (tripl-ey6j.4).
+        # this stays the only place 130 is decided.
         print(file=sys.stderr)
         return EXIT_INTERRUPTED
 

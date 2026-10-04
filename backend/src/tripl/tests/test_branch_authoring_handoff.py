@@ -1,4 +1,4 @@
-"""The analyst-to-developer handoff on a plan branch (tripl-kjhi).
+"""The analyst-to-developer handoff on a plan branch.
 
 A read-only walk of production on 2026-09-07 followed an analyst authoring
 events for a feature on a working branch and a developer handed the branch to
@@ -570,7 +570,7 @@ async def test_first_seen_is_the_oldest_bucket_with_traffic_read_through_the_twi
     """``first_seen_at`` is when traffic first arrived, not when the row was authored.
 
     The detail page labelled ``created_at`` "First seen", which for an event
-    planned before it shipped named a day nothing was seen on (tripl-kjhi.10).
+    planned before it shipped named a day nothing was seen on.
     A branch copy reads its main twin's buckets, the same way ``last_seen_at``
     reaches it; an empty bucket does not count as being seen.
     """

@@ -122,7 +122,7 @@ async function fillAndCreate(note: string) {
 }
 
 /**
- * tripl-htfn.1 — "comments appeared, but only after creating and then editing
+ * "comments appeared, but only after creating and then editing
  * an event; at the moment of creating one there are no comments."
  */
 describe('EventEditPage — a question raised while the event is being authored', () => {

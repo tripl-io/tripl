@@ -101,9 +101,9 @@ describe('FactTablesList', () => {
     const header = panel.querySelector('header') as HTMLElement
     expect(header).not.toBeNull()
     // The header used to read "Catalog / 1 total": the same hardcoded title as
-    // the panel on the Catalog tab (tripl-p4kr). Only the title was wrong. The
+    // the panel on the Catalog tab. Only the title was wrong. The
     // "N total" caption is the shape both tabs' list panels share, and dropping
-    // it here left Fact tables the one bare header on the page (tripl-9jzt).
+    // it here left Fact tables the one bare header on the page.
     expect(header.textContent).toBe('Fact tables1 total')
     expect(screen.queryByText('Catalog')).toBeNull()
   })

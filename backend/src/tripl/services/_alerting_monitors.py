@@ -35,7 +35,7 @@ def is_rule_muted(rule: AlertRule, now: datetime) -> bool:
     Shared with ``_alerting_destinations`` rather than kept private here: the
     destination card and the monitors screen describe the SAME AlertRule, and
     the two screens disagreed about its mute state because only one of them had
-    any (tripl-oxkt.18). One definition, imported, is what keeps them equal — a
+    any. One definition, imported, is what keeps them equal — a
     second copy of these four lines would drift the moment either is edited.
     """
     muted_until = rule.muted_until
@@ -56,8 +56,7 @@ async def _get_rule_with_destination(
     The scan join is an OUTER one and must stay that way: ``scan_config_id`` is
     nullable, null is the default every rule is created with, and the delete path
     sets it back to null (``_alerting_destinations.disable_rules_bound_to_scan``). An
-    inner join would 404 every project-wide monitor — which is nearly all of them
-    (tripl-wkwv.9).
+    inner join would 404 every project-wide monitor — which is nearly all of them.
     """
     row = (
         await session.execute(
@@ -103,7 +102,7 @@ async def get_monitors_summary(session: AsyncSession, slug: str) -> MonitorsSumm
         )
         for state in states:
             states_by_rule[state.rule_id].append(state)
-    # Judge each state on its own grid, as dispatch does (tripl-0zpq.162).
+    # Judge each state on its own grid, as dispatch does.
     interval_of = await load_monitor_state_intervals(session, states)
 
     now = datetime.now(UTC)
@@ -258,7 +257,7 @@ async def _build_monitor_detail(
         destination_enabled=destination.enabled,
         # Which scan this rule can see at all, named so the detail screen can say
         # so — it holds no scans list to resolve the id against. NOT an input to
-        # ``scope_readiness`` below, which stays project-level (tripl-wkwv.9).
+        # ``scope_readiness`` below, which stays project-level.
         scan_config_id=rule.scan_config_id,
         scan_name=scan_name,
         include_project_total=rule.include_project_total,
@@ -283,7 +282,7 @@ async def _build_monitor_detail(
         firing_scopes=firing_scopes,
         # Project-level, so it is the identical block the monitors list carries
         # — the detail screen renders the same two toggles and must not disagree
-        # with the list about whether anything feeds them (tripl-wkwv.1).
+        # with the list about whether anything feeds them.
         scope_readiness=await load_scope_readiness(session, project_id),
     )
 
@@ -327,7 +326,7 @@ async def mute_monitor(
     # already normalized, so this guard is for the callers that never see that
     # schema; without it an offset-less instant raises "can't compare
     # offset-naive and offset-aware datetimes" and the catch-all in ``main.py``
-    # turns a mute into a 500 (tripl-0zpq.168). UTC is the only reading this
+    # turns a mute into a 500. UTC is the only reading this
     # codebase gives a bare instant: ``is_rule_muted`` above reaches the same
     # answer from the other side by stripping tzinfo off ``now`` so a
     # SQLite-naive column compares as UTC wall time. Coercing before the write

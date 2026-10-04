@@ -7,7 +7,7 @@ import { dryRunNameExplosion, type NameExplosion, type NamingFixTarget } from '.
 
 /**
  * "What this scan would create" — the answer the quick-start guide has promised
- * since it was written, rendered from the backend dry run (tripl-3y7z.6).
+ * since it was written, rendered from the backend dry run.
  *
  * The panel used to show five raw warehouse rows and name neither an event nor a
  * field, so the one question a user actually has before creating a scan — what
@@ -142,7 +142,7 @@ function ColumnNote({ label, columns, explanation }: {
  * The name-format block. Rendered first and loudest: a format referencing a key
  * the rows cannot supply fails EVERY run of the config, so seeing it here rather
  * than after two hundred failed production runs is the highest-value thing the
- * dry run does (tripl-lpin).
+ * dry run does.
  */
 function NameFormatErrors({ errors }: { errors: string[] }) {
   if (errors.length === 0) return null

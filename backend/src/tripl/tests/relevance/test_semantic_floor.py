@@ -1,4 +1,4 @@
-"""Executable coverage for the semantic leg's cosine floor (tripl-txcz).
+"""Executable coverage for the semantic leg's cosine floor.
 
 WHY THIS FILE EXISTS SEPARATELY FROM THE CASE TABLE
 ---------------------------------------------------

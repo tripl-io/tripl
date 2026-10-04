@@ -24,7 +24,7 @@ import { eventWindowMetricsKey, projectEventWindowMetricsKey } from '@/lib/query
  * cost of the events page (2 calls, ~103 KB, up to 4.5 s against a 200-row
  * first page) and every bucket also carries its own refresh timer, so a user
  * who scrolled through 2.4k events accumulated ~24 recurring multi-second
- * requests in the degraded/polling fallback (tripl-jfm3.51).
+ * requests in the degraded/polling fallback.
  *
  * Falls back to bucket 0 alone when the virtualizer has no items yet — either
  * the list is short enough not to virtualize (≤ VIRTUAL_THRESHOLD rows, which
@@ -64,7 +64,7 @@ export function useEventRowMetrics({
 }) {
   // The memo had NO dependencies, so this window froze for the entire life of
   // the Events page: sparklines kept re-requesting the hours around whenever the
-  // page was opened, however long it stayed open (tripl-jfm3.114).
+  // page was opened, however long it stayed open.
   const liveRange = useLiveTimeRange(ROW_METRICS_RANGE_HOURS * 60 * 60 * 1000)
   const rowMetricsRange = useMemo(
     () => ({ time_from: liveRange.from, time_to: liveRange.to }),

@@ -204,7 +204,7 @@ def _clean(value: Any) -> Any:
     snapshot orders photos by JSON that includes their comments, and namesake
     events by their ids, so the order of the stripped lists would otherwise
     still carry what was stripped — a comment on main or a branch copy's new
-    id would read as a change (tripl-h2sx.28).
+    id would read as a change.
     """
     if isinstance(value, dict):
         return {k: _clean(v) for k, v in value.items() if k not in _NOT_CONTENT}

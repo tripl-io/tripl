@@ -326,8 +326,7 @@ class TestScanConfigsCRUD:
         # ...but a SECOND run while that one is live is refused. The scheduler
         # already skipped dispatch in this situation; the manual trigger had no
         # guard, so a double-click ran two collections over the same metric
-        # windows — and collection deletes a window before rewriting it
-        # (tripl-jfm3.100).
+        # windows — and collection deletes a window before rewriting it.
         concurrent = await client.post(f"/api/v1/projects/{project['slug']}/scans/{scan_id}/run")
         assert concurrent.status_code == 409, concurrent.text
         assert "already running" in concurrent.json()["detail"]
@@ -1118,7 +1117,7 @@ class TestScanConfigsCRUD:
     ) -> None:
         # Curated ScanError messages are user-actionable and surfaced verbatim,
         # under the "Scan failed" prefix the UI matches on. The sanitiser adds it
-        # so no raise site has to remember to (tripl-7bol) — before that, all
+        # so no raise site has to remember to — before that, all
         # sixty-odd curated messages reached the browser and were thrown away
         # there, one layer past where tripl-embs had rescued them.
         curated = scan_tasks.ScanError(
@@ -1129,8 +1128,8 @@ class TestScanConfigsCRUD:
         # The metrics row-limit guards are the real producers of that shape, and
         # they must raise ScanError — as bare ValueErrors their (already
         # user-written) text was thrown away and replaced by the generic internal
-        # -error line, which is why a real failing scan told the operator nothing
-        # (tripl-embs). Exercise the guard itself rather than a hand-written
+        # -error line, which is why a real failing scan told the operator nothing.
+        # Exercise the guard itself rather than a hand-written
         # string so a regression to ValueError fails here.
         from tripl.worker.tasks.metrics import metric_collect
 
@@ -1250,7 +1249,7 @@ class TestScanConfigsCRUD:
         """The one catalog-mutating task that never rebuilt the search index.
 
         A group event this task creates carried no search document until some
-        unrelated later task happened to reindex the branch (tripl-68l3). The
+        unrelated later task happened to reindex the branch. The
         ORDER is the substance here, not decoration: the reindex opens its own
         connection and cannot see this session's uncommitted work, so calling it
         before the commit would index the pre-merge state and still look correct
@@ -1674,7 +1673,7 @@ async def _create_scan(client: AsyncClient, project: dict, data_source: dict, na
 
 
 class TestFailedScanRuns:
-    """Failed-run affordances backing the scans settings page (tripl-7l83.4):
+    """Failed-run affordances backing the scans settings page:
 
     the underlying error is surfaced on the run, the jobs feed carries enough
     history to show a failing streak, and "Run again" reuses the manual trigger.

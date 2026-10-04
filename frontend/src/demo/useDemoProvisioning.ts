@@ -1,5 +1,5 @@
 /**
- * Demo-provisioning controller hook (tripl-2su6.9).
+ * Demo-provisioning controller hook.
  *
  * Owns the single blocking `POST /projects/demo` mutation and the animated
  * phase pointer shown while it runs. Guarantees:
@@ -9,13 +9,13 @@
  *    welcome (NOT Events), unless the caller overrides `onSuccess`;
  *  - on failure (500): expose the error and a `retry()` that runs a FRESH create.
  *
- * Cancelling is a two-part handshake (tripl-jfm3.12). Aborting the fetch only
+ * Cancelling is a two-part handshake. Aborting the fetch only
  * stops the browser reading the response — the server finishes the seed anyway —
  * so `cancel()` also asks the backend to abandon the provision. The server can
  * only do that while the shell is still seeding, so the outcome is reported
  * honestly: either it was stopped, or the demo is going to appear regardless.
  *
- * The mutation deliberately NEVER rejects (tripl-jfm3.13): every outcome comes
+ * The mutation deliberately NEVER rejects: every outcome comes
  * back as a resolved discriminated union. The app registers a global
  * `MutationCache.onError` that toasts any rejected mutation, which turned a
  * user-initiated cancel into a red "the backend timed out" toast and rendered a
@@ -215,8 +215,8 @@ export function useDemoProvisioning(options?: {
 
   // Animate through the expected phases while the request is blocking. There is
   // no server-side stage feed, so this is a timed best-effort narration — the
-  // dialog labels it as an estimate rather than asserting completed work
-  // (tripl-jfm3.16). The same hook drives the reset dialog (DEMO-22), and it
+  // dialog labels it as an estimate rather than asserting completed work.
+  // The same hook drives the reset dialog (DEMO-22), and it
   // starts over at phase 0 every time a create begins.
   const phaseIndex = useEstimatedPhase(isPending)
 

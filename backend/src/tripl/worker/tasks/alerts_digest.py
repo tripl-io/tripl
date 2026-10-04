@@ -189,7 +189,7 @@ def send_weekly_plan_digest() -> dict[str, int]:
                 # refusing them row by row also keeps them out of
                 # ``destinations_checked`` and off the weekly ``failed`` tally,
                 # which is the honest tally: nothing was attempted, and nothing
-                # is wrong (tripl-0zpq.33).
+                # is wrong.
                 Project.is_demo.is_(False),
                 project_in_active_org(),
                 AlertDestination.enabled.is_(True),

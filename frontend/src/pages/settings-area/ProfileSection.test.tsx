@@ -67,7 +67,7 @@ describe('Account · Profile', () => {
 
   /**
    * The card says timestamps follow the browser's timezone, and the value beside
-   * it used to read a hardcoded "Europe/Berlin" (tripl-hmlx).
+   * it used to read a hardcoded "Europe/Berlin".
    */
   it('shows the browser timezone, not a hardcoded city', () => {
     render(<ProfileSection />)
@@ -79,7 +79,7 @@ describe('Account · Profile', () => {
 
   /**
    * WS-37: the unbuilt preferences were first live controls that persisted
-   * nowhere (tripl-z9ot), then the same controls disabled. Now they are one
+   * nowhere, then the same controls disabled. Now they are one
    * "Coming later" card with nothing to click.
    */
   it('names what is not built in one card without a single control', () => {

@@ -318,7 +318,7 @@ export function ScanEssentialsSection({
       </fieldset>
 
       {/* Next sibling of the mode radio: only what its description lacks,
-          so Catalog only has none (tripl-3y7z.2, #247 DA-13). */}
+          so Catalog only has none (#247 DA-13). */}
       {monitoring && (
         <div className="border-b px-4 pb-4 border-border-subtle">
           <ScanCausalNote variant="form" mode={state.mode} />
@@ -904,7 +904,7 @@ export function LimitsSection({ form, readOnly }: SectionProps) {
         </Field>
       ) : (
         /* id={false}: this branch replaces the input with a sentence, so there is
-           nothing here for a `<label htmlFor>` to point at (tripl-6h2b). */
+           nothing here for a `<label htmlFor>` to point at. */
         <Field label="Lookback (hours)" htmlFor={false}>
           <p className="text-body-sm text-fg-tertiary">
             {NO_LOOKBACK_WITHOUT_TIME_COLUMN}

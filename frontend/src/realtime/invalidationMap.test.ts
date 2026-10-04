@@ -85,7 +85,7 @@ describe('invalidationKeysFor', () => {
   it('signals.updated refreshes anomalies, monitors and notifications', () => {
     const keys = invalidationKeysFor('signals.updated', SLUG)
     // One key for every signal surface — the bell, Overview and the Anomalies
-    // page share it (tripl-jfm3.119), so the retired per-surface prefix must
+    // page share it, so the retired per-surface prefix must
     // NOT come back as a second entry that silently matches nothing.
     expect(hasKey(keys, ['activeSignals', SLUG])).toBe(true)
     expect(hasKey(keys, ['anomalies', 'signals', SLUG])).toBe(false)

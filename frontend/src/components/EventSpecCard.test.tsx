@@ -93,7 +93,7 @@ function renderCard() {
   )
 }
 
-describe('EventSpecCard (tripl-kjhi.8)', () => {
+describe('EventSpecCard', () => {
   it('leads with the identity, the title and the rule, and marks the naming columns', () => {
     renderCard()
     expect(screen.getByTestId('spec-identity').textContent).toBe('spot:open:models_guide')

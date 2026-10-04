@@ -5,7 +5,7 @@ does NOT. In particular ``test_a_variable_a_live_event_still_names_is_kept``
 covers the shape that made this design conditional: on production, eighteen
 variables across three projects had zero observed contexts and were still named
 by a live event's field value, because a group-rule merge had deleted the event
-their contexts hung off (tripl-xfxa). A predicate resting on "no contexts" alone
+their contexts hung off. A predicate resting on "no contexts" alone
 would delete exactly those eighteen — from a screen with a select-all checkbox
 on it.
 """
@@ -263,7 +263,7 @@ def _plan_alone(variable: Variable):
 
 
 # --------------------------------------------------------------------------
-# The names a scan can write (tripl-bwo8)
+# The names a scan can write
 # --------------------------------------------------------------------------
 
 
@@ -367,7 +367,7 @@ def test_the_rename_arm_needs_a_source_name_to_compare_against() -> None:
 
 
 # --------------------------------------------------------------------------
-# Which variables came out of a JSON column (tripl-bwo8)
+# Which variables came out of a JSON column
 # --------------------------------------------------------------------------
 
 

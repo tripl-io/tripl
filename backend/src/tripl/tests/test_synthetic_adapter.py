@@ -1,4 +1,4 @@
-"""Contract tests for the local synthetic warehouse adapter (tripl-2su6.3).
+"""Contract tests for the local synthetic warehouse adapter.
 
 The synthetic adapter serves a bounded, deterministic in-memory dataset and must
 honour the same return shapes as the real warehouse adapters (ClickHouse /
@@ -177,7 +177,7 @@ def test_time_bucketed_counts_sum_to_windowed_rows() -> None:
 
 
 def test_anchor_advances_to_current_hour_so_live_window_is_covered() -> None:
-    """A live scan's current window must never read 0 events (bd tripl-yfsj.3).
+    """A live scan's current window must never read 0 events.
 
     The adapter floors its anchor to the current HOUR, so the newest event bucket
     is the last COMPLETE hour — exactly the newest bucket a live scan evaluates
@@ -507,7 +507,7 @@ def test_ongoing_window_carries_seeded_scale_per_event_volume() -> None:
 
     A live scan reads back its current window from this dataset; if the ongoing
     per-event volume sat at the old ~3-8 rows/hour TOTAL it read as a huge drop
-    against the demo's seeded 200-1800/hour baseline (bd tripl-yfsj.14). Each
+    against the demo's seeded 200-1800/hour baseline. Each
     seeded event must now appear in the newest hour near its base scale.
     """
     from tripl.core.adapters.synthetic import _EVENT_DEFS
@@ -518,7 +518,7 @@ def test_ongoing_window_carries_seeded_scale_per_event_volume() -> None:
         "SELECT * FROM events", "event_time", "1h", ["event_name"], [], None, newest, ANCHOR
     )
     counts = {name: count for _bucket, name, count in rows}
-    # Retired identities emit nothing by design (tripl-0zpq.245).
+    # Retired identities emit nothing by design.
     bases = {ev.event_name: ev.ongoing_base for ev in _EVENT_DEFS if not ev.retired}
 
     for name, base in bases.items():

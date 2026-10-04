@@ -20,7 +20,7 @@ import {
  * in UTC. Rendered in the viewer's local zone, a Monday week bucket prints as
  * "Week of Jun 7" (Sunday) west of Greenwich and a day bucket prints under the
  * wrong date — the axis would then disagree with the bucket the server
- * computed (tripl-64n8.2). Sub-day buckets are instants and render in local
+ * computed. Sub-day buckets are instants and render in local
  * time, like every other timestamp in the app (DS-24 / MON-5). Node re-reads
  * `process.env.TZ` on every Date operation, so stubbing it swings the host zone
  * under the formatter.

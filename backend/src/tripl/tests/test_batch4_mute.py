@@ -52,7 +52,7 @@ def test_a_muted_monitor_mints_no_immediate_delivery(
     """The Mute button on the Monitors screen has to stop messages.
 
     Its whole effect is this column, and for one release nothing in the worker
-    read it (tripl-jfm3.99): the UI reported the monitor muted and the alerts
+    read it: the UI reported the monitor muted and the alerts
     kept arriving.
     """
     with sync_session_factory() as session:

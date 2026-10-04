@@ -5,8 +5,8 @@ inbox's ``muted_until`` (``AlertInboxActionRequest`` and its bulk twin), the
 ``snoozed_until`` of a schema drift and of a variable value drift, and
 ``MonitorMuteRequest.muted_until``. Only the last one ever refused an instant
 that had already passed — ``mute_monitor`` answers 422 "muted_until must be in
-the future" — while the other four accepted it, stored it and returned 200
-(tripl-0zpq.273). A sixth field carries such an instant and is deliberately left
+the future" — while the other four accepted it, stored it and returned 200.
+A sixth field carries such an instant and is deliberately left
 taking a spent one; see WHERE THE RULE STOPS below.
 
 That 200 is exactly the kind of lie the validators it slipped past were written

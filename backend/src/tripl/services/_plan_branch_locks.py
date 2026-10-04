@@ -1,6 +1,6 @@
 """Row locks on ``plan_branches`` that serialise plan writes against a merge.
 
-One mechanism for three merge-time races (tripl-0zpq.288, .290 and .294): the
+One mechanism for three merge-time races (.290 and .294): the
 ``plan_branches`` row of the branch a write lands on is the lock for that
 branch's plan.
 
@@ -27,7 +27,7 @@ but not with ``UPDATE``. So a scan inserting events on main in a worker is not
 queued behind a merge it has nothing to do with; only the writes that took the
 explicit ``FOR SHARE`` are.
 
-DEADLOCK AUDIT (tripl-0zpq.288). Two ``FOR SHARE`` holders that both go on to
+DEADLOCK AUDIT. Two ``FOR SHARE`` holders that both go on to
 UPDATE the same row deadlock. No write path that takes this lock updates the
 ``plan_branches`` row: the rows it is written from are the transition route
 (status), the merge (status, ``merged_*``) and branch deletion, and none of
@@ -84,7 +84,7 @@ async def hold_branch_for_plan_write(
 
     ``working_only`` skips main (returns ``None`` for it, locking nothing): the
     comment path locks only a working branch, since only a working branch's
-    threads move in a merge (tripl-0zpq.290).
+    threads move in a merge.
     """
     stmt = (
         select(PlanBranch)
@@ -127,7 +127,7 @@ async def lock_main_plan_for_merge(session: AsyncSession, main_branch_id: uuid.U
     """Hold main's branch row against plan writes until the merge commits.
 
     Taken after the merged branch's own row, before main is read for the
-    conflict check, and held through ``_apply_merge`` (tripl-0zpq.294). See the
+    conflict check, and held through ``_apply_merge``. See the
     module docstring for why ``NO KEY UPDATE``.
     """
     if not locks_rows(session):

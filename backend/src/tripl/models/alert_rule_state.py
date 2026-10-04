@@ -69,7 +69,7 @@ class AlertRuleState(UUIDMixin, TimestampMixin, Base):
     # deleting the anchor) moved it: the shared row became unreachable, the
     # cooldown reset, a duplicate notification shipped, and the abandoned row
     # stayed is_active=True forever, inflating the Monitors screen's
-    # ``active_scope_count`` (tripl-0zpq.28).
+    # ``active_scope_count``.
     scan_config_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("scan_configs.id", ondelete="CASCADE"),
         nullable=True,

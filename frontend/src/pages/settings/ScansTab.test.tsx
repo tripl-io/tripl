@@ -67,7 +67,7 @@ type ActivityOverrides = {
   catalog_combinations_24h?: number
 }
 
-/** GET /scans/activity: the server's exact streak and 24h rows per scan (tripl-fj5g.11). */
+/** GET /scans/activity: the server's exact streak and 24h rows per scan. */
 function activityResponse(items: ActivityOverrides[] = [{}]) {
   return {
     window_from: '2026-01-31T00:00:00Z',
@@ -336,7 +336,7 @@ describe('ScansTab', () => {
   // The recent-runs rail prints its count through `formatCount`, which compacts
   // (1.8M) — so the noun has to agree with the raw number, not with the string
   // that reaches the screen. A run that read a single warehouse row said
-  // "1 rows" (tripl-3y7z).
+  // "1 rows".
   it('agrees with the count on a run that read exactly one row', async () => {
     setupFetchWithJobs([
       {
@@ -360,7 +360,7 @@ describe('ScansTab', () => {
   // The per-scan job queries used to be coerced to `[]` while in flight, so
   // every row rendered a finished-looking "Never run" chip and the 24h tile read
   // 0 — contradicting the completed runs listed in the activity rail on the same
-  // screen (tripl-jfm3.28).
+  // screen.
   it('shows a loading placeholder, not "Never run", while the job queries are in flight', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -458,7 +458,7 @@ describe('ScansTab', () => {
 
   // The loaded page holds 10 jobs; the streak runs past it. It used to read
   // "failed last 10+ runs" — a floor — and now carries the server's exact count
-  // over the whole history (tripl-fj5g.11).
+  // over the whole history.
   it("tags the streak with the server's exact count when it runs past the loaded page", async () => {
     setupFetchWithJobs(
       Array.from({ length: 10 }, (_, i) =>
@@ -573,7 +573,7 @@ describe('ScansTab', () => {
     renderTab()
 
     // Every config row exposes a "Run now" control on the list itself — the
-    // surface the demo coach's step-1 CTA opens (tripl-q7i1.5).
+    // surface the demo coach's step-1 CTA opens.
     const runButton = await screen.findByRole('button', { name: 'Run Main events scan now' })
     expect(runButton).toHaveTextContent('Run now')
     fireEvent.click(runButton)
@@ -585,7 +585,7 @@ describe('ScansTab', () => {
 
   // A schedule with no time column is never dispatched, so it collects no metric
   // point, raises no anomaly and sends no alert — but every run still goes green.
-  // Counting it as Monitoring was the list agreeing with that lie (tripl-3y7z.1).
+  // Counting it as Monitoring was the list agreeing with that lie.
   it('excludes a scheduled scan with no time column from the Monitoring count and flags it on its row', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -623,7 +623,7 @@ describe('ScansTab', () => {
     // The name is the row's link, and its href is the live /p/:slug/scans/:id
     // route. The legacy /p/:slug/settings/scans/:id form is only a redirect in
     // App.tsx, so shipping it here would send every keyboard user through a
-    // bounce (tripl-np3p).
+    // bounce.
     const link = await screen.findByRole('link', { name: 'Main events scan' })
     expect(link).toHaveAttribute('href', '/p/demo/scans/scan-1')
 

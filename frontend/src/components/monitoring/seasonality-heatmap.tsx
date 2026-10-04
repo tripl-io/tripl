@@ -174,9 +174,9 @@ export function SeasonalityHeatmap({
   }
 
   // A daily or weekly scan floors every bucket into hour 0, and a 6h scan fills
-  // only 4 of 24 columns (tripl-0zpq.199), so most cells can never hold
+  // only 4 of 24 columns, so most cells can never hold
   // anything. Drawing the grid anyway reads as missing data — say what is
-  // actually true instead (tripl-jfm3.128).
+  // actually true instead.
   if (data.hourly_resolution === false) {
     return (
       <Card>
@@ -218,7 +218,7 @@ export function SeasonalityHeatmap({
             does not collapse into a uniform block. Labelling the ends with the
             min and max while implying a linear count in between made a mid-tone
             unreadable — it means "middle of the pack", not the midpoint of these
-            two numbers (tripl-jfm3.127). */}
+            two numbers. */}
         <div className="flex items-center gap-2 text-caption text-fg-tertiary">
           <span className="tabular-nums">{formatCount(scale.minCount)}</span>
           <div

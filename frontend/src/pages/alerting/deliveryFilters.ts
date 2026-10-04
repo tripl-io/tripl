@@ -12,7 +12,7 @@ export interface DeliveryFilters {
   // forwards these straight to `date_from`/`date_to`, and a bare date pins
   // `date_to` to midnight — which drops the whole day the reader just asked
   // for. `toDayBoundary` below converts; `formatIsoDate` converts back for the
-  // input. '' means unset (tripl-oxkt.12).
+  // input. '' means unset.
   date_from: string
   date_to: string
 }
@@ -36,7 +36,7 @@ export const DELIVERY_STATUSES = ['pending', 'sent', 'failed'] as const
  * the bare `status`, `scope`, `direction` and `scope_type` on this same route —
  * and a Delivery log link pasted to a colleague must not also filter their
  * Inbox. `scan` is the exception, and deliberately so: it is the key a scan
- * run's "Alerts queued" counter has always linked with (tripl-3y7z.2), and
+ * run's "Alerts queued" counter has always linked with, and
  * ProjectSettingsPage hands it down as `focusScanId`.
  *
  * Dates travel as the reader's calendar day, not as the instant the state

@@ -1,4 +1,4 @@
-"""Project-scoped SSE live-update stream (tripl-2su6.8).
+"""Project-scoped SSE live-update stream.
 
 Covers three layers without a live Redis (tests run with ``redis_url`` empty, so
 the pub/sub bus degrades to a no-op):

@@ -6,7 +6,7 @@ caller gets a 500. tripl-q4q7 fixed that for ``/search`` by sanitising inside th
 search funnel — genuinely the single funnel for ``/search`` and
 ``ai_service.ask_plan``. But the defect class is "user text binds
 straight into a Postgres parameter", and a review found more query parameters,
-across five routers, doing exactly that through ``ILIKE`` (tripl-8wez).
+across five routers, doing exactly that through ``ILIKE``.
 
 Sanitising in each service would be the same rule written seven times, and this
 repository has lost production twice to a rule written more than once. So it is

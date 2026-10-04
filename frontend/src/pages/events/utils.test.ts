@@ -388,7 +388,7 @@ describe('computeWindowDelta', () => {
     expect(computeWindowDelta(points, NOW).pct).toBeCloseTo(100)
   })
 
-  it('prints the delta of a 46h span whose two windows are both populated (tripl-oooj)', () => {
+  it('prints the delta of a 46h span whose two windows are both populated', () => {
     // The exact payload measured on a fresh demo: 47 hourly points spanning
     // 46.0h, because collection ends ~2h before now. The old blanket span guard
     // (< 47h ⇒ render nothing) blanked the ENTIRE column on this, while the same
@@ -434,7 +434,7 @@ describe('computeWindowDelta', () => {
     )
   })
 
-  it('refuses to divide one window by another it barely covers (tripl-7vnw)', () => {
+  it('refuses to divide one window by another it barely covers', () => {
     // Collection lagging ~23h behind the 48h fetch window. Anchored on NOW the
     // thin half is the recent one (1 of 24 hours), where anchoring on the newest
     // bucket used to thin the PRIOR half instead and divide 24h of volume by

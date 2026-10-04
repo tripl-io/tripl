@@ -68,7 +68,7 @@ function makeItem(overrides: Partial<MetricDefinitionListItem>): MetricDefinitio
     owner_id: null,
     order: 0,
     spark: [1, 2, 3, 4, 5],
-    // Percent-unit metrics store fractions; 0.42 renders as '42%' (tripl-nxk2.1).
+    // Percent-unit metrics store fractions; 0.42 renders as '42%'.
     latest_value: 0.42,
     latest_bucket: null,
     latest_signal: null,
@@ -145,7 +145,7 @@ function makeFactTable(overrides: Partial<FactTableListItem>): FactTableListItem
   }
 }
 
-// active_total is server-side (tripl-jfm3.109); default it so every existing
+// active_total is server-side; default it so every existing
 // fixture keeps expressing only what its own assertion is about.
 function mockList(body: Omit<MetricDefinitionListResponse, 'active_total'> & { active_total?: number }) {
   vi.mocked(metricsCatalogApi.list).mockResolvedValue({
@@ -250,7 +250,7 @@ describe('MetricsPage — a viewer reads the catalog without write controls (MET
   })
 })
 
-describe('MetricsPage — the kind filter is deep-linkable (tripl-2su6.19)', () => {
+describe('MetricsPage — the kind filter is deep-linkable', () => {
   it('opens the catalog already filtered when ?kind= is present', async () => {
     // The demo's metric building blocks link straight to a kind. That only
     // discovers anything if the catalog honours the param — it used to keep the
@@ -392,7 +392,7 @@ describe('MetricsPage', () => {
     expect(links[0]).toHaveAttribute('href', '/p/demo/metrics/new')
   })
 
-  describe('bulk actions and reorder (tripl-57o8)', () => {
+  describe('bulk actions and reorder', () => {
     it('selects rows and applies a bulk status change', async () => {
       mockList({
         items: [
@@ -496,7 +496,7 @@ describe('MetricsPage', () => {
     })
   })
 
-  describe('row actions menu (tripl-nxk2.9)', () => {
+  describe('row actions menu', () => {
     async function openRowMenu(name: string) {
       const trigger = await screen.findByRole('button', { name: `Actions for ${name}` })
       fireEvent.keyDown(trigger, { key: 'Enter' })
@@ -611,10 +611,10 @@ describe('MetricsPage', () => {
       )
     })
 
-    // Manual collect feedback (tripl-4mju): the row action must confirm the run
+    // Manual collect feedback: the row action must confirm the run
     // started, then watch the persisted last_collection_status and report the
     // terminal outcome — success, or the failure reason the worker stamped.
-    describe('collect now feedback (tripl-4mju)', () => {
+    describe('collect now feedback', () => {
       function mockCollectQueued() {
         vi.mocked(metricsCatalogApi.collect).mockResolvedValue({
           metric_id: 'm-1',
@@ -708,7 +708,7 @@ describe('MetricsPage', () => {
     })
   })
 
-  describe('operational stat bar and column context (tripl-nxk2.10 / tripl-nxk2.11)', () => {
+  describe('operational stat bar and column context', () => {
     function firingAndQuiet(): MetricDefinitionListResponse {
       return {
         items: [
@@ -782,7 +782,7 @@ describe('MetricsPage', () => {
     // carrying a latest-scan signal, while the sidebar badge counts every
     // significant open signal in the project. Captioned "Anomalies" the tile
     // read as the project-wide number and contradicted the nav in the same
-    // viewport (tripl-vsw2).
+    // viewport.
     it('captions the anomaly stat with its metric-catalog scope, not the bare word', async () => {
       mockList(firingAndQuiet())
 
@@ -794,7 +794,7 @@ describe('MetricsPage', () => {
     })
 
     // The name is the only cell a reader cannot reconstruct from the rest of the
-    // row, and a wide kind chip can clip it (tripl-862w).
+    // row, and a wide kind chip can clip it.
     it('titles the metric name with its full display name so a clipped name survives', async () => {
       mockList({
         items: [

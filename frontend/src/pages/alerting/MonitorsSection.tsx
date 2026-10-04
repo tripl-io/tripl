@@ -133,7 +133,7 @@ interface MonitorsSectionProps {
   scansFailed?: boolean
   canWrite: boolean
   /**
-   * Guided setup's step 3 (tripl-oxkt.15): open the rule form prefilled for the
+   * Guided setup's step 3: open the rule form prefilled for the
    * destination the reader has just created. It used to be handed to that
    * destination's card; rules no longer live there, so the section takes it.
    */
@@ -155,8 +155,8 @@ interface MonitorsSectionProps {
  * The two surfaces described the same object. `get_monitors_summary` selects
  * AlertRule joined to AlertDestination — the same rows the destination cards
  * rendered — so a rule was read on one nav item and edited on another, which is
- * how the two drifted about its mute state (tripl-oxkt.18). Merged here
- * (tripl-89ps): the rule list, its state, and every control that acts on a rule
+ * how the two drifted about its mute state. Merged here:
+ * the rule list, its state, and every control that acts on a rule
  * are one screen.
  *
  * State comes from `monitors-summary` and configuration from `destination.rules`,
@@ -267,8 +267,8 @@ export function MonitorsSection({
   }
 
   // Every write goes through the one shared invalidation: a rule write also
-  // moves the Inbox, the delivery log and this section's own summary
-  // (tripl-oxkt.14). Create and update render their error inside the dialog,
+  // moves the Inbox, the delivery log and this section's own summary.
+  // Create and update render their error inside the dialog,
   // so they keep the global toast out of it.
   const createRuleMut = useMutation({
     meta: SILENT_ERROR_META,
@@ -326,7 +326,7 @@ export function MonitorsSection({
   // `checked` is the server's value, never local state, so a rejected write
   // cannot leave the switch showing a position the server refused. Pending is
   // scoped to the ONE rule being written: a shared flag disables the neighbours
-  // for the duration of somebody else's request (tripl-oxkt.18).
+  // for the duration of somebody else's request.
   const toggleRuleMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: ({ rule, enabled }: { rule: RuleWithDestination; enabled: boolean }) =>
@@ -749,8 +749,7 @@ function RuleRow({
   // configuration, so it renders correctly while the state request is still in
   // flight. Sans and in words (AL-11), with what it watches underneath, so a
   // metrics-only rule no longer reads like every other rule (JR-15). The
-  // shared cooldown formatter keeps one rule one duration on every screen
-  // (tripl-oxkt.18).
+  // shared cooldown formatter keeps one rule one duration on every screen.
   const { condition, watches } = ruleConditionSummary(rule)
   const destinationType = destination?.type ?? state?.destination_type
   const channel = destinationType ? channelLabel(destinationType) : null
@@ -817,7 +816,7 @@ function RuleRow({
             returns FALSE the moment `muted_until` is NULL. So `muted &&
             !muted_until` cannot occur here; the second condition is type
             narrowing, not a second case. Do not add a "muted, no end" branch —
-            a rule's permanent lever is its `enabled` switch (tripl-b82m). */}
+            a rule's permanent lever is its `enabled` switch. */}
         {rule.muted && rule.muted_until && (
           <span className="pl-6">
             <Chip tone="warning" size="xs" icon={<BellOff aria-hidden="true" className="size-3" />}>
@@ -827,7 +826,7 @@ function RuleRow({
         )}
         {/* Delivery health. `Never delivered` is a different fact from `last
             sent 3h ago`, and it followed the rule off the destination card
-            rather than being dropped in the move (tripl-oxkt.17). */}
+            rather than being dropped in the move. */}
         <span className="break-words pl-6 text-caption text-fg-tertiary">
           {rule.total_deliveries === 0 ? (
             'Never delivered'
@@ -953,7 +952,7 @@ function RuleRow({
       >
         {/* Every setting labelled, because the whole block used to be a single
             wrapped run of unlabelled spans in which no individual value could be
-            found without reading all of them (tripl-oxkt.18).
+            found without reading all of them.
 
             One cell spanning all six columns, and a wrapper around the list
             rather than `role="cell"` ON the <dl>: that role replaced the list's
@@ -1036,9 +1035,8 @@ function RuleSetting({ label, value }: { label: string; value: string }) {
  *
  * The mute choices keep the Inbox's labels, "Mute <target> for <duration>",
  * because they are the same FUNCTIONS: `muteChoiceName` and `unmuteName` come
- * from `@/lib/mutePresets` alongside the durations (tripl-yapg), and only the
- * fixed durations are offered — a NULL `muted_until` UN-mutes a rule
- * (tripl-a50u).
+ * from `@/lib/mutePresets` alongside the durations, and only the
+ * fixed durations are offered — a NULL `muted_until` UN-mutes a rule.
  */
 function RuleActionsMenu({
   ruleName,

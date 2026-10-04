@@ -1,4 +1,4 @@
-"""Active-signal incident de-duplication (tripl-dmch.12).
+"""Active-signal incident de-duplication.
 
 One real spike/drop trips the project total AND its child event_type/event
 scopes on the same scan, bucket and direction. That is one incident, but it
@@ -148,7 +148,7 @@ async def test_project_total_and_child_anomaly_surface_as_one_signal(client: Asy
 async def test_expanded_view_keeps_children_tagged(client: AsyncClient):
     """Expanded AnomaliesPage view lists every flagged scope — project_total,
     event_type AND event — and tags the children folded under the total, rather
-    than collapsing the incident into a single project_total row (tripl-w0ay)."""
+    than collapsing the incident into a single project_total row."""
     slug = "incident-expanded"
     event_type_id, event_id, scan_config_id = await _make_project_with_scan(client, slug)
 
@@ -196,7 +196,7 @@ async def test_signals_carry_the_resolved_scope_name(client: AsyncClient):
     Without ``scope_name`` the AnomaliesPage had to download the whole event
     catalog (2641 rows / 1.7s on acme-ios) purely to build an id -> name map,
     and rendered "Spike on Event d4c684dd" until it landed — a different name for
-    the same incident than the activity rail was showing (tripl-y4wt).
+    the same incident than the activity rail was showing.
     """
     slug = "signal-scope-names"
     event_type_id, event_id, scan_config_id = await _make_project_with_scan(client, slug)
@@ -241,7 +241,7 @@ async def test_deleted_scope_reports_no_name_rather_than_its_ref(client: AsyncCl
     ``MetricAnomaly.event_id`` is ``ondelete=SET NULL`` while ``scope_ref`` keeps
     the old uuid, so this is the shape a deleted scope actually leaves behind.
     Falling back to ``scope_ref`` would put a hex prefix where a name goes, which
-    is the whole defect (tripl-y4wt).
+    is the whole defect.
     """
     slug = "signal-orphan-scope"
     event_type_id, event_id, scan_config_id = await _make_project_with_scan(client, slug)

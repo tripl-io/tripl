@@ -108,7 +108,7 @@ function offeredActions(): string[] {
     .filter((value) => value !== '')
 }
 
-describe('AuditTab — events in the log (tripl-wkwv.10)', () => {
+describe('AuditTab — events in the log', () => {
   // api/v1/events.py called audit_service.record zero times, so the central
   // object of the product was the one object this filter had nothing to offer
   // for. Per-event history is not a substitute: it never records creation or
@@ -132,7 +132,7 @@ describe('AuditTab — events in the log (tripl-wkwv.10)', () => {
   })
 })
 
-describe('WorkspaceAuditLog — the instance-wide feed (tripl-wkwv.17)', () => {
+describe('WorkspaceAuditLog — the instance-wide feed', () => {
   function renderWorkspace() {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
@@ -174,7 +174,7 @@ describe('WorkspaceAuditLog — the instance-wide feed (tripl-wkwv.17)', () => {
   })
 })
 
-describe('AuditTab — date filters (tripl-jfm3.37)', () => {
+describe('AuditTab — date filters', () => {
   it('labels the date filters without a format hint the control contradicts', () => {
     renderTab()
 
@@ -190,7 +190,7 @@ describe('AuditTab — date filters (tripl-jfm3.37)', () => {
   })
 })
 
-describe('AuditTab — paging (tripl-5ydt)', () => {
+describe('AuditTab — paging', () => {
   it('asks for one 50-row page and offers a step past it', async () => {
     listMock.mockResolvedValue(auditPage(50, 254))
     renderTab()
@@ -298,7 +298,7 @@ describe('AuditTab — paging (tripl-5ydt)', () => {
   })
 })
 
-describe('AuditTab — pending list card (tripl-5ydt)', () => {
+describe('AuditTab — pending list card', () => {
   it('holds the shape of the list instead of a bare "Loading…" line', async () => {
     let release: (value: AuditListResponse) => void = () => {}
     listMock.mockReturnValue(
@@ -321,7 +321,7 @@ describe('AuditTab — pending list card (tripl-5ydt)', () => {
   })
 })
 
-describe('AuditTab — payload on expand (tripl-5ydt)', () => {
+describe('AuditTab — payload on expand', () => {
   it('reads a payload only for the row the reader expanded', async () => {
     listMock.mockResolvedValue(auditPage(3, 3))
     getMock.mockResolvedValue(auditDetail(1, { sensitivity: 'pii' }))
@@ -354,7 +354,7 @@ describe('AuditTab — payload on expand (tripl-5ydt)', () => {
   })
 })
 
-describe('AuditTab — branch chip (tripl-wkwv.6)', () => {
+describe('AuditTab — branch chip', () => {
   it('names the working branch a write was scoped to', async () => {
     listMock.mockResolvedValue({ items: [auditRow(1, 'redesign-checkout')], total: 1 })
     renderTab()

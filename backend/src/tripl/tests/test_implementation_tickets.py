@@ -32,7 +32,7 @@ def _no_existing_issue(monkeypatch: pytest.MonkeyPatch) -> None:
 
     _find_existing_issue swallows a failed search on purpose, so leaving this
     unpatched would let every create test attempt a real HTTP request and still
-    pass — slowly, and for the wrong reason (tripl-l33u.15).
+    pass — slowly, and for the wrong reason.
     """
 
     def nothing(get_json, *, base_url, auth_email, api_token, label):  # noqa: ANN001, ANN202
@@ -163,7 +163,7 @@ async def test_implementation_tickets_reject_a_second_row_for_the_same_branch() 
 
     Two deliveries that enqueue concurrently both pass the existence check, so
     without ``uq_implementation_ticket_branch`` both rows land and the branch
-    shows two tickets (tripl-l33u.11).
+    shows two tickets.
     """
     project_id = uuid.uuid4()
     branch_id = uuid.uuid4()
@@ -298,7 +298,7 @@ async def test_a_redelivered_create_adopts_the_issue_it_already_opened(
 
     Jira's create takes no idempotency key, so nothing local can close that: the
     only durable record of the first attempt is the issue, and the only way to
-    recognise it is to have labelled it with the branch (tripl-l33u.15).
+    recognise it is to have labelled it with the branch.
     """
     _patch_public_dns(monkeypatch)
     project_id = uuid.uuid4()
@@ -377,7 +377,7 @@ async def test_one_failing_ticket_does_not_strand_the_rest_of_the_sweep(
     covers commits, not rollbacks — so after the first failure the next
     iteration's attribute access became a lazy refresh, which asyncio SQLAlchemy
     raises MissingGreenlet for. Ten tickets and a 500 on the first meant nine
-    never polled, that run and every run after it (tripl-l33u.16).
+    never polled, that run and every run after it.
     """
     _patch_public_dns(monkeypatch)
     project_id = uuid.uuid4()

@@ -196,7 +196,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   // would refuse, from the merge button.
   const [updateOpen, setUpdateOpen] = useState(false)
   // The ticket a branch is named after, linked through the meta field that
-  // links event values to the tracker (tripl-kjhi.14). Main's fields: the
+  // links event values to the tracker. Main's fields: the
   // template is project-wide and a branch copy carries the same one.
   const metaFieldsQuery = useQuery({
     queryKey: projectMetaFieldsKey(slug),
@@ -341,7 +341,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
     // disagree on a branch rename a->b that main independently grew its own b:
     // the merge refuses to pair it, the revert renames the branch's b back to a
     // regardless, and the dialog was reading the merge's "no" as a promise to
-    // restore a deletion that the button never performs (tripl-amnn). The row's
+    // restore a deletion that the button never performs. The row's
     // chip and label are left reading `renames`, because those describe the
     // merge.
     let prompt: ConfirmPrompt
@@ -439,7 +439,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
   // (approve, request changes) and Merge until the diff has settled; the
   // housekeeping transitions (submit, reopen, close) do not read it and stay
   // live. An error is not "pending": the backend is the authority on the
-  // merge, so a diff that failed to load must not lock the branch (tripl-kjhi.2).
+  // merge, so a diff that failed to load must not lock the branch.
   const diffLoading = diffLoad.status === 'pending'
   // Approve is the one action that can change nothing visible: on an already
   // `approved` branch it only restamps the approval's plan_hash, so the status
@@ -625,7 +625,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
           {diffLoad.status !== 'success' ? (
             // Never the zero counts: "+0 ~0 −0" over an unloaded diff reads as
             // an empty branch, which is the false state measured on
-            // production (tripl-kjhi.2). The strip carries the live region;
+            // production. The strip carries the live region;
             // the Changes card below shows the same wait for the eye only.
             <DiffLoadNotice load={diffLoad} live />
           ) : (
@@ -648,7 +648,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
               {/* Shown only when there is one, and shown rather than left implicit:
                   a rename subtracts itself from "added" and from "removed", and a
                   reviewer watching two counts drop with no new label beside them is
-                  owed the word that explains where the rows went (tripl-amnn). */}
+                  owed the word that explains where the rows went. */}
               {counts.renamed > 0 ? (
                 <SummaryCount
                   tone={RENAMED_META.tone}
@@ -855,7 +855,7 @@ function FeatureBranchDetail({ slug, branch, diff, diffLoad, confirm }: FeatureB
       >
         {diffLoad.status !== 'success' ? (
           // The empty state is a settled answer, so it waits for one: while the
-          // request is in flight the card says so instead (tripl-kjhi.2).
+          // request is in flight the card says so instead.
           diffLoad.status === 'pending' ? (
             // Bars, not a second "Loading changes…": the strip above carries
             // the words and the live region (PL-30).
@@ -1119,7 +1119,7 @@ function MainBranchPane({
 }
 
 /** What the summary strip and the Changes card show in place of counts and
- * rows until the diff request settles (tripl-kjhi.2). `live` marks the one
+ * rows until the diff request settles. `live` marks the one
  * copy that announces to assistive tech; the other is for the eye only, so a
  * screen reader hears the change once. The Retry button rides with the error
  * wherever the notice is rendered — the reviewer should not have to look for it. */

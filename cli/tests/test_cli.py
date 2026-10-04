@@ -107,7 +107,7 @@ def _register_dummy(
 class TestGlobalFlagSeam:
     """The reason this file exists before any subcommand does.
 
-    ``doctor`` and ``status`` (tripl-ey6j.2) rely on the global flags working on
+    ``doctor`` and ``status`` rely on the global flags working on
     both sides of the subcommand name. That works only because every shared
     option uses ``default=argparse.SUPPRESS``: _SubParsersAction copies its whole
     namespace back over the parent's, so an ordinary ``default=None`` would

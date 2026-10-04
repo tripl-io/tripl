@@ -39,7 +39,7 @@ interface DestinationsSectionProps {
  *
  * It was "Destinations & rules" and carried both. Rules — and the read-only
  * rule → destination summary panel that sat above them — moved to the Monitors
- * section (tripl-89ps), where they are shown with the firing state that made a
+ * section, where they are shown with the firing state that made a
  * second screen necessary in the first place. What is left here is one object:
  * a channel.
  *
@@ -60,7 +60,7 @@ export function DestinationsSection({
   // card was never rendered: a demo's Destinations panel showed only the
   // permanently-disabled Slack example, while the sink that actually receives the
   // seeded deliveries stayed invisible — even though its rules did appear under
-  // Routing rules. It gets its own group (tripl-2su6.20).
+  // Routing rules. It gets its own group.
   const localSinks = useMemo(
     () => destinations.filter((destination) => destination.type === 'demo_sink'),
     [destinations],
@@ -79,8 +79,7 @@ export function DestinationsSection({
   const hasDestinations = destinations.length > 0
   // Creating, editing and deleting a destination or a rule are all editor-only
   // (deps.py `require_editor`), so a viewer gets the configuration as a
-  // read-only report: every value stays on screen, nothing offers to change it
-  // (tripl-oxkt.9).
+  // read-only report: every value stays on screen, nothing offers to change it.
   const canWrite = useCanWriteProject()
   // One source of truth for the channel buttons so the zero-state CTA and the
   // populated-state "add another" row stay in sync.

@@ -31,7 +31,7 @@ async def list_chart_annotations(
     # ``chart_annotation_scope_type`` column, so an out-of-enum value reached the
     # driver as a 500. Note this is the annotation scope enum, NOT MetricScopeType
     # — annotations only ever hang off project_total/event_type/event/metric,
-    # which is exactly what the POST body already validates (tripl-57g0). Moved
+    # which is exactly what the POST body already validates. Moved
     # into Annotated[] because ruff's B008 only exempts call-defaults whose
     # annotation it can prove immutable, and an enum class isn't on that list.
     scope_type: Annotated[ChartAnnotationScopeType | None, Query()] = None,

@@ -16,7 +16,7 @@ ME = "/auth/me"
 # the instance it just started instead of a static blurb — "create the first
 # account, it becomes the owner" versus "this instance already has accounts"
 # versus "registration is closed, ask an owner for an invitation". The auth
-# screen reads it for the same reason (tripl-ey6j.3).
+# screen reads it for the same reason.
 STATUS = "/auth/status"
 
 ENDPOINTS: tuple[tuple[str, str], ...] = (("get", ME), ("get", STATUS))

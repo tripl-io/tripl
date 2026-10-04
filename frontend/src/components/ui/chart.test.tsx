@@ -583,7 +583,7 @@ describe('renderCountSeries', () => {
   // jsdom never paints recharts, so the blank-on-late-mount fix is asserted on
   // the series element: the volume series must keep animation OFF so it renders
   // its final geometry immediately instead of settling into an empty enter-frame
-  // when MetricsChart mounts late inside a Collapsible (tripl-yfsj.2).
+  // when MetricsChart mounts late inside a Collapsible.
   it.each(['line', 'line-only', 'bar'] as const)(
     'renders a non-animated count series for the %s chart style',
     (chartStyle) => {
@@ -745,7 +745,7 @@ describe('CustomTooltip', () => {
 // Same jsdom constraint as CustomTooltip: the breakdown/version tooltip is
 // verified directly. Percent-unit catalog metrics store fractions, so without
 // a formatter the old hardcoded `value.toLocaleString() events` rendered
-// "0.081 events" (tripl-4dej).
+// "0.081 events".
 describe('MultiSeriesTooltip', () => {
   const payload = [
     { value: 0.081, dataKey: 'series_0', color: '#111111', name: 'ios' },
@@ -852,7 +852,7 @@ describe('buildChartData confidence band', () => {
   it('falls back to the default multiplier for a missing/invalid threshold', () => {
     // 4, not 3: the fallback is the detector's own default sigma threshold
     // (ProjectAnomalySettings.sigma_threshold = 4.0). It used to be 3 under a
-    // comment claiming the scan-config default (tripl-0zpq.299).
+    // comment claiming the scan-config default.
     const built = at(buildChartData([flagged], [], Number.NaN), 0)
     expect(built.band).toEqual([10 - 4 * 2, 10 + 4 * 2])
   })
@@ -862,7 +862,7 @@ describe('buildChartData confidence band', () => {
 // to the builder, so it stays green even if MetricsChart stops forwarding the
 // prop — it certifies the arithmetic, not the wiring. These assert on the rows
 // MetricsChart actually hands recharts, which is the only place the prop ->
-// buildChartData hop is observable under jsdom (tripl-0zpq.299).
+// buildChartData hop is observable under jsdom.
 describe('MetricsChart served sigma threshold', () => {
   // A flagged bucket: actual 0 against expected 10 with effective stddev 2.
   const flagged: EventMetricPoint = {
@@ -1272,7 +1272,7 @@ describe('chart surface accessibility', () => {
     rect.mockRestore()
 
     // Recharts focuses its <svg class="recharts-surface"> by default, which
-    // added an unnamed tab stop on every charted page (tripl-jfm3.67).
+    // added an unnamed tab stop on every charted page.
     expect(composedChartProps).not.toHaveLength(0)
     for (const props of composedChartProps) {
       expect(props.tabIndex).toBe(-1)

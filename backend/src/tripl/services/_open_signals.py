@@ -350,8 +350,8 @@ async def open_counted_scan_signals(
             interval=scan_interval_to_timedelta(interval),
             recent_window=recent_windows.get(project_id),
             # An outage announced once and never re-emitted is re-checked against
-            # the current series rather than its own age (tripl-l429.15), and only
-            # while the anchor had volume to lose (tripl-wkwv.4). The magnitude
+            # the current series rather than its own age, and only
+            # while the anchor had volume to lose. The magnitude
             # gate below already hides a zero-versus-zero row, so the expectation
             # changes no number here today; it is passed because every surface
             # must reach ``classify_signal_state`` with the same inputs.
@@ -362,7 +362,7 @@ async def open_counted_scan_signals(
         if state is None:
             continue
         # The AnomaliesPage's default "Significant" view: relative effect >= 0.5,
-        # incident children included, no incident dedup (tripl-yfsj.1).
+        # incident children included, no incident dedup.
         if not is_significant_signal(anomaly.actual_count, anomaly.expected_count):
             continue
         open_rows.append(OpenSignal(project_id, scan_name, state, anomaly))

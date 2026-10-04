@@ -11,7 +11,7 @@ that asymmetry that a production audit of tripl.example.com turned up:
   while an event visibly still references it;
 * a JSON column whose KEYS are free text mints one ``Variable`` per distinct
   key, and those variables outlive their contexts — generation never retires
-  one, and the end-of-run sweep is what does (tripl-10h4).
+  one, and the end-of-run sweep is what does.
 """
 
 import uuid
@@ -203,7 +203,7 @@ def test_generating_events_never_retires_the_variables_it_minted(
     ``Variable`` row survives.
 
     That used to be permanent, and on production it accounted for 1279 of
-    acme-ios' 1518 variables (tripl-10h4). It is now swept up by
+    acme-ios' 1518 variables. It is now swept up by
     ``worker.variable_sweep`` — but deliberately at the END of a scan run, once
     every event type has been generated, and NOT inside ``generate_events``. The
     reason is scope: contexts are deleted per event type, so a variable this

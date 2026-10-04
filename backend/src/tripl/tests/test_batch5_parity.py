@@ -186,7 +186,7 @@ _SQL_ENGINES: dict[str, Callable[[], tuple[BaseAdapter, list[str]]]] = {
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.68 — the top-N breakdown contract, and a self-contradicting layout
+# the top-N breakdown contract, and a self-contradicting layout
 # --------------------------------------------------------------------------- #
 
 
@@ -440,7 +440,7 @@ def test_the_top_n_cut_is_stated_in_exactly_one_place() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.58 — 'Other' is ONE row, on every engine
+# 'Other' is ONE row, on every engine
 #
 # ``get_time_bucketed_aggregate_breakdown`` grouped by the folded value AND by
 # the raw breakdown column, which it also carries as a regular column — the
@@ -1004,7 +1004,7 @@ def test_the_grouping_rule_is_stated_where_the_contract_lives() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.57 — a filtered count_distinct: 0 is a value, absent is a gap
+# a filtered count_distinct: 0 is a value, absent is a gap
 #
 # ``NULLIF(count(DISTINCT m) FILTER (WHERE cond), 0)`` asks the aggregate a
 # question only a row count can answer. A distinct count is 0 both for a bucket
@@ -1249,7 +1249,7 @@ def test_the_conditional_aggregate_rule_is_stated_where_the_contract_lives() -> 
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.63 — one window scan per field-contract statement, and one place
+# one window scan per field-contract statement, and one place
 # that decides whether a contract was violated
 # --------------------------------------------------------------------------- #
 #
@@ -1319,7 +1319,7 @@ class _SampledRows:
     involved, so this is the whole of what it needs.
     """
 
-    # The fallback records skipped contracts on the adapter (tripl-0zpq.341), so
+    # The fallback records skipped contracts on the adapter, so
     # the double borrows that bookkeeping from BaseAdapter as well.
     _skipped_field_contracts = None
     _field_contract_is_inert = BaseAdapter._field_contract_is_inert
@@ -1653,7 +1653,7 @@ def test_the_field_contract_rule_is_stated_where_the_contract_lives() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.65 — a contract an engine cannot compile: inert everywhere, fatal
+# a contract an engine cannot compile: inert everywhere, fatal
 # nowhere
 # --------------------------------------------------------------------------- #
 #
@@ -2008,7 +2008,7 @@ def test_required_null_is_never_inert_because_it_renders_nothing() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.54 — a contract regex the warehouse will not compile
+# a contract regex the warehouse will not compile
 # --------------------------------------------------------------------------- #
 #
 # The save gate is Python's ``re`` and the evaluators are not: RE2 on ClickHouse

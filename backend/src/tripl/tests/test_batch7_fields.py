@@ -6,7 +6,7 @@ list, in another service each — ``schema_drift_service`` for tripl-0zpq.222 an
 the code it pins, so the two REGRESSION tests below drive those two fixes
 through the API and name the exact edit that reddens them:
 
-* tripl-0zpq.222 — ``schema_drift_service.apply_drift_action`` guarded its
+* ``schema_drift_service.apply_drift_action`` guarded its
   event-type cache bust on ``event_type.branch_id is None``, a NOT NULL column
   since the branches migration, so accepting a drift never busted the 300 s
   ``GET /event-types`` cache although it had just added, retyped or deleted a
@@ -15,7 +15,7 @@ through the API and name the exact edit that reddens them:
   one arm alone is not the spec: an unconditional bust satisfies the main arm,
   and the guard as written satisfies the branch arm.
 
-* tripl-0zpq.246 — the demo audit builder claimed "one entry per authored
+* the demo audit builder claimed "one entry per authored
   object" while the relation, the event-type owner grant and the variable
   override had nothing in the trail, and filed the rows it did write in shapes
   the real routes have never used. ``test_batch7_seam.py`` pins that those

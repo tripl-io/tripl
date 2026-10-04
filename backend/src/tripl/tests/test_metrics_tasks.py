@@ -241,7 +241,7 @@ def _prepare_demo_dispatch(
     assert project is not None
     project.is_demo = True
     now = datetime.now(UTC)
-    # An ACTIVE demo. The dispatcher skips a PAUSED one outright (tripl-0zpq.72),
+    # An ACTIVE demo. The dispatcher skips a PAUSED one outright,
     # and these tests are about the cooldown, so the pause gate must not be what
     # holds them back. A demo with both stamps NULL reads as paused, which would
     # leave `test_demo_collection_is_deferred_by_the_cooldown` passing for the
@@ -257,7 +257,7 @@ def _prepare_demo_dispatch(
                 created_at=now - timedelta(hours=1),
                 completed_at=now - timedelta(hours=1),
                 # What the dispatcher writes: the positive ``mode`` stamp is what
-                # marks a job as a scheduled collection (tripl-0zpq.24).
+                # marks a job as a scheduled collection.
                 result_summary={"mode": metrics.METRICS_COLLECTION_MODE},
             )
         )
@@ -281,7 +281,7 @@ def test_demo_collection_is_deferred_by_the_cooldown(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """A demo that collected an hour ago must not collect again (tripl-jfm3.73)."""
+    """A demo that collected an hour ago must not collect again."""
     with sync_session_factory() as session:
         _prepare_demo_dispatch(session, recent_scheduled_job=True, tick_job=False)
 
@@ -763,7 +763,7 @@ def test_check_metrics_due_dispatches_healthy_config_despite_older_failures(
 
 
 def test_failure_backoff_delay_grows_then_holds_at_a_bounded_ceiling() -> None:
-    """The delay doubles per failure and is clamped by both ceilings (tripl-n9ee)."""
+    """The delay doubles per failure and is clamped by both ceilings."""
     hour = timedelta(hours=1)
 
     # Below the threshold there is no wait at all — nothing changes for a config
@@ -1521,7 +1521,7 @@ def test_collect_metrics_never_collects_the_version_column_as_a_generic_breakdow
     value, is_other) key twice inside one multi-row ON CONFLICT DO UPDATE — a
     cardinality violation on Postgres — and added a generic
     ``('app_version', 'Other', True)`` row the version path neither writes nor
-    deletes, which then double-counts in the version series (tripl-0zpq.15).
+    deletes, which then double-counts in the version series.
     """
     with sync_session_factory() as session:
         config = _create_scan_config(session, with_event_type=True)
@@ -1700,7 +1700,7 @@ def test_reserved_catalog_columns_includes_event_group_rule_columns() -> None:
 
     It is the scan's SECOND grouping column and was the one the catalog sync did
     not know about: it auto-created a FieldDefinition for it and the scan filled
-    that field with the rule's own regex (tripl-jfm3.57). The demo shows it
+    that field with the rule's own regex. The demo shows it
     plainly — event_type_column is "event_type" while the rules key on
     "event_name", so reserving only the former left the latter exposed.
     """
@@ -1743,7 +1743,7 @@ def test_reserved_catalog_columns_never_reserves_the_event_name_source() -> None
 
     This is production's 'Old events (iOS)' config: group rules keyed on
     ``action`` plus ``event_name_format='{action}'``. tripl-jfm3.90 reserved
-    ``action`` and took the scan down for 200 consecutive runs (tripl-lpin).
+    ``action`` and took the scan down for 200 consecutive runs.
     """
     from tripl.worker.tasks.metrics.tasks import reserved_catalog_columns
 
@@ -1838,8 +1838,7 @@ def test_correlation_group_id_is_the_same_across_buckets() -> None:
 
     With the bucket in the key, every collection minted a group the user had
     never acted on, so acknowledging/resolving/muting in the inbox silenced
-    exactly the delivery already in hand and the next hour alerted again
-    (tripl-jfm3.91).
+    exactly the delivery already in hand and the next hour alerted again.
     """
     from tripl.worker.tasks.metrics.dispatch import _correlation_group_id
 
@@ -2021,8 +2020,8 @@ def test_closing_an_incident_does_not_cancel_a_timed_mute(
     """ "Muted until T" outlives the incident; "acknowledged" does not.
 
     Reopening on quiet killed a seven-day mute the moment the signal paused for
-    one collection, and the incident paged the user again hours later
-    (tripl-jfm3.98). A LAPSED mute still reopens — that path lives in
+    one collection, and the incident paged the user again hours later.
+    A LAPSED mute still reopens — that path lives in
     _suppressed_correlation_group_ids.
     """
     from tripl.models.alert_correlation_state import AlertCorrelationState
@@ -2100,7 +2099,7 @@ def test_closing_an_incident_does_not_cancel_an_indefinite_mute(
     act and nothing downstream would ever restore the row. The old check read
     ``muted_until is not None and muted_until > now``, which answers False for a
     NULL and silently reopened the strongest mute in the product on the first
-    quiet scan (tripl-a50u).
+    quiet scan.
 
     The other two rows pin that the fix did not over-correct: a LAPSED mute and
     an ACKNOWLEDGE must still reset, or "do not tell me before T" and "I am on
@@ -2190,8 +2189,8 @@ def test_indefinitely_muted_groups_stay_suppressed_and_are_never_lapsed(
     when fixing the sibling check in ``_reopen_closed_incidents`` is to make this
     one "symmetric" by writing ``muted_until is None or muted_until <= now``,
     which would expire every indefinite mute on the very next collection while
-    every other test still passed and the API still reported the mute as taken
-    (tripl-a50u). Nothing else pins this line's NULL behaviour.
+    every other test still passed and the API still reported the mute as taken.
+    Nothing else pins this line's NULL behaviour.
 
     The lapsed row is asserted alongside it so a fix in the other direction —
     never expiring anything — cannot pass either.
@@ -2491,8 +2490,7 @@ def test_recalculate_release_regressions_writes_one_verdict_for_both_scopes(
     comes back comparable. Comparability is a property of the release, so the
     partition that saw the population change decides for both — otherwise the
     type pass persists composition-normalized rows that the event pass had
-    already ruled untrustworthy, with nothing downstream filtering by scope
-    (tripl-phpy).
+    already ruled untrustworthy, with nothing downstream filtering by scope.
     """
     days = [datetime(2026, 1, d) for d in range(1, 11)]
     steady = {"main": 700, "onboarding": 20, "purchase": 280}
@@ -3169,7 +3167,7 @@ def test_collect_metrics_recalculates_and_clears_metric_anomalies(
 
     monkeypatch.setattr(metrics, "_get_sync_session", sync_session_factory)
     monkeypatch.setattr(metrics, "_build_adapter", lambda ds: FakeAdapter())
-    # The window head is held back by ANOMALY_INGESTION_SETTLING (tripl-jfm3.7),
+    # The window head is held back by ANOMALY_INGESTION_SETTLING,
     # so end it two buckets PAST the hour-10 drop for that drop to be settled and
     # scored on this run rather than deferred to the next one.
     monkeypatch.setattr(
@@ -3506,7 +3504,7 @@ def test_an_anomaly_older_than_the_settled_head_closes_its_alert_state(
 
 
 # ---------------------------------------------------------------------------
-# An outage that is still running keeps its alert state open (tripl-l429.26).
+# An outage that is still running keeps its alert state open.
 # ---------------------------------------------------------------------------
 
 _OUTAGE_ANCHOR = _ANOMALY_BASE - timedelta(days=5)
@@ -3530,7 +3528,7 @@ def _seed_aged_outage(
 
     ``expected_count`` is what the anchor says the scope normally emits; the
     default is an ordinary baseline. Seeding it 0 describes a scope that was
-    never expected to emit at all, which is not an outage (tripl-wkwv.4).
+    never expected to emit at all, which is not an outage.
     """
     config, event_type, event = _seed_anomaly_scan_state(session, base=_OUTAGE_ANCHOR)
     _seed_alert_rule(session, config)
@@ -3624,7 +3622,7 @@ def test_an_aged_spike_is_not_held_open_by_the_outage_recheck(
 def test_a_zero_baseline_anchor_is_not_held_open_by_the_outage_recheck(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
-    """The anchor also has to say there was something to LOSE (tripl-wkwv.4).
+    """The anchor also has to say there was something to LOSE.
 
     A scope expected to emit nothing and emitting nothing is not an incident, and
     it is the shape this re-check alone can end: an empty scope stores no metric
@@ -3633,7 +3631,7 @@ def test_a_zero_baseline_anchor_is_not_held_open_by_the_outage_recheck(
 
     Pinned on the WORKER path as well as the display one because this is the same
     predicate reached through a different caller, and the two paths have already
-    drifted twice (tripl-l429.14, tripl-l429.19) — each time by one side gaining
+    drifted twice — each time by one side gaining
     an input the other did not.
     """
     with sync_session_factory() as session:
@@ -4511,7 +4509,7 @@ def test_diff_event_type_schema_ignores_columns_this_event_type_never_fills(
     The cardinality results it passes alongside are already scoped to that
     type's rows, so a column with count 0 held nothing here — reporting it as
     `new_field` says "your plan is missing a field" about a column this event
-    does not use. The demo produced ~24 such rows per scan (tripl-jfm3.57).
+    does not use. The demo produced ~24 such rows per scan.
 
     An undeclared column that DOES carry data is a genuine plan gap and must
     still drift, which is the other half of this test.
@@ -6244,7 +6242,7 @@ def test_replay_enriches_high_context_values_for_a_shortened_variable_name(
     needed resolving. Here the name is shortened and the raw path lives on
     ``source_name``/``bindings``, exactly as ``derive_display_name`` writes it —
     so the field value carries ``${id}`` and nothing in the row or the sample
-    map is keyed by that (tripl-xv77.3).
+    map is keyed by that.
     """
     with sync_session_factory() as session:
         config = _create_scan_config(session, with_event_type=True)
@@ -6898,7 +6896,7 @@ def test_collect_metrics_fails_when_query_exceeds_row_limit(
     ``user_facing_error`` surfaces the curated text verbatim. As a ``ValueError``
     it fell through to the generic "Scan failed due to an internal error.", which
     left the one actionable instruction — raise ``metrics_row_limit`` — visible
-    only in the worker log (tripl-embs).
+    only in the worker log.
     """
     with sync_session_factory() as session:
         config = _create_scan_config(session, with_event_type=True)
@@ -6966,7 +6964,7 @@ def test_collect_metrics_fails_when_query_exceeds_row_limit(
 
     # The curated message survives the sanitiser instead of being genericised —
     # carrying the prefix the UI matches on, which the sanitiser adds so this
-    # raise site does not have to remember it (tripl-7bol). Without the prefix
+    # raise site does not have to remember it. Without the prefix
     # the text reached the browser intact and was discarded there instead, which
     # is the same outcome tripl-embs fixed one layer further down.
     assert user_facing_error(excinfo.value) == f"Scan failed: {excinfo.value}"
@@ -7393,7 +7391,7 @@ def test_recalculate_metric_anomalies_excludes_uncovered_gap(
 ) -> None:
     """A missing bucket inside real coverage flags as a drop, but the same
     missing bucket left OUT of ``covered_buckets`` (a collection gap) is excluded
-    instead of zero-filled into a fake drop (C2 / tripl-dmch.16)."""
+    instead of zero-filled into a fake drop (C2)."""
     from tripl.worker.tasks.metrics.detect import _recalculate_metric_anomalies
 
     base = _ANOMALY_BASE  # recent so the age-out horizon never fires
@@ -7429,7 +7427,7 @@ def test_recalculate_metric_anomalies_trailing_reeval_clears_backfilled_bucket(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
     """A stale flag on a bucket that has since been re-collected with healthy
-    data is cleared when the trailing re-eval window covers it (tripl-dmch.14)."""
+    data is cleared when the trailing re-eval window covers it."""
     from tripl.core.analyzers.anomaly_detector import SCOPE_EVENT
     from tripl.worker.tasks.metrics.detect import _recalculate_metric_anomalies
 
@@ -7479,7 +7477,6 @@ def test_recalculate_metric_anomalies_trailing_reeval_clears_backfilled_bucket(
 
 # --------------------------------------------------------------------------
 # An outage announced DOWNSTREAM of its anchor survives the sliding window
-# (tripl-l429.16)
 # --------------------------------------------------------------------------
 
 # Production geometry: hourly grid, sigma 4.0, min_expected_count 50. The scope
@@ -7754,7 +7751,7 @@ def test_recalculate_skips_sub_threshold_scopes_but_ages_out_stale_rows(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """tripl-h353: a scope whose MAX(count) sits below ``min_expected_count`` is
+    """a scope whose MAX(count) sits below ``min_expected_count`` is
     prefiltered — no history load, no detector call — yet a stale anomaly row
     inside the evaluation window is still cleared via the empty-replace path."""
     from tripl.core.analyzers.anomaly_detector import SCOPE_EVENT
@@ -7917,7 +7914,7 @@ def test_covered_buckets_from_scan_jobs_unions_completed_windows(
 def test_recalculate_metric_anomalies_withholds_still_filling_head_of_window(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
-    """tripl-jfm3.7: the collection window ends at the last COMPLETE clock hour,
+    """the collection window ends at the last COMPLETE clock hour,
     but the warehouse is still delivering that hour. With no allowance the
     zero-filled newest bucket is scored and reads as a drop; a 2h ingestion
     allowance holds the newest two buckets back for a later scan to score."""
@@ -7966,7 +7963,7 @@ def test_collect_metrics_applies_the_ingestion_settling_allowance(
 ) -> None:
     """The scan orchestrator owns the settling policy: both anomaly recalculation
     entrypoints must receive it, or the newest bucket is scored while the
-    warehouse is still filling it (tripl-jfm3.7)."""
+    warehouse is still filling it."""
     with sync_session_factory() as session:
         config = _create_scan_config(session, with_event_type=True)
         assert config.event_type_id is not None
@@ -8112,7 +8109,7 @@ def test_grouped_event_type_lookup_is_scoped_to_the_main_plan(
 def test_ingestion_settling_delay_reads_the_project_setting(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
-    """tripl-jfm3.79: the settling allowance is a per-project knob, not a constant.
+    """the settling allowance is a per-project knob, not a constant.
 
     A project with no monitoring settings row keeps the historical two hours;
     once the row exists the scan honours whatever the operator configured,
@@ -8149,7 +8146,7 @@ def test_collect_metrics_uses_the_projects_configured_settling_allowance(
     monkeypatch: MonkeyPatch,
 ) -> None:
     """The orchestrator must hand BOTH recalculation entrypoints the project's
-    own allowance, not the module constant (tripl-jfm3.79)."""
+    own allowance, not the module constant."""
     with sync_session_factory() as session:
         config = _create_scan_config(session, with_event_type=True)
         assert config.event_type_id is not None
@@ -8338,7 +8335,7 @@ def test_breakdown_recalculate_skips_sub_threshold_scopes_but_ages_out_stale_row
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """tripl-jfm3.73: the breakdown pass gets the same prefilter as the volume pass.
+    """the breakdown pass gets the same prefilter as the volume pass.
 
     ``detect_anomalies`` already early-exits on a provably-silent count series,
     but the breakdown loops paid for the ~500-bucket history load first — one
@@ -8445,7 +8442,7 @@ def test_breakdown_recalculate_skips_sub_threshold_scopes_but_ages_out_stale_row
         assert remaining == []
 
 
-# ── zero-row collection backoff (tripl-wopq) ───────────────────────────────────
+# ── zero-row collection backoff ───────────────────────────────────
 
 
 def _seed_completed_collection(
@@ -8601,7 +8598,7 @@ def test_replay_window_is_not_read_as_scheduled_collection_progress(
     assert len(dispatched) == 1
 
 
-# ── catalog-metric failure backoff (tripl-wopq) ────────────────────────────────
+# ── catalog-metric failure backoff ────────────────────────────────
 
 
 def _create_active_sql_metric(
@@ -8804,7 +8801,7 @@ def test_the_cooldown_survives_an_unrelated_write_to_the_metric(
     carries ``onupdate=func.now()``, so ANY write moved it — including
     ``update_metric_definition``, which is what an operator runs to FIX the
     metric. Half an hour into a one-hour cooldown, changing the display name
-    bought them another full hour (tripl-os3v).
+    bought them another full hour.
     """
     from tripl.models.metric_definition import MetricDefinition
 
@@ -8880,7 +8877,7 @@ def test_no_error_path_can_set_the_status_without_the_timestamp() -> None:
     cooldown is only correct if every one of them stamps the time too. This
     walks the source rather than trusting a convention: an assignment of
     ``COLLECTION_STATUS_ERROR`` anywhere but inside ``mark_collection_error`` is
-    the bug (tripl-os3v).
+    the bug.
 
     The seventh site arrived, and it was not a worker: a group-rule merge fails
     a metric whose two ratio operands have collapsed onto one event, and
@@ -9077,7 +9074,7 @@ def _unbound_composition(session: Session, config, *, composition, **refs):
 def test_a_composition_metric_with_no_operand_at_all_reports_a_failure(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
-    """The silent flatline, made loud (tripl-nmn3).
+    """The silent flatline, made loud.
 
     Both refs NULL means _read_event_metric_series returns {}, which the
     collector reported as {"values": 0, "grids": 0} — a SUCCESS. The status
@@ -9192,7 +9189,7 @@ def test_an_unbound_composition_metric_stays_due_so_it_can_report(
         assert metrics_schedule._event_composition_due(session, bound) is False
 
 
-# --- sampler ring + rotation pace (tripl-81p5), sampler observability (tripl-d1rd)
+# --- sampler ring + rotation pace, sampler observability
 
 
 def _seed_json_path_variable(
@@ -9410,7 +9407,7 @@ def test_scheduled_run_reports_sampler_progress_in_result_summary(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """tripl-d1rd: a scheduled run must say what its sampler did.
+    """a scheduled run must say what its sampler did.
 
     ``variable_values_touched`` is bound to the replay path and reads 0 on every
     scheduled run, so before these keys the 2026-08-31 production stall (whole
@@ -9516,7 +9513,7 @@ def _seed_scan_created_variable(
     ``payload.user.adana``) with that ``field_type`` on the config's event
     type. That stored type is what ``retire_unused_variables`` reads to tell a
     JSON-derived variable from a scalar-derived one when a scheduled run asks
-    it to defer the latter (tripl-bwo8); left ``None``, no FieldDefinition
+    it to defer the latter; left ``None``, no FieldDefinition
     exists and the sweep's conservative default calls the variable
     scalar-derived. Seeding one column twice reuses the row — a FieldDefinition
     name is unique per event type.
@@ -9593,7 +9590,7 @@ def test_scheduled_collection_retires_the_variables_nothing_refers_to(
     sync_session_factory: sessionmaker[Session],
     monkeypatch: MonkeyPatch,
 ) -> None:
-    """tripl-bh1q: the path that mints variables on a schedule must also sweep them.
+    """the path that mints variables on a schedule must also sweep them.
 
     ``run_scan`` — the MANUALLY triggered path — was the sweep's only worker call
     site, while the production shape the sweep was written for (a JSON map column
@@ -9613,7 +9610,7 @@ def test_scheduled_collection_retires_the_variables_nothing_refers_to(
     ``test_scheduled_run_defers_scalar_derived_variables_without_a_declared_lookback``
     for the half that waits and
     ``test_scheduled_run_sweeps_json_derived_variables_without_a_declared_lookback``
-    for the half that does not (tripl-bwo8).
+    for the half that does not.
     """
     with sync_session_factory() as session:
         config = _create_scan_config(session, with_event_type=True)
@@ -10116,7 +10113,7 @@ def test_scheduled_run_reindexes_whatever_the_sweep_deferred(
 def test_bump_event_last_seen_promotes_ready_for_dev_to_live_but_not_drafts(
     sync_session_factory: sessionmaker[Session],
 ) -> None:
-    """tripl-kjhi.6: the handoff goes analyst → developer → data, and nobody
+    """the handoff goes analyst → developer → data, and nobody
     flips the row to 'implemented' by hand before the first rows land."""
     with sync_session_factory() as session:
         config, _event_type, event = _seed_anomaly_scan_state(session)

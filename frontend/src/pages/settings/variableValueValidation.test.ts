@@ -19,7 +19,7 @@ describe('variableValueValidation (PLAN-24)', () => {
   })
 })
 
-describe('splitValueList (tripl-fj5g.25)', () => {
+describe('splitValueList', () => {
   it('still splits plain scalars on commas, trimming and dropping blanks', () => {
     expect(splitValueList('a, b,c')).toEqual(['a', 'b', 'c'])
     expect(splitValueList(' 1 ,, 2 , ')).toEqual(['1', '2'])

@@ -143,8 +143,8 @@ export function EventTypesTab({ slug }: { slug: string }) {
   // owners ⇒ anyone can merge ⇒ "ungated"; owners present ⇒ "gated"). Owners
   // are a main-plan fact keyed by MAIN's type ids. A branch lists its own
   // deep-copied ids, so asking for their owners was one 404 per type on every
-  // visit in branch context, for a column the page then hid anyway
-  // (tripl-kjhi.11). The editor for owners is likewise main-only.
+  // visit in branch context, for a column the page then hid anyway.
+  // The editor for owners is likewise main-only.
   //
   // One request for the whole project, grouped here: the list used to fire one
   // /owners request per type on every visit (PLAN-42). The key is a prefix of
@@ -799,12 +799,12 @@ export function FieldsEditor({
       {dialog}
       {/* Without this the backend's 409 (deleting a field a scan's event name
           format builds event names from) is invisible: the row simply stays and
-          the operator has no idea why (tripl-3mmh). The backend sends a plain
+          the operator has no idea why. The backend sends a plain
           string detail, which api/client.ts puts straight into ApiError.message,
           so it renders verbatim — it already names the scan and the one edit
           that unblocks the delete.
 
-          Verbatim deliberately (tripl-24i0): rewriting the wording here means
+          Verbatim deliberately: rewriting the wording here means
           matching backend prose, which fails OPEN the first time the backend
           rewords — the old string on screen and nothing to notice. The web UI's
           nouns are enforced where the sentence is written instead, by backend
@@ -1340,7 +1340,7 @@ export function OwnersEditor({ slug, eventType }: { slug: string; eventType: Eve
   })
   // Only the project's members, and the organization's owners and admins who
   // see every project without a member row, can own its event types: anyone else cannot see the
-  // project, and the server refuses them (tripl-vefw).
+  // project, and the server refuses them.
   const { data: members } = useQuery(projectMembersQueryOptions(slug))
   const { data: users } = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
   // Members with no row can own event types too when the organization's

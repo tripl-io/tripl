@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * Keeps raw Tailwind palette shades out of the UI (tripl-zgtu).
+ * Keeps raw Tailwind palette shades out of the UI.
  *
  * A status chip written as `bg-amber-500/15 text-amber-700` has two problems
  * `src/theme-contrast.test.ts` cannot see, because that test only reads

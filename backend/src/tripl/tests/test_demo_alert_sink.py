@@ -285,7 +285,7 @@ async def test_demo_sink_seeded_scenario_is_local_and_no_network(monkeypatch) ->
         assert inbox.total >= 1
         # The seeded incident is one delivery that succeeded and one earlier
         # attempt that failed, and the failed one owns its own copy of the same
-        # items under the same correlation group (tripl-0zpq.247) — which is the
+        # items under the same correlation group — which is the
         # shape live dispatch writes, and what keeps the failed row and its
         # Retry reachable from the card. So the card reads two deliveries and
         # twice the items, exactly as it does for any scope that fires twice.

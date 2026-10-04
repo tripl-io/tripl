@@ -32,7 +32,7 @@ class EventPhotoComment(UUIDMixin, TimestampMixin, Base):
     merge's photo-thread carry-back. The merge moves a thread hanging on a
     branch row onto main separately: onto the main twin that row already reads
     its discussion through, else onto the row the merge gives the event
-    (``plan_branch_merge_service._move_event_threads_to_main``, tripl-0zpq.122).
+    (``plan_branch_merge_service._move_event_threads_to_main``).
     """
 
     __tablename__ = "event_photo_comments"

@@ -9,7 +9,7 @@ import { initialsOf } from './initials'
  * `--avatar-bg`, whose lightness is pinned so white initials clear AA in both
  * themes (index.css, theme-contrast.test.ts). Hashing a hue per person, or a
  * lighter hand-picked blue, broke that floor and showed one account in two
- * colours on the same screen (tripl-h3bb).
+ * colours on the same screen.
  *
  * Decorative by default: every caller already prints the name beside it. Pass
  * `label` where the avatar stands alone and must be announced.

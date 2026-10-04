@@ -160,7 +160,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Latest scan')).toBeInTheDocument()
     expect(screen.getByText('Production scan')).toBeInTheDocument()
     expect(screen.getByText('Latest scan signal')).toBeInTheDocument()
-    // tripl-h5um: the scope is named inside the sentence the bell and the
+    // the scope is named inside the sentence the bell and the
     // Anomalies list use, so it cannot be read as a readout of its own. The
     // direction is in that sentence and NOT also on a chip beside it.
     expect(screen.getByText('Spike on Page View')).toBeInTheDocument()
@@ -180,7 +180,7 @@ describe('ProjectsPage', () => {
     expect(screen.getAllByText('Projects')).toHaveLength(1)
     expect(screen.getAllByText('Coverage')).toHaveLength(1)
     expect(screen.getByText('Data sources')).toBeInTheDocument()
-    // tripl-14eh: the tile says what it counts. "Automation 8 · 3 covered" named
+    // the tile says what it counts. "Automation 8 · 3 covered" named
     // neither the unit nor the denominator.
     expect(screen.getByText('Scans')).toBeInTheDocument()
     expect(screen.queryByText('Automation')).not.toBeInTheDocument()
@@ -189,7 +189,7 @@ describe('ProjectsPage', () => {
     // UX-10: action-needed metrics each appear once, distinct from STATE metrics.
     expect(screen.getByText('In review', { selector: 'dt' })).toBeInTheDocument()
     // Settled vocabulary: an execution is a "run" on every web-UI surface, and
-    // /projects is the first screen after login (tripl-3y7z).
+    // /projects is the first screen after login.
     expect(screen.getByText('Failed runs')).toBeInTheDocument()
     expect(screen.queryByText('Failed jobs')).not.toBeInTheDocument()
     expect(screen.getByText('Signals')).toBeInTheDocument()
@@ -404,10 +404,10 @@ describe('ProjectsPage', () => {
     expect(screen.getAllByText('99.1%').length).toBeGreaterThan(0)
     expect(screen.queryByText('99% implemented')).not.toBeInTheDocument()
     // L1 + M10: singular, unit-aware copy. The rollup counts failing scans
-    // (per-scan latest run), not just the single newest run (tripl-7l83.3).
-    // The UI noun is "scan", never "scan config" (tripl-3y7z).
+    // (per-scan latest run), not just the single newest run.
+    // The UI noun is "scan", never "scan config".
     expect(screen.getByText('1 scan failing across 1 project')).toBeInTheDocument()
-    // tripl-a1d1: the review hint names the project holding the queue instead of
+    // the review hint names the project holding the queue instead of
     // counting projects it does not open.
     expect(screen.getByText('1 in Beta')).toBeInTheDocument()
     expect(screen.queryByText('across 1 project')).not.toBeInTheDocument()
@@ -530,7 +530,7 @@ describe('ProjectsPage', () => {
     const rowsLine = screen.getByText(/warehouse rows read/)
     expect(rowsLine).toBeInTheDocument()
     expect(rowsLine.textContent?.replace(/[^0-9]/g, '')).toBe('12345')
-    // tripl-h5um: the line says which population it counts. Beside a Monitoring
+    // the line says which population it counts. Beside a Monitoring
     // tile printing an event count for one bucket, a bare "12,345 rows scanned"
     // read as the same figure disagreeing with itself.
     expect(rowsLine).toHaveAttribute(
@@ -539,7 +539,7 @@ describe('ProjectsPage', () => {
     )
   })
 
-  it('suppresses a zero scan delta instead of announcing it in the success colour (tripl-h5um)', async () => {
+  it('suppresses a zero scan delta instead of announcing it in the success colour', async () => {
     // The demo runtime's own ticks report events_created: 0 — a completed run
     // that changed nothing. The events chip used to render whenever the counter
     // was present, so it printed a green "+0 events" while its zero siblings
@@ -613,7 +613,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('+0 alerts')).not.toBeInTheDocument()
   })
 
-  it('agrees with the scan detail page about how many rows a run read (tripl-h5um)', async () => {
+  it('agrees with the scan detail page about how many rows a run read', async () => {
     // A run that reports BOTH counters: settings/scans/scanUtils.ts prefers
     // query_rows_scanned, so this card must too — otherwise one run shows 900
     // here and 12,345 on its own scan page.
@@ -750,7 +750,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText(/warehouse rows read/)).not.toBeInTheDocument()
   })
 
-  it('says what the monitoring tile counts and when (tripl-h5um)', async () => {
+  it('says what the monitoring tile counts and when', async () => {
     // The two tiles inside one project card print 8,261 and 13,373 for the same
     // scan name at the same clock time. They are a warehouse row count and an
     // event count for one bucket; unlabelled they read as a disagreement.
@@ -848,7 +848,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByText(/^Completed /)).toBeInTheDocument()
   })
 
-  it('surfaces a failing scan even when the newest run overall succeeded (tripl-7l83.3)', async () => {
+  it('surfaces a failing scan even when the newest run overall succeeded', async () => {
     // The project's single newest job (latest_scan_job) COMPLETED, but two other
     // scan configs fail every run. The old rollup keyed off latest_scan_job would
     // report "healthy" and hide them; failing_scan_config_count must not.
@@ -918,7 +918,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Hourly success')).toBeInTheDocument()
   })
 
-  it('tucks project deletion behind an overflow menu, not a bare trash button (tripl-7l83.17)', async () => {
+  it('tucks project deletion behind an overflow menu, not a bare trash button', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
@@ -936,7 +936,7 @@ describe('ProjectsPage', () => {
     expect(await screen.findByRole('menuitem', { name: /delete/i })).toBeInTheDocument()
   })
 
-  it('renders the workspace coverage fraction in a neutral tone, not danger (tripl-7l83.17)', async () => {
+  it('renders the workspace coverage fraction in a neutral tone, not danger', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
@@ -952,7 +952,7 @@ describe('ProjectsPage', () => {
     expect(fraction).not.toHaveStyle({ color: 'var(--danger)' })
   })
 
-  it('links the pending-review count into that project, not the workspace total (tripl-a1d1)', async () => {
+  it('links the pending-review count into that project, not the workspace total', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
@@ -1025,7 +1025,7 @@ describe('ProjectsPage', () => {
     })
   }
 
-  it('names where the review backlog is and links each queue to its project (tripl-a1d1)', async () => {
+  it('names where the review backlog is and links each queue to its project', async () => {
     mockPendingReviewProjects()
 
     renderProjectsPage('owner')
@@ -1066,7 +1066,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('Keep your product analytics honest')).not.toBeInTheDocument()
   })
 
-  it('enters the new project after creating it instead of staying on the workspace (tripl-q7i1.8)', async () => {
+  it('enters the new project after creating it instead of staying on the workspace', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(
       (input: RequestInfo | URL, init?: RequestInit) => {
         const url =
@@ -1086,7 +1086,7 @@ describe('ProjectsPage', () => {
                 // The server assigns a slug that DIFFERS from the client-derived
                 // 'my-project' (e.g. collision handling appends a suffix), so the
                 // assertion below proves navigation uses the server's returned slug
-                // rather than the value the user typed (tripl-q7i1.8).
+                // rather than the value the user typed.
                 slug: 'my-project-2',
                 description: '',
                 created_at: '2026-07-16T09:00:00Z',
@@ -1191,7 +1191,7 @@ describe('ProjectsPage', () => {
     )
   }
 
-  it('welcomes an empty workspace with the product hero instead of zero stats (tripl-odrj.1)', async () => {
+  it('welcomes an empty workspace with the product hero instead of zero stats', async () => {
     mockEmptyWorkspace()
 
     renderProjectsPage('owner')
@@ -1210,7 +1210,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('No projects yet')).not.toBeInTheDocument()
   })
 
-  it('starts demo provisioning from the hero CTA and disables it while running (tripl-odrj.1)', async () => {
+  it('starts demo provisioning from the hero CTA and disables it while running', async () => {
     mockEmptyWorkspace()
 
     renderProjectsPage('owner')
@@ -1240,7 +1240,7 @@ describe('ProjectsPage', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('returns the stat band and header CTAs once the first project exists (tripl-odrj.1)', async () => {
+  it('returns the stat band and header CTAs once the first project exists', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')

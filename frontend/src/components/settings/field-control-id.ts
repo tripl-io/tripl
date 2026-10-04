@@ -59,7 +59,7 @@ export const FieldControlIdContext = createContext<FieldControlIdSlot | null>(nu
  * `Field` renders its children raw, so before this the generated `htmlFor`
  * addressed an element that did not exist unless the caller passed `htmlFor`
  * AND repeated the same id on its own control — almost nobody did, and 10 of 14
- * inputs on /settings/instance/ai shipped with no accessible name (tripl-5gdg).
+ * inputs on /settings/instance/ai shipped with no accessible name.
  * The kit controls adopt it automatically; a non-kit control placed inside a
  * `Field` should read it here and set it as its own `id`.
  *

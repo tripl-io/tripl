@@ -40,7 +40,7 @@ _editor_required = [Depends(get_editor_user)]
 # carry ``min_length=1`` and NO upper bound, so a row per event would let one API
 # call write an unbounded number of audit rows. The lists inside the payload are
 # sampled for the same reason: ``audit_log.payload`` is an uncapped JSON column
-# and nobody reads the 201st id off a compliance row (tripl-wkwv.10).
+# and nobody reads the 201st id off a compliance row.
 _BULK_SAMPLE = 200
 
 
@@ -58,7 +58,7 @@ def event_create_audit_payload(
     ``audit_log.payload``. (8000 is the payload guard; what the service will
     actually STORE is capped at ``META_VALUE_MAX_BYTES``.)
     The counts record that values were written; the values themselves live on the
-    event (tripl-wkwv.10).
+    event.
 
     The two value lists are the whole target. ``description`` and ``tags`` are
     also uncapped and DO stay in the payload, because event_types.py and
@@ -69,7 +69,7 @@ def event_create_audit_payload(
     Public, and with an ``extra`` escape hatch, for the same reason
     ``bulk_event_audit_payload`` is: reconciliation.py files ``event.create`` too
     when an editor admits a shadow-event candidate into the plan, and one action
-    must not have two payload shapes (tripl-wkwv.13). ``extra`` is merged FIRST,
+    must not have two payload shapes. ``extra`` is merged FIRST,
     so a caller cannot shadow a field of the event that was actually created.
     """
     return {
@@ -110,7 +110,7 @@ def bulk_event_audit_payload(
 
     Public, not ``_``-prefixed, because reconciliation.py's dead-event archive
     files the same ``event.bulk_update`` action and one action must not have two
-    payload shapes (tripl-wkwv.10).
+    payload shapes.
     """
     return {
         **(extra or {}),
@@ -129,7 +129,7 @@ async def list_events(
     event_type_id: uuid.UUID | None = None,
     # FreeTextFilter (not str): these four bind straight into a Postgres
     # parameter — three ILIKEs, an equality — and a NUL in any of them aborts
-    # inside asyncpg before SQL runs, so ?search=%00 was a 500 (tripl-8wez).
+    # inside asyncpg before SQL runs, so ?search=%00 was a 500.
     search: FreeTextFilter | None = None,
     # EventStatus (not list[str]): the column is a native Postgres enum, so an
     # out-of-enum value used to reach the driver and surface as a 500. FastAPI
@@ -139,11 +139,11 @@ async def list_events(
     silent_since_days: int | None = Query(None, ge=0, le=3650),
     # `reviewed` is an axis of its own — an event can be marked reviewed and
     # still carry status=in_review — and it had no filter at all, so the UI's
-    # "Mark reviewed" wrote a flag nobody could isolate afterwards (tripl-invv).
+    # "Mark reviewed" wrote a flag nobody could isolate afterwards.
     # Omit for "any".
     reviewed: bool | None = None,
     # "Which events are waiting on an answer?" — the question the discussion
-    # (tripl-h2sx.25) could not be asked until threads could be resolved. True
+    # could not be asked until threads could be resolved. True
     # keeps only events with an unanswered thread, False only those with none;
     # omit for "any". A thread whose snooze has lapsed counts as unanswered
     # again. Twin-aware: the discussion hangs on the event's main row, so this
@@ -318,14 +318,14 @@ async def bulk_update_events(
             # two routes above, this one has no rows to count: the service
             # updates ``set(data.event_ids)`` and validates against that set, so
             # ``{"event_ids": [A, A, B]}`` succeeds having changed two events.
-            # Auditing the raw list would file ``count: 3`` for a 2-event change
-            # (tripl-wkwv.10). bulk_delete deliberately 404s the same body, so
+            # Auditing the raw list would file ``count: 3`` for a 2-event change.
+            # bulk_delete deliberately 404s the same body, so
             # only this route can see a duplicate at all.
             list(dict.fromkeys(data.event_ids)),
             # ``exclude_unset``, the same key the service updates by: an
             # explicit ``owner_id: null`` unassigns across the selection, and
             # ``exclude_none`` filed that change as a row saying nothing about
-            # owners at all (tripl-0zpq.276). Unsent fields still stay out, so
+            # owners at all. Unsent fields still stay out, so
             # the row keeps reporting exactly what the request said.
             extra=data.model_dump(mode="json", exclude_unset=True, exclude={"event_ids"}),
         ),
@@ -334,8 +334,7 @@ async def bulk_update_events(
 
 # NOT audited, deliberately: reorder_events and move_event only permute
 # ``Event.order``, which is display ordering with no plan semantics, and the
-# events table's drag-to-reorder would file one audit row per drag
-# (tripl-wkwv.10).
+# events table's drag-to-reorder would file one audit row per drag.
 @router.patch(
     "/reorder",
     response_model=list[EventResponse],
@@ -390,7 +389,7 @@ async def update_event(
     # ``event_service._TRACKED_FIELDS`` and dies with the event, this one covers
     # who/what/when/which-branch and outlives it. The count is deliberately not
     # spelled out here — it was written as "four fields" and the tuple has since
-    # grown to six (tripl-0zpq.244).
+    # grown to six.
     await audit_service.record(
         session,
         user=current_user,

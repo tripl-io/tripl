@@ -14,7 +14,7 @@ interface WorkspaceWelcomeProps {
 }
 
 /**
- * Post-registration welcome hero for the empty workspace (tripl-odrj.1):
+ * Post-registration welcome hero for the empty workspace:
  * explains what tripl is and offers the two ways in — a generated demo or an
  * empty project. Replaces the all-zero stat band until the first project exists.
  */

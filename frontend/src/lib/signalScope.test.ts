@@ -18,7 +18,7 @@ function signal(overrides: Partial<MonitoringSignal> = {}): MonitoringSignal {
   } as MonitoringSignal
 }
 
-describe('signalScopeLabel — scope kinds (tripl-jfm3.120)', () => {
+describe('signalScopeLabel — scope kinds', () => {
   it('names project total without a ref', () => {
     expect(signalScopeLabel(signal({ scope_type: 'project_total' }))).toBe('Project total')
   })
@@ -50,7 +50,7 @@ describe('signalScopeLabel — scope kinds (tripl-jfm3.120)', () => {
   })
 })
 
-describe('signalScopeLabel — display names (tripl-y4wt)', () => {
+describe('signalScopeLabel — display names', () => {
   it('reads the name the server resolved, off the signal', () => {
     expect(signalScopeLabel(signal())).toBe('Event · checkout_started')
   })

@@ -69,7 +69,7 @@ class Event(UUIDMixin, TimestampMixin, Base):
         # branch, per type — and the key names only the two columns that carry
         # information. NULL stays free: an event authored outside a scan rule has
         # no identity yet, and the database treats NULLs as distinct, so any
-        # number of them coexist until a scan adopts a name (tripl-8tdl). This
+        # number of them coexist until a scan adopts a name. This
         # replaces the plain ``ix_events_source_identity`` index, which promised
         # nothing and let production hold two rows per identity.
         UniqueConstraint("event_type_id", "source_name", name="uq_event_scan_identity"),
@@ -89,7 +89,7 @@ class Event(UUIDMixin, TimestampMixin, Base):
     # every scan-created event, and nothing here ever falls back from one to
     # the other. Before this column analysts put the label into ``name`` on
     # branches, where the naming rule did not reach, and the event never
-    # merged with its scanned twin (tripl-kjhi.3).
+    # merged with its scanned twin.
     title: Mapped[str] = mapped_column(String(500), default="", server_default="")
     # Presence rate at or above which a scanned JSON property counts as always
     # carried by this event (F23, owner decision 6). NULL: the default,
@@ -129,8 +129,8 @@ class Event(UUIDMixin, TimestampMixin, Base):
     # carry no uniqueness on (type, name), so two main rows can share that key
     # (namesakes); the natural key cannot say which of them a branch copy came
     # from, and the diff, merge, revert and the discussion twin all paired by
-    # it, landing a change on whichever namesake sorted last (tripl-0zpq.292,
-    # tripl-0zpq.149). They pair by this id first and fall back to the natural
+    # it, landing a change on whichever namesake sorted last.
+    # They pair by this id first and fall back to the natural
     # key only for rows without one.
     #
     # Deliberately NOT a foreign key. ``ON DELETE SET NULL`` would erase the one

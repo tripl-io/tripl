@@ -1,5 +1,5 @@
 /**
- * Pre-flight guard for "Generate demo project" (tripl-jfm3.14).
+ * Pre-flight guard for "Generate demo project".
  *
  * Generating a demo used to be a single unguarded click, so a cancel/retry loop
  * or a second visit minted another synthetic workspace that then aggregated into

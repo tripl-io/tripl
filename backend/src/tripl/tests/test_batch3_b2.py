@@ -115,7 +115,7 @@ def _create_scan_config(session: Session) -> ScanConfig:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.13 — bind-parameter cap on the per-key deletes
+# bind-parameter cap on the per-key deletes
 # --------------------------------------------------------------------------
 
 
@@ -258,7 +258,7 @@ def test_small_key_sets_stay_a_single_statement() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.11 — the scan-wide drift row is NULL-scoped
+# the scan-wide drift row is NULL-scoped
 # --------------------------------------------------------------------------
 
 
@@ -414,7 +414,7 @@ def test_replay_does_not_duplicate_scan_wide_distribution_drifts(
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.12 — a breakdown value that crossed the "Other" boundary
+# a breakdown value that crossed the "Other" boundary
 # --------------------------------------------------------------------------
 
 

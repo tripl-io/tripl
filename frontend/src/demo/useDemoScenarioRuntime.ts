@@ -1,5 +1,5 @@
 /**
- * The stateful engine of the coached demo scenario (tripl-2su6.21.2, chapters in
+ * The stateful engine of the coached demo scenario (chapters in
  * tripl-odrj.4).
  *
  * Runs once, under the app shell (LazyDemoScenarioProvider in Layout), so the
@@ -9,7 +9,7 @@
  *
  * Completion is deliberately split by chapter:
  *
- * - live-loop keeps its own SILENT polls. The SSE stream (tripl-2su6.8) hands
+ * - live-loop keeps its own SILENT polls. The SSE stream hands
  *   components no event payloads — only query invalidation — and a page's job
  *   query dies with the page, so the scenario polls the one job the user's own
  *   action produced, by id. Silent, because both metric surfaces already run
@@ -18,7 +18,7 @@
  *   (`stepCompletedByPath`, checked here) or a `notifyStepCompleted` fired from
  *   the exact mutation the user performed. No polling for them.
  *
- * Nothing here trusts the demo's own runtime tick (tripl-2su6.7): it manufactures
+ * Nothing here trusts the demo's own runtime tick: it manufactures
  * real scan jobs and real collections continuously, so only the artifacts the
  * user's own action produced can move live-loop forward.
  */
@@ -289,7 +289,7 @@ export function useDemoScenarioRuntime(
 
   // Landing on the chart of the metric they collected is the payoff, and seeing
   // it is the whole step — so visiting completes it, exactly as visiting a
-  // surface advances the tour (tripl-2su6.18).
+  // surface advances the tour.
   //
   // Checked at render rather than on a route change: the collection can settle
   // while the user is *already standing on* the chart, and no navigation would

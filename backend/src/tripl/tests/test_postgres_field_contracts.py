@@ -1,4 +1,4 @@
-"""The SQL PostgresAdapter.validate_field_contracts builds (tripl-64n8.5).
+"""The SQL PostgresAdapter.validate_field_contracts builds.
 
 Shape only — that the aggregate is warehouse-side, that NULLs land in the right
 denominator, that a malformed number cannot make the cast explode, and that a

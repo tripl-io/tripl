@@ -7,7 +7,7 @@ and preview (``fact_table_service._verify_data_source`` and
 module they answered it differently — the metric doors asked who OWNS the
 source, the fact-table doors asked whether a ``ScanConfig`` binds it to this
 project — and a user in the fact-table wizard could meet both verdicts for one
-id inside a single flow (tripl-0zpq.177, tripl-0zpq.353).
+id inside a single flow.
 
 OWNERSHIP is the rule that survived, because the binding rule is unworkable on
 the metric doors: a ``sql`` metric needs no scan at all (``check_metric_
@@ -36,7 +36,7 @@ from tripl.models.scan_config import ScanConfig
 # db_type, project_id; only the connection fields are redacted) and
 # ``GET /api/v1/data-sources/{id}`` separates 200 from 404 for any UUID — so the
 # only person the vague message fenced was the legitimate editor, sent hunting
-# for a row that exists (tripl-0zpq.354).
+# for a row that exists.
 #
 # The wording stays UNIFORM across "no such row" and "out of scope", which is the
 # half that does buy something: a project-scoped API key is refused on those
@@ -57,7 +57,7 @@ def data_source_out_of_project_scope(
 
     A pure function of three facts, so that the sync collector can apply the
     identical verdict to an ALREADY-STORED ``data_source_id`` without importing
-    the async request path (tripl-0zpq.347). One rule, every caller: a predicate
+    the async request path. One rule, every caller: a predicate
     that drifts between save, preview and collect is the shape of the defect
     this came from.
 

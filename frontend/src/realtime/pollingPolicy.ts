@@ -1,5 +1,5 @@
 /**
- * Adaptive polling policy (tripl-2su6.8).
+ * Adaptive polling policy.
  *
  * Central rule that replaces the scattered, unconditional `refetchInterval`
  * values. A pure function so it is trivially unit-testable; the React binding

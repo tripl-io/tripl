@@ -14,8 +14,7 @@ from tripl.services import audit_service, event_comment_service
 
 # A sibling of the photo threads under the same event prefix, not a nested
 # resource of one: this discussion is about the event, and having to attach a
-# photo before you could raise anything is what put it out of reach
-# (tripl-h2sx.25).
+# photo before you could raise anything is what put it out of reach.
 router = APIRouter(
     prefix="/projects/{slug}/events/{event_id}/comments",
     tags=["event-comments"],

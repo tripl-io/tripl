@@ -63,7 +63,7 @@ from tripl.worker.tasks.metrics.tasks import (
 
 logger = logging.getLogger(__name__)
 
-# How rarely a DEMO project's scheduled collection may run (tripl-jfm3.73).
+# How rarely a DEMO project's scheduled collection may run.
 #
 # A demo pays 67-141 s per collection against an in-memory dataset, and every
 # demo on a deployment paid it every hour. Almost all of that is per-scope
@@ -124,7 +124,7 @@ def _hours_since_last_scheduled_collection(
     return None
 
 
-# Consecutive-failure backoff for a config that can never succeed (tripl-n9ee).
+# Consecutive-failure backoff for a config that can never succeed.
 #
 # "Due" is derived from how far collection has actually got — the written metrics
 # (``max(EventMetric.bucket)``) or the window a COMPLETED job recorded — and a
@@ -315,7 +315,7 @@ def _demo_resume_window_exceeds_full_volume(
     now: datetime,
 ) -> bool:
     """Whether a demo collection dispatched NOW would reach behind the synthetic
-    warehouse's full-volume hours (tripl-0zpq.342).
+    warehouse's full-volume hours.
 
     The collector resumes ``SCHEDULED_RESUME_OVERLAP_BUCKETS`` behind
     ``collection_progress_to`` and runs to the current boundary, deleting each
@@ -484,7 +484,7 @@ def check_metrics_due() -> dict[str, int]:
                 # Only measured once the bucket check says "due", so a healthy
                 # config pays this read once per interval instead of once per
                 # 300 s beat tick — and, its newest job being a success, gets
-                # streak 0 and dispatches unchanged (tripl-n9ee).
+                # streak 0 and dispatches unchanged.
                 streak, last_failure_at = _consecutive_failure_streak(session, config.id)
                 backoff = _failure_backoff_delay(streak, delta)
                 if backoff is not None and last_failure_at is not None:
@@ -500,7 +500,7 @@ def check_metrics_due() -> dict[str, int]:
             demo_activity = demo_activity_by_config.get(config.id)
 
             if should_run and demo_activity is not None:
-                # A PAUSED demo must not be collected either (tripl-0zpq.72).
+                # A PAUSED demo must not be collected either.
                 #
                 # ``advance_demos`` stops appending this demo's hourly buckets
                 # while it is paused, so ``max(EventMetric.bucket)`` freezes and
@@ -541,8 +541,8 @@ def check_metrics_due() -> dict[str, int]:
             ):
                 # Just resumed, and ``advance_demos`` has not backfilled the
                 # paused hours yet: the window would reach behind the synthetic
-                # adapter's full-volume hours and rewrite them at sampled volume
-                # (tripl-0zpq.342). The backfill tick (60 s) closes the gap, and
+                # adapter's full-volume hours and rewrite them at sampled volume.
+                # The backfill tick (60 s) closes the gap, and
                 # the next dispatcher tick then collects the normal overlap.
                 logger.info(
                     f"Skipping collect_metrics for demo {config.name!r}: waiting for "
@@ -730,7 +730,7 @@ def _metric_definition_due(
     return progress_to is None or progress_to < current_boundary
 
 
-# Retry floor for a metric that has no interval of ITS OWN (tripl-wopq).
+# Retry floor for a metric that has no interval of ITS OWN.
 #
 # ``event_composition`` re-derives from already-collected event_metrics on the
 # source scan grid, which this dispatcher never loads, so the metric's natural
@@ -776,7 +776,7 @@ def _metric_definition_error_backoff(
     # it means exactly what this reads it as. ``updated_at`` did not: it carries
     # ``onupdate=func.now()``, so any write moved it, and an operator editing a
     # broken metric in order to fix it restarted the cooldown they were waiting
-    # out (tripl-os3v).
+    # out.
     #
     # The fallback is for rows that failed BEFORE the column existed and carry
     # NULL. Treating those as "never failed" would release every one of them on
@@ -799,8 +799,7 @@ def metric_definition_cooldown_until(
     the SAME rule the dispatcher applies. Without it the API computed due-ness
     from the watermark alone and told the operator a collection was due now
     while this scheduler would skip it for up to a full interval — two answers
-    to one question, which is the divergence this repository keeps paying for
-    (tripl-os3v).
+    to one question, which is the divergence this repository keeps paying for.
 
     Derived from ``_metric_definition_error_backoff`` rather than recomputing
     the curve, so the two cannot drift even if the curve changes.

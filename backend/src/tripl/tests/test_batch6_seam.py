@@ -1,15 +1,15 @@
 """Batch 6, seam lane: the three defects that span two lanes' files.
 
-* tripl-0zpq.177 — one question, two answers. The ``sql``-metric doors decided
+* one question, two answers. The ``sql``-metric doors decided
   which data source a project may use by OWNERSHIP; the fact-table doors demanded
   a ``ScanConfig`` in the project. Both are now the ownership rule in
   ``services/data_source_scope``, which WIDENS the fact-table doors: a
   workspace-global warehouse nobody scans is shared, and reachable from every
   project. That is a deliberate decision, and the tests below say so out loud.
-* tripl-0zpq.353 — the same misconfiguration answered 400 on the fact-table
+* the same misconfiguration answered 400 on the fact-table
   preview door and 404 on the three others, with two different sentences, inside
   one wizard flow. All four now answer 404 with one sentence.
-* tripl-0zpq.181 — an explicit ``null`` on a PATCH field whose column is NOT NULL
+* an explicit ``null`` on a PATCH field whose column is NOT NULL
   reached the database and came back as a blank 500. It is a 422 naming the
   field, on the metric PATCH, the metric bulk-update and the fact-table PATCH.
 
@@ -135,7 +135,7 @@ async def _create_sql_metric(client: AsyncClient, slug: str, data_source_id: str
     return resp.json()
 
 
-# ── tripl-0zpq.177 — one scope rule, four doors ──────────────────────────────
+# ── one scope rule, four doors ──────────────────────────────
 
 
 async def test_a_fact_table_may_bind_a_warehouse_nobody_scans(client: AsyncClient) -> None:
@@ -272,7 +272,7 @@ async def test_the_metric_door_and_the_fact_table_door_agree_on_one_source(
     assert metric_resp.json()["detail"] == fact_resp.json()["detail"] == DATA_SOURCE_NOT_AVAILABLE
 
 
-# ── tripl-0zpq.353 — one status and one sentence on all four doors ───────────
+# ── one status and one sentence on all four doors ───────────
 
 
 async def test_the_fact_table_wizard_answers_the_same_way_twice(client: AsyncClient) -> None:
@@ -343,7 +343,7 @@ async def test_a_preview_with_no_data_source_at_all_is_still_a_400(client: Async
     assert resp.json()["detail"] == "A data source is required to preview fact-table columns."
 
 
-# ── tripl-0zpq.181 — explicit null on a NOT NULL field ───────────────────────
+# ── explicit null on a NOT NULL field ───────────────────────
 
 
 @pytest.mark.parametrize(

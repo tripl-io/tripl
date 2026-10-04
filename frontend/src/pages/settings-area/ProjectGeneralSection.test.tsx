@@ -189,7 +189,7 @@ describe('ProjectGeneralSection', () => {
 
     renderSection()
 
-    // The affix read a hardcoded "example.com/p/" on every install (tripl-gex5),
+    // The affix read a hardcoded "example.com/p/" on every install,
     // so the one screen that shows a reader their project's address showed
     // somebody else's. Asserted against the host the tree is served from, which
     // is the whole point — no literal can satisfy this on two different hosts.

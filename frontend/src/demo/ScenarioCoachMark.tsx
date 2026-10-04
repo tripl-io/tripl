@@ -1,5 +1,5 @@
 /**
- * The coached demo scenario, on the surface itself (tripl-2su6.21.4).
+ * The coached demo scenario, on the surface itself.
  *
  * The strip tells the user what the next step is; this points at the button that
  * does it. Product pages wrap their action element and name a step — they learn
@@ -17,7 +17,7 @@
  * keyboard user does not have to Tab through the whole page to the portalled
  * card to reach it (DEMO-12).
  *
- * One gate controls everything this file does (tripl-odrj.2): the card, the
+ * One gate controls everything this file does: the card, the
  * pulsing ring around the anchor, the one-shot scroll to an off-screen anchor,
  * and the presence report the strip reads all key off the same `visible`.
  */
@@ -84,7 +84,7 @@ function placementOf(anchor: HTMLElement | null): Placement {
   // A control inside a data table — or the <tr> itself — has no adjacent
   // space that is not table: every side the card can open on lands on the
   // rows it is explaining, and Radix only flips to avoid the VIEWPORT edge,
-  // not the content underneath (tripl-jfm3.62). Such marks dock the card.
+  // not the content underneath. Such marks dock the card.
   // So does every mark on a phone (#251 DA-45): at 390px a 16rem card beside
   // a row's Run button covered the page title and its tabs, which could not
   // be used until the hints were hidden. Docked, it is a full-width bottom
@@ -290,7 +290,7 @@ export function ScenarioCoachMark({
   // to an element's PADDING box, so bounding to the container let a card stop
   // 8px short of x≈1208 — about 24px past x≈1176, where the right edge of every
   // card on the page sits. Measured on the scan header, whose `align: 'start'`
-  // mark had just been moved off the description into that gutter (tripl-5mra).
+  // mark had just been moved off the description into that gutter.
   // Bounded to the column, the same card stops at 1168 and still clears the
   // description, which wraps at x≈891.
   //
@@ -395,7 +395,7 @@ export function ScenarioCoachMark({
 }
 
 /**
- * The card for a table anchor, fixed clear of the grid (tripl-jfm3.62).
+ * The card for a table anchor, fixed clear of the grid.
  *
  * Portalled to <body> (DEMO-1): declared beside a <tr> anchor it used to land
  * as a <div> directly inside <tbody>. And it must not become the thing it
@@ -410,8 +410,8 @@ export function ScenarioCoachMark({
  *
  * bottom-[68px] clears the tweaks FAB (fixed bottom-1, h-8 → top edge at 36px;
  * tripl-tvqk tucked it into the activity rail's footer strip) rather than
- * fighting it on z-index, which would also put the coach over modal dialogs
- * (tripl-gr0x). top-14 clears the 44px top bar, and the demo banner below it
+ * fighting it on z-index, which would also put the coach over modal dialogs.
+ * top-14 clears the 44px top bar, and the demo banner below it
  * while that is on screen (see `dockTop`).
  */
 function DockedCoachCard({ anchor, children }: { anchor: HTMLElement; children: ReactNode }) {

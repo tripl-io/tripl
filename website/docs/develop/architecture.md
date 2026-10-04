@@ -434,7 +434,7 @@ lists the environment settings they will use.
    One event per scan identity per event type is a unique key,
    `uq_event_scan_identity` on `(event_type_id, source_name)` — an event type
    lives on one branch of one project, so the two columns scope the identity
-   per project, per branch, per type, and `NULL` stays free (tripl-8tdl). The
+   per project, per branch, per type, and `NULL` stays free. The
    API's `create_event` pre-check answers `409` naming the holder before the
    database would; a create that loses the concurrent INSERT race gets the same
    `409` body (`POST /projects/{slug}/events` and `/events/bulk`, the latter
@@ -455,7 +455,7 @@ lists the environment settings they will use.
    and the reindex; a replay skips catalog sync entirely, so it holds no fresh
    evidence about which paths a row still carries and is in no position to call
    a variable unused — and lets **whether the catalog window was DECLARED**
-   decide how much of the catalog that sweep may judge (tripl-bh1q, tripl-bwo8).
+   decide how much of the catalog that sweep may judge.
    The sweep is project-wide, so a scalar-derived variable is deferred whenever
    **any** scan config in that project has no declared `scan_lookback_hours`,
    even when the current scan uses a full-table query or declares its own

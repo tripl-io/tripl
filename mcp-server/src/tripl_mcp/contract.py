@@ -4,7 +4,7 @@ Single source of truth for the contract test: every (method, path) here must
 exist in ``backend/openapi.json``. The path LITERALS live in ``tripl_cli.api``,
 which is where the tool bodies build their requests from too — so this map is a
 statement about which tool touches what, and cannot drift from what the tool
-actually sends (tripl-ey6j.5).
+actually sends.
 
 Kept separate from ``tripl_cli.diagnostics.endpoints`` on purpose: that one is
 keyed by snapshot section, and this one's key set must equal the REGISTERED TOOL

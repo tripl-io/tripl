@@ -105,7 +105,7 @@ const STATUS_ICON: Record<BulkRow['status'], LucideIcon> = {
  *
  * `POST /events/bulk` has existed since the endpoint was written and had no way
  * in from the app, so a tracking plan of thirty events meant thirty passes
- * through the single-event form (tripl-u2h9.8). What the paste carries depends
+ * through the single-event form. What the paste carries depends
  * on the event type: where a scan names its events, the columns the name is
  * built from — because the formatted name IS the scan identity, and an event
  * authored under any other name would never merge with its traffic. Where no
@@ -122,8 +122,8 @@ export default function EventBulkForm() {
   const canWrite = useCanWriteProject()
 
   // `null` is "not chosen yet": until the reader picks, the type the route names
-  // (`/events/se/bulk`) is the choice, as on the single-event form
-  // (tripl-kjhi.13). A cleared select is '' — a choice — and stays cleared.
+  // (`/events/se/bulk`) is the choice, as on the single-event form.
+  // A cleared select is '' — a choice — and stays cleared.
   const [chosenEtId, setEtId] = useState<string | null>(null)
   const [status, setStatus] = useState<EventStatus>('draft')
   const [draft, setDraft] = useState('')
@@ -162,8 +162,7 @@ export default function EventBulkForm() {
   // The rule comes with the type, resolved by the server, as on the single
   // form. It used to be picked out of the scan configs by event_type_id, which
   // on a plan branch never matched — the branch copy of a type has a new id no
-  // config names — so the page took free names for events a scan rule governs
-  // (tripl-kjhi.1).
+  // config names — so the page took free names for events a scan rule governs.
   const nameFormat = selectedEt?.event_name_format ?? null
 
   const namingColumns = useMemo(() => [...nameFormatBaseColumns(nameFormat)], [nameFormat])
@@ -183,7 +182,7 @@ export default function EventBulkForm() {
   }, [selectedEt, nameFormat, namingColumns])
   // A required field the name is not built from used to make the whole type
   // unpasteable (AU-19); the paste now carries it as a column of its own,
-  // after the identity columns and before the title (tripl-hhw3).
+  // after the identity columns and before the title.
   const extraColumns = useMemo(
     () => bulkExtraColumns(selectedEt?.field_definitions ?? [], namingColumns),
     [selectedEt, namingColumns],
@@ -363,7 +362,7 @@ export default function EventBulkForm() {
   // columns, or the event name where no rule governs the type.
   const identityColumns = nameFormat ? namingColumns : ['event name']
   // Past one identity column a comma separates too; a single one is split on
-  // a tab only, because the value itself may carry commas (tripl-kjhi.3).
+  // a tab only, because the value itself may carry commas.
   const separators = identityColumns.length > 1 ? 'a tab or a comma' : 'a tab'
   const columnHint = extraNames.length > 0
     ? `One event per line: ${[...identityColumns, ...extraNames].join(', then ')}, separated by ${separators}. Every event of this type needs ${extraNames.join(' and ')}.`

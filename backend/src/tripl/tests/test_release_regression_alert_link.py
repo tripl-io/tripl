@@ -260,7 +260,7 @@ def test_every_scope_links_to_the_incident_when_there_is_one(scope_type: str) ->
     Only release regressions used to reach the alerting page; an anomaly alert
     linked to the event/monitoring page, which shows neither what was sent nor
     Ack / Resolve / Mute. Acting on a telegram alert therefore meant leaving the
-    page it opened and finding the matching incident by hand (tripl-pq97).
+    page it opened and finding the matching incident by hand.
 
     The delivery id and item anchor stay in the URL — they still select the exact
     row the message quoted, out of up to 8 packed into one delivery — and

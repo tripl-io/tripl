@@ -165,7 +165,7 @@ export default function ApiKeysSection() {
 
   // The card used to headline "Active keys · N keys" off the unfiltered list,
   // so revoked and expired tokens were counted as live ones on a credentials
-  // surface (tripl-jfm3.33). Count only the keys that can still authenticate,
+  // surface. Count only the keys that can still authenticate,
   // and name the inactive remainder explicitly.
   const inactiveCount = keys.filter((k) => isKeyInactive(k)).length
   const activeCount = keys.length - inactiveCount
@@ -206,7 +206,7 @@ export default function ApiKeysSection() {
 
       {/* Create key — inline page-style form (no modal). Kit rows and the kit
           Select, not bare <select>s: a native select keeps the platform's light
-          widget in dark mode (tripl-h3bb). */}
+          widget in dark mode. */}
       {showForm && (
         <SCard
           title="New API key"

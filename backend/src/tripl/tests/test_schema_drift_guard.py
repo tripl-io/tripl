@@ -551,7 +551,7 @@ async def test_other_drift_types_on_a_name_format_column_still_accept(
 @pytest.mark.asyncio
 async def test_accept_keeps_a_note_stored_by_an_earlier_action(client: AsyncClient) -> None:
     """Separate defect: ``note`` is optional on every action, so assigning it
-    unconditionally erased a note an earlier action had stored (tripl-3mmh)."""
+    unconditionally erased a note an earlier action had stored."""
     project_id, event_type_id = await _project_and_event_type(client)
     drift_id = await _seed(
         project_id=project_id,

@@ -365,7 +365,7 @@ class DataSourceCreate(BaseModel):
     # Bounded like its neighbours, to the width of ``data_sources.username``
     # (String(255)). It was the one connection field left unbounded, so an
     # overlong username was a 500 out of the INSERT instead of a 422 naming the
-    # field (tripl-0zpq.275). ``password`` needs no bound: it is stored
+    # field. ``password`` needs no bound: it is stored
     # encrypted, in a Text column.
     username: str = Field("", max_length=255)
     password: str = ""
@@ -384,7 +384,7 @@ class DataSourceCreate(BaseModel):
 # The update fields whose DataSource column is NOT NULL, so an explicit ``null``
 # is a 422 naming the field and not a DB-level 500 out of
 # ``update_data_source``'s generic ``setattr`` loop — see
-# ``schemas/not_null_update`` (tripl-0zpq.267). ``password`` and
+# ``schemas/not_null_update``. ``password`` and
 # ``connection_settings`` are handled before that loop and each reads a null as
 # "leave the stored secret / clear the blob"; ``timeout_seconds`` and
 # ``json_path_discovery`` are nullable columns where a null means "the

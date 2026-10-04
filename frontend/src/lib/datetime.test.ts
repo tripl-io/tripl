@@ -10,7 +10,7 @@ import { formatDate, formatDateTime, formatIsoDate, formatRelativeTime, formatTi
 // (see lib/metrics.ts), which is a UTC instant fixed by the warehouse. The
 // calendar day of a fixed UTC instant is therefore host-dependent: 10:00Z is
 // already the next day in UTC+14. Pin the zone so the expectations below are
-// deterministic instead of quietly assuming a UTC host (tripl-64n8.2).
+// deterministic instead of quietly assuming a UTC host.
 beforeEach(() => {
   vi.stubEnv('TZ', 'UTC')
 })

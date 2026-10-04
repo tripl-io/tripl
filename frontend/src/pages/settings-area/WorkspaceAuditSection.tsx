@@ -11,7 +11,7 @@ import { AuditExportCard } from './AuditExportCard'
  * invitation revoked, a role changed; a workspace API key minted or revoked.
  * They carry no project, and the only audit screen in the product filtered by
  * one — so the log's most security-relevant half was written faithfully and read
- * by nobody (tripl-wkwv.17). A project's own DELETION had the same problem from
+ * by nobody. A project's own DELETION had the same problem from
  * the other end: the entry is written once its subject is gone, so it carries no
  * project either, and the per-project tab lives under /p/:slug, where a deleted
  * project has no page left to open it from.

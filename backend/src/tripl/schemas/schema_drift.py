@@ -43,7 +43,7 @@ class SchemaDriftActionRequest(BaseModel):
         description=(
             "Override the guard that refuses to accept a missing_field drift for a "
             "column a scan config's event name format builds event names from "
-            "(tripl-3mmh). API-only escape hatch for a project-wide config that "
+            ". API-only escape hatch for a project-wide config that "
             "names the column but never scans this event type; requires a note "
             "explaining why, which lands in the audit record. The UI does not "
             "offer it — a warning next to an Accept button is a thing operators "
@@ -62,7 +62,7 @@ class SchemaDriftActionRequest(BaseModel):
             # comparing the stored instant against now when it is READ
             # (``schema_drift_service``), so an expired one is back in the open
             # rows the moment the 200 lands, and the operator is told a decision
-            # was recorded that changed nothing they can see (tripl-0zpq.273).
+            # was recorded that changed nothing they can see.
             # Only the arriving instant is bounded; a snooze that lapses later is
             # supposed to come back, and that is a different mechanism entirely.
             self.snoozed_until = require_future_instant(
@@ -71,8 +71,7 @@ class SchemaDriftActionRequest(BaseModel):
         elif self.snoozed_until is not None:
             # A snooze date on an accept, a false positive or a reopen is a
             # client that meant to snooze; accepting and discarding it would
-            # hide the mistake. Same rule as ``EventCommentActionRequest``
-            # (tripl-0zpq.325).
+            # hide the mistake. Same rule as ``EventCommentActionRequest``.
             raise ValueError("snoozed_until is only meaningful when action is snooze")
         if self.force and self.action != "accept":
             # `force` overrides exactly one guard, and that guard only fires on

@@ -75,8 +75,8 @@ class FieldDefinitionCreate(BaseModel):
 
 # The update fields whose FieldDefinition column is NOT NULL, so an explicit
 # ``null`` is a 422 naming the field and not a DB-level 500 out of
-# ``update_field``'s generic ``setattr`` loop — see ``schemas/not_null_update``
-# (tripl-0zpq.267). Out of the set on purpose: ``enum_options`` and the three
+# ``update_field``'s generic ``setattr`` loop — see ``schemas/not_null_update``.
+# Out of the set on purpose: ``enum_options`` and the three
 # nullable ``contract_*`` bounds, where a null CLEARS the setting, and
 # ``contract_max_bad_rate``, whose null ``update_field`` already reads as "back
 # to 0.0".

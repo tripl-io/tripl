@@ -133,7 +133,7 @@ function labelRow(label: string): HTMLElement {
  * SEARCH_EMBEDDING_BASE_URL decides where every indexed event name, description
  * and field value is POSTed, and it has been dropped from the compose env
  * allowlist three times. Nothing in the running system reported it, so the only
- * way to notice was to read the source and diff values by hand (tripl-wkwv.2).
+ * way to notice was to read the source and diff values by hand.
  */
 describe('Instance AI — the embeddings endpoint', () => {
   it('shows the endpoint the indexed plan text is actually sent to', () => {
@@ -219,7 +219,7 @@ describe('Instance AI — the embeddings endpoint', () => {
  * override was an API key showed a red "Clears the 1 AI override on this
  * instance — every field badged Override above" beside rows that all read
  * "Default": the same copy-versus-badge disagreement tripl-5qp9 was about, in a
- * section that now has three badge states (tripl-wkwv.2). overrideCount's field
+ * section that now has three badge states. overrideCount's field
  * set and the badged field set have to be one set.
  */
 describe('Instance AI — the stored keys', () => {

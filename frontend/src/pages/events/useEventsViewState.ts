@@ -117,7 +117,7 @@ export function useEventsViewState({
   // The review tab is the one screen where the reviewed flag is the point, and
   // it is hidden by default — so bulk "Mark reviewed" there changed nothing the
   // operator could see. Force the column on for that tab; the picker still
-  // governs every other tab (tripl-invv).
+  // governs every other tab.
   const hideReviewed = hiddenColumns.has('reviewed') && activeTab !== 'review'
   const hideMonitor = hiddenColumns.has('monitor')
   const hideOwner = hiddenColumns.has('owner')

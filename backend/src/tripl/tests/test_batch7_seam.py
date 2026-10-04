@@ -1,6 +1,6 @@
 """Batch 7, the seam: findings no single lane could reach.
 
-tripl-0zpq.183 — every reindex runs inside the writer's own transaction and so
+every reindex runs inside the writer's own transaction and so
 shares the writer's identity map. A ``selectinload`` does NOT overwrite a
 collection that is already loaded, so ``build_documents`` rebuilt an event's
 documents from the tags / field values / meta values the caller had in memory
@@ -10,24 +10,24 @@ stored ``content_hash``, the row was kept, and the index sat exactly one write
 behind until some later reindex happened to run from a fresh session. It crosses
 ``event_service`` and ``field_service``, which is why it waited for the seam.
 
-tripl-0zpq.256 — ``event_changes.field`` was ``String(100)`` while
+``event_changes.field`` was ``String(100)`` while
 ``_record_keyed_changes`` writes ``field:<name>`` / ``meta:<name>`` for names
 that may themselves be 100 characters, so editing such a field's value was a
 rolled-back 500 on PostgreSQL. SQLite does not enforce VARCHAR widths, so no
 database-backed test could have caught it; what is pinned here is the ARITHMETIC
 — the longest key the writer can produce against the width the column declares.
 
-tripl-0zpq.267 — eight partial-update schemas let an explicit JSON ``null``
+eight partial-update schemas let an explicit JSON ``null``
 through to a NOT NULL column, where the generic ``setattr`` loops turned a client
 error into a blank 500. Batch 6 built ``schemas/not_null_update`` for exactly
 this; these reuse it rather than inventing a second spelling.
 
-tripl-0zpq.225 — ``accept_shadow_event`` built the event without passing
+``accept_shadow_event`` built the event without passing
 ``user_id``, so the accepted event's own 'created' history row named nobody,
 while the docs promise an accepted candidate is indistinguishable from one you
 typed.
 
-tripl-0zpq.222 — ``apply_drift_action`` guarded its event-type cache bust on
+``apply_drift_action`` guarded its event-type cache bust on
 ``event_type.branch_id is None``, a NOT NULL column since 4e5f60718293, so the
 guard never fired and accepting a drift left the 300 s ``GET /event-types``
 cache serving the field list the accept had just changed.
@@ -540,13 +540,12 @@ async def test_the_demo_trail_matches_the_routes_it_imitates(client: AsyncClient
 
     * putting ``target_type="field"`` and the qualified ``"<type>.<field>"`` key
       back in ``demo/builders/audit._plan_entries`` — a shape
-      ``api/v1/fields.py`` has never written (tripl-0zpq.246);
+      ``api/v1/fields.py`` has never written;
     * restating the literal ``"Demo warehouse"`` instead of reading
       ``DataSource.name``, which the warehouse builder sets to
-      ``demo_data_source_name(slug)`` (tripl-0zpq.246);
+      ``demo_data_source_name(slug)``;
     * dropping the ``created`` rows ``demo/builders/activity`` now seeds, which
-      left fifteen of the demo's eighteen events opening on an empty History tab
-      (tripl-0zpq.244).
+      left fifteen of the demo's eighteen events opening on an empty History tab.
     """
     slug = (await client.post("/api/v1/projects/demo")).json()["slug"]
 
@@ -656,8 +655,8 @@ async def test_the_alerting_trail_is_ordered_by_name_not_by_a_uuid_tiebreak(
     Every row in one seed shares a single server-side ``now()``, so ordering by
     ``created_at`` first falls straight through to the uuid4 tie-break and the
     trail's chronology came out different on every seed — while the comment
-    above it claimed the ordering was what made the timestamps reproducible
-    (tripl-0zpq.246). Asserting that over the demo's own rows is a coin toss:
+    above it claimed the ordering was what made the timestamps reproducible.
+    Asserting that over the demo's own rows is a coin toss:
     the demo seeds exactly two destinations and two rules, so a random tie-break
     reproduces the name order about one time in four, per seed. The first half
     below removes the chance by giving the rows ids that sort the OPPOSITE way

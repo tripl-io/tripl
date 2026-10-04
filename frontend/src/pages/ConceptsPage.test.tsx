@@ -42,7 +42,7 @@ describe('ConceptsPage', () => {
       'Alert rules',
       'Signals',
       // The sidebar has an "Anomalies" surface; the glossary that claims to be
-      // the naming authority has to define it (tripl-jfm3.39).
+      // the naming authority has to define it.
       'Anomalies',
       'Scopes',
       'Reconciliation',
@@ -56,7 +56,7 @@ describe('ConceptsPage', () => {
     }
   })
 
-  it('ships finished copy — no markdown left in any definition (tripl-aqru)', () => {
+  it('ships finished copy — no markdown left in any definition', () => {
     const { container } = renderConcepts()
 
     // TermRow renders `definition` as a bare text node with no markdown parsing
@@ -67,7 +67,7 @@ describe('ConceptsPage', () => {
     expect(container.textContent).not.toContain('`')
   })
 
-  it('does not claim an alert rule raises signals (tripl-jfm3.39, #238 JR-28)', () => {
+  it('does not claim an alert rule raises signals (#238 JR-28)', () => {
     renderConcepts()
 
     // The product raises signals from detection on every scan — a project with
@@ -111,7 +111,7 @@ describe('ConceptsPage', () => {
     expect(container.querySelector('#term-shadow-events')).not.toBeNull()
   })
 
-  it('teaches the scan chain in the glossary, not only on the scan screens (tripl-3y7z.2)', () => {
+  it('teaches the scan chain in the glossary, not only on the scan screens', () => {
     renderConcepts()
 
     expect(screen.getByRole('heading', { name: 'Scans', level: 4 })).toBeInTheDocument()
@@ -139,8 +139,7 @@ describe('ConceptsPage', () => {
       screen.getByRole('link', { name: 'Open Reconciliation in the app' }),
     ).toHaveAttribute('href', '/p/demo/reconciliation')
     // The rules section of Alerting, not the standalone page: that page
-    // rendered the same alert rules under a second noun and was merged in
-    // (tripl-89ps).
+    // rendered the same alert rules under a second noun and was merged in.
     expect(screen.getByRole('link', { name: 'Open Alerting, for Alert rules' })).toHaveAttribute(
       'href',
       '/p/demo/alerting?section=monitors',

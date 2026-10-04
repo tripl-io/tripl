@@ -1,6 +1,6 @@
 """The three SMTP transports, and the settings that choose between them.
 
-The defect these pin (tripl-x1vk) is not that a send failed — it is that the
+The defect these pin is not that a send failed — it is that the
 wrong client STALLS rather than erroring. Speaking plaintext to an implicit-TLS
 port leaves smtplib waiting for a greeting the server will never send in the
 clear, so the symptom was a ten-second hang and a disconnect, which reads like a
@@ -195,7 +195,7 @@ async def test_the_smtp_test_names_the_missing_from_address(
 
     The transport never sees it: ``_send_password_reset_email`` returns early, so
     a token is minted, the mail is dropped, and the requester is still told a
-    link is on its way (tripl-wmpe).
+    link is on its way.
     """
     monkeypatch.setattr(settings, "smtp_from_address", "")
     await client.patch(
@@ -216,7 +216,7 @@ def test_a_display_name_sender_is_accepted_because_real_delivery_accepts_it() ->
 
     ``validate_email_address`` refuses ``Tripl <no-reply@x>``, while ``EmailMessage``
     takes it, so the strict helper refused a From: that delivers on every fire. The
-    alert-destination test hit that first (tripl-q9o6); the alert and digest SEND
+    alert-destination test hit that first; the alert and digest SEND
     paths carried the same strictness until tripl-0zpq.29, which is the defect that
     mattered — a diagnostic reporting success and the real send then failing.
     Five callers now share this one helper, which checks only the address part:

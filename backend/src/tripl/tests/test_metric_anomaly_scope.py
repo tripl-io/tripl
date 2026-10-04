@@ -896,7 +896,7 @@ def test_percent_metric_items_render_scaled_values_via_batched_unit_lookup(
 
 
 # ---------------------------------------------------------------------------
-# A catalog metric's alert candidacy is a property of the METRIC (tripl-l429.22)
+# A catalog metric's alert candidacy is a property of the METRIC
 # ---------------------------------------------------------------------------
 
 # 30 hours back on the naive footing the sync fixtures use: outside a bare 24h
@@ -1011,7 +1011,7 @@ def test_a_metric_that_left_active_stops_being_an_alert_candidate(
 
     ``draft`` answers the same way: ``check_metric_definitions_due`` dispatches
     only ``active``, so a metric parked in draft is just as frozen as an
-    archived one (tripl-l429.25).
+    archived one.
     """
     with sync_session_factory() as session:
         config = _seed_project(session)

@@ -322,7 +322,7 @@ async def test_data_source_management_is_owner_only(fresh_anon_client: AsyncClie
 
 @pytest.mark.asyncio
 async def test_audit_log_is_owner_only(fresh_anon_client: AsyncClient) -> None:
-    """The audit feed was the back door around two owner-only gates (tripl-jfm3.110).
+    """The audit feed was the back door around two owner-only gates.
 
     Entries carry the payload that produced them, so a non-owner could read the
     warehouse connection details that data_sources.py:69 blanks on a direct
@@ -428,7 +428,7 @@ async def test_users_api_speaks_organization_roles(fresh_anon_client: AsyncClien
 
 @pytest.mark.asyncio
 async def test_editor_cannot_run_sql_against_a_warehouse(fresh_anon_client: AsyncClient) -> None:
-    """Scan SQL carries the same role as the credential it runs on (tripl-jfm3.18).
+    """Scan SQL carries the same role as the credential it runs on.
 
     Data sources are owner-configured and workspace-global, and ``base_query``
     is executed verbatim, so an editor must not be able to author, preview, or
@@ -520,7 +520,7 @@ async def test_scan_base_query_must_be_a_read_only_select(fresh_anon_client: Asy
 
 @pytest.mark.asyncio
 async def test_editor_cannot_edit_another_users_project(fresh_anon_client: AsyncClient) -> None:
-    """Editing project identity needs the creator or an owner (tripl-jfm3.19)."""
+    """Editing project identity needs the creator or an owner."""
     await _register(fresh_anon_client, "proj-owner@example.com")
     owned = await fresh_anon_client.post(
         "/api/v1/projects", json={"name": "Owned", "slug": "owner-proj"}

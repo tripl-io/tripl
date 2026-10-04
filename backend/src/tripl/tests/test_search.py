@@ -54,7 +54,7 @@ def _result(
     """A SQLite-path result: scores here are ``fallback_score`` tier values.
 
     It records the identity flag the same way ``document_to_result`` does, and
-    that is not cosmetic (tripl-d5u8): ``finalize_results`` caps a non-identity
+    that is not cosmetic: ``finalize_results`` caps a non-identity
     match below the certainty line, so a helper that skipped the flag would drag
     a legitimate exact-title 1.0 down to the partial ceiling and the tests would
     be measuring the helper rather than the code.
@@ -105,7 +105,7 @@ def test_a_matched_event_type_is_not_buried_under_its_own_events() -> None:
         "Spot Screen",
         "Map Screen",
     ]
-    # tripl-txcz: confidence is a fraction of an absolute reference score, not of
+    # confidence is a fraction of an absolute reference score, not of
     # the top hit, so the best of a mediocre set is NOT automatically 1.0.
     assert finalized[0].confidence == pytest.approx(3.0 / _FULL_CONFIDENCE_SCORE, abs=1e-4)
     assert all(0.0 <= item.confidence <= 1.0 for item in finalized)
@@ -130,7 +130,7 @@ async def test_retrieval_window_does_not_vary_with_the_page_size(
     retrieval leg — rather than through a ranking, because on SQLite there is no
     semantic leg to fuse and the fault could not reproduce end to end.
 
-    The ``+ 1`` is the truncation probe (tripl-wkwv.3): a leg that came back
+    The ``+ 1`` is the truncation probe: a leg that came back
     exactly full is otherwise indistinguishable from one that returned
     everything there was. It is a constant, so the invariant this test exists for
     — the window does not track the page size — is untouched.
@@ -174,7 +174,7 @@ async def test_index_maintenance_runs_once_per_branch_not_once_per_search(
     not.
 
     What is counted here is now the ENQUEUE, not an inline build: the rebuild
-    moved to ``tripl.worker.tasks.search.reindex_search_branch`` (tripl-zbv0).
+    moved to ``tripl.worker.tasks.search.reindex_search_branch``.
     The once-per-branch contract is the same either way.
     """
     queued: list[uuid.UUID] = []
@@ -236,7 +236,7 @@ _EMBED_START_POLL_SECONDS = 0.005
 async def test_the_query_embedding_is_fetched_while_the_lexical_leg_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A semantic search costs one round trip, not two in a row (tripl-2x5d).
+    """A semantic search costs one round trip, not two in a row.
 
     ``embed_query`` is a blocking provider POST handed to a thread and the
     lexical leg is SQL on the session; neither needs the other's result. Awaiting
@@ -325,7 +325,7 @@ async def test_reindex_reports_whether_the_refresh_was_really_queued(
 def test_finalize_assigns_confidence_without_event_type_match() -> None:
     """Confidence is an absolute property of a result, not of the result set.
 
-    tripl-txcz: the old rule divided every score by the top score, which made the
+    the old rule divided every score by the top score, which made the
     best hit of ANY set exactly 1.0 — measured, a keyboard-mash query was served
     at confidence 1.0 on an absolute score of 0.636. The second half of this test
     is the part that could not be true before: the same document keeps the same
@@ -451,13 +451,13 @@ def test_a_document_the_lexical_leg_also_found_is_not_labelled_semantic() -> Non
     assert merged[0].semantic_used is False, "the keyword ladder produced this row"
     assert merged[0].score == pytest.approx(12.0 + 0.9 * _SEMANTIC_SCORE_WEIGHT)
     # Confidence and provenance answer different questions, and disagreeing here
-    # is intended: the identity match is still certain (tripl-d5u8), and a hybrid
-    # row still keeps the stronger of its two certainties (tripl-txcz).
+    # is intended: the identity match is still certain, and a hybrid
+    # row still keeps the stronger of its two certainties.
     assert _finalize_results(merged, limit=10)[0].confidence == 1.0
 
 
 def test_a_vector_only_hit_is_still_labelled_semantic() -> None:
-    """The narrowed rule must not empty the flag out (tripl-wkwv.3).
+    """The narrowed rule must not empty the flag out.
 
     A row no keyword matched is exactly the row the chip exists for.
     """
@@ -634,7 +634,7 @@ def test_token_boundary_regex_uses_single_postgres_escapes() -> None:
 
 
 def test_token_boundary_regex_folds_a_spaced_query_into_an_identifier() -> None:
-    """tripl-h9x2: a query with a space used to return ``None``.
+    """a query with a space used to return ``None``.
 
     That silently deleted the 3.5 (keywords) and 3.0 (body) word-boundary tiers
     from every multi-word query, so ``q='screen spot'`` could not reach the event
@@ -654,7 +654,7 @@ def test_token_boundary_regex_folds_a_spaced_query_into_an_identifier() -> None:
 
 
 def test_sanitize_query_removes_nul_bytes_and_nothing_else() -> None:
-    # tripl-q4q7: a NUL survives str.strip() (it is not whitespace) and then
+    # a NUL survives str.strip() (it is not whitespace) and then
     # aborts in asyncpg, so it has to be removed explicitly.
     assert "\x00".strip() == "\x00"
     assert _sanitize_query("check\x00out") == "checkout"
@@ -812,11 +812,11 @@ async def test_global_search_matches_multilingual_plan_content(client: AsyncClie
     assert variable_contexts[0]["observed_count"] == 1
     assert variable_contexts[0]["values"] == ["vip_segment"]
     assert event_hit["description"] == "Fires when покупка успешно завершена"
-    # tripl-txcz: the top hit is no longer 1.0 by construction — this query
+    # the top hit is no longer 1.0 by construction — this query
     # matches a field value rather than a title, so it is served as a strong but
     # not certain answer.
     #
-    # Pinned to the TIER and to the tier ORDER, not to a range (tripl-u7wf).
+    # Pinned to the TIER and to the tier ORDER, not to a range.
     # `0.0 <= confidence <= 1.0` and `0.0 < confidence <= 1.0` are the entire
     # domain of the field: every confidence this endpoint can return satisfies
     # them — including the 1.0-for-a-nonsense-query that tripl-txcz was filed
@@ -970,7 +970,7 @@ async def test_search_filters_archived_and_excludes_sensitive_values(client: Asy
 async def test_event_keywords_carry_only_curated_text_while_body_keeps_the_harvest(
     client: AsyncClient,
 ) -> None:
-    """tripl-0qld: an EVENT's ``keywords`` is identity text, its ``body`` is evidence.
+    """an EVENT's ``keywords`` is identity text, its ``body`` is evidence.
 
     WHAT THIS PINS AND WHY IT IS ASSERTED ON THE DOCUMENT, NOT ON A RANKING
     -----------------------------------------------------------------------
@@ -1098,7 +1098,7 @@ async def test_event_keywords_carry_only_curated_text_while_body_keeps_the_harve
 
     assert "scanned_marker" not in document.keywords, (
         "a scan-written field value is not curated text and must not buy the event "
-        "the 3.5 keyword-token tier (tripl-0qld)"
+        "the 3.5 keyword-token tier"
     )
     assert "scanned_marker" in document.body, (
         "harvested values stay searchable — they are evidence about the event, and "
@@ -1127,7 +1127,7 @@ async def test_event_keywords_carry_only_curated_text_while_body_keeps_the_harve
 async def test_search_query_with_nul_byte_behaves_like_the_clean_query(
     client: AsyncClient,
 ) -> None:
-    """tripl-q4q7: ``?q=%00`` used to 500 (asyncpg CharacterNotInRepertoireError).
+    """``?q=%00`` used to 500 (asyncpg CharacterNotInRepertoireError).
 
     Asserted through the HTTP status and body rather than the driver
     exception, so the test still fails for the right reason on SQLite, where
@@ -1453,8 +1453,8 @@ def test_finalize_confidence_prefers_exact_token_value_matches() -> None:
         "ecmwf_model_popup_shown",
     ]
 
-    # CONFIDENCE COMPRESSES AT THE TOP FOR PARTIAL MATCHES, DELIBERATELY
-    # (tripl-d5u8). None of these three is an identity match — the strongest is
+    # CONFIDENCE COMPRESSES AT THE TOP FOR PARTIAL MATCHES, DELIBERATELY.
+    # None of these three is an identity match — the strongest is
     # 6.5, below the 7.2 `keywords == query` tier — so all three clip to the
     # partial ceiling and report the SAME number despite ranking differently
     # (6.5/7.0 = 0.93, 5.9/7.0 = 0.84 and 5.6/7.0 = 0.80 all become 0.80).
@@ -1471,7 +1471,7 @@ def test_finalize_confidence_prefers_exact_token_value_matches() -> None:
 
 @pytest.mark.asyncio
 async def test_scan_configs_and_alert_rules_are_searchable(client: AsyncClient) -> None:
-    """Project-scoped configuration is indexed like metrics already were (tripl-dfct).
+    """Project-scoped configuration is indexed like metrics already were.
 
     Neither entity carries a branch_id, so this follows the decision the codebase
     had already taken for MetricDefinition and FactTable: fold the project's rows
@@ -1583,7 +1583,7 @@ async def _search_hits(
 
     Some assertions are about a field other than the title — an alert rule's
     subtitle is the name of the scan it is narrowed to, and that is the field
-    that goes stale when the scan disappears (tripl-9jvz).
+    that goes stale when the scan disappears.
     """
     resp = await client.get(f"/api/v1/projects/{slug}/search?q={query}&limit=50")
     assert resp.status_code == 200, resp.text
@@ -1595,7 +1595,7 @@ async def _search_hits(
 async def test_a_scan_config_is_searchable_the_moment_its_service_saves_it(
     client: AsyncClient,
 ) -> None:
-    """No hand reindex anywhere below — the mutation is the trigger (tripl-ugrm).
+    """No hand reindex anywhere below — the mutation is the trigger.
 
     The recall test above has to call ``reindex_branch`` itself, and that hand
     reindex was the only thing making it pass: ``scan_config`` was one of two
@@ -1743,8 +1743,8 @@ async def test_deleting_a_data_source_takes_its_scans_out_of_the_index(
     Exactly the shape of the destination cascade above, one module over: the scan
     CRUD paths refresh the index themselves, but a source delete removes scan
     configs without ever calling ``delete_scan_config``, so their documents
-    outlived them and a deleted scan stayed findable in the command palette
-    (tripl-9jvz). No hand reindex anywhere below — the delete is the trigger.
+    outlived them and a deleted scan stayed findable in the command palette.
+    No hand reindex anywhere below — the delete is the trigger.
     """
     await client.post("/api/v1/projects", json={"name": "Fresh", "slug": "fresh-source"})
     source = await client.post(
@@ -1789,7 +1789,7 @@ async def test_deleting_a_source_clears_the_scan_name_from_its_rules_subtitle(
     (``disable_rules_bound_to_scan``) without rebuilding its document — so the
     rule went on advertising a scan that no longer exists. This is why the fix
     needs no second mechanism: one whole-branch reindex regenerates every kind at
-    once, and this test is what proves the free coverage is real (tripl-9jvz).
+    once, and this test is what proves the free coverage is real.
     """
     await client.post("/api/v1/projects", json={"name": "Fresh", "slug": "fresh-subtitle"})
     source = await client.post(
@@ -1854,7 +1854,7 @@ async def test_the_read_path_enqueues_the_task_name_the_worker_registers(
     Publishing an unregistered name raises nothing: the message is accepted, no
     worker ever claims it, and the only symptom is a branch that stays unindexed
     while every log line looks healthy. Asserting against the task's own ``name``
-    ties the two ends of the wire together (tripl-zbv0).
+    ties the two ends of the wire together.
     """
     from tripl.worker import celery_app as celery_module
     from tripl.worker.tasks import search as search_tasks
@@ -1895,7 +1895,7 @@ async def test_semantic_false_never_reaches_the_embedding_provider(
 
     The palette asks for this answer first and upgrades to the full one when it
     lands; on production the embedding round trip was the whole difference
-    between results at ~150 ms and at ~1.5 s (tripl-kjhi.15). The flag has to
+    between results at ~150 ms and at ~1.5 s. The flag has to
     skip the embed leg outright — a call that is made and thrown away would
     still be paid for.
     """

@@ -24,7 +24,7 @@ import { ENTITY_LABEL, stateKeyLabel } from './branchMeta'
 
 /**
  * The two diff entries the merge will treat as one renamed row, as the backend
- * states them in `PlanBranchDiff.renames` (tripl-amnn).
+ * states them in `PlanBranchDiff.renames`.
  *
  * The diff keys entities by name, so a rename arrives split into a removal of
  * the old name and an addition of the new one. Only the backend can join them
@@ -51,7 +51,7 @@ export interface PairedDiffCounts {
 }
 
 /** Where the selected branch's diff request stands, so the detail pane can
- * tell a diff that is still loading from one that is empty (tripl-kjhi.2).
+ * tell a diff that is still loading from one that is empty.
  * Mirrors TanStack Query's `status`; `retry` refetches after an error. */
 export interface DiffLoad {
   status: 'pending' | 'error' | 'success'
@@ -61,7 +61,7 @@ export interface DiffLoad {
 
 /**
  * The header strip, the list row's ahead badge and the Changes panel subtitle
- * all count one diff, so they have to count it one way (tripl-amnn).
+ * all count one diff, so they have to count it one way.
  *
  * Dropping the paired addition from the rendered list while the strip went on
  * reading `summary` straight from the backend made a branch whose only change
@@ -132,7 +132,7 @@ export type RevertOutcome =
 
 /**
  * Answer the question the REVERT asks, which is not the question `renames`
- * answers (tripl-amnn).
+ * answers.
  *
  * `renames` is the merge's pairing and consults main, so a branch rename a->b
  * is not paired there once main has independently grown its own b — the merge
@@ -227,7 +227,7 @@ export function entryRevertPrompt(
   if (outcome.kind === 'rename') {
     // Undoing a rename moves the name back onto the row that is still there,
     // so it promises none of the loss the plain "Restore" wording warns
-    // about — and the reviewer must not be told to expect any (tripl-amnn).
+    // about — and the reviewer must not be told to expect any.
     return {
       title: 'Undo rename',
       message: `Undo the rename of ${entry.name} to ${outcome.to}? The row stays on this branch and takes its old name back; its documented values and history are untouched. Main is untouched.`,
@@ -259,7 +259,7 @@ export function entryRevertPrompt(
  * compares the base with the branch. The stand-in was to warn about every
  * removal whenever the branch was behind its base — safe, and wrong often
  * enough to be noise. The backend now states the pairing it will actually
- * perform, so this reads it (tripl-amnn).
+ * perform, so this reads it.
  *
  * An empty pairing means "no removal here is a rename", which is also what a
  * response without the field says. That errs towards warning, which is the
@@ -281,7 +281,7 @@ export function variablesDeletedByMerge(
 export interface DiffView {
   /** Author's rows, with each rename's paired addition folded into its removal. */
   visibleEntries: PlanDiffEntry[]
-  /** Machine removals, folded into one line below the list (tripl-kjhi.12). */
+  /** Machine removals, folded into one line below the list. */
   housekeepingEntries: PlanDiffEntry[]
   /** entryKey of a paired removal -> the name the row took on the branch. */
   renamedTo: Map<string, string>
@@ -297,7 +297,7 @@ export function diffView(diff: PlanBranchDiffSummary | undefined): DiffView {
   // A rename's two entries, joined back up by the backend: the removal carries
   // the row (and the revert that undoes the rename), so it is the half that
   // stays, wearing the new name; the addition is dropped rather than shown as an
-  // unrelated creation of a row that already existed (tripl-amnn).
+  // unrelated creation of a row that already existed.
   const renamedTo = new Map(
     renames.map((r) => [entryKey(r.entity_type, r.parent, r.removed_name), r.added_name] as const),
   )
@@ -338,7 +338,7 @@ export function diffView(diff: PlanBranchDiffSummary | undefined): DiffView {
   // main has already made is nothing the merge does, and a retired scan
   // variable nobody bound, documented or referenced has none of the three
   // things this dialog exists to protect — so neither is warned about, which
-  // keeps the dialog consistent with the counts (tripl-kjhi.12).
+  // keeps the dialog consistent with the counts.
   const removedVariables = variablesDeletedByMerge(
     entries.filter((entry) => !entry.housekeeping),
     renames,
@@ -467,7 +467,7 @@ export function describeBranchActionError(error: unknown): string {
     // message falls back to the literal "409 Conflict". So an undecoded payload
     // reaches the reviewer as a status line with no instruction at all: that is
     // what `_commit_merged_plan`'s new `merge_constraint_violation` would have
-    // done (tripl-htcz), and what the pre-existing `incomplete_base_snapshot`
+    // done, and what the pre-existing `incomplete_base_snapshot`
     // has been doing all along — verified against plan_branch_merge_service.py,
     // where both raise `{flag: True, "message": ...}` and neither has an arm
     // here.

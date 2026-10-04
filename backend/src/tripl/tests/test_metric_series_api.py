@@ -1,4 +1,4 @@
-"""API tests for the catalog-metric series reads + list enrichment (tripl-dxhp.7).
+"""API tests for the catalog-metric series reads + list enrichment.
 
 Seeds ``MetricValue`` / ``MetricValueBreakdown`` rows directly (the collection
 worker is ticket .5, not exercised here) plus a ``MetricAnomaly`` row keyed by
@@ -97,7 +97,7 @@ async def _create_sql_metric(
         # draft metric is neither collected (``check_metric_definitions_due``
         # dispatches only ``active``) nor scored, so a draft metric holding a
         # fresh anomaly is a state the pipeline cannot produce — and one that is
-        # deliberately signal-less on every surface (tripl-l429.25).
+        # deliberately signal-less on every surface.
         "status": "active",
         **extra,
     }
@@ -677,7 +677,7 @@ class TestMetricVersionSeries:
         # The MEAN of the folded versions (2.0 and 3.0), not their sum. This is a
         # sql metric, so its values are fractional and adding them together makes
         # a number nothing in the product means — the "Other" line has to stay on
-        # the same scale as the named ones (tripl-0zpq.114). Reverting the fold
+        # the same scale as the named ones. Reverting the fold
         # to a sum puts 5.0 back here.
         assert series_by_version["Other"]["total_value"] == pytest.approx(2.5)
 

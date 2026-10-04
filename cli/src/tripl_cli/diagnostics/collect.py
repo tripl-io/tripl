@@ -3,7 +3,7 @@
 Every read is wrapped into a ``Fetched`` so a 403, a 404 and a dead socket all
 arrive at the check layer as data. That is what makes doctor total: an
 unreachable instance still produces a complete, parseable document instead of a
-traceback (tripl-ey6j.2).
+traceback.
 
 The exceptions are ``raise_selection_failure`` and ``read_or_raise``, which the
 commands with no verdict contract call deliberately — ``status`` and the
@@ -110,7 +110,7 @@ class Reader:
         Used directly by ``status`` (no verdict contract, so an unreachable
         instance is an ordinary command failure) and by the mutating commands,
         where a refusal must reach the operator as a non-zero exit rather than
-        as a report section (tripl-ey6j.5). Everything doctor and watch read goes
+        as a report section. Everything doctor and watch read goes
         through ``try_read*`` instead.
         """
         self.requests += 1
@@ -210,7 +210,7 @@ async def probe_auth_status(base_url: str, timeout: float) -> Fetched[JsonDict]:
 
     Unauthenticated by NECESSITY here rather than by choice: ``tripl install``
     calls this against an instance it has just started, where the first account
-    does not exist yet and therefore no API key can (tripl-ey6j.3). The endpoint
+    does not exist yet and therefore no API key can. The endpoint
     is unauthenticated on the backend for the same reason — the sign-in screen
     reads it before anybody is signed in.
 
@@ -440,8 +440,8 @@ async def collect_doctor(
 
     # The budgeted round-robin fan-out lives in api.event_types because
     # `tripl drifts list` needs exactly the same plan, and two implementations of
-    # it is how "we did not look there" starts printing as "nothing there"
-    # (tripl-ey6j.5). What the budget could not reach is still REPORTED here, as
+    # it is how "we did not look there" starts printing as "nothing there".
+    # What the budget could not reach is still REPORTED here, as
     # drift_scan_truncated, and drift_coverage records what each project got.
     drift_targets, examined, totals = event_types_api.plan_drift_targets(
         {slug: event_types[slug].value or [] for slug in slugs},

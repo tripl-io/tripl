@@ -13,7 +13,7 @@ describe('eventsEmptyCopy', () => {
   })
 
   // The Archived tab of a project with 2,413 events used to read "No events yet
-  // — create your first event to get started" (tripl-jfm3.30).
+  // — create your first event to get started".
   it('explains an empty Archived tab instead of claiming the project has no events', () => {
     const copy = eventsEmptyCopy({ ...base, activeTab: 'archived' })
 

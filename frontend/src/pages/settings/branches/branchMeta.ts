@@ -53,7 +53,7 @@ export const KIND_META: Record<PlanDiffKind, { tone: ChipTone; sym: string; labe
 // A rename has no diff kind of its own — it arrives as a removal plus an
 // addition — but it is not a deletion, and a red "Removed" row sitting beside an
 // unrelated green "Added" one says it is. This is what the paired row wears
-// instead (tripl-amnn).
+// instead.
 export const RENAMED_META: { tone: ChipTone; sym: string; label: string } = {
   tone: 'warning',
   sym: '→',
@@ -99,7 +99,7 @@ export function branchSubtitle(branch: PlanBranchSummary, usersById: Map<string,
 }
 
 /** The human title an event carries beside its scan name, so a reviewer reading
- * `tap_model_card` also sees "Tap on a model card" (tripl-kjhi.3). Branch side
+ * `tap_model_card` also sees "Tap on a model card". Branch side
  * first; a removed entry only has a base side. Events only — that is the one
  * entity whose `title` is a field the plan editor shows. */
 export function eventTitle(entry: PlanDiffEntry): string | null {
@@ -134,8 +134,8 @@ export function entityPath(slug: string, entry: PlanDiffEntry): string | null {
  * through EventsPage.
  *
  * A variable's editor is its own page now (AU-26), Definition tab first — the
- * same address `entityPath` focuses. The row keeps the Edit action anyway
- * (tripl-htfn.2): without it, fixing a variable from a branch review cost
+ * same address `entityPath` focuses. The row keeps the Edit action anyway:
+ * without it, fixing a variable from a branch review cost
  * exactly the clicks tripl-h2sx.1 removed for events: expand the row, find the
  * small link after Revert.
  *

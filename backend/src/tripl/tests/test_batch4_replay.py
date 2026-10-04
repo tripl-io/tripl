@@ -1050,7 +1050,7 @@ def test_a_release_regression_with_no_baseline_is_not_called_adoption_adjusted()
 
     ``has_baseline`` — not ``expected_count > 0`` and not a local truth test — is
     what both renderers ask, which is why a SIGNED expectation is qualified
-    rather than denied (tripl-0zpq.102). At exactly zero there is no expectation
+    rather than denied. At exactly zero there is no expectation
     to describe, ``${percent_delta_label}`` already says "no baseline", and the
     parenthetical would qualify a number that is not one.
 

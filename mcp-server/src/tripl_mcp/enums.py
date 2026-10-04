@@ -7,7 +7,7 @@ its own tool schema would never have let it emit. Annotated as a ``Literal`` the
 constraint reaches the schema — FastMCP builds the schema with Pydantic, which
 renders a ``Literal`` as ``{"type": "string", "enum": [...]}`` and a
 ``list[Literal]`` as an array whose ``items`` carry the same — so the client
-rejects the bad value locally, before any request (tripl-i0vd).
+rejects the bad value locally, before any request.
 
 These are the same enums ``tripl_cli.api`` already mirrors for the CLI's
 argparse ``choices=``, and they are spelled a second time here of necessity
@@ -82,6 +82,6 @@ def as_strings(values: Sequence[str] | None) -> list[str] | None:
     however obviously every member is a ``str``. The parameter is a ``Sequence``
     here precisely because that one IS covariant, which makes the widening a
     plain call rather than a cast, and puts the explanation in one place instead
-    of at each tool that had to do it (tripl-i0vd).
+    of at each tool that had to do it.
     """
     return None if values is None else list(values)

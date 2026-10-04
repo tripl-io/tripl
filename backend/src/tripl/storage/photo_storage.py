@@ -53,7 +53,7 @@ class PhotoStorage(ABC):
 
         Synchronous on purpose: the only caller is a Celery task, which runs
         outside an event loop. A backend without a listing API leaves this
-        unimplemented and the sweep skips it (tripl-0zpq.291).
+        unimplemented and the sweep skips it.
         """
         raise NotImplementedError(f"{self.backend_name} backend cannot list its objects")
 
@@ -205,8 +205,8 @@ class GCSPhotoStorage(PhotoStorage):
             # (``ignore=`` is not available on every client version). Everything
             # else — permission, network, quota — must propagate: this used to
             # be ``suppress(Exception)``, so a delete that failed still reported
-            # success while the object stayed fetchable at a stable key
-            # (tripl-jfm3.118). The local backend narrows to FileNotFoundError
+            # success while the object stayed fetchable at a stable key.
+            # The local backend narrows to FileNotFoundError
             # for the same reason.
             return
 
@@ -261,8 +261,8 @@ def storage_for(backend: str) -> PhotoStorage:
     from ``local`` to ``gcs`` (or back) while rows from the other one are still
     in the database, so reading has to follow the row rather than the current
     setting: with one driver per process, every photo taken before the switch
-    was looked up in the new store, where that key names nothing, and 404ed
-    (tripl-0zpq.295). Writing still follows the setting — that is what
+    was looked up in the new store, where that key names nothing, and 404ed.
+    Writing still follows the setting — that is what
     ``get_photo_storage`` is for.
 
     Raises :class:`UnknownPhotoBackend` for a name neither driver answers to.

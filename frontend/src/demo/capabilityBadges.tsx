@@ -1,5 +1,5 @@
 /**
- * Honest capability labels for demo mode (tripl-2su6.9).
+ * Honest capability labels for demo mode.
  *
  * These badges keep synthetic/local/simulated artifacts visually distinct from
  * real/external ones — they use a `warning` tone (never `success`/green), so a

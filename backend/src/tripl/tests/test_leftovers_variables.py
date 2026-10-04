@@ -57,7 +57,7 @@ def sync_session() -> Iterator[Session]:
         engine.dispose()
 
 
-# --- tripl-p5ac: a rule condition on a JSON column --------------------------
+# --- a rule condition on a JSON column --------------------------
 
 _JSON_COLUMN_RULE = [{"name": "Grouped", "conditions": [{"field": "payload", "pattern": "screen"}]}]
 
@@ -165,7 +165,7 @@ def test_grouping_existing_events_on_a_json_column_keeps_their_contexts(
     assert surviving[0].values == ["home", "cart"]
 
 
-# --- tripl-ifuv: delete b, rename a onto b ----------------------------------
+# --- delete b, rename a onto b ----------------------------------
 
 
 def test_pair_renames_vacates_only_a_destination_the_branch_deleted() -> None:
@@ -238,7 +238,7 @@ async def test_merge_of_a_delete_and_a_rename_onto_its_name_keeps_the_survivors_
     assert values[0].source_column == "properties.cart_total_raw"
 
 
-# --- tripl-nluj: an unnamed value column means ``value`` --------------------
+# --- an unnamed value column means ``value`` --------------------
 
 
 def test_sql_config_without_value_column_must_project_value() -> None:
@@ -250,7 +250,7 @@ def test_sql_config_without_value_column_must_project_value() -> None:
         SqlConfig(metric_sql="SELECT 1 AS v, now() AS x", time_column="t")
 
 
-# --- tripl-0zpq.370: a rename race on uq_data_sources_organization_name ------
+# --- a rename race on uq_data_sources_organization_name ------
 
 
 async def _create_source(client: AsyncClient, name: str) -> str:

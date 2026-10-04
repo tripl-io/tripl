@@ -1,12 +1,12 @@
-"""Plan revisions and relations: batch 7 of the backend review (tripl-0zpq).
+"""Plan revisions and relations: batch 7 of the backend review.
 
-* tripl-0zpq.149 — a key two rows share no longer swallows a change whole. The
+* a key two rows share no longer swallows a change whole. The
   deletion of a namesake that is not the one listed last used to produce no
   diff entry at all, and two namesakes listed in a different order on the two
   sides used to read as an edit of one into the other.
-* tripl-0zpq.154 — the revision list counts a snapshot's entities in the
+* the revision list counts a snapshot's entities in the
   database instead of dragging every whole-plan payload into the event loop.
-* tripl-0zpq.128 — a relation can only name event types and fields that live in
+* a relation can only name event types and fields that live in
   the project branch it is created on, so no row is left that makes every later
   branch creation for the project raise KeyError.
 """
@@ -34,7 +34,7 @@ from tripl.tests.test_plan_branches import _create_branch
 from tripl.tests.test_plan_revision_batch2 import _copy, _event_row, _payload, _relation_row
 from tripl.tests.test_relations import _setup_relation
 
-# --- tripl-0zpq.149: a shared key must not swallow the change ------------------
+# --- a shared key must not swallow the change ------------------
 
 #: The two entity kinds nothing makes unique — an event's (type, name) and the
 #: two fields a relation links — each built as a row told from its namesake by
@@ -102,7 +102,7 @@ def test_namesakes_neither_side_touched_are_not_a_change_however_they_are_ordere
     )
 
 
-# --- tripl-0zpq.154: the list counts in the database ---------------------------
+# --- the list counts in the database ---------------------------
 
 #: Sits inside a stored snapshot and nowhere else, so finding it in what the
 #: engine deserialized means a whole payload crossed into Python.
@@ -133,7 +133,7 @@ async def test_listing_revisions_counts_entities_without_reading_a_payload() -> 
     full snapshot is written at every branch creation, every merge and every
     manual snapshot, and the list shows nothing from it but six lengths.
     Selecting the ORM entity fetched all of them and json-decoded them on the
-    event loop, a page at a time (tripl-0zpq.154).
+    event loop, a page at a time.
 
     Proved through the engine's ``json_deserializer``: every JSON column that
     reaches Python passes through it. Revert the fix — select ``PlanRevision``
@@ -211,7 +211,7 @@ async def test_listing_revisions_counts_entities_without_reading_a_payload() -> 
     assert [text for text in control if _PAYLOAD_MARKER in text] != []
 
 
-# --- tripl-0zpq.128: a relation's ends must live in the branch it is made on ---
+# --- a relation's ends must live in the branch it is made on ---
 
 
 @pytest.mark.asyncio

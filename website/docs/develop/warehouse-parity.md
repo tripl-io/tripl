@@ -436,7 +436,7 @@ scan as an opaque "function date_bin(…) does not exist". Three things to know:
   `WarehouseCapabilityError` as authored, because tripl wrote it and it carries
   no host, port or driver text. It used to be generalized away, which sent
   operators to the logs for the one sentence that named their problem
-  (tripl-64n8.12, closed by tripl-rcn8).
+  (closed by tripl-rcn8).
 - `classify_time` marks `time`/`timetz` — and any array type — as unsupported, but
   only BigQuery is wired to *act* on that. A PostgreSQL (or ClickHouse) source
   configured with a time-of-day column still fails later, inside a worker, instead

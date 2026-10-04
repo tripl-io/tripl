@@ -1,4 +1,4 @@
-"""A cadence whose hour falls in the spring DST gap (tripl-0zpq.280).
+"""A cadence whose hour falls in the spring DST gap.
 
 ``core.alert_schedule`` promises a nonexistent local time folds FORWARD — a
 "daily at 02:30" digest on the morning the clocks jump 02:00 -> 03:00 goes out

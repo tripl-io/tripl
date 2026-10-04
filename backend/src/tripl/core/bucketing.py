@@ -78,7 +78,7 @@ def stored_bucket(value: object) -> datetime:
     to ``cast(datetime, row[0])`` — a typing no-op — and hand whatever the driver
     decoded to SQLAlchemy. A naive value written to a ``timestamptz`` is read in
     the DATABASE SESSION's timezone, so the stored instant depended on a server
-    setting rather than on the bucket (tripl-0zpq.348). ``db_config`` now pins
+    setting rather than on the bucket. ``db_config`` now pins
     the application's own sessions to UTC, and this closes the other half: a
     naive cell is stamped UTC here, a ``date`` becomes that day at 00:00 UTC, and
     an aware one is converted, whatever adapter produced it.

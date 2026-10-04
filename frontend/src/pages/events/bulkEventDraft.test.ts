@@ -79,7 +79,7 @@ describe('parseBulkDraft', () => {
     )
 
     // The label never leaks into the identity, and the values stay the three
-    // the name was built from (tripl-kjhi.3).
+    // the name was built from.
     expect(at(rows, 0).name).toBe('weather_alert:show:widget')
     expect(at(rows, 0).values).toEqual(['weather_alert', 'show', 'widget'])
     expect(at(rows, 0).title).toBe('Weather alert widget shown')
@@ -115,7 +115,7 @@ describe('parseBulkDraft', () => {
   })
 })
 
-describe('parseBulkDraft extra columns (tripl-hhw3)', () => {
+describe('parseBulkDraft extra columns', () => {
   const SCREEN = [{ name: 'screen_name' }]
 
   it('reads a required field after the identity columns and the title after it', () => {
@@ -230,7 +230,7 @@ describe('bulkUnsupportedReason', () => {
   })
 
   it('allows a type whose other required fields the paste carries as columns', () => {
-    // A required string field is an extra column now (tripl-hhw3), not a refusal.
+    // A required string field is an extra column now, not a refusal.
     expect(
       bulkUnsupportedReason({
         nameFormat: '{action}',

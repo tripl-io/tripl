@@ -9,7 +9,7 @@ Preview is an OFFER, not a gate. Nothing in the save path calls it and the form
 does not require it, so "it previewed" is never a precondition for 201 and
 "it did not" is never a refusal. Whatever the save path must guarantee it has to
 check for itself: the projection rule the collector enforces lives in
-``SqlConfig`` on the schema boundary, not here (tripl-0zpq.173). Preview's job is
+``SqlConfig`` on the schema boundary, not here. Preview's job is
 the half a schema cannot do — actually running the statement against the real
 warehouse.
 
@@ -17,8 +17,8 @@ warehouse.
   SAME safety gate (``validate_select_sql``) and time-window wrapping
   (``get_preview_rows``) the worker's ``_collect_sql`` uses, plus the dialect lint
   (``lint_dialect_sql``). The save path runs the same lint on new or changed SQL
-  and refuses with the same message (tripl-0zpq.371); the worker's collection
-  does not call it (tripl-0zpq.355).
+  and refuses with the same message; the worker's collection
+  does not call it.
 * ``preview_fact_operand`` compiles a draft ``fact`` operand's row filter with
   the worker's OWN ``_resolve_fact_operand_query`` (fed the very config dict a
   save would persist) and executes the result, bounded to one row.

@@ -17,7 +17,7 @@ one four-line rule. This subsystem already parks its shared rules in leaf module
 for exactly that reason: ``core.collection_progress`` and ``core.bucketing`` each
 open by naming the several callers that must agree on them.
 
-Why the two callers must not each roll their own idleness test (tripl-0zpq.72)
+Why the two callers must not each roll their own idleness test
 ------------------------------------------------------------------------------
 The tick is what keeps the newest ``EventMetric`` bucket moving. While it is
 paused that bucket freezes, so ``collection_progress_to`` — the resume point the

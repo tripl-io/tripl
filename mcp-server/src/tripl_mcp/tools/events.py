@@ -45,7 +45,7 @@ async def list_events(
             search=search,
             # Widened because the shared builder takes an invariant `list[str]`;
             # the scalar `order_by` needs no such call, since a Literal member
-            # already IS a str (tripl-i0vd).
+            # already IS a str.
             status=as_strings(status),
             tag=tag,
             field_value=field_value,
@@ -64,8 +64,7 @@ async def list_events(
     # The TRIM is this consumer's context budget and stays here — `tripl events
     # list --json` carries the same rows verbatim, because a pipe pays no
     # per-token cost. The ENVELOPE is not: `{items, total}` is what the route
-    # answers, so it is read through the shared layer both surfaces share
-    # (tripl-i1dt).
+    # answers, so it is read through the shared layer both surfaces share.
     return {
         "items": [trim(item, EVENT_LIST_FIELDS) for item in page_items(data)],
         "total": page_total(data),

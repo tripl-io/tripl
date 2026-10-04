@@ -220,7 +220,7 @@ export function FieldValuesCard({
         // Create stays blocked until it is filled. Marking only `is_required`
         // made the form's own marks disagree with what it enforces — on
         // acme-ios's `se` type none of the three columns that build the name
-        // carries the flag (tripl-u2h9.4).
+        // carries the flag.
         const required = f.is_required || namesEvent
         const value = fieldValues[f.id] ?? ''
         const inputId = `field-${f.id}`

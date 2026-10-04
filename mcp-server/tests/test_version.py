@@ -2,7 +2,7 @@
 
 Mirrors cli/tests/test_cli.py's TestVersion: pyproject is the single source and
 importlib.metadata is the only reader, so a bump can never reach the wheel while
-leaving the User-Agent or the --help banner behind (tripl-ey6j.7).
+leaving the User-Agent or the --help banner behind.
 """
 
 from __future__ import annotations

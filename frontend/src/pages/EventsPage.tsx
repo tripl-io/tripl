@@ -359,7 +359,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
 
   // Lives on the page, not in EventsTable: the off-screen column count it
   // measures is reported by the toolbar's Columns chip, which renders above the
-  // table (tripl-u1ib).
+  // table.
   const { tableRef, offscreenColumnCount } = useEventsTableOverflow()
 
   const {
@@ -519,7 +519,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
 
   // `null` is a value here, not an absence: the bulk patch keys off which fields
   // were SENT, so `owner_id: null` clears the owner across the selection and an
-  // omitted `owner_id` leaves it alone (tripl-0zpq.276).
+  // omitted `owner_id` leaves it alone.
   const handleBulkAssignOwner = useCallback((userId: string | null) => {
     void runBulkUpdate(
       { owner_id: userId },
@@ -568,7 +568,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
 
   // CSV of the WHOLE filtered view, not just the pages scrolled so far: the
   // catalog runs to thousands of events and the only previous way out of it was
-  // a "soon" badge (tripl-evbw). Server filters + sort come from the same
+  // a "soon" badge. Server filters + sort come from the same
   // paging helper "select all matching" uses; the per-column field/meta filters
   // are client-side, so they are re-applied to the fetched rows here.
   const [isExporting, setIsExporting] = useState(false)
@@ -638,8 +638,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
     events,
     eventSignals,
     // Sparkline metrics are fetched only for the rows on screen: filling the
-    // column for every accumulated row was the events page's dominant cost
-    // (tripl-jfm3.51).
+    // column for every accumulated row was the events page's dominant cost.
     virtualItems,
   })
 
@@ -660,7 +659,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   //
   // Also gate on the events query having SETTLED: `total` is 0 while it loads, so
   // without this a populated project would flash the minimal toolbar on every
-  // cold load before snapping to the full one (tripl-yfsj.12). `total` is the
+  // cold load before snapping to the full one. `total` is the
   // branch-aware server count (not the main-branch project summary), so this stays
   // correct on working branches; the one accepted edge is an archived-only "all"
   // tab reading 0, recoverable via the tab bar.
@@ -945,8 +944,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
               onToggleExpandedCell={onToggleExpandedCell}
               onRowAction={onRowAction}
               // Lets a zero-row table explain which query came back empty
-              // instead of always offering "create your first event"
-              // (tripl-jfm3.30).
+              // instead of always offering "create your first event".
               emptyContext={{
                 activeTab,
                 hasActiveFilters,

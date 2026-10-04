@@ -56,7 +56,7 @@ class ProjectAnomalySettings(UUIDMixin, Base):
         default=DEFAULT_RECENT_SIGNAL_WINDOW_HOURS,
         server_default="24",
     )
-    # Ingestion-settling allowance (tripl-jfm3.79): the newest buckets of a
+    # Ingestion-settling allowance: the newest buckets of a
     # freshly collected series are held back from anomaly EMISSION for this many
     # wall-clock minutes, because a warehouse keeps delivering rows for a bucket
     # after its clock interval closes. Server default 120 reproduces the module

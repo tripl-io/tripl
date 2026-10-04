@@ -283,7 +283,7 @@ describe('FactTableForm', () => {
     expect(factTablesApi.create).not.toHaveBeenCalled()
   })
 
-  it('preview keeps saved identifier picks and only adds new suggestions (tripl-4qfr)', async () => {
+  it('preview keeps saved identifier picks and only adds new suggestions', async () => {
     const columns = [
       { name: 'paid', type: 'string' },
       { name: 'android', type: 'string' },

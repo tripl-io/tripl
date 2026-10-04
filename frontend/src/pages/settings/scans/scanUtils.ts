@@ -14,7 +14,7 @@ export interface ScanRunInfo {
  * Run info for a scan whose job list has not arrived yet. "Never run" is a
  * verdict, not a placeholder: coercing the in-flight query to `[]` made every
  * row claim it had never run while the activity rail on the same screen listed
- * completed runs (tripl-jfm3.28). Callers pass `undefined` for a loading query
+ * completed runs. Callers pass `undefined` for a loading query
  * and get the neutral `unknown` state instead.
  */
 export const LOADING_SCAN_RUN_INFO: ScanRunInfo = {
@@ -250,7 +250,7 @@ export interface ScanChange {
  * Summarise what a completed job actually changed (events written, metric rows,
  * signals, alerts). Returns only the non-zero deltas, so a scan/collection that
  * finishes can show "+N events · +N metric points · +N signals" instead of leaving the
- * user guessing whether anything happened (tripl-2su6.9). Empty for jobs that
+ * user guessing whether anything happened. Empty for jobs that
  * are unfinished or produced no changes.
  */
 export function summarizeScanChanges(job: ScanJob | null): ScanChange[] {
@@ -265,7 +265,7 @@ export function summarizeScanChanges(job: ScanJob | null): ScanChange[] {
   push(summary.events_created, 'event', 'events', 'success')
   // These are time-series POINTS collected, not metric definitions created.
   // Calling them "metrics" made an ordinary scan read as "+2000 metrics" — as
-  // though it had just defined two thousand metrics (tripl-2gtk). One formula,
+  // though it had just defined two thousand metrics. One formula,
   // shared with the detail page's stat card.
   push(jobMetricPoints(job) || undefined, 'metric point', 'metric points', 'info')
   push(summary.variables_created, 'property', 'properties', 'info')
@@ -278,7 +278,7 @@ export function summarizeScanChanges(job: ScanJob | null): ScanChange[] {
 // Active (pending/running) jobs at the head are skipped so an in-flight retry
 // does not reset the count; the streak stops at the first settled non-failed run.
 // Used to collapse a wall of identical failed rows into one "failed last N runs"
-// indicator (tripl-7l83.4).
+// indicator.
 export function consecutiveFailedRuns(jobs: ScanJob[]): number {
   let streak = 0
   for (const job of jobs) {

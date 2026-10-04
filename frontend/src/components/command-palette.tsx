@@ -50,7 +50,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
   // Whoever asked for the palette, so Esc can hand focus straight back. Ctrl+K
   // is a window-level shortcut, so on a freshly loaded page nothing is focused
   // and Radix's own restore target is <body> — the next Tab then restarts the
-  // sidebar from stop 1 (tripl-jfm3.68).
+  // sidebar from stop 1.
   const openerRef = useRef<HTMLElement | null>(null)
   // Set when a command closes the palette by navigating; read by the restore.
   const navigatedRef = useRef(false)

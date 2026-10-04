@@ -14,10 +14,10 @@ import { at } from '@/test/at'
 
 /**
  * The two lists are one module because the WORDING and the wire values must not
- * drift between surfaces (tripl-oxkt.7) — and they are two lists, not one, for a
+ * drift between surfaces — and they are two lists, not one, for a
  * reason the type system enforces and these tests pin behaviourally.
  */
-describe('mute presets are durations, and only durations (tripl-a50u)', () => {
+describe('mute presets are durations, and only durations', () => {
   it('holds only finite positive durations, and never the open-ended option', () => {
     // All three mute surfaces map MUTE_PRESETS. Folding the open-ended choice
     // into it — the obvious "simplification" — grows a button on the two RULE
@@ -70,7 +70,7 @@ describe('a choice resolves to what goes on the wire', () => {
 
 /**
  * A choice resolves to WORDS as well as to a wire value, and this block is
- * where those words are pinned in English (tripl-yapg).
+ * where those words are pinned in English.
  *
  * THIS FILE IS THE ORACLE. Every expectation below is a literal string, and
  * deliberately so: the three surfaces now build their `aria-label`s by calling
@@ -89,7 +89,7 @@ describe('a choice resolves to what goes on the wire', () => {
  * `toContain` assertions below cannot pass for the wrong reason and a name
  * built from it is safe to feed to `new RegExp`.
  */
-describe('a choice resolves to the sentence a screen reader announces (tripl-yapg)', () => {
+describe('a choice resolves to the sentence a screen reader announces', () => {
   const TARGET = 'checkout'
 
   it('words all four shared forms, once, here', () => {
@@ -124,7 +124,7 @@ describe('a choice resolves to the sentence a screen reader announces (tripl-yap
     // `MUTE_PRESETS`' `ms: number` a real type guard rather than a coincidence —
     // a builder taking a label string could be handed INDEFINITE_MUTE.label by
     // a rule surface, and `is_rule_muted()` reads the value that button writes
-    // as NOT MUTED (tripl-a50u).
+    // as NOT MUTED.
     expect(muteChoiceName(TARGET, { label: 'Until I unmute', ms: 3_600_000 })).toBe(
       'Mute checkout for Until I unmute',
     )
@@ -158,7 +158,7 @@ describe('a choice resolves to the sentence a screen reader announces (tripl-yap
     // activate it. That is the accepted cost of not writing "for Until I
     // unmute", and it is confined to exactly one choice on exactly one surface.
     // A fifth form must either satisfy the loop above or be added here,
-    // visibly, with a reason (tripl-yapg).
+    // visibly, with a reason.
     expect(muteChoiceName(TARGET, INDEFINITE_MUTE)).not.toContain(INDEFINITE_MUTE.label)
     expect(INBOX_MUTE_CHOICES.filter(choice => choice.ms === null)).toHaveLength(1)
   })

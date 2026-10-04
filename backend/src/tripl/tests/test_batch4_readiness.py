@@ -1,4 +1,4 @@
-"""A distribution drift the dispatcher would skip is not readiness (tripl-0zpq.166).
+"""A distribution drift the dispatcher would skip is not readiness.
 
 ``load_scope_readiness`` answers "has this project any source data for this scope
 at all", and the distribution half answered it by counting ANY collected

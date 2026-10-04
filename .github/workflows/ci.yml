@@ -35,7 +35,7 @@ jobs:
       # way `make lint-be` resolves it. A hand-written `src/` here is how CI and
       # the Makefile drifted apart — CI passed while alembic/versions sat
       # unformatted, until someone formatted it explicitly and 12 migrations
-      # rewrote in one PR (tripl-ln1k).
+      # rewrote in one PR.
       - name: Ruff
         run: |
           uv run ruff check
@@ -53,7 +53,7 @@ jobs:
       # per process), so tests stay isolated. worksteal rebalances the long demo
       # and anomaly tests that would otherwise pile up on one worker. The final
       # summary line still counts every selected test: compare it with
-      # `pytest --collect-only -q` under the same -m expression (tripl-la1i).
+      # `pytest --collect-only -q` under the same -m expression.
       #
       # Coverage measures through sys.monitoring ([tool.coverage.run] core =
       # "sysmon"): under the C settrace tracer this step took ~22 minutes, under
@@ -299,8 +299,7 @@ jobs:
   # for exactly that reason — so `postgres_lexical_search`'s ts_rank_cd/trigram/boost
   # arithmetic, `merge_results`, and the `tripl_search` text-search configuration were
   # executed by nothing, and any weight in them could be changed without a single test
-  # noticing. This job ranks a fixed corpus with the real SQL on a real PostgreSQL
-  # (tripl-338u).
+  # noticing. This job ranks a fixed corpus with the real SQL on a real PostgreSQL.
   #
   # NO case is xfailed today. The harness and the four ranking fixes landed together in
   # one commit, so the "delete an xfail to prove the fix" workflow the case table
@@ -836,7 +835,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # A real browser against the dev stack (tripl-fj5g.1): the whole pipeline a
+  # A real browser against the dev stack: the whole pipeline a
   # visitor drives, worker and synthetic warehouse included. The stack is the
   # one `compose.dev.yaml` gives a developer, with sign-up rate limits off so
   # every test can sign up an account of its own.

@@ -5,7 +5,7 @@ in it reads as "the author did this". Two kinds of removal are not that. A scan
 mints a variable for every JSON key it meets, including keys typed by users —
 on production a branch with two authored events showed seven removed variables
 named after cities, all "Auto-detected variable from data source scan", none
-bound, documented or referenced (tripl-kjhi.12). And a removal main has ALSO
+bound, documented or referenced. And a removal main has ALSO
 made since the branch was cut is nothing the merge will do. Both are tagged
 here with a reason, kept out of the headline counts, and folded into one line
 by the UI; the entries themselves stay in the response, so nothing is hidden.
@@ -39,7 +39,7 @@ def _bindings_are_the_scans(before: dict[str, Any]) -> bool:
     (``core.variable_retirement._human_claim`` reads it the same way). Requiring
     NO bindings matched no scan-minted row at all: only a variable made through
     the API, or a base serialised before bindings existed, so the very rows this
-    rule was written for stayed in the reviewer's counts (tripl-0zpq.138). A
+    rule was written for stayed in the reviewer's counts. A
     payload without the key predates bindings, and is read as the scan's.
     """
     bindings = before.get("bindings")
@@ -53,7 +53,7 @@ def _name_is_the_scans(before: dict[str, Any]) -> bool:
     """Whether the name is one the scan could have given this variable.
 
     A person's rename is a mark like any other — the retirement sweep keeps a
-    renamed row for exactly that reason (tripl-bwo8) — and ``source_name`` is
+    renamed row for exactly that reason — and ``source_name`` is
     what the scan named it by. A row without one has no scan-written name to
     compare against.
     """
@@ -141,7 +141,7 @@ def note_references(entries: Iterable[PlanDiffEntry], new_payload: dict[str, Any
     branch deleting a live ``session_time`` read as "unused scan variable
     retired", out of the counts and past the merge's "deletes variables from
     main" warning, while the merge deleted it on main with its observed values
-    and drift history, and left ``${session_time}`` unresolved (tripl-0zpq.138).
+    and drift history, and left ``${session_time}`` unresolved.
     """
     removed = [
         entry
@@ -178,7 +178,7 @@ def mark_housekeeping(
     the old row looked like. ``snapshot_rename_pairs`` names the pairs the merge
     will make, but it needs main and runs after this; an identity carried by an
     addition is the superset of those pairs, so it can only keep a removal in
-    the counts, never hide one (tripl-0zpq.138). So can a reference: a
+    the counts, never hide one. So can a reference: a
     variable an event still names is in use, however scan-shaped the row —
     on the diff's new side (``note_references``), or on main, ``main_payload``.
     Main's events are read here because the merge deletes the variable THERE:

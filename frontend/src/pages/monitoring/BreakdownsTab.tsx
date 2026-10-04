@@ -267,7 +267,7 @@ export function BreakdownsTab({
 }
 
 // Legend-style toggles for the breakdown chart: when the selected column has
-// many values, click chips to isolate one or several series (tripl-egt5).
+// many values, click chips to isolate one or several series.
 // Empty selection = every value shown, and a single-value breakdown has
 // nothing to filter, so the row hides itself.
 function BreakdownValueChips({

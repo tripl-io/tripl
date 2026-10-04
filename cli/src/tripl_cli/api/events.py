@@ -73,7 +73,7 @@ def list_events(
     # (`EventFieldValue.value ILIKE %...%`) - the same shape `meta_value` has,
     # on the other half of an event's content. It shipped with the route in
     # PR #78 and was never mirrored here, so no shell and no agent could ask
-    # "which events carry this value" (tripl-nhj0).
+    # "which events carry this value".
     field_value: str | None = None,
     meta_value: str | None = None,
     event_type_id: str | None = None,
@@ -81,7 +81,7 @@ def list_events(
     # Tri-state, exactly as the route declares it: True and False isolate the
     # two halves and OMITTING it means either. Not a spelling of `status` - an
     # event can be marked reviewed and still sit at status=in_review, which is
-    # why the route grew an axis of its own (tripl-invv).
+    # why the route grew an axis of its own.
     reviewed: bool | None = None,
     # Tri-state like `reviewed`, and for the same reason: True keeps only events
     # whose discussion still has an unanswered thread, False only those with

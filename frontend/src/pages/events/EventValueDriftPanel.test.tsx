@@ -96,7 +96,7 @@ describe('EventValueDriftPanel', () => {
     )
   })
 
-  it('collapses a drift snoozed into the future instead of calling it active (tripl-lh61)', async () => {
+  it('collapses a drift snoozed into the future instead of calling it active', async () => {
     // The backend drops a future-snoozed row from `get_open_drift_counts`, so
     // the variables table badge reads zero for it. This panel used to keep the
     // very same row in the warning-toned active list, with the full action row
@@ -138,7 +138,7 @@ describe('EventValueDriftPanel', () => {
     )
   })
 
-  it('lets a snooze lapse on a panel left open, without a remount (tripl-lh61)', async () => {
+  it('lets a snooze lapse on a panel left open, without a remount', async () => {
     // The panel's clock was `useState(() => Date.now())`, and a lazy initializer
     // runs once per mount. So a snooze that ran out while the panel sat open
     // went on reading as snoozed here — collapsed, with only Un-snooze on it —

@@ -28,12 +28,12 @@ if TYPE_CHECKING:
 # back the anomaly recalculation, the rule and cooldown state and every
 # delivery for every scope of that scan config, and because the cooldown never
 # committed the next tick failed identically for as long as the anomaly stayed
-# active (tripl-0zpq.253). SQLite ignores VARCHAR(n) entirely, which is why the
+# active. SQLite ignores VARCHAR(n) entirely, which is why the
 # suite never saw it.
 #
 # Widening the three columns was the alternative and was rejected for the
 # reason ``services/audit_service.py`` already records for this same bug one
-# table over (tripl-wkwv.10): a migration whose downgrade has to truncate live
+# table over: a migration whose downgrade has to truncate live
 # rows, for a display-only field. Display-only is checkable here — nothing keys
 # on the label. ``dispatch._correlation_group_id`` hashes the scope's PARTITION
 # (its scan config, or a literal for a project-global metric scope) with
@@ -93,7 +93,7 @@ class AlertDeliveryItem(UUIDMixin, Base):
     bucket: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     direction: Mapped[str] = mapped_column(db_enum(AnomalyDirection, "anomaly_direction"))
     # Floats: fractional catalog metrics deliver sub-unit actuals/deltas;
-    # count scopes keep writing whole numbers (tripl-68bc).
+    # count scopes keep writing whole numbers.
     actual_count: Mapped[float] = mapped_column(Float)
     expected_count: Mapped[float] = mapped_column(Float)
     absolute_delta: Mapped[float] = mapped_column(Float)
@@ -128,7 +128,7 @@ class AlertDeliveryItem(UUIDMixin, Base):
     #   item only if it has one (``_alerting_deliveries._INBOX_GROUP_SELECT``
     #   filters ``is_not(None)``), so while a group meant "2+ peers" a solitary
     #   alert never reached the inbox and could not be acknowledged, muted or
-    #   resolved at all — and solitary is the common case (tripl-jfm3.91).
+    #   resolved at all — and solitary is the common case.
     #   "Did this co-fire?" is therefore a peer COUNT within one delivery, which
     #   is what ``AlertDeliveryRow.buildCorrelationLabels`` counts before it
     #   letters a row, and never a test for this column being non-NULL.

@@ -148,7 +148,7 @@ class ScanConfigCreate(BaseModel):
     # A format is a short template like ``${action}_${object}``, but nothing was
     # enforcing that, so a long one passed validation here and failed in the
     # INSERT as a Postgres StringDataRightTruncation — a generic 500 for a body
-    # this layer had already accepted (tripl-0zpq.275).
+    # this layer had already accepted.
     event_name_format: str | None = Field(None, max_length=500)
     json_value_paths: list[str] = Field(default_factory=list)
     event_group_rules: list[EventGroupRule] = Field(default_factory=list)
@@ -286,7 +286,7 @@ def _normalize_scalar_columns(value: list[str], *, field_name: str) -> list[str]
 # The update fields whose ScanConfig column is NOT NULL, so an explicit ``null``
 # is a 422 naming the field and not a DB-level 500 out of
 # ``update_scan_config``'s generic ``setattr`` loop — see
-# ``schemas/not_null_update`` (tripl-0zpq.267). The four JSON list columns are in
+# ``schemas/not_null_update``. The four JSON list columns are in
 # the set because they are NOT NULL with a ``[]`` server default: "no columns" is
 # spelled ``[]``, never ``null``. ``event_type_id`` and every other field here is
 # nullable, where a null unbinds or clears the setting.
@@ -797,7 +797,7 @@ class ScanDryRunResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     # Name-format failures land here rather than failing the job: catching an
     # unknown-key format in a dry-run, instead of after 200 failed production
-    # runs, is the single highest-value thing this endpoint does (tripl-lpin).
+    # runs, is the single highest-value thing this endpoint does.
     errors: list[str] = Field(default_factory=list)
     name_warnings: list[ScanDryRunNameWarning] = Field(default_factory=list)
 

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { EventName } from './event-name'
 
 describe('EventName', () => {
-  // tripl-wkwv.5: acme-ios holds one event whose stored name is the empty
+  // acme-ios holds one event whose stored name is the empty
   // string, and this component returned it verbatim — so the enclosing <Link>
   // had no text, no accessible name and no clickable area.
   it('prints a placeholder for a name that would paint nothing', () => {

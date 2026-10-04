@@ -7,7 +7,7 @@ files that already match are left alone, files that differ are reported and
 kept, and the two compose commands run anyway, because "make the running stack
 match what is on disk" is the useful meaning of a re-run.
 
-WHAT IT DELIBERATELY DOES NOT DO (tripl-ey6j.3):
+WHAT IT DELIBERATELY DOES NOT DO:
 
 * It does not create the owner account, connect a data source or run the first
   scan. Two of those three are unreachable with an API key at all and the third
@@ -247,7 +247,7 @@ def refuse_loose_append(appending: FileWrite | None) -> None:
     secret is disclosed the moment it lands, and no later ``chmod`` un-discloses
     it. Refusing rather than tightening the mode ourselves keeps rule 2 of
     ``install/files.py`` intact - the file is the operator's - and costs them one
-    ``chmod`` they can see (tripl-jfm3).
+    ``chmod`` they can see.
     """
     if appending is None or not appending.secret:
         return
@@ -467,7 +467,7 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
                 # brought up in front of :8000 - so reading /auth/status here
                 # bought a ten-second stall against a URL the operator has just
                 # told us not to try, and then printed a "could not be read"
-                # line about an attempt nobody asked for (tripl-jfm3).
+                # line about an attempt nobody asked for.
                 print(file=human)
                 print(render_next_steps(None, app_base_url, probed=False), file=human)
             elif health.ok:

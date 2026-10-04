@@ -560,7 +560,7 @@ def test_time_kind_of_reads_the_NATIVE_type(native_type: str, expected: TimeKind
     BigQuery time types into it. Passing it here collapses every BigQuery time
     column to ``TimeKind.timestamp`` and makes the DATE/DATETIME arms of
     ``quote_timestamp_literal`` unreachable, so the test encoded the bug rather
-    than the contract (tripl-0zpq.74).
+    than the contract.
     """
     assert time_kind_of("ts", {"ts": native_type}) is expected
 

@@ -169,7 +169,7 @@ const WORKSPACE_TITLE = 'All projects'
 
 // Concepts sits below the sidebar divider rather than inside the Plan / Observe
 // / Govern nav, so `resolveNavLocation` cannot name it. Without this it fell
-// through to the catch-all and claimed to be "Overview" (tripl-jfm3.35). The
+// through to the catch-all and claimed to be "Overview". The
 // area label matches the page's own eyebrow (ConceptsPage `PageHead`).
 const CONCEPTS_AREA = 'Help & reference'
 
@@ -184,7 +184,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
 
   // No invented root crumb: a path outside any project simply has no project
   // segment. The literal placeholder this used to emit read as an untranslated
-  // template leaking into the UI (tripl-jfm3.34).
+  // template leaking into the UI.
   // Plain strings are nav groups (not pages); a surface passes a Crumb with
   // its link (MO-13). The project crumb opens the project's home.
   const withProject = (...rest: (string | Crumb)[]): Crumb[] => {
@@ -264,8 +264,8 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   const navLocation = slug ? resolveNavLocation(slug, pathname) : null
   if (navLocation) {
     // A sub-surface names itself: the nav item it matched is its parent, not the
-    // page. Without the leaf, Detection settings presented itself as Anomalies
-    // (tripl-34tw). `leaf` is absent everywhere else, so nothing else moves.
+    // page. Without the leaf, Detection settings presented itself as Anomalies.
+    // `leaf` is absent everywhere else, so nothing else moves.
     return navLocation.leaf
       ? { crumbs: withProject(navLocation.area, nav(navLocation.label)), title: navLocation.leaf }
       : { crumbs: withProject(navLocation.area), title: navLocation.label }
@@ -279,7 +279,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   }
   // Nothing claimed this path, which is exactly what the catch-all route renders
   // NotFoundPage for — so the trail says so instead of naming a page ("Overview")
-  // the user is not on (tripl-jfm3.3 / .34).
+  // the user is not on (.34).
   return { crumbs: withProject(), title: 'Not found' }
 }
 
@@ -464,7 +464,7 @@ export default function Layout() {
 
   // Deciding this HERE, before the shell mounts, is what stops an invented slug
   // rendering a complete, working-looking project behind a dozen 404ing requests
-  // (tripl-jfm3.2) — the sidebar, activity rail, event stream and the routed page
+  // — the sidebar, activity rail, event stream and the routed page
   // all fan out from this component.
   //
   // Only a 404/403 means "no such project". Anything else — a 5xx, the network —
@@ -481,7 +481,7 @@ export default function Layout() {
 
   // A project the server does not show this user (deleted, or they are not a
   // member) must stop being the remembered "last project", or Settings and
-  // every later visit keep steering back to a 404 (tripl-vefw).
+  // every later visit keep steering back to a 404.
   useEffect(() => {
     if (projectMissing && slug) forgetLastProjectSlug(slug)
   }, [projectMissing, slug])
@@ -678,8 +678,8 @@ export default function Layout() {
                       "Reset" and "Delete" (those two owner-only), the strip's
                       CTA, "Dismiss". A keyboard user who asked to skip
                       the shell was therefore walked onto the demo's DESTRUCTIVE
-                      Delete before reaching the page they had opened
-                      (tripl-rinm). Nothing is hidden: the chrome is still in the
+                      Delete before reaching the page they had opened.
+                      Nothing is hidden: the chrome is still in the
                       tab order, reached forwards from the top bar or backwards
                       from here.
 

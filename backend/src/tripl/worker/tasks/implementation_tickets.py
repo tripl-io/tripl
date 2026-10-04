@@ -1,4 +1,4 @@
-"""Celery tasks for branch → implementation ticket automation (tripl-hgez).
+"""Celery tasks for branch → implementation ticket automation.
 
 ``create_implementation_ticket`` opens one Jira or Linear ticket (GH #258) for a
 merged branch, covering its added/changed events. ``sync_implementation_tickets``
@@ -241,7 +241,7 @@ async def _create_ticket(
     # SSRF re-check immediately before the outbound call (DNS-rebinding defense).
     _reject_private_target(base_url, field="Jira base_url")
 
-    # ASK BEFORE CREATING (tripl-l33u.15). The row is committed after the POST,
+    # ASK BEFORE CREATING. The row is committed after the POST,
     # and the worker runs acks_late with a hard time limit that SIGKILLs the
     # child — so a worker killed in between is redelivered, finds no row, and
     # used to open a SECOND Jira issue. Jira's create takes no idempotency key,
@@ -400,7 +400,7 @@ async def _persist_ticket(
         # between it and here; the constraint is what actually holds
         # one-ticket-per-branch. Both tracker issues exist by then — closing that
         # window needs tracker-side idempotency, which Jira's create does not
-        # offer (tripl-l33u.11) — but the loser must not also fail the merge that
+        # offer — but the loser must not also fail the merge that
         # enqueued it.
         await session.rollback()
         logger.warning(
@@ -491,7 +491,7 @@ async def _linear_ticket_done(
 async def _sync_tickets(session: AsyncSession) -> None:
     """Poll every open ticket, isolating failures to the ticket that caused them.
 
-    IDS, not ORM objects — and that is the whole fix (tripl-l33u.16).
+    IDS, not ORM objects — and that is the whole fix.
     ``rollback()`` expires every persistent instance in the identity map;
     ``expire_on_commit=False`` suppresses expiry on COMMIT and says nothing about
     rollback. So a loop holding loaded tickets across the handler below had the

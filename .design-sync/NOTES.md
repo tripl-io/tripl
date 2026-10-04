@@ -96,5 +96,5 @@ Deps staged in `.ds-sync/node_modules` (esbuild, ts-morph, @types/react, @tailwi
 - App composites are tied to live app code (contexts/api); their previews may break when that code changes.
 - Node engine mismatch against the pinned version — harmless so far; watch on re-clone.
 
-- 2026-09-25: Sheet, ScrollArea and ThemeToggle were deleted from the app in a7b11905 (#229); removed from the entry barrel, componentSrcMap, dtsPropsFor, overrides and previews (tripl-05cr). 52 carded components (ActivityPanel stays uncarded).
+- 2026-09-25: Sheet, ScrollArea and ThemeToggle were deleted from the app in a7b11905 (#229); removed from the entry barrel, componentSrcMap, dtsPropsFor, overrides and previews. 52 carded components (ActivityPanel stays uncarded).
 - 2026-09-25 re-sync (first since the initial import): 44 changed components, the shared bundle, styles, fonts and vendor files written; the three removed components' 15 files deleted; _ds_sync.json written last. Render check before the push: 52/52 clean (44 authored, 8 floor cards). list_files output can come back truncated — confirm a path with get_file before concluding it is missing.

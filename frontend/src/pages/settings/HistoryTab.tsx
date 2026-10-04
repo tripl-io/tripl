@@ -217,7 +217,7 @@ export function HistoryTab({ slug }: { slug: string }) {
       {/* 2:3, not 1:2. A revision's identity is its summary — product-generated
           ones read "Base snapshot for branch '<name>'" (~300px) — and at 1fr the
           list card was ~250px, clipping the branch name mid-word while the diff
-          card next to it held one empty-state sentence in ~590px (tripl-lzge). */}
+          card next to it held one empty-state sentence in ~590px. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <Card>
           <CardContent className="p-0">
@@ -420,7 +420,7 @@ function RevisionRow({
               still overran it, so one `truncate` line clipped to "Base snapshot
               for branch 'feature/checkout-f…" — losing the branch name, which
               is the only identity the row carries and the only thing on the
-              page that names it (tripl-lzge). Two lines hold roughly 90
+              page that names it. Two lines hold roughly 90
               characters; `break-words` keeps an unbroken branch name inside the
               card, and the tooltip stays as the fallback for a summary longer
               than that. */}
@@ -432,7 +432,7 @@ function RevisionRow({
           </div>
           {/* One `truncate` line rather than a wrapping one: as flowing text the
               metadata broke mid-list and left a dangling "·" as the last glyph
-              of a line, which reads as a formatting fault (tripl-lzge). At
+              of a line, which reads as a formatting fault. At
               ~10px the whole string is ~280px and fits; the ellipsis is the
               fallback, and `title` keeps it readable either way. */}
           <div className="truncate text-micro text-fg-tertiary tnum" title={metaLine}>

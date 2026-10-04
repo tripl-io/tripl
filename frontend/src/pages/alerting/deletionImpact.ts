@@ -9,7 +9,7 @@ import { countOf } from '@/lib/plural'
  * mutes and the notes an operator typed on those incidents. The confirm used to
  * read `Delete "TG"?` and named none of it; on production that single button
  * would have destroyed 115 deliveries and 57 incidents, irreversibly and with no
- * export (tripl-oxkt.13).
+ * export.
  *
  * It lives in its own module because the rule confirm (DestinationCard), the
  * destination control (DestinationsSection) and the destination confirm on the

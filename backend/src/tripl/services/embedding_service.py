@@ -59,7 +59,7 @@ def sanitize_embedding(values: list[float]) -> list[float]:
 
 
 def embeddings_url(config: AiConfig | None = None) -> str:
-    """The embeddings endpoint ``config`` posts to (tripl-0tt4).
+    """The embeddings endpoint ``config`` posts to.
 
     ``None`` is the operator's endpoint (``SEARCH_EMBEDDING_BASE_URL``); an
     organization's config carries its own (F20 PR10).
@@ -222,7 +222,7 @@ def embed_texts(texts: list[str], *, config: AiConfig, timeout: float = 30) -> l
         logger.exception("Search embedding request failed")
         return []
 
-    # A 200 is not a promise of a parseable body (tripl-l33u). The endpoint is
+    # A 200 is not a promise of a parseable body. The endpoint is
     # operator-configurable, so a gateway in front of a self-hosted provider can
     # answer 200 with an HTML error page (JSONDecodeError, a ValueError), bytes
     # that are not UTF-8 at all (UnicodeDecodeError, also a ValueError — which is

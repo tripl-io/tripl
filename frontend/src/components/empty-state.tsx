@@ -29,7 +29,7 @@ export function EmptyState({
   size?: EmptyStateSize
   /**
    * 2 by default: a page-level empty state sits directly under the page's h1,
-   * so h3 opened a 1→3 gap in the outline (tripl-jfm3.69). 3 (or 4) inside a
+   * so h3 opened a 1→3 gap in the outline. 3 (or 4) inside a
    * card or panel that already has its own heading (DS-16).
    */
   headingLevel?: 2 | 3 | 4

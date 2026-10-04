@@ -99,7 +99,7 @@ async def test_unhandled_exception_returns_generic_500_with_request_id() -> None
 async def test_unhandled_exception_response_carries_request_id_and_security_headers() -> None:
     """A 500 is written by ServerErrorMiddleware, which wraps the app from
     outside every middleware, so nothing they add on the way out lands on this
-    response unless the handler reproduces it (tripl-qu9m).
+    response unless the handler reproduces it.
 
     The header set is compared against ``build_security_headers()`` rather than
     a literal list: a header added there must not be able to quietly skip the

@@ -128,7 +128,7 @@ def _pair(
         # release regression has one, so it defaults to None and every other
         # scope below leaves it there. It is shared rather than set on the item
         # alone because ``SimulatedRuleFiring`` grew the field in
-        # tripl-0zpq.158: the replay loads ``ReleaseRegression`` rows, which
+        # the replay loads ``ReleaseRegression`` rows, which
         # record both ends of the rollout overlap. Giving it to one side only
         # would fake a divergence the renderers no longer have.
         "window_from": window_from,
@@ -363,7 +363,7 @@ def test_the_release_line_names_the_rollout_window_on_both_sides() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.34 — what the WEEKLY PLAN DIGEST counts, and what it names.
+# what the WEEKLY PLAN DIGEST counts, and what it names.
 # ---------------------------------------------------------------------------
 
 # A fixed "now" so the seven-day window and the rows placed either side of it are
@@ -628,7 +628,7 @@ def test_a_scan_backed_anomaly_still_reads_exactly_as_it_did(
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.33 — WHO the weekly digest and the sunset alert go out to.
+# WHO the weekly digest and the sunset alert go out to.
 # ---------------------------------------------------------------------------
 
 

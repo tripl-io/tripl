@@ -55,7 +55,7 @@ function writeNote(selectedCount: number, text: string) {
   return box
 }
 
-describe('InboxBulkActionBar — a selection the server would refuse (tripl-gpfr)', () => {
+describe('InboxBulkActionBar — a selection the server would refuse', () => {
   it('acts normally at the cap itself, and says nothing about it', () => {
     // The boundary is inclusive on both sides of the wire: the server's
     // `max_length` admits exactly this many ids, so a bar that warned here would
@@ -113,13 +113,13 @@ describe('InboxBulkActionBar — a selection the server would refuse (tripl-gpfr
   })
 })
 
-describe('InboxBulkActionBar — the note the batch shares (tripl-saq1)', () => {
+describe('InboxBulkActionBar — the note the batch shares', () => {
   it('keeps the box out of the way until it is asked for, then hands it the caret', () => {
     // The bar is a floating strip over a queue; a permanently open editor on it
     // would be the widest thing on the page for every operator who only wanted
     // to acknowledge four rows. Opening it has to cost one click and no hunt —
     // reveal-then-go-find is most of what made writing a note feel like
-    // paperwork on the incident card (tripl-gwrd).
+    // paperwork on the incident card.
     renderBar(3)
     expect(screen.queryByRole('textbox')).toBeNull()
 

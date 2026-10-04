@@ -129,7 +129,7 @@ def _grid_population_filter(
     """``MetricValue`` rows on the metric's grid population.
 
     The rule and its reasoning live in :func:`tripl.metric_grid.grid_population_filter`,
-    shared with the detector (tripl-67he).
+    shared with the detector.
     """
     return grid_population_filter(
         MetricValue.scan_config_id, interval=interval, scan_config_id=scan_config_id
@@ -429,7 +429,7 @@ def _forecast_from_series(
         return []
     delta = get_interval(interval).delta
     # Floats, not ``round()``: ``SeriesPoint.count`` is float and the forecast is
-    # scale-aware (tripl-68bc), so a ratio series no longer collapses to all
+    # scale-aware, so a ratio series no longer collapses to all
     # zeros before it is fitted. The ``isfinite`` guard is belt-and-braces —
     # ``_densify_value_rows`` already drops non-finite buckets — because
     # ``round()`` on a NaN/inf raised out of this line and 500'd the page.
@@ -561,7 +561,7 @@ async def get_metric_series(
         ),
         # Override first, project setting behind it — the detector's two-step
         # for a ``metric`` scope, whose overrides are stored with no
-        # ``scan_config_id`` (tripl-4cgl).
+        # ``scan_config_id``.
         sigma_threshold=await _apply_scope_sigma_override(
             session,
             project_id=project.id,
@@ -598,7 +598,7 @@ async def _load_breakdown_value_rows(
 ) -> dict[tuple[str, bool], list[tuple[datetime, float]]]:
     """Per-segment value rows, SUMMED per bucket over the metric's grid population.
 
-    The same population as the Series tab's line (tripl-kom5): without the grid
+    The same population as the Series tab's line: without the grid
     filter a metric collected on two intervals summed the retired grid's
     segments in, so the Breakdowns and version tabs disagreed with the series
     line beside them. See :func:`tripl.metric_grid.grid_population_filter`.

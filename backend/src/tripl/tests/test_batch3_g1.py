@@ -1,4 +1,4 @@
-"""Small-sample guard for the distribution-drift PSI analyzer (tripl-0zpq.103).
+"""Small-sample guard for the distribution-drift PSI analyzer.
 
 Raw PSI is sample-size driven: under the null hypothesis (both windows drawn
 from the same mix) ``n_eff * PSI`` follows chi2(K-1). The fixed 0.1 / 0.25 bands

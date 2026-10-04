@@ -79,7 +79,7 @@ const SCAN_ERROR_RULES: ReadonlyArray<{ patterns: readonly RegExp[]; message: st
  * …"), so `client_errno` or `error_traceback_id` used to read as a raw exception
  * — the pass-through was then skipped, the text fell through to SCAN_ERROR_RULES
  * below, and a sibling column called `connection_id` mapped it to an actively
- * WRONG "could not connect to the data source" (tripl-3mmh). The `host=` / `port=`
+ * WRONG "could not connect to the data source". The `host=` / `port=`
  * / ` object at 0x` markers carry characters no SQL identifier has, so they stay
  * plain substrings. A column named EXACTLY `errno` still trips the guard: that is
  * the leak-proof side of the bargain, and it costs one generic message, never a

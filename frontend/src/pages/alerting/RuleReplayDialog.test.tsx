@@ -263,7 +263,7 @@ describe('RuleReplayDialog threshold overrides', () => {
     expect(screen.queryByText(/Slack\/Telegram/)).toBeNull()
   })
 
-  it('keeps a sub-unit baseline instead of replaying it as "0 vs 0" (tripl-nj4n)', async () => {
+  it('keeps a sub-unit baseline instead of replaying it as "0 vs 0"', async () => {
     // A `%` catalog metric stores a fraction (0.08 == 8%) and metrics are a
     // first-class rule scope, so Math.round emptied both columns of a replay row
     // whose Δ% beside them was computed from the real values.

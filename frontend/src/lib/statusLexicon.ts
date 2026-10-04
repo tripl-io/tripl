@@ -97,7 +97,7 @@ export const SCAN_RUN_STATUS: Record<RunPillStatus, StatusLexeme> = {
 // These deliberately do NOT reuse the MONITOR_STATUS words. Signals are raised
 // by detection and exist whether or not a monitor does, so labelling one
 // "Firing" put a firing verdict on 30 event rows of a project whose Monitors
-// page correctly read "No monitors yet" (tripl-jfm3.4). Firing/Warning/Healthy
+// page correctly read "No monitors yet". Firing/Warning/Healthy
 // stay reserved for monitors (alert rules).
 // ---------------------------------------------------------------------------
 export const SIGNAL_LEVEL = {

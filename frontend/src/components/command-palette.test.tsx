@@ -236,7 +236,7 @@ describe('CommandPalette', () => {
     expect(await screen.findByText('Demo')).toBeInTheDocument()
     // The sidebar's words, not a palette-only dialect: these rows used to read
     // "Event type settings", "Meta field settings", "Relation settings",
-    // "Variable settings" and "Monitoring settings" (tripl-m6cv).
+    // "Variable settings" and "Monitoring settings".
     expect(screen.getByText('Event types')).toBeInTheDocument()
     // Renamed for what it holds (#238 AU-10); the old name is a keyword.
     expect(screen.getByText('Meta fields')).toBeInTheDocument()
@@ -302,7 +302,7 @@ describe('CommandPalette', () => {
     fireEvent.click(screen.getByTestId('open-palette'))
     // Named as the page names itself. It is not a sidebar destination — the
     // Anomalies item claims the route by match — so it is listed by hand next to
-    // the other off-model destinations rather than derived (tripl-m6cv).
+    // the other off-model destinations rather than derived.
     fireEvent.click(await screen.findByText('Detection settings'))
 
     await waitFor(() => {
@@ -334,7 +334,7 @@ describe('CommandPalette', () => {
     expect(screen.queryByText('Service settings')).toBeNull()
   })
 
-  it('offers every sidebar destination, so the jump list cannot drift (tripl-m6cv)', async () => {
+  it('offers every sidebar destination, so the jump list cannot drift', async () => {
     // The hand-written list this replaces covered 8 of the sidebar's
     // destinations. Typing "anomalies" matched no row, so every static group
     // vanished and the query fell through to knowledge search — the user got
@@ -360,7 +360,7 @@ describe('CommandPalette', () => {
     expect(screen.getByText('Concepts')).toBeInTheDocument()
   })
 
-  it('does not offer a non-owner the owner-only destinations (tripl-m6cv)', async () => {
+  it('does not offer a non-owner the owner-only destinations', async () => {
     // The sidebar drops `ownerOnly` items because the route behind them 403s;
     // a palette that mapped the nav model without the same filter would hand an
     // editor a row straight into that wall.
@@ -517,7 +517,7 @@ describe('CommandPalette', () => {
     })
   })
 
-  it('marks only semantically matched results with a semantic chip (tripl-odrj.5)', async () => {
+  it('marks only semantically matched results with a semantic chip', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects')) {
@@ -597,7 +597,7 @@ describe('CommandPalette', () => {
     // Exactly the semantic_used row carries the chip — the lexical one does not.
     expect(screen.getAllByText('semantic')).toHaveLength(1)
     // ...and what the chip CLAIMS is about the keyword ranking, not about the
-    // keyword index (tripl-wkwv.3). The lexical leg is a LIMIT-ed scan, so a
+    // keyword index. The lexical leg is a LIMIT-ed scan, so a
     // weak match displaced from its window re-enters through the meaning leg
     // and carries this chip while containing the word that was typed — "no
     // keyword matched this" would be false on exactly that row.
@@ -609,7 +609,7 @@ describe('CommandPalette', () => {
     expect(chip.getAttribute('title')).not.toMatch(/no keyword matched/i)
   })
 
-  it('labels a nameless event result rather than rendering an empty row (tripl-wkwv.5)', async () => {
+  it('labels a nameless event result rather than rendering an empty row', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects')) return mockJsonResponse([demoProject()])
@@ -680,9 +680,9 @@ describe('CommandPalette', () => {
  * The palette used to hand every rendered row to cmdk's own fuzzy scorer, which
  * sorts AND re-appends the DOM nodes. These cover what turning that off has to
  * preserve, the one thing it exists to preserve, and the two list-empty states
- * it made reachable for the first time (tripl-k6gt).
+ * it made reachable for the first time.
  */
-describe('CommandPalette ranking and filtering (tripl-k6gt)', () => {
+describe('CommandPalette ranking and filtering', () => {
   /**
    * One row of a search response. `entityType` and `score` are parameters and
    * not constants on purpose, because both were constants once and both hid a
@@ -913,14 +913,14 @@ describe('CommandPalette ranking and filtering (tripl-k6gt)', () => {
     expect(screen.queryByText('No matches.')).toBeNull()
   })
 
-  it('keeps the fetched rows on screen while the next search is in flight (tripl-2x5d)', async () => {
+  it('keeps the fetched rows on screen while the next search is in flight', async () => {
     // The query key carries the debounced text, so each 200ms boundary minted a
     // key with no data and the list fell back to a single "Searching." line for
     // the whole round trip — measured at over 2.2s, during which the dialog held
     // zero selectable rows while the events table behind it listed the very rows
     // being searched for. Narrowing beats blanking.
     // Every query is two requests — the keyword-only leg and the full one
-    // (tripl-kjhi.15) — so the first query's pair answers and the second
+    // — so the first query's pair answers and the second
     // query's pair never does.
     let searches = 0
     mockPalette({ id: 'project-1', name: 'Demo', slug: 'demo' }, async () => {
@@ -961,14 +961,14 @@ describe('CommandPalette ranking and filtering (tripl-k6gt)', () => {
     expect(screen.queryByText('Searching.')).toBeNull()
   })
 
-  it('does not hand the previous search’s rows to an unrelated one (tripl-2x5d)', async () => {
+  it('does not hand the previous search’s rows to an unrelated one', async () => {
     // The palette is mounted for the life of the page — only the dialog unmounts
     // — so React Query's observer keeps the last rows it saw forever. Without a
     // record of which query they answer, "checkout"'s results came back under
     // "Updating results…" for every later search, dimmed but selectable: Enter
     // navigated to a checkout result while the input read something else.
     // Every query is two requests — the keyword-only leg and the full one
-    // (tripl-kjhi.15) — so the first query's pair answers and the second
+    // — so the first query's pair answers and the second
     // query's pair never does.
     let searches = 0
     mockPalette({ id: 'project-1', name: 'Demo', slug: 'demo' }, async () => {
@@ -1120,7 +1120,7 @@ describe('CommandPalette focus restore', () => {
     renderHarness('/p/demo/events')
 
     // Nothing focused: exactly the state a global Ctrl+K on a fresh page leaves,
-    // where Radix would restore focus to <body> (tripl-jfm3.68).
+    // where Radix would restore focus to <body>.
     ;(document.activeElement as HTMLElement | null)?.blur()
     expect(document.activeElement).toBe(document.body)
 
@@ -1162,7 +1162,7 @@ describe('CommandPalette focus restore', () => {
   })
 })
 
-describe('CommandPalette keyword-first results (tripl-kjhi.15)', () => {
+describe('CommandPalette keyword-first results', () => {
   const PROJECT = {
     id: 'project-1',
     name: 'Demo',

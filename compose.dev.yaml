@@ -36,7 +36,7 @@ x-backend-environment: &backend-environment
   DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS: ${DISTRIBUTION_DRIFT_MINOR_RETENTION_DAYS:-30}
   PHOTO_ORPHAN_SWEEP_GRACE_HOURS: ${PHOTO_ORPHAN_SWEEP_GRACE_HOURS:-24}
   # Demo kill switches: DEMO_ENABLED gates provisioning (create + reset),
-  # DEMO_RUNTIME_ENABLED gates the background freshness tick (tripl-2su6.16).
+  # DEMO_RUNTIME_ENABLED gates the background freshness tick.
   DEMO_ENABLED: ${DEMO_ENABLED:-true}
   DEMO_RUNTIME_ENABLED: ${DEMO_RUNTIME_ENABLED:-true}
   # Outbound email. Blank by default, so the dev stack still sends nothing
@@ -304,8 +304,7 @@ services:
   #   docker compose -f compose.dev.yaml --profile mcp up
   mcp:
     # Context is the repo root, not ./mcp-server: tripl-mcp builds against the
-    # sibling `tripl` package in ./cli, which a mcp-server/ context cannot see
-    # (tripl-ey6j.1).
+    # sibling `tripl` package in ./cli, which a mcp-server/ context cannot see.
     build:
       context: .
       dockerfile: mcp-server/Dockerfile

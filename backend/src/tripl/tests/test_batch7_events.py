@@ -1,49 +1,49 @@
 """Batch 7, lane A — the events domain core.
 
-tripl-0zpq.123: nothing checked that ``event_type_id`` (or
+nothing checked that ``event_type_id`` (or
 ``meta_field_definition_id``) belongs to the project AND branch the event is
 written to, so a row authored on a branch against main's type held MAIN's scan
 identity and quietly intercepted main's field values, contexts and metrics.
 
-tripl-0zpq.124: on a branch, "Silent > N days" and "Busiest first" read the
+on a branch, "Silent > N days" and "Busiest first" read the
 COPY's frozen ``last_seen_at`` and its nonexistent metric rows, while the Last
 seen column beside them showed the main twin's live value.
 
-tripl-0zpq.125: a JSON token the scan writes raw — a display-name collision
+a JSON token the scan writes raw — a display-name collision
 fallback, an excluded path, a legacy variable — failed the web form's
 identifier-grammar check, so every later save of that event returned 422.
 
-tripl-0zpq.130: the ``scan_identity`` create skipped name generation but still
+the ``scan_identity`` create skipped name generation but still
 enforced required field values, which a shadow candidate can never carry, so
 Reconciliation → Accept 422'd on any event type with one required field.
 
-tripl-0zpq.254: ``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
+``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
 deleting a bound event type turns its config project-wide and its name format
 starts governing every type nothing else binds.
 
-tripl-0zpq.126: only the web form lower-cased a tag, so every other door stored
+only the web form lower-cased a tag, so every other door stored
 the spelling it was handed — invisible to the ``?tag=`` equality the docs
 promise — and a repeated or over-long tag reached the database as a 500.
 
-tripl-0zpq.127: the bulk paste took the same ``EventCreate`` the single create
+the bulk paste took the same ``EventCreate`` the single create
 takes and then dropped ``owner_id`` and ``reviewed`` on the floor, so one
 payload meant two different things depending on which door it came through.
 
-tripl-0zpq.190: ``PATCH`` with ``metric_breakdown_columns: null`` assigned None
+``PATCH`` with ``metric_breakdown_columns: null`` assigned None
 to a NOT NULL column and then reached ``" ".join(None)`` in the search document
 builder inside the same transaction, so the save rolled back as a 500 instead of
 clearing the list.
 
-tripl-0zpq.255: the previous schema took the unbounded meta value into a unique btree,
+the previous schema took the unbounded meta value into a unique btree,
 where an entry over 2704 bytes is ProgramLimitExceeded — a 500 on the event save
 for a value that stored fine while the key was the two uuids alone.
 
-tripl-0zpq.129: the template-warning pass selected the mapped ``Variable``, so
+the template-warning pass selected the mapped ``Variable``, so
 every event create and PATCH pulled the branch's whole variable graph — each
 ``value_contexts`` row with its JSON values, and each of those rows' field
 definition — across the async request path to read three scalars.
 
-tripl-0zpq.276: ``EventBulkUpdate`` judged "was anything provided?" by the
+``EventBulkUpdate`` judged "was anything provided?" by the
 values rather than the fields sent, so a bulk ``owner_id: null`` was a 422 on
 its own and was dropped in silence beside another field — the one clearing the
 API offered could not be spelled, while the same body on metrics unassigns.

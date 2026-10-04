@@ -86,7 +86,7 @@ def requeue_stranded_org_deletions() -> dict[str, object]:
     name="tripl.worker.tasks.org_delete.retire_idle_organizations",
 )
 def retire_idle_organizations() -> dict[str, object]:
-    """Delete organizations nobody has used for ``IDLE_ORG_RETENTION_DAYS`` (tripl-sav5.5).
+    """Delete organizations nobody has used for ``IDLE_ORG_RETENTION_DAYS``.
 
     Off unless the setting is above zero on a hosted instance. Each one goes
     through the owner-delete purge; a purge that cannot be queued now is picked

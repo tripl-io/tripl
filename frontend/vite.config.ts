@@ -125,7 +125,7 @@ export default defineConfig({
     // bun), because pnpm appended the flag after vitest's own `--` passthrough
     // separator and cac filed it into args['--'] without either applying or
     // rejecting it. The run then
-    // looks capped while executing at full concurrency (tripl-jfm3.87). Set
+    // looks capped while executing at full concurrency. Set
     // here, it cannot be bypassed by how the suite happens to be invoked.
     maxWorkers: process.env.CI ? undefined : 2,
     // `bun run test:coverage` (CI runs it in place of `bun run test`, same test set).
@@ -156,7 +156,7 @@ export default defineConfig({
         statements: 89,
         functions: 84,
         branches: 85,
-        // Per-directory floors (tripl-fj5g.2), so a coverage drop in these
+        // Per-directory floors, so a coverage drop in these
         // directories cannot hide behind the app-wide average. src/lib is pure
         // logic with no DOM to excuse a gap.
         'src/lib/**': {

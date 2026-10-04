@@ -583,7 +583,7 @@ def test_truncation_names_the_partly_examined_project_and_spares_the_complete_on
     unevenly by construction: here beta's one event type fits and alpha is read a
     third of the way. If alpha's unread part holds the accepted missing_field
     drift that deleted a FieldDefinition, "we did not look there" has to name
-    alpha - and must not smear beta, which was read in full (tripl-ey6j.9).
+    alpha - and must not smear beta, which was read in full.
     """
     tripl_api.projects([make_project("alpha"), make_project("beta")])
     for slug, type_ids in (("alpha", ["et-1", "et-2", "et-3"]), ("beta", ["et-9"])):

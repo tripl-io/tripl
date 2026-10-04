@@ -97,7 +97,7 @@ export interface SearchResult {
   score: number
   /**
    * How certain this result is, in [0, 1] — an ABSOLUTE property of the result,
-   * NOT a fraction of the response's top hit (tripl-txcz). Comparable across two
+   * NOT a fraction of the response's top hit. Comparable across two
    * different searches: a query that matched nothing well comes back low on
    * every item instead of being 1.0 by construction. See
    * `schemas/search.py SearchResult.confidence` and
@@ -107,7 +107,7 @@ export interface SearchResult {
   highlights: string[]
   /**
    * Whether the MEANING LEG is why this row is here — the keyword leg's own
-   * ranked candidate window did not hold it (tripl-wkwv.3).
+   * ranked candidate window did not hold it.
    *
    * NOT "no keyword matched this": the keyword leg is itself a capped scan, so a
    * weak match (a stem-only one, which earns no exact-match tier) can be
@@ -134,7 +134,7 @@ export interface SearchResponse {
   /**
    * Hits IN THIS RESPONSE, not a catalog-wide count — `/search` takes no
    * `offset` and cannot be paged. Read `truncated`, not `total`, to learn
-   * whether anything was dropped (tripl-wkwv.3). With `group_variants` it and
+   * whether anything was dropped. With `group_variants` it and
    * `limit` count ROWS: a folded group is one, so its members never eat into
    * the page (#238 JR-20).
    */

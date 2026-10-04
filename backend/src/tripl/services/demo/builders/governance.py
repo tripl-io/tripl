@@ -56,7 +56,7 @@ _COVERAGE_DAYS = 14
 _COMPLETED_RUN_OFFSETS = (timedelta(hours=3), timedelta(hours=2), timedelta(hours=1))
 # Backfilled run duration: a floor plus time proportional to the rows scanned,
 # with a small deterministic jitter, so three consecutive runs do not all report
-# an identical wall time (bd tripl-jfm3.61).
+# an identical wall time.
 _RUN_DURATION_FLOOR = timedelta(seconds=2.4)
 _RUN_SECONDS_PER_1K_ROWS = 0.09
 _RUN_JITTER_SECONDS = 2.5
@@ -119,7 +119,7 @@ async def _build_scan_history(session: AsyncSession, ctx: DemoContext) -> None:
     #
     # Each run reports ITS OWN hour: window, row count and duration are all
     # derived from the run's own clock and the volume the seeded warehouse holds
-    # for that hour (bd tripl-jfm3.61). They used to be constants, so three
+    # for that hour. They used to be constants, so three
     # consecutive runs claimed the same future window, byte-identical millions of
     # rows and an identical 42.0s — next to a real Run now reporting ~30K rows.
     for offset in _COMPLETED_RUN_OFFSETS:
@@ -242,7 +242,7 @@ async def _build_shadow_candidates(session: AsyncSession, ctx: DemoContext) -> N
             # produce: reconciliation_service sets status, resolved_by and
             # resolved_at in one step. It also gives the audit builder the
             # instant to file its ``shadow_event.dismiss`` row at, so the row and
-            # the candidate name one moment rather than two (tripl-wkwv.14).
+            # the candidate name one moment rather than two.
             # Dated after the identity was last seen — you cannot wave away
             # traffic before it arrives.
             resolved_by=ctx.created_by,
@@ -265,8 +265,8 @@ async def _build_dead_event(session: AsyncSession, ctx: DemoContext) -> None:
         # no grace-period backdating is needed to surface this one. The row must
         # still be self-consistent — an event cannot be seen before it was
         # written down — so first-seen moves back only as far as the last
-        # sighting, not a further 30 days ahead of every other event
-        # (tripl-0zpq.245). ``created_at`` may come back from the database, and
+        # sighting, not a further 30 days ahead of every other event.
+        # ``created_at`` may come back from the database, and
         # SQLite drops the offset, so compare through ``to_utc`` — a naive value
         # cannot be compared with the aware ``last_seen`` at all.
         if to_utc(event.created_at) > last_seen:

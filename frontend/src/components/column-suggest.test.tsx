@@ -20,7 +20,7 @@ describe('ColumnSuggestInput disabled treatment', () => {
   /**
    * The metric form's column boxes carried their own `opacity: 0.6` knock-down,
    * the same cue that on the dark theme left a dead field 3/255 of fill and
-   * 7/255 of border from a live one — measurably no cue at all (tripl-91j6).
+   * 7/255 of border from a live one — measurably no cue at all.
    * The guard is deliberately not a restatement of the shared primitive's
    * values: it pins that a disabled box does not look like a live one, and that
    * it is not dimming to say so.

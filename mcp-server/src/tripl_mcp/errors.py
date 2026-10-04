@@ -1,6 +1,6 @@
 """Re-attach tripl-mcp's own guidance to the shared client's typed failures.
 
-The HTTP client moved into the `tripl` distribution (tripl-ey6j.1), which the
+The HTTP client moved into the `tripl` distribution, which the
 CLI also ships. It therefore cannot name this server's environment variables or
 its Bearer-header convention — the CLI resolves --url/--api-key and a config
 file, and a message telling a terminal user to "check the Bearer token sent to

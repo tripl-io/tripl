@@ -151,7 +151,7 @@ def test_a_metric_scope_keeps_one_project_wide_cooldown_clock() -> None:
     Live dispatch stores NO scan config on a ``metric``-scope state —
     ``AlertRuleState.scan_config_id`` is NULL — and the partial unique index
     ``uq_alert_rule_state_metric_scope`` over that NULL space is what gives the
-    series one clock per (rule, scope) for the whole project (tripl-0zpq.28).
+    series one clock per (rule, scope) for the whole project.
     Dispatch USED TO anchor it on the project's lowest config id instead; that
     anchor is gone, so there is no canonical config left for the replay to
     mirror. The replay therefore keys its cooldown on the SCOPE rather than on

@@ -235,7 +235,7 @@ describe('ActivityPanel', () => {
     expect(screen.queryByRole('button', { name: /events implemented/ })).not.toBeInTheDocument()
   })
 
-  it('counts a burst of scan items as runs, not as scans (tripl-3y7z)', async () => {
+  it('counts a burst of scan items as runs, not as scans', async () => {
     // Three RUNS of ONE nightly scan, retried in quick succession. The old
     // summary read "3 scans completed", so a project with a single scan appeared
     // to have three — a run counted as a scan, the noun the epic settled.

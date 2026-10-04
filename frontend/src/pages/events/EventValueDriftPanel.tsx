@@ -36,12 +36,12 @@ export function EventValueDriftPanel({ slug, eventId }: { slug: string; eventId:
   // instant here and a different one three lines down — and it advances the
   // moment the nearest snooze runs out, so a snooze lapsing while the panel sits
   // open moves the row onto the active list by itself rather than waiting for a
-  // remount (tripl-lh61). The hook carries the timer and the reasoning.
+  // remount. The hook carries the timer and the reasoning.
   const now = useDriftReviewClock(items)
   const activeDrifts = items.filter(drift => driftReviewState(drift, now) === 'active')
   // Snoozed rows sit with the resolved ones, not with the active ones: the
   // backend's own count drops a future-snoozed row, so leaving it in the warning
-  // list made this panel contradict the variables table's badge (tripl-lh61).
+  // list made this panel contradict the variables table's badge.
   const snoozedDrifts = items.filter(drift => driftReviewState(drift, now) === 'snoozed')
   // Kept reachable rather than filtered away: a scan only reopens an accepted
   // row for values outside the accepted set, so undoing the acceptance itself
@@ -109,7 +109,7 @@ export function EventValueDriftPanel({ slug, eventId }: { slug: string; eventId:
                     snoozed or resolved — gets the single action that puts it
                     back on the open list, because acting on a drift the panel
                     has just said needs no attention should start by saying it
-                    does (tripl-lh61). Both readings post the same `reopen`. */}
+                    does. Both readings post the same `reopen`. */}
                 <div className="flex shrink-0 flex-wrap gap-1">
                   {state === 'active' ? (
                     <>

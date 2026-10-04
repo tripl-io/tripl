@@ -1,12 +1,12 @@
 """Batch 4, the dispatch lane: seven defects around the alert write path.
 
-tripl-0zpq.109 — the alert link base URL is resolved once, not once per link.
-tripl-0zpq.253 — every scope label fits the column it is stored in.
-tripl-0zpq.260 — the incident handle is documented as the thing it is.
-tripl-0zpq.157 — loading a scan config does not load its whole scan history.
-tripl-0zpq.28  — a metric scope's STATE and buffered rows store no scan config.
-tripl-0zpq.27  — and its incident HANDLE hashes no scan config either.
-tripl-0zpq.108 — the digest buffer holds one line per INCIDENT, and says so.
+the alert link base URL is resolved once, not once per link.
+every scope label fits the column it is stored in.
+the incident handle is documented as the thing it is.
+loading a scan config does not load its whole scan history.
+a metric scope's STATE and buffered rows store no scan config.
+and its incident HANDLE hashes no scan config either.
+the digest buffer holds one line per INCIDENT, and says so.
 
 The last three carry their write-ups at their own section headers below rather
 than here, because each pins a single connected argument and reading it beside
@@ -406,7 +406,7 @@ def _mint(
             (candidate.scope_type, candidate.scope_ref): f"scope-{index}"
             for index, candidate in enumerate(candidates)
         },
-        # Every anomaly carries one on the modern path (tripl-jfm3.91), which is
+        # Every anomaly carries one on the modern path, which is
         # what sends the typed row down the audit-URL branch.
         correlation_by_anomaly={id(candidate): uuid.uuid4() for candidate in candidates},
         scan_job_id=None,
@@ -504,7 +504,7 @@ def test_the_typed_items_and_the_frozen_snapshot_cannot_disagree_about_a_link(
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.253: the label an alert carries fits the column that stores it
+# the label an alert carries fits the column that stores it
 # --------------------------------------------------------------------------
 
 # 418 characters: over the 255-wide column, under the 500 ``schemas/event.py``
@@ -923,7 +923,7 @@ def test_no_event_merge_stores_a_scope_label_it_has_not_trimmed() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.260: the incident handle is documented as the thing it is
+# the incident handle is documented as the thing it is
 # --------------------------------------------------------------------------
 
 
@@ -1107,7 +1107,7 @@ def test_a_delivery_carrying_one_item_still_gets_a_handle_the_inbox_can_see(
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.157: a scan config load does not drag in its scan history
+# a scan config load does not drag in its scan history
 # --------------------------------------------------------------------------
 
 
@@ -1317,7 +1317,7 @@ def test_nothing_reads_the_scan_job_collection_off_an_instance() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.28: a metric scope is project-global, so its state and its
+# a metric scope is project-global, so its state and its
 # buffered alerts store NO scan config at all
 # --------------------------------------------------------------------------
 #
@@ -1442,7 +1442,7 @@ def _buffer_metric(
         scope_names={(_METRIC_SCOPE, scope_ref): "Signups"},
         # Exactly what dispatch computes, and through the same helper it calls:
         # a metric scope hashes NO config, so every scan of the project arrives
-        # at one handle (tripl-0zpq.27). Mirrored rather than hard-coded, so
+        # at one handle. Mirrored rather than hard-coded, so
         # this fixture cannot drift from the caller it stands in for.
         correlation_by_anomaly={
             id(candidate): metrics_dispatch._correlation_group_id(
@@ -2092,7 +2092,7 @@ def test_the_demo_builder_seeds_a_metric_state_with_no_scan_config() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.27: the metric scope's INCIDENT HANDLE hashes no scan config either
+# the metric scope's INCIDENT HANDLE hashes no scan config either
 # --------------------------------------------------------------------------
 #
 # tripl-0zpq.28 moved a metric scope's STATE row and its BUFFERED row onto a NULL
@@ -2404,7 +2404,7 @@ def test_no_call_site_hashes_a_scan_config_without_asking_the_partition() -> Non
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.108: a scope that flips direction ships one line per INCIDENT,
+# a scope that flips direction ships one line per INCIDENT,
 # and the prose finally says so
 # --------------------------------------------------------------------------
 #

@@ -58,7 +58,7 @@ function renderRow(variable: Variable) {
   )
 }
 
-// tripl-xv77.4: two unrelated silences used to print the same em-dash — nothing
+// two unrelated silences used to print the same em-dash — nothing
 // references the variable at all, versus every context that does came back
 // empty. Only the second is a fact about the scan, and only the second is worth
 // an operator's attention.

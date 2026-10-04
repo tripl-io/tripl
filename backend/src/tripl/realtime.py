@@ -1,4 +1,4 @@
-"""Project-scoped one-way realtime bus (tripl-2su6.8).
+"""Project-scoped one-way realtime bus.
 
 A completed scan / metric collection / demo tick publishes a small named event to
 a per-project Redis channel; the SSE endpoint (``GET /projects/{slug}/events/stream``)
@@ -212,7 +212,7 @@ async def read_resume_point(project_id: uuid.UUID, after_id: int | None) -> Resu
 
     One ``MULTI``: the sequence and the ring are read at the same instant, so no
     event published in between can trim a missed id out of the ring after the
-    sequence number has promised it (tripl-fj5g.17). A failed read reports
+    sequence number has promised it. A failed read reports
     ``seq=None`` rather than a sequence number with an empty replay, which the
     client would take for "nothing missed".
     """
@@ -250,7 +250,7 @@ async def replay_buffered_events(
 def hello_payload(
     slug: str, *, backend: str, seq: int | None, epoch: str | None = None
 ) -> dict[str, Any]:
-    """The ``hello`` event body (tripl-fj5g.17).
+    """The ``hello`` event body.
 
     ``seq`` is the project's sequence number when the stream opened, ``epoch``
     the identity of that sequence, and ``buffer_size`` how many events the

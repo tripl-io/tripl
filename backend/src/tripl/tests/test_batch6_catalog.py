@@ -3,54 +3,54 @@
 Each defect is pinned by an assertion that goes red the moment the production
 change is reverted:
 
-* tripl-0zpq.171 — a metric saved before a config key existed compared UNEQUAL
+* a metric saved before a config key existed compared UNEQUAL
   to its own unchanged definition, because ``to_definition_values()`` fills in
   today's defaults while the check compared raw stored dicts. Editing only the
   description of such a metric — the form always resends the definition —
   deleted every value, breakdown and anomaly it had collected.
-* tripl-0zpq.172 — that same clear could run while a collection was in flight.
+* that same clear could run while a collection was in flight.
   The worker holds the old definition in locals, so it kept writing old buckets
   into the cleared series and then stamped a watermark over them, and the NULL
   status it left behind released the one-active-job guard.
-* tripl-0zpq.175 — every metric created through the form landed on order 0, and
+* every metric created through the form landed on order 0, and
   reorder only permuted the order values it found, so a permutation of equal
   values wrote nothing: drag-to-reorder never persisted, and a duplicated id in
   the request was an ``IndexError`` 500.
-* tripl-0zpq.178 — ``active_total`` searched a different population than the
+* ``active_total`` searched a different population than the
   rows it sits above: name/display_name only, against a stripped term, while
   the list also searched descriptions with the raw one.
-* tripl-0zpq.179 — deleting a metric left its catalog-scope anomalies behind
+* deleting a metric left its catalog-scope anomalies behind
   forever. They carry no FK, and every other purge finds anomalies through the
   ids of metrics that still exist.
-* tripl-0zpq.180 — a broker outage put the whole collection group into the error
+* a broker outage put the whole collection group into the error
   state by assigning the two columns by hand, bypassing ``mark_collection_error``
   and leaving ``last_collection_failed_at`` unstamped, so the dispatcher's
   post-error cooldown measured from unrelated history.
-* tripl-0zpq.238 — ``POST /metrics/bulk-update`` recorded nothing, so a bulk
+* ``POST /metrics/bulk-update`` recorded nothing, so a bulk
   archive was the one mutation in its group invisible in the Audit log.
-* tripl-0zpq.239 — the duplicate-id ``IndexError`` 500 in reorder, which is the
+* the duplicate-id ``IndexError`` 500 in reorder, which is the
   same defect ``tripl-0zpq.175`` covers above and shares its test.
-* tripl-0zpq.241 — ``metric_definition.collect`` was filed with an empty
+* ``metric_definition.collect`` was filed with an empty
   ``target_name``, so the row named no metric.
-* tripl-0zpq.354 — the data-source scope refusal claimed the row was missing on
+* the data-source scope refusal claimed the row was missing on
   anti-enumeration grounds that the workspace-wide list route already gives away.
-* tripl-0zpq.89 — a denominator could be parked on a ``single`` /
+* a denominator could be parked on a ``single`` /
   ``per_distinct_user`` composition metric, where the collector never reads it.
   Dead config, until an event merge made the two operands equal and the merge
   guard put the metric in the error state with a message about a constant-1.0
   ratio, although it is a plain count and still collects correctly.
-* tripl-0zpq.173 — a sql metric whose outer projection does not name the time
+* a sql metric whose outer projection does not name the time
   column saved with 201 and then failed EVERY collection, reported as "Scan
   failed due to an internal error." because the worker's refusal is a bare
   ``ValueError``.
-* tripl-0zpq.174 — fact-metric breakdown / app_version / platform columns were
+* fact-metric breakdown / app_version / platform columns were
   never checked against the fact table. One typo failed the whole metric on every
   tick, top-line series included, because the assembly loop re-raises a breakdown
   scan's error before writing anything.
-* tripl-0zpq.270 — catalog ``breakdown_columns`` were not deduplicated, unlike
+* catalog ``breakdown_columns`` were not deduplicated, unlike
   every sibling scalar-column field. A repeated column made the Postgres upsert
   hit the same conflict key twice in one statement.
-* tripl-0zpq.347 — the data-source scoping rule lived inline in the async save
+* the data-source scoping rule lived inline in the async save
   path, so the collector could not apply it to an already-stored row.
 """
 
@@ -352,7 +352,7 @@ async def _bind_data_source(project_id: str, data_source_id: str, name: str) -> 
 
 
 class TestLegacyConfigShapeIsNotADefinitionChange:
-    """tripl-0zpq.171 — a defaulted config key added later is not an edit."""
+    """a defaulted config key added later is not an edit."""
 
     async def test_description_edit_of_a_pre_conditions_fact_metric_keeps_its_history(
         self, client: AsyncClient, project: dict, fact_table: dict
@@ -437,7 +437,7 @@ class TestLegacyConfigShapeIsNotADefinitionChange:
 
 
 class TestDefinitionChangeDuringCollection:
-    """tripl-0zpq.172 — a running collection owns the series until it finishes."""
+    """a running collection owns the series until it finishes."""
 
     async def test_material_definition_change_is_refused_while_a_collection_runs(
         self, client: AsyncClient, project: dict, data_source: dict
@@ -504,7 +504,7 @@ class TestDefinitionChangeDuringCollection:
 
 
 class TestCatalogOrdering:
-    """tripl-0zpq.175 — a catalog of ties cannot be reordered."""
+    """a catalog of ties cannot be reordered."""
 
     async def test_metrics_created_without_an_order_are_appended_not_stacked(
         self, client: AsyncClient, project: dict, data_source: dict
@@ -636,7 +636,7 @@ class TestCatalogOrdering:
 
 
 class TestActiveTotalMatchesTheListedRows:
-    """tripl-0zpq.178 — the KPI strip must count the population on screen."""
+    """the KPI strip must count the population on screen."""
 
     @staticmethod
     async def _seed_description_matches(
@@ -686,7 +686,7 @@ class TestActiveTotalMatchesTheListedRows:
 
 
 class TestDeleteRemovesMetricScopeAnomalies:
-    """tripl-0zpq.179 — a deleted metric's anomalies are unreachable, not gone."""
+    """a deleted metric's anomalies are unreachable, not gone."""
 
     async def test_deleting_a_metric_deletes_its_catalog_scope_anomalies(
         self, client: AsyncClient, project: dict, data_source: dict
@@ -732,7 +732,7 @@ class TestDeleteRemovesMetricScopeAnomalies:
 
 
 class TestDispatchFailureEntersTheErrorStateThroughTheModel:
-    """tripl-0zpq.180 — a broker outage must stamp WHEN it failed, not just that it did."""
+    """a broker outage must stamp WHEN it failed, not just that it did."""
 
     async def test_a_broker_failure_stamps_the_time_the_backoff_measures_from(
         self,
@@ -770,7 +770,7 @@ class TestDispatchFailureEntersTheErrorStateThroughTheModel:
 
 
 class TestBulkUpdateLeavesATrail:
-    """tripl-0zpq.238 — the one bulk mutation in the group the Audit log could not see."""
+    """the one bulk mutation in the group the Audit log could not see."""
 
     async def test_a_bulk_archive_files_one_row_naming_the_change_and_its_size(
         self, client: AsyncClient, project: dict, data_source: dict
@@ -825,7 +825,7 @@ class TestBulkUpdateLeavesATrail:
 
 
 class TestCollectAuditNamesItsMetric:
-    """tripl-0zpq.241 — a collect row that could not say what it collected."""
+    """a collect row that could not say what it collected."""
 
     async def test_a_manual_collect_files_the_metric_name(
         self,
@@ -854,7 +854,7 @@ class TestCollectAuditNamesItsMetric:
 
 
 class TestForeignDataSourceRefusalNamesTheRealCause:
-    """tripl-0zpq.354 — "not found" for a row the caller can already list by name."""
+    """ "not found" for a row the caller can already list by name."""
 
     async def test_a_source_scanned_only_by_another_project_is_refused_as_out_of_scope(
         self, client: AsyncClient, project: dict
@@ -952,7 +952,7 @@ async def events(client: AsyncClient, project: dict, event_type: dict) -> list[d
 
 
 class TestADenominatorOnlyBelongsToARatio:
-    """tripl-0zpq.89 — config the collector never reads must not be storable."""
+    """config the collector never reads must not be storable."""
 
     async def test_a_single_composition_metric_refuses_a_denominator_event(
         self, client: AsyncClient, project: dict, events: list[dict]
@@ -1010,7 +1010,7 @@ class TestADenominatorOnlyBelongsToARatio:
 
 
 class TestSqlMetricMustProjectTheTimeColumnItNames:
-    """tripl-0zpq.173 — save and collect must agree on the projection rule."""
+    """save and collect must agree on the projection rule."""
 
     # The filed shape: the columns are real, the OUTER projection just does not
     # name them, which is all the collector's textual check can see.
@@ -1083,7 +1083,7 @@ class TestSqlMetricMustProjectTheTimeColumnItNames:
     async def test_an_unnamed_value_column_must_project_the_value_convention(
         self, client: AsyncClient, project: dict, data_source: dict
     ):
-        """``value_column`` unset means the documented ``value`` column (tripl-nluj).
+        """``value_column`` unset means the documented ``value`` column.
 
         The save used to let this shape through and leave it to the worker,
         which refused it on every tick. Now the save holds it to the same
@@ -1109,7 +1109,7 @@ class TestSqlMetricMustProjectTheTimeColumnItNames:
 
 
 class TestFactMetricDimensionsAreCheckedAgainstTheFactTable:
-    """tripl-0zpq.174 — an unknown dimension used to fail the whole metric."""
+    """an unknown dimension used to fail the whole metric."""
 
     async def test_create_refuses_a_platform_column_the_fact_table_does_not_have(
         self, client: AsyncClient, project: dict, fact_table: dict
@@ -1236,7 +1236,7 @@ class TestAPresentationPatchDoesNotAnswerForAStoredDimension:
 
 
 class TestBreakdownColumnsAreDeduplicated:
-    """tripl-0zpq.270 — one statement must not hit the same conflict key twice."""
+    """one statement must not hit the same conflict key twice."""
 
     async def test_a_repeated_breakdown_column_is_stored_once_on_create(
         self, client: AsyncClient, project: dict, fact_table: dict
@@ -1273,7 +1273,7 @@ class TestBreakdownColumnsAreDeduplicated:
 
 
 class TestDataSourceScopeIsOneSharedRule:
-    """tripl-0zpq.347 — the save-time rule, extracted so the collector can reuse it.
+    """the save-time rule, extracted so the collector can reuse it.
 
     ``load_project_data_source`` is async and request-shaped; the sql collector is
     sync and holds a stored ``data_source_id`` that predates this rule entirely.

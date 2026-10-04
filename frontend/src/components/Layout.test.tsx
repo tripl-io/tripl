@@ -244,7 +244,7 @@ describe('Layout bypass block', () => {
     expect(target).toHaveAttribute('tabindex', '-1')
   })
 
-  it('lands past the demo chrome, not on it (tripl-rinm)', async () => {
+  it('lands past the demo chrome, not on it', async () => {
     const { container } = renderLayout('/p/demo/events', '/p/:slug/events', 'Events body', {
       isDemo: true,
       page: (
@@ -280,7 +280,7 @@ describe('Layout bypass block', () => {
 const CRUMB_IGNORE = 'script, style, [data-testid="topbar-project"]'
 
 describe('Layout breadcrumbs', () => {
-  it('renders no root crumb on the workspace surface (tripl-jfm3.34)', async () => {
+  it('renders no root crumb on the workspace surface', async () => {
     renderLayout('/workspace', '/workspace', 'Workspace dashboard')
     await screen.findByText('Workspace dashboard')
 
@@ -291,7 +291,7 @@ describe('Layout breadcrumbs', () => {
     expect(screen.getByRole('banner')).toHaveTextContent('All projects')
   })
 
-  it('names the Concepts surface instead of claiming to be Overview (tripl-jfm3.35)', async () => {
+  it('names the Concepts surface instead of claiming to be Overview', async () => {
     renderLayout('/p/demo/concepts', '/p/:slug/concepts', 'Concepts body')
     await screen.findByText('Concepts body')
 
@@ -309,7 +309,7 @@ describe('Layout breadcrumbs', () => {
     renderLayout('/p/demo/this-route-does-not-exist', '/p/:slug/*', 'Page not found')
     await screen.findByText('Page not found')
 
-    // The slug is valid, so the trail still names the project (tripl-jfm3.3) …
+    // The slug is valid, so the trail still names the project …
     expect(screen.getByText('Demo', { ignore: CRUMB_IGNORE })).toBeInTheDocument()
     // … but the page half must not name a real surface the user is not on.
     expect(screen.queryByText('Overview')).toBeNull()
@@ -493,7 +493,7 @@ describe('Layout metric editor crumbs (MT-31)', () => {
   })
 })
 
-describe('Layout unknown project (tripl-jfm3.2)', () => {
+describe('Layout unknown project', () => {
   it('renders a not-found state instead of the project shell for an unknown slug', async () => {
     renderLayout('/p/no-such-project-xyz/overview', '/p/:slug/overview', 'Live activity body')
 
@@ -506,7 +506,7 @@ describe('Layout unknown project (tripl-jfm3.2)', () => {
     expect(screen.getByText(/no project with the address/i)).toBeInTheDocument()
   })
 
-  it('forgets the remembered last project when it is not found (tripl-vefw)', async () => {
+  it('forgets the remembered last project when it is not found', async () => {
     localStorage.setItem('tripl-last-project-slug', 'no-such-project-xyz')
     renderLayout('/p/no-such-project-xyz/overview', '/p/:slug/overview', 'Live activity body')
 
@@ -614,7 +614,7 @@ describe('Layout activity panel', () => {
   })
 })
 
-describe("Layout after a demo is deleted (tripl-jfm3.74)", () => {
+describe("Layout after a demo is deleted", () => {
   it.each(['/p/demo-gone/events', '/p/demo-gone/anomalies', '/p/demo-gone/overview'])(
     'answers %s with the not-found page and a way out, on every route',
     async (path) => {

@@ -11,7 +11,7 @@ import { formatPreviewCell } from './scanUtils'
  * The preview panel: what this scan would create, with the sample rows kept
  * underneath as evidence.
  *
- * The order is the whole change (tripl-3y7z.6). This panel used to BE the five
+ * The order is the whole change. This panel used to BE the five
  * raw warehouse rows, which answer "did my query run" and nothing else — while
  * quick-start.md promised it showed "exactly which events, fields, and values
  * tripl would create". The rows are not deleted; they are demoted to the

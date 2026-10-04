@@ -28,7 +28,7 @@ def _extend_unique(target: list[str], values: Iterable[str], *, limit: int) -> N
     length only after an append let every re-entry add one more novel value
     before breaking, so a variable whose first context already supplied twenty
     distinct values left a hundred contexts later with 119 of them — against a
-    cap the response schema states as hard (tripl-x050). The early return is
+    cap the response schema states as hard. The early return is
     what makes the limit a property of the accumulator rather than of one call.
     """
     if len(target) >= limit:

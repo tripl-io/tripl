@@ -7,7 +7,7 @@
 # infra/rabbitmq/rabbitmq.conf and a generated .env; `tripl upgrade --to X.Y.Z`
 # moves the TRIPL_VERSION pin. The packaged copy lives at
 # cli/src/tripl_cli/install/files/compose.yaml and a contract test asserts it is
-# byte-identical to this one, so edit here and re-copy (tripl-ey6j.3).
+# byte-identical to this one, so edit here and re-copy.
 #
 # ONE `app` container serves the JSON API *and* the built SPA on a single port
 # (FastAPI app.frontend()), so there is NO separate frontend/nginx container.
@@ -26,7 +26,7 @@
 #   docker compose -f compose.dev.yaml up --watch
 #
 # Schema upgrades run once via the `migrate` one-shot before app/workers start,
-# so a multi-worker deploy never races the upgrade (see tripl-u65h.9 / .18).
+# so a multi-worker deploy never races the upgrade (.18).
 x-app-image: &app-image "${TRIPL_IMAGE:-ghcr.io/vladenisov/tripl}:${TRIPL_VERSION:-latest}"
 
 x-app-environment: &app-environment
@@ -51,7 +51,7 @@ x-app-environment: &app-environment
   # set it (and uvicorn --forwarded-allow-ips) true only behind a trusted proxy.
   LOG_JSON: ${LOG_JSON:-true}
   # Demo kill switches. Without these two lines a value set in .env never reaches
-  # the container, so the documented rollback switch does nothing (tripl-2su6.16).
+  # the container, so the documented rollback switch does nothing.
   # DEMO_ENABLED gates demo provisioning (create + reset); DEMO_RUNTIME_ENABLED
   # gates the background tick that keeps a demo fresh. Neither touches real
   # projects.
@@ -59,16 +59,16 @@ x-app-environment: &app-environment
   DEMO_RUNTIME_ENABLED: ${DEMO_RUNTIME_ENABLED:-true}
   # Everything below is documented in website/docs/run/configuration.md as an
   # environment variable, so it has to actually reach the container. The same
-  # omission is what made the DEMO_ENABLED switch inert (tripl-2su6.16) and then
+  # omission is what made the DEMO_ENABLED switch inert and then
   # REGISTRATION_MODE — whose whole purpose is closing self-service signup on a
-  # public instance (tripl-jfm3.101).
+  # public instance.
   #
   # `${VAR:-}` materialises an UNSET variable as the empty STRING in the
   # container, not as an absent one. Falling through to the application default
   # is therefore not free: it works because Settings sets
   # `env_ignore_empty=True` (backend/src/tripl/config.py). Without that flag the
   # typed members of this list ("" parsed as a bool/int/enum) crash
-  # `Settings()` at import and every container exits on boot (tripl-ey6j.3).
+  # `Settings()` at import and every container exits on boot.
   REGISTRATION_MODE: ${REGISTRATION_MODE:-}
   # Organizations (F20). DEPLOYMENT_MODE and PLATFORM_ADMIN_EMAILS are read by
   # the `migrate` one-shot too: the organization migration uses them to decide
@@ -123,7 +123,7 @@ x-app-environment: &app-environment
   SEARCH_EMBEDDING_API_KEY: ${SEARCH_EMBEDDING_API_KEY:-}
   # Not a tuning knob: this line is the whole of the documented "keep indexed
   # text on your own endpoint" control, and without it the app falls back to
-  # api.openai.com whatever .env says (tripl-l33u.2). Changing it — or
+  # api.openai.com whatever .env says. Changing it — or
   # DIMENSIONS — after documents are indexed requires a re-index, since vectors
   # from two embedding spaces are not comparable.
   SEARCH_EMBEDDING_BASE_URL: ${SEARCH_EMBEDDING_BASE_URL:-}
@@ -200,7 +200,7 @@ services:
     # Uploaded event photos: the local photo backend's default root
     # (./var/photos under the image's WORKDIR /app). Without a volume, every
     # redeploy recreates the container and discards the files while their
-    # rows stay in Postgres (tripl-0zpq.211). The image creates this
+    # rows stay in Postgres. The image creates this
     # directory owned by the app user, and a new named volume starts out with
     # that ownership. Back it up together with pgdata18.
     volumes:
@@ -224,7 +224,7 @@ services:
     command: ["celery", "-A", "tripl.worker.celery_app", "worker", "--loglevel=info"]
     environment: *app-environment
     # The same photos volume as app: the daily orphan-photo sweep runs here and
-    # lists the local backend's files (tripl-0zpq.291). Without it the sweep
+    # lists the local backend's files. Without it the sweep
     # sees an empty directory and does nothing.
     volumes:
       - photos:/app/var/photos

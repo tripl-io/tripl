@@ -104,8 +104,8 @@ function VariablesTableRowImpl({
         {/* Pills never wrap and never shrink; the variable name absorbs the
             squeeze instead. In a ~225px column the drift badge broke inside its
             own pill — "1" on one line, "drift" on the next — which reads as a
-            rendering fault on the one signal this page asks a reader to act on
-            (tripl-bb8m). `whitespace-nowrap` is the house pattern here; the same
+            rendering fault on the one signal this page asks a reader to act on.
+            `whitespace-nowrap` is the house pattern here; the same
             badge in ScansTab already carries it. */}
         <div className="flex min-w-0 items-center gap-2">
           {detailHref && inRouter ? (
@@ -205,7 +205,7 @@ function VariablesTableRowImpl({
             reference it came back with nothing in it. Only the second is worth
             an operator's attention, and this page is where they look — so the
             cell names which one it is. `context_count` already rides along on
-            the list row, so saying it costs no request (tripl-xv77.4). */}
+            the list row, so saying it costs no request. */}
         {observedValues.length > 0 ? (
           <div className="flex max-w-sm flex-wrap gap-1">
             {observedValues.slice(0, MAX_CHIPS).map(value => (

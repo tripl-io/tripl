@@ -9,7 +9,7 @@
  *
  * The other half of the reason was size: BranchesTab.tsx was far past this
  * repo's 800-line ceiling, and this block was the largest piece of it that
- * owed the tab nothing (tripl-h2sx.16). The rest of the tab has since been
+ * owed the tab nothing. The rest of the tab has since been
  * split into ./branches/ (PLAN-22).
  */
 

@@ -1,16 +1,16 @@
-"""Plan diff, snapshot and housekeeping fixes from the 2026-09-09 sweep (tripl-0zpq).
+"""Plan diff, snapshot and housekeeping fixes from the 2026-09-09 sweep.
 
 * tripl-0zpq.148 / .141 — a meta field's ``allow_multiple`` is diffed, so the
   approval hash, the merge and the revert no longer act on a change the diff
   never showed.
-* tripl-0zpq.140 — a multi-value meta field's values serialize in one order
+* a multi-value meta field's values serialize in one order
   whatever order the rows arrive in, and a stored base written in row order
   reads equal to a fresh snapshot of the same content.
-* Namesakes (tripl-0zpq.149, cut back) — rows sharing a natural key are still
+* Namesakes (cut back) — rows sharing a natural key are still
   matched one per key, as main always matched them; an entry whose key more
   than one event or relation holds says what that means for the diff, the
   merge and a revert. Pairing them properly needs an origin id per branch copy.
-* tripl-0zpq.138 — the "unused scan variable retired" rule matches the shape a
+* the "unused scan variable retired" rule matches the shape a
   scan actually writes, and not a tombstone, a person's rename or half of one,
   nor a variable an event on the branch or on main still names.
 """
@@ -212,7 +212,7 @@ async def test_making_a_meta_field_multi_valued_can_be_reverted_from_the_diff(
     assert (await _meta_field_on_branch(client, slug, branch_id, "jira"))["allow_multiple"] is False
 
 
-# --- tripl-0zpq.140: one order for a multi-value field's values ---------------
+# --- one order for a multi-value field's values ---------------
 
 
 def test_a_stored_base_in_row_order_diffs_equal_to_a_fresh_snapshot() -> None:
@@ -401,7 +401,7 @@ async def test_an_approval_stays_fresh_when_the_rows_come_back_in_another_order(
     assert [a["stale"] for a in detail.json()["approvals"]] == [False]
 
 
-# --- Namesakes (tripl-0zpq.149, cut back): said on the row, not solved --------
+# --- Namesakes (cut back): said on the row, not solved --------
 
 _EVENT_WARNING = (
     "More than one event is named 'purchase' in 'track'. This diff, the merge and a "
@@ -475,8 +475,8 @@ def test_a_key_only_main_holds_twice_no_longer_warns(
 
     It no longer has to: the merge pairs main's rows with the base by their own
     ids, which the base recorded, so the row the branch changed lands on the
-    main row it was cut from however many namesakes main has grown since
-    (tripl-0zpq.292). A warning here would send the analyst to rename a row for
+    main row it was cut from however many namesakes main has grown since.
+    A warning here would send the analyst to rename a row for
     nothing."""
     original = row("original")
     base, branch = [original], [_copy(original, description="edited")]
@@ -502,7 +502,7 @@ def test_an_entry_whose_key_one_row_holds_carries_no_such_warning(
     assert (entry.kind, entry.warnings) == ("changed", [])
 
 
-# --- tripl-0zpq.138: the scan's own shape is housekeeping, a person's mark is not
+# --- the scan's own shape is housekeeping, a person's mark is not
 
 
 _DELETE = object()
@@ -863,6 +863,6 @@ async def test_renaming_a_scan_minted_variable_on_a_branch_is_not_housekeeping(
     assert diff["summary"] == {"added": 1, "removed": 1, "changed": 0, "housekeeping": 0}
 
     # The list's badge pairs the rename as the diff view does: ONE change, not
-    # the raw "added + removed" two (tripl-amnn, branch-list counts).
+    # the raw "added + removed" two (branch-list counts).
     listed = (await client.get(f"/api/v1/projects/{slug}/branches?include_diff_counts=true")).json()
     assert next(b for b in listed["items"] if b["id"] == branch_id)["ahead"] == 1

@@ -159,7 +159,7 @@ def build_default_scenario() -> DemoScenario:
             branches.build_branches,
             # 10. Audit trail for everything the recipe authored, attributed to
             #     the demo's creator. Runs after every builder that creates an
-            #     object it records (tripl-jfm3.60).
+            #     object it records.
             audit.build_audit,
             # 11. Search reindex (last).
             search.build_search,

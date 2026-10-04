@@ -33,7 +33,7 @@ from tripl.services.demo.scenario import DemoContext
 # its "Documented values" column and the coached "Variables & value drift"
 # chapter tells the user to compare observed values against. It used to be unset
 # on every demo variable, so the column read "—" and the chapter's instruction
-# had nothing to point at (bd tripl-jfm3.56). Only the closed-vocabulary variable
+# had nothing to point at. Only the closed-vocabulary variable
 # gets one: ``user_id``/``session_id`` are unbounded identifiers, and documenting
 # a list for them would be a lie the drift detector would then act on.
 _VARIABLE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (

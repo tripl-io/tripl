@@ -141,8 +141,8 @@ def event_composition_binding_error(definition: MetricDefinition) -> str | None:
     A user cannot reach this state by hand — the schemas require a numerator on
     create and on update, and a denominator for ``ratio`` — so a NULL operand is
     ALWAYS the footprint of an ``ondelete="SET NULL"``: a deleted event
-    (tripl-jtnv, now also carried by the group merge) or a deleted event type
-    (tripl-nmn3). Checking the binding rather than the deleting door is the
+    (now also carried by the group merge) or a deleted event type.
+    Checking the binding rather than the deleting door is the
     point: one kind-level guard covers every present and future door.
 
     Returned rather than raised so ``_event_composition_due`` can ask the same
@@ -228,7 +228,7 @@ MANUAL_COLLECT_MAX_WINDOW = timedelta(days=30)
 # the difference is not cosmetic here: collection WINDOW-DELETEs the chunk before
 # UPSERTing, so a truncated read deletes rows it will never write back. The tail
 # of the window is silently erased and the metric reads as a clean series with a
-# hole in it (tripl-jfm3.112).
+# hole in it.
 METRIC_QUERY_ROW_LIMIT = 100_000
 
 
@@ -273,7 +273,7 @@ def _reject_truncated_rows[RowT](
     the user and names the two things they can change, but only a ``ScanError``
     is surfaced verbatim by ``user_facing_error`` — as a ``ValueError`` it was
     overwritten with the generic internal-error summary on
-    ``last_collection_error`` / ``ScanJob.error_message`` (tripl-embs). Every
+    ``last_collection_error`` / ``ScanJob.error_message``. Every
     caller funnels this into an ``except Exception`` that stamps the failure via
     ``user_facing_error``, so the change is confined to which text is persisted.
     """
@@ -702,7 +702,7 @@ def _metric_breakdown_columns(definition: MetricDefinition) -> list[str]:
     column listed twice makes assembly emit each ``(bucket, breakdown_value)``
     row twice inside a single ``INSERT ... ON CONFLICT DO UPDATE``, which
     Postgres refuses with "command cannot affect row a second time" — the metric
-    then errors on every tick (tripl-0zpq.270). This guard is what protects the
+    then errors on every tick. This guard is what protects the
     legacy rows; the ``app_version``/``platform`` extras were always deduplicated
     against the stored list, just never the stored list against itself.
     """
@@ -1064,7 +1064,7 @@ def _collect_fact_single(
             interval_delta=delta,
             chunk_interval_code=definition.replay_chunk_interval,
         )
-        # Rank top-N breakdown values once over the whole window (tripl-0zpq.346).
+        # Rank top-N breakdown values once over the whole window.
         # That pre-query is not chunked: it is the one statement spanning it.
         with rank_top_n_once(adapter, time_from, time_to):
             for chunk_from, chunk_to in chunks:
@@ -1189,7 +1189,7 @@ def _collect_fact_ratio(
                 interval_delta=delta,
                 chunk_interval_code=definition.replay_chunk_interval,
             )
-            # Rank top-N breakdown values once over the whole window (tripl-0zpq.346);
+            # Rank top-N breakdown values once over the whole window;
             # only the numerator adapter serves the ratio breakdown pass. That
             # pre-query is not chunked: it is the one statement spanning it.
             with rank_top_n_once(numerator_adapter, time_from, time_to):
@@ -1352,7 +1352,7 @@ class _RatioMetricPlan:
 # but not a limit cannot share one scan (different rollups). A limited rollup also
 # depends on the window its values are ranked over, which is the metric's OWN
 # collection window — the per-metric collectors rank there too — so limited
-# metrics share a scan only when their windows match (tripl-0zpq.346). An
+# metrics share a scan only when their windows match. An
 # unlimited breakdown ranks nothing and keeps ``None`` there, sharing one scan
 # across windows as before. Everything else (the per-spec aggregate columns) is
 # layered on top of the shared GROUP BY.
@@ -1489,7 +1489,7 @@ class _FactBatchContext:
     #: mixes projects (``schedule.check_metric_definitions_due`` groups fact
     #: metrics by interval alone), so an entry cached under project A used to be
     #: served to project B's metric past the check that would refuse it
-    #: (tripl-m81e). The out-of-resolve readers in
+    #:. The out-of-resolve readers in
     #: ``_run_fact_interval_group`` only index ids a successful ``resolve``
     #: registered, so every entry they read has already been scoped.
     fact_tables: dict[uuid.UUID, FactTable] = field(default_factory=dict)
@@ -1510,7 +1510,7 @@ class _FactBatchContext:
     ) -> tuple[FactTable, BaseAdapter]:
         fact_table = self.fact_tables.get(fact_table_id) if fact_table_id else None
         # A cached table is reused only for its own project; for any other the
-        # load runs again and ``_load_fact_table`` refuses it (tripl-m81e).
+        # load runs again and ``_load_fact_table`` refuses it.
         if fact_table is None or fact_table.project_id != project_id:
             fact_table = _load_fact_table(self.session, fact_table_id, project_id=project_id)
             self.fact_tables[fact_table.id] = fact_table
@@ -1962,7 +1962,7 @@ def _run_fact_interval_group(
         # task soft_time_limit. Merging the per-chunk results reproduces the same
         # per-bucket series a single covering scan would (value-identity holds).
         # The one exception is a limited breakdown's top-N ranking pre-query: it
-        # runs once over its metric's whole window by design (tripl-0zpq.346),
+        # runs once over its metric's whole window by design,
         # an un-bucketed GROUP BY over the breakdown column rather than a scan of
         # every bucket's aggregates.
         chunks = _iter_window_chunks(
@@ -1974,7 +1974,7 @@ def _run_fact_interval_group(
         # One ranking block per adapter spans the whole chunk loop, so each top-N
         # pre-query runs once rather than once per chunk. The window it ranks over
         # is set per limited breakdown scan below — the scan's metric window, not
-        # this covering one (tripl-0zpq.346); the outer window only owns the cache.
+        # this covering one; the outer window only owns the cache.
         with ExitStack() as ranking:
             for group_adapter in context.adapters.values():
                 ranking.enter_context(rank_top_n_once(group_adapter, covering_from, covering_to))
@@ -2155,8 +2155,7 @@ def _reject_foreign_data_source(
     and rows written before them walked in while they were open: this collector
     resolves the credential by primary key alone and the beat dispatches every
     active metric with no scoping join, so such a row kept running its project's
-    free-text SELECT under a foreign warehouse credential, unattended, forever
-    (tripl-0zpq.347).
+    free-text SELECT under a foreign warehouse credential, unattended, forever.
 
     Called on EVERY credential this module opens, not just the ``sql`` one: the
     fact half reaches its warehouse through ``fact_tables.data_source_id``, and
@@ -2241,7 +2240,7 @@ def _collect_sql(
         # or unsafe part ("SELECT must project a 'value' column", ...). Letting
         # the bare ValueError escape made ``user_facing_error`` fall back to
         # "Scan failed due to an internal error." on a mistake the user can
-        # actually fix (tripl-0zpq.173).
+        # actually fix.
         raise ScanError(str(exc)) from exc
 
     ds = session.get(DataSource, definition.data_source_id)
@@ -2404,7 +2403,7 @@ def _collect_distinct_user_series(
     # PostgreSQL returns the same instant as aware — so the naive key met the aware
     # bucket read back from event_metrics, and every per_distinct_user metric on a
     # ClickHouse source died with "can't compare offset-naive and offset-aware
-    # datetimes". _coerce_bucket stamps UTC and floors to the interval (tripl-ju0d).
+    # datetimes". _coerce_bucket stamps UTC and floors to the interval.
     return {_coerce_bucket(row[0], interval_spec.code): _coerce_value(row[-1]) for row in rows}
 
 

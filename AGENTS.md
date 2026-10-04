@@ -156,7 +156,7 @@ Top level:
 - [compose.yaml](compose.yaml): production stack (published image); [compose.dev.yaml](compose.dev.yaml): local dev topology.
 - [backend](backend): Python service. Distribution `tripl-server`, import package
   `tripl` — the names differ so the PyPI name `tripl` can be the operator CLI
-  below; the import package is unchanged and stays `tripl` (tripl-ey6j.6).
+  below; the import package is unchanged and stays `tripl`.
 - [frontend](frontend): React app.
 - [cli](cli): the `tripl` operator CLI (import package `tripl_cli`) — the
   read-only `doctor` / `status` / `watch` diagnostics **and the mutating
@@ -216,7 +216,7 @@ CLI layers (`cli/src/tripl_cli`):
 - `model.py`, `report.py`, `render.py`: the snapshot dataclasses, the `--json`
   contract ("if a key is not built here it does not exist"), and the ASCII
   output. At the package root rather than under `diagnostics/` because they
-  serve every command, including the verdict-free ones (tripl-azhh).
+  serve every command, including the verdict-free ones.
 - `diagnostics/`: the verdict layers only. `collect.py` is async/impure and the
   only thing that speaks HTTP (every failure becomes a `Fetched`, never an
   exception — except `raise_selection_failure` / `read_or_raise`, which the

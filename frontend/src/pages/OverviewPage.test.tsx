@@ -75,7 +75,7 @@ function mockFetch(opts?: MockOpts) {
       return jsonResponse({
         scope: 'project_total',
         scan_config_id: opts?.scanConfigId === undefined ? 'scan-1' : opts.scanConfigId,
-        // The card charts ONE scan config and names it (tripl-jfm3.20).
+        // The card charts ONE scan config and names it.
         scan_config_name: opts?.scanConfigName ?? 'Snowplow Pageviews (iOS)',
         event_id: null,
         event_type_id: null,
@@ -95,7 +95,7 @@ function mockFetch(opts?: MockOpts) {
     if (url.includes('/overview/top-events')) return jsonResponse(opts?.topEvents ?? [])
     // No branch for the metrics catalog, the event-type list or the per-id event
     // lookup: every signal carries its own `scope_name`, so those three requests
-    // are gone and any survivor lands on the throw below (tripl-y4wt).
+    // are gone and any survivor lands on the throw below.
     if (url.includes('/anomalies/signals')) return jsonResponse(opts?.signals ?? [])
     if (url.includes('/activity/projects/')) return jsonResponse(opts?.activity ?? [])
     if (url.includes('/data-sources')) return jsonResponse(opts?.sources ?? [])
@@ -190,7 +190,7 @@ describe('OverviewPage', () => {
     expect(screen.getByText('Coverage')).toBeInTheDocument()
   })
 
-  it('names the scan the volume card charts, not "project total" (tripl-jfm3.20)', async () => {
+  it('names the scan the volume card charts, not "project total"', async () => {
     // The card plots ONE scan. Labelled "Volume · project total" it read
     // as the project's whole volume while showing 2.4 % of it — with a "Top
     // events · 48h" row 12x larger directly beneath.
@@ -242,7 +242,7 @@ describe('OverviewPage', () => {
     )
   })
 
-  it('bounds the volume request to a 7-day window (tripl-jfjt)', async () => {
+  it('bounds the volume request to a 7-day window', async () => {
     // The call passed no params at all, so the endpoint summed the scan's whole
     // metric history — and the panel was still fetching 2.2s after the KPI strip,
     // Top events, Active signals and Recent activity had all rendered.
@@ -263,7 +263,7 @@ describe('OverviewPage', () => {
     expect(to - from).toBe(7 * 24 * 60 * 60 * 1000)
   })
 
-  it('reserves the volume card with a skeleton while it loads (tripl-jfjt)', async () => {
+  it('reserves the volume card with a skeleton while it loads', async () => {
     // On all three production projects the whole rest of the page was rendered
     // while this card read a bare "Loading…" in an empty box — pending, but
     // reading as broken, and growing a subtitle line when the series landed.
@@ -325,7 +325,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/No volume in the last 7 days/)).not.toBeInTheDocument()
   })
 
-  it('says the top-events panel spans every scan (tripl-jfm3.20)', async () => {
+  it('says the top-events panel spans every scan', async () => {
     // Top events sums ALL scans while the volume card above charts one, so an
     // event's 48h count can exceed the card's total. Saying so is what keeps
     // the two panels from reading as a contradiction.
@@ -337,7 +337,7 @@ describe('OverviewPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('gives top-event labels room to stay distinct (tripl-jfm3.31)', async () => {
+  it('gives top-event labels room to stay distinct', async () => {
     // The three biggest events on acme-ios share a 21-character prefix, so a
     // fixed 10rem label column truncated all three to the identical string
     // "feature_flag:flag_use…" and the ranking became unreadable.
@@ -382,7 +382,7 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('listitem', { name: 'tap: 50 events, 5% of the total' })).toBeInTheDocument()
   })
 
-  it('captions the KPI sparkline as new events, not active events (tripl-jfm3.22)', async () => {
+  it('captions the KPI sparkline as new events, not active events', async () => {
     // The series is COUNT(Event) grouped by created_at. Captioned "Active trend"
     // beside "ACTIVE EVENTS 2,413" it announced days of 4,618 — more active
     // events in one day than the project has in total — and the sr-only text
@@ -442,7 +442,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/HTTPSConnectionPool/)).not.toBeInTheDocument()
     expect(screen.queryByText(/clickhouse\.internal/)).not.toBeInTheDocument()
     // The activity title carries its full text as a native tooltip so a long
-    // event reference stays readable when the row ellipsizes (tripl-7l83.15).
+    // event reference stays readable when the row ellipsizes.
     expect(screen.getByText('Scan failed: Nightly metrics')).toHaveAttribute(
       'title',
       'Scan failed: Nightly metrics',
@@ -499,7 +499,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/Event metric-a/)).not.toBeInTheDocument()
   })
 
-  it('labels event- and event-type-scope signals with their names, not a raw UUID (tripl-yfsj.16)', async () => {
+  it('labels event- and event-type-scope signals with their names, not a raw UUID', async () => {
     mockFetch({
       signals: [
         {
@@ -544,11 +544,11 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/Event type 5f2b91aa/)).not.toBeInTheDocument()
   })
 
-  it('asks for no name catalog at all, because the names ride on the signals (tripl-y4wt)', async () => {
+  it('asks for no name catalog at all, because the names ride on the signals', async () => {
     // The panel fired one GET per rendered event id, plus the event-type list and
     // the metrics catalog, and showed uuid stubs on the default landing route
     // until they landed. It had already dropped a GET /events?limit=10000 (2,413
-    // rows / 2.7 MB / ~3 s) for the per-id fan-out (tripl-jfm3.25); this removes
+    // rows / 2.7 MB / ~3 s) for the per-id fan-out; this removes
     // the fan-out too.
     const fetchSpy = mockFetch({
       signals: [makeEventSignal('d78ddc27-4b1e-4a0c-9f77-2c9f0f2a51bd')],
@@ -562,7 +562,7 @@ describe('OverviewPage', () => {
     expect(nameCalls).toEqual([])
   })
 
-  it('says an unnameable scope is gone instead of printing its ref (tripl-y4wt)', async () => {
+  it('says an unnameable scope is gone instead of printing its ref', async () => {
     // scope_name null is terminal — the event was deleted out from under the
     // row, the FKs being ondelete=SET NULL — so the row says so in words and the
     // ref stays in the tooltip, where it cannot be misread as a name.
@@ -592,7 +592,7 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/d78ddc27/)).not.toBeInTheDocument()
   })
 
-  it('keeps a sub-unit baseline instead of rounding it away (tripl-nj4n)', async () => {
+  it('keeps a sub-unit baseline instead of rounding it away', async () => {
     // A `%` catalog metric stores a fraction (0.08 == 8%) and `metric` is a
     // first-class scope here, so Math.round put "1.2 vs 0" on the row while the
     // severity beside it was computed from 0.4.
@@ -620,7 +620,7 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('1.2 vs 0.4')).toBeInTheDocument()
   })
 
-  it('labels a drop-to-zero signal as "dropped to zero", not the clamped z-score (tripl-yfsj.9)', async () => {
+  it('labels a drop-to-zero signal as "dropped to zero", not the clamped z-score', async () => {
     mockFetch({
       signals: [
         {

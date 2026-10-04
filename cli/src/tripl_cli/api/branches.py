@@ -60,7 +60,7 @@ def get_diff(slug: str, branch_id: str) -> ApiRequest:
 
     ``tripl plan`` does not expose it: that payload is not a list, so it does
     not fit the one document shape the seven read verbs share, and
-    ``behind_base`` is too load-bearing to smuggle into an ``items`` array
-    (tripl-3ixs). ``tripl-mcp``'s ``get_branch_diff`` calls this.
+    ``behind_base`` is too load-bearing to smuggle into an ``items`` array.
+    ``tripl-mcp``'s ``get_branch_diff`` calls this.
     """
     return ApiRequest("GET", DIFF.format(slug=slug, branch_id=branch_id))

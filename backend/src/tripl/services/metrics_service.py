@@ -253,8 +253,8 @@ async def _get_default_scan_config(
 ) -> ScanConfig | None:
     """The one scan config the project-scoped volume series is charted from.
 
-    Ordering is ``created_at DESC, id DESC`` — deliberately NOT ``updated_at``
-    (tripl-jfm3.21). ``updated_at`` carries ``onupdate=func.now()``, so merely
+    Ordering is ``created_at DESC, id DESC`` — deliberately NOT ``updated_at``.
+    ``updated_at`` carries ``onupdate=func.now()``, so merely
     renaming an unrelated scan config silently re-pointed the Overview volume
     card and the Events dynamics chart at a different scan — a 32x swing on
     acme-ios with no change in the underlying data. ``created_at`` never moves,
@@ -343,20 +343,20 @@ async def _resolve_events_metrics_scan_config(
     Scoping to ONE scan is deliberate: summing EventMetric rows across every
     scan_config double-counts events that a legacy/backfill scan (an "Old events"
     config) also collected, and one inflated bucket then dominated the chart's
-    y-axis (tripl-jfm3.20).
+    y-axis.
 
     Picking WHICH one cannot be ``_get_default_scan_config`` alone, though. That
     answers "newest configured scan in the project" — right for the project-wide
     sparkline, wrong for a tab. acme-ios collects its ``se`` event type with
     "Snowplow Events (iOS)" while the newest config is "Snowplow Pageviews (iOS)",
     so the tab queried a scan that had never written a row for it and charted
-    nothing at all, under 366 live events (tripl-g77e).
+    nothing at all, under 366 live events.
 
     So: keep the default whenever it has rows for these filters — the tab and the
     project total agreeing is the point of tripl-jfm3.20 — and only fall back to
     whichever scan does have them, most recent data first. The created_at/id
     tiebreak mirrors the default resolver, so the pick can never hang on Postgres
-    row order (tripl-jfm3.21).
+    row order.
     """
     default = await _get_default_scan_config(session, project_id)
 
@@ -504,7 +504,7 @@ async def _get_baseline_rows(
     time_from: datetime | None,
     time_to: datetime | None,
 ) -> dict[datetime, _BucketBaseline]:
-    """The per-bucket baselines the detector stored for one scope (tripl-i9mt.25).
+    """The per-bucket baselines the detector stored for one scope.
 
     Keyed by bucket so ``_build_metric_points`` can attach one to every point.
     Buckets scored before baselines were persisted simply have no entry.
@@ -577,7 +577,7 @@ async def _load_scope_anomalies(
     ``_outage_is_still_running`` re-checks the anchor against the series instead
     of ageing it out — but the drilldown they link to loads only its selected
     range (7 days by default), which left the page for the incident the user had
-    just clicked showing no signal at all (tripl-l429.23).
+    just clicked showing no signal at all.
 
     Widening is CONDITIONAL: only an anchor that still classifies open earns it.
     Reaching back to any older anomaly would quietly serve a different range than
@@ -1210,7 +1210,7 @@ async def get_event_metric_breakdowns(
     # (worker/tasks/metrics/metric_rows.py) and the scan validator REFUSES to
     # let it appear in metric_breakdown_columns, so without this line the stored
     # per-platform series and its parity anomalies were unreachable — columns=[]
-    # and a 400 on ?column=<platform> (tripl-0zpq.112). Appended last so an
+    # and a 400 on ?column=<platform>. Appended last so an
     # explicitly configured column still wins the default selection below.
     platform_columns = [config.platform_column] if config.platform_column else []
     columns = list(
@@ -1883,8 +1883,8 @@ async def get_platform_presence(
     Read-only, and DISTINCT on purpose: the breakdown table is keyed per bucket
     and these rows have no retention outside demo projects, so the undeduplicated
     select hydrated one row per (event, platform, bucket) since the scan began —
-    cost growing with scan age for an answer that is at most events x platforms
-    (tripl-0zpq.117). The database folds them now; ``Event.name`` rides along
+    cost growing with scan age for an answer that is at most events x platforms.
+    The database folds them now; ``Event.name`` rides along
     functionally dependent on ``event_id``, so it adds no rows of its own.
     """
     project = await _resolve_project(session, slug)
@@ -1945,7 +1945,7 @@ async def _main_branch_event_type_id(
     page on a branch filters by the branch copy's type, which the deep copy gave
     a fresh uuid. Filtering the series by that id matched no row at all, so every
     event-type tab's Dynamics card read "no recent volume" while the sparklines
-    beside it (which read through to the twins) showed traffic (tripl-0zpq.111).
+    beside it (which read through to the twins) showed traffic.
 
     Paired on the type NAME, the pairing ``main_counterparts`` already uses.
     Returns the id unchanged when it is already main's, or when the branch
@@ -1995,7 +1995,7 @@ async def _branch_filtered_metric_event_ids(
     ``event_metrics`` rows only ever reference main events, so the filters used
     to be evaluated against main's rows — and on a branch an analyst who had
     re-tagged or re-statused an event there got a chart for a different set of
-    events than the table beside it lists (tripl-vk1p). The filters are
+    events than the table beside it lists. The filters are
     evaluated on the branch's own rows instead, and each selected copy reads its
     metrics through its main twin (``_branch_counterparts.main_counterparts``,
     the pairing every other branch read uses). A copy with no twin was added on
@@ -2035,7 +2035,7 @@ async def get_events_metrics(
     branch_id: uuid.UUID | None = None,
 ) -> EventMetricsResponse:
     project = await _resolve_project(session, slug)
-    # Filled on every return, like every sibling metrics endpoint (tripl-e443):
+    # Filled on every return, like every sibling metrics endpoint:
     # the points below carry no band today, but a served field left at the
     # schema default claims a threshold the project may not use.
     sigma_threshold = await _get_project_sigma_threshold(session, project.id)
@@ -2061,8 +2061,7 @@ async def get_events_metrics(
     else:
         if event_type_id:
             # A caller that names no branch may still send a branch copy's type
-            # id, which no metric row carries; resolve it to main's twin first
-            # (tripl-0zpq.111).
+            # id, which no metric row carries; resolve it to main's twin first.
             metrics_type_id = await _main_branch_event_type_id(session, project.id, event_type_id)
             conditions.append(Event.event_type_id == metrics_type_id)
         if search:
@@ -2168,8 +2167,8 @@ async def get_overview_kpi_series(
     Restricted to the project's main branch: Event is branch-scoped and a
     working branch deep-copies every plan entity, so counting by project_id
     alone multiplied the series by (1 + open branches) and made it sum past the
-    'Active events' stat beside it, which counts the main branch only
-    (tripl-jfm3.77). Mirrors project_service._get_project_summaries' scoping so
+    'Active events' stat beside it, which counts the main branch only.
+    Mirrors project_service._get_project_summaries' scoping so
     the sparkline and the stat describe the same plan.
     """
     project = await _resolve_project(session, slug)
@@ -2279,7 +2278,7 @@ async def get_data_source_stats(
     Every collection chunk writes both an event-level row for each matched plan
     event and a type-level row re-counting the same warehouse rows, so summing
     the table flat reported matched volume twice and unmatched volume once —
-    close to 2x (tripl-0zpq.118). ``events_tracked`` still counts distinct
+    close to 2x. ``events_tracked`` still counts distinct
     ``event_id`` across all rows, because only the event-level rows carry one.
 
     Another organization's source is "not found" (F20 PR4), the answer every
@@ -2342,7 +2341,7 @@ async def get_events_window_metrics(
 
     project = await _resolve_project(session, slug)
 
-    # Branch copies read through to their main twins (tripl-kjhi.9): the batch
+    # Branch copies read through to their main twins: the batch
     # runs on the twin ids and each response is stamped with the id asked for.
     requested_rows = (
         (
@@ -2365,7 +2364,7 @@ async def get_events_window_metrics(
     # the project had ever recorded for these events and keep the first row per
     # event in Python. On a real project that is hundreds of thousands of rows
     # decoded and thrown away for a 100-id bucket — measured at 5.4 s of the
-    # endpoint's 6.1 s (tripl-jfm3.79). The correlated form probes
+    # endpoint's 6.1 s. The correlated form probes
     # ``ix_event_metric_event_bucket`` once per event (ORDER BY bucket DESC
     # LIMIT 1) and returns exactly one row per event; it is plain SQL, so it
     # behaves the same on SQLite as on Postgres.

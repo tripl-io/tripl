@@ -84,7 +84,7 @@ export const INPUT_CLASS = `${INPUT_INVALID_CLASS} ${INPUT_PLACEHOLDER_CLASS}`
  * fill and 7/255 of border away from a live one: Account · Security rendered
  * two dead password boxes indistinguishable from working ones, and the test
  * guarding "nothing here may look actionable" passed because it checked the
- * `disabled` DOM attribute rather than the appearance (tripl-91j6). Losing the
+ * `disabled` DOM attribute rather than the appearance. Losing the
  * darker well and dashing the border reads at a glance at any contrast
  * setting, in either theme, and does not depend on telling two near-blacks
  * apart.

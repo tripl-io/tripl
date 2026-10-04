@@ -140,7 +140,7 @@ async def _field_id_under(event_type_id: uuid.UUID, name: str) -> uuid.UUID:
     return found
 
 
-# --- tripl-0zpq.123: the branch copy refuses by name --------------------------
+# --- the branch copy refuses by name --------------------------
 
 
 @pytest.mark.asyncio
@@ -315,7 +315,7 @@ async def test_a_branch_event_holding_mains_meta_field_refuses_the_merge(
     assert merged.status_code == 200, merged.text
 
 
-# --- tripl-0zpq.128: the main side of the relation guard ----------------------
+# --- the main side of the relation guard ----------------------
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 """Outside the band == flagged, even where one row reports many buckets.
 
-The detector reports a baseline for every bucket it scores (tripl-i9mt.25), but
+The detector reports a baseline for every bucket it scores, but
 two passes drop per-bucket rows after scoring: a bucket inside a reported trend
 shift (``shifted_buckets``) loses its row to the single trend row, and an
 outage's run of zeros is collapsed to one announcement

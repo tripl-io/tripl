@@ -411,7 +411,7 @@ async def test_list_events_hides_archived_unless_asked_for(client: AsyncClient):
     honoured that, and by accident — it sends an explicit six-status filter that
     happens to omit `archived`. The CLI, the MCP server's `list_events` tool and
     any direct API call all still received archived events, so the property lived
-    in one client rather than in the plan (tripl-mhhi).
+    in one client rather than in the plan.
     """
     et_id, field_id, _ = await _setup_events(client, "ev-archived-hidden")
 
@@ -772,7 +772,7 @@ async def test_update_event_records_change_history_with_timestamps(client: Async
     history_resp = await client.get(f"/api/v1/projects/ev-upd-history/events/{event_id}/history")
     assert history_resp.status_code == 200
     history = history_resp.json()
-    # Newest first: the edit, then the row creation writes (tripl-kjhi.9).
+    # Newest first: the edit, then the row creation writes.
     assert [row["field"] for row in history] == ["description", "created"]
     assert history[0]["old_value"] == "Old description"
     assert history[0]["new_value"] == "New description"
@@ -950,7 +950,7 @@ async def test_filter_by_out_of_enum_status_returns_422(client: AsyncClient, val
     """A status outside EventStatus is user input, not a server fault.
 
     The column is a native Postgres enum, so an unvalidated value reached the
-    driver and surfaced as a 500 with an unusable request_id (tripl-jfm3.24).
+    driver and surfaced as a 500 with an unusable request_id.
     """
     await _setup_events(client, f"ev-badstatus-{value or 'empty'}")
     resp = await client.get(
@@ -1121,7 +1121,7 @@ async def test_reorder_events_assigns_new_sequence(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_reorder_events_rejects_a_duplicated_id(client: AsyncClient):
-    """tripl-0zpq.239: a repeated id must be a 400, not a crash.
+    """a repeated id must be a 400, not a crash.
 
     A duplicate survives the ownership check above it — ``Event.id.in_()``
     collapses it, and so does the ``set()`` it is compared against — and then
@@ -1313,7 +1313,7 @@ async def test_list_events_filters_by_reviewed_flag(client: AsyncClient):
     """`reviewed` narrows by the review FLAG, independent of `status`.
 
     Without it, "Mark reviewed" wrote a boolean the UI could neither show nor
-    isolate, so bulk-reviewing a queue looked like it did nothing (tripl-invv).
+    isolate, so bulk-reviewing a queue looked like it did nothing.
     """
     et_id, field_id, _ = await _setup_events(client, slug="ev-reviewed-filter")
 
@@ -1611,7 +1611,7 @@ async def test_the_scan_identity_is_readable_from_the_api(client: AsyncClient):
     Crawling all 5702 production events returned no such key from any endpoint,
     so after creating an event by hand there was no way to see which identity it
     had claimed — nor, after a rename, that the display name and the identity had
-    parted (tripl-u2h9.10).
+    parted.
     """
     slug = "ev-identity-visible"
     await client.post("/api/v1/projects", json={"name": slug, "slug": slug})
@@ -1909,7 +1909,7 @@ def _land_a_competitor_before_the_insert(
 
     The identity probe is a SELECT without a lock, so the only holder it cannot
     see is one another request commits between that SELECT and this request's
-    INSERT — the race ``uq_event_scan_identity`` exists to settle (tripl-8tdl).
+    INSERT — the race ``uq_event_scan_identity`` exists to settle.
     The in-memory test database has a single connection, so the competitor
     cannot arrive from a second session; it is written through the request's own
     session at the last read before the INSERT, the next-order lookup, and
@@ -1962,7 +1962,7 @@ async def test_create_event_answers_a_lost_identity_race_with_the_probe_s_409(
 
     Two requests authoring one identity at once both pass the probe, and
     ``uq_event_scan_identity`` refuses the second INSERT. That refusal reached
-    the caller as a bare 500 (tripl-8tdl). It is the very collision the probe
+    the caller as a bare 500. It is the very collision the probe
     refuses, so it gets the probe's answer: 409, naming the row that won.
     """
     slug = "ev-identity-race"

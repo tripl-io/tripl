@@ -91,8 +91,7 @@ def _detect_scope_anomalies(
     Each hourly series is long enough to trigger the detector's robust MSTL fit,
     about 1.4 s per scope, so three scopes held the API event loop for ~4 s on
     every demo create or reset and stalled every other request on that worker.
-    The caller runs this in a thread and only adds the rows on the loop
-    (tripl-0zpq.251).
+    The caller runs this in a thread and only adds the rows on the loop.
     """
     results: list[list[DetectedAnomaly]] = []
     for scope in scopes:
@@ -213,7 +212,7 @@ async def _build_attributions(session: AsyncSession, ctx: DemoContext) -> None:
 def _compute_drift_ladder(now: datetime) -> list[tuple[datetime, DistributionDriftResult]]:
     """One ``(bucket, PSI)`` per day of the drift span. Pure CPU, no session.
 
-    Runs in a thread beside the detector for the same reason (tripl-0zpq.251).
+    Runs in a thread beside the detector for the same reason.
     """
     baseline_counts = noise.shares_to_counts(
         noise.platform_shares(0.0), noise.DEMO_DRIFT_DAILY_TOTAL

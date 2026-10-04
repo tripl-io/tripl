@@ -174,7 +174,7 @@ async def test_delete_annotation_removes_it(client: AsyncClient) -> None:
 async def test_list_rejects_unknown_scope_type(client: AsyncClient) -> None:
     """The list filter binds against the native chart_annotation_scope_type
     column, so while it was declared ``str`` a typo reached the driver as a 500.
-    Garbage now 422s and every member that worked before still 200s (tripl-57g0)."""
+    Garbage now 422s and every member that worked before still 200s."""
     slug = await _setup_project(client, slug="ann-enum")
 
     rejected = await client.get(

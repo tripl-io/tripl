@@ -100,7 +100,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('MonitoringTab — catalog metric detection (tripl-jfm3.108)', () => {
+describe('MonitoringTab — catalog metric detection', () => {
   it('exposes the metric scope alongside the other three', async () => {
     // detect_metrics has always defaulted to on with no control anywhere, so the
     // only way to stop scoring catalog metrics was to disable detection wholesale.
@@ -131,7 +131,7 @@ describe('MonitoringTab — catalog metric detection (tripl-jfm3.108)', () => {
   })
 })
 
-describe('MonitoringTab — history fields carry their unit (tripl-wb58)', () => {
+describe('MonitoringTab — history fields carry their unit', () => {
   // "Baseline Window 14" sat directly above two fields that name their unit and
   // explain themselves, so the page's own pattern read the bare number as days
   // when it means buckets — an order of magnitude on an hourly scan.
@@ -156,7 +156,7 @@ describe('MonitoringTab — history fields carry their unit (tripl-wb58)', () =>
   })
 })
 
-describe('MonitoringTab — the form explains itself (tripl-jj0h / tripl-pdyc)', () => {
+describe('MonitoringTab — the form explains itself', () => {
   it('groups the scope checkboxes under a heading that says what checking one does', async () => {
     // Four bare checked boxes in a row decide what gets scored at all — the most
     // consequential control on the page — and the only rationale lived in a
@@ -204,7 +204,7 @@ describe('MonitoringTab — the form explains itself (tripl-jj0h / tripl-pdyc)',
   })
 })
 
-describe('MonitoringTab — settling allowance vs open signal window (tripl-l429.15)', () => {
+describe('MonitoringTab — settling allowance vs open signal window', () => {
   // A settling allowance that reaches the open signal window blanks the
   // Anomalies page, the sidebar badge and the Overview stat while alerts keep
   // firing, so the backend refuses the pair. These bounds are how an operator
@@ -350,7 +350,7 @@ describe('MonitoringTab — false-positive scope overrides', () => {
   it('does not report a clean slate when the overrides request failed', async () => {
     // "No scope has been tightened" is a claim about the ratchet, and this card
     // is the ONLY way to undo it. A failed load rendering that sentence tells an
-    // operator their scopes are untouched when nobody knows (tripl-l429.24).
+    // operator their scopes are untouched when nobody knows.
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.includes('/anomaly-settings/holiday-countries')) return jsonResponse(['US'])

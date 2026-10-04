@@ -79,7 +79,7 @@ def test_run_unauthenticated_needs_no_credentials_and_sends_no_authorization() -
     yet - the first account has not been created, so no API key can exist. It
     must therefore reach the wire with no Config at all, and it must never put
     an Authorization header on an endpoint the backend deliberately leaves
-    unauthenticated (tripl-ey6j.3).
+    unauthenticated.
     """
     route = respx.get(f"{BASE_URL}/health").mock(
         return_value=httpx.Response(200, json={"status": "ok"})

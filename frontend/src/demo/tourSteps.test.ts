@@ -30,7 +30,7 @@ describe('buildTourSteps', () => {
     expect(byId.get('live-activity')).toBe('/p/acme/overview')
     expect(byId.get('metrics')).toBe('/p/acme/metrics')
     // The Monitors SECTION of Alerting: the standalone page rendered the same
-    // rules under a second noun and was merged in (tripl-89ps). `/monitors`
+    // rules under a second noun and was merged in. `/monitors`
     // still resolves, but only through a redirect, and a tour step should land
     // on the real surface rather than bounce through one.
     expect(byId.get('monitors')).toBe('/p/acme/alerting?section=monitors')
@@ -41,7 +41,7 @@ describe('buildTourSteps', () => {
     expect(byId.get('alerting')).toBe('/p/acme/alerting')
   })
 
-  it('tags every step with the group its sidebar item is in (tripl-3y7z, #251 JR-22)', () => {
+  it('tags every step with the group its sidebar item is in (#251 JR-22)', () => {
     // ProductTour prints `step.area` as the step's chip. The scans step said
     // 'Connect', a group buildNavGroups has never produced, and Branches and
     // Alerting said Govern while the sidebar filed them under Plan and
@@ -92,7 +92,7 @@ describe('buildTourSteps', () => {
     expect(coverage?.blurb).not.toMatch(/platforms/)
   })
 
-  it('describes a scan by what every run produces, not by a baseline (tripl-3y7z)', () => {
+  it('describes a scan by what every run produces, not by a baseline', () => {
     // A scan fills the tracking plan; only a Catalog + monitoring scan records
     // metric points, and only on its schedule. "Pull recent volume from a source
     // so tripl can learn the baseline" described neither a Catalog only scan nor
@@ -103,7 +103,7 @@ describe('buildTourSteps', () => {
     expect(scans?.blurb).toMatch(/Catalog \+ monitoring/)
   })
 
-  it('demos meaning-first search with the curated examples (tripl-odrj.5)', () => {
+  it('demos meaning-first search with the curated examples', () => {
     const search = steps.find((step) => step.id === 'search')
     expect(search).toBeDefined()
     expect(search?.blurb).toContain('Ctrl K')
@@ -125,7 +125,7 @@ describe('buildMetricBuildingBlocks', () => {
     expect(labels).toContain('Fact tables')
   })
 
-  it('deep-links every block to the surface that actually shows it (tripl-2su6.19)', () => {
+  it('deep-links every block to the surface that actually shows it', () => {
     // Every block used to point at a bare /p/acme/metrics, so the links existed
     // but discovered nothing: four of the five landed on the same unfiltered page.
     const byId = new Map(blocks.map((block) => [block.id, block.to]))

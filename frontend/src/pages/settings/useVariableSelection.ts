@@ -16,7 +16,7 @@ import { useCallback, useState } from 'react'
  *  - data moving under a selection nobody touched is pruned — here, given the
  *    ids that still match.
  *
- * See VariablesTab for why each of those exists (tripl-42en).
+ * See VariablesTab for why each of those exists.
  */
 export function useVariableSelection({
   branchId,
@@ -37,8 +37,7 @@ export function useVariableSelection({
   // The bar then read "12 selected" for twelve ids that are not on the branch
   // now on screen, and every bulk action carried them: `_load_variables_by_ids`
   // filters by branch and 404s the WHOLE call on the first id it cannot find, so
-  // a bulk edit aimed at the rows in front of the operator failed wholesale
-  // (tripl-42en).
+  // a bulk edit aimed at the rows in front of the operator failed wholesale.
   //
   // The reset lives beside the state it guards because the sidebar switcher has
   // no way to call a helper in the page. Adjusting during render with an

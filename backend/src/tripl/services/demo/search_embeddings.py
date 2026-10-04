@@ -12,7 +12,7 @@ The fixture keys documents by ``sha256(embed_text)`` — NOT by ``content_hash``
 which mixes in the per-install random demo slug and entity ids and is therefore
 not install-stable.
 
-Identity fallback (bd tripl-jfm3.8)
+Identity fallback
 -----------------------------------
 Keying by embed text alone is fragile: the demo runs the REAL scan/collection
 pipeline, and that pipeline rewrites the very text the key is derived from
@@ -90,8 +90,7 @@ def identity_key(entity_type: str, title: str, subtitle: str) -> str:
     """Content-INDEPENDENT fixture key for one search document.
 
     Built from what the document *is* rather than what it currently says, so a
-    scan that rewrites a document's body/keywords cannot orphan its vector
-    (bd tripl-jfm3.8).
+    scan that rewrites a document's body/keywords cannot orphan its vector.
     """
     return _IDENTITY_SEP.join((entity_type, title, subtitle or ""))
 

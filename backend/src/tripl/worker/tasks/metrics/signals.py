@@ -194,7 +194,7 @@ def _latest_anomaly_per_scope(
     Picked in SQL with ``ROW_NUMBER() OVER (PARTITION BY scope_type, scope_ref
     ORDER BY bucket DESC)``: every caller only ever wanted each scope's latest
     row, and loading every stored row to keep one per scope in Python grew with
-    the table — the metric-scope rows are never aged out at all (tripl-0zpq.9).
+    the table — the metric-scope rows are never aged out at all.
     ``join_event`` outer-joins ``Event`` so ``criteria`` may filter on it.
 
     Rows a planned event expected (``planned_event_id`` set, F18) are never
@@ -383,10 +383,10 @@ def _get_latest_active_anomalies(
     #
     # The cap still holds: once the scan itself stops collecting,
     # ``scan_latest_bucket`` goes stale, ``_outage_is_still_running`` returns
-    # False and the state closes exactly as before (tripl-l429.26). So does the
+    # False and the state closes exactly as before. So does the
     # zero-baseline cap: an anchor whose ``expected_count`` is 0 describes a
     # scope that was never expected to emit, so there is no outage to hold open
-    # and it ages out like any other row (tripl-wkwv.4). This path must pass the
+    # and it ages out like any other row. This path must pass the
     # expectation for the same reason it passes the other two — the display
     # surfaces run the identical predicate, and an alert candidacy set derived
     # from a different rule than the page is exactly the drift this module has
@@ -420,7 +420,7 @@ def _get_active_metric_anomaly_candidates(
     so its frozen last anomaly stayed on the settled head and remained a live
     alert candidate — able to newly fire a Telegram/Slack message about a metric
     the user had just archived — until the wall-clock horizon closed it up to
-    three weeks later on a weekly grid (tripl-l429.25).
+    three weeks later on a weekly grid.
 
     Catalog metric anomalies are project-global (NULL ``scan_config_id``), so —
     unlike event scopes — they are not picked up by the config-partitioned
@@ -438,7 +438,7 @@ def _get_active_metric_anomaly_candidates(
     ``AlertRuleState`` row, so substituting ``config.interval`` for an
     interval-less ``event_composition`` metric made the same metric a candidate
     under one scan and not under another — the two dispatch runs then opened and
-    closed the same alert state in turn (tripl-l429.22).
+    closed the same alert state in turn.
     """
     metric_grids_by_ref = {
         str(metric_id): grid
@@ -562,8 +562,7 @@ def _get_active_variable_value_drift_candidates(
     trades the retention cutoff for the replay window and this one
     ``scan_config_id`` for the project; both trades are argued there. The FIELD
     MAPPING above is not a trade — change it here and it has to change there, or
-    the simulator starts describing a firing differently from the send
-    (tripl-0zpq.158).
+    the simulator starts describing a firing differently from the send.
     """
     retention_cutoff = datetime.now(UTC) - timedelta(days=30)
     candidates: dict[tuple[str, str], DriftAlertCandidate] = {}
@@ -651,8 +650,8 @@ def _get_active_release_regression_candidates(
     copy the "no time filter" above — that only works because this function runs
     per collection, right after the pass that rewrote the rows — so it bounds
     ``window_to`` by the replay window and therefore reports a standing
-    regression at most once, where a live rule re-sends it every cooldown
-    (tripl-0zpq.158). The ``app_version_column`` short-circuit it DOES copy,
+    regression at most once, where a live rule re-sends it every cooldown.
+    The ``app_version_column`` short-circuit it DOES copy,
     because rows outlive the setting.
     """
     if not config.app_version_column:
@@ -701,8 +700,8 @@ def _get_active_distribution_drift_candidates(
 
     ``services/_alerting_scope_readiness.load_scope_readiness`` mirrors the band
     clause — it answers "can this scope ever fire anywhere in this project", so
-    a row this function could never select must not count as readiness
-    (tripl-0zpq.166). It deliberately does not mirror the latest-bucket clause,
+    a row this function could never select must not count as readiness.
+    It deliberately does not mirror the latest-bucket clause,
     because its question is per project and "ever" rather than per config and
     "now". Widen what counts here and that probe starts warning about projects
     that do alert; narrow it and the probe starts promising a scope nothing will
@@ -724,7 +723,7 @@ def _get_active_distribution_drift_candidates(
             DistributionDrift.bucket == latest_bucket,
             # Spelled through the enum, not a bare "significant", so the
             # readiness probe that has to mirror this predicate is greppable
-            # from here (tripl-0zpq.166). Same value, same SQL.
+            # from here. Same value, same SQL.
             DistributionDrift.band == DistributionDriftBand.significant.value,
         )
         .order_by(DistributionDrift.field_name)

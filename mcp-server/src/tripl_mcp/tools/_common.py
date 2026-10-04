@@ -46,7 +46,7 @@ EVENT_LIST_FIELDS = (
 # project with 40 event types × 25 fields returns the entire field catalogue on
 # every list call, which is the bulk of the payload and almost never what the
 # caller is after at that point. get_event_type_fields fetches one type's fields
-# on demand (tripl-jfm3.126).
+# on demand.
 EVENT_TYPE_LIST_FIELDS = (
     "id",
     "name",
@@ -153,7 +153,7 @@ def summarize_collection(data: Any, sample_size: int = 10) -> dict[str, Any]:
     """Reduce a possibly-huge list / {items,total} payload to count + sample.
 
     Count-plus-sample is an agent budget and stays here; WHERE the rows live is
-    the route's business, so the unwrapping is ``tripl_cli.api``'s (tripl-i1dt).
+    the route's business, so the unwrapping is ``tripl_cli.api``'s.
     This was the third hand-written copy of it in this package.
 
     The membership test is deliberately still spelled here: it asks whether the
@@ -187,10 +187,10 @@ def with_mutation_warnings(data: Any) -> Any:
     it is the machinery implementing a rule written in prose three files away
     (server.INSTRUCTIONS, and the create_event/update_event descriptions). The
     shared `tripl` client is consumed by a CLI too, which would print a warning
-    line and exit 0, never an ``IMPORTANT_warnings`` dict key (tripl-ey6j.1).
+    line and exit 0, never an ``IMPORTANT_warnings`` dict key.
 
-    Re-checked when the CLI's read verbs landed and still has one caller
-    (tripl-i1dt): ``tripl events`` is read-only BY DECISION — a catalog write has
+    Re-checked when the CLI's read verbs landed and still has one caller:
+    ``tripl events`` is read-only BY DECISION — a catalog write has
     to land on a plan branch, and reproducing that gate from a shell is a command
     surface of its own (see ``tripl_cli.commands.events``). There is no second
     caller to share with until the CLI can write.

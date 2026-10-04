@@ -249,7 +249,7 @@ export function EventsToolbar({
         {/* Utility — export, collapsed into an overflow menu so the toolbar
             never needs a horizontal scrollbar. The unbuilt "Ask AI" entry is
             gone rather than badged "soon": a menu whose every entry is
-            unavailable teaches users not to open menus (tripl-evbw). */}
+            unavailable teaches users not to open menus. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" aria-label="More actions">
@@ -333,7 +333,7 @@ export function EventsToolbar({
             and still in_review), and until now it had no readable surface at
             all: no filter, no counter, and a column hidden by default. Without
             this control "Mark reviewed" wrote a flag the operator could never
-            see or isolate (tripl-invv). */}
+            see or isolate. */}
         <FilterSelect
           label="Verified"
           value={filterReviewed === undefined ? ANY : String(filterReviewed)}
@@ -345,9 +345,9 @@ export function EventsToolbar({
           anyValue={ANY}
           anyLabel="Any"
         />
-        {/* The discussion (tripl-h2sx.25) gave events a place to raise a
+        {/* The discussion gave events a place to raise a
             question; until threads could be resolved there was no way to ask
-            which events are still waiting on one (tripl-h2sx.26). Server-side,
+            which events are still waiting on one. Server-side,
             like every filter here, so it sees the whole catalog and not one
             loaded page — and twin-aware, so it answers on a branch too. */}
         <FilterSelect

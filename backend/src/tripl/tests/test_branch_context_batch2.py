@@ -6,7 +6,7 @@ tripl-0zpq.215 / tripl-0zpq.121: ``GET /branches`` hands out main's own id and
 on main while skipping the name-format delete guard (the tripl-lpin outage) and
 the event-type, meta-field and project cache busts.
 
-tripl-0zpq.145: nothing refused a plan write to a merged or closed branch,
+nothing refused a plan write to a merged or closed branch,
 although the docs say its writes are refused. The refusal must not outrank
 authorization: a caller the route's write gate turns away gets that gate's 403,
 whichever order the route declares ``?branch=`` and the gate in.
@@ -390,7 +390,7 @@ async def test_a_field_write_on_a_working_branch_leaves_mains_list_alone(
     assert cache.prefix_event_types(await project_id_by_slug(slug)) not in dropped
 
 
-# --- tripl-0zpq.145: a merged or closed branch takes no plan writes -------------
+# --- a merged or closed branch takes no plan writes -------------
 
 
 def _gate_calls(route: APIRoute) -> set[Any]:
@@ -505,7 +505,7 @@ async def _signed_in_as(
     """A second client acting as ``principal``, with the headers it must send.
 
     The viewer is made a member of ``slug`` so the answer under test is the
-    write gate's 403, not the membership gate's 404 (tripl-vefw).
+    write gate's 403, not the membership gate's 404.
     """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
         if principal == "read-key":

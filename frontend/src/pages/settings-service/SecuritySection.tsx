@@ -7,7 +7,7 @@ import { sourceFor } from './serviceSettingsHelpers'
 // Short enough to fit the kit's 280px Select. The full sentence — "Open —
 // anyone who can reach this instance can sign up" — clipped mid-word against
 // the chevron ("...can reach this insta") with no ellipsis, because a native
-// <select> with appearance-none hard-clips its own value (tripl-p1c6). The
+// <select> with appearance-none hard-clips its own value. The
 // setting that decides who may create an account on this server was the one
 // value on the page you could not read. What "Open" exposes is spelled out in
 // the field hint below, which has the width for it.
@@ -33,7 +33,7 @@ export function SecuritySection({
           in the page's save-row note (applyNote('security')), which is two lines
           above this card. It used to be repeated here in a second vocabulary —
           "no redeploy" against the note's "no restart" — so the same caveat
-          appeared twice within 200px in two different words (tripl-p1c6). */}
+          appeared twice within 200px in two different words. */}
       <SCard
         title="Registration"
         description="Who is allowed to create an account on this instance."
@@ -46,7 +46,7 @@ export function SecuritySection({
           // layout crams it into the 232px label gutter — nine lines, wrapping
           // "owner-only" across two of them, with ~380px of the row empty beside
           // it. The most consequential explanation on the page was the hardest
-          // thing to read on it (tripl-p1c6).
+          // thing to read on it.
           stacked
           hint={
             registrationOpen

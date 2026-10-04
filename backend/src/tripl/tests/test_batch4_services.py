@@ -70,7 +70,7 @@ from tripl.services.demo.builders.alerts import _delivery_item
 from tripl.tests.conftest import TestSessionLocal
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.242 — the rule DELETE route ran its own slug-less lookup
+# the rule DELETE route ran its own slug-less lookup
 # ---------------------------------------------------------------------------
 
 
@@ -244,7 +244,7 @@ def test_the_alerting_router_builds_no_query_of_its_own() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.159 — a rule PATCH answered with the filters it had just replaced
+# a rule PATCH answered with the filters it had just replaced
 # ---------------------------------------------------------------------------
 
 
@@ -377,7 +377,7 @@ async def test_creating_a_rule_with_filters_survives_the_relationship_write(
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.161 — a PATCH validated its fields one at a time, not the merged row
+# a PATCH validated its fields one at a time, not the merged row
 # ---------------------------------------------------------------------------
 
 
@@ -632,7 +632,7 @@ def test_the_null_rejection_sets_still_match_the_columns_behind_them() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.275 — create/update schemas left strings unbounded against VARCHAR
+# create/update schemas left strings unbounded against VARCHAR
 # ---------------------------------------------------------------------------
 
 # Each row pairs a bounded schema field with the column that field is written
@@ -936,7 +936,7 @@ async def test_a_rule_name_is_stripped_and_a_blank_one_is_refused(
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.168 — a muted_until sent without an offset 500'd instead of muting
+# a muted_until sent without an offset 500'd instead of muting
 # ---------------------------------------------------------------------------
 
 
@@ -1062,7 +1062,7 @@ async def test_mute_monitor_reads_a_naive_argument_as_utc(client: AsyncClient) -
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.273 — a silence that had already ended was accepted as a silence
+# a silence that had already ended was accepted as a silence
 # ---------------------------------------------------------------------------
 
 # The four request bodies that carry an instant meaning "stay quiet until then"
@@ -1208,7 +1208,7 @@ def test_an_accepted_silence_is_stored_as_the_utc_instant_it_was_checked_against
 def test_the_indefinite_mute_is_not_a_lapsed_one() -> None:
     """The null arm of the mute guard, which is the arm most likely to be tidied away.
 
-    A null ``muted_until`` on an INCIDENT is "muted until I unmute" (tripl-a50u)
+    A null ``muted_until`` on an INCIDENT is "muted until I unmute"
     — the one silence that can never lapse — so it is the last body that should
     be refused for having lapsed. Drop the ``is not None`` from either inbox
     guard and ``require_future_instant`` is handed a None: the first two
@@ -1216,7 +1216,7 @@ def test_the_indefinite_mute_is_not_a_lapsed_one() -> None:
 
     The third and fourth pin the other boundary: a ``muted_until`` sent with a
     non-mute action, or a ``snoozed_until`` on an accept, is refused as a
-    mismatch rather than silently discarded (tripl-0zpq.325), the rule
+    mismatch rather than silently discarded, the rule
     ``EventCommentActionRequest`` already applied.
     """
     assert AlertInboxActionRequest(action="mute", muted_until=None).muted_until is None
@@ -1383,7 +1383,7 @@ async def test_the_inbox_refusal_reaches_the_operator_through_msg_not_through_lo
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.30 — the destination URL guards resolved DNS on the event loop
+# the destination URL guards resolved DNS on the event loop
 # ---------------------------------------------------------------------------
 
 
@@ -1651,7 +1651,7 @@ async def test_saving_a_tracker_base_url_resolves_it_off_the_event_loop(
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.272 — the replay shipped the no-baseline placeholder as a real 0.0
+# the replay shipped the no-baseline placeholder as a real 0.0
 # ---------------------------------------------------------------------------
 
 
@@ -1909,7 +1909,7 @@ def test_the_published_replay_contract_says_the_percent_can_be_null() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tripl-0zpq.160 — the replay quoted a sigma column the detector never reads
+# the replay quoted a sigma column the detector never reads
 # ---------------------------------------------------------------------------
 
 

@@ -2,11 +2,11 @@
  * How a percent delta is written, everywhere it is shown.
  *
  * The percent gate deliberately admits anomalies with no baseline at all
- * (tripl-l429.12) — a scope resuming after an outage, an event firing for the
+ * — a scope resuming after an outage, an event firing for the
  * first time, a schema drift — and every one of those arrives with
  * `expected_count` 0. `percent_delta` is stored 0.0 for them because the ratio
  * is undefined and the column is NOT NULL, so printing it reported the largest
- * possible relative move as the smallest one (tripl-l429.24). The absolute delta
+ * possible relative move as the smallest one. The absolute delta
  * is what there is to report for that class, and it sits in its own column.
  *
  * Mirrors the backend's `alert_templates` — `has_baseline`, `percent_delta_of`,
@@ -22,7 +22,7 @@ export const NO_BASELINE_LABEL = 'no baseline'
  * Was there an expectation to divide by?
  *
  * ZERO is the no-baseline condition, and it is the ONLY one — the mirror of the
- * backend's `alert_templates.has_baseline` (tripl-0zpq.102).
+ * backend's `alert_templates.has_baseline`.
  *
  * A NEGATIVE expectation is a REAL baseline. A `fact` sum/avg/min/max over a
  * signed column, or a `sql` level that legitimately sits below zero, has a level
@@ -61,8 +61,8 @@ export function formatPercentDelta(
   // about whether there was a baseline.
   //
   // `null` is accepted because the API now sends it: `AlertDeliveryItemResponse
-  // .percent_delta` is `float | None`, null exactly when there was no baseline
-  // (tripl-l429.27). The two guards agree by construction, but a delivery
+  // .percent_delta` is `float | None`, null exactly when there was no baseline.
+  // The two guards agree by construction, but a delivery
   // recorded before that change still carries the stored 0.0 beside
   // `expected_count: 0`, so both conditions must be handled.
   //
@@ -117,7 +117,7 @@ export function ratioDelta(actual: number, expected: number): number | null {
  *
  * An undefined ratio is named, never dropped: a blank cell reads as missing
  * data, which is a different (and fixable) problem from one that is undefined by
- * definition (tripl-l429.27).
+ * definition.
  *
  * The `+` stays a real statement about direction because {@link ratioDelta} now
  * signs by `actual - expected`; feed this a bare magnitude and every drop would

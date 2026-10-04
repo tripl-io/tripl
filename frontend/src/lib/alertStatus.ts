@@ -39,7 +39,7 @@ export interface AlertStatusLexeme {
  * Before this the badge printed `{group.status}` raw, so one literally read
  * `false_positive`, and three of the five (`open`, `acknowledged`, `muted`)
  * shared a single grey outline — the operator could not tell an untouched
- * incident from one they had already snoozed (tripl-oxkt.16).
+ * incident from one they had already snoozed.
  *
  * `open` stays NEUTRAL on purpose. 52 of 57 production groups are open, and
  * tinting 52 of 57 rows destroys the scanning benefit colour exists for. Colour
@@ -113,7 +113,7 @@ const SCOPE_KIND_LABEL: Record<MetricScopeType, string> = {
  *
  * Exported so the inbox's scope-kind filter offers the SAME words the chip it
  * filters by shows. A picker that says "Event" over cards that say "volume"
- * makes the reader hold two vocabularies for one column (tripl-htfn.4).
+ * makes the reader hold two vocabularies for one column.
  */
 export function scopeKindLabel(scopeType: MetricScopeType): string {
   return SCOPE_KIND_LABEL[scopeType] ?? scopeType
@@ -129,7 +129,7 @@ export function scopeKindLabel(scopeType: MetricScopeType): string {
  * kind: `release_regression` ("this screen regressed in the new build") beside
  * `event` ("this event's volume dropped"). They rendered as near-identical
  * cards, so muting one and watching "it" come back was the expected outcome of
- * a UI that never showed the axis they differ on (tripl-oxkt.4).
+ * a UI that never showed the axis they differ on.
  *
  * All kinds are joined, not just the newest item's: a legacy group can mix
  * them, and describing a mixed incident by one member is how the mute's blast
@@ -155,8 +155,8 @@ export function incidentDirectionGlyph(direction: AlertInboxGroup['direction']):
  * `expected_count` is a rolling baseline, so it arrives as a float. Printing it
  * raw put "197 vs 88.318 expected" on every inbox card while the activity rail
  * 400px away said "42,280 actual vs 33,376 expected" — two formats for one kind
- * of number, and "88.318" is read as 88,318 by anyone used to a decimal comma
- * (tripl-nj4n). The inbox card rounded neither, which is what this first fixed;
+ * of number, and "88.318" is read as 88,318 by anyone used to a decimal comma.
+ * The inbox card rounded neither, which is what this first fixed;
  * the sibling surfaces (AnomaliesPage, OverviewPage, the top bar, the projects
  * list, the replay dialog) each reached for `Math.round` on the baseline, and
  * all five now come through here so one incident cannot be spelled two ways
@@ -190,7 +190,7 @@ export function formatIncidentCount(value: number): string {
  *
  * Reaching this before meant clicking "Show what was sent", expanding a
  * delivery and reading the items table: two lazy fetches deep, so a blip and an
- * outage looked identical in the list (tripl-oxkt.4).
+ * outage looked identical in the list.
  *
  * A zero baseline is stated in WORDS, never as "0%". The percent gate admits
  * anomalies with no baseline at all — a scope resuming after an outage, an
@@ -247,7 +247,7 @@ export function incidentWorstDeltaLabel(group: {
  * `_reopen_closed_incidents` resets any non-open state back to `open` once the
  * scope goes quiet. That is a deliberate, documented decision, but it was
  * invisible: `acted_at` shipped and rendered nowhere, so an incident closed
- * last week was pixel-identical to one nobody had ever seen (tripl-oxkt.5).
+ * last week was pixel-identical to one nobody had ever seen.
  *
  * Worded "closed … firing again", not "reopened by the system": a user-clicked
  * Reopen also leaves a fresh `acted_at`, so the two are indistinguishable from
@@ -280,7 +280,7 @@ function nameList(names: readonly string[], fallback: string): string {
  * the sentence spells all five parts and then says what is NOT covered.
  *
  * `mutedUntilIso` is nullable because the Inbox can mute with no end date at
- * all (tripl-a50u), and that case gets its own clause rather than a formatted
+ * all, and that case gets its own clause rather than a formatted
  * timestamp: `formatDateTime(null)` would print "Invalid Date" inside the one
  * sentence whose entire job is to state the blast radius before anything goes
  * quiet. The open-ended clause also names the way back, because an indefinite
@@ -292,12 +292,12 @@ function nameList(names: readonly string[], fallback: string): string {
  * "until 20 Aug 2026 12:00", or the whole open-ended clause.
  *
  * Extracted so the single-incident confirmation and the bulk one below cannot
- * describe the SAME wire value differently (tripl-gpfr). The open-ended branch
+ * describe the SAME wire value differently. The open-ended branch
  * is a sentence rather than a phrase because it has to carry two facts a
  * timestamp carries implicitly: that the silence never lapses on its own, and
  * where the incident will be found afterwards — an indefinite mute freezes the
  * row's sort key, so it sinks out of the 30-day window and the Muted filter is
- * the only route back to the Unmute that lifts it (tripl-oxkt.2, tripl-a50u).
+ * the only route back to the Unmute that lifts it.
  *
  * Never `formatDateTime(mutedUntilIso)` on the null branch: it prints "Invalid
  * Date" inside the one sentence whose entire job is to state a blast radius
@@ -332,7 +332,7 @@ export function muteConfirmMessage(
  *
  * It writes permanent scope overrides, and until now carried no confirm at all
  * — only a `title` tooltip, on a 4px-gapped button that swapped places with
- * Mute between rows (tripl-oxkt.8).
+ * Mute between rows.
  */
 export function falsePositiveConfirmMessage(group: AlertInboxGroup): string {
   const scopes = nameList(group.scope_names, 'this scope')
@@ -349,13 +349,13 @@ export function falsePositiveConfirmMessage(group: AlertInboxGroup): string {
  *
  * Success was announced nowhere: `onSuccess` discarded the response and only
  * invalidated, so a click on row 12 greyed out the list and then silently
- * un-greyed it (tripl-oxkt.11).
+ * un-greyed it.
  *
  * The false-positive wording is driven by `overrides_written`, never by
  * `group.scope_type`. The tooltip used to promise a permanent detection change
  * on every card, while the ratchet skips any scope kind outside
  * RATCHETABLE_SCOPE_TYPES — 10 of 57 production groups are release regressions,
- * where it writes nothing at all (tripl-oxkt.6). And `scope_type` is only the
+ * where it writes nothing at all. And `scope_type` is only the
  * NEWEST item's, so a client-side guess would be wrong on mixed groups too.
  */
 export function inboxActionSuccessMessage(
@@ -369,7 +369,7 @@ export function inboxActionSuccessMessage(
     case 'resolve':
       return 'Resolved. It stays quiet until the scope goes quiet, then reopens.'
     // A NULL `muted_until` on a mute that just succeeded is the open-ended
-    // mute (tripl-a50u), not a missing value — the branch used to be an
+    // mute, not a missing value — the branch used to be an
     // unreachable bare "Muted." because the API required a timestamp. Left as
     // that one word it would be the only feedback for a permanent silence and
     // would read exactly like a seven-day snooze, so it says which one it is
@@ -393,7 +393,7 @@ export function inboxActionSuccessMessage(
 
 /*
  * ---------------------------------------------------------------------------
- * Acting on SEVERAL incidents at once (tripl-gpfr). Everything below describes
+ * Acting on SEVERAL incidents at once. Everything below describes
  * a batch; everything above it describes one incident. The two are kept apart
  * deliberately rather than folded into count-aware variants of the same
  * functions — see `bulkInboxActionSuccessMessage` for why the sentences differ
@@ -449,11 +449,11 @@ export function bulkMuteConfirmMessage(count: number, mutedUntilIso: string | nu
  *    only action that ratchets anything and the route refuses it. The single
  *    version's false-positive branch reads that number, which is precisely why
  *    reusing it here would be wrong even if `AlertInboxBulkAction` allowed the
- *    action to arrive (tripl-oxkt.6).
+ *    action to arrive.
  *  - The per-incident promises stay off it. "It reopens once the scope goes
  *    quiet" is true of each member individually and reads, over a batch, as a
  *    promise about the batch — which is not a thing that exists: there is no
- *    group object, so there is nothing to reopen as a unit (tripl-5cc9).
+ *    group object, so there is nothing to reopen as a unit.
  *
  * The mute branch still distinguishes a timed silence from an open-ended one,
  * because that distinction is the whole of tripl-a50u and a bulk mute is the
@@ -479,7 +479,7 @@ export function bulkInboxActionSuccessMessage(
       // acknowledge, a resolve and a false positive AND lifts a mute, and a
       // mixed selection is the normal case for a bulk reopen — there is no
       // single previous status to key the wording off, the way the
-      // single-incident message does (tripl-oxkt.3).
+      // single-incident message does.
       return `Reopened ${incidents} — alerts resume.`
     case 'note':
       return `Note saved on ${incidents}.`

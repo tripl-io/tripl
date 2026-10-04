@@ -74,7 +74,7 @@ describe('friendlyScanError', () => {
     // The real string from core/analyzers/event_generator._apply_name_format.
     // It only survives because it starts with "Scan failed" — this test fails if
     // anyone drops that prefix, which would silently return the operator to the
-    // bare "Scan failed." that hid a four-day outage (tripl-3mmh).
+    // bare "Scan failed." that hid a four-day outage.
     const raw =
       'Scan failed: the event name format references unknown keys: action. ' +
       'Available keys: platform, screen_name, time'
@@ -88,7 +88,7 @@ describe('friendlyScanError', () => {
     // tables have columns like `client_errno` and `error_traceback_id`. As bare
     // substrings those read as a raw exception, the verbatim pass-through was
     // skipped, and `connection_id` two columns later then mapped the whole thing
-    // to an actively WRONG connection error (tripl-3mmh).
+    // to an actively WRONG connection error.
     const raw =
       'Scan failed: the event name format references unknown keys: action. ' +
       'Available keys: client_errno, connection_id, error_traceback_id, sqlalchemy_version'

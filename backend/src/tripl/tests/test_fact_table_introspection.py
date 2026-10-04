@@ -1,4 +1,4 @@
-"""Unit tests for the fact-table column introspection service (tripl-ysji.2).
+"""Unit tests for the fact-table column introspection service.
 
 No live warehouse: the adapter is faked and ``build_adapter`` is monkeypatched.
 Scope checks use an in-memory SQLite ``AsyncSession`` with Project / DataSource /
@@ -116,7 +116,7 @@ def test_bucket_warehouse_type(type_name: str, expected: str) -> None:
         # Declared-type signal: UUID-typed columns are identifiers by construction.
         ("trace", "UUID", True),
         ("trace", "Nullable(UUID)", True),
-        # Plain words that merely end in "id" must NOT match (tripl-8pc0).
+        # Plain words that merely end in "id" must NOT match.
         ("paid", "String", False),
         ("valid", "String", False),
         ("android", "String", False),
@@ -454,7 +454,7 @@ async def test_introspect_wraps_adapter_build_failure(
 async def test_introspect_reads_the_shape_and_never_the_rows(
     session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The preview must not fetch rows at all (tripl-0zpq.75).
+    """The preview must not fetch rows at all.
 
     This replaces three tests that pinned how sample rows were coerced — JSON
     safety, the row cap, non-finite floats. Their subject is gone rather than

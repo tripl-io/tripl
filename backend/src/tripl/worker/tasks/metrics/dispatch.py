@@ -120,7 +120,7 @@ def _cooldown_elapsed(
 # config-scoped one and no config can collide into a catalog metric's incident
 # handle. It is also drift-proof by construction — there is no row behind it to
 # be created, deleted or re-elected, which is precisely what went wrong with the
-# anchor it replaces (tripl-0zpq.28).
+# anchor it replaces.
 #
 # The PROJECT ID is deliberately not hashed in its place. ``rule_id`` is already
 # in the key and a rule belongs to exactly one destination, which belongs to
@@ -149,7 +149,7 @@ def _scope_partition_id(scope_type: str, *, config_id: uuid.UUID) -> uuid.UUID |
     the handle hashed the FIRING config, so a three-scan project minted three
     handles for one project-global scope: an Inbox acknowledgement or mute on one
     of them left the other two paging on the next collection, and the Inbox
-    listed up to N rows for a single incident (tripl-0zpq.27).
+    listed up to N rows for a single incident.
 
     ``services/_alerting_deliveries`` asks the same question of the
     false-positive ratchet and answers it the same way.
@@ -178,7 +178,7 @@ def _correlation_group_id(
     of the same incident was a brand-new group and nothing the user did in the
     inbox survived the next collection: acknowledging, resolving or muting
     silenced exactly the bucket already delivered, and an hour later an unseen
-    group alerted again (tripl-jfm3.91). Leaving it out makes the group live as
+    group alerted again. Leaving it out makes the group live as
     long as the incident does, and it must stay out.
 
     The SCOPE is present because ``_SUPPRESSING_INBOX_STATUSES`` gates the whole
@@ -199,7 +199,7 @@ def _correlation_group_id(
     renders through ``_PROJECT_GLOBAL_PARTITION`` rather than through ``None``'s
     repr, so the string that is hashed says what it means and cannot be produced
     by any scan config id. Callers pass the partition, never a config id "for a
-    metric scope anyway" — that is the bug this rule replaced (tripl-0zpq.27).
+    metric scope anyway" — that is the bug this rule replaced.
     """
     partition = _PROJECT_GLOBAL_PARTITION if scan_config_id is None else str(scan_config_id)
     return uuid.uuid5(
@@ -211,7 +211,7 @@ def _correlation_group_id(
 # Statuses that stop re-delivery. ``acknowledged`` means "seen, being worked on"
 # — it belongs here: an operator who acked an incident and kept getting paged
 # for it every hour reported the inbox as decorative, which it was, since ack
-# was the one action with no effect on delivery at all (tripl-jfm3.91).
+# was the one action with no effect on delivery at all.
 _SUPPRESSING_INBOX_STATUSES = ("acknowledged", "resolved", "false_positive", "muted")
 
 
@@ -269,7 +269,7 @@ def _reopen_closed_incidents(
     "I am on this incident" and dies with it; "muted until T" means "do not tell
     me before T" regardless of what the signal does in between. Resetting it here
     killed a seven-day mute on the first quiet collection and paged the user
-    again hours later (tripl-jfm3.98).
+    again hours later.
 
     An INDEFINITE mute (``muted_until`` NULL — "muted until I unmute") is the
     same promise with no T at all, and is the one a fall-through hurts most: its
@@ -277,7 +277,7 @@ def _reopen_closed_incidents(
     the row. The check below is therefore ``muted_until is None or muted_until >
     now`` and NOT ``is not None and > now``, which read a NULL as an expiry
     infinitely far in the past and silently released the strongest mute in the
-    product on the first quiet scan (tripl-a50u). Unreachable until the inbox
+    product on the first quiet scan. Unreachable until the inbox
     validator started accepting a mute with no expiry, which is precisely why it
     had to be fixed in the same change.
 
@@ -530,7 +530,7 @@ def _retire_config_anchored_metric_states(
     session: Session,
     destinations: list[AlertDestination],
 ) -> None:
-    """Delete metric states an OLD worker anchored on a scan config (tripl-0zpq.28).
+    """Delete metric states an OLD worker anchored on a scan config.
 
     Nothing in this tree writes one: ``_scope_partition_id`` answers NULL for a
     ``metric`` scope, so every path that creates a state stores NULL. Such a row
@@ -623,7 +623,7 @@ def _claim_rule_state(
     savepoint, so that failure takes the whole ``collect_metrics`` run down with
     it: the anomaly recalculation, the cooldown updates and every delivery for
     every scope of that scan, on every collection for as long as the scope keeps
-    firing. Same blast radius as the oversized ``scope_name`` (tripl-0zpq.253),
+    firing. Same blast radius as the oversized ``scope_name``,
     reached from a different direction.
 
     INSERT ... ON CONFLICT rather than a SAVEPOINT and a re-select, which is the
@@ -720,7 +720,7 @@ def _prepare_alert_deliveries(
     ``buffered`` is an out-parameter rather than a second return value so every
     existing call site keeps working unchanged: it appends the number of alerts
     held for a later digest, which is otherwise invisible from outside the
-    database (tripl-ftrn). ``alerts_queued == 0`` alone cannot distinguish
+    database. ``alerts_queued == 0`` alone cannot distinguish
     "held 12" from "nothing matched", and on a cadence that is the difference
     between working and silently swallowing every alert.
     """
@@ -755,8 +755,7 @@ def _prepare_alert_deliveries(
     project_slug = _get_project_slug(session, config.project_id)
     scope_names = _build_alert_scope_names(session, list(active_candidates.values()))
     # Event-anchored candidates store a NULL event_type_id on purpose; without
-    # this map an ``event_type`` filter is silently inert for every one of them
-    # (tripl-0zpq.7).
+    # this map an ``event_type`` filter is silently inert for every one of them.
     event_type_by_event_id = _build_event_type_by_event_id(
         session, list(active_candidates.values())
     )
@@ -1002,9 +1001,9 @@ def _prepare_alert_deliveries(
             # comment on ``AlertRule.muted_until`` USED TO call worker-side
             # suppression "a separate follow-up", so the Monitors UI shipped a
             # Mute button that wrote a column no worker read and changed
-            # nothing (tripl-jfm3.99). That comment has since been corrected to
+            # nothing. That comment has since been corrected to
             # name the column's only two worker readers — this line and
-            # ``alert_flush._build_digest`` (tripl-0zpq.259). A third delivery
+            # ``alert_flush._build_digest``. A third delivery
             # path added without a mute check of its own would be that bug
             # again.
             #
@@ -1013,7 +1012,7 @@ def _prepare_alert_deliveries(
             # created, and the rule has no status column to say otherwise). The
             # near-identical line in ``_reopen_closed_incidents`` reads a NULL
             # the OPPOSITE way — there it is the indefinite inbox mute — so do
-            # not unify them (tripl-a50u). A rule's permanent lever is
+            # not unify them. A rule's permanent lever is
             # ``enabled``.
             rule_muted_until = _as_utc(rule.muted_until)
             if rule_muted_until is not None and rule_muted_until > now:
@@ -1023,7 +1022,7 @@ def _prepare_alert_deliveries(
             # The id doubles as the inbox handle, and the inbox only lists items
             # that have one — so while it was reserved for 2+ peers, a solitary
             # alert never reached the inbox and no action could reach it either.
-            # That is the common case, and it was unactionable (tripl-jfm3.91).
+            # That is the common case, and it was unactionable.
             #
             # The id is per SCOPE now (see ``_correlation_group_id``), so peers
             # inside one group are the same scope over time, not the scopes that
@@ -1039,7 +1038,7 @@ def _prepare_alert_deliveries(
             # scope: the suppression check below — the whole mechanism behind an
             # Inbox ack or mute — then missed every handle but the one belonging
             # to the scan that happened to collect next, so the silenced incident
-            # paged anyway and the Inbox listed it N times (tripl-0zpq.27).
+            # paged anyway and the Inbox listed it N times.
             correlation_by_anomaly: dict[int, uuid.UUID] = {}
             for anomaly in anomalies_to_send:
                 correlation_by_anomaly[id(anomaly)] = _correlation_group_id(
@@ -1091,7 +1090,7 @@ def _prepare_alert_deliveries(
                 # receiving it twice. One whose scope a digest already stamped
                 # is KEPT for the flusher's drain arm, because the gate above
                 # needs a newer bucket AND an elapsed cooldown for that scope
-                # and would deliver nothing at all (tripl-0zpq.38).
+                # and would deliver nothing at all.
                 buffered_count += _buffer_pending_items(
                     session,
                     config,
@@ -1147,7 +1146,7 @@ def _create_deliveries(
     # session it checks out a SECOND pooled connection for its two
     # ``app_settings`` SELECTs. On the digest path it did that while
     # ``alert_flush._build_digest`` held FOR UPDATE locks on the whole buffer
-    # and the flush advisory lock on the first connection (tripl-0zpq.109).
+    # and the flush advisory lock on the first connection.
     # Passing ``session`` keeps the reads on the connection this transaction
     # already holds, which is how ``worker/tasks/scan.py`` and
     # ``metrics/tasks.py`` already call this helper.
@@ -1214,9 +1213,9 @@ def _create_deliveries(
             # ``lib/percentDelta`` mirror; machines get JSON ``null`` via
             # ``alert_templates.percent_delta_or_none`` (the generic
             # webhook body, ``payload_snapshot``). The percent gate admits
-            # the class on purpose (tripl-l429.12); printing the
+            # the class on purpose; printing the
             # placeholder reported the largest possible relative move as
-            # the smallest (tripl-l429.24, tripl-l429.27).
+            # the smallest.
             # The one deliberate exception is the raw ${percent_delta}
             # template variable, whose documented contract is a bare
             # number; see ``alerts_messages._build_item_template_context``.
@@ -1226,7 +1225,7 @@ def _create_deliveries(
             # 200% move to -300, and the matcher already reads it that way
             # (``alerting_matching.rule_matches_anomaly``: ``abs(expected)``
             # against min_expected_count, ``absolute_delta / abs(expected)``
-            # against min_percent_delta, tripl-0zpq.102) — so a rule fires
+            # against min_percent_delta) — so a rule fires
             # BECAUSE the move is 200% and storing 0.0 for it reproduced
             # exactly the tripl-l429.24 misreport against a real baseline.
             # The divisor is the MAGNITUDE so the ratio stays a size rather
@@ -1362,8 +1361,7 @@ def _buffer_pending_items(
     a corner: 106 of 223 live scopes fired in BOTH directions inside one day
     (``models/alert_rule``).
 
-    Collapsing the pair was proposed both ways and neither is available
-    (tripl-0zpq.108):
+    Collapsing the pair was proposed both ways and neither is available:
 
     * DROP ``direction`` from the key and one row stands for two incidents
       while ``correlation_group_id`` is a single column that can name only one.

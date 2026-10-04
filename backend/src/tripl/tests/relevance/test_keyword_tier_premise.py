@@ -1,4 +1,4 @@
-"""The two keyword tiers, read on their own instead of through a total score (tripl-0qld).
+"""The two keyword tiers, read on their own instead of through a total score.
 
 WHY THE CASE TABLE COULD NOT SEE THIS
 -------------------------------------
@@ -191,7 +191,7 @@ async def test_event_keywords_hold_the_binding_and_the_body_holds_the_harvest(
             assert plural not in row.keywords, (
                 f"{row.title!r}: {plural!r} is a value ${{property.screen_name}} "
                 f"harvested from traffic; keywords is what the 3.5 and 3.25 tiers "
-                f"read (tripl-0qld). keywords={row.keywords!r}"
+                f"read. keywords={row.keywords!r}"
             )
             assert plural in row.body, (
                 f"{row.title!r}: {plural!r} must stay searchable as body text — "

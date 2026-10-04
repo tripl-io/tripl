@@ -51,7 +51,7 @@ class Config:
 
     ``sources`` is provenance, and it is cheap now and expensive to retrofit:
     ``tripl doctor`` exists to answer "why is it talking to *that* instance",
-    which was a week of the 2026-07-28..31 incident (tripl-ey6j). It also makes
+    which was a week of the 2026-07-28..31 incident. It also makes
     today's failure messages specific instead of generic.
     """
 
@@ -178,7 +178,7 @@ def _load_file(path: Path, *, explicit: bool) -> dict[str, Any] | None:
     # must keep working against a file written by a newer one, and a future
     # [profiles.staging] table has to fit without a format change. The cost — a
     # typo doing nothing — is paid off by `tripl doctor`, which reports unknown
-    # keys and the full provenance table (tripl-ey6j.2).
+    # keys and the full provenance table.
     return data
 
 

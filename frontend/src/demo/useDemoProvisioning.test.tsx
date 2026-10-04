@@ -100,8 +100,8 @@ function stallUntilAborted() {
   return captured
 }
 
-describe('useDemoProvisioning — a stalled create is escapable (tripl-2su6.15)', () => {
-  it('cancel aborts the request AND asks the server to abandon it (tripl-jfm3.12)', async () => {
+describe('useDemoProvisioning — a stalled create is escapable', () => {
+  it('cancel aborts the request AND asks the server to abandon it', async () => {
     const captured = stallUntilAborted()
     const cancelSpy = vi
       .spyOn(projectsApi, 'cancelDemo')
@@ -291,7 +291,7 @@ describe('useDemoProvisioning', () => {
     expect(screen.getByTestId('path')).toHaveTextContent('/workspace')
   })
 
-  it('never rejects the mutation, so the app-wide error toast stays silent (tripl-jfm3.13)', async () => {
+  it('never rejects the mutation, so the app-wide error toast stays silent', async () => {
     // main.tsx registers `new MutationCache({ onError: surfaceError })`, which
     // toasted every rejected mutation — turning a deliberate cancel into a red
     // "the backend timed out" toast and double-reporting a genuine 500.
@@ -319,7 +319,7 @@ describe('useDemoProvisioning', () => {
     expect(onError).not.toHaveBeenCalled()
   })
 
-  it('reports a 500 in the hook without rejecting the mutation (tripl-jfm3.13)', async () => {
+  it('reports a 500 in the hook without rejecting the mutation', async () => {
     const onError = vi.fn()
     const queryClient = new QueryClient({
       mutationCache: new MutationCache({ onError }),

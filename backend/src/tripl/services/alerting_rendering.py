@@ -46,7 +46,7 @@ def _drift_facts(firing: SimulatedRuleFiring) -> DriftLineFacts:
     Twin of ``worker.tasks.alerts_messages._drift_facts``, which fills the same
     fields off a delivered ``AlertDeliveryItem``. Keeping these two adapters the
     only production constructors is what stops the preview's wording and the
-    send's from splitting again (tripl-0zpq.165).
+    send's from splitting again.
 
     ``window_from`` rides along like every other fact. It used to be the one
     field a firing could not supply — the replay loaded only stored anomaly
@@ -97,7 +97,7 @@ def render_firing_item(
     ``alert_templates`` helpers rather than restated here. Both used to be a
     second copy and both had drifted from the send: a schema drift previewed as
     "drift: type_changed: amount — e.g. 9.99" and then arrived as
-    "drift: type_changed amount sample=9.99" (tripl-0zpq.165).
+    "drift: type_changed amount sample=9.99".
 
     ``${expected_basis}`` is the third such string and was the last one still
     diverging — see the comment on it below.
@@ -134,7 +134,7 @@ def render_firing_item(
         # rows)" — and ``ReleaseRegression`` is a table
         # (``models/release_regression.py``), recomputed in full per scan but
         # very much stored. The claim only looked true because the replay never
-        # LOADED those rows; now that it does (tripl-0zpq.158) the empty string
+        # LOADED those rows; now that it does the empty string
         # would have been the family's last preview/send divergence, previewing
         # "expected=715.7" where the delivery says
         # "expected=715.7 (adoption-adjusted)" about the same firing.

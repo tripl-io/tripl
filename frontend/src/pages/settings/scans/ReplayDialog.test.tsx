@@ -48,7 +48,7 @@ describe('ReplayDialog — the seeded period must be one the backend accepts', (
   // scan's interval, which reaches into the interval still filling on every
   // config coarser than an hour. Replay refuses that period — it holds no
   // complete bucket — so opening this dialog on a daily or weekly scan and
-  // pressing Replay produced a job that could only fail (tripl-0zpq.22).
+  // pressing Replay produced a job that could only fail.
   it.each([
     ['1d' as const, Date.UTC(2026, 8, 12), 24 * 60 * 60 * 1000],
     // 1w bins from Monday, like every warehouse adapter: the Monday before this

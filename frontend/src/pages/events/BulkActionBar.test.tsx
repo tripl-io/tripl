@@ -19,7 +19,7 @@ function renderBar(overrides: Partial<Parameters<typeof BulkActionBar>[0]> = {})
   return props
 }
 
-describe('BulkActionBar select-all-matching (tripl-7l83.11)', () => {
+describe('BulkActionBar select-all-matching', () => {
   it('offers to widen the selection when more events match than are selected', () => {
     const onSelectAllMatching = vi.fn()
     renderBar({ selectedCount: 5, matchingTotal: 499, onSelectAllMatching })
@@ -81,7 +81,7 @@ describe('BulkActionBar select-all-matching (tripl-7l83.11)', () => {
   })
 })
 
-describe('BulkActionBar bulk unassign (tripl-0zpq.276)', () => {
+describe('BulkActionBar bulk unassign', () => {
   it('offers Unassign and reports it as a null owner', async () => {
     // `POST .../events/bulk-update` keys off which fields were SENT, so
     // `owner_id: null` is the selection-wide unassign and an omitted `owner_id`
@@ -113,7 +113,7 @@ describe('BulkActionBar bulk unassign (tripl-0zpq.276)', () => {
   })
 })
 
-describe('BulkActionBar stale-selection disclosure (tripl-4i49)', () => {
+describe('BulkActionBar stale-selection disclosure', () => {
   it('says how much of the selection is still on screen when they diverge', () => {
     renderBar({ selectedCount: 20, selectedVisibleCount: 3, matchingTotal: 3 })
 

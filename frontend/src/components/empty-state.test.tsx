@@ -8,7 +8,7 @@ describe('EmptyState', () => {
     render(<EmptyState icon={Inbox} title="No monitors yet" description="Nothing to see." />)
 
     // Pages render an h1 and then drop straight into an empty state, so an h3
-    // here left a hole in the heading outline (tripl-jfm3.69).
+    // here left a hole in the heading outline.
     expect(screen.getByRole('heading', { name: 'No monitors yet', level: 2 })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { level: 3 })).toBeNull()
   })

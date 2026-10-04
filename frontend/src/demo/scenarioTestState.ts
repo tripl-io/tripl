@@ -1,5 +1,5 @@
 /**
- * Test-only constructors for v3 scenario states (tripl-odrj.4). Page tests seed
+ * Test-only constructors for v3 scenario states. Page tests seed
  * localStorage with these instead of hand-writing the nested chapter record —
  * one place to change if the persisted shape moves again.
  */

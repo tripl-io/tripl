@@ -15,7 +15,7 @@ DataSource) with each metric's validated config — the same shapes the worker
 collectors use — so the seeded values are reproducible from the synthetic rows.
 The adapter is pure in-memory (no network/filesystem), but building its dataset
 and scanning it is still CPU work, so it runs in a worker thread rather than on
-the API event loop (tripl-0zpq.251); only the row inserts happen on the loop.
+the API event loop; only the row inserts happen on the loop.
 Values are deterministic for a given clock/seed.
 """
 
@@ -77,7 +77,7 @@ from tripl.services.demo.scenario import DemoContext
 # ``GROUP BY ts`` is not decoration. Without it real ClickHouse rejects the
 # statement ("not under aggregate function and not in GROUP BY"), so the demo —
 # whose job is to teach the product — shipped a metric whose SQL would fail on
-# the warehouse it was demonstrating (bd tripl-0zpq.76). Demos created before
+# the warehouse it was demonstrating. Demos created before
 # that fix still carry the GROUP BY-less text in their stored config; the adapter
 # keeps a legacy entry for exactly that reason.
 ACTIVE_SESSIONS_METRIC_SQL = (
@@ -269,7 +269,7 @@ class _AdapterSeries:
 def _read_adapter_series(data_source: DataSource, now: datetime, metric_sql: str) -> _AdapterSeries:
     """Build the synthetic adapter and derive the series. The worker-thread target.
 
-    Runs off the event loop (tripl-0zpq.251), so it touches nothing but the
+    Runs off the event loop, so it touches nothing but the
     already-loaded ``data_source`` columns: the adapter's constructor generates
     the whole synthetic dataset and every read scans it, all CPU.
     """

@@ -3,8 +3,8 @@
  * with this module, and the contexts are live on the first render.
  *
  * The app shell does not use it — it mounts LazyDemoScenarioProvider, which
- * keeps the model off the first load and fetches it only for a demo project
- * (tripl-fj5g.15). This one serves the tests and anything that renders the
+ * keeps the model off the first load and fetches it only for a demo project.
+ * This one serves the tests and anything that renders the
  * scenario outside the shell, and wraps the same runtime, so the two cannot
  * drift apart.
  */

@@ -61,7 +61,7 @@ describe('buildEventsCsvColumns', () => {
     expect(headers).toEqual(['Event', 'Title', 'Type', 'Status', 'Verified', 'Last seen'])
   })
 
-  // tripl-kjhi.3: the title has no column of its own in the table (it renders
+  // the title has no column of its own in the table (it renders
   // inside the Event cell), so the picker cannot hide it and the export always
   // carries it, right after the identity it labels.
   it('exports the free-text title beside the identity', () => {

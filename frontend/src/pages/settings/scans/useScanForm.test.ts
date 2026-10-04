@@ -99,7 +99,7 @@ describe('toBackendPayload', () => {
   })
 })
 
-describe('toDryRunRequest (tripl-3y7z.6)', () => {
+describe('toDryRunRequest', () => {
   // "What would this scan create?" has to be answered for the config that would
   // actually be SAVED. Reading form state a second time is how the answer and
   // the saved scan drift apart, so the request is derived from the save payload
@@ -149,7 +149,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('loadPreview — the first click on a brand-new scan (tripl-3y7z)', () => {
+describe('loadPreview — the first click on a brand-new scan', () => {
   const previewPayload: ScanConfigPreview = {
     columns: [{ name: 'event_name', type_name: 'String', is_nullable: false }],
     rows: [{ event_name: 'signup_started' }],
@@ -202,7 +202,7 @@ describe('loadPreview — the first click on a brand-new scan (tripl-3y7z)', () 
   })
 })
 
-describe('useScanForm — editing a saved catalog scan (tripl-3y7z)', () => {
+describe('useScanForm — editing a saved catalog scan', () => {
 
   // The whole defect, end to end: a saved manual scan bounded to the last 24h
   // (time column, no interval) is classified `catalog`, so its edit form opens on

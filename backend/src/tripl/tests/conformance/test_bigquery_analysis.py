@@ -157,7 +157,7 @@ class _CapturingClient:
             # makes the ANALYZER re-verify its escape table on every run: GoogleSQL
             # reads a raw newline inside a quoted (non-triple) literal as an
             # "Unclosed string literal", and `\x` followed by a non-hex character is
-            # an invalid escape, so an unescaped backslash fails too (tripl-0zpq.67).
+            # an invalid escape, so an unescaped backslash fails too.
             # Nothing in this file asserts on the values themselves — the gate only
             # asserts that every generated statement analyzes.
             return _Job([("event_name", "line1\nline2"), ("event_name", "o'brien\\x")])

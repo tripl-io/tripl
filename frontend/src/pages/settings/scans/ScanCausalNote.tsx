@@ -11,7 +11,7 @@ import { type ScanFormMode, scanModeOf } from './scanMode'
  * chain was an onboarding hint that disappears once the checklist completes. So
  * "Scan: Snowplow Events (iOS)" arrived in Telegram and nothing on the scan
  * screens explained where it came from, or that a scan with no time column
- * produces none of it (tripl-3y7z.2).
+ * produces none of it.
  *
  * Two audiences, two tenses:
  *  - the FORM note is future ("this scan will…"), driven by the radio the user

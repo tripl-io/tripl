@@ -22,7 +22,7 @@ function ceilTo(ms: number, stepMs: number): number {
  * upper bound to whenever the page happened to mount. The charts still refetch —
  * on the adaptive poll and on SSE invalidation — but they keep asking for that
  * same stale window, so buckets recorded after the page opened never appear on a
- * "live" chart no matter how long you leave it open (tripl-jfm3.114). It was
+ * "live" chart no matter how long you leave it open. It was
  * three separate copies of the same code: the monitoring detail page, the events
  * tab metrics card, and the per-row sparklines — whose memo had NO dependencies
  * at all, freezing the window for the whole life of the Events page.

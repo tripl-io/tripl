@@ -96,7 +96,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
   const base = `/p/${slug}`
   // `firing_monitor_count` is deliberately NOT read here any more. It badged the
   // standalone Monitors item, and with that item merged into Alerting
-  // (tripl-89ps) a firing rule is already counted by `open_incident_count`
+  // a firing rule is already counted by `open_incident_count`
   // below: firing produces a delivery, a delivery opens an incident, and the
   // incident is the thing somebody still owes an answer on. Badging both would
   // put two danger counts on one nav group for one event — which is the
@@ -195,8 +195,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // gave a sidebar home, so deleting the old tab strip left a fully
           // built page — 13 revisions and a "Snapshot now" action on the
           // production project — with zero inbound links anywhere in the
-          // product and no nav item to highlight while you stood on it
-          // (tripl-ebib).
+          // product and no nav item to highlight while you stood on it.
           match: (p) => p.startsWith(`${base}/history`),
         },
       ],
@@ -233,7 +232,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           icon: AlertTriangle,
           href: `${base}/anomalies`,
           // Anomalies owns the DETECTION layer end to end, which is two things
-          // the vanished Monitors item used to hold by accident (tripl-89ps):
+          // the vanished Monitors item used to hold by accident:
           //
           //  - `/settings/monitoring`, the detection settings. They decide what
           //    gets FLAGGED and notify nobody, so they never belonged with the
@@ -275,7 +274,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // `/monitors/:id` is the per-rule fired history, and a rule is an
           // Alerting object — the standalone Monitors list that used to own
           // this prefix rendered the same AlertRule rows under a second noun,
-          // and is now the Monitors SECTION of this page (tripl-89ps).
+          // and is now the Monitors SECTION of this page.
           match: (p) =>
             p.startsWith(`${base}/alerting`)
             || p.startsWith(`${base}/monitors`),
@@ -285,7 +284,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // is configuration, not work: the sidebar read "Alerting 1" (one
           // telegram destination) directly under "Anomalies 68" while 52
           // incidents sat open, so the one surface with a real queue looked like
-          // the quietest thing in the group (tripl-oxkt.16). That is the third
+          // the quietest thing in the group. That is the third
           // badge-parity bug in this file after the two above, and it has the
           // same cause every time: the badge was bound to whatever count the
           // summary already happened to carry rather than to what the page
@@ -344,7 +343,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // (AuditTab), so "who changed my plan?" is answered for this plan
           // alone. Actions that belong to no project (members, API keys, a
           // project's deletion) are in Settings › Instance › Audit log
-          // (#238 JR-26). Owner-only because the endpoint is (tripl-jfm3.110).
+          // (#238 JR-26). Owner-only because the endpoint is.
           ownerOnly: true,
         },
       ],
@@ -371,7 +370,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
  * it left the breadcrumb terminal reading "Anomalies" in bold over a page headed
  * "Detection settings": both wayfinding controls named a different page than the
  * one displayed, so arriving from the Anomalies page's own link produced no
- * on-screen confirmation you had navigated at all (tripl-34tw).
+ * on-screen confirmation you had navigated at all.
  *
  * Deliberately tiny. A leaf is only correct where the sub-surface has a name of
  * its own; tabs, detail ids and editors legitimately inherit their surface's
@@ -575,7 +574,7 @@ export interface ActivityTargetInput {
  * `/p/:slug/alerting`, which drops the reader at the top of a page
  * holding every delivery and every incident. That makes the in-app notification
  * strictly worse than the telegram message the same delivery sent, which links
- * to the exact row (tripl-oxkt.21). The delivery id was never lost — it is
+ * to the exact row. The delivery id was never lost — it is
  * inside the row's own id — so rebuild the deep link here rather than land on
  * the page index.
  *

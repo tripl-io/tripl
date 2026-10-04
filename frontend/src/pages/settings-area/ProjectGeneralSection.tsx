@@ -70,7 +70,7 @@ const MAX_APP_VERSION_KEEP_RELEASES = 100
  * The left affix on the Slug field — the one place in the product that shows a
  * reader what their project's address looks like.
  *
- * It was the bare literal `example.com/p/` (tripl-gex5), so every install welded
+ * It was the bare literal `example.com/p/`, so every install welded
  * a stranger's domain onto a real slug and anyone who transcribed what they saw
  * got a dead link. The server cannot supply the answer either: it does not
  * reliably know its own public origin behind a proxy — the same reason

@@ -150,7 +150,7 @@ export function BranchesTab({ slug, branchId }: { slug: string; branchId?: strin
   // The detail pane needs to know the difference between "no diff yet" and "an
   // empty diff": rendering counts from `undefined` drew "+0 ~0 −0 · No changes
   // in this branch" for the 1.3-8.5 s the request takes on production, with
-  // Approve live under it (tripl-kjhi.2). `status` alone carries that — an
+  // Approve live under it. `status` alone carries that — an
   // invalidation after a revert keeps the data and stays `success`, so the
   // loading state shows only when there really is nothing to show.
   const selectedDiffLoad: DiffLoad = {

@@ -224,7 +224,7 @@ class TestEventGeneration:
         identity can share one name (authored through the API under a type with
         no name format), and exactly one of them may take that name as its
         identity, or the adoption UPDATE itself is the collision the constraint
-        refuses (tripl-8tdl).
+        refuses.
 
         Preference: the row traffic most recently landed on. The observable is
         which row gets the identity and the field values; the other stays NULL
@@ -308,7 +308,7 @@ class TestEventGeneration:
         could move the identity's history onto a row no scan ever wrote. The
         NULL row is the fresher one (``last_seen_at`` set) so a single ordered
         pass that adopts as it files would pick it; only filing every held
-        identity BEFORE any adoption keeps it out (tripl-8tdl).
+        identity BEFORE any adoption keeps it out.
         """
         project, et, fds = project_and_type
         identity = "screen=/home | action=click"
@@ -383,7 +383,7 @@ class TestEventGeneration:
         loser used to take the whole job down with an IntegrityError; now the
         INSERT runs under a savepoint and the loser adopts the holder as the
         existing event — field values and contexts land on it, it is counted as
-        skipped, nothing is created (tripl-8tdl).
+        skipped, nothing is created.
 
         The race is real, not a raised exception. When the scan opens the
         savepoint that guards its INSERT, a competitor row for the identity is
@@ -537,7 +537,7 @@ class TestEventGeneration:
         target — its field values are NOT copied onto the holder (those belong
         to whoever created the group), everything else the merge carries is
         carried, and the source row is gone. Same injection as the scan test,
-        for the same reason (tripl-8tdl).
+        for the same reason.
         """
         project, et, fds = project_and_type
         main_branch_id = _resolve_main_branch_id(sync_session, project.id)
@@ -628,7 +628,7 @@ class TestEventGeneration:
         second adoption is an UPDATE the flush refuses, and the apply-groups job
         died on it. Now the pass files by the scan's winner rule: the row traffic
         most recently landed on adopts the name and is grouped; its twin stays
-        NULL, stays out of the map, and is not touched (tripl-8tdl).
+        NULL, stays out of the map, and is not touched.
         """
         project, et, fds = project_and_type
         # The twin that must NOT adopt is inserted first, so a pass that adopts
@@ -1233,7 +1233,7 @@ class TestEventGeneration:
         re-recording, so a curated ``${myvar}`` template it enumerates literally
         (low cardinality → no variable observations) lost its recorded values on
         the first scan — which is how a fresh demo emptied its own "Variables &
-        value drift" chapter (bd tripl-jfm3.56).
+        value drift" chapter.
         """
         project, et, fds = project_and_type
         context = self._seed_curated_event_with_context(
@@ -1287,8 +1287,8 @@ class TestEventGeneration:
         the live one may go. ``record_variable_contexts`` skips an excluded
         variable, so nothing in this run — or any later one — re-inserts its row;
         invalidating it is a permanent delete, performed silently inside a scan,
-        which is exactly what excluding a variable stopped meaning (bd
-        tripl-95pu). The live row going in the same breath is what keeps the
+        which is exactly what excluding a variable stopped meaning.
+        The live row going in the same breath is what keeps the
         exemption from being read as "a rewrite invalidates nothing".
         """
         project, et, fds = project_and_type
@@ -1346,7 +1346,7 @@ class TestEventGeneration:
         ``bindings`` and ``source_name`` and never their ``name``. The excluded
         variable is then absent from the index's token map, and reading the
         exemption set off that map left it out, so the rewrite below took its
-        rows (bd tripl-cef2). Nothing restates them: ``resolve`` answers that
+        rows. Nothing restates them: ``resolve`` answers that
         token with the sibling, so ``record_variable_contexts`` never reaches the
         excluded one at all — the delete is permanent, and silent.
 
@@ -1442,7 +1442,7 @@ class TestEventGeneration:
     def test_generate_events_writes_no_row_for_an_empty_derived_name(
         self, sync_session: Session, project_and_type
     ):
-        """The persist half needs no guard of its own (tripl-wkwv.5).
+        """The persist half needs no guard of its own.
 
         A NULL naming column derives ``""`` and the run used to write
         ``Event(name="", source_name="", status="in_review")`` — a row the metric
@@ -2271,7 +2271,7 @@ class TestEventGeneration:
         """A grouped scan sees the whole table's columns on every event type.
 
         Warning about one that held nothing for these rows is noise, not a plan
-        gap — the demo logged ~21 of them per scan (tripl-jfm3.57). ``count``
+        gap — the demo logged ~21 of them per scan. ``count``
         excludes NULLs, so 0 means no value in any row of this group.
         """
         project, et, fds = project_and_type
@@ -2300,8 +2300,8 @@ class TestEventGeneration:
         app_version / platform / event-group-rule columns are metric dimensions
         or identity inputs, and ``reserved_catalog_columns`` is exactly what keeps
         them out of the catalog. Reporting their absence as a plan gap left a
-        fresh demo's first scan claiming six missing fields when one was missing
-        (tripl-jfm3.90). Unlike the count==0 case above, these columns DO carry
+        fresh demo's first scan claiming six missing fields when one was missing.
+        Unlike the count==0 case above, these columns DO carry
         data — the emptiness rule cannot cover them.
         """
         project, et, fds = project_and_type
@@ -2550,7 +2550,7 @@ class TestEventGeneration:
         assert "screen=/dashboard" not in result.events_by_name
 
 
-# --- binding-based adoption + token normalization (tripl-j94c.2) -------------
+# --- binding-based adoption + token normalization -------------
 
 
 def _payload_locale_analysis() -> BreakdownAnalysis:
@@ -2702,7 +2702,7 @@ def test_renamed_scan_variable_keeps_matching_and_normalizes_on_rescan(
     assert payload_value == '{"locale": "${locale_var}"}'
 
 
-# --- variable value drift detection (tripl-j94c.5) ---------------------------
+# --- variable value drift detection ---------------------------
 
 
 def _drift_rows(session: Session, project_id):
@@ -3020,7 +3020,7 @@ def test_accepted_value_drift_reopens_on_a_value_it_only_absorbed(
     assert rows[0].observed_values == ["promo_v2"]
 
 
-# --- scheduled observed-value sampling (tripl-xv77.2) ------------------------
+# --- scheduled observed-value sampling ------------------------
 
 
 def _seed_context_row(sync_session: Session, variable, event, fd, *, observed_count, values):
@@ -3491,7 +3491,7 @@ def test_json_path_sampling_rotates_on_the_scheduled_interval_not_the_window(
     )
 
 
-# --- the collector's own wiring, end to end (tripl-xv77.2) -------------------
+# --- the collector's own wiring, end to end -------------------
 
 _JSON_SCAN_COLUMNS = [
     ColumnInfo("screen", "String"),
@@ -3754,7 +3754,7 @@ def test_a_grouped_scan_gives_every_group_the_same_config_wide_sample(
     assert adapter.sample_calls == 1, "one warehouse query for the config, not one per group"
 
 
-# --- authored provenance across grouping copies (tripl-j94c.9) ---------------
+# --- authored provenance across grouping copies ---------------
 
 
 def test_group_merge_preserves_authorship_unless_rule_overrides(
@@ -3827,7 +3827,7 @@ def test_group_merge_preserves_authorship_unless_rule_overrides(
     assert values[fds["action"].id].is_authored is False
 
 
-# --- what a group merge carries off the event it deletes (tripl-xfxa) --------
+# --- what a group merge carries off the event it deletes --------
 #
 # ``_merge_event_into_group`` ends in ``session.delete(source)``. Every one of
 # these rows FKs to ``events.id`` with ``ondelete="CASCADE"`` and none of them
@@ -4402,7 +4402,7 @@ def test_excluding_a_variable_keeps_the_values_it_already_observed(
     token, so the stored ``${locale}`` reverts to the raw ``${payload.locale}``
     the planner emits — and a changed value is what
     ``delete_variable_contexts_for_event_type`` used to read as "this context is
-    no longer true" (bd tripl-95pu).
+    no longer true".
 
     The trigger is the display name differing from the emitted token, so this is
     NOT confined to dotted paths: a manually-created variable adopted through a
@@ -4456,8 +4456,7 @@ def test_excluding_a_variable_keeps_the_values_it_already_observed(
 # ``_event_generator_merge_refs`` handles event ids stored as strings or inside
 # JSON lists, plus the one real FK whose ``SET NULL`` was silent. Reflection
 # cannot see any of them, so these tests are the only thing standing between a
-# merge and a reference that quietly stops meaning anything (tripl-avf4,
-# tripl-jtnv).
+# merge and a reference that quietly stops meaning anything.
 # ---------------------------------------------------------------------------
 
 
@@ -4862,7 +4861,7 @@ def test_group_merge_repoints_an_open_ticket_and_leaves_a_closed_one(
         )
         sync_session.add(branch)
         sync_session.flush()
-    # One ticket per branch: uq_implementation_ticket_branch (tripl-l33u.11).
+    # One ticket per branch: uq_implementation_ticket_branch.
     shipped_branch = PlanBranch(
         id=uuid.uuid4(),
         project_id=project.id,
@@ -4899,7 +4898,7 @@ def test_group_merge_repoints_an_open_ticket_and_leaves_a_closed_one(
     assert closed.event_ids == [str(source.id)], "history is not rewritten"
 
 
-# --- contexts recorded before the merge that deletes their event (tripl-gsum) ---
+# --- contexts recorded before the merge that deletes their event ---
 
 
 _CATCH_ALL_AFTER_SPECIFIC_RULES = [
@@ -4994,7 +4993,7 @@ def test_a_rule_matching_an_earlier_rules_output_keeps_this_runs_observations(
     assert result.variable_values_written == 2
 
 
-# --- folding two stored contexts decides every column from both sides (tripl-3rex) ---
+# --- folding two stored contexts decides every column from both sides ---
 
 
 def test_group_merge_demotes_a_fold_that_crosses_the_cardinality_threshold(
@@ -5151,8 +5150,8 @@ def test_group_merge_never_leaves_the_target_superseded_by_itself(
     "click:one", and a later scan's group rule folds "click:one" back into it.
     ``_move_superseded_pointers`` re-points every event whose successor was the
     source onto the target — and the target is the ONE row that must not be
-    re-pointed, because "send this instead: itself" is not an instruction
-    (tripl-0zpq.86). It outlives the merge: the event form re-sends
+    re-pointed, because "send this instead: itself" is not an instruction.
+    It outlives the merge: the event form re-sends
     ``superseded_by_event_id`` on every save while an event is deprecated, and
     ``event_service._resolve_successor`` answers 400 "An event cannot replace
     itself" on each one, so the row cannot be edited again until somebody

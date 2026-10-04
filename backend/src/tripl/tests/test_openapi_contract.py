@@ -60,8 +60,7 @@ def test_branch_override_is_a_declared_parameter() -> None:
     It was read straight off ``request.query_params`` for a long time, so
     FastAPI never declared it and the one documented way to keep an agent's
     edits off the main plan was invisible in all three generated artifacts. A
-    client built from the spec then dropped it and silently wrote to main
-    (tripl-l33u.7).
+    client built from the spec then dropped it and silently wrote to main.
     """
     schema = app.openapi()
     declaring = {
@@ -122,8 +121,8 @@ async def test_served_document_never_advertises_app_base_url(
     the deployment's plaintext internal address, so "Try it out" became a
     cross-origin call the browser blocked as mixed content — and one CORS
     would have refused too, since ``cors_origins()`` derives from the same
-    value (tripl-ouxw). Resolving it per request from the runtime override
-    (tripl-mfqm) only made the wrong answer editable, not right.
+    value. Resolving it per request from the runtime override
+     only made the wrong answer editable, not right.
 
     Both sources of ``app_base_url`` are set to non-empty values here, because
     an assertion against the ambient (blank) config would pass against either

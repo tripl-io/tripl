@@ -30,8 +30,8 @@ export function VariableValueContextTrigger({
           // values ride along with it and can be empty. That splits the empty
           // popover into two unrelated facts — this row holds no value, versus
           // values were counted but no example kept — which the single "No
-          // examples stored" collapsed into one sentence that answered neither
-          // (tripl-xv77.4). The wording below claims no more than this row
+          // examples stored" collapsed into one sentence that answered neither.
+          // The wording below claims no more than this row
           // proves. An empty row cannot tell a column that is genuinely empty
           // from one whose values are recorded elsewhere, so it speaks about
           // this event's field and nothing wider, names no mechanism, and

@@ -32,7 +32,7 @@ const GENERIC: BindingExample = {
  * coded example made it worse rather than better: `page_data.extra.variant` is
  * three segments deep in a container their warehouse does not have, so it read
  * as a different namespace from the two-segment names they pick from the token
- * list (tripl-htfn.3).
+ * list.
  *
  * They look alike for a reason worth showing rather than explaining: a scan
  * that discovers a path stores it as the binding AND, when every short name is

@@ -17,7 +17,7 @@ function noteText(ui: React.ReactElement): string {
   return text
 }
 
-describe('ScanCausalNote — a scan says what it produces (tripl-3y7z.2)', () => {
+describe('ScanCausalNote — a scan says what it produces', () => {
   it('names metric points AND anomaly detection for a monitoring scan', () => {
     // The whole point of the note: the chain from a scan run to the Telegram
     // message. Dropping either half leaves the user with "Scan: Snowplow Events

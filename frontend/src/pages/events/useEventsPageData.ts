@@ -49,7 +49,7 @@ export function useEventsPageData({
   })
   // Counts events whose STATUS is `in_review`, which is what the header stat
   // reports. It is NOT the count of unreviewed events — the `reviewed` flag is
-  // an independent axis — and used to be named as if it were (tripl-invv).
+  // an independent axis — and used to be named as if it were.
   const inReviewCountQuery = useQuery({
     queryKey: eventsInReviewCountKey(slug, branchId),
     queryFn: () => eventsApi.list(slug!, { status: ['in_review'], limit: 1 }, branchId),

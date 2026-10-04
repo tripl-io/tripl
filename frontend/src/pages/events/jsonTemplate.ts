@@ -26,7 +26,7 @@ export const BARE_WORD_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_.-]*$/
 // `derive_display_name` falls back to the raw JSON path whenever it cannot
 // sanitise one — and the form re-sends every field value on save, so an
 // identifier grammar here blocked every later edit of such an event, including
-// one that only touched the description (tripl-0zpq.125). The backend accepted
+// one that only touched the description. The backend accepted
 // those saves from this batch on; this file was the remaining door that did not.
 // What stays out is what a JSON string cannot hold verbatim (a quote, a
 // backslash, a C0 control character) plus `}`, which ends the token.

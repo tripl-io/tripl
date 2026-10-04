@@ -613,9 +613,8 @@ def lint_dialect_sql(sql: str, dialect: SqlDialect) -> str | None:
     It runs in two places: ``services/metric_preview_service`` (the metric
     preview) and the metric save path in ``services/metric_definition_service``,
     which refuses a new or changed ``sql`` SELECT / fact ``filter_sql`` with this
-    message (tripl-0zpq.371). The worker's collection does not call it, so a
-    metric stored before the save check existed can still fail in a worker
-    (tripl-0zpq.355).
+    message. The worker's collection does not call it, so a
+    metric stored before the save check existed can still fail in a worker.
 
     Every rule is a function that provably does NOT resolve on the target dialect,
     checked against live engines so a valid query is never flagged. In particular:

@@ -161,7 +161,7 @@ class DataSourceNotAvailableError(FactTableIntrospectionError):
     same status and the same sentence the three other data-source doors answer
     with. Previewing an out-of-scope source used to be a 400 while SAVING the
     same source was a 404, and a user in the fact-table wizard met both for one
-    id in one flow (tripl-0zpq.353).
+    id in one flow.
     """
 
 

@@ -14,7 +14,7 @@ Bucket convention
 **Every bucket this module returns is TZ-AWARE UTC**, and so is every bound it
 compares one against. That is the same convention
 ``worker.analyzers.metric_composition.normalize_series`` already imposes where
-two independently sourced series meet (tripl-ju0d), and the one
+two independently sourced series meet, and the one
 ``core.bucketing`` states for the whole pipeline: a naive datetime IS UTC, it
 just has not said so.
 

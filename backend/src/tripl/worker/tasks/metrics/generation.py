@@ -81,7 +81,7 @@ def _iter_window_chunks(
     ``core.bucketing.floor_to_bucket``'s grid, weeks from Monday included — and
     the step is a whole multiple of the interval, so no bucket is ever split
     across two chunks. That last claim only became true once the window helpers
-    stopped anchoring weeks at 2000-01-01, a Saturday (tripl-0zpq.10): a
+    stopped anchoring weeks at 2000-01-01, a Saturday: a
     Saturday-bounded weekly replay wrote a full Monday bucket from one chunk and
     then overwrote it with the two-day tail from the next.
     """
@@ -132,7 +132,7 @@ def _warehouse_token_candidates(token: str, variable_index: VariableIndex) -> li
     scan-created names (``property.Aalter`` -> ``aalter``, identity kept on
     ``source_name``), the two answers differ for almost every variable, and
     reading the label as an address is why a shortened variable could never be
-    sampled (tripl-xv77.3).
+    sampled.
     """
     variable = variable_index.resolve(token)
     if variable is None:
@@ -927,7 +927,7 @@ def _load_latest_generation_snapshot(
     # lack it. Taking the newest completed row therefore made the snapshot
     # reachable only in the gap between a scan and its first collection tick —
     # from the tick after that, forever, every replay silently fell through to
-    # the heuristic ``_load_existing_generation_results`` rebuild (tripl-0zpq.19).
+    # the heuristic ``_load_existing_generation_results`` rebuild.
     #
     # ``.as_string()`` is load-bearing and must not be "simplified" to bare
     # indexed access: ``result_summary`` is ``sa.JSON``, not JSONB, so ``has_key``
@@ -972,7 +972,7 @@ def _load_latest_generation_snapshot(
     # The snapshot only serializes ``events_by_name``, which archived events are
     # already absent from, so their identities have to come back from the catalog
     # — otherwise a replay refiles every archived identity as a shadow candidate
-    # and drops its volume out of the coverage numerator (tripl-w3ms).
+    # and drops its volume out of the coverage numerator.
     archived_by_event_type = _archived_identities_by_event_type(
         session,
         project_id=config.project_id,
@@ -1094,7 +1094,7 @@ def _load_existing_generation_result(
         # rows whose source_name has not been backfilled yet.
         # Exclude archived events so they are ignored during metrics collection,
         # but keep their identities so the collector can tell "put away" from
-        # "never planned" and leave coverage alone (tripl-w3ms).
+        # "never planned" and leave coverage alone.
         events_by_name={
             (event.source_name or event.name): event
             for event in events
@@ -1121,7 +1121,7 @@ def _load_existing_generation_results(
         # "dropped to zero", while a bucket holding rows from both branches
         # double-counts. Documented at length on
         # ``tasks.main_plan_event_types_by_name``; the replay path was the one
-        # place still missing it (tripl-jfm3.95).
+        # place still missing it.
         plan_branch = main_branch_id(session, config.project_id)
         event_types = (
             session.execute(

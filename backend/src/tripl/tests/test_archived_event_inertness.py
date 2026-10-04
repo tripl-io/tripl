@@ -1,4 +1,4 @@
-"""Archived events are inert (tripl-w3ms, tripl-rsei).
+"""Archived events are inert.
 
 Archiving means "put it away". These tests pin the three ways that promise was
 being broken, and the one thing it deliberately does NOT mean:

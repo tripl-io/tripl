@@ -27,7 +27,7 @@ export function incidentHeadline(group: Pick<AlertInboxGroup, 'scope_names'>): {
  * list uses, so one incident reads one number on the Inbox and on Anomalies.
  * Null when there is no baseline to be a percentage of: the magnitude line
  * already says "no baseline" in words, and a badge printing a percentage of
- * zero would contradict it (tripl-l429.24). A drop to zero keeps its badge —
+ * zero would contradict it. A drop to zero keeps its badge —
  * it is the one no-percentage case with a meaning worth a glance.
  */
 export function incidentDeltaBadge(

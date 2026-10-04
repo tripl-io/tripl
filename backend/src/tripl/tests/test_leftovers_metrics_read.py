@@ -84,7 +84,7 @@ async def _set_project_sigma(project_id: str, sigma: float) -> None:
 
 class TestSharedGridPopulation:
     def test_read_path_and_detector_delegate_to_one_predicate(self):
-        """tripl-67he: both halves compile to the shared predicate.
+        """both halves compile to the shared predicate.
 
         Reverting the extraction removes ``metric_grid.grid_population_filter``
         and fails the import above; re-spelling either half so it drifts
@@ -122,7 +122,7 @@ class TestBreakdownGridPopulation:
         client: AsyncClient,
         project: dict,  # noqa: F811
     ):
-        """tripl-kom5: the Breakdowns tab sums the series line's population.
+        """the Breakdowns tab sums the series line's population.
 
         The metric's newest value sits on a live 1h config, so its grid is 1h; a
         retired 1d config still holds an older breakdown row for the same
@@ -159,7 +159,7 @@ class TestOpenAnchorProbePopulation:
         self,
         project: dict,  # noqa: F811
     ):
-        """tripl-udiy: the probe measures the plotted series only.
+        """the probe measures the plotted series only.
 
         The retired 1d config holds a value NEWER than anything on the live 1h
         grid. Widening the probe alone (dropping its grid filter) reports that
@@ -193,7 +193,7 @@ class TestMetricSeriesSigma:
         project: dict,  # noqa: F811
         data_source: dict,  # noqa: F811
     ):
-        """tripl-4cgl: the catalog chart gets the project's real multiplier."""
+        """the catalog chart gets the project's real multiplier."""
         slug = project["slug"]
         metric = await _create_sql_metric(client, slug, data_source["id"], "sigma-proj")
         await _set_project_sigma(project["id"], 6.0)
@@ -234,7 +234,7 @@ class TestMetricSeriesSigma:
 
 class TestEventsMetricsSigma:
     async def test_events_total_serves_the_project_sigma(self, client: AsyncClient):
-        """tripl-e443: both returns fill the field instead of the 4.0 default."""
+        """both returns fill the field instead of the 4.0 default."""
         slug = "leftovers-events-sigma"
         await _seed_plan(client, slug)
         main_event = (await client.get(f"/api/v1/projects/{slug}/events")).json()["items"][0]
@@ -259,7 +259,7 @@ class TestEventsMetricsSigma:
 
 class TestEventsMetricsBranchFilter:
     async def test_tag_filter_reads_the_branch_rows(self, client: AsyncClient):
-        """tripl-vk1p: a tag added on the branch selects that event's volume.
+        """a tag added on the branch selects that event's volume.
 
         Main's copy carries no tag, so evaluating the filter against main's rows
         (what the endpoint did while it ignored ``?branch=``) charts nothing.
@@ -311,7 +311,7 @@ class _FakeSession:
 
 class TestFactBatchCacheScope:
     def test_cached_fact_table_is_not_served_to_another_project(self):
-        """tripl-m81e: a cache hit re-applies the project scope.
+        """a cache hit re-applies the project scope.
 
         Project A's metric resolved the fact table first; project B's metric in
         the same batch asks for the same id. The adapter and the data-source
@@ -345,7 +345,7 @@ class TestMetricCreateOrder:
         project: dict,  # noqa: F811
         data_source: dict,  # noqa: F811
     ):
-        """tripl-cyby: ``order`` is optional on create, and null means append.
+        """``order`` is optional on create, and null means append.
 
         While the field was ``int = 0`` the contract forced callers to send it
         and a null was a 422.

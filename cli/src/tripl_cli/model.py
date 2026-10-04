@@ -8,7 +8,7 @@ At the package ROOT rather than inside ``diagnostics``, because ``api``,
 ``install``, ``watch`` and every command group import it while only ``doctor``
 reaches a verdict: the JSON helpers, ``JOBS_WINDOW``, ``Instance``, ``Run``,
 ``SectionError`` and the ``scans``/``drifts`` snapshots are facts about the wire
-and about one CLI run, not about doctor's verdict machinery (tripl-azhh).
+and about one CLI run, not about doctor's verdict machinery.
 Splitting this file in two — a shared half here, a doctor half left in
 ``diagnostics`` — was rejected: ``Fetched``, ``Target``, ``Instance`` and
 ``SectionError`` are read from both sides, so the split line would fall
@@ -19,7 +19,7 @@ imports the JSON helpers below, so a reference back would close the cycle. The
 one consequence is that a snapshot carries an already-projected request DOCUMENT
 rather than an ``ApiRequest`` — which is the right shape anyway, because that
 document is the thing ``--dry-run`` prints and it must never be able to carry a
-header or a credential (tripl-ey6j.5).
+header or a credential.
 """
 
 from __future__ import annotations
@@ -190,7 +190,7 @@ class DriftCoverage:
     Per project rather than per run: ``--max-event-types`` is spent round-robin
     across projects (collect), so an instance-wide "40 of 90 examined" cannot say
     WHICH project was only partly looked at — and naming it is the whole value of
-    reporting truncation at all (tripl-ey6j.9).
+    reporting truncation at all.
     """
 
     examined: int = 0
@@ -440,8 +440,8 @@ class PlanRead:
     verb reads a different resource, but every one of them answers the same four
     questions — which project, which plan revision, how much of the resource
     came back, and what the rows are — so seven types would be seven places for
-    the envelope to drift and seven ``jq`` idioms for a consumer to learn
-    (tripl-3ixs). The rows themselves stay verbatim; ``kind`` says what one of
+    the envelope to drift and seven ``jq`` idioms for a consumer to learn.
+    The rows themselves stay verbatim; ``kind`` says what one of
     them IS.
 
     NO ``errors`` tuple, unlike ``ScansSnapshot`` and ``DriftsSnapshot``. Those
@@ -472,7 +472,7 @@ class PlanRead:
     offset: int | None = None
     limit: int | None = None
     # The route's OWN answer to "were rows left behind", where it gives one, and
-    # None where it does not (tripl-wkwv.3). Not published as its own key: it
+    # None where it does not. Not published as its own key: it
     # feeds ``truncated`` below, which is the one thing a consumer reads.
     route_truncated: bool | None = None
     # Facts the ROUTE reported about the answer itself rather than about any
@@ -503,7 +503,7 @@ class PlanRead:
 
         A ladder of three rungs, best evidence first.
 
-        THE ROUTE'S OWN ANSWER, where it gives one (tripl-wkwv.3). ``/search``
+        THE ROUTE'S OWN ANSWER, where it gives one. ``/search``
         does: it retrieves one row past its candidate window, so it knows
         whether a hit was dropped rather than inferring it, and a page that
         happens to be exactly full is not a dropped hit. Preferring the guess
@@ -648,7 +648,7 @@ def names_by_id(items: JsonList) -> dict[str, str]:
     Every response model in this API carries ``id`` and ``name``, and three
     arguments resolve a selector against exactly that pair — ``<scan>``,
     ``<event-type>`` and ``--branch``. One extractor, so a fourth cannot arrive
-    with its own idea of what to do about a row missing a name (tripl-3ixs).
+    with its own idea of what to do about a row missing a name.
 
     A row with no usable ``id`` is DROPPED: nothing can select it, and keeping
     it would put an unaddressable entry in the candidate list a failed match

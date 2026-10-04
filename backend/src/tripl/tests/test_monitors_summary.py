@@ -698,7 +698,7 @@ async def test_monitors_summary_empty_project(client: AsyncClient) -> None:
         "total": 0,
         # A project with nothing in it feeds neither drift scope, so both read
         # False here. What the flags MEAN, and every shape that flips them, is
-        # pinned in test_alerting_scope_readiness.py (tripl-wkwv.1).
+        # pinned in test_alerting_scope_readiness.py.
         "scope_readiness": {"variable_value_drift": False, "distribution_drift": False},
     }
 

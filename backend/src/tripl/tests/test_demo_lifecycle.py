@@ -39,7 +39,7 @@ async def test_demo_has_explicit_identity(client: AsyncClient) -> None:
     # Freshness has to come from the runtime tick, not the seed time — the latter
     # is floored to the hour (the tick anchors its bucket grid to it), so it would
     # report a brand-new demo as up to an hour stale. Exposed, and null until the
-    # first tick (tripl-2su6.17).
+    # first tick.
     assert "demo_last_tick_at" in data
     assert data["demo_last_tick_at"] is None
     # Provenance: the owner who created it is recorded.
@@ -205,8 +205,7 @@ async def test_failed_reset_leaves_the_existing_demo_untouched(
     Reset used to delete the old demo in its own commit and only then seed the
     replacement, so any transient seeding error left the user with nothing — the
     working demo gone, a hidden failed shell in its place. Drop and re-seed now
-    share one transaction, so the rollback restores the original exactly
-    (tripl-2su6.13).
+    share one transaction, so the rollback restores the original exactly.
     """
     created = await client.post("/api/v1/projects/demo")
     slug = created.json()["slug"]
@@ -253,7 +252,7 @@ async def test_kill_switch_gates_reset_as_well_as_create(
 
     Reset re-provisions a demo from scratch, so leaving it ungated meant the
     documented kill switch could be flipped off while a full re-seed stayed one
-    click away (tripl-2su6.16). Delete stays available on purpose, so a workspace
+    click away. Delete stays available on purpose, so a workspace
     is never stuck with a demo it cannot remove.
     """
     created = await client.post("/api/v1/projects/demo")
@@ -290,7 +289,7 @@ async def test_demo_lifecycle_requires_auth(anon_client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_ordinary_project_cannot_select_synthetic_source(client: AsyncClient) -> None:
     # The demo's synthetic warehouse belongs to its demo project. An ordinary
-    # project must not be able to point a scan/preview at it (tripl-2su6.3).
+    # project must not be able to point a scan/preview at it.
     demo = await client.post("/api/v1/projects/demo")
     demo_slug = demo.json()["slug"]
     async with TestSessionLocal() as session:

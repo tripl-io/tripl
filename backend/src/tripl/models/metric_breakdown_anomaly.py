@@ -74,7 +74,7 @@ class MetricBreakdownAnomaly(UUIDMixin, Base):
         nullable=False,
         server_default="volume",
     )
-    # Float for the same reason as MetricAnomaly.actual_count (tripl-68bc).
+    # Float for the same reason as MetricAnomaly.actual_count.
     actual_count: Mapped[float] = mapped_column(Float)
     expected_count: Mapped[float] = mapped_column(Float)
     stddev: Mapped[float] = mapped_column(Float)

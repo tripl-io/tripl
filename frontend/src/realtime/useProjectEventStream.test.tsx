@@ -208,7 +208,7 @@ describe('useProjectEventStream', () => {
     return { invalidateSpy, second: at(MockEventSource.instances, 1) }
   }
 
-  it("starts the cursor at the first hello's sequence number (tripl-fj5g.17)", () => {
+  it("starts the cursor at the first hello's sequence number", () => {
     const { second } = reconnectAfterHello(10)
     // No event arrived on the first stream, yet the reconnect still asks for
     // everything past what the page loaded.

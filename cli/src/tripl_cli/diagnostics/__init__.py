@@ -11,14 +11,14 @@ The load-bearing rule of this package is a two-layer split:
 That split is why the rule tests need neither a network nor a mock: the
 interesting half of doctor is a function from a dict to a list of findings. It
 is also why a check may read data another check "owns" without any ordering
-hazard — everything was fetched before any check ran (tripl-ey6j.2).
+hazard — everything was fetched before any check ran.
 
 What is NOT here, and must not come back: the ``--json`` builders
 (``tripl_cli.report``), the ASCII output (``tripl_cli.render``) and the shared
 vocabulary (``tripl_cli.model``). Only ``doctor`` reaches a verdict, so filing
 the ``scans``/``drifts``/``status``/``install`` documents, tables and snapshots
 under a package named ``diagnostics`` made the name a false claim about most of
-what it held (tripl-azhh). ``tests/test_contract.py`` pins this package's module
+what it held. ``tests/test_contract.py`` pins this package's module
 list as a closed set, so the next verdict-free thing fails CI instead of
 accreting here.
 

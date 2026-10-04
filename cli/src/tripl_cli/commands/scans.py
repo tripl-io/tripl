@@ -11,7 +11,7 @@ more top-level entries, and no answer for the sixth.
 ``request.state.api_key_scope`` is set — and that is every valid API key, read or
 write. A Bearer-token client cannot reach it, so the command would 403 every
 time. ``scans cancel`` ships in its place: editor-gated, the natural pair to
-``run``, and what the 2026-07-28..31 incident actually needed (tripl-ey6j.5).
+``run``, and what the 2026-07-28..31 incident actually needed.
 """
 
 from __future__ import annotations

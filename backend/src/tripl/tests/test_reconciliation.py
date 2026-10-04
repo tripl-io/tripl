@@ -137,8 +137,7 @@ async def test_list_shadow_events_orders_by_volume_and_counts_new(client: AsyncC
     assert data["new_count"] == 2
     assert data["total"] == 2
     # display_name, not the internal key: Reconciliation used to be the one
-    # surface that showed "pv" where every other one showed "Page View"
-    # (tripl-w9od).
+    # surface that showed "pv" where every other one showed "Page View".
     assert data["items"][1]["event_type_name"] == "Page View"
     assert data["items"][0]["scan_config_name"] == "main scan"
 
@@ -184,8 +183,8 @@ async def test_accept_shadow_event_works_when_a_scan_rule_names_the_event_type(
 
     A candidate carries no field values, so routing it through the name
     generator could only ever report every placeholder missing — the accept
-    422'd on any rule-governed type until the identity was passed in instead
-    (tripl-u2h9.12). No test above seeds an ``event_name_format``, which is
+    422'd on any rule-governed type until the identity was passed in instead.
+    No test above seeds an ``event_name_format``, which is
     exactly why nothing caught it.
 
     The rule is BOUND to the event type, which is what makes the seed governing
@@ -289,7 +288,7 @@ async def test_accept_answers_a_lost_identity_race_with_the_create_409(
     """Both of the accept's probes are SELECTs; ``uq_event_scan_identity`` closes the gap.
 
     A competing create that commits the candidate's identity after the probes
-    and before the INSERT used to reach the operator as a bare 500 (tripl-8tdl).
+    and before the INSERT used to reach the operator as a bare 500.
     The accept authors through ``create_event``, so it inherits that door's
     answer: 409, naming the winner — and the candidate stays ``new``, since the
     whole request rolled back.
@@ -447,7 +446,7 @@ async def test_dead_events_flags_a_stale_event_with_a_young_plan_row(client: Asy
     The grace period exists for events that have never been seen — a freshly
     authored event legitimately has no data yet. Applying it to events that DO
     have a last_seen_at hid genuinely stale instrumentation behind a young row
-    and made every backdated demo event permanently unflaggable (tripl-jfm3.58).
+    and made every backdated demo event permanently unflaggable.
     """
     et_id, _ = await _setup_project(client, "rec-dead-young-row")
     project_id = await _project_id("rec-dead-young-row")

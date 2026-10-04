@@ -84,7 +84,7 @@ def _approval_relevant_payload(payload: dict[str, Any]) -> dict[str, Any]:
     Photo comment threads are in the snapshot because a *revision* records the
     whole branch, but an approval answers a narrower question: "is this plan
     still the one I reviewed?". A reply typed under a spec screenshot changes
-    no plan content, and it voided every approval on the branch (tripl-zjmo) —
+    no plan content, and it voided every approval on the branch —
     merge then refused with ``current=0`` while author and reviewer both
     correctly insisted nobody had touched the plan.
 
@@ -113,8 +113,8 @@ def _without_origin_ids(payload: dict[str, Any]) -> dict[str, Any]:
 
     ``origin_id`` is bookkeeping — which main row a copy came from — not plan
     content, and hashing it would void approvals with nothing to review: the
-    migration that introduced it backfilled it onto branches already approved
-    (tripl-0zpq.292). It is deliberately not a foreign key, so main deleting
+    migration that introduced it backfilled it onto branches already approved.
+    It is deliberately not a foreign key, so main deleting
     the row a copy came from leaves the copy's ``origin_id`` in place.
     """
     projected = payload
@@ -136,7 +136,7 @@ def _without_origin_ids(payload: dict[str, Any]) -> dict[str, Any]:
     return projected
 
 
-# The snapshot sets whose entries can carry an ``origin_id`` (tripl-0zpq.292).
+# The snapshot sets whose entries can carry an ``origin_id``.
 _ORIGIN_CARRYING_SETS = ("events", "relations")
 
 
@@ -207,7 +207,7 @@ _EVENT_CHANGE_KEYS = (
     # Not ``event_type_name``: it is half of the key events are aligned by, so
     # a changed entry has the same type on both sides by construction, and
     # nothing moves an event between types. Listed, it was a change key the
-    # diff could never report and the revert no longer restores (tripl-0zpq.155).
+    # diff could never report and the revert no longer restores.
     "owner_id",
     "reviewed",
     "metric_breakdown_columns",
@@ -234,7 +234,7 @@ _META_FIELD_CHANGE_KEYS = (
     # values. The snapshot (and so the approval hash), the conflict scan, the
     # merge and the revert all carry it; left out here, flipping it voided every
     # approval with an empty diff, merged a change no reviewer saw, and made the
-    # revert answer "not in this branch's diff" (tripl-0zpq.148, tripl-0zpq.141).
+    # revert answer "not in this branch's diff".
     "allow_multiple",
     "enum_options",
     "default_value",
@@ -248,12 +248,12 @@ def _meta_value_order(member: dict[str, Any]) -> tuple[str, str]:
     """The one order an event's ``meta_values`` are written and compared in.
 
     By field name, then by value. The name alone was enough while a meta field
-    held one value per event; with ``allow_multiple`` (tripl-h2sx.31) a field
+    held one value per event; with ``allow_multiple`` a field
     holds several rows and nothing orders them — the selectin load has no ORDER
     BY, ``update_event`` deletes and re-inserts them in payload order, and a heap
     reorder moves them with no edit at all. A stable sort on the name kept that
     arrival order, so one unchanged set could serialize two ways: a diff row, a
-    stale approval and a spurious merge conflict out of nothing (tripl-0zpq.140).
+    stale approval and a spurious merge conflict out of nothing.
 
     For a field with one value per event the order is exactly what it was, so a
     snapshot without a multi-value field hashes as it did before. ``str`` on both
@@ -358,7 +358,7 @@ async def build_plan_snapshot(
     # gives: ``Variable.value_contexts`` is ``lazy="selectin"`` and each context
     # then selectin-loads its FieldDefinition, so a bare select here hydrates the
     # project's entire context table — and a snapshot is built on every branch
-    # DIFF, not only on a merge or a revision (tripl-xkbb).
+    # DIFF, not only on a merge or a revision.
     #
     # Proven safe rather than assumed: the serializer below reads columns and
     # ``overrides_by_variable`` only, and no code in the repo dereferences
@@ -413,8 +413,7 @@ async def build_plan_snapshot(
     for variable_overrides in overrides_by_variable.values():
         # Values break the tie between two namesake events, so equal content
         # lists in one order however the database returned the rows — a base
-        # and a branch holding the same overrides compare equal
-        # (tripl-0zpq.292).
+        # and a branch holding the same overrides compare equal.
         variable_overrides.sort(
             key=lambda override: (
                 override["event_type_name"],
@@ -498,7 +497,7 @@ async def build_plan_snapshot(
             for comment in comment_rows:
                 # The query is keyed on photo_id, so an event-anchored comment
                 # cannot appear here — and must not: the event discussion is
-                # deliberately outside the snapshot (tripl-h2sx.25).
+                # deliberately outside the snapshot.
                 if comment.photo_id is None:
                     continue
                 comments_by_photo.setdefault(comment.photo_id, []).append(comment)
@@ -552,7 +551,7 @@ async def build_plan_snapshot(
     # over there. Exactly the reason `event_type_name` rides beside the raw
     # `event_type_id` below. Neither is a change key: the name is half of the
     # key the diff aligns events by, so it cannot differ within a change, and
-    # the id is branch-local (tripl-0zpq.155).
+    # the id is branch-local.
     event_by_id = {ev.id: ev for ev in events_rows}
 
     def _superseded_key(ev: Event) -> str | None:
@@ -606,15 +605,14 @@ async def build_plan_snapshot(
             "tags": sorted(tag.name for tag in ev.tags),
             "photos": serialize_photos(ev.id),
             # Only where there is one, so a main snapshot, and every stored
-            # base, reads exactly as it did before origin ids existed
-            # (tripl-0zpq.292).
+            # base, reads exactly as it did before origin ids existed.
             **({"origin_id": str(ev.origin_id)} if ev.origin_id is not None else {}),
         }
         for ev in events_rows
     ]
     # The id breaks the tie between namesakes. The query orders by name alone,
     # so two rows sharing (type, name) came back in whatever order the database
-    # chose, and the approval hash moved with no edit (tripl-0zpq.292).
+    # chose, and the approval hash moved with no edit.
     events.sort(key=lambda event: (event["event_type_name"], event["name"], event["id"]))
 
     relations_rows = (
@@ -696,7 +694,7 @@ _COUNTED_COLLECTIONS = ("event_types", "events", "variables", "meta_fields", "re
 #: and ``payload`` is a plain JSON column with no deferral, so a page of the
 #: History tab (50 by default, 200 at most) pulled that many WHOLE plan
 #: snapshots over the wire and json-decoded them on the event loop only to take
-#: ``len()`` of five lists (tripl-0zpq.154). Postgres and SQLite are the only
+#: ``len()`` of five lists. Postgres and SQLite are the only
 #: dialects this runs on; both count a JSON array in place, and only the syntax
 #: differs. A list the payload lacks — a snapshot older than the key — is NULL
 #: on both and counts 0, as the Python did.
@@ -869,9 +867,9 @@ _V2_EVENT_DEFAULTS: dict[str, Any] = {
     # F23 (#306): an older snapshot predates the per-event threshold.
     "required_presence_threshold": None,
 }
-# Same argument for the meta field's ``allow_multiple`` (tripl-h2sx.31): an
+# Same argument for the meta field's ``allow_multiple``: an
 # older payload predates the key, and ``_field_changes_between`` refuses to
-# treat one absent from a current-version payload as skew (tripl-2d3d), so
+# treat one absent from a current-version payload as skew, so
 # without this every pre-existing snapshot would diff every meta field as
 # changed. That danger is real only because the key IS diffed — which it was
 # not until tripl-0zpq.148 put it in ``_META_FIELD_CHANGE_KEYS``.
@@ -930,8 +928,8 @@ def with_snapshot_defaults(payload: dict[str, Any]) -> dict[str, Any]:
 
     Fills in the keys later v2 serializers added, and puts each event's meta
     values in the order ``build_plan_snapshot`` now emits them — an ordering
-    fixed without a version bump for the reason the defaults were
-    (tripl-0zpq.140), so a stored base's meta values compare equal to a fresh
+    fixed without a version bump for the reason the defaults were,
+    so a stored base's meta values compare equal to a fresh
     snapshot's of the same content.
 
     Returns a new dict when something was missing or out of order and the same
@@ -1017,7 +1015,7 @@ def _field_changes_between(
     # current-version ``old`` is therefore NOT version skew — it is a genuine
     # divergence (e.g. a future conditionally-omitting serializer path). We must
     # NOT silently drop it: treat the absent key as a real change so the diff
-    # surfaces instead of being lost (tripl-2d3d).
+    # surfaces instead of being lost.
     changed_keys = [
         key
         for key in keys
@@ -1078,7 +1076,7 @@ def _shared_key_warning(entity_type: str, name: str, parent: str | None) -> str:
     main row with itself, and what reaches ``_diff_by_key`` is the rows under a
     key several of them share with no id to tell them apart — in practice a
     branch opened before origin ids, whose namesakes the migration could not
-    link (tripl-0zpq.292). There one row per key is matched, and the merge and
+    link. There one row per key is matched, and the merge and
     a revert match the same way, so a change to one of them can show on, or
     land on, the other.
 
@@ -1132,7 +1130,7 @@ def _diff_set(
     if pair_by_origin:
         # Rows the ids place are entered here, one entry per row, and only the
         # keys the ids leave ambiguous go on to the one-row-per-key matching
-        # below, warnings and all (tripl-0zpq.292, tripl-0zpq.149).
+        # below, warnings and all.
         placed, old_items, new_items = _placed_entries(
             entity_type=entity_type,
             old_items=old_items,
@@ -1357,7 +1355,7 @@ def _diff_by_key(
         # them in either order. Comparing the representatives then reads one
         # namesake as an edit of the other, and a project that has namesakes is
         # ahead of, and behind, everything for ever. Say nothing when the sides
-        # hold the same rows (tripl-0zpq.149).
+        # hold the same rows.
         if key in shared_keys and sides_hold_the_same_rows(key):
             continue
         field_changes = _field_changes_between(
@@ -1387,7 +1385,7 @@ def _diff_by_key(
     # one representative, and when a deleted namesake is not the one that sorted
     # last, the survivor lands in the slot the pair used to share: the two
     # representatives then compare equal, the deletion is invisible and so is
-    # the warning, which rides on an entry (tripl-0zpq.149). Which namesake is
+    # the warning, which rides on an entry. Which namesake is
     # the representative is not even stable — ``build_plan_snapshot`` orders
     # events by name alone, so ties keep whatever order the database returned.
     # Stand an entry in, but only where the sides genuinely differ under the
@@ -1438,7 +1436,7 @@ def compute_plan_diff_entries(
     holds for an old one — true of main against any snapshot of main, and of
     a branch whose ``origin_ids_complete`` is set. Rows under a name several
     of them share are then entered one by one rather than matched one per name
-    with a warning (tripl-0zpq.292).
+    with a warning.
     """
     old_payload = with_snapshot_defaults(old_payload)
     new_payload = with_snapshot_defaults(new_payload)
@@ -1448,8 +1446,8 @@ def compute_plan_diff_entries(
     # Only the OLD payload's version governs skip-absent-key tolerance: a v1
     # (pre-bump) base legitimately lacks keys the v2 serializer added, but a
     # current-version base is expected to carry every change key, so a missing
-    # key there is a genuine diff — not skew — and must not be dropped
-    # (tripl-2d3d). Absent/unknown snapshot_version is treated as older (tolerant).
+    # key there is a genuine diff — not skew — and must not be dropped.
+    # Absent/unknown snapshot_version is treated as older (tolerant).
     old_is_current_version = old_payload.get("snapshot_version") == PLAN_SNAPSHOT_VERSION
 
     entries.extend(
@@ -1514,7 +1512,7 @@ def compute_plan_diff_entries(
     )
     # Read here, where the new side is at hand: whether an event there still
     # names a variable that side no longer has decides whether its removal can
-    # be housekeeping at all (tripl-0zpq.138).
+    # be housekeeping at all.
     note_references(variable_entries, new_payload)
     entries.extend(variable_entries)
 
@@ -1608,7 +1606,7 @@ async def list_revisions(
     ).scalar_one()
     # Named columns, not whole ``PlanRevision`` rows: the list view shows counts
     # and nothing else from the payload, and selecting the entity would bring
-    # every snapshot on the page along with it (tripl-0zpq.154).
+    # every snapshot on the page along with it.
     rows = (
         await session.execute(
             select(

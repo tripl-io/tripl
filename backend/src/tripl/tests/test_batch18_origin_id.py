@@ -1,4 +1,4 @@
-"""Branch copies record their origin, so namesakes are told apart (tripl-0zpq.292).
+"""Branch copies record their origin, so namesakes are told apart.
 
 Two events may share (type, name) and two relations may link the same two
 fields — nothing forbids it, and production holds such pairs. Every branch path
@@ -119,7 +119,7 @@ async def _main_branch_of(slug: str) -> uuid.UUID:
     return branch_id
 
 
-# --- tripl-0zpq.149: the merge's own half ----------------------------------------
+# --- the merge's own half ----------------------------------------
 
 
 @pytest.mark.asyncio

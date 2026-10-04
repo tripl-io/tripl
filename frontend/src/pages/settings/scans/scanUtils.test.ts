@@ -55,7 +55,7 @@ describe('summarizeScanChanges', () => {
     )
     const labels = changes.map((change) => change.label)
     expect(labels).toContain('+12 events')
-    // Time-series rows collected — NOT metric definitions created (tripl-2gtk).
+    // Time-series rows collected — NOT metric definitions created.
     expect(labels).toContain('+5 metric points')
     expect(labels).toContain('+1 signal')
     // A zero delta is omitted, not shown as "+0".
@@ -70,7 +70,7 @@ describe('deriveScanRunInfo', () => {
 
   // "Never run" is a verdict. Coercing an unresolved job query to `[]` made
   // every row claim it had never run while the activity rail on the same screen
-  // listed completed runs (tripl-jfm3.28).
+  // listed completed runs.
   it('reports unknown — not idle — while the job query is still loading', () => {
     expect(deriveScanRunInfo(undefined)).toEqual(LOADING_SCAN_RUN_INFO)
     expect(deriveScanRunInfo(undefined).status).toBe('unknown')

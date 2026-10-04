@@ -1,4 +1,4 @@
-"""Guards for the shape of a project lookup (tripl-jfm3.54).
+"""Guards for the shape of a project lookup.
 
 ``Project.event_types`` / ``meta_field_definitions`` / ``relations`` /
 ``variables`` used to be declared ``lazy="selectin"``, so resolving a slug to a

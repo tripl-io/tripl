@@ -83,7 +83,7 @@ export function CreateProjectDialog({
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: projectsKey() })
       // Enter the freshly-created project instead of stranding the user on the
-      // workspace list — mirrors the demo path's success routing (tripl-q7i1.8).
+      // workspace list — mirrors the demo path's success routing.
       // A template's plan is on a draft branch and main is empty, so the
       // overview would show nothing: open that branch's review instead (F21).
       void navigate(

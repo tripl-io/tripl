@@ -4,7 +4,7 @@
  * The table used to render one hard-coded first-run card ("No events yet" /
  * "Create your first event to get started.") for every empty result, so the
  * Archived tab of a project with 2,413 events told the user it had none and
- * pointed them at the wrong action (tripl-jfm3.30). The message has to describe
+ * pointed them at the wrong action. The message has to describe
  * the query that came back empty, not the project.
  */
 export interface EventsEmptyCopy {
@@ -22,7 +22,7 @@ export interface EventsEmptyContext {
   /** Current search box contents. */
   search: string
   /** The event type's display name on a type tab. The tab segment is the
-   *  internal key ("se"), which the type chip stopped showing (tripl-w9od). */
+   *  internal key ("se"), which the type chip stopped showing. */
   typeLabel?: string
 }
 

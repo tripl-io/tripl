@@ -74,7 +74,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('FilterEditor — event scope picker (tripl-jfm3.106)', () => {
+describe('FilterEditor — event scope picker', () => {
   it('names an already-selected event without listing the catalog', async () => {
     // The tab used to pull `GET /events?limit=10000` on mount just to label the
     // ids a saved rule already carries. Now the label comes from one read per
@@ -124,7 +124,7 @@ describe('FilterEditor — event scope picker (tripl-jfm3.106)', () => {
     expect(await screen.findByText('checkout_completed')).toBeInTheDocument()
   })
 
-  it('names an event whose stored name is blank, on the trigger and in the list (tripl-wkwv.5)', async () => {
+  it('names an event whose stored name is blank, on the trigger and in the list', async () => {
     // `??` cannot catch this: `labelByValue.get()` returns '' as a HIT, so the
     // `?? value` fallback never fires and the collapsed trigger painted nothing
     // but a chevron — no text, and so no accessible name at all. Single-value

@@ -44,7 +44,7 @@ _FIGMA_URL = "https://www.figma.com/file/DEMO0paywall/Paywall-Spec?node-id=0-1"
 # so the demo was teaching a capability that does not exist. Harmless while it
 # sat on one page; not harmless once the audit builder began deriving
 # ``event.update`` payloads from these rows and carrying the invented field onto
-# a second surface (tripl-wkwv.14).
+# a second surface.
 _EDITS: tuple[tuple[str, int, tuple[tuple[str, str | None, str | None], ...]], ...] = (
     # Home Screen View: reviewed -> shipped -> renamed to the convention.
     ("Home Screen View", 5, (("status", "in_review", "live"),)),

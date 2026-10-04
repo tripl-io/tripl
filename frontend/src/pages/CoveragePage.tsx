@@ -28,7 +28,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 // Window for "is this event still emitting data". Shared with Reconciliation's
 // Dead events panel — the "Triage in Reconciliation" link below hands off to
 // it, and two different windows made the destination list disagree with the
-// count that sent the user there (tripl-jfm3.79).
+// count that sent the user there.
 const DEAD_DAYS = DEAD_EVENT_DAYS
 const GAP_LIMIT = 50
 
@@ -40,7 +40,7 @@ const PLAN_COVERAGE_HELP =
 
 // The gap list is computed over a deliberately NARROWER population than the
 // "Active events" stat above it: only implemented/live events that are old
-// enough to have had a chance to emit can be "missing data" (tripl-jfm3.23).
+// enough to have had a chance to emit can be "missing data".
 // Said for the user, in an info tip beside the panel subtitle (DA-31): the
 // full-width line it used to be explained a cross-page discrepancy nobody had
 // asked about and took four lines on a phone.
@@ -82,8 +82,7 @@ export default function CoveragePage() {
   // Arithmetic remainder of the coverage bar. It is NOT the "In review" tile:
   // events that are neither implemented nor awaiting review (draft, ready for
   // dev …) land here too, so the bar is labelled "not implemented" rather than
-  // "pending" to stop the two adjacent numbers reading as the same bucket
-  // (tripl-jfm3.29).
+  // "pending" to stop the two adjacent numbers reading as the same bucket.
   const notImplemented = Math.max(0, active - implemented)
   const coverageRatio = planCoverageRatio(implemented, active)
 

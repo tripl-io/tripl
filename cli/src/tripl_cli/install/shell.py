@@ -4,7 +4,7 @@ Everything that runs a subprocess goes through ``Runner``, and nothing else in
 the package imports ``subprocess`` at all. That is what lets the whole of
 ``install``/``upgrade`` be tested without a Docker daemon — the test suite
 injects a ``FakeRunner`` that records every ``Command`` and answers with scripted
-``CommandResult``s, so CI never starts a container (tripl-ey6j.3).
+``CommandResult``s, so CI never starts a container.
 
 THE OUTPUT RULE, which the rest of the package depends on:
 

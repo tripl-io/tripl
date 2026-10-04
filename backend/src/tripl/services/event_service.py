@@ -104,7 +104,7 @@ _TEMPLATE_TOKEN_PATTERN = VARIABLE_TOKEN_PATTERN
 # ``${property.Albany, OR}``. The event form re-sends every field value on save,
 # so an identifier grammar here 422'd every later edit of such an event —
 # including one that only touched the description — until somebody hand-edited
-# the JSON (tripl-0zpq.125).
+# the JSON.
 #
 # What stays out, and why: ``}`` ends the token; ``"``, ``\`` and any C0 control
 # character (U+0000–U+001F, so a raw tab, newline or carriage return) are all
@@ -206,7 +206,7 @@ async def _attach_template_warnings(session: AsyncSession, event: Event) -> None
     its own ``FieldDefinition``, so selecting the entity dragged the branch's
     entire variable graph — each context row with its JSON ``values`` list —
     into the session on the request path of EVERY event create and PATCH, to
-    read a name, a source name and a bindings list (tripl-0zpq.129). A column
+    read a name, a source name and a bindings list. A column
     select has no relationships to load, so the three round trips are one.
     """
     result = await session.execute(
@@ -357,15 +357,15 @@ def _normalize_meta_values_against(
     ``https://jira.example/browse/${value}`` renders its value into that
     template, so the value should be ``PROJ-4770``. People paste the full URL
     from the browser — on production every branch-authored event held the
-    whole address, and the rendered link was the template applied to a URL
-    (tripl-kjhi.5). When the pasted text is exactly the template around some
+    whole address, and the rendered link was the template applied to a URL.
+    When the pasted text is exactly the template around some
     value, keep only the value; anything else is stored as typed.
 
     ``definitions`` holds the branch's OWN meta fields, and an id absent from it
     is a 422: a branch deep-copies every definition under a NEW id, so main's id
     posted with ``?branch=`` used to fall through to a ``(None, False, "")``
     default — no link stripping, the "one value here" rule off, and a row on the
-    branch pointing at another branch's definition (tripl-0zpq.123).
+    branch pointing at another branch's definition.
 
     The byte cap is applied to the STRIPPED value, which is the one that goes
     into the unique index the cap exists for — see ``META_VALUE_MAX_BYTES``.
@@ -385,8 +385,8 @@ def _normalize_meta_values_against(
         )
     out: list[EventMetaValueIn] = []
     # A field opted in to several values may repeat; one that did not may not.
-    # The row constraint stopped counting fields when it started counting values
-    # (tripl-h2sx.31), so the "one value here" rule lives here now, where the
+    # The row constraint stopped counting fields when it started counting values,
+    # so the "one value here" rule lives here now, where the
     # definition says whether it applies.
     seen: dict[uuid.UUID, set[str]] = {}
     for mv in meta_values:
@@ -519,7 +519,7 @@ def _check_and_normalize_field_values(
     same rule off its one batched SELECT instead of restating it. Its own copy
     had drifted: it repeated the two checks and silently skipped the JSON
     normalisation, so the same payload stored a different value depending on
-    which door it came through (tripl-u2h9.11).
+    which door it came through.
 
     ``enforce_required=False`` is the ``scan_identity`` create: the caller
     already knows the identity the warehouse observed and carries no field
@@ -527,7 +527,7 @@ def _check_and_normalize_field_values(
     ALREADY seen, on a form that has nowhere to type one. Name generation is
     skipped there for exactly that reason; the required check had been left
     behind, which turned every Reconciliation → Accept on a type with one
-    required field into a 422 (tripl-0zpq.130). Everything else still applies:
+    required field into a 422. Everything else still applies:
     an unknown field definition is refused and JSON values are normalised.
     """
     provided_ids = {fv.field_definition_id for fv in field_values}
@@ -576,7 +576,7 @@ async def _event_type_ids_in_branch(
     branch term — wrote main's field values, contexts and metrics onto the
     BRANCH row, leaving main without the event entirely. Accepting the shadow
     candidate for it answered 500, and merging B raised ``KeyError`` on a type
-    id main's side of the merge had never heard of (tripl-0zpq.123).
+    id main's side of the merge had never heard of.
     """
     wanted = set(event_type_ids)
     if not wanted:
@@ -627,7 +627,7 @@ def _twin_reads_for_branch_rows(
     about the event: "Silent > N days" matched every copy as soon as the branch
     itself was N days old — beside a Last seen column showing the twin's fresh
     timestamp through ``attach_main_last_seen`` — and "Busiest first" gave every
-    branch row volume 0 and fell back to id order (tripl-0zpq.124).
+    branch row volume 0 and fell back to id order.
 
     The pairing is the one the merge, the discussion and ``_branch_counterparts``
     use: the event type's NAME (a branch type carries an id of its own) and the
@@ -640,7 +640,7 @@ def _twin_reads_for_branch_rows(
     ONE twin, the SAME one for both expressions: the lowest id among the main
     rows that answer the key. Nothing stops main from holding two rows under one
     (event type, identity), and nothing refuses that state — a branch COPY
-    now reads the main row it came from (``origin_id``, tripl-0zpq.292), but a
+    now reads the main row it came from (``origin_id``), but a
     row created on the branch still pairs by key — and while the last-seen
     read took
     ``max()`` over the pair and the metric id took the lowest id, the "Silent >
@@ -680,7 +680,7 @@ def _twin_reads_for_branch_rows(
     # A branch copy's twin is the main row it was copied from; only a row
     # without a live origin — authored on the branch, or copied from a row main
     # has since deleted — pairs by type name and identity. The same rule, in
-    # the same order, as ``main_counterparts`` (tripl-0zpq.292).
+    # the same order, as ``main_counterparts``.
     origin_row = aliased(Event)
     origin_is_live = (
         select(origin_row.id)
@@ -813,7 +813,7 @@ async def list_events(
         # which happens to omit `archived`. Every other consumer of this
         # endpoint — the CLI, the MCP server's `list_events` tool, any direct
         # API call — still got archived events back, so "archived" meant
-        # "hidden in one client" rather than a property of the plan (tripl-mhhi).
+        # "hidden in one client" rather than a property of the plan.
         # Asking for them explicitly (`?status=archived`) still works.
         query = query.where(Event.status != EventStatus.archived)
         count_query = count_query.where(Event.status != EventStatus.archived)
@@ -824,7 +824,7 @@ async def list_events(
         # raw API client wrote before that keeps the spelling it was handed. A
         # raw equality therefore left ``Checkout`` — a row this very list
         # displays — unreachable from the ``?tag=checkout`` the tag facet now
-        # offers (tripl-0zpq.126). ``func.lower`` rather than ``ilike``: this is
+        # offers. ``func.lower`` rather than ``ilike``: this is
         # an equality and a tag is free text, so ``_`` and ``%`` must stay
         # literal. It gives up ``ix_event_tag_name``; that is the price of
         # reaching the old rows without rewriting them in a migration.
@@ -860,7 +860,7 @@ async def list_events(
     if reviewed is not None:
         # Independent of `status`: this narrows by the review FLAG, so
         # ?status=in_review&reviewed=false answers "what is still unreviewed in
-        # the queue" — the question the review tab could not ask (tripl-invv).
+        # the queue" — the question the review tab could not ask.
         query = query.where(Event.reviewed.is_(reviewed))
         count_query = count_query.where(Event.reviewed.is_(reviewed))
     if has_open_questions is not None:
@@ -906,7 +906,7 @@ async def list_events(
         # Summed over ``metric_event_id``, which is the row's own id on main and
         # its main twin's on a branch: scans write metrics only for main ids, so
         # keying this on the branch id gave every copy volume 0 and quietly
-        # degraded the sort to id order (tripl-0zpq.124). Correlated per row
+        # degraded the sort to id order. Correlated per row
         # rather than a grouped subquery joined on the id, because that id is
         # itself a per-row expression and cannot be a join key — which also
         # confines the aggregate to this project's events, where the grouped
@@ -1008,8 +1008,8 @@ async def list_tags(
 ) -> list[str]:
     """The tag facet: one entry per distinct label on this branch.
 
-    Lower-cased for the same reason ``list_events``' ``?tag=`` filter case-folds
-    (tripl-0zpq.126): a row written before tag normalisation keeps the spelling
+    Lower-cased for the same reason ``list_events``' ``?tag=`` filter case-folds:
+    a row written before tag normalisation keeps the spelling
     it was handed, so ``Checkout`` and ``checkout`` stood here as two entries
     for one label and picking either found only half the events. What this
     returns is exactly what the filter takes.
@@ -1043,8 +1043,7 @@ async def get_event(
     people paste, and a link into a branch event without its ``?branch=`` (or
     into main's row with someone else's branch selected) dead-ended on a 404
     that told the reader nothing. The row is returned with its own
-    ``branch_id`` so the client can say where it lives and switch
-    (tripl-kjhi.7).
+    ``branch_id`` so the client can say where it lives and switch.
     """
     project_id = await resolve_project_id(session, slug)
     branch_id = await resolve_branch_id(session, project_id, branch_id)
@@ -1072,7 +1071,7 @@ async def get_event(
 
 
 async def _attach_first_seen(session: AsyncSession, *, project_id: uuid.UUID, event: Event) -> None:
-    """``first_seen_at``: the oldest bucket that counted this event (tripl-kjhi.10).
+    """``first_seen_at``: the oldest bucket that counted this event.
 
     Metrics are keyed on the main row, so a branch copy reads its twin's — the
     same twin ``last_seen_at`` comes from. The worker stamps the column since
@@ -1108,9 +1107,9 @@ async def _resolve_event_name_format(
 
     Which configs are in scope is ``scan_config_lookup.load_governing_scan_configs``
     — shared with the schema-drift guard so the two cannot disagree about
-    reachability (tripl-3mmh) — and the tie-break is ``governing_name_format``
+    reachability — and the tie-break is ``governing_name_format``
     beside it, shared with the event-type listing so the form and the create
-    path cannot disagree either (tripl-kjhi.1).
+    path cannot disagree either.
     """
     rows = await load_governing_scan_configs(
         session, project_id=project_id, event_type_id=event_type_id
@@ -1202,7 +1201,7 @@ async def _identities_already_held(
     Only the first arm is backed by the schema: ``uq_event_scan_identity`` on
     ``(event_type_id, source_name)`` refuses a second row for a held identity,
     and it is what closes the window between this SELECT and the INSERT that a
-    concurrent request can slip through (tripl-8tdl). The second arm no unique
+    concurrent request can slip through. The second arm no unique
     key can express — a NULL ``source_name`` is distinct from every other in a
     unique key — so a rule-less row's future claim is honoured here and nowhere
     else.
@@ -1319,7 +1318,7 @@ def _scan_identity_conflict_detail(*, identity: str, existing: Event) -> str:
     Deliberately explains the CONSEQUENCE rather than the constraint: the reason
     a second row is refused is that only one of the two could ever receive scan
     updates, and "duplicate key" says nothing about that. ``uq_event_scan_identity``
-    now refuses the row too (tripl-8tdl), but the probe before the INSERT keeps
+    now refuses the row too, but the probe before the INSERT keeps
     two jobs the constraint cannot do: it lets this body NAME the holder, and it
     honours the NULL-``source_name`` arm of ``_identities_already_held``, which
     no unique key can express. The constraint's job is the concurrent-request
@@ -1433,7 +1432,7 @@ async def _reserved_breakdown_columns_by_type(
     Today that is exactly the ``app_version_column`` of every scan that collects
     the type: app versions are collected on their own path, into the same table
     and the same row shape, so listing the column here made the collector write
-    one breakdown key twice per bucket (tripl-0zpq.15). The scan-level list is
+    one breakdown key twice per bucket. The scan-level list is
     already guarded the same way by ``check_scalar_columns_unreserved``; this is
     the event-level door.
 
@@ -1543,13 +1542,13 @@ async def create_event(
     * it skips name generation, which for that caller could only ever fail: a
       shadow candidate carries no field values, so a governing
       ``event_name_format`` reports every placeholder missing and the accept
-      422s (tripl-u2h9.12);
+      422s;
     * it leaves ``data.name`` as the display name, which is what lets an
       operator rename an event while accepting it;
     * it turns OFF the required-field check, for the same reason as the first:
       the caller carries no field values at all and the accept form offers
       nowhere to type one, so a required field refused an event the warehouse
-      had already seen (tripl-0zpq.130; the long version is on
+      had already seen (the long version is on
       ``_check_and_normalize_field_values``). An unknown field definition is
       still refused and JSON values are still normalised.
     """
@@ -1613,7 +1612,7 @@ async def create_event(
     )
     # The probe above is a SELECT with no lock, so a second request can commit
     # this identity between it and the INSERT; ``uq_event_scan_identity`` is
-    # what refuses the loser (tripl-8tdl). That refusal used to surface as a
+    # what refuses the loser. That refusal used to surface as a
     # bare 500. Here it is answered with the pre-check's own 409, naming the
     # winner: roll back, probe again, raise. The ROOT rollback is deliberate,
     # not the SAVEPOINT ``_ensure_variable`` uses — that shape exists so a scan
@@ -1670,7 +1669,7 @@ async def create_event(
     for tag_name in data.tags:
         session.add(EventTag(event_id=event.id, name=tag_name))
     # The history's first row, so "who created this and when" is answered by
-    # the same list as every later edit (tripl-kjhi.9).
+    # the same list as every later edit.
     session.add(
         create_event_change(
             event_id=event.id,
@@ -1772,8 +1771,7 @@ async def update_event(
         # unrelated edit until the user removed a column the product itself put
         # there. A stored one is inert either way — the collector skips it
         # (``_is_supported_configured_breakdown_column``) — so grandfathering
-        # costs nothing and closing the door on new ones is the point
-        # (tripl-0zpq.15).
+        # costs nothing and closing the door on new ones is the point.
         held_columns = set(event.metric_breakdown_columns or [])
         await _guard_event_breakdown_columns(
             session,
@@ -1836,7 +1834,7 @@ async def update_event(
         # text did not change keeps the ``is_authored`` it had: re-inserting it
         # as authored turned a scan-observed value into a "curated" one on every
         # unrelated save, which the search ranking reads as identity and the
-        # branch diff showed as a change no one made (tripl-kjhi.4).
+        # branch diff showed as a change no one made.
         authored_before = {
             row.field_definition_id: (row.value, row.is_authored)
             for row in (
@@ -1948,7 +1946,7 @@ async def delete_event(
     Returning the name follows the precedent in ``variable_service`` and matters
     more here: ``event_changes.event_id`` is ``ondelete="CASCADE"``, so the
     event's own history dies with the row and the audit entry is the only trace
-    the delete ever happened (tripl-wkwv.10).
+    the delete ever happened.
     """
     is_main = branch_id is None
     event = await get_event(session, slug, event_id, branch_id)
@@ -1964,10 +1962,10 @@ async def delete_event(
     # Before the delete: several rows point at this event by string or JSON id,
     # or through a SET NULL foreign key, and would otherwise outlive it. The
     # anomalies are the sharp one — a NULL event_id satisfies every event filter,
-    # so deleting an event used to UN-suppress its alerts (tripl-xjuv).
+    # so deleting an event used to UN-suppress its alerts.
     await drop_dangling_event_references(session, project_id=project_id, event_ids=[event.id])
     # A branch row's own discussion is shown through its main twin too; hand it
-    # over rather than let the cascade take it (tripl-0zpq.289).
+    # over rather than let the cascade take it.
     if not is_main:
         await rescue_branch_event_threads(session, project_id=project_id, event_ids=[event.id])
     await session.delete(event)
@@ -1995,7 +1993,7 @@ async def bulk_delete_events(
 
     The names are what the audit row keeps: once this returns the ids resolve to
     nothing, so an id-only record of a bulk delete names nothing a reader can
-    recognise (tripl-wkwv.10).
+    recognise.
     """
     is_main = branch_id is None
     project_id = await resolve_project_id(session, slug)
@@ -2071,7 +2069,7 @@ async def bulk_update_events(
 
     # ``exclude_unset``, not ``exclude_none``: an explicit ``sunset_at: null`` or
     # ``owner_id: null`` is a request to CLEAR that field across the selection,
-    # and dropping it answered 204 having changed nothing (tripl-0zpq.276).
+    # and dropping it answered 204 having changed nothing.
     # Fields the client never sent stay out, which is what leaves them alone.
     # ``EventBulkUpdate`` refuses a null for the two NOT NULL columns up front,
     # so nothing reaching ``values()`` here can violate one.
@@ -2172,8 +2170,7 @@ async def reorder_events(
         # Checked before the ownership count, which a duplicated id passes (both
         # sides collapse to the same set) on the way to an IndexError 500 in the
         # slot loop below — the same defect, and the same 400, as
-        # ``metric_definition_service.reorder_metric_definitions``
-        # (tripl-0zpq.239).
+        # ``metric_definition_service.reorder_metric_definitions``.
         raise HTTPException(status_code=400, detail="Duplicate event ids in the requested order")
     if len(events) != len(set(data.event_ids)):
         raise HTTPException(status_code=400, detail="Some events do not belong to this project")
@@ -2215,7 +2212,7 @@ async def bulk_create_events(
     # One query for the paste, checked per item below so the refusal still names
     # which item is at fault. Same rule the single create applies first, for the
     # same reason: a type on another branch has field definitions of its own, so
-    # every check after this one would pass on it (tripl-0zpq.123).
+    # every check after this one would pass on it.
     event_type_ids_in_branch = await _event_type_ids_in_branch(
         session,
         project_id=project_id,
@@ -2228,8 +2225,8 @@ async def bulk_create_events(
     # after ``session.add_all``/``flush`` had already put every row in the
     # database — so a client whose seventh of twenty items carried main's meta
     # field id got a bare "Meta field <uuid> is not on this project's branch",
-    # naming no item, having paid for an insert of the whole batch to produce it
-    # (tripl-0zpq.123). Loading here also collapses one SELECT per item into one
+    # naming no item, having paid for an insert of the whole batch to produce it.
+    # Loading here also collapses one SELECT per item into one
     # for the paste.
     meta_definitions = await _load_meta_field_definitions(
         session,
@@ -2373,7 +2370,7 @@ async def bulk_create_events(
                 # takes, so a field it accepts and then drops makes one payload
                 # mean two different things. These two were the drops — a paste
                 # carrying an owner and ``reviewed: true`` was answered 201 with
-                # the model defaults, unassigned and unreviewed (tripl-0zpq.127).
+                # the model defaults, unassigned and unreviewed.
                 owner_id=data.owner_id,
                 reviewed=data.reviewed,
                 metric_breakdown_columns=data.metric_breakdown_columns,
@@ -2429,7 +2426,7 @@ async def bulk_create_events(
         session.add_all(children)
 
     # The same first history row ``create_event`` writes, one per event, now
-    # that the ids exist (tripl-kjhi.9).
+    # that the ids exist.
     session.add_all(
         [
             create_event_change(

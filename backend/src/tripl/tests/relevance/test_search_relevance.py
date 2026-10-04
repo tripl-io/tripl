@@ -1,6 +1,6 @@
-"""The search-relevance harness: three tests per measured ranking case (tripl-338u).
+"""The search-relevance harness: three tests per measured ranking case.
 
-ONE CASE, THREE CLAIMS, THREE TEST FUNCTIONS (tripl-uojz)
+ONE CASE, THREE CLAIMS, THREE TEST FUNCTIONS
 ---------------------------------------------------------
 A case asserts up to three different things and they do not deserve the same
 treatment, so they are asserted separately:
@@ -16,7 +16,7 @@ treatment, so they are asserted separately:
 They were one function, and ``pytest.mark.xfail`` marks a function, so a marker
 filed against a ranking nuance also excused the document vanishing from the
 results entirely. That was not hypothetical: ``russian-phrase-finds-the-event-it-
-describes`` was xfailed for a scoring gap (tripl-9t2s) while the fault four
+describes`` was xfailed for a scoring gap while the fault four
 earlier fixes were aimed at is precisely ``screen_spot`` not being RETRIEVED —
 so the harness was carrying a ranking marker that would have hidden the
 regression it exists to catch. That marker is gone: tripl-9t2s shipped
@@ -249,7 +249,7 @@ async def test_relevance_case_retrieves_what_it_names(
     relevance_session: AsyncSession,
     seeded_corpus: Corpus,
 ) -> None:
-    """The documents a case names must come back. NEVER xfailable (tripl-uojz).
+    """The documents a case names must come back. NEVER xfailable.
 
     THIS FUNCTION READS NO ``xfail_ordering`` FIELD, AND THAT IS THE FEATURE
     ------------------------------------------------------------------------
@@ -346,7 +346,7 @@ async def test_relevance_case_does_not_overstate_confidence(
     relevance_session: AsyncSession,
     seeded_corpus: Corpus,
 ) -> None:
-    """The score claim (tripl-txcz). Also never xfailable.
+    """The score claim. Also never xfailable.
 
     A confidence bound is not an ordering nuance — "we told the user this was a
     certain answer when it was not" is a user-visible defect on its own — so it

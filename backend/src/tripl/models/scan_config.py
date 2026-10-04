@@ -154,7 +154,7 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     # ``_alerting_deliveries._INBOX_GROUP_SELECT`` (four call sites, once per
     # request), ``alert_flush``, the metrics scheduler's beat tick over every
     # scheduled config, the Scans tab, the metrics/insights services and the
-    # search indexer (tripl-0zpq.157).
+    # search indexer.
     #
     # Unlike the small parent-child fan-outs elsewhere in this package, that one
     # had no ceiling. ``scan_jobs`` gains a row per collection and is pruned only
@@ -171,7 +171,7 @@ class ScanConfig(UUIDMixin, TimestampMixin, Base):
     # that, contrary to the obvious guess: ``lazy="raise"`` was measured on this
     # relationship and the unit of work still loads the collection and deletes the
     # rows, emitting SQL identical to the above. Same decision and same reasoning as
-    # the four plan collections on ``Project`` (tripl-jfm3.54).
+    # the four plan collections on ``Project``.
     scan_jobs: Mapped[list[ScanJob]] = relationship(
         back_populates="scan_config", cascade="all, delete-orphan"
     )

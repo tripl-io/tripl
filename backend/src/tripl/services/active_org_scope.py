@@ -1,4 +1,4 @@
-"""Which projects the scheduled worker jobs may touch (F20 PR14, tripl-oam4.9).
+"""Which projects the scheduled worker jobs may touch (F20 PR14).
 
 A project belongs to exactly one organization, and only an ``active`` one is
 worked on by the beat schedule: scan and metric collection, the freshness

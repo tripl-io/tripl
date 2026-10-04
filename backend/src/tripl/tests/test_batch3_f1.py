@@ -1,4 +1,4 @@
-"""A group merge moves the survivor along the progression axis only (tripl-0zpq.84).
+"""A group merge moves the survivor along the progression axis only.
 
 ``event_status_rank`` deliberately orders ``deprecated`` (5) and ``archived``
 (6) above ``live`` (4) so a closing implementation ticket cannot drag a retired

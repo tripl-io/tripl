@@ -1,4 +1,4 @@
-"""An event's discussion when the event only gets a row on main later (tripl-0zpq.122).
+"""An event's discussion when the event only gets a row on main later.
 
 A branch copy of a main event reads and writes the discussion on its main twin,
 so nothing hangs on the branch row. An event CREATED on a branch has no twin, so
@@ -482,7 +482,7 @@ async def test_a_thread_on_the_row_that_replaces_two_namesakes_follows_it_to_mai
     with the branch rather than land on an arbitrary one of them. The copies
     now name the main rows they came from, so the merge deletes exactly those
     two and creates the authored row, and the thread moves onto it
-    (tripl-0zpq.149, tripl-0zpq.292)."""
+    ."""
     slug = "evc-namesakes-on-main"
     main_et_id = await _seed_plan(client, slug)
     first_id = await _insert_main_event(main_et_id, name="checkout:tap", source_name="tap:one")

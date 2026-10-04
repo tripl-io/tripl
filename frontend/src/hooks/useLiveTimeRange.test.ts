@@ -16,7 +16,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('useLiveTimeRange (tripl-jfm3.114)', () => {
+describe('useLiveTimeRange', () => {
   it('covers the in-progress bucket by rounding the bound up', () => {
     const { result } = renderHook(() => useLiveTimeRange(HOUR_MS))
 

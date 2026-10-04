@@ -178,7 +178,7 @@ describe('EventsPage', () => {
     renderEventsPage(['/p/demo/events/all/ev-1?branch=feat-1'])
 
     // Dropping the param here turns a shared branch-diff link into a main-plan
-    // edit, which renders normally and 404s at Save (tripl-h2sx.2).
+    // edit, which renders normally and 404s at Save.
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent(
         '/p/demo/events/all/ev-1/edit?branch=feat-1',
@@ -334,7 +334,7 @@ describe('EventsPage', () => {
     expect(headers).toContain('Event')
     // The volume and trend lead; Type follows (EV-12).
     expect(headers.indexOf('48h')).toBeLessThan(headers.indexOf('Type'))
-    // tripl-jfm3.4: the signal-state column is headed "Signal", not "Monitor" —
+    // the signal-state column is headed "Signal", not "Monitor" —
     // its cells report detection output, which exists without any monitor, and
     // heading it "Monitor" contradicted the Monitors page's "No monitors yet".
     expect(headers).toContain('Signal')
@@ -358,7 +358,7 @@ describe('EventsPage', () => {
     // move/status now live on the event detail page, not on the row.
     // (`expectAbsent` searches the whole DOM, not just the a11y tree — see its docstring.)
     expectAbsent('button', 'Edit event')
-    // The toolbar's own "More actions" overflow (tripl-7l83.9) lives above the
+    // The toolbar's own "More actions" overflow lives above the
     // grid; scope this row-cleanliness check to the events table so it verifies
     // rows carry no per-row action menu, not the toolbar affordance.
     const eventsGrid = container.querySelector('table')
@@ -836,7 +836,7 @@ describe('EventsPage', () => {
     // Breakdown options come from the type's scalar fields and the project's
     // scans — 'country' is a field on type-1, so it is offered as a chip. A
     // column neither knows about is typed in, which is the half of the picker
-    // the redesign dropped and the docs never stopped describing (tripl-u2h9.6).
+    // the redesign dropped and the docs never stopped describing.
     fireEvent.click(screen.getByRole('button', { name: 'country' }))
     const breakdownInput = screen.getByLabelText(/Metric breakdowns/)
     fireEvent.change(breakdownInput, { target: { value: 'platform' } })
@@ -915,8 +915,8 @@ describe('EventsPage', () => {
     expect(screen.getAllByRole('button', { name: 'New event' }).length).toBeGreaterThan(0)
 
     // The toolbar collapses only once the events query has SETTLED — not during the
-    // initial load, so a populated project never flashes the minimal bar
-    // (tripl-yfsj.12). Wait for the search field to disappear before the synchronous
+    // initial load, so a populated project never flashes the minimal bar.
+    // Wait for the search field to disappear before the synchronous
     // checks below.
     await waitFor(() =>
       expect(

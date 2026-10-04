@@ -6,7 +6,7 @@ Before this there were three published recipes for ``SECRET_KEY`` alone
 message) and none of them was executable, so none of them could be tested. This
 module is executable, so it can be — see ``tests/test_install_files.py``, which
 asserts the contracts the BACKEND actually enforces rather than the shape this
-file happens to produce (tripl-ey6j.3).
+file happens to produce.
 
 Stdlib only: ``secrets`` and ``base64``. Not ``cryptography`` (a compiled
 dependency this CLI must not acquire — tripl-mcp inherits everything here) and

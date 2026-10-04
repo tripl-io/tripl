@@ -66,8 +66,7 @@ function renderHarness(onSettled?: (metricId: string, status: 'success' | 'error
 // Mirrors MonitoringDetailPage: the spinner is keyed to the *watched* metric
 // (not a raw `isWatching`), and the watch captures the current route's ids at
 // collect-start so a completion can invalidate the metric it actually collected
-// — even after an `:id`-only navigation that does NOT remount the page
-// (tripl-0s3d).
+// — even after an `:id`-only navigation that does NOT remount the page.
 type NavRoute = { slug: string; scope: string; scopeId: string }
 
 function NavHarness({
@@ -247,7 +246,7 @@ describe('useMetricCollectionWatcher', () => {
     expect(onSettled).toHaveBeenCalledWith('m-1', 'success', undefined)
   })
 
-  it('does not show a metric navigated to mid-watch as collecting (tripl-0s3d)', async () => {
+  it('does not show a metric navigated to mid-watch as collecting', async () => {
     // The watch stays in flight (never leaves "running") across the navigation.
     vi.mocked(metricsCatalogApi.get).mockResolvedValue(definitionWith('running'))
     const onInvalidate = vi.fn()
@@ -268,7 +267,7 @@ describe('useMetricCollectionWatcher', () => {
     expect(screen.getByRole('button')).toHaveTextContent('idle')
   })
 
-  it("invalidates the metric captured at collect-start, not the one navigated to (tripl-0s3d)", async () => {
+  it("invalidates the metric captured at collect-start, not the one navigated to", async () => {
     vi.mocked(metricsCatalogApi.get).mockResolvedValue(definitionWith('running'))
     const onInvalidate = vi.fn()
     const { navigateTo } = renderNavHarness(
@@ -292,7 +291,7 @@ describe('useMetricCollectionWatcher', () => {
     expect(onInvalidate).not.toHaveBeenCalledWith('demo', 'metric', 'B')
   })
 
-  it('keeps polling the originating project after a cross-project move (tripl-htvg)', async () => {
+  it('keeps polling the originating project after a cross-project move', async () => {
     vi.mocked(metricsCatalogApi.get).mockResolvedValue(definitionWith('running'))
     const onInvalidate = vi.fn()
     const { navigateTo } = renderNavHarness(

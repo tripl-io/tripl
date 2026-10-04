@@ -47,7 +47,7 @@ from tripl.core.warehouse_types import ComplexKind, TimeKind, classify_complex, 
 from tripl.models.fact_table import FactTable
 from tripl.worker.tasks.metrics import _fact_conditions
 
-# --- tripl-0zpq.53: the contract range comparison ----------------------------
+# --- the contract range comparison ----------------------------
 
 
 def _range_condition(**bounds: float) -> str:
@@ -160,7 +160,7 @@ def test_the_guard_still_rejects_what_is_not_a_number_at_all() -> None:
         assert re.match(_FINITE_NUMBER_RE, text) is None, text
 
 
-# --- tripl-0zpq.56: array types ----------------------------------------------
+# --- array types ----------------------------------------------
 
 
 class _Description:
@@ -373,7 +373,7 @@ def test_a_search_path_is_appended_after_the_invariant_gucs(
     )
 
 
-# --- tripl-0zpq.74: the native type decides the time literal's family ---------
+# --- the native type decides the time literal's family ---------
 
 
 def _fact_table(*columns: dict[str, str]) -> FactTable:
@@ -475,7 +475,7 @@ def test_the_normalized_type_still_drives_value_validation() -> None:
         )
 
 
-# --- tripl-0zpq.77: the read-only gate reads code, not data ------------------
+# --- the read-only gate reads code, not data ------------------
 
 
 @pytest.mark.parametrize(

@@ -6,9 +6,9 @@ scan (or an author) gave main a row for that identity. Once that twin exists,
 ``event_comment_service.event_thread`` reads both anchors, so the discussion is
 visible from either side. Deleting the branch row then took its half through
 the ``event_photo_comments`` FK cascade, although the twin that shows it is
-still there (tripl-0zpq.289).
+still there.
 
-The merge already moves these threads onto main (tripl-0zpq.122). Every other
+The merge already moves these threads onto main. Every other
 door that deletes a branch event — the event delete and bulk delete, the event
 type delete that cascades its events, the revert of an ``added`` entity, and
 deleting the branch itself — runs ``rescue_branch_event_threads`` first, with

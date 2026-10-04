@@ -83,7 +83,7 @@ def test_string_condition_keeps_numeric_value_as_text() -> None:
     ],
 )
 def test_contains_escapes_like_wildcards(dialect: SqlDialect, expected: str) -> None:
-    """`contains "100%"` must not match everything starting with 100 (tripl-jfm3.111)."""
+    """`contains "100%"` must not match everything starting with 100."""
     condition = FactCondition(column="plan", operator="contains", value="100%")
 
     sql = _resolve_condition_fragment(condition, dialect=dialect)

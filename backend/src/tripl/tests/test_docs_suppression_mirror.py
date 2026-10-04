@@ -8,11 +8,11 @@ the destination is on, and nothing arrives" — so a status missing from either
 list is not a typo, it is a page that cannot diagnose the case it was written for.
 
 That is not hypothetical. ``acknowledged`` joined the tuple when an operator who
-had acked an incident kept being paged for it every hour (tripl-jfm3.91), and
+had acked an incident kept being paged for it every hour, and
 both checklists were left naming only three of the four. For months the docs
 therefore told a reader whose alerts were silenced by their own acknowledge to go
-look at cooldowns and destinations, and nothing in either suite noticed
-(tripl-pyo9). Prose cannot be type-checked, but it can be required to contain the
+look at cooldowns and destinations, and nothing in either suite noticed.
+Prose cannot be type-checked, but it can be required to contain the
 words.
 
 Same shape as ``test_cli_constant_mirror.py``: structural, cheap, reads the docs
@@ -87,7 +87,7 @@ def test_the_silence_checklist_names_every_suppressing_status(path: Path, anchor
         f"{path.relative_to(_REPO_ROOT)} section {anchor!r} does not mention "
         f"{missing} — every status in _SUPPRESSING_INBOX_STATUSES stops deliveries, "
         "so a reader whose alerts are silenced by one cannot diagnose it here "
-        "(tripl-pyo9). Add it, or explain why it belongs somewhere else."
+        ". Add it, or explain why it belongs somewhere else."
     )
 
 
@@ -110,5 +110,5 @@ def test_the_canonical_explanation_covers_the_same_statuses() -> None:
     assert not missing, (
         f"website/docs/use/alerting.md 'Silencing an incident' omits {missing}, "
         "which is the section the troubleshooting checklists link to for the full "
-        "answer (tripl-pyo9, tripl-x0ay)."
+        "answer."
     )

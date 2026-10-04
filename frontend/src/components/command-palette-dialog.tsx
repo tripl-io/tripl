@@ -106,7 +106,7 @@ const SEARCH_TYPE_META: Record<
  * A `Map` keyed on first appearance is doing load-bearing work here, not just
  * grouping: the groups come out in the order their best result arrived, and each
  * group's rows stay in the order the API sent them. That is the ordering the
- * palette now renders verbatim (tripl-k6gt), so a `sort` added anywhere in this
+ * palette now renders verbatim, so a `sort` added anywhere in this
  * function would undo the fix without touching the component.
  *
  * It does NOT fully preserve rank ACROSS groups: for [event 0.99, variable 0.98,
@@ -137,7 +137,7 @@ declare const paletteValueBrand: unique symbol
  *
  * `Item`'s `value` used to be `${label} ${hint} ${keywords}`: a string built to
  * be FUZZY-SCORED, back when cmdk's own filter ran. With that filter off
- * (tripl-k6gt) the string has exactly one job left — cmdk marks a row selected by
+ * the string has exactly one job left — cmdk marks a row selected by
  * comparing its `value` against the list's current value — and two rows carrying
  * one string are BOTH announced as `aria-selected`. Two rows do collide once the
  * keyword stuffing is gone: the static Event types row is label=display_name,
@@ -265,7 +265,7 @@ type KnowledgeState = 'off' | 'searching' | 'error' | 'empty' | 'results'
 /**
  * How far the previous query's rows are dimmed while the next search runs. Far
  * enough to read as "not the answer yet", not so far that they stop being
- * legible — they are still the rows Enter will act on (tripl-2x5d).
+ * legible — they are still the rows Enter will act on.
  */
 const STALE_RESULT_OPACITY = 0.55
 
@@ -398,7 +398,7 @@ export default function CommandPalette({
   // whichever project sorted first, under a heading that named none (SHELL-27).
   const searchSlug = activeProject?.slug ?? null
   const searchEnabled = open && !!searchSlug && debouncedQuery.length >= 2
-  // Two answers per query, cheapest first (tripl-kjhi.15). On production the
+  // Two answers per query, cheapest first. On production the
   // full search took 0.5–1.8 s and every millisecond past the lexical SQL was
   // the embedding round trip; a palette is typed into, and a list that lands
   // in ~150 ms is one the reader keeps typing against. So the keyword-only
@@ -435,7 +435,7 @@ export default function CommandPalette({
     // on screen were thrown away mid-word and the list fell back to a single
     // "Searching." line for the length of the round trip — measured at >2.2s,
     // which is long enough that a reader concludes nothing matched and hits
-    // Escape (tripl-2x5d). Same treatment as the audit table's paging query.
+    // Escape. Same treatment as the audit table's paging query.
     placeholderData: keepPreviousData,
   })
   // Which query the rows on screen answer, or '' when this session has none.
@@ -536,7 +536,7 @@ export default function CommandPalette({
   // rows they name were searched on the ACTIVE branch. Landing on the plain
   // path leaves the branch out of the URL, so the address the reader then
   // copies opens a 404 in a fresh session — the event only exists on that
-  // branch (tripl-kjhi.7). Only `to` is used: the palette never leaves the
+  // branch. Only `to` is used: the palette never leaves the
   // branch it searched in, so there is nothing for the click half to set.
   const goToResult = useCallback(
     (routePath: string) => goTo(branchLink(withActiveOrg(routePath), branchId).to),
@@ -549,7 +549,7 @@ export default function CommandPalette({
   // it is written once. Every nav row was previously three lines of JSX repeating
   // the same string three times; the array form is what lets `StaticGroup` filter
   // them at all, since a row has to be data before a group can count how many of
-  // them are left (tripl-k6gt).
+  // them are left.
   //
   // No path on screen (#238 SH-19 / JR-20): every row printed its raw route in
   // mono, which was noise, truncated labels at 390 and showed that Plan pages
@@ -609,7 +609,7 @@ export default function CommandPalette({
   // activity, Metrics, Anomalies, Plan branches, Reconciliation, Coverage, Audit
   // log, Concepts) had no row at all, so typing "anomalies" matched nothing and
   // fell through to knowledge search, and three surviving rows carried names the
-  // sidebar had retired (tripl-m6cv). `ownerOnly` is filtered exactly as
+  // sidebar had retired. `ownerOnly` is filtered exactly as
   // app-sidebar.tsx does — offering a non-owner the Audit log row would walk
   // them into the 403 the sidebar is careful not to show them.
   const projectNavGroups: PaletteGroup[] = activeProject
@@ -845,8 +845,8 @@ export default function CommandPalette({
           label="Command palette"
           // Off, always. cmdk's filter is also a SORT — it re-appends every
           // rendered item in commandScore order on each keystroke — so leaving it
-          // on discarded the backend's relevance ranking before anyone saw it
-          // (tripl-k6gt). The static groups do their own filtering below; the
+          // on discarded the backend's relevance ranking before anyone saw it.
+          // The static groups do their own filtering below; the
           // knowledge results are ranked and filtered server-side and must reach
           // the DOM untouched.
           shouldFilter={false}
@@ -1010,15 +1010,15 @@ export default function CommandPalette({
                   // Rendered exactly as received: no `.filter`, no `.sort` and no
                   // `matchesQuery` within each entity-type bucket — these rows
                   // were already matched and ranked by the search service, and
-                  // second-guessing that here is the defect this commit removes
-                  // (tripl-k6gt). What bucketing costs ACROSS buckets is spelled
+                  // second-guessing that here is the defect this commit removes.
+                  // What bucketing costs ACROSS buckets is spelled
                   // out on `groupSearchResults`.
                   //
                   // While the next search is in flight these are the PREVIOUS
                   // query's rows (`placeholderData` above), dimmed under an
                   // in-flight line: the list narrows instead of blinking empty,
                   // and cmdk keeps its selection. They stay selectable on
-                  // purpose — Enter goes to what the reader can see (tripl-2x5d).
+                  // purpose — Enter goes to what the reader can see.
                   <div
                     aria-busy={knowledgeState === 'searching'}
                     style={
@@ -1034,7 +1034,7 @@ export default function CommandPalette({
                             const eventType = isEvent
                               ? eventTypes.find(item => item.display_name === result.subtitle)
                               : undefined
-                            // Scoped to events on purpose (tripl-wkwv.5): an
+                            // Scoped to events on purpose: an
                             // event's search title is its stored name and the
                             // catalog holds blank ones, so the row rendered as
                             // an icon and nothing else. Every other entity's
@@ -1194,7 +1194,7 @@ function Item({
           </span>
         )}
       </span>
-      {/* The narrowed rule (tripl-wkwv.3): the chip marks a row the keyword
+      {/* The narrowed rule: the chip marks a row the keyword
           ranking did not surface, so a row whose name IS what you typed does
           not carry it. The old wording claimed every hybrid hit.
           Not "no keyword matched this": the keyword leg is a LIMIT-ed scan, so

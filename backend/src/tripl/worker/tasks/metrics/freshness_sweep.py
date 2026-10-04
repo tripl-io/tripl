@@ -219,7 +219,7 @@ def _deliver_freshness_candidates(
 
             if not anomalies_to_send:
                 continue
-            # Same NULL-means-not-muted reading as the dispatch (tripl-a50u).
+            # Same NULL-means-not-muted reading as the dispatch.
             rule_muted_until = _as_utc(rule.muted_until)
             if rule_muted_until is not None and rule_muted_until > now:
                 continue

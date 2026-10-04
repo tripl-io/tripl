@@ -3,7 +3,7 @@
 There is exactly ONE definition of "a scan config that can produce events for
 this event type" and it lives here. Two copies of that predicate is the same
 defect class as the four copies of the ``{key}`` grammar that took production
-down (tripl-lpin): ``event_service`` resolves a name format through it and the
+down: ``event_service`` resolves a name format through it and the
 three doors that can delete a FieldDefinition guard themselves with it, and they
 must not be able to disagree.
 
@@ -11,7 +11,7 @@ Those three doors — accepting a ``missing_field`` schema drift, deleting the
 field from the plan UI, and merging a plan branch that removed it — all end in
 the same ``session.delete(field)`` and the same dead scan, so they share this
 module's predicate AND ``name_format_conflict_detail`` below. One rule, one
-sentence, three entry points (tripl-3mmh).
+sentence, three entry points.
 """
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ async def load_governing_scan_configs_by_type(
       the same event type, on the branch where an analyst actually authors,
       resolved to no naming rule at all: the form let a free-text name through,
       ``source_name`` stayed NULL, and the event never merged with its
-      scan-generated twin (tripl-kjhi.1). The counterpart is the type with the
+      scan-generated twin. The counterpart is the type with the
       same ``name`` on the project's main branch — the pairing the merge and the
       diff already use (``uq_event_type_project_name`` is per branch, so the
       pair is unique).
@@ -264,7 +264,7 @@ async def scan_configs_binding_event_types(
     type never fails — it silently unbinds every scan that named it, and an
     unbound config with no ``event_type_column`` discovers no types from the data
     and so collects nothing, while still reading as a live scan on the settings
-    page (tripl-0zpq.254). Both doors that can delete an event type — the CRUD
+    page. Both doors that can delete an event type — the CRUD
     delete and a branch merge that removed the type — ask this first.
 
     Here rather than at either call site for the reason the module docstring
@@ -320,7 +320,7 @@ def event_type_binding_conflict_detail(
     """The 409 body both event-type delete doors share.
 
     Shaped like :func:`name_format_conflict_detail` and holding the same
-    vocabulary rule — **"scan", not "scan config"** (tripl-24i0, tripl-3y7z) —
+    vocabulary rule — **"scan", not "scan config"** —
     because it is rendered verbatim in the web UI, where
     ``frontend/src/scan-docs-agreement.test.ts`` cannot see a sentence authored
     on this side of the wire.
@@ -362,7 +362,7 @@ def name_format_conflict_detail(
     failure they would otherwise hit, and the one edit that unblocks them.
 
     **It says "scan", not "scan config"**, and spells both plurals out rather
-    than writing "(s)" (tripl-24i0). One sentence for three surfaces means it has
+    than writing "(s)". One sentence for three surfaces means it has
     to be readable on all three, and the web UI is the strictest: tripl-3y7z
     settled *scan* as its noun and `frontend/src/scan-docs-agreement.test.ts`
     enforces it — but only over frontend source, so a sentence authored here and
@@ -387,7 +387,7 @@ def name_format_conflict_detail(
     # build an event name ... Edit THE SCAN'S Event name format" — a sentence
     # that names two scans and then instructs the reader about one. Pluralising
     # only the counted noun is the same defect "(s)" had, moved two clauses
-    # along (tripl-24i0).
+    # along.
     subject = (
         "the scan cannot build an event name" if one else "those scans cannot build event names"
     )

@@ -3,7 +3,7 @@
 ``--dry-run`` prints this object and the executor consumes the same one, so the
 plan an operator reviews and the plan that runs cannot diverge — the failure
 mode of every "print what I would do" implemented as a second code path. The
-tests assert on it directly for the same reason (tripl-ey6j.3).
+tests assert on it directly for the same reason.
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ class FileWrite:
     # Where the file being REPLACED is copied first. Set for `replace` only;
     # `upgrade` has always kept a timestamped copy of the .env it rewrites, and
     # a `--force` that discarded an operator's edited compose.yaml without one
-    # was the same command promising two different things (tripl-jfm3).
+    # was the same command promising two different things.
     backup: Path | None = field(default=None)
 
     @property
@@ -72,7 +72,7 @@ class SettingOutcome:
     defines, because ``.env`` is never overwritten - it holds live secrets. The
     plan, the human output and the --json document all report ``effective``, so
     an operator who re-runs ``install`` to change the app URL is told it did not
-    happen instead of being congratulated (tripl-jfm3).
+    happen instead of being congratulated.
     """
 
     name: str

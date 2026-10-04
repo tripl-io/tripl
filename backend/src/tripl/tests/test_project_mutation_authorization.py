@@ -3,7 +3,7 @@
 Before tripl-jfm3.19 the instance-wide ``editor`` role meant "may rewrite the
 tracking plan of every project on the instance". That was first fenced by
 provenance (creator / owner-created shared projects), then by explicit project
-membership (tripl-vefw), and since F20 PR4 by organization roles:
+membership, and since F20 PR4 by organization roles:
 
 * a non-member does not see the project at all — 404 on every slug route;
 * an organization member may mutate when their project row says ``editor``;

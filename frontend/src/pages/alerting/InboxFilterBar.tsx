@@ -155,8 +155,8 @@ export function InboxFilterBar({
           over the last 30 days and then capped, so a date filter narrows
           what is already here and cannot fetch an older incident — a
           control that accepted such a date and answered "none" would be
-          describing the project rather than the page (tripl-39n6,
-          tripl-htfn.4). Folds into the phone "Filters (n)" sheet with the
+          describing the project rather than the page.
+          Folds into the phone "Filters (n)" sheet with the
           chips beside it. */}
       <FilterBarItem active={!!(value.firedFrom || value.firedTo)}>
         <DateRangeFilter

@@ -43,7 +43,7 @@ describe('JsonEditor template authoring', () => {
   })
 
   it('accepts the raw JSON-path tokens a scan writes', () => {
-    // The backend's grammar is `^[^"\\}\x00-\x1f]+$` (tripl-0zpq.125): a scan
+    // The backend's grammar is `^[^"\\}\x00-\x1f]+$`: a scan
     // keeps the raw path whenever `derive_display_name` cannot sanitise it, so
     // these are tokens already sitting in stored field values. This editor
     // blocks the save through EventForm's `invalidJsonFieldLabels`, so while it
@@ -117,7 +117,7 @@ describe('JsonEditor template authoring', () => {
 
     expect(screen.getByRole('combobox')).toHaveValue('not json at all')
     // ...and says so on mount. Validity used to start null and only be written
-    // by a keystroke, so an untouched stored value read as valid (tripl-h2sx.10).
+    // by a keystroke, so an untouched stored value read as valid.
     expect(screen.getByRole('combobox')).toHaveAttribute('aria-invalid', 'true')
   })
 

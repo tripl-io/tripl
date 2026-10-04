@@ -99,7 +99,7 @@ function renderSection(settings: ServiceSettings, setField = vi.fn()) {
 }
 
 describe('Instance Security & access — registration', () => {
-  it('exposes registration_mode as an owner control (tripl-jfm3.79)', () => {
+  it('exposes registration_mode as an owner control', () => {
     renderSection(settingsFixture())
 
     const select = screen.getByLabelText('Self-service registration') as HTMLSelectElement
@@ -118,7 +118,7 @@ describe('Instance Security & access — registration', () => {
     // capability too — "can read X" alone reads as harmless.
     expect(hint).toHaveTextContent(/edit any shared project/i)
     // ...and must NOT keep claiming connection metadata is exposed: this branch
-    // made host/port/username owner-only (tripl-jfm3.19), so the old wording
+    // made host/port/username owner-only, so the old wording
     // now overstates the blast radius.
     expect(hint).not.toHaveTextContent(/connection metadata/i)
     expect(hint).toHaveTextContent(/owner-only/i)
@@ -166,7 +166,7 @@ describe('Instance Security & access — registration copy fits its controls', (
     // A native <select> with `appearance-none` hard-clips its own value: the old
     // label, "Open — anyone who can reach this instance can sign up", rendered
     // as "Open — anyone who can reach this insta" sliced against the chevron,
-    // with no ellipsis and ~380px of the row empty beside it (tripl-p1c6). The
+    // with no ellipsis and ~380px of the row empty beside it. The
     // one setting deciding who may create an account here was the one value on
     // the page you could not read. ~40 characters is what fits at 12.5px inside
     // the kit's 280px Select once its 30px chevron padding is taken out.
@@ -183,7 +183,7 @@ describe('Instance Security & access — registration copy fits its controls', (
     // applyNote('security') already names the exception two lines above this
     // card. The description used to repeat it in a second vocabulary — "no
     // redeploy" against the note's "no restart" — so one caveat was stated
-    // twice within 200px in two different words (tripl-p1c6).
+    // twice within 200px in two different words.
     expect(
       screen.getByText('Who is allowed to create an account on this instance.'),
     ).toBeInTheDocument()

@@ -58,7 +58,7 @@ DEFAULT_CARDINALITY_THRESHOLD = 100
 # archived: 6) so that a closing implementation ticket cannot drag an already
 # retired event back to ``implemented`` (``worker/tasks/implementation_tickets``).
 # Ranking is right there and wrong here, so this side excludes the retired band
-# rather than reorder the shared table (tripl-0zpq.84).
+# rather than reorder the shared table.
 _RETIRED_STATUSES = frozenset({_ES.deprecated.value, _ES.archived.value})
 
 # The other half of that partition, derived from the model instead of listed so
@@ -240,7 +240,7 @@ def merge_existing_events_for_group_rules(
         # Same load and same adoption rule as ``generate_events``: this used to
         # adopt EVERY NULL row and file it last-wins, which under
         # ``uq_event_scan_identity`` is an UPDATE the flush refuses whenever
-        # two NULL rows share a name, killing the apply-groups job (tripl-8tdl).
+        # two NULL rows share a name, killing the apply-groups job.
         existing_events = (
             session.execute(
                 select(Event)
@@ -297,7 +297,7 @@ def _merge_existing_grouped_events(
         return 0
 
     field_name_by_id = {fd.id: name for name, fd in field_definitions.items()}
-    # Same rule as ``plan_events`` (tripl-p5ac): an override never lands on a
+    # Same rule as ``plan_events``: an override never lands on a
     # JSON field, whose stored value is the template naming every path variable.
     json_field_names = {
         name for name, fd in field_definitions.items() if fd.field_type == FieldDefinitionType.json
@@ -311,7 +311,7 @@ def _merge_existing_grouped_events(
             # Archiving means "put it away". Grouping an archived row rewrites it
             # and then DELETES it in ``_merge_event_into_group``, so a scan whose
             # rules happen to match could destroy plan history the user chose to
-            # retire rather than drop (tripl-rsei).
+            # retire rather than drop.
             continue
         values = _event_values_for_group_matching(source, field_name_by_id)
         match = apply_event_group_rules(identity, values, event_group_rules)
@@ -348,7 +348,7 @@ def _merge_existing_grouped_events(
             # source: `_build_event_name_from_row` applies the same group rules
             # at collection time, so incoming rows carry the GROUP name either
             # way. What skipping buys is that the catalog row survives and the
-            # volume is accounted as archived-and-still-arriving (tripl-w3ms)
+            # volume is accounted as archived-and-still-arriving
             # rather than vanishing with a deleted row. Creating a second, live
             # group event under that name is not an option either — it is the
             # same identity as the archived one.
@@ -434,8 +434,8 @@ def _create_group_event_from_source(
             # silently skipped the review queue the scan's own rows start in,
             # or, with a retired member in the family, born ``draft`` or
             # ``in_review`` depending on which row the walk reached first — the
-            # walk being ordered by ``last_seen_at`` and nothing else
-            # (tripl-0zpq.84). A constant floor over a commutative fold is the
+            # walk being ordered by ``last_seen_at`` and nothing else.
+            # A constant floor over a commutative fold is the
             # whole of the determinism.
             # ``sunset_at`` and ``superseded_by_event_id`` are deliberately not
             # copied over for the same reason ``_RETIRED_STATUSES`` exists.
@@ -513,7 +513,7 @@ def _merge_event_into_group(
     if pending_variable_contexts is not None:
         # Runs for EVERY merge, including one into a target minted moments ago by
         # ``_create_group_event_from_source``: that target is in no plan, so the
-        # contexts moved here are the only ones it will ever carry (tripl-gsum).
+        # contexts moved here are the only ones it will ever carry.
         _reconcile_pending_variable_contexts(
             session,
             source=source,
@@ -527,13 +527,13 @@ def _merge_event_into_group(
     # Everything above re-points a real foreign key. This carries the references
     # that are event ids stored as STRINGS or inside JSON lists, which no
     # database reflection can find and which therefore went unnoticed until the
-    # FK ledger was written out by hand (tripl-avf4, tripl-jtnv).
+    # FK ledger was written out by hand.
     move_dangling_event_references(session, source=source, target=target)
     # Only an item whose scope IS the event names it in ``scope_ref``. Other
     # scopes that carry ``event_id`` keep their own reference — a value-drift
     # item's ``scope_ref`` is the drift id and its ``scope_name`` names the
     # variable — so rewriting those would break the Inbox label, search and the
-    # rule-state lookup keyed on the drift (tripl-0zpq.85). They are re-pointed
+    # rule-state lookup keyed on the drift. They are re-pointed
     # by ``event_id`` alone.
     session.execute(
         update(AlertDeliveryItem)
@@ -544,7 +544,7 @@ def _merge_event_into_group(
         # ``scope_name`` is String(255) and ``Event.name`` is String(500), so
         # merging into a long-named survivor used to fail this UPDATE on
         # Postgres — and it runs inside ``run_scan``, whose handler marks the
-        # whole ScanJob failed (tripl-0zpq.253).
+        # whole ScanJob failed.
         .values(
             event_id=target.id,
             scope_ref=str(target.id),
@@ -661,7 +661,7 @@ def _reconcile_pending_variable_contexts(
     that no longer exists — and ``insert_variable_contexts`` wrote
     ``context["event_id"]`` out unconditionally, so the flush violated
     ``variable_values_event_id_fkey`` and took the whole ``collect_metrics`` /
-    ``run_scan`` job down with an opaque ``IntegrityError`` (tripl-gsum).
+    ``run_scan`` job down with an opaque ``IntegrityError``.
 
     A trailing catch-all rule is the natural way to provoke it: the planner
     matches group rules against RAW warehouse values, this pass re-matches the
@@ -745,7 +745,7 @@ def _move_variable_contexts(
     ``session.delete(source)`` and were never rebuilt — a later scan only records
     a context when the CURRENT run observes that (event, field) pair, so a
     variable whose key had stopped arriving lost its values permanently. That is
-    tripl-xfxa: eighteen production variables that a live event's field value
+    eighteen production variables that a live event's field value
     still names, with an empty ``/values`` list behind an HTTP 200.
 
     Three cases, in the order the code takes them:

@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { collapsedDriftLabel, DRIFT_REVIVE_LABEL } from '@/lib/variableDrift'
 
 /**
- * Keeps the drift-review docs saying what the drift panels say (tripl-lh61).
+ * Keeps the drift-review docs saying what the drift panels say.
  *
  * The wave that gave a snooze its own review state renamed the collapse toggle
  * and the revive button, and left four sentences across three published pages

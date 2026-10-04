@@ -6,7 +6,7 @@ file (the secret recipes). The second distinction is the point of this module:
 asserting that ``ENCRYPTION_KEY`` is 44 characters would pin our own
 implementation, whereas asserting that it decodes to exactly 32 bytes pins
 Fernet's constructor - the thing that actually rejects a bad key at instance
-startup (tripl-ey6j.3).
+startup.
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def test_the_generated_env_defines_every_variable_compose_requires() -> None:
     promised: a new `${NEW_THING:?}` interpolation in compose.yaml would ship a
     generated .env missing it, the stack would refuse to start, and the test
     would stay green because it only ever compared the .env against
-    `secrets.REQUIRED_*` - the same module that produced it (tripl-jfm3).
+    `secrets.REQUIRED_*` - the same module that produced it.
     """
     rendered = files.render_env(
         app_base_url="https://tripl.example.com",
@@ -188,8 +188,7 @@ def test_a_value_containing_a_line_break_is_refused_not_escaped(payload: str) ->
     `config.normalize_base_url` already rejects control characters in
     `--app-url`, and is the only caller that takes one from an operator today.
     This is the renderer refusing on its own account, because "the caller
-    validated it" stops being true the moment a second caller appears
-    (tripl-jfm3).
+    validated it" stops being true the moment a second caller appears.
     """
     with pytest.raises(TriplError, match="refusing to write"):
         files.render_env(
@@ -380,7 +379,7 @@ def test_force_keeps_a_timestamped_copy_of_what_it_replaced(install_dir: Path) -
 
     A compose.yaml that differs is the operator's: a TLS tweak, a changed port,
     a second network. Replacing it with no copy and no diff was one command
-    holding two standards (tripl-jfm3).
+    holding two standards.
     """
     install_dir.mkdir(parents=True)
     compose = install_dir / "compose.yaml"

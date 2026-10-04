@@ -1,4 +1,4 @@
-"""One outbound message per destination, for a scheduled digest (tripl-o0u7).
+"""One outbound message per destination, for a scheduled digest.
 
 ``flush_due_alert_digests`` mints one ``AlertDelivery`` per (rule, scan config)
 — that is what keeps per-rule templates, the Inbox, delivery history, Retry and
@@ -131,7 +131,7 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
             return {"status": "already_sent", "messages": 0, "sent": 0, "failed": 0, "skipped": 0}
 
         # Single flight, per member, for the same reason the per-delivery task
-        # claims (tripl-0zpq.37) — and here it is not optional, because these
+        # claims — and here it is not optional, because these
         # are ordinary `pending` AlertDelivery rows: the stranded-delivery
         # reaper re-enqueues any of them through ``send_alert_delivery`` on age
         # alone, which would put one rule's section in the channel twice, once
@@ -180,7 +180,7 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
                     raise ValueError(f"AlertDelivery {delivery.id} is missing related objects")
                 _assert_egress_allowed(destination, project)
                 # The same hole as the per-delivery task's, and a wider window
-                # than it looks (tripl-0zpq.39): the flush selects only enabled
+                # than it looks: the flush selects only enabled
                 # destinations, but its members are ordinary `pending` rows that
                 # this task picks up afterwards — a queue hop later, or fifteen
                 # minutes later through the reaper — and the toggle moves in
@@ -262,8 +262,8 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
                 logger.exception("Failed to prepare digest member %s", delivery.id)
                 prepare_failures.append((delivery, exc))
 
-        # Every prepared body is made durable BEFORE the first outbound call
-        # (tripl-0zpq.32). Nothing above this line is committed, and the send
+        # Every prepared body is made durable BEFORE the first outbound call.
+        # Nothing above this line is committed, and the send
         # loop's failure arm below opens with ``session.rollback()`` — which is
         # not scoped to the group that failed. It threw away the rendered
         # snapshot of every OTHER group still waiting its turn and expired those
@@ -306,7 +306,7 @@ def send_alert_digest(self: object, delivery_ids: list[str]) -> dict[str, object
             body = _SECTION_SEPARATOR.join(text for _delivery, text in members)
             try:
                 # The toggle as of NOW, not as of the prepare loop that cleared
-                # this member (tripl-0zpq.39). Everything between the two is
+                # this member. Everything between the two is
                 # work: every member of the batch rendered, its AI note built,
                 # and the whole lot committed at the line above. A re-READ,
                 # because ``session.get`` hands back the very instance the

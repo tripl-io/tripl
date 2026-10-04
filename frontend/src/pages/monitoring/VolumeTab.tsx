@@ -163,7 +163,7 @@ export function VolumeTab({
               tooltipFormatter={tooltipFormatter}
               // The sigma the detector scored THIS scope with, so the band
               // and the "±Nσ" tooltip agree with the dots inside them. The
-              // metric scope serves it too (`adaptMetricSeries`, tripl-4cgl).
+              // metric scope serves it too (`adaptMetricSeries`).
               sigmaThreshold={metrics?.sigma_threshold}
               // The axis spans the range picked above, not just the
               // buckets that have data (MON-22).

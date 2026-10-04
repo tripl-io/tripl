@@ -191,7 +191,7 @@ export function editableFromSettings(settings: ServiceSettings): EditableSetting
  * Reset and Clear write straight through and get the whole settings object
  * back; adopting it wholesale replaced a `form` that spans all six sections, so
  * clearing the AI key also discarded an unsaved Storage edit or a rewritten
- * prompt — the very draft the leave-guard warns about (tripl-l8v2).
+ * prompt — the very draft the leave-guard warns about.
  */
 export function adoptSection(
   form: EditableSettings,
@@ -261,7 +261,7 @@ export function sourceFor(
  * three stored secrets are in this count because a reset genuinely nulls them,
  * and they were the one gap: with only an SMTP password stored, the red card
  * read "Clears the 1 Email override — every field badged Override above"
- * beside five rows all badged "Default" (tripl-5qp9 / tripl-wkwv.2). The fix is
+ * beside five rows all badged "Default". The fix is
  * the badge on the secret row, not a narrower count — a narrower count would
  * claim "Nothing to clear" next to a reset that does clear the stored key.
  */
@@ -280,11 +280,11 @@ export function overrideCount(
  * This used to interpolate `RESET_FIELDS[section].length` — the number of
  * RESETTABLE fields, not overridden ones — so a fresh instance whose every row
  * was badged "Env" or "Default" was told in red that it had 6 Email overrides
- * to clear, next to a live button that would have done nothing (tripl-5qp9).
+ * to clear, next to a live button that would have done nothing.
  *
  * The copy names both non-override badges for the same reason: saying every
  * field "comes from an environment variable" beside rows badged "Default" would
- * be the same disagreement in a second viewport (tripl-wkwv.2).
+ * be the same disagreement in a second viewport.
  */
 export function resetCardDescription(section: SectionKey, overrides: number): string {
   const label = SECTION_LABELS[section]
@@ -441,7 +441,7 @@ const APPLY_NOTES: Record<SectionKey, string> = {
  * ST-28). "Or to the built-in default where none is set" is not hedging: on AI
  * the three system prompts have no environment variable at all — the backend
  * reads them off ai_defaults — and an unset variable falls back to the pydantic
- * default, not to nothing (tripl-wkwv.2).
+ * default, not to nothing.
  */
 export const SOURCE_LEGEND =
   'Fields marked Override are stored here; Env comes from the environment. Unmarked fields fall back to their environment variable, or to the built-in default where none is set.'
@@ -475,10 +475,10 @@ export function resetConfirm(section: SectionKey, hasSectionDraft = false): Conf
     title: `Reset ${label} to defaults`,
     // "settings", not "overrides": the number is the size of the PATCH — every
     // field this write nulls — and only some of them are overridden right now.
-    // The card that opens this dialog counts the real overrides (tripl-5qp9).
+    // The card that opens this dialog counts the real overrides.
     // Same vocabulary as applyNote and resetCardDescription: this dialog names
     // "all three system prompts" in its own stakes line, and none of the three
-    // has an environment variable to fall back to (tripl-wkwv.2).
+    // has an environment variable to fall back to.
     message: `Clear all ${RESET_FIELDS[section].length} ${label} settings on this instance — ${RESET_STAKES[section]} — so every one of them falls back to its environment variable, or to its built-in default where none is set. This is saved immediately and cannot be undone.${draftStake}`,
     confirmLabel: 'Reset section',
   }
@@ -507,7 +507,7 @@ export function clearSecretConfirm(field: SecretField, hasFieldDraft = false): C
   return {
     title: `Delete the stored ${name}`,
     // The field beside this button waits for "Save changes"; the button does
-    // not — it writes straight through to the server (tripl-ifiy).
+    // not — it writes straight through to the server.
     message: `The stored ${name} is deleted on the server as soon as you confirm — this does not wait for Save changes, and it cannot be undone. ${consequence}${draftStake}`,
     confirmLabel: 'Delete',
   }

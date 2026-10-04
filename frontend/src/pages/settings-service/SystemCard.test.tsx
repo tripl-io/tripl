@@ -38,7 +38,7 @@ describe('Instance System card', () => {
    * Every row used to render `active ? success : neutral`, so the two facts that
    * decide whether this instance is safe read backwards: debug mode ON was a
    * pulsing green "Configured", and a missing ENCRYPTION_KEY was the same
-   * neutral "Unset" as the optional OpenAI fallback key (tripl-lgr4).
+   * neutral "Unset" as the optional OpenAI fallback key.
    */
   it('does not report debug mode as a configured, healthy state', () => {
     renderCard({ debug: true })
@@ -75,8 +75,8 @@ describe('Instance System card', () => {
    * Only the three rows that needed action carried a note, so on a healthy
    * instance four of the seven tiles said nothing beyond "Configured" — and
    * because the tiles are grid cells, the annotated ones stretched the bare
-   * ones to their height and left roughly 70px of dead space in each
-   * (tripl-my0t). This is a property of the row data, not of the CSS: every
+   * ones to their height and left roughly 70px of dead space in each.
+   * This is a property of the row data, not of the CSS: every
    * row explains itself in whatever state it is in.
    */
   it.each([
@@ -110,8 +110,7 @@ describe('Instance System card', () => {
    * gates it behind a `migrate` one-shot with `service_completed_successfully`.
    * That inference holds only while prod uses that compose file, and a
    * constraint-only migration changes nothing else a probe can see, so a
-   * hand-rolled deploy that skipped migrations looked identical to a correct one
-   * (tripl-wkwv.7).
+   * hand-rolled deploy that skipped migrations looked identical to a correct one.
    */
   describe('schema revision', () => {
     it('reports the revision the database is stamped with when it matches head', () => {
@@ -131,7 +130,7 @@ describe('Instance System card', () => {
       // applied revision against the build's script directory — and the admin
       // guide lists two causes for this state. The second is a rollback, where
       // the migrate step ran and applied something NEWER, so "the migrate step
-      // has not applied it" is false exactly half the time (tripl-wkwv.7).
+      // has not applied it" is false exactly half the time.
       renderCard({ alembic_head_revision: NEWER, alembic_up_to_date: false })
 
       const row = tile('Schema revision')
@@ -155,7 +154,7 @@ describe('Instance System card', () => {
     it('still names the applied revision when only this build’s head is unknown', () => {
       // `alembic_up_to_date` is null for both unknowns, so branching on it alone
       // printed "Unknown" over a revision the response had carried — and sent
-      // the operator to psql for a number already on the tile (tripl-wkwv.7).
+      // the operator to psql for a number already on the tile.
       renderCard({ alembic_head_revision: null, alembic_up_to_date: null })
 
       const row = tile('Schema revision')

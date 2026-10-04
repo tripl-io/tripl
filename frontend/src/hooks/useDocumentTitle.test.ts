@@ -72,7 +72,7 @@ describe('resolveTitleFromPath', () => {
   })
 
   it('names an unmatched project sub-path as not-found while keeping the slug', () => {
-    // tripl-jfm3.3: `/p/acme/<no-such-surface>` renders the 404 page, so the tab
+    // `/p/acme/<no-such-surface>` renders the 404 page, so the tab
     // must say so instead of inheriting the Events label. The slug is still
     // valid, so the project keeps naming the tab.
     expect(resolveTitleFromPath('/p/acme/this-route-does-not-exist')).toEqual({
@@ -163,7 +163,7 @@ describe('resolveTitleFromPath', () => {
     })
   })
 
-  it('names the settings sub-surfaces that name themselves (tripl-34tw, tripl-ebib)', () => {
+  it('names the settings sub-surfaces that name themselves', () => {
     // These two shared "Project settings" with the general tab while their own
     // headings read "Detection settings" and "Plan history" — the only two
     // routes in the production walk where the tab, the breadcrumb and the page
@@ -215,7 +215,7 @@ describe('resolveTitleFromPath', () => {
     expect(resolveTitleFromPath('/settings')).toEqual({ label: 'Settings' })
   })
 
-  it('gives each two-segment settings section its own title (tripl-xl9r)', () => {
+  it('gives each two-segment settings section its own title', () => {
     // Eleven routes used to share three titles, because the lookup read only the
     // first path segment and the rail's paths are a mix of one and two segments.
     // The owner-operator configuring an instance has several of these open at
@@ -272,7 +272,7 @@ describe('resolveTitleFromPath', () => {
   it('labels the invite acceptance page rather than calling it not-found', () => {
     // /invite/:token is a real rendered page that sets no title of its own, and
     // it is the first (often only) tripl page an invited member opens — reading
-    // "Page not found" on it looked like a dead link (tripl-l33u.12).
+    // "Page not found" on it looked like a dead link.
     expect(resolveTitleFromPath('/invite/abc123')).toEqual({ label: 'Invitation' })
     expect(buildDocumentTitle(resolveTitleFromPath('/invite/abc123').label)).toBe(
       `Invitation${SEP}tripl`,

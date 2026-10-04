@@ -28,8 +28,7 @@ import {
  * mutation on this page used to invalidate `['alertDestinations', slug]` and
  * nothing else, and with a 60s `staleTime` (main.tsx) that meant deleting a rule
  * and switching to the Inbox inside a minute listed incidents that no longer
- * existed — where every button 404s through `_get_or_create_correlation_state`
- * (tripl-oxkt.14).
+ * existed — where every button 404s through `_get_or_create_correlation_state`.
  *
  * One helper rather than a copy at each of the nine call sites: the previous
  * shape was nine hand-kept copies of one key, which is how eight of them came to

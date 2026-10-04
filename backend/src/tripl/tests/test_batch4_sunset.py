@@ -1,4 +1,4 @@
-"""Batch 4 — the deprecated-sunset alert (tripl-0zpq.31), both halves.
+"""Batch 4 — the deprecated-sunset alert, both halves.
 
 ``check_deprecated_sunset_events`` was registered, callable, tested, and on
 nobody's timer: no beat entry named it and nothing else invoked it, so whatever

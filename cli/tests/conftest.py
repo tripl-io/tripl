@@ -911,7 +911,7 @@ class FakeInstance:
         ``truncated`` IS a parameter, for the opposite reason: the route now
         answers it authoritatively, so a double that could not say so left the
         CLI's new top rung unreachable — it would only ever be exercised by a
-        test hand-building the body (tripl-wkwv.3).
+        test hand-building the body.
 
         It defaults to ``None`` meaning OMIT THE KEY, because the CLI ships
         separately from the instance it talks to and both worlds are real: an
@@ -1005,7 +1005,7 @@ class FakeRunner:
     THIS BOX NEVER STARTS A CONTAINER. Not "the tests avoid docker" — there is no
     code path from the test suite to ``subprocess`` at all, because the command
     modules resolve their runner through ``default_runner()`` and the fixture
-    below replaces that binding (tripl-ey6j.3).
+    below replaces that binding.
 
     Exit codes are scripted by a short key (``version``, ``info``, ``pull``,
     ``up``) rather than by call index: a test about a failing ``up -d`` should

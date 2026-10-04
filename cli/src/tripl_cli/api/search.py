@@ -30,7 +30,7 @@ ENTITY_TYPES: tuple[str, ...] = (
 
 # The route's own bounds: `q` is Query(min_length=1, max_length=500) and `limit`
 # is Query(ge=1, le=100) with a server default of 20. Checked locally so a
-# too-long phrase fails at parse time rather than as a 422 (tripl-3ixs).
+# too-long phrase fails at parse time rather than as a 422.
 QUERY_MAX_LENGTH = 500
 LIMIT_DEFAULT = 20
 LIMIT_MAX = 100
@@ -64,7 +64,7 @@ def semantic_used(payload: Any) -> bool:
     something different, so a consumer that cannot tell the two regimes apart
     misreads every score. ``tripl plan search`` publishes it in the document's
     ``meta`` and ``tripl-mcp``'s ``search_plan`` in its envelope — one route, one
-    reader, rather than a ``.get`` per surface (tripl-i1dt).
+    reader, rather than a ``.get`` per surface.
 
     Absent reads as False rather than as unknown: the backend declares
     ``SearchResponse.semantic_used: bool = False``, so a body without the key IS
@@ -84,7 +84,7 @@ def reported_truncated(payload: Any) -> bool | None:
 
     The second envelope fact this route adds, and the one ``total`` cannot give:
     ``total`` is ``len(items)`` after the trim, so on a full page it equals
-    ``limit`` whether or not anything was dropped (tripl-wkwv.3). ``/search``
+    ``limit`` whether or not anything was dropped. ``/search``
     takes no ``offset``, so the answer to a True is a bigger ``limit``.
 
     Absent is ``None`` rather than False HERE because the two surfaces want two

@@ -20,7 +20,7 @@ import { getErrorMessage } from '@/lib/utils'
  * Everything a manual collect needs, captured when the button is pressed and
  * carried through the mutation and the watch. Nothing downstream re-reads the
  * route, so navigating mid-run cannot repoint the run at another metric or
- * another project (tripl-htvg).
+ * another project.
  */
 export type CollectTarget = {
   slug: string
@@ -51,7 +51,7 @@ function factCollectMessage(metricCount: number): string {
  * Manual "collect now": backfill a recent window for a metric so its chart
  * populates without waiting for the scheduler. Collection runs in the worker;
  * a detached watch polls the persisted last_collection_status until the run
- * settles, toasts success or the persisted failure reason (tripl-4mju), and
+ * settles, toasts success or the persisted failure reason, and
  * refreshes the definition, series and catalog on either outcome.
  *
  * The watch is detached (owned by the watcher module, as in the catalog), so
@@ -66,8 +66,8 @@ export function useMetricCollect(scopeId: string): MetricCollect {
   const isWatched = useIsMetricCollectionWatched(slug, scopeId)
 
   // Refresh what the run just changed — keyed to the target captured at
-  // collect-start, never whatever the page has since navigated to
-  // (tripl-0s3d, tripl-htvg). Runs on success AND error: a failed run still
+  // collect-start, never whatever the page has since navigated to.
+  // Runs on success AND error: a failed run still
   // rewrites the definition's status and the catalog row.
   const refreshAfterRun = (target: CollectTarget) => {
     void queryClient.invalidateQueries({
@@ -89,7 +89,7 @@ export function useMetricCollect(scopeId: string): MetricCollect {
     // The target travels WITH the mutation instead of being re-read in onSuccess.
     // react-query refreshes the observer's options every render, so onSuccess saw
     // the CURRENT scopeId: firing a collect for metric A and navigating to B
-    // before the POST resolved attached the watcher to B (tripl-htvg).
+    // before the POST resolved attached the watcher to B.
     mutationFn: (target: CollectTarget) => metricsCatalogApi.collect(target.slug, target.scopeId),
     onSuccess: (data, target) => {
       toast.success(
@@ -102,7 +102,7 @@ export function useMetricCollect(scopeId: string): MetricCollect {
         { onSettled: () => refreshAfterRun(target) },
       )
       // The scenario binds to the metric the USER collected — the demo's tick
-      // runs collections of its own, so only this path counts (tripl-2su6.21).
+      // runs collections of its own, so only this path counts.
       // Inert outside a ready demo project.
       notifyMetricCollectStarted(target.scopeId)
     },
@@ -115,8 +115,7 @@ export function useMetricCollect(scopeId: string): MetricCollect {
     start: target => collectMut.mutate(target),
     // Key the spinner to the metric actually being collected — both while the
     // POST is in flight and while the watch polls — so a run on metric A does
-    // not read as "collecting" once the page navigates to metric B
-    // (tripl-0s3d, tripl-htvg).
+    // not read as "collecting" once the page navigates to metric B.
     isCollecting:
       (collectMut.isPending && collectMut.variables?.scopeId === scopeId)
       || isWatched,

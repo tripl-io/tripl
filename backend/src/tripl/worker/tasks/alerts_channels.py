@@ -45,7 +45,7 @@ def _safe_url_for_error(url: str) -> str:
     left every other channel untouched: a failed Slack delivery put the full
     incoming-webhook URL into ``alert_deliveries.error_message``, which the API
     returns and the UI renders. That URL IS the credential — anyone who can read
-    it can post to the channel (tripl-jfm3.94). Generic webhooks and tracker URLs
+    it can post to the channel. Generic webhooks and tracker URLs
     carry tokens in the path or query just as often.
 
     The status code and the response body already carry the diagnostic value;
@@ -118,7 +118,7 @@ class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
     urllib's default opener follows a 3xx to any host with no second check. A
     public destination answering ``302 -> 169.254.169.254`` therefore reached
     the metadata endpoint anyway, and a non-2xx final hop put that response
-    body into the delivery error the API returns (tripl-l33u.5).
+    body into the delivery error the API returns.
 
     Raising the guard's own ValueError instead of returning ``None`` (which
     urllib turns into an opaque HTTP 302 error) keeps the reason in the message
@@ -337,7 +337,7 @@ class SmtpModule(Protocol):
 # Long enough for a busy relay to answer, short enough that a caller waiting on
 # the send does not look hung. Worth a name: when the client speaks the wrong
 # protocol the connection does not fail, it stalls until exactly this deadline,
-# and as a bare literal that read like a network problem (tripl-x1vk).
+# and as a bare literal that read like a network problem.
 SMTP_TIMEOUT_SECONDS = 10
 
 
@@ -375,7 +375,7 @@ def _send_email_message(
     # smtplib raises ONLY when every recipient is refused (SMTPRecipientsRefused);
     # a partial refusal is returned quietly as {address: (code, reason)}. That
     # return used to be discarded, so an alert that reached two of five people was
-    # stored and displayed as "sent" (tripl-jfm3.117).
+    # stored and displayed as "sent".
     #
     # Failing the whole delivery is deliberate: a manual retry may duplicate the
     # mail for the recipients who did get it, but the alternative — the operator
@@ -443,7 +443,7 @@ def _send_digest_to_destination(
         # name, which cost more here than anywhere else: both callers swallow
         # the failure into ``logger.warning`` (alerts_digest.py), so the weekly
         # plan digest and the sunset alert simply stopped arriving and said so
-        # only in the worker log (tripl-0zpq.29).
+        # only in the worker log.
         #
         # Assigned rather than called for its raise, so this site and
         # ``_resolve_email_context`` read identically; the helper returns the
@@ -479,7 +479,7 @@ def _send_jira_issue(
     ``labels`` is how a caller makes its own create findable again. Jira's create
     is not idempotent and offers no idempotency key, so the only way to answer
     "did I already create this?" after a crash is to have written something
-    searchable onto the issue itself (tripl-l33u.15). Omitted by default, so the
+    searchable onto the issue itself. Omitted by default, so the
     alerting path sends exactly the payload it always has.
     """
     credentials = base64.b64encode(f"{auth_email}:{api_token}".encode()).decode()
@@ -519,7 +519,7 @@ def _find_jira_issue_by_label(
     This is the read half of the idempotency ``_send_jira_issue``'s ``labels``
     makes possible: having stamped a create with a label derived from what it was
     for, a later run can ask whether that create already happened rather than
-    repeating it (tripl-l33u.15).
+    repeating it.
 
     TWO LIMITS, both deliberate and both failing SAFE — a miss here means the
     caller creates, which is exactly what it did before this existed:

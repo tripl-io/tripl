@@ -289,7 +289,7 @@ export interface PlanDiffEntry {
   /** Set when the entry is the machine's doing rather than the author's — a
    * scan-minted variable nobody used being retired, or a removal main has
    * already made — with the reason in words. Left out of `summary`'s counts
-   * and folded in the UI (tripl-kjhi.12). Absent on responses from an older
+   * and folded in the UI. Absent on responses from an older
    * instance. */
   housekeeping?: string | null
   /** Per-field before/after for `changed` entries; empty/absent otherwise.
@@ -312,7 +312,7 @@ export interface PlanDiff {
  * One row of the audit list, with no `payload` — the list response does not
  * carry one. AuditTab renders a payload only for the rows a reader expanded, so
  * a page of them crossed the wire to be displayed nowhere; the row now fetches
- * its own on expand (tripl-5ydt).
+ * its own on expand.
  */
 export interface AuditEntry {
   id: string
@@ -325,7 +325,7 @@ export interface AuditEntry {
    * The plan branch the write was scoped to. Null/empty means the write was NOT
    * made through a branch-scoped request — main, or an action with no
    * plan-branch dimension at all (alerting, scans, data sources, users, API
-   * keys) — so it must never be rendered as "main" (tripl-wkwv.6). `branch_id`
+   * keys) — so it must never be rendered as "main". `branch_id`
    * is nulled when the branch is deleted; `branch_name` is kept verbatim so the
    * trail outlives it.
    */

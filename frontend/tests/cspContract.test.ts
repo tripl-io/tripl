@@ -37,7 +37,7 @@ describe('production CSP contract', () => {
     expect(indexHtml).not.toMatch(/fonts\.(googleapis|gstatic)\.com/)
   })
 
-  // The fonts ship with the bundle (tripl-fj5g.13): the entry imports every
+  // The fonts ship with the bundle: the entry imports every
   // weight index.html used to fetch from Google Fonts, so the CSP can name no
   // third-party font or style host.
   it('self-hosts the UI fonts', () => {

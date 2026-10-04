@@ -136,8 +136,8 @@ class Project(UUIDMixin, TimestampMixin, Base):
     # They must therefore stay lazily loaded. They used to be ``lazy="selectin"``,
     # which made EVERY ``get_project_by_slug()`` hydrate the whole plan — on a real
     # project that is four extra round trips and thousands of ORM rows (1272 Variable
-    # rows on the largest one) to answer a request that only wanted ``project.id``
-    # (tripl-jfm3.54). ``await session.delete(project)`` still loads them on demand:
+    # rows on the largest one) to answer a request that only wanted ``project.id``.
+    # ``await session.delete(project)`` still loads them on demand:
     # AsyncSession.delete is a coroutine precisely so cascade can lazy-load.
     event_types: Mapped[list[EventType]] = relationship(
         back_populates="project", cascade="all, delete-orphan"

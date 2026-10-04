@@ -285,8 +285,8 @@ def driver_for_blob_sync(
 def operator_photo_backends() -> list[str]:
     """The operator's photo backends this process can reach, whatever new uploads use.
 
-    Rows written before a backend switch still point at the old store
-    (tripl-0zpq.295), so its blobs are listed too. GCS only when a bucket is
+    Rows written before a backend switch still point at the old store,
+    so its blobs are listed too. GCS only when a bucket is
     configured: without one the driver cannot even be built.
     """
     backends = ["local"]

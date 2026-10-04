@@ -1,4 +1,4 @@
-"""The auth limiter shares one quota across workers through Redis (tripl-2p11).
+"""The auth limiter shares one quota across workers through Redis.
 
 The unit suite has no Redis, so the client is a stub that runs the bucket in
 Python the way the Lua script does, keyed by the Redis key it is handed. Two

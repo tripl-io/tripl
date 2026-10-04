@@ -21,8 +21,8 @@ function renderNotice(
 }
 
 /**
- * The shared copy table behind both screens that mark an inert scope
- * (tripl-wkwv.1). Asserted here rather than only through its two callers,
+ * The shared copy table behind both screens that mark an inert scope.
+ * Asserted here rather than only through its two callers,
  * because the wording is the whole fix: a sentence that named no missing thing,
  * or linked nowhere, would leave the reader exactly where the bug found them.
  */
@@ -41,7 +41,7 @@ describe('InertScopeNotice', () => {
     // The verdict behind this notice is the PROJECT's and stays the project's,
     // so the SENTENCE must not move an inch when a scan is named — only where
     // the link lands. A second wording here would be the monitor detail and the
-    // rule editor describing one rule two ways (tripl-wkwv.9, tripl-oxkt.18).
+    // rule editor describing one rule two ways.
     renderNotice('distribution_drift', 'acme-ios', false, 'scan-42')
 
     expect(screen.getByText(inertScopeSentence('distribution_drift'))).toBeInTheDocument()

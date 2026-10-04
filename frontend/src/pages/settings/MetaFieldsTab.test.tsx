@@ -65,7 +65,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('MetaFieldsTab — Allow multiple (tripl-h2sx.31)', () => {
+describe('MetaFieldsTab — Allow multiple', () => {
   it('sends the flag when the box is ticked', async () => {
     vi.mocked(metaFieldsApi.create).mockResolvedValue(metaField({ id: 'mf-1', name: 'jira_keys' }))
     renderTab()

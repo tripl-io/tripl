@@ -244,7 +244,7 @@ describe('DemoScenarioStrip — dismissal and completion', () => {
     expect(readScenarioState(SLUG).activeChapter).toBeNull()
   })
 
-  it('ends the last chapter by pointing out of the demo, not at a dead stop (tripl-1mzh)', () => {
+  it('ends the last chapter by pointing out of the demo, not at a dead stop', () => {
     // The demo is the accented default CTA on an empty workspace, so this is the
     // moment of highest intent — and it offered only Restart and Dismiss, with
     // nothing anywhere in the demo naming the real product.
@@ -417,7 +417,7 @@ describe('DemoScenarioStrip — when the coached control is nowhere on screen', 
     expect(missingLine()).toBeNull()
   })
 
-  it('Show hints puts the marks back without restarting the chapter (tripl-gr0x)', () => {
+  it('Show hints puts the marks back without restarting the chapter', () => {
     // "Hide hints" is the coach card's only control, and it used to be a
     // one-way door: nothing turned the marks back on short of a reload.
     renderStripWithMark(SCANS_ROUTE)

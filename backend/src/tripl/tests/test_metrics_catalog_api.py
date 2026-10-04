@@ -1690,7 +1690,7 @@ class TestCollectNow:
 
         # The failed dispatch is persisted as a terminal error (not a stuck
         # "running") so the UI's status poll and the scheduler's one-active-job
-        # guard both see the truth (tripl-4mju).
+        # guard both see the truth.
         got = await client.get(f"{_metrics_url(project['slug'])}/{metric['id']}")
         body = got.json()
         assert body["last_collection_status"] == "error"
@@ -1781,8 +1781,7 @@ class TestMetricCollectionSchedule:
         again. This endpoint used to compute due-ness from the watermark alone,
         so it told the operator a collection was due NOW while the scheduler
         would skip it for up to a full interval — and a "due now" that does not
-        happen is the report that sends somebody digging through worker logs
-        (tripl-os3v).
+        happen is the report that sends somebody digging through worker logs.
         """
         from tripl.models.metric_definition import MetricDefinition
         from tripl.worker.tasks.metrics.metric_collect import COLLECTION_STATUS_ERROR

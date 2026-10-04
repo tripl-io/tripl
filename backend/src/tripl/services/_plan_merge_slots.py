@@ -4,10 +4,9 @@ The merge used to upsert events and relations by natural key, one row per key
 on each side: with two main rows sharing (type, name) — namesakes, which nothing
 forbids — a main row was deleted only when its KEY vanished from the branch, so
 deleting one namesake on the branch left both on main, and each branch copy's
-edits landed on whichever main namesake the dict kept (tripl-0zpq.149). Every
+edits landed on whichever main namesake the dict kept. Every
 arm that followed a row through that map inherited the guess: the variable
-overrides, the successor pointer, the order, the photos and the discussion
-(tripl-0zpq.292).
+overrides, the successor pointer, the order, the photos and the discussion.
 
 A slot is one base row with its main counterpart (paired by main's own id,
 which the base recorded) and its branch counterpart (paired by the copy's

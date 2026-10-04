@@ -24,7 +24,7 @@ afterEach(() => {
   window.localStorage.clear()
 })
 
-describe('ProductTour — progress survives the navigation it asks for (tripl-2su6.18)', () => {
+describe('ProductTour — progress survives the navigation it asks for', () => {
   it('advances and remembers the step when you open its surface', () => {
     // Every step deep-links to a real surface, so following the tour necessarily
     // closes the dialog. It used to reset to step one on close, which made the
@@ -127,7 +127,7 @@ describe('ProductTour', () => {
     )
 
     // Each building block deep-links to the surface that actually shows it —
-    // they used to share one bare /p/acme/metrics href (tripl-2su6.19).
+    // they used to share one bare /p/acme/metrics href.
     const href = (name: string) =>
       screen.getByRole('link', { name: new RegExp(`^${name}$`, 'i') }).getAttribute('href')
 

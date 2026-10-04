@@ -1,4 +1,4 @@
-"""Photo attachments, batch 2 of the backend review sweep (tripl-0zpq).
+"""Photo attachments, batch 2 of the backend review sweep.
 
 * .146 — one blob backs a main photo and every branch twin of it, so deleting
   any one row must leave the blob to the others.
@@ -134,7 +134,7 @@ async def _branch_photo(branch_id: str) -> tuple[str, str]:
         return str(branch_event.id), str(photo.id)
 
 
-# --- tripl-0zpq.146: a blob shared by several rows ---------------------------
+# --- a blob shared by several rows ---------------------------
 
 
 @pytest.mark.asyncio
@@ -334,7 +334,7 @@ async def test_a_body_without_a_declared_length_is_cut_off_at_the_cap(
     assert sum(spooled) <= cap
 
 
-# --- tripl-0zpq.213: a URL that cannot be signed -----------------------------
+# --- a URL that cannot be signed -----------------------------
 
 _TOKEN_ONLY = "token-only-credentials"
 
@@ -426,7 +426,7 @@ async def test_a_url_that_cannot_be_signed_falls_back_to_the_api(
 ) -> None:
     sign = _raising_signer(signer) if isinstance(signer, Exception) else _real_signer()
     # Registered under the backend's NAME: uploads follow the setting, and a
-    # row's reads follow the name it recorded (tripl-0zpq.295).
+    # row's reads follow the name it recorded.
     monkeypatch.setitem(photo_storage._BY_NAME, "gcs", _private_gcs(sign))
     monkeypatch.setattr(settings, "photo_storage_backend", "gcs")
     monkeypatch.setattr(event_photo_service, "_PUBLIC_URL_FAILURES_LOGGED", set())
@@ -443,7 +443,7 @@ async def test_a_url_that_cannot_be_signed_falls_back_to_the_api(
     assert first.status_code == 201, first.text
     assert second.status_code == 201, second.text
     assert first.json()["storage_backend"] == "gcs"
-    # Org-qualified (tripl-0chm): the URL names the organization the listing
+    # Org-qualified: the URL names the organization the listing
     # request resolved the slug in, and the legacy request above ran in default.
     served_base = base.replace("/api/v1/", "/api/v1/orgs/default/", 1)
     assert first.json()["url"] == f"{served_base}/{first.json()['id']}/file"
@@ -463,7 +463,7 @@ async def test_a_url_that_cannot_be_signed_falls_back_to_the_api(
     assert len(warnings) == 1
 
 
-# --- tripl-0zpq.237: a reorder that repeats a photo --------------------------
+# --- a reorder that repeats a photo --------------------------
 
 
 async def _two_figma_frames(client: AsyncClient, slug: str) -> tuple[str, dict[str, str]]:
@@ -520,7 +520,7 @@ async def test_reorder_still_applies_a_permutation_and_refuses_an_incomplete_one
     assert [row["id"] for row in listed.json()] == [ids["b"], ids["a"]]
 
 
-# --- tripl-0zpq.145: a merged or closed branch's photos ----------------------
+# --- a merged or closed branch's photos ----------------------
 
 _WRITES = ("upload", "figma", "reorder", "delete")
 _FIGMA_FRAME = {"url": "https://www.figma.com/file/late/Late", "title": "Late"}
@@ -669,7 +669,7 @@ async def test_the_editor_gate_answers_before_the_read_only_409(
     assert not wrong, wrong
 
 
-# --- tripl-0zpq.211: the image can write its own photo directory -------------
+# --- the image can write its own photo directory -------------
 
 
 def _instructions(text: str) -> list[str]:
@@ -757,7 +757,7 @@ def test_the_runtime_image_can_write_the_default_photo_directory(dockerfile: str
     assert handed_over, f"{dockerfile} never gives {photo_dir} to the app user"
 
 
-# --- tripl-0zpq.295: a photo is read through the backend its ROW names --------
+# --- a photo is read through the backend its ROW names --------
 
 
 class _FakeGCS:

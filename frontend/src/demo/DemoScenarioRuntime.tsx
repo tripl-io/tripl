@@ -1,6 +1,6 @@
 /**
- * The scenario runtime as a lazily loaded, render-nothing component
- * (tripl-fj5g.15). It sits BESIDE the page, not around it, and hands what it
+ * The scenario runtime as a lazily loaded, render-nothing component.
+ * It sits BESIDE the page, not around it, and hands what it
  * computes up to LazyDemoScenarioProvider — so the chunk arriving, or a project
  * switch between demo and non-demo, never remounts the page under it.
  */

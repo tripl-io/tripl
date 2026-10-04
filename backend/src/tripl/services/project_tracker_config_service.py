@@ -216,7 +216,7 @@ async def update_project_tracker_config(
             # ``async`` and runs on the request's event loop, so calling it
             # inline — as it was, through the map above — held the loop, and
             # with it every other request on this uvicorn worker, for however
-            # long the lookup took (tripl-0zpq.30). The whole validator is
+            # long the lookup took. The whole validator is
             # offloaded rather than split: unlike the destination schemas, there
             # is no pydantic layer here that wants the syntactic half earlier.
             value = await _validate_async(validate_jira_base_url, value)

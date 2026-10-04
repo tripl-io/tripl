@@ -1,5 +1,5 @@
 /**
- * The persistent scenario strip (tripl-2su6.21.3, chapters in tripl-odrj.4).
+ * The persistent scenario strip (chapters in tripl-odrj.4).
  *
  * Mounted inside the demo banner's row on every surface (LIVE-9: one bar, not
  * two stacked blocks), so the active chapter's
@@ -187,7 +187,7 @@ function ActiveStrip({
         )}
         {/* "Hide hints" is the coach card's only control and it used to be a
             one-way door: nothing turned the marks back on for the rest of the
-            chapter (tripl-gr0x). */}
+            chapter. */}
         {hintsMuted && (
           <Button
             type="button"
@@ -292,7 +292,7 @@ function CompletedStrip({
           </Button>
         ) : (
           /* The moment of highest intent used to end in Restart + Dismiss, with
-             nothing in the whole demo pointing at the real product (tripl-1mzh).
+             nothing in the whole demo pointing at the real product.
              The dashboard, not Data sources: creating the project comes first,
              and a demo-scoped link straight to the global connection page was
              deliberately removed by tripl-q7i1.7. */

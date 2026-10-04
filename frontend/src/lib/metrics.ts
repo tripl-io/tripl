@@ -5,7 +5,7 @@ import type { EventMetricPoint } from '@/types'
  * the backend supports (`15m`, `1h`, `6h`, `1d`, `1w` — see
  * backend/src/tripl/core/intervals.py) has a chart granularity that matches it.
  * Without them a 15m or 6h metric charted under an "Hours" label, naming the axis
- * after a bucket width the data does not have (tripl-64n8.15).
+ * after a bucket width the data does not have.
  */
 export type MetricsGranularity = '15min' | 'hour' | '6h' | 'day' | 'week' | 'month'
 
@@ -130,7 +130,7 @@ const EPOCH_MS = 0
  * Thursday. The warehouse adapters all say "Monday" explicitly (`toMonday` /
  * `TIMESTAMP_TRUNC(..., WEEK(MONDAY))` / `date_bin` off this origin), so the
  * epoch grid put every chart week three days ahead of the server-computed
- * bucket it was supposed to line up with (tripl-64n8.2).
+ * bucket it was supposed to line up with.
  */
 const WEEK_ORIGIN_MS = Date.UTC(1970, 0, 5)
 
@@ -186,7 +186,7 @@ export function getBucketStart(dateStr: string, granularity: MetricsGranularity)
  * per-project setting (see website/docs/use/anomaly-detection.md), and this code
  * has no project context to read it from. 3 is the floor at which a single
  * anomalous hour can no longer redden a day/week bucket that is otherwise
- * unremarkable — often the lowest point of the week (tripl-dmch.10).
+ * unremarkable — often the lowest point of the week.
  */
 const AGGREGATE_ANOMALY_Z_THRESHOLD = 3
 
@@ -253,7 +253,7 @@ export function aggregateMetricPoints(
       // Summing a partial set (e.g. only the single scored/anomalous hour)
       // against a full-count aggregate produces an expected ~1/N of the count
       // and a nonsensical tooltip, so drop expected/stddev instead of
-      // reporting a corrupt one (tripl-dmch.10).
+      // reporting a corrupt one.
       const hasFullExpected = bucketPoints.every(point => point.expected_count !== null)
       const expectedCount = hasFullExpected
         ? bucketPoints.reduce((sum, point) => sum + (point.expected_count ?? 0), 0)

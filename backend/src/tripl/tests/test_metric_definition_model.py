@@ -1,4 +1,4 @@
-"""Model-level tests for the MetricDefinition catalog entity (tripl-dxhp.1)."""
+"""Model-level tests for the MetricDefinition catalog entity."""
 
 import uuid
 from collections.abc import Iterator

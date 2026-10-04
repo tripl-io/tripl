@@ -4,8 +4,8 @@ Alert dispatch keeps a scope open for ``max(24h, 3 x interval)`` of the scope's
 OWN grid (``monitoring_utils._freshness_horizon``): a scan config's interval for
 scan-backed scopes, the catalog metric's resolved grid for ``metric`` scopes.
 ``summarize_monitor_states`` has to measure the same states against the same
-horizon, or a daily/weekly monitor that is delivering reads "warning"
-(tripl-0zpq.162). Shared by the Monitors screen and the project list's
+horizon, or a daily/weekly monitor that is delivering reads "warning".
+Shared by the Monitors screen and the project list's
 ``firing_monitor_count`` so the two cannot disagree.
 """
 

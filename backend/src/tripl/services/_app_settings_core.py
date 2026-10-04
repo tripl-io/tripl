@@ -52,7 +52,7 @@ def env_service_values() -> dict[str, Any]:
     permanently carries the OVERRIDE's value, so once that override is cleared
     the singleton is no longer a witness for anything the environment delivered —
     it would report the deleted value and ``_setting_source`` would badge it
-    "Env", crediting a variable that may not exist (tripl-wkwv.2).
+    "Env", crediting a variable that may not exist.
     """
     values: dict[str, Any] = {
         "app_base_url": settings.app_base_url,
@@ -236,7 +236,7 @@ def _org_values(org_overrides: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _reject_startup_breaking_overrides(overrides: dict[str, Any]) -> None:
-    """Refuse a security override that would stop the next boot (tripl-jfm3.93).
+    """Refuse a security override that would stop the next boot.
 
     ``apply_startup_service_overrides`` now ignores such a value rather than
     letting it brick the instance, but silently dropping what the operator just

@@ -21,7 +21,7 @@ interface ScopeCopy {
    * It only ever picks a MORE specific destination on the same screen — never a
    * different screen, and never a different sentence: readiness is a project
    * verdict and stays one, so a scope-bound reader is shown the scan to check,
-   * not told a different thing about it (tripl-wkwv.9).
+   * not told a different thing about it.
    */
   href: (slug: string, scanConfigId?: string) => string
 }
@@ -33,8 +33,7 @@ interface ScopeCopy {
  * doing nothing.
  *
  * Two qualifiers in the variable-value wording are load-bearing, because the
- * backend probe carries both and a sentence that drops them is simply false
- * (tripl-wkwv.1):
+ * backend probe carries both and a sentence that drops them is simply false:
  *
  * - "on the main branch" — detection runs against main, so documenting values
  *   on a working branch changes nothing until it merges. Without it the notice
@@ -57,7 +56,7 @@ const SCOPE_COPY: Record<DriftScope, ScopeCopy> = {
     // making the scan-aware check one click: this notice renders only when
     // NOTHING in the project feeds the scope, which is the opposite of the case
     // that check is about. The monitor detail names the bound scan separately,
-    // as text (tripl-wkwv.9).
+    // as text.
     href: (slug, scanConfigId) =>
       scanConfigId ? projectPath(currentOrgSlug(), slug, `/scans/${scanConfigId}`) : projectPath(currentOrgSlug(), slug, '/scans'),
   },
@@ -95,8 +94,7 @@ export function inertScopeSentence(scope: DriftScope): string {
  * inside a modal `<form>` whose draft lives in component state, so a same-tab
  * navigation unmounts the dialog and discards a half-built rule: the one screen
  * reporting the problem would destroy the work the moment the reader acted on
- * the report. The monitor detail is read-only, where same-tab is right
- * (tripl-wkwv.1).
+ * the report. The monitor detail is read-only, where same-tab is right.
  */
 export function InertScopeNotice({
   slug,

@@ -4,7 +4,7 @@ Maps tripl's auth/validation failures to typed exceptions the caller can render
 however it needs. Pure pass-through otherwise — no re-modeling of API responses.
 
 Shared by two distributions: the ``tripl`` CLI it ships in, and ``tripl-mcp``,
-which imports it from here rather than carrying a copy (tripl-ey6j.1). Nothing
+which imports it from here rather than carrying a copy. Nothing
 consumer-specific belongs in this module — no MCP vocabulary, no CLI flag names,
 no ``print``. Errors carry structure (``status_code``, ``base_url``) and each
 consumer words its own guidance around them.
@@ -25,7 +25,7 @@ DEFAULT_TIMEOUT_SECONDS = 30.0
 # What this distribution calls itself on the wire. The backend does not read
 # User-Agent, but it is the only thing an operator reading access logs has to
 # tell CLI traffic from agent traffic — so it is a PARAMETER, not a constant,
-# and tripl-mcp passes its own (tripl-ey6j.1).
+# and tripl-mcp passes its own.
 DEFAULT_USER_AGENT = f"tripl/{__version__}"
 
 

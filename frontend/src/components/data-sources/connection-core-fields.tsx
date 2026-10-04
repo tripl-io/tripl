@@ -89,10 +89,10 @@ export function ConnectionCoreFields({
   //
   // `&& secretSet`, like the BigQuery key above: on a source with no stored
   // password the field said "Leave empty to keep" directly above a hint reading
-  // "Password: not set." (tripl-ofvc). Falling back to masked dots for that case
+  // "Password: not set.". Falling back to masked dots for that case
   // only inverted the contradiction — eight dots in the same grey as the
   // "default" placeholder next to it read as an 8-character stored password,
-  // still directly above "Password: not set." (tripl-s8rg). The empty state now
+  // still directly above "Password: not set.". The empty state now
   // says it is empty, the way the instance SMTP password field already does
   // ("Not configured").
   // On create the box is labelled by what it wants, not by eight dots that
@@ -256,7 +256,7 @@ export function ConnectionCoreFields({
       {/* Applies to every warehouse — BigQuery included. Full-width column with
           the number box held narrow: as the lone child of a `grid-cols-2` row the
           help wrapped into four ragged lines down the left half while the right
-          half of the dialog stayed empty (tripl-ofvc). */}
+          half of the dialog stayed empty. */}
       <div className={FIELD_COL_CLASS}>
         {/* The unit in words, like the scan form's "Lookback (hours)" (DA-43). */}
         <Label htmlFor={`${idPrefix}-timeout`}>Timeout (seconds)</Label>

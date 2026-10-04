@@ -89,13 +89,13 @@ const ACTIVITY_LIMIT = 8
 // the top-bar bell and the backend's metrics_insights_service. Gating the "Open
 // signals" headline on it keeps the number equal to the sidebar badge (project
 // summary monitoring_signal_count) and the Anomalies page's default
-// "Significant" view (issue tripl-yfsj.1).
+// "Significant" view.
 // A successful source connection test older than this is shown as "stale" rather
 // than a confident "healthy" — an old green check is misleading (issue M1).
 const SOURCE_HEALTH_STALE_MS = 24 * 60 * 60 * 1000
 // The volume card asked for the scan's ENTIRE metric history — the endpoint's
 // from/to simply were never passed — so it was still fetching 2.2 s after every
-// other panel on the page had rendered (tripl-jfjt). Seven days matches the
+// other panel on the page had rendered. Seven days matches the
 // documented default window for project-total charts.
 const VOLUME_WINDOW_DAYS = 7
 const VOLUME_WINDOW_MS = VOLUME_WINDOW_DAYS * 24 * 60 * 60 * 1000
@@ -117,7 +117,7 @@ export default function OverviewPage() {
     enabled: !!slug,
   })
   // A live bound rather than a mount-time snapshot, so a long-open tab keeps
-  // asking for the current 7 days (tripl-jfm3.114).
+  // asking for the current 7 days.
   const volumeRange = useLiveTimeRange(VOLUME_WINDOW_MS)
   // The project query is the single authority on whether the slug exists. Gate
   // every project-scoped widget query on its success so they never fan out
@@ -146,8 +146,8 @@ export default function OverviewPage() {
   })
   // Expanded (all scopes, incident children tagged) so the headline count matches
   // the sidebar badge and the Anomalies page rather than only project-total /
-  // event-type incidents (issue tripl-yfsj.1). Shared key with the top bar and
-  // the Anomalies page (tripl-jfm3.119).
+  // event-type incidents. Shared key with the top bar and
+  // the Anomalies page.
   const signalsQuery = useExpandedSignals(slug, { enabled: projectQuery.isSuccess })
   // With the rail open inline beside the page, the page's own "Recent activity"
   // panel listed the same items a second time, side by side (LIVE-10). The
@@ -179,7 +179,7 @@ export default function OverviewPage() {
   const maxTopVolume = topEvents.reduce((m, e) => Math.max(m, e.total_count), 0)
   // Match the AnomaliesPage default "Significant" view so the "Open signals"
   // headline, the sidebar badge (monitoring_signal_count) and the Anomalies page
-  // all report the same count (issue tripl-yfsj.1). Sorted biggest-effect-first so
+  // all report the same count. Sorted biggest-effect-first so
   // the capped panel previews the top anomalies.
   const signals = selectSignificantSignals(signalsQuery.data)
   const activity = activityQuery.data ?? []
@@ -194,7 +194,7 @@ export default function OverviewPage() {
 
   // "Open signals" comes from the SAME array the panel below renders (issue H1) —
   // now the significant, all-scope signals — so the headline equals the sidebar
-  // badge (monitoring_signal_count) and the Anomalies page (issue tripl-yfsj.1).
+  // badge (monitoring_signal_count) and the Anomalies page.
   const signalCount = signals.length
   const reviewCount = summary?.review_pending_event_count ?? 0
   // Coverage is plan coverage (implemented vs active events) rendered through the
@@ -205,12 +205,11 @@ export default function OverviewPage() {
   // Events CREATED per day (main branch) — NOT a history of the "Active events"
   // stat beside it. The series was captioned "Active trend" / "Active events by
   // day" while a single day could exceed the whole active catalog (4,618 on a
-  // project with 2,413 active events); the caption now says what the numbers are
-  // (tripl-jfm3.22, tripl-jfm3.77).
+  // project with 2,413 active events); the caption now says what the numbers are.
   const newEventsSeries = kpiSeriesQuery.data?.new_events ?? []
   // The volume card charts ONE scan config (summing every scan double-counts the
   // events a legacy/backfill scan also collected), so it names that scan instead
-  // of claiming to be the project total (tripl-jfm3.20).
+  // of claiming to be the project total.
   const volumeScanName = volumeQuery.data?.scan_config_name ?? null
   // Present exactly when a scan config was resolved, which is what separates
   // "this scan collected nothing in the window" from "nothing collects at all"
@@ -219,7 +218,7 @@ export default function OverviewPage() {
   const volumeScanConfigId = volumeQuery.data?.scan_config_id ?? null
   // `isPending`, not `isLoading`: while the query waits on the projectQuery gate
   // it is pending but NOT fetching, so an `isLoading` check let the card claim
-  // "No volume data yet." before it had even asked (tripl-jfjt).
+  // "No volume data yet." before it had even asked.
   const isVolumePending = volumeQuery.isPending && !projectQuery.isError
   // Same for every project-gated panel: pending-and-waiting is still pending.
   const isSignalsPending = signalsQuery.isPending && !projectQuery.isError
@@ -476,7 +475,7 @@ export default function OverviewPage() {
             : `Volume · ${VOLUME_WINDOW_DAYS}d`
         }
         // Held through the pending state as well, so the header keeps its second
-        // line instead of growing one when the series lands (tripl-jfjt).
+        // line instead of growing one when the series lands.
         subtitle={volumeScanName || isVolumePending ? VOLUME_SUBTITLE : undefined}
         // The card leads to the chart it summarises (MO-15).
         right={
@@ -589,7 +588,7 @@ export default function OverviewPage() {
 
       {/* Top events by volume — summed across EVERY scan config, unlike the
           volume card above it, which charts one. Saying so is what stops the
-          two panels reading as a contradiction (tripl-jfm3.20). */}
+          two panels reading as a contradiction. */}
       <Panel title="Top events · 48h" subtitle="Across every scan in this project.">
         <div className="p-4">
         {topEventsQuery.isError && (
@@ -626,7 +625,7 @@ export default function OverviewPage() {
                       at a fixed 10rem. Event names share long prefixes
                       (`feature_flag:flag_use:app` vs `…:growthbook`), so a fixed
                       column truncated the top rows to one identical string and
-                      the ranking became unreadable (tripl-jfm3.31). Capped
+                      the ranking became unreadable. Capped
                       narrower so the bar starts near the names rather than mid
                       card, and on a phone the name sits above its bar instead
                       of being squeezed beside it (MO-25). Sans: a display name
@@ -796,7 +795,7 @@ export default function OverviewPage() {
  * "Loading…" in an empty box for 2.2 s after the KPI numbers, the 14d sparkline,
  * Top events, Active signals and Recent activity had all rendered — pending, but
  * reading as broken. The blocks match the loaded layout (figure + caption beside
- * a 48px chart that fills the row) so the card reserves its height (tripl-jfjt).
+ * a 48px chart that fills the row) so the card reserves its height.
  */
 function VolumeSkeleton() {
   return (
@@ -998,7 +997,7 @@ function volumeHeadlineLabel(summary: VolumeSummary): string {
 // Text alternative for the volume sparkline (issue M8): the SVG itself is
 // aria-hidden, so the surrounding role="img" needs an accessible summary. Names
 // the scan the series is scoped to rather than calling it the project
-// total, which it never was (tripl-jfm3.20).
+// total, which it never was.
 function volumeChartLabel(counts: number[], scanName: string | null): string {
   const scope = scanName ? `Volume sparkline for scan ${scanName}` : 'Volume sparkline'
   if (counts.length === 0) return scope
@@ -1012,7 +1011,7 @@ function volumeChartLabel(counts: number[], scanName: string | null): string {
 // volumeChartLabel: the SVG is decorative, so the wrapping role="img" needs an
 // accessible summary of what the 14-day line actually shows. It says "new
 // events" because that is what the series counts — announcing it as "active
-// events" made the screen-reader text state a falsehood (tripl-jfm3.22).
+// events" made the screen-reader text state a falsehood.
 function newEventsTrendLabel(counts: number[]): string {
   if (counts.length === 0) return 'New events added per day over the last 14 days'
   const latest = counts[counts.length - 1]!
@@ -1034,7 +1033,7 @@ function SignalRow({
   // scope name (e.g. page_value_question_page_value_…) stays readable when the
   // row ellipsizes. When the server could not name the scope the tooltip is
   // where its ref goes — visible, that hex prefix reads as a name and puts a
-  // second name on an incident the activity rail already named (tripl-y4wt).
+  // second name on an incident the activity rail already named.
   const signalSummary = `${verb} on ${scopeLabel ?? unnamedScopeLabel(signal)}`
   const signalTitle = `${verb} on ${scopeLabel ?? signalScopeRefLabel(signal)}`
   return (

@@ -1,5 +1,5 @@
 /**
- * Capability-aware product tour model (tripl-2su6.9).
+ * Capability-aware product tour model.
  *
  * A concise guided path through the product's core surfaces. Each step links to
  * the REAL surface (deep link, slug-parameterised) so the tour is a launchpad,
@@ -38,7 +38,7 @@ export interface TourStep {
  * (fact / sql / event_composition) open the catalog already filtered to that
  * kind, event volume opens the Events catalog where the per-event series lives,
  * and fact tables open their own tab. They previously all pointed at a bare
- * /metrics, so the links existed but discovered nothing (tripl-2su6.19).
+ * /metrics, so the links existed but discovered nothing.
  *
  * Note "the four metric kinds" in the original acceptance is a miscount: the
  * backend MetricKind enum has three members. Event volume is a scan-collected
@@ -139,7 +139,7 @@ function tourStepSpecs(base: string): [TourStepSpec, ...TourStepSpec[]] {
       navId: 'scans',
       // A scan is not "pull volume to learn a baseline": that describes only the
       // scheduled metrics collection of a monitoring scan. What EVERY scan does
-      // is fill the tracking plan (tripl-3y7z).
+      // is fill the tracking plan.
       blurb:
         'Read your warehouse into the tracking plan. Catalog + monitoring also records metric points on a schedule.',
       to: `${base}/scans`,
@@ -167,7 +167,7 @@ function tourStepSpecs(base: string): [TourStepSpec, ...TourStepSpec[]] {
       title: 'Alert rules',
       blurb: 'The rules that decide which spikes and drops are worth notifying about, and their live state.',
       // The section, not the standalone page: that page rendered these same
-      // rules under a second noun and was merged in (tripl-89ps). `/monitors`
+      // rules under a second noun and was merged in. `/monitors`
       // would still resolve, but only through a redirect.
       to: `${base}/alerting?section=monitors`,
     },

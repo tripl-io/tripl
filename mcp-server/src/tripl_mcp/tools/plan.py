@@ -25,7 +25,7 @@ async def list_event_types(
 
     Branch-scoped like every other plan read — without ``branch`` the API
     resolves main, so an agent working on a branch was silently answered with
-    main's event types (tripl-jfm3.126). Field definitions are NOT embedded
+    main's event types. Field definitions are NOT embedded
     here; call ``get_event_type_fields`` for one type's fields.
     """
     client = client_for(ctx)
@@ -40,8 +40,8 @@ def _event_type_summary(item: Any) -> Any:
 
     The TRIM is this consumer's context budget and stays here; the COUNT is a
     derived fact about ``EventTypeResponse`` that ``tripl plan types`` puts in
-    its table too, so it is asked of the shared layer rather than spelled again
-    (tripl-i1dt). Two spellings of "how many fields does this type have" is how
+    its table too, so it is asked of the shared layer rather than spelled again.
+    Two spellings of "how many fields does this type have" is how
     the two surfaces come to disagree about a type whose ``field_definitions``
     arrives null.
     """
@@ -61,7 +61,7 @@ async def get_event_type_fields(
 ) -> dict[str, Any]:
     """DETAIL + FIELDS, merged into one object with the fields under ``fields``.
 
-    Stays here rather than moving to ``tripl_cli.api`` (tripl-i1dt). ``tripl plan
+    Stays here rather than moving to ``tripl_cli.api``. ``tripl plan
     fields`` looks like a counterpart and is not: it reads the LIST route, to
     resolve a name the operator typed into an id, then the fields — and emits the
     fields alone under ``items``, the key its six sibling verbs use. Different
@@ -114,7 +114,7 @@ async def get_variable_values(
 ) -> dict[str, Any]:
     """VALUES + EVENT_OVERRIDES, because an override REPLACES the global list.
 
-    Stays here (tripl-i1dt). ``tripl plan variables`` lists the catalog and stops
+    Stays here. ``tripl plan variables`` lists the catalog and stops
     there — no CLI verb reads one variable's observed values — so this merge has
     the one caller it had when tripl-ey6j.5 left it behind. It moves the day a
     ``tripl plan values <variable>`` exists, not before.

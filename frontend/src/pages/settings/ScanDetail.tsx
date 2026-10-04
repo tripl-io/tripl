@@ -183,7 +183,7 @@ export function ScanDetail({
   const { scanJobId } = useScenarioArtifacts()
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
   // Leading identical failed runs collapse behind one expander; the streak
-  // banner already summarizes them (tripl-7l83.4).
+  // banner already summarizes them.
   const [streakExpanded, setStreakExpanded] = useState(false)
   const [applyGroupsMessage, setApplyGroupsMessage] = useState('')
   const [highlightedJobId, setHighlightedJobId] = useState<string | null>(null)
@@ -207,7 +207,7 @@ export function ScanDetail({
     refetchInterval: jobsRefetchInterval,
   })
   // The streak's length over the whole history: the page above holds 50 runs,
-  // and the Scans list tags the same streak from this count (tripl-fj5g.11).
+  // and the Scans list tags the same streak from this count.
   // Shared with the list's query, so both surfaces read one number.
   const { data: activity } = useQuery({
     queryKey: scanActivityKey(slug),
@@ -258,7 +258,7 @@ export function ScanDetail({
     mutationFn: () => scansApi.run(slug, scanConfig.id),
     onSuccess: (job) => {
       // Bind the coached scenario to the job this retry created — the demo tick's
-      // own jobs prove nothing about what the user did (tripl-2su6.21.5).
+      // own jobs prove nothing about what the user did.
       notifyScanRunStarted(job)
       invalidateRuns()
     },
@@ -298,7 +298,7 @@ export function ScanDetail({
 
   // A scan that fails every run produces a wall of identical failed rows. Collapse
   // that into one "failed last N runs" streak banner with the reason and a single
-  // "Run again" action, so the failure reads as one ongoing problem (tripl-7l83.4).
+  // "Run again" action, so the failure reads as one ongoing problem.
   const failingStreak = consecutiveFailedRuns(jobs)
   // What the banner says: the server's count, which runs past the loaded page,
   // or the page's own while that is loading, failed, or older than the page.
@@ -400,7 +400,7 @@ export function ScanDetail({
               flush after "app_version" with no ellipsis, no fade and no
               scrollbar track. The panel whose whole job is to say what the scan
               reads was showing a SELECT with no FROM clause and no cue that
-              anything was missing (tripl-2hmn). `whitespace-pre-wrap` keeps the
+              anything was missing. `whitespace-pre-wrap` keeps the
               author's own newlines, `break-words` catches an identifier longer
               than the box, and the height cap scrolls vertically instead —
               same treatment the alert payload `<pre>`s already use, and a
@@ -553,7 +553,7 @@ export function ScanDetail({
         )}
         {isLoading && <SectionSkeleton variant="rows" rows={3} label="Loading runs…" />}
         {/* A failed jobs fetch previously fell through to "No runs yet" — surface
-            the error with a retry instead of a false empty (tripl-2su6.9). */}
+            the error with a retry instead of a false empty. */}
         {jobsError && !isLoading && (
           <div className="p-4">
             <ErrorState

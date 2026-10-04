@@ -88,7 +88,7 @@ function makeGroup(overrides: Partial<AlertInboxGroup> = {}): AlertInboxGroup {
  * A helper rather than object literals for the same reason `makeGroup` is one —
  * the response grows fields, and every fixture that spells the shape out by
  * hand has to be revisited when it does. `window_truncated_at` is required and
- * always sent (tripl-39n6), so a literal cannot omit it; nor can it omit
+ * always sent, so a literal cannot omit it; nor can it omit
  * `next_cursor`.
  */
 function makeInbox(overrides: Partial<AlertInboxListResponse> = {}): AlertInboxListResponse {
@@ -101,7 +101,7 @@ function renderInbox(
 ) {
   const onAction = vi.fn<(variables: InboxActionVariables) => void>()
   // Selection is page-held state threaded in as props, exactly like the note
-  // drafts and the expanded set above it (tripl-gpfr), so the default here is
+  // drafts and the expanded set above it, so the default here is
   // "nothing picked" and a test that cares supplies its own set.
   const toggleIncidentSelected = vi.fn<(id: string, selected: boolean) => void>()
   const onFiltersChange = vi.fn<(next: InboxFilterState) => void>()
@@ -195,10 +195,10 @@ describe('AlertingInbox item and scope counts', () => {
  *
  * "Reopen <target>" is NOT one of those shared sentences and its assertions
  * must never be derived from `mutePresets`: it is this surface's own word for
- * lifting acknowledge, resolve and false-positive (tripl-oxkt.3), and the
+ * lifting acknowledge, resolve and false-positive, and the
  * button that carries it is the same slot that says "Unmute" on a muted card.
  */
-describe('AlertingInbox — the undo for a mute is called Unmute (tripl-oxkt.3)', () => {
+describe('AlertingInbox — the undo for a mute is called Unmute', () => {
   it('names the muted card\'s undo "Unmute", not "Reopen"', () => {
     renderInbox({
       inbox: makeInbox({
@@ -218,8 +218,7 @@ describe('AlertingInbox — the undo for a mute is called Unmute (tripl-oxkt.3)'
     // …and the mute button becomes the way to CHANGE it, not a second silent
     // seven-day extension. "Change mute on" is this surface's own vocabulary —
     // no other mute surface can change a mute in place, so it is written here
-    // and in the component as a literal rather than hosted in the shared module
-    // (tripl-yapg).
+    // and in the component as a literal rather than hosted in the shared module.
     expect(screen.getByRole('button', { name: `Change mute on ${TARGET}` })).toBeInTheDocument()
   })
 
@@ -234,7 +233,7 @@ describe('AlertingInbox — the undo for a mute is called Unmute (tripl-oxkt.3)'
     const { onAction } = renderInbox()
 
     // Every mute used to be a hardcoded seven days with nothing on screen
-    // saying so (tripl-oxkt.7).
+    // saying so.
     fireEvent.click(screen.getByRole('button', { name: `Mute ${TARGET}` }))
     for (const label of ['1h', '24h', '7d']) {
       expect(screen.getByRole('button', { name: `Mute ${TARGET} for ${label}` }))
@@ -254,7 +253,7 @@ describe('AlertingInbox — the undo for a mute is called Unmute (tripl-oxkt.3)'
   })
 })
 
-describe('AlertingInbox — an incident can be silenced with no end date (tripl-a50u)', () => {
+describe('AlertingInbox — an incident can be silenced with no end date', () => {
   it('offers the open-ended choice beside the timed presets, and asks for null', () => {
     const { onAction } = renderInbox()
 
@@ -288,7 +287,7 @@ describe('AlertingInbox — an incident can be silenced with no end date (tripl-
     // "the constant equals the constant" and leave the asymmetry pinned nowhere
     // at any surface. It is also the one accepted WCAG 2.5.3 deviation in the
     // mute vocabulary: the visible phrase is not inside the name, so speech
-    // input cannot activate this button by reading it aloud (tripl-yapg).
+    // input cannot activate this button by reading it aloud.
     expect(indefinite).toHaveTextContent('Until I unmute')
 
     fireEvent.click(indefinite)
@@ -318,7 +317,7 @@ describe('AlertingInbox — an incident can be silenced with no end date (tripl-
     expect(within(card).getByRole('button', { name: `Unmute ${TARGET}` })).toBeInTheDocument()
   })
 
-  it('still says nothing about a mute that has already lapsed (tripl-oxkt.20)', () => {
+  it('still says nothing about a mute that has already lapsed', () => {
     // The backend reports a LAPSED mute as status open, muted false, and
     // `muted_until` NULLED — the same null the open-ended case carries, so
     // `muted` is the only signal separating them. Making the test above pass by
@@ -337,7 +336,7 @@ describe('AlertingInbox — an incident can be silenced with no end date (tripl-
   })
 })
 
-describe('AlertingInbox — the card says what fired (tripl-oxkt.4)', () => {
+describe('AlertingInbox — the card says what fired', () => {
   it('renders direction and scope kind, so two incidents on one scope are distinguishable', () => {
     renderInbox({
       inbox: makeInbox({
@@ -392,7 +391,7 @@ describe('AlertingInbox — the card says what fired (tripl-oxkt.4)', () => {
 
     // The percent gate deliberately admits anomalies with no baseline, and the
     // stored delta for those used to be 0.0 — reporting the largest possible
-    // relative move as the smallest one (tripl-l429.24).
+    // relative move as the smallest one.
     expect(screen.getByText(/none expected · no baseline/)).toBeInTheDocument()
     expect(screen.queryByText(/0\.0%/)).toBeNull()
   })
@@ -452,7 +451,7 @@ describe('AlertingInbox — the card says what fired (tripl-oxkt.4)', () => {
  * detector emits get one, and they are different pages worded differently: the
  * event-scoped row opens the event, the event-TYPE-scoped row the event type.
  */
-describe('AlertingInbox — a release regression can be navigated to, not substantiated (tripl-wkwv.12)', () => {
+describe('AlertingInbox — a release regression can be navigated to, not substantiated', () => {
   /** The production shape: scope_ref IS the event id, and `event_id` repeats it. */
   function regression(overrides: Partial<AlertInboxGroup> = {}): AlertInboxGroup {
     return makeGroup({
@@ -535,7 +534,7 @@ describe('AlertingInbox — a release regression can be navigated to, not substa
   })
 })
 
-describe('AlertingInbox — action slots do not move between rows (tripl-oxkt.8)', () => {
+describe('AlertingInbox — action slots do not move between rows', () => {
   it('renders every slot on every row, disabling the inapplicable one', () => {
     renderInbox({
       inbox: makeInbox({
@@ -565,7 +564,7 @@ describe('AlertingInbox — action slots do not move between rows (tripl-oxkt.8)
   })
 })
 
-describe('AlertingInbox — three states, three branches (tripl-oxkt.10)', () => {
+describe('AlertingInbox — three states, three branches', () => {
   it('does not claim there are no incidents while it is still asking', () => {
     renderInbox({ inbox: undefined, isLoading: true })
 
@@ -590,7 +589,7 @@ describe('AlertingInbox — three states, three branches (tripl-oxkt.10)', () =>
   })
 })
 
-describe('AlertingInbox — feedback lands on the row it belongs to (tripl-oxkt.11)', () => {
+describe('AlertingInbox — feedback lands on the row it belongs to', () => {
   it('disables only the acting row, and renders its error inside its own card', () => {
     renderInbox({
       inbox: makeInbox({
@@ -643,7 +642,7 @@ describe('AlertingInbox — a row error retires once the incident moves on', () 
   })
 })
 
-describe('AlertingInbox — the note is reachable without taking an action (tripl-oxkt.14)', () => {
+describe('AlertingInbox — the note is reachable without taking an action', () => {
   it('collapses behind "Add note" on a card nobody has written on', () => {
     renderInbox()
 
@@ -678,7 +677,7 @@ describe('AlertingInbox — the note is reachable without taking an action (trip
   })
 })
 
-describe('AlertingInbox — writing the note is not the hard part (tripl-gwrd)', () => {
+describe('AlertingInbox — writing the note is not the hard part', () => {
   const noteBox = () => screen.getByRole('textbox', { name: /^Note on onboarding/ })
 
   it('hands the caret to the box it just revealed', () => {
@@ -723,7 +722,7 @@ describe('AlertingInbox — writing the note is not the hard part (tripl-gwrd)',
     expect(onAction).not.toHaveBeenCalled()
   })
 
-  it('offers to delete a note that turned out to be wrong (tripl-pdb2)', () => {
+  it('offers to delete a note that turned out to be wrong', () => {
     // Emptying the box is how the server has always deleted a note —
     // `state.note = note.strip() or None` — and it was the one gesture the
     // editor refused, so a wrong note was permanent unless somebody thought to
@@ -779,7 +778,7 @@ describe('AlertingInbox — writing the note is not the hard part (tripl-gwrd)',
   })
 })
 
-describe('AlertingInbox — the header says how much of the queue is on screen (tripl-oxkt.1)', () => {
+describe('AlertingInbox — the header says how much of the queue is on screen', () => {
   it('counts what is shown against the server total, and offers the rest', () => {
     renderInbox({
       inbox: makeInbox({
@@ -796,7 +795,7 @@ describe('AlertingInbox — the header says how much of the queue is on screen (
     expect(screen.getByText(/Of the 2 incidents loaded: 2 open · 0 handled/)).toBeInTheDocument()
   })
 
-  it('stops claiming 30 days when the server could not reach back that far (tripl-39n6)', () => {
+  it('stops claiming 30 days when the server could not reach back that far', () => {
     // The list is capped on delivery rows as well as by the window, and the cap
     // is applied before incidents are grouped — so a loud enough project gets a
     // shorter window with the oldest incidents simply gone. The page said "last
@@ -835,7 +834,7 @@ describe('AlertingInbox — the header says how much of the queue is on screen (
     expect(screen.queryByRole('status')).toBeNull()
   })
 
-  it('pins a deep-linked incident that is outside the loaded pages (tripl-oxkt.13)', () => {
+  it('pins a deep-linked incident that is outside the loaded pages', () => {
     renderInbox({
       inbox: makeInbox({ items: [makeGroup()], total: 57 }),
       pinnedGroup: makeGroup({
@@ -850,7 +849,7 @@ describe('AlertingInbox — the header says how much of the queue is on screen (
   })
 })
 
-describe('AlertingInbox — incidents can be picked for one decision (tripl-gpfr)', () => {
+describe('AlertingInbox — incidents can be picked for one decision', () => {
   /** A second incident, on a scope whose name is nothing like the first's. */
   const OTHER_TARGET = 'checkout_started'
   /*
@@ -858,7 +857,7 @@ describe('AlertingInbox — incidents can be picked for one decision (tripl-gpfr
    * drop on an event scope, so the reason is "drop · volume" for both incidents
    * and only the scope tells them apart here — while on one scope firing both
    * ways it is the reason that does, which is the case the scope alone could not
-   * name (tripl-oxkt.4, tripl-gpfr). Literals, not `incidentReasonLabel`, so
+   * name. Literals, not `incidentReasonLabel`, so
    * these assert the sentence rather than re-running the helper that builds it.
    */
   const SELECT_TARGET = `Select drop · volume on ${TARGET}`
@@ -883,7 +882,7 @@ describe('AlertingInbox — incidents can be picked for one decision (tripl-gpfr
     // which incident it belongs to — and it is the control that decides what a
     // bulk mute silences. The scope alone is not enough either: direction and
     // signal kind are part of the correlation key, so one scope firing both ways
-    // is two cards (tripl-oxkt.4) and two identically announced checkboxes.
+    // is two cards and two identically announced checkboxes.
     expect(screen.getByRole('checkbox', { name: SELECT_TARGET })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: SELECT_OTHER_TARGET })).toBeInTheDocument()
     // The cards stay cards. Turning the inbox into a table to get a selection
@@ -921,8 +920,8 @@ describe('AlertingInbox — incidents can be picked for one decision (tripl-gpfr
   /*
    * Building a selection was strictly one click per card: 50 ticks on 16px boxes
    * to act on one loaded page, against 2 clicks for the same sweep on the events
-   * table, which has both a header select-all and a shift-click range
-   * (tripl-rzkx). Neither control here can reach a row that is not rendered, so
+   * table, which has both a header select-all and a shift-click range.
+   * Neither control here can reach a row that is not rendered, so
    * neither is the "select all N matching" `InboxBulkActionBar` refuses.
    */
   const SELECT_ALL_SHOWN = 'Select all 2 shown incidents'
@@ -1016,7 +1015,7 @@ describe('AlertingInbox — incidents can be picked for one decision (tripl-gpfr
 
     // Every inbox action is editor-only server-side, so a selection a viewer
     // can build is a selection nothing on the page will let them spend — the
-    // same reasoning that removed the action row for them (tripl-oxkt.9), and
+    // same reasoning that removed the action row for them, and
     // the checkbox has to be inside the same gate or the bulk bar becomes
     // reachable by a reader who can do nothing with it.
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
@@ -1025,7 +1024,7 @@ describe('AlertingInbox — incidents can be picked for one decision (tripl-gpfr
   })
 })
 
-describe('AlertingInbox — viewer gating (tripl-oxkt.9)', () => {
+describe('AlertingInbox — viewer gating', () => {
   // Every inbox action is editor-only server-side, and this list used to render
   // five enabled buttons plus a note box on every card to a viewer whose every
   // click round-tripped to a 403.
@@ -1086,7 +1085,7 @@ describe('AlertingInbox — viewer gating (tripl-oxkt.9)', () => {
 })
 
 /**
- * tripl-htfn.4 — an analyst working through "the events I already know are
+ * an analyst working through "the events I already know are
  * fine" had one control over 180 incidents.
  */
 describe('AlertingInbox — narrowing the list past its status', () => {
@@ -1110,7 +1109,7 @@ describe('AlertingInbox — narrowing the list past its status', () => {
 
     // The list is read over 30 days and then capped, so a date older than that
     // narrows nothing — a control that accepted one and answered "none" would
-    // be describing the project rather than the page (tripl-39n6).
+    // be describing the project rather than the page.
     // The range and its caveat are one chip now, opened on demand (AL-15).
     fireEvent.click(screen.getByRole('button', { name: 'Last fired filter: any' }))
     expect(screen.getByText(/Dates narrow the 30 days this list already covers/)).toBeInTheDocument()

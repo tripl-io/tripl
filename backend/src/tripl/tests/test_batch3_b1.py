@@ -8,15 +8,15 @@ the coverage numerator, and real traffic is filed as an unplanned identity.
 
 Four such divergences are pinned here, one section each:
 
-* tripl-0zpq.90 — group rules could only read columns that had a FieldDefinition,
+* group rules could only read columns that had a FieldDefinition,
   which is exactly the set a rule column is never in;
-* tripl-0zpq.91 — with no name format the collector appended a ``col.path=``
+* with no name format the collector appended a ``col.path=``
   segment per JSON path and the planner appended none;
-* tripl-0zpq.92 — a dotted placeholder the row did not carry killed the run
+* a dotted placeholder the row did not carry killed the run
   instead of contributing an empty segment, the way a NULL column does; the same
   section pins the other edge of that seed, a path NO row carries, which renames
   every affected identity and must therefore be reported rather than swallowed;
-* tripl-0zpq.93 — a format naming the ``event_type_column`` could never resolve,
+* a format naming the ``event_type_column`` could never resolve,
   even though ``reserved_catalog_columns`` un-reserves that column for it.
 
 Every assertion is pure Python over hand-built rows: no session, no Postgres, so
@@ -40,7 +40,7 @@ from tripl.worker.tasks.metrics.metric_rows import _build_event_name_from_row
 from tripl.worker.utils.reserved_columns import reserved_catalog_columns
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.90 — group rules read the row, not just the catalog columns
+# group rules read the row, not just the catalog columns
 # --------------------------------------------------------------------------
 
 _EVENT_NAME_RULE = [
@@ -198,7 +198,7 @@ def test_a_reserved_column_stays_out_of_the_catalog_even_though_the_rules_can_re
     """Widening what the rules see must not widen what the scan tracks.
 
     The rule column has no FieldDefinition on purpose; making it a field value
-    would put the rule's own pattern in the catalog (tripl-jfm3.57).
+    would put the rule's own pattern in the catalog.
     """
     plan = plan_events(
         _warehouse_event_name_analysis(),
@@ -212,7 +212,7 @@ def test_a_reserved_column_stays_out_of_the_catalog_even_though_the_rules_can_re
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.91 — with no name format, one segment per COLUMN in both builders
+# with no name format, one segment per COLUMN in both builders
 # --------------------------------------------------------------------------
 
 
@@ -285,7 +285,7 @@ def test_a_name_format_still_resolves_every_json_path_in_both_builders() -> None
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.92 — a JSON path the row does not carry is an empty segment
+# a JSON path the row does not carry is an empty segment
 # --------------------------------------------------------------------------
 
 
@@ -424,7 +424,7 @@ def test_a_dotted_placeholder_no_row_carries_is_reported_not_swallowed() -> None
     )
     # Pluralised in the helper, for the same reason ``unnamed_skip_detail`` is:
     # this is copy an operator reads, and "1 paths" is a defect this repo has
-    # already shipped once (tripl-3y7z).
+    # already shipped once.
     assert absent_json_path_detail(["a.b", "c.d"]) == (
         "Event name format JSON paths not present on any row, rendered as empty segments: a.b, c.d"
     )
@@ -447,7 +447,7 @@ def test_a_path_one_row_carries_is_not_reported_absent() -> None:
 
 
 # --------------------------------------------------------------------------
-# tripl-0zpq.93 — a name format may name the event type column
+# a name format may name the event type column
 # --------------------------------------------------------------------------
 
 _EVENT_TYPE_NAME_FORMAT = "{screen}:{action}"

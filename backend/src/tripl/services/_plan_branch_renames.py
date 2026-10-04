@@ -23,7 +23,7 @@ def _sole_key_by_identity[KeyT: NaturalKey](
     An identity carried by two rows is dropped rather than guessed at. Live rows
     cannot do that any more — ``uq_variable_project_source_name`` makes a
     variable's identity singular per branch, ``uq_event_scan_identity`` an
-    event's singular per type (tripl-8tdl) — but one of the three sides is the
+    event's singular per type — but one of the three sides is the
     BASE, a stored ``PlanRevision`` payload, and a snapshot taken before that
     constraint existed can still list one identity twice. A payload is data,
     not a constraint, so the rule stays on every side rather than being argued
@@ -101,15 +101,14 @@ def pair_renames[KeyT: NaturalKey](
       branch's, which conflict detection judges rather than this.
     * **A key main re-used for another identity.** ``old_key`` must hold the
       same ``source_name`` on the base and on main; a base key main has since
-      handed to a different row is main's rename, not the branch's
-      (tripl-0zpq.293).
+      handed to a different row is main's rename, not the branch's.
     * **A move onto a name a STAYING main row still holds.** The branch renamed
       A to B while main independently grew its own B: honouring the rename would
       put two rows on one name. Dropping one such move can strand another that
       was only legal because its destination was being vacated, so the check
       repeats until it stops finding any.
 
-    ``vacate_removed`` relaxes that last rule for one shape only (tripl-ifuv):
+    ``vacate_removed`` relaxes that last rule for one shape only:
     the branch DELETED the row holding the destination and moved another row
     onto its name. The occupant counts as leaving when it was there at the cut
     under the identity it still carries on main, that identity is non-empty, and
@@ -137,9 +136,9 @@ def pair_renames[KeyT: NaturalKey](
     # was not itself a candidate never poisoned anything. When this was written
     # a second Event carrying one identity was a live shape — events had only an
     # index — and a rename that used to pair fell back to delete-plus-insert,
-    # which cascades ``variable_values``, their drift rows and ``event_changes``
-    # (tripl-htcz). ``uq_event_scan_identity`` has since closed that shape for
-    # live rows (tripl-8tdl); the base is a stored payload and can still carry
+    # which cascades ``variable_values``, their drift rows and ``event_changes``.
+    # ``uq_event_scan_identity`` has since closed that shape for
+    # live rows; the base is a stored payload and can still carry
     # it, which is why the narrowing stays.
     #
     # The branch side is deliberately NOT narrowed: in a cycle a rename's
@@ -164,8 +163,8 @@ def pair_renames[KeyT: NaturalKey](
         # v1, promote v2 — and a branch that touched neither still holds S1
         # under ``a``. Paired, that reads as the branch renaming ``c`` to ``a``,
         # and the merge would rename main's row back and re-key base-``c`` onto
-        # it, undoing main's rename and resurrecting what main deleted
-        # (tripl-0zpq.293). A true branch rename moves a row that still wears
+        # it, undoing main's rename and resurrecting what main deleted.
+        # A true branch rename moves a row that still wears
         # its base identity on main.
         if base[old_key] != identity[1]:
             continue
@@ -240,7 +239,7 @@ def snapshot_rename_pairs(
     by name, so a rename arrives as a removal of the old name plus an addition of
     the new one — two rows that look like a deletion and an unrelated creation.
     The merge knows better, and this says what the merge knows, from the same
-    ``pair_renames`` the merge itself calls (tripl-amnn). A second implementation
+    ``pair_renames`` the merge itself calls. A second implementation
     would be free to drift, and the cost of drift here is a UI that promises a
     rename the merge then performs as a delete-plus-insert, cascading the
     variable's observed values and drift rows on the way through.
@@ -268,7 +267,7 @@ def snapshot_rename_pairs(
         base = identities_of(base_payload)
         branch = identities_of(branch_payload)
         # Same pairing the merge performs, including its variable-only vacating
-        # rule (tripl-ifuv), so the diff never promises what the merge refuses.
+        # rule, so the diff never promises what the merge refuses.
         renames = pair_renames(
             base,
             identities_of(main_payload),
@@ -299,8 +298,8 @@ def rekey_in_place[KeyT, ValueT](mapping: dict[KeyT, ValueT], renames: Mapping[K
     ``pair_renames`` can return a permutation — a two-row swap, or a longer
     rotation — so one pair's new key is another pair's old key. Re-keying a pair
     at a time would file the first row under the second pair's OLD key and then
-    read it straight back as the second row, quietly fusing two identities
-    (tripl-htcz). Lifting every moving entry out before putting any back cannot.
+    read it straight back as the second row, quietly fusing two identities.
+    Lifting every moving entry out before putting any back cannot.
 
     ``mapping`` must hold every old key. ``pair_renames`` only proposes a move
     for a key that is on main and in the base, which is exactly what the merge

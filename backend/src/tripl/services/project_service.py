@@ -265,7 +265,7 @@ async def _populate_open_incident_counts(
     """Stamp each summary with the inbox's OWN count of open incidents.
 
     The sidebar badge next to "Alerting" showed the destination count, so it read
-    "Alerting 1" beside a page listing 52 open incidents (tripl-oxkt.16). The fix
+    "Alerting 1" beside a page listing 52 open incidents. The fix
     is only worth anything if the number agrees with the page, so the counting is
     not done here at all: ``alerting_service.count_open_incidents`` owns it, next
     to the ``list_alert_inbox`` whose window, cap and lapsed-mute rule it has to
@@ -362,7 +362,7 @@ async def _populate_firing_monitor_counts(
     for state in states:
         states_by_rule[state.rule_id].append(state)
 
-    # Same per-grid horizon as the Monitors screen and dispatch (tripl-0zpq.162).
+    # Same per-grid horizon as the Monitors screen and dispatch.
     interval_of = await load_monitor_state_intervals(session, states)
     now = datetime.now(UTC)
     for project_id, rule_id in rule_rows:
@@ -493,7 +493,7 @@ async def _populate_monitoring_signals(
     # metric's newest anomaly against its latest stored value bucket ON THAT
     # METRIC'S OWN GRID), so the sidebar / ProjectsPage badge agrees with the
     # AnomaliesPage list. The grid half of that claim was aspirational until
-    # tripl-l429.17: the batched sibling passed no interval at all, so a daily
+    # the batched sibling passed no interval at all, so a daily
     # catalog metric read open on the page and zero here. Batched to
     # O(1) queries so listing N projects does not fan out to N per-project scans.
     # These signals have no scan_config_id and so cannot populate ``latest_signal``
@@ -531,7 +531,7 @@ async def _populate_monitoring_signals(
     # classified against its scope's latest bucket and its scan's liveness, the
     # "Significant" magnitude gate (every open signal across all scopes with
     # relative effect >= 0.5, incident children INCLUDED, no incident dedup, so
-    # the badge equals the AnomaliesPage's headline open count, tripl-yfsj.1),
+    # the badge equals the AnomaliesPage's headline open count),
     # and the triage filter. Rows come newest bucket first per project.
     open_rows = await open_counted_scan_signals(session, project_ids, SCAN_SCOPES)
     if not open_rows:
@@ -903,7 +903,7 @@ async def purge_project_rows(session: AsyncSession, project: Project) -> None:
 
     Split out of :func:`delete_project` so demo reset can drop the old demo and
     seed its replacement inside a single transaction: if seeding fails, the
-    rollback puts the old demo back untouched (tripl-2su6.13).
+    rollback puts the old demo back untouched.
 
     Data sources OWNED by this project (a demo's synthetic warehouse) are deleted
     explicitly, ahead of the project row, so nothing leaks a workspace-wide
@@ -922,7 +922,7 @@ async def purge_project_rows(session: AsyncSession, project: Project) -> None:
     ``scope_type='metric'`` plus a ``scope_ref`` holding the metric's UUID as
     TEXT, with a NULL ``scan_config_id``. Dropping the project cascades the
     ``metric_definitions`` rows away and leaves those anomalies behind forever,
-    pointing at ids nothing resolves (tripl-0zpq.179). Scan-scope anomalies are
+    pointing at ids nothing resolves. Scan-scope anomalies are
     not in this sweep: they hang off ``scan_config_id``, which the cascade does
     reach.
 

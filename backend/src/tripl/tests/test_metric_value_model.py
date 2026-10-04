@@ -1,4 +1,4 @@
-"""Model-level tests for MetricValue / MetricValueBreakdown storage (tripl-dxhp.2)."""
+"""Model-level tests for MetricValue / MetricValueBreakdown storage."""
 
 import uuid
 from collections.abc import Iterator

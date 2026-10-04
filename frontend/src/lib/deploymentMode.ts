@@ -29,7 +29,7 @@ export function requiresEmailVerification(status: AuthStatusResponse | null | un
   return status?.email_verification_required === true
 }
 
-/** A public demo (tripl-sav5): the server refuses whatever would reach outside it. */
+/** A public demo: the server refuses whatever would reach outside it. */
 export function isPublicDemoStatus(status: AuthStatusResponse | null | undefined): boolean {
   return status?.public_demo === true
 }

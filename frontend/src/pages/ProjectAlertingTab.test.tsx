@@ -20,7 +20,7 @@ async function pickInboxStatus(label: string) {
   fireEvent.click(await screen.findByRole('option', { name: label }))
 }
 
-// The sections are lazy chunks (tripl-fj5g.15). Load them once up front, so no
+// The sections are lazy chunks. Load them once up front, so no
 // test's first wait also pays for transforming a section's module graph.
 beforeAll(async () => {
   await Promise.all([
@@ -37,9 +37,9 @@ beforeAll(async () => {
  * operator reads rather than inferred from a request.
  *
  * The bulk route is the first thing on this page whose only feedback is a
- * toast: a single-incident action reports on its own row (tripl-oxkt.11), but a
+ * toast: a single-incident action reports on its own row, but a
  * batch spans N cards and belongs to none of them, so the sentence IS the
- * result and has to be pinned somewhere (tripl-gpfr).
+ * result and has to be pinned somewhere.
  */
 const { toastSuccess, toastError } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
@@ -96,7 +96,7 @@ function makeRule(overrides: Record<string, unknown> = {}) {
     items_template: null,
     message_format: 'plain',
     filters: [],
-    // The delivery-health block the card grew (tripl-oxkt.17/.18) reads all six
+    // The delivery-health block the card grew (.18) reads all six
     // of these unconditionally — `countOf(undefined, …)` throws, and these
     // fixtures are untyped JSON, so tsc would not have caught it.
     muted: false,
@@ -216,8 +216,7 @@ function mockAlertingFetch(
     inbox = [] as unknown[],
     deliveries = [] as unknown[],
     // Null is the ordinary answer — the server reached back the whole 30 days.
-    // A string is the shortened window it reports when its row cap bit first
-    // (tripl-39n6).
+    // A string is the shortened window it reports when its row cap bit first.
     windowTruncatedAt = null as string | null,
     // Left out of the project body unless given, as in the fixtures written
     // before guided setup read it; a number adds `summary.scan_count`.
@@ -289,7 +288,7 @@ function renderTab(
  * Every write on this page is editor-only server-side, and the page had no
  * concept of a role at all — the string "viewer" appeared nowhere in the
  * frontend, so a viewer was shown ~80 fully enabled controls, each of which
- * answered 403 (tripl-oxkt.9).
+ * answered 403.
  */
 function authValue(role: Role): AuthContextValue {
   return {
@@ -320,7 +319,7 @@ afterEach(() => {
   toastError.mockClear()
 })
 
-describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
+describe('ProjectAlertingTab — guided setup', () => {
   it('renders a single guided setup instead of three empty boxes when nothing is configured', async () => {
     mockAlertingFetch()
     renderTab()
@@ -369,7 +368,7 @@ describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
     mockAlertingFetch([makeDestination({ rules: [] })])
     renderTab('inbox')
 
-    // The original defect (tripl-7l83.14) was an empty Inbox box sitting beside
+    // The original defect was an empty Inbox box sitting beside
     // two others before anything could fill it. Sections removed the pile; what
     // has to hold now is that the Inbox says WHY it is empty instead of showing
     // a group list that can never have a row, which reads as "no incidents".
@@ -397,7 +396,7 @@ describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Set up alerting')).toBeNull()
 
-    // Rules is the fourth, and it is where the rules went (tripl-89ps). It was
+    // Rules is the fourth, and it is where the rules went. It was
     // called Monitors until JR-28 gave the object one name.
     for (const name of ['Inbox', 'Rules', 'Destinations', 'Delivery log']) {
       expect(screen.getByRole('tab', { name })).toBeInTheDocument()
@@ -409,7 +408,7 @@ describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
   })
 
   it('counts one group and one delivery in the singular, not "1 groups" / "1 deliveries"', async () => {
-    // Found sweeping for the shape behind "1 scans" (tripl-3y7z): both panel
+    // Found sweeping for the shape behind "1 scans": both panel
     // subtitles interpolated a bare plural. The very first alert a project ever
     // sends is what puts a 1 in each of them, so the defect greeted every
     // operator exactly once — on the delivery they were watching for.
@@ -422,7 +421,7 @@ describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
     // The Inbox subtitle no longer counts groups: it states how much of the
     // queue is on screen against the server total, because printing 57 above a
     // list of 20 with no control of any kind is what made 37 incidents
-    // unreachable (tripl-oxkt.1).
+    // unreachable.
     expect(await screen.findByText('Showing 1 of 1 · last 30 days + still silenced')).toBeInTheDocument()
 
     // The two subtitles now live on different tabs, so checking both means
@@ -440,7 +439,7 @@ describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
     expect(screen.queryByText('1 items')).toBeNull()
   })
 
-  it('carries the server\'s shortened window through to the subtitle (tripl-39n6)', async () => {
+  it('carries the server\'s shortened window through to the subtitle', async () => {
     // The page merges its inbox pages by hand, so the flag can be honest on the
     // wire and still never reach the component that says it. Asserted here and
     // not only in AlertingInbox.test.tsx for that reason: dropping the key from
@@ -458,7 +457,7 @@ describe('ProjectAlertingTab — guided setup (tripl-7l83.14)', () => {
   })
 })
 
-describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom of (tripl-oxkt.1)', () => {
+describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom of', () => {
   /**
    * An inbox server that actually pages and filters, so the list controls are
    * exercised against the contract rather than against a stub that ignores
@@ -568,7 +567,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     await screen.findByText(/Showing 2 of 2/)
     // Muting freezes a row's sort key, so a muted incident sinks past the page
     // boundary in about a day while the mute lasts a week — and the only
-    // control that lifts it lives on the card that muting hides (tripl-oxkt.2).
+    // control that lifts it lives on the card that muting hides.
     await pickInboxStatus('Muted')
 
     await waitFor(() => expect(inboxUrls.at(-1)).toContain('status=muted'))
@@ -587,7 +586,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
   // An incident card links to its scope's monitoring page, off this route
   // entirely — so with the filter in component state, checking one metric and
   // pressing Back handed the operator all 93 incidents again, and a narrowed
-  // queue could not be pasted to a colleague (tripl-ahg5).
+  // queue could not be pasted to a colleague.
   it('reads the status filter from ?status= so a narrowed queue is linkable', async () => {
     const { inboxUrls } = mockPagedInbox([
       makeInboxGroup({ status: 'muted', muted: true, muted_until: '2026-08-19T10:00:00Z' }),
@@ -780,7 +779,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
   })
 
-  it('pins a deep-linked incident the list does not contain (tripl-oxkt.13)', async () => {
+  it('pins a deep-linked incident the list does not contain', async () => {
     // The alert a reader is holding names an incident that aged past the newest
     // page hours ago. `?incident=` used to only pre-expand a card it never
     // fetched, so the link rendered nothing at all.
@@ -798,7 +797,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
   })
 })
 
-describe('ProjectAlertingTab — an inbox action reports on its own row (tripl-oxkt.11)', () => {
+describe('ProjectAlertingTab — an inbox action reports on its own row', () => {
   function mockInboxWithHeldAction(groups: Record<string, unknown>[]) {
     let releaseAction: ((value: Response) => void) | null = null
     const actionBodies: Record<string, unknown>[] = []
@@ -922,7 +921,7 @@ describe('ProjectAlertingTab — an inbox action reports on its own row (tripl-o
   })
 })
 
-describe('ProjectAlertingTab — an open-ended mute is confirmed and sent explicitly (tripl-a50u)', () => {
+describe('ProjectAlertingTab — an open-ended mute is confirmed and sent explicitly', () => {
   /**
    * Records the action request body and never answers it.
    *
@@ -1016,7 +1015,7 @@ describe('ProjectAlertingTab — an open-ended mute is confirmed and sent explic
   })
 })
 
-describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', () => {
+describe('ProjectAlertingTab — several incidents, one decision', () => {
   /** The bar's accessible name, so its presence is one query in every test. */
   const BULK_BAR = 'Bulk incident actions'
 
@@ -1025,7 +1024,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
    * scope. Direction and signal kind are part of the correlation key, so one
    * scope firing both ways is two cards — and two checkboxes both announced
    * "Select checkout_started" would be two identical controls deciding two
-   * different blast radii (tripl-gpfr). Spelled out here rather than built from
+   * different blast radii. Spelled out here rather than built from
    * `incidentReasonLabel` so these tests assert the English an operator hears
    * instead of re-running the helper that produces it.
    */
@@ -1049,7 +1048,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
     const singleActionUrls: string[] = []
     // How many times the LIST has been re-read. A note moves no status, so the
     // batch route's `onSettled` skips invalidation for it, and counting the
-    // requests is the only way to hold that (tripl-saq1).
+    // requests is the only way to hold that.
     const listFetches = { count: 0 }
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -1248,7 +1247,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
     // The open-ended choice IS offered here, and that is the scope rule
     // `mutePresets` documents rather than an oversight: these are INCIDENTS, and
     // a NULL `muted_until` on an incident is a mute that never lapses — the same
-    // NULL on an alert rule means not muted at all (tripl-a50u).
+    // NULL on an alert rule means not muted at all.
     fireEvent.click(
       screen.getByRole('button', { name: 'Mute 2 selected incidents until unmuted' }),
     )
@@ -1333,8 +1332,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
 
     await screen.findByText('Showing 2 of 2 · last 30 days + still silenced')
     // The bulk route is editor-only server-side like every other inbox write,
-    // so a viewer must not be able to assemble a batch they cannot spend
-    // (tripl-oxkt.9).
+    // so a viewer must not be able to assemble a batch they cannot spend.
     //
     // What this pins is the OUTCOME — a viewer sees neither affordance — and not
     // which of the two guards produces it: with no checkbox there is no
@@ -1359,7 +1357,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
     // the list did not change. So this is the one moment where the bar's
     // `canWrite &&` wrapper is load-bearing on its own — with the wrapper gone,
     // a non-empty selection keeps a fully enabled bar in front of a viewer whose
-    // every button round-trips to a 403 (tripl-oxkt.9, tripl-gpfr).
+    // every button round-trips to a 403.
     setRole('viewer')
 
     expect(screen.queryByRole('group', { name: BULK_BAR })).toBeNull()
@@ -1370,7 +1368,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
     expect(screen.getByText('Showing 2 of 2 · last 30 days + still silenced')).toBeInTheDocument()
   })
 
-  it('gives the whole batch one shared note (tripl-saq1)', async () => {
+  it('gives the whole batch one shared note', async () => {
     // The half of "select a group and give it one comment" that was missing.
     // The server has accepted a note on this route since it shipped; the bar had
     // no field for one, so the only way to say why twelve incidents were handled
@@ -1453,7 +1451,7 @@ describe('ProjectAlertingTab — several incidents, one decision (tripl-gpfr)', 
   })
 })
 
-describe('ProjectAlertingTab — a note that is wrong can be taken back (tripl-pdb2)', () => {
+describe('ProjectAlertingTab — a note that is wrong can be taken back', () => {
   /** Records the action request body and never answers it — see tripl-a50u. */
   function mockInboxCapturingAction(groups: Record<string, unknown>[]) {
     const actionBodies: Record<string, unknown>[] = []
@@ -1530,7 +1528,7 @@ describe('ProjectAlertingTab — a note that is wrong can be taken back (tripl-p
   })
 })
 
-describe('ProjectAlertingTab — demo workspaces are zero-egress (tripl-2su6.12)', () => {
+describe('ProjectAlertingTab — demo workspaces are zero-egress', () => {
   it('offers no external channel to add, and says why', async () => {
     mockAlertingFetch([makeDestination({ rules: [makeRule()] })], { isDemo: true })
     renderTab('destinations')
@@ -1545,7 +1543,7 @@ describe('ProjectAlertingTab — demo workspaces are zero-egress (tripl-2su6.12)
     expect(screen.queryByText('Add another channel')).toBeNull()
   })
 
-  it('renders the local sink card, badged as sending nothing (tripl-2su6.20)', async () => {
+  it('renders the local sink card, badged as sending nothing', async () => {
     // The sink is not one of the six addable channels, so it used to fall through
     // the per-channel grouping entirely: a demo's Destinations panel showed only
     // the disabled Slack example, while the destination that actually receives
@@ -1584,7 +1582,7 @@ describe('ProjectAlertingTab — demo workspaces are zero-egress (tripl-2su6.12)
   })
 })
 
-describe('ProjectAlertingTab — catalog metric scope (tripl-jfm3.108)', () => {
+describe('ProjectAlertingTab — catalog metric scope', () => {
   // Detection has always scored catalog metrics, but include_metrics had no box
   // on the rule form, so a metric-scope signal could not be routed anywhere.
   function mockWithRulePatches(rule: Record<string, unknown>) {
@@ -1617,7 +1615,7 @@ describe('ProjectAlertingTab — catalog metric scope (tripl-jfm3.108)', () => {
 
   it('seeds the Metrics box from the saved rule', async () => {
     mockWithRulePatches(makeRule({ include_metrics: true }))
-    // The rule form moved to the Monitors section with the rules (tripl-89ps).
+    // The rule form moved to the Monitors section with the rules.
     renderTab('monitors')
 
     fireEvent.click(await screen.findByRole('button', { name: /Edit rule/ }))
@@ -1679,9 +1677,9 @@ describe('ProjectAlertingTab — narrowing a rule to one scan', () => {
 
   it('names the bound scan in the rule settings, and says "all scans" when unbound', async () => {
     // Label and value are separate nodes since the run-on settings line was
-    // split into labelled pairs (tripl-oxkt.18), so the scan is asserted by its
+    // split into labelled pairs, so the scan is asserted by its
     // value under the "Scan" label rather than as one "Scan: …" string. The
-    // pairs now sit behind the row's expansion (tripl-89ps) — the list is for
+    // pairs now sit behind the row's expansion — the list is for
     // scanning state, the settings are one click under it.
     mockWithScans(makeRule({ scan_config_id: 'scan-ios' }))
     const { unmount } = renderTab('monitors')
@@ -1751,7 +1749,7 @@ describe('ProjectAlertingTab — Add Email destination', () => {
   })
 })
 
-describe('ProjectAlertingTab — per-scan focus via ?scan= (tripl-3y7z.2)', () => {
+describe('ProjectAlertingTab — per-scan focus via ?scan=', () => {
   // A scan run's "Alerts queued" counter links here with `?scan=<id>`. Without
   // the seed the link lands on an unfiltered audit log — which does not close
   // the finding: the owner still cannot get from a Telegram message back to the
@@ -2002,7 +2000,7 @@ describe('ProjectAlertingTab — the delivery log remembers where it was (ALR-36
   })
 })
 
-describe('ProjectAlertingTab — viewer role (tripl-oxkt.9)', () => {
+describe('ProjectAlertingTab — viewer role', () => {
   // The backend rejects every mutation on this page with 403 "Editor role
   // required" (deps.py), and the page used to offer all of them anyway.
   const configured = () =>
@@ -2110,7 +2108,7 @@ describe('ProjectAlertingTab — viewer role (tripl-oxkt.9)', () => {
   })
 })
 
-describe('ProjectAlertingTab — the destination confirm states the cascade (tripl-oxkt.13)', () => {
+describe('ProjectAlertingTab — the destination confirm states the cascade', () => {
   it('names the deliveries and incidents in the DIALOG, not only in a title', async () => {
     // The dialog is the control that actually gates the cascade, and it read
     // `Delete "Main Slack" and all its alert rules?` — naming none of the
@@ -2147,7 +2145,7 @@ describe('ProjectAlertingTab — the destination confirm states the cascade (tri
   })
 })
 
-describe('ProjectAlertingTab — a config write reaches the incident views (tripl-oxkt.14)', () => {
+describe('ProjectAlertingTab — a config write reaches the incident views', () => {
   /**
    * The production cache policy, not the test default.
    *
@@ -2278,7 +2276,7 @@ describe('ProjectAlertingTab — a config write reaches the incident views (trip
   })
 })
 
-describe('ProjectAlertingTab — guided setup lands step 2 on step 3 (tripl-oxkt.15)', () => {
+describe('ProjectAlertingTab — guided setup lands step 2 on step 3', () => {
   /** A destinations list that starts empty and holds what the POST creates. */
   function mockCreatableDestinations() {
     const created: Record<string, unknown>[] = []
@@ -2335,7 +2333,7 @@ describe('ProjectAlertingTab — guided setup lands step 2 on step 3 (tripl-oxkt
       screen.getByRole('tab', { name: 'Rules', hidden: true }),
     ).toHaveAttribute('aria-selected', 'true')
     // The new destination is the one the form is prefilled for — named on the
-    // picker the form grew when it left the destination card (tripl-89ps). The
+    // picker the form grew when it left the destination card. The
     // checklist promised "a rule prefilled on the new destination", and this is
     // the field that now carries that promise.
     expect(
@@ -2395,7 +2393,7 @@ describe('ProjectAlertingTab — guided setup lands step 2 on step 3 (tripl-oxkt
   })
 })
 
-describe('ProjectAlertingTab — the tab strip honours the contract it declares (tripl-oxkt.19)', () => {
+describe('ProjectAlertingTab — the tab strip honours the contract it declares', () => {
   const configured = () => mockAlertingFetch([makeDestination({ rules: [makeRule()] })])
 
   it('attaches the section body to the tab that names it', async () => {

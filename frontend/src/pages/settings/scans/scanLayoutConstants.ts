@@ -14,7 +14,7 @@ export const INTERVAL_LABEL: Record<string, string> = {
 // Status derived from the latest job. The real ScanConfig has no status field, so
 // callers map their job state into this canonical set.
 // `unknown` covers the window before a scan's job query resolves — the row has
-// no verdict yet, so it must not claim "Never run" (tripl-jfm3.28).
+// no verdict yet, so it must not claim "Never run".
 export type ScanStatus = 'ok' | 'running' | 'failed' | 'idle' | 'unknown'
 
 // Colour only. The WORD comes from SCAN_STATUS_LABEL below, so a scan's status

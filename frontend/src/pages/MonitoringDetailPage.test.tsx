@@ -45,7 +45,7 @@ vi.mock('@/components/ui/chart-lazy', () => ({
     <div
       data-testid="metrics-chart"
       data-forecast-count={forecast?.length ?? 0}
-      // The band multiplier the page handed the chart (tripl-2yww); the chart's
+      // The band multiplier the page handed the chart; the chart's
       // own honouring of it is pinned in chart.test.tsx.
       data-sigma-threshold={sigmaThreshold ?? ''}
       data-points={data?.length ?? 0}
@@ -418,7 +418,7 @@ describe('MonitoringDetailPage app-version view', () => {
   })
 })
 
-describe('MonitoringDetailPage volume granularity follows range (tripl-7l83.10)', () => {
+describe('MonitoringDetailPage volume granularity follows range', () => {
   // Radix Select drives selection through pointer capture, which jsdom omits.
   beforeAll(() => {
     if (!Element.prototype.hasPointerCapture) {
@@ -471,7 +471,7 @@ describe('MonitoringDetailPage volume granularity follows range (tripl-7l83.10)'
   const chartPoints = () => screen.getByTestId('metrics-chart').getAttribute('data-points')
   const chartForecastCount = () => screen.getByTestId('metrics-chart').getAttribute('data-forecast-count')
 
-  it('hands the chart the sigma threshold the payload serves (tripl-2yww)', async () => {
+  it('hands the chart the sigma threshold the payload serves', async () => {
     installProjectTotalFetch()
     renderMonitoringPage()
 
@@ -688,7 +688,7 @@ function renderEventDetail(search = '') {
   )
 }
 
-describe('MonitoringDetailPage back affordance (tripl-lkox)', () => {
+describe('MonitoringDetailPage back affordance', () => {
   function installProjectTotalOnlyFetch() {
     return vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -788,7 +788,7 @@ describe('MonitoringDetailPage event detail', () => {
     expect(screen.getByText(/Volume spike detected/)).toBeInTheDocument()
     // Fields table shows the schema field with its sensitivity chip. The field
     // also heads a row of the Spec card that leads the page for an event that
-    // is not live yet (tripl-kjhi.8), so the name appears twice.
+    // is not live yet, so the name appears twice.
     expect(screen.getAllByText('country').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByTestId('event-spec-card')).toBeInTheDocument()
     expect(screen.getByText('PII')).toBeInTheDocument()
@@ -925,7 +925,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(await screen.findByRole('heading', { name: 'checkout_completed' })).toBeInTheDocument()
   })
 
-  it('titles the page when the event has no name (tripl-wkwv.5)', async () => {
+  it('titles the page when the event has no name', async () => {
     // acme-ios holds one event whose name is the empty string. The <h1>
     // rendered it raw, so the page had an empty top-level heading.
     installEventDetailFetch({ event: { ...eventFixture(), name: '' } })
@@ -953,7 +953,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument()
   })
 
-  it('surfaces an inline volume-vs-baseline mini-chart beside the signal banner (tripl-yfsj.11)', async () => {
+  it('surfaces an inline volume-vs-baseline mini-chart beside the signal banner', async () => {
     installEventDetailFetch({
       latestSignal: dropToZeroSignal(),
       metricsData: [
@@ -979,7 +979,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(miniChart).toHaveAttribute('data-points', '2')
   })
 
-  it('hands the signal mini-chart the served sigma threshold (tripl-2yww)', async () => {
+  it('hands the signal mini-chart the served sigma threshold', async () => {
     installEventDetailFetch({ latestSignal: dropToZeroSignal(), sigmaThreshold: 6 })
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
@@ -989,7 +989,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(miniChart).toHaveAttribute('data-sigma-threshold', '6')
   })
 
-  it('names the baseline instead of titling a chart that cannot draw one (tripl-v2lm)', async () => {
+  it('names the baseline instead of titling a chart that cannot draw one', async () => {
     // expected_count/stddev are persisted only on FLAGGED buckets, so the
     // dashed expectation has a single non-null point and paints nothing. The
     // panel was titled "Volume vs. baseline" above one bare series — the
@@ -1137,7 +1137,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(screen.queryByTestId('signal-volume-chart')).not.toBeInTheDocument()
   })
 
-  it('reads "dropped to zero" instead of a clamped z-score when a drop bottoms out (tripl-yfsj.9)', async () => {
+  it('reads "dropped to zero" instead of a clamped z-score when a drop bottoms out', async () => {
     installEventDetailFetch({ latestSignal: dropToZeroSignal() })
     renderEventDetail()
     await screen.findByRole('heading', { name: 'checkout_completed' })
@@ -1148,7 +1148,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(banner.textContent).not.toMatch(/z\s*=/)
   })
 
-  it('names a zero baseline in the banner rather than dropping the clause (tripl-l429.27)', async () => {
+  it('names a zero baseline in the banner rather than dropping the clause', async () => {
     // An event firing where nothing was expected. The "vs. baseline" clause used
     // to be omitted silently, so the banner was quietly shorter on exactly the
     // signals that moved the most and a reader could not tell whether the
@@ -1241,7 +1241,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(chart).toHaveAttribute('data-value-sample', '')
   })
 
-  it('filters breakdown series to the selected values (tripl-egt5)', async () => {
+  it('filters breakdown series to the selected values', async () => {
     const point = metricPoint('2026-01-02T00:00:00Z', 10)
     installEventDetailFetch({
       breakdowns: {
@@ -1411,13 +1411,13 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     await screen.findByRole('heading', { name: 'Checkout completed' })
 
     // Once they differ this row is the only place that says which event the
-    // warehouse is still feeding (tripl-u2h9.10).
+    // warehouse is still feeding.
     const properties = screen.getByRole('table', { name: 'Properties' })
     expect(within(properties).getByText('Scan identity')).toBeInTheDocument()
     expect(within(properties).getByText('checkout_completed')).toBeInTheDocument()
   })
 
-  it('tells the authoring date and the first traffic apart (tripl-kjhi.10)', async () => {
+  it('tells the authoring date and the first traffic apart', async () => {
     installEventDetailFetch({
       event: { ...eventFixture(), first_seen_at: '2026-01-03T00:00:00Z' },
     })
@@ -1444,7 +1444,7 @@ describe('MonitoringDetailPage event-detail header and semantics', () => {
     expect(within(firstSeen).getByText('—')).toBeInTheDocument()
   })
 
-  it('names the successor, and links to it, once one is set (tripl-h2sx.13)', async () => {
+  it('names the successor, and links to it, once one is set', async () => {
     installEventDetailFetch({
       event: { ...eventFixture(), superseded_by_event_id: 'event-2' },
       successor: { ...eventFixture(), id: 'event-2', name: 'checkout_finished' },
@@ -1982,7 +1982,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens on 7d like every scope and keeps the 1d interval as its granularity (MON-43, tripl-4m86)', async () => {
+  it('opens on 7d like every scope and keeps the 1d interval as its granularity (MON-43)', async () => {
     const fetchSpy = installMetricDetailFetch('1d')
     renderMetricDetail()
 
@@ -1999,7 +1999,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(to - from).toBe(7 * 24 * 60 * 60 * 1000)
   })
 
-  it('threads the metric series sigma threshold into the chart (tripl-4cgl)', async () => {
+  it('threads the metric series sigma threshold into the chart', async () => {
     // A project that moved its sigma to 6: `adaptMetricSeries` has to carry the
     // served value, or the catalog metric's band falls back to 4 while the
     // event charts on the same page draw 6.
@@ -2018,7 +2018,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     await waitFor(() => expect(chart).toHaveAttribute('data-points', '2'))
   })
 
-  it('renders percent-unit metrics ×100 in the stat card and chart formatter (tripl-nxk2.1)', async () => {
+  it('renders percent-unit metrics ×100 in the stat card and chart formatter', async () => {
     installMetricDetailFetch(
       '1d',
       { unit: '%' },
@@ -2103,7 +2103,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     expect(screen.queryByRole('heading', { name: 'Volume' })).not.toBeInTheDocument()
   })
 
-  it('renders the Annotations card with metric-scope annotations (tripl-nxk2.13)', async () => {
+  it('renders the Annotations card with metric-scope annotations', async () => {
     installMetricDetailFetch('1d', {}, {}, [metricAnnotationFixture()])
     renderMetricDetail()
 
@@ -2146,7 +2146,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
     }))
   })
 
-  it('renders percent-metric breakdowns with the percent formatter and unit label (tripl-4dej)', async () => {
+  it('renders percent-metric breakdowns with the percent formatter and unit label', async () => {
     installMetricDetailFetch(
       '1d',
       { unit: '%' },
@@ -2618,7 +2618,7 @@ describe('MonitoringDetailPage catalog-metric drilldown', () => {
   })
 
   /**
-   * The coached demo scenario (tripl-2su6.21.5). Rendered inside the REAL
+   * The coached demo scenario. Rendered inside the REAL
    * provider: the persisted state is the only honest witness that the collect
    * the USER fired — not one of the demo tick's own — bound the scenario.
    */
@@ -2796,7 +2796,7 @@ describe('MonitoringDetailPage failures stay inside their tab (MON-8, MON-9)', (
   })
 })
 
-describe('MonitoringDetailPage deep links (tripl-h2sx.20)', () => {
+describe('MonitoringDetailPage deep links', () => {
   it('opens the tab and the breakdown column the link names', async () => {
     const fetchSpy = installEventDetailFetch({
       breakdowns: {
@@ -2851,7 +2851,7 @@ describe('MonitoringDetailPage deep links (tripl-h2sx.20)', () => {
   })
 })
 
-describe('Event implementation tickets (tripl-h2sx.32)', () => {
+describe('Event implementation tickets', () => {
   const TICKET = {
     id: 'ticket-1',
     project_id: 'p-1',

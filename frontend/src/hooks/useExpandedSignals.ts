@@ -13,7 +13,7 @@ import { expandedSignalsKey } from '@/lib/queryKeys'
  * (`topbarNotifications…`, `overview…`, `anomalies…`). Overview renders the top
  * bar, so that route fired the identical request twice with independent poll
  * timers, and an SSE invalidation had to name all three prefixes or leave one
- * surface stale (tripl-jfm3.119).
+ * surface stale.
  *
  * The key deliberately joins the existing `['activeSignals', slug, …]` family
  * the Events page already uses, so `invalidationMap.ts` covers it with no new

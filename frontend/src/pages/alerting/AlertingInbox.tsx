@@ -75,7 +75,7 @@ export type InboxStatusFilter = AlertInboxStatus | ''
  * are the same one.
  *
  * Its three states are NOT interchangeable, and nothing downstream may branch
- * on truthiness (tripl-a50u):
+ * on truthiness:
  *
  *  - `undefined` — this action carries no mute value at all (every action that
  *    is not `mute`).
@@ -100,8 +100,7 @@ export interface InboxActionVariables {
 const LOOKBACK_LABEL = `last ${INBOX_LOOKBACK_DAYS} days`
 
 /**
- * What the list actually covers, which is no longer only the window
- * (tripl-zfr3).
+ * What the list actually covers, which is no longer only the window.
  *
  * The window is a window on DELIVERIES, and silencing an incident is the act of
  * stopping its deliveries — so a still-silenced incident used to fall out of the
@@ -117,7 +116,7 @@ const LOOKBACK_LABEL = `last ${INBOX_LOOKBACK_DAYS} days`
 const COVERAGE_LABEL = `${LOOKBACK_LABEL} + still silenced`
 
 /**
- * The same sentence when the server could NOT reach back 30 days (tripl-39n6).
+ * The same sentence when the server could NOT reach back 30 days.
  *
  * The list is capped at a fixed number of delivery rows as well as by the
  * window, and the cap is applied on delivery recency BEFORE incidents are
@@ -144,13 +143,13 @@ interface AlertingInboxProps {
   inbox: AlertInboxListResponse | undefined
   // …and `isError` is the third fact. "No correlated alert groups" asserts the
   // reassuring one, and a failed request is the opposite fact about a queue
-  // somebody is deciding whether to look at (tripl-oxkt.10).
+  // somebody is deciding whether to look at.
   isLoading: boolean
   isError: boolean
   loadError: unknown
   // The `?incident=` group, fetched by id and pinned, when it is NOT in the
   // pages loaded below. An alert's own deep link used to dead-end: it only
-  // pre-expanded a card that was never fetched (tripl-oxkt.13).
+  // pre-expanded a card that was never fetched.
   pinnedGroup: AlertInboxGroup | null
   hasRules: boolean
   statusFilter: InboxStatusFilter
@@ -183,8 +182,8 @@ interface AlertingInboxProps {
   noteDraftStore: NoteDraftStore
   expandedIncidents: ReadonlySet<string>
   toggleIncident: (correlationGroupId: string) => void
-  // …and so is the bulk selection, threaded in exactly the way those two are
-  // (tripl-gpfr). It lives on the page and not here for a reason this component
+  // …and so is the bulk selection, threaded in exactly the way those two are.
+  // It lives on the page and not here for a reason this component
   // cannot serve: the page owns the query whose rows these ids index into, so it
   // is the only thing that can prune a selection when a status filter changes or
   // a refetch drops rows. It also owns the floating bulk bar, which is fixed to
@@ -196,7 +195,7 @@ interface AlertingInboxProps {
   selectedIncidents: ReadonlySet<string>
   toggleIncidentSelected: (correlationGroupId: string, selected: boolean) => void
   // Set several at once, for the header "select all shown" box and the
-  // shift-click range (tripl-rzkx). Separate from the single toggle rather than
+  // shift-click range. Separate from the single toggle rather than
   // folded into it because the page has to add or drop the whole batch in ONE
   // state update: fifty sequential toggles would each re-run the pruning pass
   // below them, and the bulk bar would count up one incident at a time.
@@ -204,7 +203,7 @@ interface AlertingInboxProps {
   onAction: (variables: InboxActionVariables) => void
   // The rows an action is in flight for. A single shared `isActionPending`
   // disabled all ~80 buttons on the page, so triage was strictly serial and the
-  // row you touched showed nothing at all (tripl-oxkt.11). A SET, not one id:
+  // row you touched showed nothing at all. A SET, not one id:
   // with one id, acting on B while A was in flight re-enabled A's buttons and
   // pinned any failure of A on B (ALR-28).
   pendingGroupIds: ReadonlySet<string>
@@ -214,7 +213,7 @@ interface AlertingInboxProps {
   // it — a colleague's resolve or a bulk action retires it.
   actionErrors: ReadonlyMap<string, InboxActionFailure>
   // Where a reader with no rules is sent. Rules moved off the destination cards
-  // into their own section (tripl-89ps), so this points at Monitors — adding a
+  // into their own section, so this points at Monitors — adding a
   // channel is not what unblocks an empty inbox, adding a rule is.
   onGoToMonitors: () => void
   focusDeliveryId?: string
@@ -260,7 +259,7 @@ export function AlertingInbox({
   const total = inbox?.total ?? 0
   // Every inbox action is editor-only server-side (deps.py `require_editor`),
   // and this page used to render all five buttons on all fifty rows to a viewer
-  // whose every click came back 403 (tripl-oxkt.9). Read once for the section;
+  // whose every click came back 403. Read once for the section;
   // the cards below omit their action cluster entirely rather than showing 250
   // disabled buttons with no explanation attached to any of them.
   const canWrite = useCanWriteProject()
@@ -268,7 +267,7 @@ export function AlertingInbox({
   // Which OTHER loaded incidents share a scope. Two groups on the same scope
   // are the same event seen through different detectors, and muting one leaves
   // the other paging — the card has to say so, or "I muted it and it came back"
-  // is the only available reading (tripl-oxkt.4).
+  // is the only available reading.
   const siblingsByGroupId = useMemo(() => {
     const byScope = new Map<string, AlertInboxGroup[]>()
     const loaded = inbox?.items ?? []
@@ -320,7 +319,7 @@ export function AlertingInbox({
 
   /**
    * One card's checkbox, with shift extending the range from the last one
-   * touched — so clearing a page of 50 is two clicks rather than 50 (tripl-rzkx).
+   * touched — so clearing a page of 50 is two clicks rather than 50.
    *
    * The whole range takes the state the CLICKED box just moved to, which is what
    * every list with this gesture does: shift-click a ticked box to clear the run,
@@ -437,7 +436,7 @@ export function AlertingInbox({
         subtitle={subtitle}
         // The Panel's `right` slot was going unused while the list it heads had
         // no control of any kind: 37 of 57 production incidents were reachable
-        // by no means at all (tripl-oxkt.1).
+        // by no means at all.
         right={
           <div className="flex flex-wrap items-center gap-3">
             {/* "Select all N shown", not "select all N matching" — the number in
@@ -445,7 +444,7 @@ export function AlertingInbox({
                 is about to act on is on screen and countable. That is the line
                 `InboxBulkActionBar` draws: what it refuses is a one-click sweep
                 of rows nobody has seen, not a sweep of the page in front of
-                you, which today costs 50 ticks on 16px boxes (tripl-rzkx). */}
+                you, which today costs 50 ticks on 16px boxes. */}
             {canWrite && selectableIds.length > 0 && (
               <div className="flex items-center gap-1.5">
                 <Checkbox
@@ -482,8 +481,7 @@ export function AlertingInbox({
               filter, so a filter whose matching incidents were the dropped ones
               renders ZERO cards — and that reader is the one who most needs to
               know the window was cut, because a bare "No resolved incidents."
-              reads as an answer about the project rather than about the page
-              (tripl-39n6).
+              reads as an answer about the project rather than about the page.
 
               Safe in every branch: `window_truncated_at` comes off the response,
               so it is null while loading and null on an error, and this renders
@@ -513,8 +511,8 @@ export function AlertingInbox({
                   {/* Naming the filter is the difference between "nothing has
                       ever happened here" and "nothing matches what you asked
                       for" — and the second one is undoable. */}
-                  {/* The window is deliberately NOT named here any more
-                      (tripl-zfr3). A silenced incident is now held past it, so
+                  {/* The window is deliberately NOT named here any more.
+                      A silenced incident is now held past it, so
                       "no muted incidents in the last 30 days" would state a
                       bound that does not govern the very filter it describes —
                       and ?status=muted is precisely the filter the rescue
@@ -523,7 +521,7 @@ export function AlertingInbox({
                   {/* Both halves are named because either can be the one that
                       emptied the page, and a sentence that mentions only the
                       status sends a reader to clear a filter that was not the
-                      cause (tripl-htfn.4). */}
+                      cause. */}
                   No {statusFilter ? `${alertInboxStatusLabel(statusFilter).toLowerCase()} ` : ''}
                   incidents
                   {hasActiveInboxFilters(filters) ? ' match these filters' : ''}.{' '}
@@ -592,7 +590,7 @@ export function AlertingInbox({
  *
  * Two entries because the two pages chart different entities: announcing an
  * event-type page as "view event volume" would re-make the event/event-type
- * conflation the deny-set is fenced against (tripl-oxkt.21). The words name the
+ * conflation the deny-set is fenced against. The words name the
  * CHART the reader lands on rather than the entity ("open event", "details"),
  * which is what stops the click reading as corroboration of a release-cohort
  * comparison neither page can reproduce.
@@ -676,12 +674,12 @@ const IncidentCard = memo(function IncidentCard({
   const [muteOpen, setMuteOpen] = useState(false)
   // Open when there is already a note to amend or a draft to finish, collapsed
   // when there is not: 20 identical empty inputs were the widest element in
-  // every card and added 20 tab stops to a list nobody was writing on
-  // (tripl-oxkt.14). Drafts outlive a section switch, so a returning reader
+  // every card and added 20 tab stops to a list nobody was writing on.
+  // Drafts outlive a section switch, so a returning reader
   // must not have to re-find the box holding what they typed.
   const [noteOpen, setNoteOpen] = useState(!!group.note || noteDraft.length > 0)
-  // Hands the caret to the editor when — and only when — the operator opened it
-  // (tripl-gwrd). "Add note" used to cost two clicks and a hunt: reveal the box,
+  // Hands the caret to the editor when — and only when — the operator opened it.
+  // "Add note" used to cost two clicks and a hunt: reveal the box,
   // then go find it, which is most of what made writing one feel like paperwork.
   //
   // A flag armed by the click and a callback ref that spends it, rather than
@@ -718,7 +716,7 @@ const IncidentCard = memo(function IncidentCard({
   const target = scopeSummary(group)
   const scopePath = getScopeMonitoringPath(slug, group)
   // Null whenever `scopePath` is not — it is guarded by that function's
-  // complement (tripl-wkwv.12), so the two can never both have an answer and no
+  // complement, so the two can never both have an answer and no
   // card can offer two links to one page. Which page it is decides the wording,
   // so the strings are resolved here rather than assumed to be the event's.
   const navTarget = getScopeNavigationTarget(slug, group)
@@ -739,7 +737,7 @@ const IncidentCard = memo(function IncidentCard({
   const isMuted = group.status === 'muted'
 
   // Emptying the box is how a note is DELETED, and it used to be the one
-  // gesture the editor refused (tripl-pdb2). The server has always supported it
+  // gesture the editor refused. The server has always supported it
   // — `_apply_inbox_action_to_state` writes `state.note = note.strip() or None`,
   // so an empty string clears the column, and both request schemas keep the
   // empty string valid for exactly this — but the button was disabled at an
@@ -769,10 +767,10 @@ const IncidentCard = memo(function IncidentCard({
     >
       <div className="flex items-start gap-2">
       {/* The leading checkbox, and the ONE thing that turns this list into a
-          queue you can sweep (tripl-gpfr). Gated on the same `canWrite` as the
+          queue you can sweep. Gated on the same `canWrite` as the
           action row below, and for the same reason: every inbox action is
           editor-only server-side, so a selection a viewer could build is a
-          selection nothing on the page would let them spend (tripl-oxkt.9).
+          selection nothing on the page would let them spend.
 
           Named by the SCOPE, through the same `scopeSummary` every action button
           on this card is named by. That is deliberate reuse and not convenience:
@@ -805,7 +803,7 @@ const IncidentCard = memo(function IncidentCard({
           // announced "Select checkout_started" are two identical controls a
           // screen-reader operator cannot tell apart. Same reason-then-scope
           // wording as the mute confirmation, so the control and the sentence
-          // that follows it name the same thing (tripl-gpfr).
+          // that follows it name the same thing.
           aria-label={`Select ${reason} on ${target}`}
         />
       )}
@@ -843,8 +841,8 @@ const IncidentCard = memo(function IncidentCard({
                 </span>
               </>
             )}
-            {/* A SEPARATE affordance, not the name made clickable
-                (tripl-wkwv.12). A release regression left a quarter of the
+            {/* A SEPARATE affordance, not the name made clickable.
+                A release regression left a quarter of the
                 production inbox as dead text: the name-as-link above is the
                 substantiating gesture the deny-set in lib/monitoring.ts
                 governs, and it is right to withhold it here — but "you cannot
@@ -925,7 +923,7 @@ const IncidentCard = memo(function IncidentCard({
           <span className="break-words">
             {/* Each rule is linked by ITS OWN id: `rules` pairs id with name, so
                 the card can no longer send "Volume rule" to whichever monitor
-                sorted first (tripl-oxkt.4). The monitor page is where the coarse
+                sorted first. The monitor page is where the coarse
                 mute lives — the one control that fits "silence all of this". */}
             {group.rules.length > 0
               ? group.rules.map((rule, index) => (
@@ -964,12 +962,12 @@ const IncidentCard = memo(function IncidentCard({
       </div>
       {/* Guarded on the EFFECTIVE flag, not on the timestamp: a lapsed mute
           used to render an "open" badge and "muted until <a date in the past>"
-          on the same card (tripl-oxkt.20).
+          on the same card.
 
           There are now THREE cases, and `muted` is the only signal that
           separates two of them, so the outer guard must stay exactly as it is:
             - in force, dated    → muted = true,  muted_until = <future>
-            - in force, no end   → muted = true,  muted_until = null (tripl-a50u)
+            - in force, no end   → muted = true,  muted_until = null
             - lapsed             → muted = false, muted_until = null
           Rewriting this around `muted_until` — the obvious way to make the
           open-ended case render — puts the "Open badge + mute line" card
@@ -980,7 +978,7 @@ const IncidentCard = memo(function IncidentCard({
           The open-ended row keeps status `muted` like any other, so the chip
           and the Muted filter need no special case — but its sort key is frozen
           and it never lapses, so it sinks out of the 30-day window for good and
-          that filter is the only route back to its Unmute (tripl-oxkt.2). */}
+          that filter is the only route back to its Unmute. */}
       {group.muted && (
         <div className="mt-2 text-body-sm text-fg-tertiary">
           {group.muted_until
@@ -1011,14 +1009,14 @@ const IncidentCard = memo(function IncidentCard({
           not offer what the API will refuse. The section says why once, at its
           head, and everything above this line — status, scope, magnitude, prior
           decision, the deliveries — is exactly as readable as it is for an
-          editor (tripl-oxkt.9). */}
+          editor. */}
       {canWrite && (
       <>
       {/* DOM order puts the note FIRST and `order` puts it back underneath:
           the actions used to precede it in the DOM while its placeholder
           promised the text would be "sent with the next action", so a keyboard
-          user reached the action first and the note was never sent
-          (tripl-oxkt.14). */}
+          user reached the action first and the note was never sent.
+          */}
       <div className="mt-2 flex flex-col gap-2">
         <div className="order-2">
           {noteOpen ? (
@@ -1027,7 +1025,7 @@ const IncidentCard = memo(function IncidentCard({
                   is MAX_INBOX_NOTE_LENGTH, and two thousand characters through a
                   28px slot shows about one line of them at a time, so the reader
                   cannot see the sentence they are writing — let alone the pasted
-                  error it is quoting (tripl-gwrd). Three rows is the whole of
+                  error it is quoting. Three rows is the whole of
                   a normal note without turning an untouched card into a form. */}
               <Textarea
                 ref={focusNoteWhenOpened}
@@ -1052,8 +1050,8 @@ const IncidentCard = memo(function IncidentCard({
               <div className="flex flex-wrap items-center gap-2">
                 {/* An explicit save, because a note used to be reachable only as a
                     passenger on an action — so writing down WHY something was a
-                    false positive meant first undoing the false positive
-                    (tripl-oxkt.14). `note` moves no status and stamps no
+                    false positive meant first undoing the false positive.
+                    `note` moves no status and stamps no
                     `acted_at`. */}
                 <Button
                   size="sm"
@@ -1090,7 +1088,7 @@ const IncidentCard = memo(function IncidentCard({
               read [Ack][Resolve][Mute][False positive] and muted rows read
               [Resolve][Mute][False positive][Reopen] — row 1's Mute overlapped
               row 3's False positive at the same x, and clicking down the list
-              turned a snooze into the destructive action (tripl-oxkt.8). Every
+              turned a snooze into the destructive action. Every
               slot now renders on every row; the inapplicable one is disabled. */}
           <Button
             size="sm"
@@ -1129,7 +1127,7 @@ const IncidentCard = memo(function IncidentCard({
             // second surface to drift from and hosting it in `mutePresets`
             // would push inbox-only state into their module. The asymmetry is
             // deliberate; the slot below is written the same way for the same
-            // reason (tripl-yapg, tripl-oxkt.3).
+            // reason.
             aria-label={isMuted ? `Change mute on ${target}` : muteName(target)}
             title="Silences this exact scan + rule + scope + signal kind + direction — for a preset duration, or until you unmute it. The only action that survives the scope going quiet."
             disabled={isPending}
@@ -1142,13 +1140,13 @@ const IncidentCard = memo(function IncidentCard({
               labelled "Reopen", a word that does a second, different job on a
               resolved card, and "Unmute" appeared nowhere on the page while
               MonitorDetailPage had a literal Unmute button for the other mute
-              system (tripl-oxkt.3).
+              system.
 
               Only the Unmute half is imported from `@/lib/mutePresets`. "Reopen
               <target>" is this surface's own word for lifting acknowledge,
               resolve and false-positive — it is not mute vocabulary and must
               never move into the mute module, or a rename there would silently
-              relabel three non-mute actions (tripl-yapg). */}
+              relabel three non-mute actions. */}
           <Button
             size="sm"
             variant="outline"
@@ -1160,7 +1158,7 @@ const IncidentCard = memo(function IncidentCard({
             }
             disabled={isPending || group.status === 'open'}
             // On an open card the slot is KEPT, so False positive stays at the
-            // same x on every row (tripl-oxkt.8), but not drawn: a greyed
+            // same x on every row, but not drawn: a greyed
             // "Reopen" on an open incident read as an available action (AL-17).
             className={cn(
               'max-sm:h-9 max-sm:px-3',
@@ -1197,13 +1195,13 @@ const IncidentCard = memo(function IncidentCard({
       {muteOpen && (
         <div className="mt-2 flex flex-wrap items-center gap-1 text-body-sm text-fg-tertiary">
           {/* Durations on the buttons, not a silent constant in the mutation:
-              every mute was 7 days and nothing said so (tripl-oxkt.7).
+              every mute was 7 days and nothing said so.
 
               INBOX_MUTE_CHOICES, not MUTE_PRESETS: the open-ended choice is
               offered HERE and only here. An incident with a NULL `muted_until`
               is muted forever; a RULE with a NULL `muted_until` is not muted at
               all (`is_rule_muted`), so the same button on the Monitors surfaces
-              would do the opposite of its label (tripl-a50u). The list is
+              would do the opposite of its label. The list is
               composed in the shared module so this file cannot grow its own
               wording for it — and since tripl-yapg the SENTENCE each button is
               announced by comes from that module too, not just the list, so
@@ -1218,7 +1216,7 @@ const IncidentCard = memo(function IncidentCard({
               className="max-sm:h-9 max-sm:px-3"
               // The open-ended button's visible face and its accessible name
               // differ on purpose, and the reason now lives with the branch
-              // that makes them differ — see `muteChoiceName` (tripl-yapg).
+              // that makes them differ — see `muteChoiceName`.
               // This is the only surface that can reach that branch at all: it
               // is the only one that maps INBOX_MUTE_CHOICES.
               aria-label={muteChoiceName(target, choice)}

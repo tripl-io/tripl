@@ -1,4 +1,4 @@
-"""The miniature corpus the search-relevance harness ranks against (tripl-338u).
+"""The miniature corpus the search-relevance harness ranks against.
 
 WHY THIS EXISTS
 ---------------
@@ -52,7 +52,7 @@ It is a deliberate miniature of three ranking faults measured on production
   variable are BOTH in the index, so a plural query has a wrong answer available
   to it and has to out-rank it rather than merely retrieve something.
 
-* **The stemmer splits a word into two unreachable halves** (tripl-uojz).
+* **The stemmer splits a word into two unreachable halves**.
   a7c3e1b9d5f2 fixed the bullet above and introduced this one: Snowball
   over-stems the bare nominative onto a lexeme none of that word's own
   inflections produce (``улов`` -> ``ул``, ``экран`` -> ``экра``), so the word
@@ -248,7 +248,7 @@ EVENTS: tuple[SeedEvent, ...] = (
         "Открытие карточки спота",
         (("view_id", "spot"), ("card_id", "spot_1042")),
     ),
-    # Fault B, Russian half — and the seed that CERTIFIED A BROKEN FIX (tripl-uojz).
+    # Fault B, Russian half — and the seed that CERTIFIED A BROKEN FIX.
     #
     # WHAT THIS SEED USED TO BE, AND WHY IT WAS A LIE
     # It carried the bare nominative "улов" twice in the description and once
@@ -346,7 +346,7 @@ _CUBE_KEYS: tuple[str, ...] = (
 #: body-token boost that no correctly-spelled entity can earn — the reason a
 #: stemmer alone did not move these queries and the ladder needed the 3.25 tier.
 #:
-#: THEY ALSO LANDED IN THREE EVENT DOCUMENTS, AND THAT WAS THE BUG (tripl-0qld)
+#: THEY ALSO LANDED IN THREE EVENT DOCUMENTS, AND THAT WAS THE BUG
 #: This variable binds to the `view_id` field of `app_open`, `screen_home` and
 #: `screen_settings`, all of which declare a `view_id` value — so
 #: `_event_document` picked their contexts up, and until tripl-0qld it joined the
@@ -364,7 +364,7 @@ _CUBE_KEYS: tuple[str, ...] = (
 #: `test_keyword_tier_premise.py` asserts that on the boost column directly.
 _SCREEN_NAMES: tuple[str, ...] = ("purchases", "уловы", "spots", "экран_поиска")
 
-#: Harvested surface kinds. THE OVER-STEM DOCUMENT (tripl-uojz).
+#: Harvested surface kinds. THE OVER-STEM DOCUMENT.
 #:
 #: WHY A DOCUMENT THAT HOLDS ONLY A BARE NOMINATIVE HAD TO BE ADDED
 #: Snowball splits a word into two disjoint lexical classes: the bare nominative
@@ -373,7 +373,7 @@ _SCREEN_NAMES: tuple[str, ...] = ("purchases", "уловы", "spots", "экра�
 #:
 #: Which inflections, exactly, is the thing to look up rather than guess, and
 #: guessing it is what produced a case that passed with the fix reverted
-#: (tripl-uojz). Measured: `экран`, `экрана` and `экраны` ALL stem to `экра`;
+#:. Measured: `экран`, `экрана` and `экраны` ALL stem to `экра`;
 #: only `экране` stems to `экран`. So the query that reaches this document ONLY
 #: through the surface leg is `q='экране'` — `q='экрана'` reaches it on the stem
 #: leg like any other word.
@@ -397,7 +397,7 @@ _SCREEN_NAMES: tuple[str, ...] = ("purchases", "уловы", "spots", "экра�
 #: WHY THIS DOCUMENT IS CLEAN, CHECKED AGAINST `_search_documents`
 #: `_variable_document` builds body from the variable name, its source name, its
 #: description and `_variable_context_text`, and keywords from the same minus the
-#: harvested VALUES (tripl-gbxj). So the only Cyrillic that can reach this
+#: harvested VALUES. So the only Cyrillic that can reach this
 #: document's indexed text is: the description, the bound field's `display_name`,
 #: and these values. The description below carries no form of `экран`; the bound
 #: field is `card_id` / "Карточка"; and of the values only "экран" is a form of
@@ -440,7 +440,7 @@ _TOWNS: tuple[str, ...] = ("Тверь", "Казань", "Сочи", "Пермь
 _SESSION_KEYS: tuple[str, ...] = ("asdkjhasd7f2", "k18sjdhq", "a91mzz01")
 
 #: Harvested card destinations: the identifier of the screen a settings card
-#: opens. THE REPETITION OUTLIER (tripl-gbxj, normalization half).
+#: opens. THE REPETITION OUTLIER (normalization half).
 #:
 #: WHY THIS EXISTS NEXT TO THE SPOT VARIABLES ABOVE, WHICH LOOK LIKE THE SAME THING
 #: `property.spot_id` and friends reproduce the SHAPE of fault A — a
@@ -580,7 +580,7 @@ VARIABLES: tuple[SeedVariable, ...] = (
             7311,
         ),
     ),
-    # The repetition outlier (tripl-gbxj). See _SETTINGS_CARD_TARGETS for why the
+    # The repetition outlier. See _SETTINGS_CARD_TARGETS for why the
     # count is 180 and what each code path scores.
     #
     # THE BINDINGS ARE WHAT KEEP THE BLAST RADIUS AT ZERO — DO NOT "TIDY" THEM
@@ -629,7 +629,7 @@ VARIABLES: tuple[SeedVariable, ...] = (
             5188,
         ),
     ),
-    # The over-stem document (tripl-uojz). See _SCREEN_KINDS for why it exists,
+    # The over-stem document. See _SCREEN_KINDS for why it exists,
     # why the word is `экран`, and why nothing but the surface leg can retrieve
     # it for an inflected query.
     #
@@ -641,7 +641,7 @@ VARIABLES: tuple[SeedVariable, ...] = (
     # the fix reverted. That is the exact failure this seed was added to end, and
     # it is not the failure the obvious guess protects against: `экрана` stems to
     # `экра`, the same class the document already holds, so wording built around
-    # THAT form would be harmless here and is not what to look for (tripl-uojz).
+    # THAT form would be harmless here and is not what to look for.
     SeedVariable(
         name="property.screen_kind",
         description="Тип поверхности, определено автоматически",
@@ -663,12 +663,12 @@ async def seed_corpus(session: AsyncSession) -> Corpus:
     auth and a dozen endpoints into the failure surface of a search test. The
     documents themselves are still built by production code — the caller runs
     ``search_service.reindex_project_branch``, so ``build_documents`` and
-    ``_refresh_text_vectors`` produce exactly the rows production ranks (tripl-338u).
+    ``_refresh_text_vectors`` produce exactly the rows production ranks.
     """
     project = Project(
         name=PROJECT_NAME,
         slug=PROJECT_SLUG,
-        description="Fixed corpus for the search relevance harness (tripl-338u)",
+        description="Fixed corpus for the search relevance harness",
     )
     session.add(project)
     await session.flush()

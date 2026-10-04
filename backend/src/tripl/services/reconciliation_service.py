@@ -78,12 +78,12 @@ def _not_an_archived_identity(project_id: uuid.UUID) -> ColumnElement[bool]:
     """Anti-join excluding candidates whose identity belongs to an archived event.
 
     Archiving means "put it away", so the identity is in the plan and by
-    definition not an unmapped event. The collector stopped writing these
-    (tripl-w3ms), but rows written before that shipped would otherwise sit in the
+    definition not an unmapped event. The collector stopped writing these,
+    but rows written before that shipped would otherwise sit in the
     inbox forever: accepting one only 409s on the duplicate source identity, so
     there is no way for the user to clear it.
 
-    Correlated on ``event_type_id`` as well (tripl-0zpq.223): a scan identity is
+    Correlated on ``event_type_id`` as well: a scan identity is
     one per event TYPE (``uq_event_scan_identity``), and the collector's archived
     set is keyed per type (``_archived_identities_by_event_type``), so an
     archived type-A event with identity X must not hide a type-B candidate X the
@@ -132,7 +132,7 @@ async def list_shadow_events(
     query = (
         # display_name is what every other surface labels an event type with
         # (activity_service.py:76, alert_payload.py:58) — projecting the internal
-        # `name` here made Reconciliation the odd one out (tripl-w9od).
+        # `name` here made Reconciliation the odd one out.
         select(
             ShadowEventCandidate,
             ScanConfig.name,
@@ -266,7 +266,7 @@ async def _event_type_on_branch(
 # promise; tests/test_audit.py freezes it by reading imports. So the facts the row
 # needs have to LEAVE the service, the same division of labour
 # ``event_service.bulk_delete_events`` uses when it hands the router back
-# (id, name) pairs for the delete row (tripl-wkwv.13).
+# (id, name) pairs for the delete row.
 
 
 @dataclass(frozen=True)
@@ -332,7 +332,7 @@ async def accept_shadow_event(
         # The candidate's type id was resolved by the SCAN, and a scan reads
         # main's plan, so it is always a MAIN event type id. Writing it onto a
         # row on a working branch would give that row main's identity, which
-        # ``create_event`` now refuses outright (tripl-0zpq.123) — and with it
+        # ``create_event`` now refuses outright — and with it
         # the whole branch accept flow. Translated by NAME to the branch's own
         # copy, which is the pairing ``load_governing_scan_configs_by_type`` and
         # ``services/_branch_counterparts`` already use in the other direction.
@@ -346,8 +346,7 @@ async def accept_shadow_event(
         )
     # Per event type, like every other statement of the identity rule
     # (``uq_event_scan_identity``, ``_guard_scan_identity``): a type-A event
-    # holding identity X does not stop a type-B event from taking it
-    # (tripl-0zpq.223).
+    # holding identity X does not stop a type-B event from taking it.
     existing = await session.scalar(
         select(Event.id).where(
             Event.project_id == project_id,
@@ -372,13 +371,13 @@ async def accept_shadow_event(
     # than assigned after the call for two reasons: create_event would otherwise
     # try to derive a name from a governing event_name_format, and a candidate
     # carries no field values, so every placeholder reads as missing and the
-    # accept 422s on any rule-governed event type (tripl-u2h9.12); and assigning
+    # accept 422s on any rule-governed event type; and assigning
     # it afterwards wrote the identity in a second transaction, after the search
     # index for this event had already been built without it.
     # ``user_id`` names the accepting editor in the event's own 'created' history
     # row, the way POST /events does. Without it the row was anonymous and the
     # docs' claim that an accepted candidate is indistinguishable from one you
-    # typed was false on the History tab (tripl-0zpq.225).
+    # typed was false on the History tab.
     event = await event_service.create_event(
         session,
         slug,
@@ -529,8 +528,7 @@ async def list_dead_events(
                 # covers only the never-seen case, where a freshly authored
                 # event legitimately has no data yet. Gating both cases on
                 # created_at hid genuinely stale events behind a young plan row
-                # and made every backdated demo event permanently unflaggable
-                # (tripl-jfm3.58).
+                # and made every backdated demo event permanently unflaggable.
                 (
                     (Event.last_seen_at.is_(None) & (Event.created_at < cutoff))
                     | (Event.last_seen_at < cutoff)

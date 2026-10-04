@@ -127,7 +127,7 @@ export default function MainPage() {
     provisioning.status === 'provisioning' || provisioning.status === 'cancelling'
 
   // Every demo is an extra synthetic workspace inside the real roll-ups, so the
-  // second one asks first and points at Reset instead (tripl-jfm3.14).
+  // second one asks first and points at Reset instead.
   //
   // At the cap the button is disabled with the reason beside it (DEMO-27): the
   // old confirm there had two buttons that both did nothing.
@@ -168,12 +168,12 @@ export default function MainPage() {
       : String(dataSourceCount)
   const isOwner = isOwnerRole(user?.role)
   const canCreateProject = canWrite(user?.role)
-  // A public demo runs on demo projects only: generated, never blank (tripl-sav5).
+  // A public demo runs on demo projects only: generated, never blank.
   const canCreateBlank = canCreateProject && !publicDemo
   const canDeleteProject = isOwner
   // Loaded-and-empty workspace: the welcome hero replaces the header CTA pair,
   // the all-zero stat band, and the old EmptyState until the first project
-  // exists. Loading and error states render exactly as before (tripl-odrj.1).
+  // exists. Loading and error states render exactly as before.
   const isEmptyWorkspace =
     !projectsQuery.isLoading && !projectsQuery.isError && projects.length === 0
 
@@ -271,7 +271,7 @@ export default function MainPage() {
               stretched to double width to carry the shortest sentence on the
               strip. Stacked, all three get a real third of the panel and the
               calm row stops being centred in a 200px-tall box with ~160px of
-              void around it (tripl-oqig). */}
+              void around it. */}
           <div
             className="flex flex-col gap-3 rounded-card border p-3 bg-surface border-border"
           >
@@ -281,7 +281,7 @@ export default function MainPage() {
                 label="Coverage"
                 value={coverageDisplay}
                 // The fraction carries its unit: "2993/5291" beside a percentage
-                // left the reader guessing what was being counted (tripl-14eh).
+                // left the reader guessing what was being counted.
                 delta={
                   portfolio.activeEventCount > 0
                     ? `${portfolio.implementedEventCount}/${portfolio.activeEventCount} events`
@@ -299,7 +299,7 @@ export default function MainPage() {
               {/* "Automation 8 · 3 covered" was the only tile on the landing page
                   that never said what it counted, and the page subtitle above it
                   ("scan and alerting coverage") invited reading the 8 as scans +
-                  alert rules — it is scans alone (tripl-14eh). */}
+                  alert rules — it is scans alone. */}
               <MiniStat
                 label="Scans"
                 value={String(portfolio.scanCount)}
@@ -326,7 +326,7 @@ export default function MainPage() {
                   to link to whichever project was edited last — "2292 events across
                   3 projects" opening the 796 of them in one — so it names where the
                   events are instead, and each project card's own in-review chip
-                  is the link into that project's queue (tripl-a1d1). */}
+                  is the link into that project's queue. */}
               <AttentionStat
                 icon={BellRing}
                 label="In review"

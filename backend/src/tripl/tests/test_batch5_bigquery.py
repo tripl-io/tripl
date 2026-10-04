@@ -148,7 +148,7 @@ def _bq() -> tuple[BigQueryAdapter, _Client]:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.64 — the bucket column is an aware UTC datetime on every read path
+# the bucket column is an aware UTC datetime on every read path
 # --------------------------------------------------------------------------- #
 
 
@@ -333,7 +333,7 @@ def test_normalizing_an_empty_rowset_is_not_an_error() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.66 — the rejection has to reach the operator, not just the log
+# the rejection has to reach the operator, not just the log
 # --------------------------------------------------------------------------- #
 
 
@@ -432,7 +432,7 @@ def test_the_curated_messages_carry_no_connection_details() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.67 — a GoogleSQL quoted literal may not contain a line terminator
+# a GoogleSQL quoted literal may not contain a line terminator
 # --------------------------------------------------------------------------- #
 
 
@@ -594,7 +594,7 @@ def test_a_contract_regex_with_a_newline_does_not_break_the_contract_scan() -> N
 
 
 # --------------------------------------------------------------------------- #
-# tripl-0zpq.70 — one bound for the allowlist and the browse it feeds
+# one bound for the allowlist and the browse it feeds
 # --------------------------------------------------------------------------- #
 
 

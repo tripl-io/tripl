@@ -75,7 +75,7 @@ export function BranchReviewSummary({
 
   // Only the project's members, and the organization's owners and admins who
   // see every project without a member row, can review: anyone else cannot see the project, and
-  // the server refuses them (tripl-vefw).
+  // the server refuses them.
   const { data: members } = useQuery({
     ...projectMembersQueryOptions(slug),
     enabled: canWrite && open,

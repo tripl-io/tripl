@@ -1,4 +1,4 @@
-"""A public instance cannot be used to reach its own network (tripl-sav5.1).
+"""A public instance cannot be used to reach its own network.
 
 Hosted: a warehouse host must resolve to public addresses only, and the driver
 connects to the address that was vetted (Postgres ``hostaddr``, ClickHouse the

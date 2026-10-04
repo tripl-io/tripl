@@ -67,7 +67,7 @@ const ANOMALY_GRID =
 // The presets, the threshold and relativeEffect() live in @/lib/signalMagnitude
 // so this page, the Overview headline, the top-bar bell and the backend badge
 // all rank and gate signals identically — they drifted apart twice when each
-// surface kept its own copy (tripl-yfsj.1, tripl-jfm3.89).
+// surface kept its own copy.
 
 // The four scopes that have a monitoring detail route (metric scope_ref is the
 // metric definition id, routed via getMetricMonitoringPath); getMonitoringPath
@@ -87,8 +87,8 @@ function isLinkableScope(signal: MonitoringSignal): boolean {
  *
  * Deliberately not the `scope_ref`: a hex prefix reads as a name, and the same
  * incident the activity rail calls `spot_auto_change_model` then appears here as
- * "Event d4c684dd" — two names for one incident, depending on the page
- * (tripl-y4wt). The ref stays in the accessible name and the tooltip so the row
+ * "Event d4c684dd" — two names for one incident, depending on the page.
+ * The ref stays in the accessible name and the tooltip so the row
  * is still traceable.
  *
  * Words and not a shimmer bar. `animate-pulse` is this app's Skeleton
@@ -135,7 +135,7 @@ const facetLabel = (id: string, scanNames: ScanNames): string =>
 // clears it and `?verdict=<kind>` lists one verdict. Filtered here, on the one
 // shared expanded list, rather than with the server's `?needs_verdict=true`:
 // the bell and Overview read the same cache entry, and a second key would fork
-// it (tripl-jfm3.119).
+// it.
 type VerdictFilter = 'needs' | 'all' | SignalVerdictKind
 const DEFAULT_VERDICT_FILTER: VerdictFilter = 'needs'
 const VERDICT_FILTERS: readonly VerdictFilter[] = [
@@ -160,9 +160,9 @@ export default function AnomaliesPage() {
   const { slug } = useParams<{ slug: string }>()
   // Both facets live in the URL, not in component state, so a scan can hand its
   // own anomalies over — the "Signals added" counter on a scan run links to
-  // `?scan=<id>` (tripl-3y7z.2) — and so opening a signal to investigate it and
+  // `?scan=<id>` — and so opening a signal to investigate it and
   // pressing Back does not snap the magnitude filter back to Significant,
-  // re-hiding 162 of 209 rows on acme-ios (tripl-ahg5). The rows themselves are
+  // re-hiding 162 of 209 rows on acme-ios. The rows themselves are
   // links off this route, so that Back is the page's primary path, not an
   // incidental one. Same idiom as MetricsCatalog's `?kind=`; `replace` — a
   // filter flip is not a place the Back button should stop.
@@ -197,9 +197,9 @@ export default function AnomaliesPage() {
 
   // expanded: surface every flagged scope — project_total, each event_type and
   // each event — instead of collapsing an incident's fan-out into one total row.
-  // Shared key with the top bar and Overview (tripl-jfm3.119).
+  // Shared key with the top bar and Overview.
   // Each signal carries its own `scope_name`, so no catalog fetch is needed to
-  // label the rows (tripl-y4wt).
+  // label the rows.
   const signalsQuery = useExpandedSignals(slug)
 
   // Scan names for the facet below. Shares the app-wide ['scans', slug] key, so
@@ -293,7 +293,7 @@ export default function AnomaliesPage() {
   // dead link: a run from last week reports "Raised 2 anomaly signals", links
   // here, and by now both have closed. Dropping the filter then answers a
   // question nobody asked — a full list of some OTHER scan's anomalies, with no
-  // control showing that a filter was discarded (tripl-3y7z.2).
+  // control showing that a filter was discarded.
   //
   // So the selection survives for any scan this project has, and only an id the
   // project does not have falls back to "all". While the scan list is still in

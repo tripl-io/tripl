@@ -11,7 +11,7 @@ import CoveragePage from './CoveragePage'
 
 // Mirrors prod acme-ios: 2,413 non-archived events, 1,844 implemented and 568
 // awaiting review — so the bar's arithmetic remainder (569) and the review tile
-// (568) are deliberately one apart (tripl-jfm3.29).
+// (568) are deliberately one apart.
 function summary(overrides: Partial<ProjectSummary> = {}): ProjectSummary {
   return {
     event_type_count: 12,
@@ -82,8 +82,7 @@ afterEach(() => {
 describe('CoveragePage', () => {
   // The gap panel counts implemented/live events with a creation grace period,
   // NOT the 2,413 "active events" tile 90px above it. Calling both populations
-  // "active events" made the page contradict the Events page's Silent filter
-  // (tripl-jfm3.23).
+  // "active events" made the page contradict the Events page's Silent filter.
   it('names the gap panel population instead of calling it "active events"', async () => {
     vi.spyOn(projectsApi, 'get').mockResolvedValue(project())
     vi.spyOn(reconciliationApi, 'deadEvents').mockResolvedValue(dead)
@@ -125,8 +124,7 @@ describe('CoveragePage', () => {
   })
 
   // The bar's remainder (active − implemented) includes draft/ready-for-dev
-  // events, so it is not the "in review" count and must not read as it
-  // (tripl-jfm3.29).
+  // events, so it is not the "in review" count and must not read as it.
   it('labels the coverage bar remainder "not implemented", distinct from the review tile', async () => {
     vi.spyOn(projectsApi, 'get').mockResolvedValue(project())
     vi.spyOn(reconciliationApi, 'deadEvents').mockResolvedValue(dead)
@@ -146,7 +144,7 @@ describe('CoveragePage', () => {
   // events panel. While the two pages held their own windows (30 here, 14
   // there) the destination answered a different question than the count that
   // sent the user there — a shorter window is a WEAKER silence test, so
-  // Reconciliation listed MORE events (tripl-jfm3.79). Both now read
+  // Reconciliation listed MORE events. Both now read
   // DEAD_EVENT_DAYS; ReconciliationPage.test.tsx pins the other half.
   it('queries dead events over the shared DEAD_EVENT_DAYS window', async () => {
     vi.spyOn(projectsApi, 'get').mockResolvedValue(project())

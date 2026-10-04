@@ -180,8 +180,7 @@ async def _build_event_type_by_event_id(
 
     The async twin of ``worker.tasks.metrics.alert_payload
     ._build_event_type_by_event_id``; same predicate, same query, so the in-UI
-    replay narrows an ``event_type`` filter exactly as live dispatch does
-    (tripl-0zpq.7).
+    replay narrows an ``event_type`` filter exactly as live dispatch does.
     """
     from sqlalchemy import select
 
@@ -271,7 +270,7 @@ async def _build_scope_name_map(
     # ``drift_field``, so it reads "<event>.<variable>" — the live rule, from
     # ``worker.tasks.metrics.alert_payload._build_alert_scope_names``. Its
     # ``scope_ref`` is the drift ROW's uuid, so without this branch every such
-    # firing in the replay table would be named by a raw id (tripl-0zpq.158).
+    # firing in the replay table would be named by a raw id.
     for anomaly in anomalies:
         if anomaly.scope_type != SCOPE_VARIABLE_VALUE_DRIFT or anomaly.event_id is None:
             continue
@@ -388,7 +387,7 @@ async def _load_schema_drift_candidates(
       ``SchemaDrift.scan_config_id == config.id`` and a NULL never equals a
       config id. Live goes quiet on those rows the moment the scan goes, so a
       replay that kept listing them would be LOUDER than the pipeline it
-      predicts, which is the same defect as being quieter (tripl-0zpq.158).
+      predicts, which is the same defect as being quieter.
       Nothing is hidden permanently: ``_upsert_schema_drifts``'s ``coalesce``
       re-stamps the provenance as soon as any scan re-detects the same (event
       type, field, kind), and the row becomes deliverable and replayable again
@@ -518,7 +517,7 @@ async def _load_variable_value_drift_candidates(
       NULL`` when a scan is deleted, and a NULL can never equal a config id, so
       live can never deliver such a row. A replay that showed it would be LOUDER
       than the pipeline it predicts, which is the same defect as being quieter
-      (tripl-0zpq.158) — and the demo seeds exactly one of them on purpose
+       — and the demo seeds exactly one of them on purpose
       (``services/demo/builders/variables._build_value_drift``).
 
     The join to ``Variable`` carries both the display name and the
@@ -637,7 +636,7 @@ async def _load_release_regression_candidates(
     family the replay is a LOWER bound, not an estimate — see
     ``website/docs/use/alerting.md``. It is still the honest answer available
     from the rows that exist, and it is enormously closer than the zero this
-    replay used to report (tripl-0zpq.158).
+    replay used to report.
 
     The ``app_version_column`` clause mirrors the live short-circuit instead of
     trusting "no rows exist anyway". Rows outlive the setting — nothing purges
@@ -688,7 +687,7 @@ async def _load_release_regression_candidates(
             # reads it back off the candidate. Drop either and
             # ``build_drift_line`` silently loses the clause on the preview side
             # only — the exact preview/send split the shared builder exists to
-            # close (tripl-0zpq.165).
+            # close.
             window_from=regression.window_from,
         )
         for regression in rows
@@ -893,7 +892,7 @@ async def simulate_rule(
     )
     # SIX sources, matching the ``dispatch._prepare_alert_deliveries`` merges
     # (worker/tasks/metrics/dispatch.py); property drift (F23) is the sixth. It was three until
-    # tripl-0zpq.158: variable-value drifts and release regressions were never
+    # variable-value drifts and release regressions were never
     # loaded, so a rule with ``include_variable_value_drifts`` or
     # ``include_release_regressions`` on replayed SILENT while the pipeline
     # paged on every one of those rows — and silent in every field at once,
@@ -946,7 +945,7 @@ async def simulate_rule(
     # the same predicate the live path uses in
     # ``dispatch._prepare_alert_deliveries`` — the replay and the pipeline have to
     # answer the same question, which is the whole point of
-    # ``tripl.alerting_matching`` (tripl-0zpq.7).
+    # ``tripl.alerting_matching``.
     event_type_by_event_id = await _build_event_type_by_event_id(session, anomalies)
 
     matched_before_cooldown = sum(
@@ -974,7 +973,7 @@ async def simulate_rule(
 
     # Every field is read off the candidate by ``SimulatedRuleFiring.from_candidate``,
     # the constructor the demo seeder shares, so the replay and the demo cannot
-    # disagree about a firing's shape (tripl-0zpq.324). It also owns the two
+    # disagree about a firing's shape. It also owns the two
     # guarantees this loop used to spell out: the delta goes through the SHARED
     # ``alert_templates.percent_delta_of`` (the simulator reporting 0.0% where
     # dispatch reported 200% for the same signed catalog metric was
@@ -1006,8 +1005,8 @@ async def simulate_rule(
         else rule.cooldown_minutes
     )
     # The detector threshold this replay is measured against, read from the one
-    # place the detector itself reads it: the PROJECT's Detection settings
-    # (tripl-0zpq.160). This used to quote ``ScanConfig.sigma_threshold`` — a
+    # place the detector itself reads it: the PROJECT's Detection settings.
+    # This used to quote ``ScanConfig.sigma_threshold`` — a
     # per-scan copy of the same number that nothing scores against and no API
     # writes. ``worker.tasks.metrics.detect`` builds its
     # ``AnomalyDetectionSettings`` from ``ProjectAnomalySettings`` alone

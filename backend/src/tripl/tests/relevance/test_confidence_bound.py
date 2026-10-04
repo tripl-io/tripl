@@ -1,4 +1,4 @@
-"""Only a document that IS what was typed may be painted as certain (tripl-d5u8).
+"""Only a document that IS what was typed may be painted as certain.
 
 WHY THIS NEEDS A REAL POSTGRESQL, AND WHY THE BACKEND SUITE CANNOT HOST IT
 --------------------------------------------------------------------------

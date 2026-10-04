@@ -3,7 +3,7 @@
 Both drift scopes are downstream of configuration the AlertRule does not own, so
 a rule can enable one and be structurally unable to fire: the flag only ever
 NARROWS a candidate set, and when the producing side is empty there is no
-candidate for it to narrow (tripl-wkwv.1). This module answers only "is there
+candidate for it to narrow. This module answers only "is there
 anything here to draw on", never "will it fire" — the second question belongs to
 detection and dispatch, which run on a scan, not on a polling GET.
 
@@ -69,7 +69,7 @@ async def load_scope_readiness(
     Each scope asks the same pair of questions its candidate builder answers —
     is anything CONFIGURED to produce a candidate, and has anything already been
     COLLECTED that the builder would still pick up. Either alone is readiness;
-    the two must stay symmetric across the scopes (tripl-wkwv.1).
+    the two must stay symmetric across the scopes.
     """
     # Read-only, deliberately: ``plan_branch_service.ensure_main_branch_id``
     # CREATES the branch when it is missing, and this path is a GET. A project
@@ -125,7 +125,7 @@ async def load_scope_readiness(
     # stops NEW rows but closes none of the old ones, so a project that emptied
     # its lists to quiet the noise keeps producing candidates from the survivors
     # for the rest of the retention window — and was being told the scope
-    # "cannot fire" the whole time (tripl-wkwv.1).
+    # "cannot fire" the whole time.
     #
     # Mirrors that builder's filters rather than probing rows blindly, because a
     # row it could never select is not readiness: the status set, the 30-day

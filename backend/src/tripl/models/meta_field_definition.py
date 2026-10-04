@@ -33,8 +33,8 @@ class MetaFieldDefinition(UUIDMixin, Base):
     # An event may carry several values for this field, the way it carries
     # several tags. "One Jira key per event" was never a decision anyone made
     # about tickets — it fell out of ``uq_event_meta_value_event_meta``, and an
-    # event updated in a second task had nowhere to put the second key
-    # (tripl-h2sx.31). Orthogonal to ``field_type`` so a url or enum field can
+    # event updated in a second task had nowhere to put the second key.
+    # Orthogonal to ``field_type`` so a url or enum field can
     # be multi-valued too; ``default_value`` stays one value, the first entry.
     allow_multiple: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa.false(), nullable=False

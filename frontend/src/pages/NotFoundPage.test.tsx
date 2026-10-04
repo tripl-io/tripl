@@ -34,7 +34,7 @@ describe('NotFoundPage exits', () => {
   it('offers the project it is standing in, not only the portfolio', () => {
     // A mistyped sub-path keeps the project's sidebar and breadcrumb, so
     // "Back to all projects" as the only way out cost two navigations to get
-    // back where the reader already was (tripl-tvqk).
+    // back where the reader already was.
     renderNotFound('/p/demo/this-route-does-not-exist', { seedProjects: true })
 
     expect(screen.getByRole('link', { name: 'Back to Demo Project' })).toHaveAttribute(

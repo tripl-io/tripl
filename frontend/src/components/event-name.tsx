@@ -15,7 +15,7 @@ function EmptySegment(): ReactNode {
  * Renders an event name, covering TWO distinct defects the catalog holds:
  *
  * - a name that is MISSING entirely, which used to render as nothing at all —
- *   a zero-width anchor with no accessible name (tripl-wkwv.5). It becomes the
+ *   a zero-width anchor with no accessible name. It becomes the
  *   muted, italic `(unnamed event)` placeholder below. Real text, deliberately
  *   NOT `aria-hidden`: the whole point is that the enclosing link gets an
  *   accessible name and a clickable area.

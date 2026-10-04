@@ -68,8 +68,7 @@ def _bulk_variable_audit_payload(deleted: list[tuple[uuid.UUID, str]]) -> dict[s
     3-variable delete from a 3000-variable one even when the lists are cut off.
     The row used to carry the REQUEST's raw id list with no names and no count —
     an irreversible delete whose trail named nothing a human recognises, and
-    which listed ids that may not have resolved to a variable at all
-    (tripl-0zpq.241).
+    which listed ids that may not have resolved to a variable at all.
     """
     return {
         "count": len(deleted),
@@ -232,7 +231,7 @@ async def list_variables(
             "Narrow to the variables nothing refers to ('unused' — exactly the "
             "set the retirement sweep would take) or to their complement "
             "('used'). Declared as an enum rather than a free string so an "
-            "unknown value is a 422 and not a 500 (tripl-57g0)."
+            "unknown value is a 422 and not a 500."
         ),
     ),
 ) -> VariableListResponse:
@@ -430,8 +429,8 @@ async def upsert_event_override(
         target_type="variable",
         target_id=variable_id,
         # The VARIABLE's name: the target is a variable, and filing the event's
-        # name here made the row read as though the event were the thing changed
-        # (tripl-0zpq.241). The event is in the payload, where it belongs.
+        # name here made the row read as though the event were the thing changed.
+        # The event is in the payload, where it belongs.
         target_name=variable_name,
         project_slug=slug,
         payload={
@@ -462,7 +461,7 @@ async def delete_event_override(
         target_type="variable",
         target_id=variable_id,
         # Was filed with no ``target_name`` at all, so the trail read as an
-        # anonymous delete (tripl-0zpq.241).
+        # anonymous delete.
         target_name=variable_name,
         project_slug=slug,
         payload={"event_id": str(event_id), "event_name": event_name},

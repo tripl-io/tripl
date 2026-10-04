@@ -4,7 +4,7 @@ import { SILENT_ERROR_META } from '@/lib/errorFeedback'
 import { eventsPickerKey } from '@/lib/queryKeys'
 
 // Events offered at once. Small on purpose, for the reason the variables tab
-// spells out (tripl-46am): the search is server-side, so anything outside the
+// spells out: the search is server-side, so anything outside the
 // page is one keystroke away, and the count of what is missing is printed.
 export const EVENT_PICKER_PAGE_SIZE = 100
 

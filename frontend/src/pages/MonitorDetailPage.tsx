@@ -185,7 +185,7 @@ export default function MonitorDetailPage() {
             <>
               <MuteControl
                 // The same string the heading shows: the names have to match
-                // what the operator just read (tripl-in45).
+                // what the operator just read.
                 ruleName={monitor.rule_name}
                 muted={monitor.muted}
                 onMute={(ms) => muteMut.mutate(muteUntilIso(ms))}
@@ -195,7 +195,7 @@ export default function MonitorDetailPage() {
               <Button asChild variant="outline" size="sm">
                 <Link
                   // A monitor IS an alert rule, and rules are edited in the
-                  // Rules section of Alerting (tripl-89ps, JR-28). The section
+                  // Rules section of Alerting (JR-28). The section
                   // has to be named: without it the link lands on the incident
                   // Inbox, which is the default, and "Edit rule" opens triage.
                   to={rulesListPath}
@@ -257,7 +257,7 @@ function ActionButton({
    * Spoken name, when the visible `label` alone does not say what the button
    * acts ON. A mute preset reads "1h" — three of them on one page are three
    * identically-named buttons, and none of them names the thing about to go
-   * quiet (tripl-in45).
+   * quiet.
    *
    * Every caller that sets this keeps the visible `label` as a SUBSTRING of it
    * ("Mute <rule> for 1h" contains "1h"), so speech-input users can still say
@@ -294,7 +294,7 @@ function ActionButton({
  *    of the list plus its own `futureIso` resolver while that module existed
  *    for exactly the purpose of there being one — and a private copy is how the
  *    surfaces drift apart again, which is the defect the module was extracted
- *    to fix (tripl-es0f, tripl-oxkt.7). The shared resolver also takes an
+ *    to fix. The shared resolver also takes an
  *    injectable `now`, so a test can pin the instant instead of racing it.
  *
  * 2. There is deliberately NO open-ended option here, even though the incident
@@ -302,7 +302,7 @@ function ActionButton({
  *    `muted_until` is NULL, so a button promising "until I unmute" would write
  *    the value that UN-mutes the rule. The permanent lever on a rule is the
  *    enable/disable switch, not a mute — which is why `MUTE_PRESETS` (durations
- *    only) is imported here and `INBOX_MUTE_CHOICES` is not (tripl-a50u).
+ *    only) is imported here and `INBOX_MUTE_CHOICES` is not.
  *
  * 3. Every button here is named by what it silences, not only by its own text.
  *    The presets used to be called "1h" / "24h" / "7d" and Unmute just
@@ -313,7 +313,7 @@ function ActionButton({
  *    `MUTE_PRESETS` in `@/lib/mutePresets`, so the three surfaces cannot
  *    describe one action three ways without the edit landing in the one module
  *    all three read. Copying — which is what "lifted verbatim" used to mean
- *    here — is what tripl-yapg replaced (tripl-in45, tripl-oxkt.7).
+ *    here — is what tripl-yapg replaced.
  */
 function MuteControl({
   ruleName,
@@ -323,7 +323,7 @@ function MuteControl({
   isPending,
 }: {
   /**
-   * What the controls name. A monitor IS an alert rule (tripl-89ps), so the
+   * What the controls name. A monitor IS an alert rule, so the
    * noun is the rule's name — the same one the page heading shows and the same
    * one `MonitorsSection`'s row menu takes under this name. It is a prop and
    * not a lookup because nothing else in this component identifies the rule:
@@ -518,7 +518,7 @@ const DRIFT_SCOPE_BY_KEY: Partial<Record<string, DriftScope>> = {
 function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail }) {
   // `=== false` rather than `!`: a response without the block — an older server,
   // or a fixture that predates it — must read as "no claim", not as an
-  // accusation. A missing fact is not a negative one (tripl-wkwv.1).
+  // accusation. A missing fact is not a negative one.
   const distributionIsInert = monitor.scope_readiness?.distribution_drift === false
   const valueDriftIsInert = monitor.scope_readiness?.variable_value_drift === false
 
@@ -552,7 +552,7 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
           narrows it, so it reads before the direction and thresholds that narrow
           it further. The screen refused to name it before, while the docs told
           the reader to go and check that scan's own drift settings whenever
-          `scope_readiness` looked healthy (tripl-wkwv.9). "All scans" is the
+          `scope_readiness` looked healthy. "All scans" is the
           null, spelled out: an empty row would read as a missing value. The
           wording is the rule editor's own option label, not a third phrasing —
           the screen that SETS this value is the one worth agreeing with. */}
@@ -571,7 +571,7 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
       {/* The same rule was described as "360m" here and "6h" on the alerting
           destinations card, so a reader comparing the two screens saw two
           answers for one value. Both sides now go through the one shared
-          formatter (tripl-oxkt.18); only the sentence around it differs. */}
+          formatter; only the sentence around it differs. */}
       <InfoRow
         label="Cooldown"
         value={`${formatCooldown(monitor.cooldown_minutes)} between alerts`}
@@ -623,8 +623,8 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
               slug={slug}
               scope={scope}
               // The verdict above is still the PROJECT's — this only aims the
-              // link at the scan the reader was going to have to find anyway
-              // (tripl-wkwv.9). `?? undefined` because the prop is optional and
+              // link at the scan the reader was going to have to find anyway.
+              // `?? undefined` because the prop is optional and
               // a null would defeat its default.
               scanConfigId={monitor.scan_config_id ?? undefined}
             />

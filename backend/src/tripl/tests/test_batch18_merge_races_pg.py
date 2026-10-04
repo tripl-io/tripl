@@ -99,7 +99,7 @@ def test_the_lock_free_write_handlers_name_real_routes() -> None:
 async def test_only_a_plan_write_on_a_branch_holds_the_branch_row(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.288: the dependency locks for writes, not for reads."""
+    """the dependency locks for writes, not for reads."""
     slug = "b18-lock-branch-writes"
     await _seed_plan(client, slug)
     branch_id = await _create_branch(client, slug)
@@ -131,7 +131,7 @@ async def test_only_a_plan_write_on_a_branch_holds_the_branch_row(
 async def test_only_a_plan_write_on_main_holds_mains_row(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.294: main writes, with or without main's id, take main's lock."""
+    """main writes, with or without main's id, take main's lock."""
     slug = "b18-lock-main-writes"
     await _seed_plan(client, slug)
     main_id = await _main_branch_id()
@@ -159,7 +159,7 @@ async def test_only_a_plan_write_on_main_holds_mains_row(
 async def test_a_comment_holds_its_events_working_branch_before_reading_the_thread(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.290: the comment path takes the same lock, working branches only."""
+    """the comment path takes the same lock, working branches only."""
     slug = "b18-lock-comments"
     await _seed_plan(client, slug)
     branch_id = await _create_branch(client, slug)
@@ -201,7 +201,7 @@ async def test_a_comment_holds_its_events_working_branch_before_reading_the_thre
 async def test_the_merge_locks_main_before_it_reads_main(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.294: the lock is taken before main_payload, not after."""
+    """the lock is taken before main_payload, not after."""
     slug = "b18-merge-lock-order"
     await _seed_plan(client, slug)
     branch_id = await _create_branch(client, slug)
@@ -437,7 +437,7 @@ async def _description(sessions: async_sessionmaker[AsyncSession], event_id: str
 async def test_a_branch_write_arriving_mid_merge_waits_then_is_refused(
     pg_app: _PgApp, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.288: the write waits for the merge, then reads ``merged``.
+    """the write waits for the merge, then reads ``merged``.
 
     Before the fix the dependency read ``approved`` with a plain SELECT, which a
     merge's FOR UPDATE does not block, and the edit committed onto the branch
@@ -516,7 +516,7 @@ async def test_a_merge_arriving_mid_write_waits_and_then_sees_the_write(pg_app: 
 async def test_a_reply_posted_mid_merge_follows_its_question_to_main(
     pg_app: _PgApp, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.290: the reply waits for the merge and lands on the moved parent.
+    """the reply waits for the merge and lands on the moved parent.
 
     The merge is held open AFTER it moved the branch row's threads to main.
     Before the fix the reply still read its question on the branch row, was
@@ -583,7 +583,7 @@ async def test_a_reply_posted_mid_merge_follows_its_question_to_main(
 async def test_a_main_edit_arriving_mid_merge_waits_and_is_not_overwritten(
     pg_app: _PgApp, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """tripl-0zpq.294: the merge holds main, so the edit applies after it.
+    """the merge holds main, so the edit applies after it.
 
     The merge is held open after its conflict check. Before the fix the main
     edit committed right then, the check had already passed on the old value,

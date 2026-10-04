@@ -92,7 +92,7 @@ def test_llm_is_enabled_requires_api_key(monkeypatch: pytest.MonkeyPatch):
 def test_a_public_demo_has_no_ai_whatever_the_operator_configured(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Every call a visitor triggers would run on the operator's key (tripl-sav5.4)."""
+    """Every call a visitor triggers would run on the operator's key."""
     monkeypatch.setattr(llm_service.settings, "ai_enabled", True)
     monkeypatch.setattr(llm_service.settings, "ai_api_key", "sk-test")
     monkeypatch.setattr(llm_service.settings, "search_embeddings_enabled", True)
@@ -463,7 +463,7 @@ def test_build_ai_explanation_does_not_tell_the_model_nothing_changed(
 
     The note the model writes from this prompt is what the reader receives, so
     the prompt must not describe a scope that went from nothing to 137 as a 0%
-    change (tripl-l429.24).
+    change.
     """
     captured = _capture_prompt(monkeypatch)
     delivery = _delivery_with_item()
@@ -509,7 +509,7 @@ def test_append_ai_explanation_escapes_for_format():
     assert "<b" not in text.split("AI: ", 1)[1]
 
 
-# --- alert explanation remembers what it already sent (tripl-ikee) ---
+# --- alert explanation remembers what it already sent ---
 
 
 def _sync_alert_session(tmp_path):
@@ -616,7 +616,7 @@ def test_recent_alert_history_recalls_only_what_was_really_sent(tmp_path):
 def test_build_ai_explanation_tells_the_model_what_it_already_said(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Same signal, second alert: the prompt carries the earlier note (tripl-ikee)."""
+    """Same signal, second alert: the prompt carries the earlier note."""
     from tripl.worker.tasks import alerts_messages
 
     delivery = _delivery_with_item()

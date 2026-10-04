@@ -40,8 +40,8 @@ import {
  *
  * `table-fixed` plus explicit widths: without it the multi-kilobyte summary
  * cell's max-width never bound, every short column collapsed to min-content and
- * a single timestamp wrapped over four lines, inflating rows to ~100px
- * (tripl-oxkt.18). The min-width is what the eight columns actually need; the
+ * a single timestamp wrapped over four lines, inflating rows to ~100px.
+ * The min-width is what the eight columns actually need; the
  * Table's own container scrolls, so the page body never does.
  *
  * Below `md` each row is a card instead (AL-20): time · status, then the
@@ -89,7 +89,7 @@ function channelLabel(channel: string): string {
 /**
  * Does this stored path point back at the alerting page itself?
  *
- * Since alerts started linking to the incident (tripl-pq97), `details_path` is
+ * Since alerts started linking to the incident, `details_path` is
  * that link — useful in a telegram message, useless in a cell on the page it
  * names. Matched on the route rather than on the full URL because the stored
  * value carries whatever `app_base_url` was set to when the alert was sent.
@@ -152,7 +152,7 @@ function buildCorrelationLabels(items: AlertDeliveryItem[]): Map<string, string>
 // per-scope list, so a sibling attempt at the same incident just has none of its
 // own (the demo seed does exactly this — see demo/builders/alerts.py, "the
 // successful delivery above owns the incident's item list"). Rendering the bare
-// Grp/Scope/… header row there read as "4 matched, nothing matched" (tripl-gsom),
+// Grp/Scope/… header row there read as "4 matched, nothing matched",
 // so say where the rows actually live instead.
 function emptyItemsNotice(matchedCount: number): string {
   if (matchedCount <= 0) {
@@ -182,7 +182,7 @@ function expectedBasisNote(item: AlertDeliveryItem): string | null {
 //
 // `formatDateTime` renders one string — "Aug 12, 2026, 2:02 PM" — and in the
 // nine-column table that wrapped over FOUR lines, inflating every row to ~100px
-// so only three and a half fitted on screen (tripl-oxkt.18). Splitting the date
+// so only three and a half fitted on screen. Splitting the date
 // from the time makes the wrap deliberate and exactly two lines deep; the cell
 // keeps the full string on its `title`.
 //
@@ -283,7 +283,7 @@ export function AlertDeliveryRow({
   // Read here rather than threaded from the panel: this row also renders inside
   // IncidentDeliveries, on an incident card that has no such prop, and one row
   // must not offer a Retry the other one hides. Same context either way, so
-  // there is still exactly one answer per session (tripl-oxkt.9).
+  // there is still exactly one answer per session.
   const canWrite = useCanWriteProject()
   // Deep-linked rows arrive expanded: the link exists to show one delivery's
   // per-scope numbers, and landing on a collapsed row hides exactly those.
@@ -318,12 +318,12 @@ export function AlertDeliveryRow({
       // `['alertDelivery', slug, id]` — so the row kept saying `failed`, the
       // reader clicked Retry a second time, and the 409 rendered
       // "Retry failed: Only failed deliveries can be retried" for a retry that
-      // had in fact worked (tripl-oxkt.10). This key is also the one this row's
+      // had in fact worked. This key is also the one this row's
       // own expanded panel reads, so both update from the one write.
       qc.setQueryData(alertDeliveryKey(slug, delivery.id), updated)
       // …and the same shared invalidation every other alerting write uses. The
       // list alone left the Inbox card that groups this delivery counting a
-      // status it no longer has (tripl-oxkt.14). The `setQueryData` above
+      // status it no longer has. The `setQueryData` above
       // survives it: `['alertDelivery', slug, id]` is a different key from
       // `['alertDeliveries', slug]`, not a child of it.
       invalidateAlertingConfig(qc, slug)
@@ -368,7 +368,7 @@ export function AlertDeliveryRow({
   // What actually fired, from the frozen payload. The cell used to show the
   // first 87 characters of `rendered_message`, whose first four lines are a
   // fixed template header repeating the five cells to its left — the widest
-  // column on the page carried zero information (tripl-oxkt.18). The message
+  // column on the page carried zero information. The message
   // itself moved into the expanded panel, where there is room to read it.
   const firedAnomalies = snapshotAnomalies(delivery.payload_snapshot)
   const firstFired = firedAnomalies[0]
@@ -448,7 +448,7 @@ export function AlertDeliveryRow({
             <span className="truncate">{delivery.destination_name}</span>
           </div>
           {/* Still marked, since a simulated send must never read as a real
-              one (tripl-2su6.9), but as a quiet suffix under the name rather
+              one, but as a quiet suffix under the name rather
               than a second pill in the status cell. */}
           {(delivery.is_local || delivery.is_simulated) && (
             <span
@@ -592,7 +592,7 @@ export function AlertDeliveryRow({
                   outbound LLM call on every delivery of a rule that has it
                   enabled — populated on 100 of 100 production deliveries — and
                   until now it reached the reader only inside the truncated
-                  `rendered_message` preview, i.e. never (tripl-oxkt.18). It is
+                  `rendered_message` preview, i.e. never. It is
                   the one part of the payload that is written for a human. */}
               {aiExplanation && (
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
@@ -666,7 +666,7 @@ export function AlertDeliveryRow({
                             {/* All three are declared `float` on
                                 AlertDeliveryItemResponse, so interpolating them
                                 raw printed full JS precision — "88.318" for a
-                                count of events (tripl-nj4n). The shared helper
+                                count of events. The shared helper
                                 rounds by value, not unconditionally: the
                                 `scope_type` two cells left can be `metric`, and
                                 those columns are float precisely so a sub-unit

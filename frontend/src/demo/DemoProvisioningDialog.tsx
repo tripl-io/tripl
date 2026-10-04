@@ -1,5 +1,5 @@
 /**
- * Demo-provisioning progress + outcome dialog (tripl-2su6.9).
+ * Demo-provisioning progress + outcome dialog.
  *
  * Shows estimated staged progress during the single blocking create and an
  * inline, human error with a Retry action on 500. Accessibility:
@@ -7,12 +7,12 @@
  *  - an `aria-live` region announces the current phase and the final result;
  *  - every terminal state (success, cancelled, failed) says so visibly and
  *    offers a positive action — never a disabled Cancel under a title that
- *    still claims work is in progress (tripl-jfm3.15).
+ *    still claims work is in progress.
  *
  * A create in flight is abandonable, and cancelling is honest about what the
  * server could do: the phase list is labelled an estimate rather than asserting
- * completed work the client cannot observe (tripl-jfm3.16), and a cancel that
- * arrived too late says the demo is going to appear (tripl-jfm3.12).
+ * completed work the client cannot observe, and a cancel that
+ * arrived too late says the demo is going to appear.
  */
 
 import { ApiError } from '@/api/client'
@@ -193,8 +193,8 @@ export function DemoProvisioningDialog({
       onOpenChange={(next) => {
         if (next) return
         // A create in flight is abandonable, not un-dismissable: a stalled
-        // connection used to leave a page reload as the only way out
-        // (tripl-2su6.15). Escape / the close button / an outside click cancel
+        // connection used to leave a page reload as the only way out.
+        // Escape / the close button / an outside click cancel
         // the request; anything else just closes.
         if (isProvisioning) onCancel()
         else onClose()

@@ -112,7 +112,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
     onSuccess: (job) => {
       // The demo's runtime tick manufactures scan jobs continuously, so only the
       // job *this* POST returned can advance the coached scenario. Inert outside
-      // a demo project (tripl-2su6.21.5).
+      // a demo project.
       notifyScanRunStarted(job)
       qc.invalidateQueries({ queryKey: scanJobsKey(slug, scanConfigId) })
       // The Scans list's activity row sits under ['scanJobs', slug] but not
@@ -124,7 +124,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   const goBack = () => navigate(projectPath(currentOrgSlug(), slug, '/scans'))
 
   // Loading the config list errored — surface it with a retry instead of a
-  // blank screen (tripl-2su6.9).
+  // blank screen.
   if (scansError) {
     return (
       <div className="space-y-4">
@@ -150,7 +150,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
       />
     )
   }
-  // Still loading — a skeleton, never a blank render (tripl-2su6.9).
+  // Still loading — a skeleton, never a blank render.
   if (!sc) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Loading scan">
@@ -208,8 +208,8 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
               )}
             </p>
             {/* One line under the header saying what this scan produces and what
-                reads it. Above the tab strip, so it holds for both tabs
-                (tripl-3y7z.2). */}
+                reads it. Above the tab strip, so it holds for both tabs.
+                */}
             <div className="mt-1">
               <ScanCausalNote variant="config" config={sc} />
             </div>

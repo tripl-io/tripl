@@ -329,7 +329,7 @@ async def _seed_tickets(fx: _Fixture) -> tuple[uuid.UUID, uuid.UUID]:
     open_id = uuid.uuid4()
     closed_id = uuid.uuid4()
     # The closed ticket needs its own branch: uq_implementation_ticket_branch
-    # allows one ticket per branch (tripl-l33u.11).
+    # allows one ticket per branch.
     shipped_branch_id = uuid.uuid4()
     async with TestSessionLocal() as session:
         session.add(
@@ -862,7 +862,7 @@ async def test_a_deleted_events_release_regressions_are_deleted_by_both_keys(
 
 
 # ---------------------------------------------------------------------------
-# The branch doors (tripl-a64t)
+# The branch doors
 #
 # Three more ways an event disappears, none of them with a survivor to
 # re-point onto — so the rule is the same DROP the CRUD doors use. Two of the

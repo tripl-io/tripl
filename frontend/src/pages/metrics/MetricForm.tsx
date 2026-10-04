@@ -673,7 +673,7 @@ export function MetricForm({
               field below it, the unit included (MT-2). One column, full
               width — kit Field spends a fixed 232px on its label gutter from
               `sm` up, so nothing narrower than the page leaves a usable
-              control (tripl-vv2f). */}
+              control. */}
           <SCard title="What to measure" description="Where the metric's value comes from.">
             <Field label="Metric kind" stacked last>
               <RadioCards

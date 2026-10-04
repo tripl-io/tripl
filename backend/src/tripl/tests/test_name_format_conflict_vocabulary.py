@@ -13,7 +13,7 @@ enforces the tripl-3y7z settlement (the web UI says *scan* and *run*; the wire
 keeps ``scan_config`` and ``job``) by reading string literals and JSX text out of
 frontend sources. A sentence assembled in Python has no literal there to find, so
 "1 scan config(s)" sat in a ``role="alert"`` through the whole epic that banned
-it (tripl-24i0).
+it.
 
 Rather than copy the frontend's rule into a Python literal — two copies of a rule
 is how the rule ends up enforcing two different things, and that pattern has
@@ -128,7 +128,7 @@ def test_the_counted_noun_agrees_with_the_number_of_scans() -> None:
 
 
 def test_the_sentence_still_names_every_blocking_scan_and_the_unblocking_edit() -> None:
-    """The vocabulary fix must not have cost the message its content (tripl-3mmh)."""
+    """The vocabulary fix must not have cost the message its content."""
     detail = _detail(2)
     assert "'Old events 0' ({action})" in detail
     assert "'Old events 1' ({action})" in detail

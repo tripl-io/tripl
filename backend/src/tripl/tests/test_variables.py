@@ -185,7 +185,7 @@ async def test_variable_responses_include_observed_value_summary(client: AsyncCl
     assert contexts[0]["values"] == ["u1", "u2"]
     # The warehouse path the scan answered on, and when the row was last
     # written — the two facts an analyst needs to tell a stale reading from a
-    # current one (tripl-h2sx.22, tripl-h2sx.30).
+    # current one.
     assert contexts[0]["source_column"] == "user_id"
     assert datetime.fromisoformat(contexts[0]["updated_at"])
 
@@ -200,7 +200,7 @@ async def test_variable_responses_include_observed_value_summary(client: AsyncCl
 
 @pytest.mark.asyncio
 async def test_sample_values_stay_capped_however_many_contexts_feed_them(client: AsyncClient):
-    """The cap belongs to the variable, not to one context row (tripl-x050).
+    """The cap belongs to the variable, not to one context row.
 
     The accumulator is shared across a variable's contexts and was entered once
     per context, so every context past the first slipped one more novel value in
@@ -305,7 +305,7 @@ async def test_delete_variable_does_not_scan_the_whole_variable_list(
 
     The audit record still needs the deleted name; the service now hands it
     back, so the handler no longer reaches for list_variables() — which made
-    every delete pay for the whole project (tripl-jfm3.53).
+    every delete pay for the whole project.
     """
     await _setup_project(client, "var-del-cost")
     ids = []
@@ -495,7 +495,7 @@ async def test_renaming_rewrites_the_token_in_meta_values_as_well_as_field_value
     reference — the retirement predicate reads both for exactly that reason —
     and the rename rewrite only ever visited the first, so a ``${old_name}``
     parked in a meta value came out of the rename as a literal naming the old
-    name (tripl-mpw3).
+    name.
     """
     slug = "var-rename-meta"
     await _setup_project(client, slug)
@@ -600,7 +600,7 @@ async def test_event_override_crud(client: AsyncClient):
     assert listed3.json() == []
 
 
-# ── tripl-0zpq.241 — what the variable routes leave in the audit log ─────────
+# ── what the variable routes leave in the audit log ─────────
 #
 # Four routes changed their service's return type so the row could name what it
 # touched: ``bulk_delete_variables``, ``upsert_event_override``,
@@ -871,7 +871,7 @@ async def test_bulk_delete_variables(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_retirement_plan_asks_for_contexts_by_id_and_never_loads_them(client: AsyncClient):
     """The plan answers "has contexts?" with an anti-join, so it must not hydrate
-    them (tripl-xkbb).
+    them.
 
     ``Variable.value_contexts`` is ``lazy="selectin"`` and every context then
     selectin-loads its FieldDefinition, so a bare whole-project
@@ -947,8 +947,7 @@ async def test_listing_variables_does_not_hydrate_their_observed_contexts(client
     ``Variable.value_contexts`` is ``lazy="selectin"`` and each context then
     selectin-loads its FieldDefinition, so the page select hydrated every
     context of every variable it returned — on the endpoint the frontend calls
-    with VARIABLES_PAGE_LIMIT = 5000, which makes one page the whole project
-    (tripl-xkbb).
+    with VARIABLES_PAGE_LIMIT = 5000, which makes one page the whole project.
 
     Nothing downstream wants them: ``VariableResponse`` declares no contexts
     field, and ``attach_variable_summaries`` re-reads what it needs with its own
@@ -1105,7 +1104,7 @@ async def _variable_row(client: AsyncClient, slug: str) -> dict[str, Any]:
 async def test_excluding_a_variable_keeps_its_values_and_every_drift_verdict(
     client: AsyncClient, variable_history: _VariableHistory
 ):
-    """Excluding sets a flag and deletes nothing (tripl-95pu).
+    """Excluding sets a flag and deletes nothing.
 
     It used to purge every VariableValue and VariableValueDrift for the
     variable, behind a control the UI offers as reversible: Restore handed back
@@ -1143,7 +1142,7 @@ async def test_excluding_a_variable_keeps_its_values_and_every_drift_verdict(
 async def test_excluding_zeroes_the_drift_badge_and_no_other_count(
     client: AsyncClient, variable_history: _VariableHistory
 ):
-    """The badge counts work; the rest count facts (tripl-95pu).
+    """The badge counts work; the rest count facts.
 
     Nothing refreshes or reopens an excluded variable's drifts and the worker
     raises no alerts for them, so a badge would send the operator to a queue
@@ -1175,7 +1174,7 @@ async def test_excluding_zeroes_the_drift_badge_and_no_other_count(
 async def test_un_excluding_restores_the_variable_without_a_rescan(
     client: AsyncClient, variable_history: _VariableHistory
 ):
-    """Restore is immediate because nothing was ever taken away (tripl-95pu).
+    """Restore is immediate because nothing was ever taken away.
 
     No scan runs here, and that is the assertion. When excluding purged the
     rows, Restore returned a variable with no observed values and no history,
@@ -1232,7 +1231,7 @@ def test_excluded_variable_raises_no_drift_alert_candidate(sync_session: Session
     endpoint touched. Retirement, branch merge and branch revert all carry
     ``excluded_from_scans`` across without deleting anything, so a variable
     excluded through any of those doors kept paging an operator who had taken it
-    out of scanning. Asking the flag here covers all of them (tripl-95pu).
+    out of scanning. Asking the flag here covers all of them.
     """
     project = Project(id=uuid.uuid4(), name="P", slug="vvd-excluded", description="")
     sync_session.add(project)

@@ -10,7 +10,7 @@ Why not ``docker compose up --wait``: its handling of a one-shot service that
 exits 0 (``migrate``) has changed across Compose releases, and ``/health`` is the
 probe the deployment docs already tell operators to curl. Polling it also means
 we are asserting the thing we actually promise — that a browser can reach the
-instance — rather than that Docker is happy (tripl-ey6j.3).
+instance — rather than that Docker is happy.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ Monotonic = Callable[[], float]
 # Why no probe was made when the deadline is zero. Callers that skip for their
 # own reason - `upgrade` with no APP_BASE_URL in .env - build the outcome
 # themselves and supply theirs, because a command that reported "--wait 0" for a
-# check it could not make was blaming a flag nobody passed (tripl-jfm3).
+# check it could not make was blaming a flag nobody passed.
 SKIPPED_BY_FLAG = "--wait 0"
 
 

@@ -94,7 +94,7 @@ TestSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 # Enforce ON DELETE CASCADE in tests, matching production Postgres. Without it
 # the in-memory DB leaves orphaned child rows on a parent delete (e.g. deleting
 # a FieldDefinition strands its event_field_values), which then crashes the
-# search reindexer on a NULL parent deref (tripl-mdix). StaticPool keeps one
+# search reindexer on a NULL parent deref. StaticPool keeps one
 # connection, so this fires once. See ``_sqlite`` for why it is shared.
 enable_sqlite_foreign_keys(engine.sync_engine)
 
@@ -146,7 +146,7 @@ async def setup_db() -> AsyncGenerator[None]:
     """Give every test an empty database with the full schema.
 
     This used to run ``create_all`` before and ``drop_all`` after EVERY test,
-    rebuilding every table and index ~4,400 times per run (tripl-la1i). The
+    rebuilding every table and index ~4,400 times per run. The
     schema is now built once per process (per xdist worker, each of which has
     its own in-memory database) and a test is isolated by deleting every row
     afterwards — what a fresh schema gave it: the same tables and indexes, no
@@ -231,7 +231,7 @@ app.dependency_overrides[get_session] = override_get_session
 # Names the suite uses as "a public destination": RFC 2606 example domains and
 # Atlassian Cloud hosts. The SSRF guard (``reject_private_host``) resolves them
 # and fails CLOSED, so on a runner without outbound DNS the webhook/Jira tests
-# turned 200/201 into 422 "could not be resolved" (tripl-0zpq.308).
+# turned 200/201 into 422 "could not be resolved".
 _HERMETIC_DNS_SUFFIXES = ("example.com", "example.net", "example.org", "atlassian.net")
 # A public address (example.com's long-standing one), so the guard passes.
 HERMETIC_DNS_ADDRESS = "93.184.216.34"

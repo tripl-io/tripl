@@ -534,7 +534,7 @@ async def test_get_events_metrics_scopes_to_default_scan_config(client: AsyncCli
     that also collected the same events used to be summed in, inflating one bucket
     into an outlier that dominated the chart's y-axis. The series also names the
     scan it is scoped to, so the chart can stop implying project-wide coverage
-    (tripl-jfm3.20)."""
+    ."""
     setup = await _setup_metrics_project(client, "metrics-scoping")
 
     event = await client.post(
@@ -576,7 +576,7 @@ async def test_get_events_metrics_scopes_to_default_scan_config(client: AsyncCli
         _plain_point("2026-01-01T11:00:00Z", 15),
     ]
     # …and the response names the scan so the chart title can stop claiming to
-    # cover the whole project (tripl-jfm3.20).
+    # cover the whole project.
     assert body["scan_config_name"] == "Metrics Config"
     assert body["scan_config_id"] is not None
 
@@ -586,13 +586,13 @@ async def test_events_metrics_charts_the_scan_that_owns_the_tab(client: AsyncCli
     """A tab whose event type is collected by some scan OTHER than the
     newest-created one must still chart.
 
-    Scoping the series to a single scan (tripl-jfm3.20) fixed cross-scan double
+    Scoping the series to a single scan fixed cross-scan double
     counting, but it pinned EVERY tab to the project-wide default scan. On
     acme-ios that silently emptied two tabs out of three: the "se" tab holds 366
     live events collected by "Snowplow Events (iOS)" (created 14:43), while
     ``_get_default_scan_config`` returns "Snowplow Pageviews (iOS)" (created
     15:12) — so the query asked the newest scan for rows it had never written and
-    the card rendered "No recent volume to chart" (tripl-g77e). Verified against
+    the card rendered "No recent volume to chart". Verified against
     production: ``events-metrics?event_type_id=<se>`` -> 0 points, the same call
     without the filter -> 167.
 
@@ -671,8 +671,8 @@ async def test_default_scan_config_ignores_updated_at_and_breaks_ties_stably(
     client: AsyncClient,
 ) -> None:
     """Default-scan resolution must not move when an unrelated scan config is
-    edited, and must be deterministic when two configs share a timestamp
-    (tripl-jfm3.21). Before the fix the resolver ordered by ``updated_at`` desc
+    edited, and must be deterministic when two configs share a timestamp.
+    Before the fix the resolver ordered by ``updated_at`` desc
     with no tiebreak: two acme-ios configs carried byte-identical ``updated_at``
     values, so a 32x swing in the headline volume hung on Postgres row order,
     and touching any config re-pointed the chart."""
@@ -721,7 +721,7 @@ async def test_default_scan_config_ignores_updated_at_and_breaks_ties_stably(
 async def test_project_total_metrics_names_its_scan_config(client: AsyncClient) -> None:
     """The Overview volume card charts ONE scan config, so the response must
     name it — the card used to be labelled "project total" while plotting 2.4 %
-    of acme-ios's volume (tripl-jfm3.20)."""
+    of acme-ios's volume."""
     setup = await _setup_metrics_project(client, "metrics-total-name")
     await _seed_group_metrics(setup["project_id"], [], name="Snowplow Pageviews (iOS)")
 
@@ -841,7 +841,7 @@ async def test_get_events_window_metrics_uses_the_scan_with_the_newest_bucket(
 ) -> None:
     """The series must come from whichever scan reported the event most recently.
 
-    Also pins the SHAPE of that lookup (tripl-jfm3.79): it used to select every
+    Also pins the SHAPE of that lookup: it used to select every
     metric row the project had ever recorded for the requested events and keep
     the first per event in Python, which cost 5.4 s of a 6.1 s response on a
     real project. Every ``event_metrics`` read here must therefore be bounded —
@@ -2363,7 +2363,7 @@ async def test_data_source_stats_aggregates_recent_metrics(client: AsyncClient):
                 # The type-level row every real chunk writes alongside the
                 # event-level ones: same bucket, same total, ``event_id`` NULL.
                 # The stats query used to sum BOTH levels and reported 300 for
-                # 150 events; it now counts only this one (tripl-0zpq.118), so
+                # 150 events; it now counts only this one, so
                 # without this row the window would be empty.
                 EventMetric(
                     id=uuid.uuid4(),
@@ -2413,7 +2413,7 @@ async def test_overview_kpi_series(client: AsyncClient):
     body = resp.json()
     assert body["days"] == 14
     # The series has always been "events created per day"; it is now named that
-    # way instead of `active_events` (tripl-jfm3.22).
+    # way instead of `active_events`.
     assert "active_events" not in body
     assert len(body["new_events"]) == 14
     assert sum(body["new_events"]) == 2
@@ -2425,7 +2425,7 @@ async def test_overview_kpi_series_counts_main_branch_only(client: AsyncClient):
     """The KPI sparkline sits beside "Active events", which counts the main
     branch only. Counting every branch made the series sum past that stat — a
     demo reset one minute old reported 26 across 14 days next to "ACTIVE EVENTS
-    17" (tripl-jfm3.77)."""
+    17"."""
     ctx = await _setup_metrics_project(client, slug="kpi-branch")
     resp = await client.post(
         "/api/v1/projects/kpi-branch/events",
@@ -2574,7 +2574,7 @@ async def test_platform_presence_empty_without_platform_column(client: AsyncClie
     assert body["items"] == []
 
 
-# --- tripl-57g0: enum-shaped query params reject garbage at the edge ---------
+# --- enum-shaped query params reject garbage at the edge ---------
 #
 # ``status`` and every ``scope_type`` below bind against a native Postgres enum
 # column, so while they were declared ``str`` a typo travelled all the way to

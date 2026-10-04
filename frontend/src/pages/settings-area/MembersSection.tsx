@@ -9,7 +9,7 @@ const UsersPage = lazyWithReload(() => import('@/pages/UsersPage'))
  * Organization · Members. Reuses the existing UsersPage wiring (it self-fetches the
  * roster and owner-gates role changes) under the takeover section header.
  * Membership here is the instance roster only; which projects a person sees is
- * set per project (Project settings › Access, tripl-vefw).
+ * set per project (Project settings › Access).
  */
 export default function MembersSection() {
   return (

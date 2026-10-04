@@ -3,9 +3,9 @@
  * reports an open-signal count.
  *
  * These numbers used to live in each page. They drifted twice: the sidebar badge
- * disagreed with the Anomalies page (tripl-yfsj.1), and after that was fixed for
- * three surfaces the top-bar bell was left behind on a different query entirely
- * (tripl-jfm3.89). A shared module makes "the counts agree" the default rather
+ * disagreed with the Anomalies page, and after that was fixed for
+ * three surfaces the top-bar bell was left behind on a different query entirely.
+ * A shared module makes "the counts agree" the default rather
  * than something four call sites have to remember.
  *
  * The magnitude itself is no longer mirrored: the backend ships
@@ -30,9 +30,9 @@ export function relativeEffect(
   // side that knows whether a catalog metric's series is count-shaped, and a
   // fractional one must NOT have its denominator floored at 1 — a ratio
   // expected at 0.12 and observed at 0.04 scored 0.08 here and never cleared
-  // the bar below, so metric anomalies were invisible at the default level
-  // (tripl-yf8c). Recomputing locally is also what let this formula drift from
-  // the backend's twice before (tripl-yfsj.1, tripl-jfm3.89).
+  // the bar below, so metric anomalies were invisible at the default level.
+  // Recomputing locally is also what let this formula drift from
+  // the backend's twice before.
   //
   // The fallback stays for payloads that carry no value — it is the old
   // count-shaped estimate, correct for every scope except a fractional metric.
@@ -104,7 +104,7 @@ export const DEFAULT_MAGNITUDE_LEVEL: MagnitudeLevel = 'significant'
  * { expanded: true })`). The collapsed variant queries only project_total and
  * event_type scopes, so an incident made purely of event-scope anomalies is not
  * rolled up into a parent — it is dropped, and the count silently reads zero
- * during a live incident (tripl-jfm3.89).
+ * during a live incident.
  *
  * `filter` returns a fresh array, so the `sort` never mutates a React Query cache.
  */

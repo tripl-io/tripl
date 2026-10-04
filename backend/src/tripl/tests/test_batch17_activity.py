@@ -101,7 +101,7 @@ async def _rule(client: AsyncClient, slug: str) -> uuid.UUID:
     return uuid.UUID(rule.json()["id"])
 
 
-# --- tripl-0zpq.162: monitor rollup follows dispatch's interval floor ---------
+# --- monitor rollup follows dispatch's interval floor ---------
 
 
 def test_rollup_judges_each_state_on_its_own_grid() -> None:
@@ -335,7 +335,7 @@ async def test_rail_keeps_weekly_anomalies_on_their_own_grid(client: AsyncClient
     }
 
 
-# --- tripl-0zpq.194: a last_seen bump is not a plan edit ----------------------
+# --- a last_seen bump is not a plan edit ----------------------
 
 
 @pytest.fixture
@@ -391,7 +391,7 @@ def test_last_seen_bump_leaves_updated_at_alone(
         assert row.updated_at.replace(tzinfo=UTC) == edited_at
 
 
-# --- tripl-0zpq.223: shadow identity is per event type ------------------------
+# --- shadow identity is per event type ------------------------
 
 
 async def _candidate(
@@ -470,7 +470,7 @@ async def test_archived_identity_hides_only_its_own_types_candidate(client: Asyn
     assert body["new_count"] == 1
 
 
-# --- tripl-0zpq.199: a 6h scan does not resolve an hour -----------------------
+# --- a 6h scan does not resolve an hour -----------------------
 
 
 @pytest.mark.asyncio
@@ -489,7 +489,7 @@ async def test_heatmap_hourly_resolution_needs_an_hourly_grid(
     assert resp.json()["hourly_resolution"] is expected
 
 
-# --- tripl-0zpq.308: the suite does not need live DNS -------------------------
+# --- the suite does not need live DNS -------------------------
 
 
 def test_placeholder_public_hosts_resolve_without_the_live_resolver() -> None:
@@ -503,7 +503,7 @@ def test_placeholder_public_hosts_resolve_without_the_live_resolver() -> None:
     reject_private_host("example.atlassian.net", field="base_url")
 
 
-# --- tripl-0zpq.325: a timestamp sent with the wrong action is refused --------
+# --- a timestamp sent with the wrong action is refused --------
 
 
 def test_mismatched_timestamps_are_refused_on_every_action_body() -> None:

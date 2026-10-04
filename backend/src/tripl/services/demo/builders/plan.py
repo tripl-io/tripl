@@ -498,7 +498,7 @@ async def _build_events(session: AsyncSession, ctx: DemoContext) -> None:
                     # scan replaced the documented ``${product_id}`` / ``${platform}``
                     # templates with whatever literal the synthetic warehouse
                     # happened to emit, which also cut the seeded variable value
-                    # contexts loose from the field they describe (bd tripl-jfm3.56).
+                    # contexts loose from the field they describe.
                     is_authored=True,
                 )
             )

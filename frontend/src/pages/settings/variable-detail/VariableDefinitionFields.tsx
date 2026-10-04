@@ -41,8 +41,8 @@ function TokenList({ values }: { values: readonly string[] }) {
  * The warehouse paths the scan actually ANSWERED on, distinct and in first-seen
  * order. Not the same question as the bindings, which are what the plan ASKS
  * for: a path here that is missing there is the case worth seeing — the scan
- * reached this variable by name and the binding list is incomplete
- * (tripl-h2sx.30). Same query key as the Observed section, so no second request.
+ * reached this variable by name and the binding list is incomplete.
+ * Same query key as the Observed section, so no second request.
  */
 function useObservedSourceColumns(slug: string, branchId: string | null, variableId: string) {
   const { data: contexts = [] } = useQuery({
@@ -57,7 +57,7 @@ function useObservedSourceColumns(slug: string, branchId: string | null, variabl
 
 /**
  * A variable's definition: the form for a writer, a description list for a
- * viewer (#237 rule 4, tripl-i9mt.12). A viewer used to get the same inputs
+ * viewer (#237 rule 4). A viewer used to get the same inputs
  * under a disabled fieldset, with live borders and "Type a value, press Enter"
  * hints on controls that did nothing.
  *

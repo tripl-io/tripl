@@ -151,7 +151,7 @@ describe('SeasonalityHeatmap', () => {
     expect(detail).toHaveTextContent('Thu 14:00 UTC — 800 events')
   })
 
-  it('says the ramp is a rank scale, not a linear count scale (tripl-jfm3.127)', async () => {
+  it('says the ramp is a rank scale, not a linear count scale', async () => {
     vi.mocked(eventMetricsApi.getSeasonalityHeatmap).mockResolvedValue(
       heatmap([
         cell({ weekday: 0, hour: 0, count: 50 }),
@@ -167,7 +167,7 @@ describe('SeasonalityHeatmap', () => {
     expect(await screen.findByText(/shaded by rank/)).toBeInTheDocument()
   })
 
-  it('does not draw a grid a coarse interval can never fill (tripl-jfm3.128)', async () => {
+  it('does not draw a grid a coarse interval can never fill', async () => {
     // A daily scan floors every bucket into hour 0, so 23 of each row's 24
     // cells are structurally empty and the grid reads as missing data.
     vi.mocked(eventMetricsApi.getSeasonalityHeatmap).mockResolvedValue(

@@ -44,8 +44,8 @@ async def _check_end(
     row that merely reads oddly: ``deep_copy_plan_to_branch`` maps a relation's
     ids through the source branch's own event types and fields, so one such row
     makes every later branch creation for the project raise KeyError and 500
-    until it is deleted, and the merge's relation key has the same hole
-    (tripl-0zpq.128). 422 here, where the row is still refusable.
+    until it is deleted, and the merge's relation key has the same hole.
+    422 here, where the row is still refusable.
     """
     type_exists = (
         await session.execute(

@@ -32,7 +32,7 @@ describe('ColumnsMenu hidden-count badge', () => {
     expect(screen.queryByText(/hidden/)).not.toBeInTheDocument()
   })
 
-  // tripl-u1ib: the chip said "3 hidden" while 11 of 17 columns were actually
+  // the chip said "3 hidden" while 11 of 17 columns were actually
   // unreadable — the other 8 were merely scrolled past the right edge, and this
   // chip is the only signal that the table continues.
   it('reports columns scrolled out of the viewport alongside the toggled-off ones', () => {

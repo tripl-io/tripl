@@ -177,7 +177,7 @@ async function pickTwelfth(label: 'From' | 'To'): Promise<string> {
 
 // Loading and empty shared one branch, so a request that had not answered
 // rendered the same sentence as one that answered "nothing" — and the sentence
-// asserted the second (tripl-oxkt.10). IncidentDeliveries.tsx gets this right
+// asserted the second. IncidentDeliveries.tsx gets this right
 // and says why at :46-47.
 describe('AlertAuditPanel states', () => {
   it('says it is still loading rather than that nothing was ever sent', () => {
@@ -228,7 +228,7 @@ describe('AlertAuditPanel states', () => {
 
 // The panel said "115 deliveries", rendered 50 and never mentioned the other 65.
 // The oldest row on screen was four days back, so a reader who scrolled to the
-// bottom concluded their alert had never been sent (tripl-oxkt.12).
+// bottom concluded their alert had never been sent.
 describe('AlertAuditPanel paging', () => {
   it('states that the list is truncated instead of ending silently', () => {
     renderPanel({ deliveries: page(2, 5) })
@@ -270,7 +270,7 @@ describe('AlertAuditPanel paging', () => {
 
 // The backend has accepted date_from/date_to all along and the page passed
 // neither, so the only way to reach a delivery from last Tuesday was to page
-// past everything in between (tripl-oxkt.12).
+// past everything in between.
 describe('AlertAuditPanel date range', () => {
   it('pins To to the END of its day, so the day asked for is included', async () => {
     const onFilters = vi.fn()
@@ -351,8 +351,8 @@ describe('AlertAuditPanel filters', () => {
 describe('AlertAuditPanel naming', () => {
   it('is a delivery log, not a second Audit', () => {
     // The sidebar already has an "Audit log" — the who-changed-what trail, a
-    // different thing entirely — and nothing on this panel said what it was
-    // (tripl-oxkt.18). The `audit` section key stays as it is: every alert ever
+    // different thing entirely — and nothing on this panel said what it was.
+    // The `audit` section key stays as it is: every alert ever
     // sent carries a deep link built on it.
     renderPanel({ deliveries: page(2, 5) })
 
@@ -365,7 +365,7 @@ describe('AlertAuditPanel naming', () => {
   })
 })
 
-describe('AlertAuditPanel viewer gating (tripl-oxkt.9)', () => {
+describe('AlertAuditPanel viewer gating', () => {
   const failedPage: AlertDeliveryListResponse = {
     items: [mockDelivery({ status: 'failed', error_message: 'Forbidden' })],
     total: 1,

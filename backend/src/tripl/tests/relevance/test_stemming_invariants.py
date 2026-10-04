@@ -1,4 +1,4 @@
-"""The stemming invariant, asserted on the mechanism itself (tripl-uojz).
+"""The stemming invariant, asserted on the mechanism itself.
 
 WHY THIS FILE EXISTS, AND WHY IT IS THE PRIMARY GUARD
 -----------------------------------------------------
@@ -72,7 +72,7 @@ WHICH INDIVIDUAL FORMS WERE STEMMED, AND WHICH WERE ONLY REASONED ABOUT
 The row counts above say which LEXEMES exist in production. They do not say
 which FORM produces which lexeme, and assuming the obvious mapping is how the
 first version of this file ended up asserting a vacuous pair. Every form
-stemmed directly against the deployed database (tripl-uojz)::
+stemmed directly against the deployed database::
 
     экран -> экра     улов  -> ул      архив  -> арх
     экрана -> экра    уловы -> улов    архивы -> архив
@@ -101,8 +101,7 @@ section before widening any group here.
 WHAT IS DELIBERATELY ABSENT, AND WHY THAT IS A FINDING AND NOT A GAP
 ---------------------------------------------------------------------
 Two INFLECTED forms of one word can still land in different classes, and then
-neither the stem leg nor the identity leg joins them. Measured, not guessed
-(tripl-uojz):
+neither the stem leg nor the identity leg joins them. Measured, not guessed:
 
     экран -> экра    экрана -> экра    экраны -> экра    экране -> экран
 
@@ -223,7 +222,7 @@ WORDS: tuple[WordForms, ...] = (
             "both sides land on 'экра' and meet on the stem leg alone. Do not add "
             "'экрана' or 'экраны' back: paired with 'экране' they are the measured "
             "MISS this fix does not repair (see the module docstring), and the group "
-            "would go red for a real reason (tripl-uojz)"
+            "would go red for a real reason"
         ),
     ),
     WordForms(
@@ -232,7 +231,7 @@ WORDS: tuple[WordForms, ...] = (
         measured=(
             "архив -> 'арх', архивы -> 'архив'; архив/арх 23/53. 'архива' was listed "
             "here and has been dropped as never stemmed against the database "
-            "(tripl-uojz)"
+            ""
         ),
     ),
     WordForms(
@@ -285,7 +284,7 @@ WORDS: tuple[WordForms, ...] = (
 #: here would be the same mistake as the corpus comments that asserted a case
 #: pinned a fix it did not.
 #:
-#: ``('экран','экрана')`` was here and is gone (tripl-uojz): ``экрана`` stems to
+#: ``('экран','экрана')`` was here and is gone: ``экрана`` stems to
 #: ``экра``, exactly like ``экран``, so the pair met on the stem leg alone. This
 #: parametrization was therefore RED against the shipped code while claiming to
 #: certify it, and the ``экран`` group above was GREEN with the surface leg
@@ -313,7 +312,7 @@ STEM_LEG_ISOLATED_PAIRS: tuple[tuple[str, str], ...] = (
 #: measured table in the module docstring (улов {ул, улов} vs экран {экра,
 #: экран}; уловы {улов, уловы} vs экрана {экра, экрана}), not assumed.
 #:
-#: What this CANNOT rule out, and no list of pairs can (tripl-uojz): the surface
+#: What this CANNOT rule out, and no list of pairs can: the surface
 #: leg joins A to B whenever ``surface(A) == stem(B)``, and nothing in the
 #: mechanism checks that A and B are forms of the same word. Two unrelated words
 #: where one's spelling is the other's stem now match. These pairs show the
@@ -416,7 +415,7 @@ async def test_the_invariant_would_fail_without_the_surface_leg(
     the stem leg, so this parametrization was RED against the very fix it was
     written to certify, while the ``экран`` group above was GREEN with the
     surface leg reverted. Both are fixed by using ``экране``, the one measured
-    form of that word that lands in the other class (tripl-uojz).
+    form of that word that lands in the other class.
     """
     isolated = not await _reaches_on_the_stem_leg(unseeded_session, form=form, query=query)
     assert isolated, (
@@ -445,7 +444,7 @@ async def test_distinct_words_do_not_reach_each_other(
     Note what this does and does not establish. The surface leg is purely
     ADDITIVE — both legs are OR-ed on both sides — so it cannot take a match
     away, but "it only adds a more specific lexeme, therefore it cannot merge two
-    classes" is false and is not the claim being checked here (tripl-uojz). The
+    classes" is false and is not the claim being checked here. The
     added lexeme is a plain string, and a match on it is a string equality that
     knows nothing about words: ``surface(A) == stem(B)`` is the identity the
     whole repair rests on, and it fires just as happily when A and B are

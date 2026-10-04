@@ -2,7 +2,7 @@
 
 Rehomed from tests/test_client.py when the HTTP client moved into the shared
 `tripl` distribution — ``with_mutation_warnings`` stayed behind because it is an
-MCP prompt concern, not a transport one (tripl-ey6j.1).
+MCP prompt concern, not a transport one.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def test_a_summary_reads_the_envelope_the_shared_layer_defines() -> None:
     this API is declared ``array[object]``. The hand-written copy that used to
     live in ``_common`` kept whatever the body carried, so one malformed
     response reached an agent as a row and the CLI as nothing — two readings of
-    one wire format (tripl-i1dt).
+    one wire format.
     """
     summary = summarize_collection({"items": [{"id": "a"}, "not an object"], "total": 2})
 

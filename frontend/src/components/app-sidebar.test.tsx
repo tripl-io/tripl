@@ -57,7 +57,7 @@ function mockProjectsFetch() {
             alert_destination_count: 1,
             // Deliberately different from alert_destination_count: the Alerting
             // badge used to count DESTINATIONS, so it read "1" while 52
-            // incidents sat open (tripl-oxkt.16). Two distinct values are what
+            // incidents sat open. Two distinct values are what
             // let the assertion below tell the two apart.
             open_incident_count: 7,
             alert_rule_count: 0,
@@ -170,7 +170,7 @@ describe('AppSidebar', () => {
     await screen.findByText('Events')
 
     // <aside aria-label="Main navigation"> announced as "complementary", so the
-    // nav rotor never listed it (tripl-jfm3.65).
+    // nav rotor never listed it.
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Main navigation' })).toBeNull()
   })
@@ -243,7 +243,7 @@ describe('AppSidebar', () => {
     )
   })
 
-  it('hides the owner-only Audit log from a member (tripl-jfm3.110)', async () => {
+  it('hides the owner-only Audit log from a member', async () => {
     mockProjectsFetch()
 
     renderSidebar('/p/demo/events', 'member')
@@ -355,7 +355,7 @@ describe('AppSidebar', () => {
     expect(anomaliesLink).toHaveTextContent('9')
 
     // And nothing badges firing_monitor_count (3) any more. It belonged to the
-    // Monitors item, which is gone (tripl-89ps): a firing rule already reaches
+    // Monitors item, which is gone: a firing rule already reaches
     // the sidebar as the incident it opens, and three danger badges in one group
     // for one event is what the merge set out to fix. The firing count is on the
     // Monitors section's own rollup.
@@ -383,7 +383,7 @@ describe('AppSidebar', () => {
 
     // Detection settings highlight Anomalies — they decide what gets flagged,
     // and notify nobody. They used to highlight Monitors, a list of alert rules
-    // they have no bearing on (tripl-89ps).
+    // they have no bearing on.
     renderSidebar('/p/demo/settings/monitoring')
     const anomalies = await screen.findByRole('link', { name: /Anomalies/ })
     expect(anomalies).toHaveClass('bg-sidebar-active')

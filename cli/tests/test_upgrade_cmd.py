@@ -2,7 +2,7 @@
 
 The one thing this command must never do is leave an operator with a stack whose
 image and schema disagree and no way back. Every test below is one clause of
-that promise (tripl-ey6j.3).
+that promise.
 """
 
 from __future__ import annotations
@@ -124,8 +124,7 @@ def test_yes_alone_does_not_disable_the_ordering_guard(
     A pipeline has to pass it or the backup prompt hangs it forever, so a
     `--yes` that also meant "and never mind that this may be a downgrade" turned
     the guard off on precisely the runs nobody is watching. Applying migrations
-    backwards is the single most destructive thing this CLI can do
-    (tripl-jfm3).
+    backwards is the single most destructive thing this CLI can do.
     """
     before = (installed / ".env").read_bytes()
 
@@ -182,8 +181,8 @@ def test_an_unorderable_dry_run_previews_instead_of_refusing(
     """`--dry-run` is documented as "write nothing, run nothing" - not "exit 2".
 
     The refusal used to be raised before the dry-run branch, so the one move an
-    operator is most unsure about was the one they could not preview
-    (tripl-jfm3). The refusal is still stated, as a preview of it.
+    operator is most unsure about was the one they could not preview.
+    The refusal is still stated, as a preview of it.
     """
     before = (installed / ".env").read_bytes()
 
@@ -244,7 +243,7 @@ def test_no_docker_on_the_upgrade_path_leaves_the_pin_and_runs_nothing(
     """`require_docker` on THIS command was only ever reached on the success path.
 
     The autouse fixture forces Docker present, so nothing exercised the probe
-    that has to stop an upgrade before the pull (tripl-jfm3). It matters more
+    that has to stop an upgrade before the pull. It matters more
     here than on `install`: past this point the .env is rewritten.
     """
     monkeypatch.setattr(docker, "which", lambda name: None)
@@ -286,7 +285,7 @@ def test_no_app_base_url_reports_the_real_reason_and_never_claims_it_is_running(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """It used to blame `--wait 0` on a run whose --wait was 300, and then say
-    "<tag> is running." having contacted nothing at all (tripl-jfm3)."""
+    "<tag> is running." having contacted nothing at all."""
     env = installed / ".env"
     env.write_text("TRIPL_VERSION=1.4.0\n", encoding="utf-8")
     env.chmod(0o600)

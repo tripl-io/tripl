@@ -788,7 +788,7 @@ def test_the_buffered_incident_handle_is_the_one_the_digest_will_deliver(
         ], "one incident, keyed on the id the digest will actually deliver"
 
 
-# ── one message per destination (tripl-o0u7) ──────────────────────────────
+# ── one message per destination ──────────────────────────────
 
 
 def _add_rule(session: Session, destination: AlertDestination, name: str) -> AlertRule:
@@ -1052,7 +1052,7 @@ def test_a_held_alert_is_visible_from_outside_the_database(
 
     On a cadence that is the difference between the feature working and it
     swallowing every alert for a whole window — which is exactly what could not
-    be confirmed when this shipped to production (tripl-ftrn). The collection
+    be confirmed when this shipped to production. The collection
     now reports what it buffered.
     """
     with sync_session_factory() as session:

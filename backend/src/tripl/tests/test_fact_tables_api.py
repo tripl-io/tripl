@@ -1,4 +1,4 @@
-"""API-level tests for the FactTable CRUD catalog + preview (tripl-ysji.3)."""
+"""API-level tests for the FactTable CRUD catalog + preview."""
 
 import uuid
 from types import SimpleNamespace
@@ -173,7 +173,7 @@ class TestDataSourceScoping:
 
     The rule used to be "a ScanConfig must link the source to THIS project",
     which answered the same question differently from the ``sql``-metric doors
-    and locked out a workspace-global warehouse nobody scans (tripl-0zpq.177).
+    and locked out a workspace-global warehouse nobody scans.
     It is now ownership — so these two build the out-of-scope source by having
     ANOTHER project claim it, which is the case that was always the point.
     """
@@ -386,14 +386,14 @@ class TestPreview:
         ]
         assert body["identifier_candidates"] == ["user_id"]
         # No sample_rows: the preview answers the query's SHAPE and never its
-        # rows (tripl-0zpq.75). Nothing in the product displayed them, so the
+        # rows. Nothing in the product displayed them, so the
         # field returned up to twenty raw warehouse rows to no one.
         assert "sample_rows" not in body
 
     async def test_preview_survives_an_over_long_native_type(
         self, monkeypatch: pytest.MonkeyPatch, client: AsyncClient, project: dict
     ):
-        """One unusable type name must not 500 the whole preview (tripl-0zpq.269).
+        """One unusable type name must not 500 the whole preview.
 
         ``native_type`` is descriptive and every consumer matches on its HEAD
         (``core.warehouse_types`` classify_time/classify_complex are startswith-based),

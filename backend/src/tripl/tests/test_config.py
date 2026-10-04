@@ -163,7 +163,7 @@ def test_assert_production_ready_requires_secure_cookies() -> None:
 
 
 def test_registration_is_open_by_default() -> None:
-    # Deliberate trade-off (tripl-jfm3.80): there is no owner-initiated
+    # Deliberate trade-off: there is no owner-initiated
     # account-create or invite endpoint yet, so a "disabled" default leaves an
     # instance unable to onboard anybody. Operators close it explicitly once
     # their team has accounts.
@@ -191,14 +191,14 @@ def test_empty_env_values_fall_back_to_defaults(monkeypatch: pytest.MonkeyPatch)
 
     This is not hypothetical tidiness. compose.yaml forwards ~25 optional
     settings as `VAR: ${VAR:-}` so that a value placed in .env actually reaches
-    the container — the omission that made DEMO_ENABLED (tripl-2su6.16) and then
-    REGISTRATION_MODE (tripl-jfm3.101) inert. But Compose's map syntax
+    the container — the omission that made DEMO_ENABLED and then
+    REGISTRATION_MODE inert. But Compose's map syntax
     materialises an undefined variable as the empty STRING, and before
     `env_ignore_empty` pydantic raised five validation errors on exactly the
     five typed members of that list. `Settings()` is constructed at module
     import, so the app, migrate, worker and beat containers all exited on boot
     of every fresh `docker compose up` — which is precisely the machine
-    `tripl install` promises to take from nothing to running (tripl-ey6j.3).
+    `tripl install` promises to take from nothing to running.
 
     The five names below are the five that failed, reproduced from a .env
     derived from .env.example; the rest of the passthrough list is `str`, where

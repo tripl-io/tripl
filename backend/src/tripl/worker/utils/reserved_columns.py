@@ -24,7 +24,7 @@ def _event_group_rule_columns(config: ScanConfig) -> set[str]:
     auto-created a FieldDefinition for the rule's column on every event type,
     and the scan then captured a sample value for it. On the demo that produced
     a "Screen View" field literally rendering the rule's own pattern,
-    ``/^Home\\ Screen\\ View$/`` (tripl-jfm3.57).
+    ``/^Home\\ Screen\\ View$/``.
 
     Read defensively: ``event_group_rules`` is a JSON column, so a row written
     by an older release (or by hand) may not match the current shape.
@@ -103,7 +103,7 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     * ``generate_events`` takes it as ``reserved_columns`` and stays quiet about a
       reserved column having no FieldDefinition — of course it has none, that is
       this function's doing, and reporting it as a plan gap sent a fresh demo's
-      very first scan out with six of seven detail lines wrong (tripl-jfm3.90)
+      very first scan out with six of seven detail lines wrong
 
     It deliberately does NOT feed ``check_scalar_columns_unreserved`` — a project
     that already selected a group-rule column as a breakdown keeps working.
@@ -115,7 +115,7 @@ def reserved_catalog_columns(config: ScanConfig) -> set[str]:
     one. The name format is then evaluated with the placeholder missing and the
     whole collection dies on ``the event name format references unknown keys``. That
     is what took production's 'Old events (iOS)' scan down for 200 consecutive
-    runs (tripl-lpin): its group rules match ``action`` and its name format is
+    runs: its group rules match ``action`` and its name format is
     ``{action}``, so tripl-jfm3.90 reserved away the one column the event's
     identity was built from.
 

@@ -3,8 +3,8 @@
 The live dispatch (``worker.tasks.metrics.signals``, sync) and the in-UI replay
 (``services.alerting_service``, async) both turn ``PropertyDrift`` rows into
 ``DriftAlertCandidate``s. Value drift keeps two hand-maintained copies of that
-field mapping and a docstring asking whoever edits one to edit the other
-(tripl-0zpq.158); here there is one copy, and both loaders only choose rows.
+field mapping and a docstring asking whoever edits one to edit the other;
+here there is one copy, and both loaders only choose rows.
 
 The mapping rides the shared drift columns:
 

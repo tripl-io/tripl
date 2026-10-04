@@ -5,7 +5,7 @@ import PlanRulesSection from './PlanRulesSection'
 
 /**
  * Nothing on Plan rules is wired to anything. The page first rendered every
- * control live and pre-set to a governed state (tripl-x2ho), then as dozens of
+ * control live and pre-set to a governed state, then as dozens of
  * disabled controls set to "off" (WS-37). Neither was a settings page: it is
  * now one "Coming later" card that describes the rules and offers no control
  * that could be read as a setting.

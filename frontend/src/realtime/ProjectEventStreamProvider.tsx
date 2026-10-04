@@ -1,6 +1,6 @@
 /**
  * Mounts the project event stream once per project scope and publishes its
- * status to descendants (tripl-2su6.8). Placed high in the app Layout so the top
+ * status to descendants. Placed high in the app Layout so the top
  * bar, activity rail, and routed pages all read one shared stream status.
  */
 

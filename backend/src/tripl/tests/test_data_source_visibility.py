@@ -1,4 +1,4 @@
-"""Non-owners must not read warehouse connection metadata (tripl-jfm3.79).
+"""Non-owners must not read warehouse connection metadata.
 
 ``GET /api/v1/data-sources`` used to hand every authenticated user — viewers
 included — the host, port, database, username, stored-secret flag, TLS material
@@ -180,7 +180,7 @@ async def test_non_owners_keep_what_the_scan_and_metric_forms_need(stand, actor:
 
 @pytest.mark.asyncio
 async def test_viewer_cannot_enumerate_the_warehouse_schema(stand) -> None:
-    """A viewer must not read the warehouse's table and column names (tripl-jfm3.83).
+    """A viewer must not read the warehouse's table and column names.
 
     Redacting host/port off the data-source payload was pointless while this
     route handed the same viewer a map of every table and column in the

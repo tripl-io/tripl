@@ -276,10 +276,10 @@ describe('filtersFromConfig', () => {
 
 // The metric edit page loads `filter_sql` back into the editor with
 // `filtersFromConfig` and re-serialises it with `filtersToPayload` on save.
-// That round trip MUST be a fixed point — the historical bug (tripl-wumc) was
+// That round trip MUST be a fixed point — the historical bug was
 // serialize(parse(x)) === `(${x})`, so every open→save of the edit form grew
 // the stored expression by one paren layer.
-describe('filter_sql round-trip idempotency (tripl-wumc)', () => {
+describe('filter_sql round-trip idempotency', () => {
   const roundTrip = (filterSql: string): string | null =>
     filtersToPayload(filtersFromConfig(config([], filterSql))).filter_sql
 

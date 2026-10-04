@@ -815,7 +815,7 @@ def test_a_real_project_idle_for_four_hours_is_still_reported(now: datetime) -> 
 
 
 def test_a_demo_silent_past_its_cooldown_is_not_reported(now: datetime) -> None:
-    """A demo nobody opens stops collecting on purpose (tripl-0zpq.343).
+    """A demo nobody opens stops collecting on purpose.
 
     The scheduler's pause gate stops a demo's dispatcher entirely, and no field
     the API exposes tells that pause from a dead scheduler, so a demo's silence

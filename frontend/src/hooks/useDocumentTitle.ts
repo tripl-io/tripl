@@ -112,8 +112,8 @@ const PROJECT_SUBSURFACE_LABELS: Record<string, Record<string, string>> = {
     history: 'Plan history',
     // Three surfaces named this page at once — tab title "Project settings",
     // breadcrumb terminal "Anomalies", heading "Detection settings" — and it
-    // was the only route in the production walk where all three disagreed
-    // (tripl-34tw). This string is the page's own H2 (MonitoringTab) and the
+    // was the only route in the production walk where all three disagreed.
+    // This string is the page's own H2 (MonitoringTab) and the
     // breadcrumb leaf in `lib/navigation.ts`; a test pins the two together.
     monitoring: 'Detection settings',
     alerting: 'Alerting',
@@ -156,7 +156,7 @@ export function resolveTitleFromPath(pathname: string): { label: string; slug?: 
   if (parts[0] === 'auth') return { label: 'Sign in' }
   // `/invite/:token` renders outside the app shell and sets no title of its own,
   // so without an entry here the one page a brand-new member ever sees titled
-  // its tab "Page not found" (tripl-l33u.12).
+  // its tab "Page not found".
   if (parts[0] === 'invite') return { label: 'Invitation' }
   if (parts[0] === 'workspace' || parts[0] === 'projects') return { label: 'All projects' }
   if (parts[0] === 'settings') {
@@ -165,7 +165,7 @@ export function resolveTitleFromPath(pathname: string): { label: string; slug?: 
     // so a first-segment lookup gave every one of the seven `instance/*`
     // sections the same title and both `project/*` sections another — eleven
     // routes collapsed onto three tab titles, which is unusable for the
-    // owner-operator who has several of them open at once (tripl-xl9r).
+    // owner-operator who has several of them open at once.
     const sectionPath = parts.slice(1).join('/')
     if (!sectionPath || second === undefined) return { label: 'Settings' }
     // Longest rail prefix wins, then the section parent. A route can be deeper

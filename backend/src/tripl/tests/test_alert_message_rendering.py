@@ -360,10 +360,10 @@ def test_too_long_error_is_recognised_and_is_not_a_parse_error() -> None:
     assert _is_telegram_message_too_long_error(parse_error) is False
 
 
-# --- the zero-baseline percentage (tripl-l429.24) ---------------------------
+# --- the zero-baseline percentage ---------------------------
 #
 # The percent gate deliberately admits anomalies with no baseline at all
-# (tripl-l429.12): a scope resuming after an outage, or an event firing for the
+#: a scope resuming after an outage, or an event firing for the
 # first time. ``percent_delta`` is stored 0.0 for those because the ratio is
 # undefined and the column is NOT NULL — so the message printed the largest
 # possible relative move as the smallest one.
@@ -508,7 +508,7 @@ def test_a_saved_custom_template_still_prints_the_bare_number() -> None:
     assert labelled == "checkout:completed: no baseline"
 
 
-# --- the machine encodings of the same fact (tripl-l429.27) -----------------
+# --- the machine encodings of the same fact -----------------
 #
 # Humans are told "no baseline"; programs are handed JSON null. What neither may
 # be handed is the stored 0.0 placeholder, which a consumer cannot tell apart
@@ -566,7 +566,7 @@ def _snapshot_items(expected_count: float) -> list[dict[str, object]]:
             interval="1h",
         ),
         project_slug="checkout",
-        # Required, and passed EMPTY on purpose (tripl-0zpq.109). The snapshot
+        # Required, and passed EMPTY on purpose. The snapshot
         # builder now takes the base URL from its caller instead of opening its
         # own session to read the runtime config, which is what kept these
         # otherwise-pure percentage tests reaching for a database. Every

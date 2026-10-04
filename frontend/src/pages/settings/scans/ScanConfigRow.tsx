@@ -44,7 +44,7 @@ export function RunStatusPill({ status, title }: { status: RunPillStatus; title?
 /**
  * What this scan actually does, derived from the two columns the dispatcher
  * filters on. It leads every badge strip because a config that collects nothing
- * used to look identical to one that collects everything (tripl-3y7z.1).
+ * used to look identical to one that collects everything.
  *
  * Module-private on purpose: `ScanBadges` already renders it, and `ScanBadges`
  * IS the public entry point. An outside caller reaching for the badge directly
@@ -147,7 +147,7 @@ export function ScanListRow({
    * whole row was one widget, which put the Run and Review buttons inside an
    * interactive element — axe's nested-interactive, and in practice a screen
    * reader could address neither the row nor the controls it swallowed. The
-   * name link below replaces that affordance (tripl-np3p).
+   * name link below replaces that affordance.
    */
   detailHref: string
   /** Mouse-only convenience: the whole row is still a click target. */
@@ -165,7 +165,7 @@ export function ScanListRow({
   const cadenceLabel = sc.interval ? (intervalLabel[sc.interval] ?? sc.interval) : 'Manual'
   // `unknown` means this scan's job query is still in flight. There is no
   // verdict to pill yet, so the cell shows a skeleton rather than the
-  // finished-looking "Never run" chip (tripl-jfm3.28).
+  // finished-looking "Never run" chip.
   const isRunInfoPending = runInfo.status === 'unknown'
   const pillStatus: RunPillStatus =
     runInfo.status === 'ok'
@@ -181,8 +181,7 @@ export function ScanListRow({
 
   // The list is the surface the demo coach's step-1 CTA opens, so the Run
   // control must live here — not only on the detail page. Reuses the detail
-  // page's Play icon; stopPropagation keeps the row's own navigate from firing
-  // (tripl-q7i1.5).
+  // page's Play icon; stopPropagation keeps the row's own navigate from firing.
   // The shared Button at the dense row-action size (DS-14), not a hand-rolled
   // 11px bordered button.
   // A run already in flight disables Run now and says so: a second click only
@@ -207,7 +206,7 @@ export function ScanListRow({
     // holds two buttons, so giving it a widget role of its own nested them
     // inside one (nested-interactive). onClick stays because a plain <tr> with a
     // click handler is not in the accessibility tree at all — it is a mouse
-    // shortcut layered over the name link, not the way in (tripl-np3p).
+    // shortcut layered over the name link, not the way in.
     // Below `sm` the row is a stacked card: the name cell takes the first line
     // and the last run and the actions share the second, instead of a table
     // whose status and Run now sat off-screen to the right (LIVE-15). Same

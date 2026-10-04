@@ -58,7 +58,7 @@ EventIds = Annotated[list[uuid.UUID] | None, Query(alias="event_id")]
 # Every ``scope_type`` below is declared MetricScopeType rather than str: the
 # value is bound against a native Postgres ``metric_scope_type`` column, so an
 # out-of-enum string used to reach the driver and surface as a 500 instead of a
-# 422 (tripl-57g0). Spelling out the full enum is deliberate — the endpoints
+# 422. Spelling out the full enum is deliberate — the endpoints
 # that support only a subset (app-versions, distribution-drifts) already raise
 # their own 4xx for the scopes they don't handle, so this rejects garbage at the
 # edge without narrowing anything that works today.
@@ -72,16 +72,16 @@ async def get_events_metrics(
     session: SessionDep,
     slug: str,
     # ``?branch=``: evaluate the tag / status / search filter on that branch's
-    # events, which the Events page lists, not on main's (tripl-vk1p).
+    # events, which the Events page lists, not on main's.
     branch_id: BranchIdDep,
     event_type_id: uuid.UUID | None = None,
     # FreeTextFilter: binds into an ILIKE, so a NUL aborts inside asyncpg
-    # before SQL runs (tripl-8wez).
+    # before SQL runs.
     search: FreeTextFilter | None = None,
     tag: FreeTextFilter | None = None,
     # list[EventStatus] (not list[str]): the filter lands in Event.status.in_(),
     # a native Postgres enum, so one bad member 500'd the whole request. Mirrors
-    # GET /events?status= — same filter, same enum, now the same 422 (tripl-57g0).
+    # GET /events?status= — same filter, same enum, now the same 422.
     status: Annotated[list[EventStatus] | None, Query()] = None,
     time_from: TimeFrom = None,
     time_to: TimeTo = None,
@@ -298,7 +298,7 @@ async def query_signal_series(
 
 ScanConfigParam = Annotated[uuid.UUID | None, Query()]
 # FreeTextFilter strips a NUL before the length check: the value is bound into
-# an equality, and a NUL aborts inside asyncpg before SQL runs (tripl-8wez).
+# an equality, and a NUL aborts inside asyncpg before SQL runs.
 ScopeRefParam = Annotated[FreeTextFilter, Query(min_length=1, max_length=64)]
 
 

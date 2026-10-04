@@ -100,7 +100,7 @@ def _carries_no_data(name: str, results: dict[str, CardinalityResult]) -> bool:
     scoped to that type's rows. Without this check each type reports `new_field`
     for every column it never populates — so a purchase-only ``amount`` becomes
     drift on Screen View and on Click, and the demo alone produced ~24 such rows
-    per scan (tripl-jfm3.57). That is noise, not drift: the column is not new,
+    per scan. That is noise, not drift: the column is not new,
     this event simply does not use it.
 
     ``count`` is a distinct count built with NULLs excluded
@@ -415,8 +415,8 @@ class FieldContractOutcome:
     raised and nothing was evaluated. ``expectations_skipped`` counts single
     expectations the adapter declined while it evaluated the rest — a pattern
     the engine's regex library refuses, a REPEATED column BigQuery cannot render,
-    a non-finite range bound — which used to leave nothing but a worker log line
-    (tripl-0zpq.341 / tripl-0zpq.358). Folding them into ``checks_failed`` would
+    a non-finite range bound — which used to leave nothing but a worker log line.
+    Folding them into ``checks_failed`` would
     make one refused pattern read as a whole event type going unchecked.
     """
 

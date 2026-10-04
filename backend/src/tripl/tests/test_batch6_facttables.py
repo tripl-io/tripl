@@ -3,7 +3,7 @@
 Three defects in the referential guard batch 5 put on ``update_fact_table``. Each
 is pinned by an assertion that goes red if the production change is reverted:
 
-* tripl-0zpq.351 — the guard's filter predicate unioned BOTH ratio operands, so a
+* the guard's filter predicate unioned BOTH ratio operands, so a
   cross-table ratio metric made every table that happened to define a filter of
   the same name un-editable. Filters are named by convention ('exclude_internal'
   on each table), so this is the ordinary case: dropping the filter from the
@@ -11,11 +11,11 @@ is pinned by an assertion that goes red if the production change is reverted:
   that name lives on the OTHER operand's table. The operator cannot act on that
   refusal — "Edit the metric first" does not help, because the metric is not
   doing anything wrong.
-* tripl-0zpq.356 — the guard raised on the FIRST removed filter that blocked, so
+* the guard raised on the FIRST removed filter that blocked, so
   pruning three filters in one form save cost three edit/save/409 round trips to
   learn three facts the server had already computed in one request. Worse, each
   message reads as though the filter it names were the only obstruction.
-* tripl-0zpq.357 — ``fact_table_dependents``'s docstring claimed to hold the ONE
+* ``fact_table_dependents``'s docstring claimed to hold the ONE
   definition of "this metric would break if that fact table changed", but
   ``FactTableUpdate.columns`` is patchable and was not consulted: re-previewing a
   fact table against a query that no longer projects ``amount`` silently stranded
@@ -123,7 +123,7 @@ async def _patch_fact_table(
     return await client.patch(f"{_fact_tables_url(slug)}/{fact_table_id}", json=body)
 
 
-# ── tripl-0zpq.351: the predicate is scoped to the table being edited ────────
+# ── the predicate is scoped to the table being edited ────────
 
 
 async def test_dropping_a_filter_the_ratio_uses_on_its_OTHER_table_is_allowed(
@@ -250,7 +250,7 @@ def test_an_operand_that_does_not_say_which_table_it_reads_stays_guarded() -> No
     ]
 
 
-# ── tripl-0zpq.356: every blocked removal in ONE refusal ─────────────────────
+# ── every blocked removal in ONE refusal ─────────────────────
 
 
 async def test_pruning_three_used_filters_reports_all_three_in_one_refusal(
@@ -332,7 +332,7 @@ async def test_a_single_blocked_filter_still_reads_in_the_singular(
     assert detail.endswith("Edit the metric first, then change the filter.")
 
 
-# ── tripl-0zpq.357: the column door, the one the module said it covered ──────
+# ── the column door, the one the module said it covered ──────
 
 
 async def test_dropping_a_column_a_metric_aggregates_is_refused(

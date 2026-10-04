@@ -1,6 +1,6 @@
 """Celery task for the scan dry run: "what would this scan create?".
 
-Split out of ``worker.tasks.scan`` (tripl-28g7) purely for size — that module
+Split out of ``worker.tasks.scan`` purely for size — that module
 crossed the repo's 800-line guideline and the dry-run half is self-contained
 behind one entry point, ``build_dry_run_payload``.
 
@@ -86,7 +86,7 @@ class _DryRunTarget:
     # column with no field definition really is dropped and must be reported as
     # unmapped instead of quietly folded into an event name.
     #
-    # This flag was right before the manual path was (tripl-0zpq.45): the dry run
+    # This flag was right before the manual path was: the dry run
     # promised a missing event type "would be added" while a real manual run
     # skipped the group outright. Nothing here changed to close that gap — the
     # runner did.
@@ -274,7 +274,7 @@ def build_dry_run_payload(
     )
     # Computed on the DRAFT and passed down: ``core`` must never import
     # ``worker``, and re-deriving the reserved set is what took a production scan
-    # down for 200 consecutive runs (tripl-lpin).
+    # down for 200 consecutive runs.
     skip_cols = reserved_catalog_columns(config)
 
     targets, refusals = _dry_run_targets(
@@ -362,7 +362,7 @@ def build_dry_run_payload(
         except NameFormatError as exc:
             # Deliberately not fatal. Surfacing the unknown key here, instead of
             # after 200 failed production runs, is the highest-value thing this
-            # endpoint does (tripl-lpin); failing the job would hide it behind a
+            # endpoint does; failing the job would hide it behind a
             # generic error banner.
             errors.append(str(exc))
             continue
@@ -371,7 +371,7 @@ def build_dry_run_payload(
         # so five groups each dropping one row printed "Skipped 1 row whose
         # derived event name was empty" five times. An operator reading that
         # panel concludes five separate one-row problems, not the five rows that
-        # were actually dropped (tripl-wkwv.5). Withhold each plan's own line
+        # were actually dropped. Withhold each plan's own line
         # here and say the total once, below.
         #
         # ``generate_events``' run report keeps the per-plan line on purpose: it
@@ -532,7 +532,7 @@ def _dry_run_config(session: Session, job: ScanDryRunJob) -> ScanConfig:
 @celery_app.task(  # type: ignore[untyped-decorator]
     # Wire identifier, NOT a module path: the broker routes on this string, so it
     # keeps the ``...tasks.scan...`` prefix even though the code now lives in
-    # ``tasks.scan_dry_run``. Renaming it strands in-flight jobs (tripl-28g7).
+    # ``tasks.scan_dry_run``. Renaming it strands in-flight jobs.
     name="tripl.worker.tasks.scan.dry_run_scan_config_async",
     bind=True,
     max_retries=0,
