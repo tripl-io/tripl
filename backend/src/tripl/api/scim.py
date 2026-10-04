@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, Response
 
 from tripl.api.deps import SessionDep
-from tripl.api.v1.auth_sso import app_base_url
+from tripl.api.v1._auth_redirects import app_base_url
 from tripl.middleware.org_context import OrgRef, bind_org
 from tripl.middleware.rate_limit import (
     allow,

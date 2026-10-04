@@ -45,6 +45,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from tripl.api.deps import SessionDep
+from tripl.api.v1._auth_redirects import app_base_url, error_redirect
 from tripl.api.v1.auth import _set_session_cookie
 from tripl.auth_utils import hash_session_token
 from tripl.config import settings
@@ -66,13 +67,17 @@ from tripl.schemas.org_sso import (
 )
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import (
-    app_settings_service,
     auth_service,
     org_sso_service,
     saml_login_service,
     sso_login_service,
 )
-from tripl.services.sso_login_service import NeedsLink, SignedIn, SsoFlowError
+from tripl.services.oidc import flow as oidc_flow
+from tripl.services.oidc.flow import SignInFlowError
+from tripl.services.sso_login_service import (
+    NeedsLink,
+    SignedIn,
+)
 
 router = APIRouter(prefix="/auth/sso", tags=["auth"])
 
@@ -100,19 +105,10 @@ async def _browser_session(
     return user, hash_session_token(cookie)
 
 
-async def app_base_url(session: AsyncSession, request: Request) -> str:
-    """The operator's ``app_base_url``, else the URL this request came in on."""
-    overrides = await app_settings_service.get_service_overrides(session)
-    configured = app_settings_service.build_runtime_config(overrides).app_base_url
-    return (configured or str(request.base_url)).rstrip("/")
-
-
 def _error_redirect(
     base: str, code: str, *, status_code: int = status.HTTP_302_FOUND
 ) -> RedirectResponse:
-    response = RedirectResponse(
-        f"{base}/auth?" + urlencode({"sso_error": code}), status_code=status_code
-    )
+    response = error_redirect(base, code, status_code=status_code)
     _clear_state_cookie(response)
     return response
 
@@ -193,7 +189,7 @@ async def preview_link(
         preview = await sso_login_service.preview_link(
             session, ticket, session_user_id=None if signed_in is None else signed_in.id
         )
-    except SsoFlowError:
+    except SignInFlowError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_LINK_INVALID) from None
     return SsoLinkPreview(
         email=preview.email,
@@ -229,8 +225,8 @@ async def confirm_link(
         signed_in, _org_id = await sso_login_service.confirm_link(
             session, data.ticket, session_user=session_user, session_token_hash=session_digest
         )
-    except SsoFlowError as exc:
-        if exc.code == sso_login_service.ERR_UNAVAILABLE:
+    except SignInFlowError as exc:
+        if exc.code == oidc_flow.ERR_UNAVAILABLE:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="This organization no longer signs in through single sign-on.",
@@ -265,12 +261,12 @@ async def start(
     """Send the browser to the organization's identity provider."""
     base = await app_base_url(session, request)
     if not await allow(sso_rate_limiter, request):
-        return _error_redirect(base, sso_login_service.ERR_RATE_LIMITED)
+        return _error_redirect(base, oidc_flow.ERR_RATE_LIMITED)
     try:
         started = await sso_login_service.start(
             session, org_slug=org_slug, next_path=next_path, app_base_url=base
         )
-    except SsoFlowError as exc:
+    except SignInFlowError as exc:
         return _error_redirect(base, exc.code)
     response = RedirectResponse(started.authorization_url, status_code=status.HTTP_302_FOUND)
     max_age = int(sso_login_service.STATE_TTL.total_seconds())
@@ -314,9 +310,9 @@ async def callback(
     """The provider's redirect back; see the module docstring for where it lands."""
     base = await app_base_url(session, request)
     if not await allow(sso_rate_limiter, request):
-        return _error_redirect(base, sso_login_service.ERR_RATE_LIMITED)
+        return _error_redirect(base, oidc_flow.ERR_RATE_LIMITED)
     if not _state_bound(request, STATE_COOKIE, state):
-        return _error_redirect(base, sso_login_service.ERR_STATE)
+        return _error_redirect(base, oidc_flow.ERR_STATE)
     try:
         outcome = await sso_login_service.callback(
             session,
@@ -326,7 +322,7 @@ async def callback(
             idp_error=error,
             app_base_url=base,
         )
-    except SsoFlowError as exc:
+    except SignInFlowError as exc:
         return _error_redirect(base, exc.code)
     return _outcome_redirect(base, outcome, status_code=status.HTTP_302_FOUND)
 
@@ -355,12 +351,12 @@ async def saml_acs(
     base = await app_base_url(session, request)
     see_other = status.HTTP_303_SEE_OTHER
     if not await allow(sso_rate_limiter, request):
-        return _error_redirect(base, sso_login_service.ERR_RATE_LIMITED, status_code=see_other)
+        return _error_redirect(base, oidc_flow.ERR_RATE_LIMITED, status_code=see_other)
     if not relay_state:
         # IdP-initiated: no sign-in of this browser to answer.
         return _error_redirect(base, sso_login_service.ERR_SAML_UNSOLICITED, status_code=see_other)
     if not _state_bound(request, SAML_STATE_COOKIE, relay_state):
-        return _error_redirect(base, sso_login_service.ERR_STATE, status_code=see_other)
+        return _error_redirect(base, oidc_flow.ERR_STATE, status_code=see_other)
     try:
         outcome = await saml_login_service.acs(
             session,
@@ -369,7 +365,7 @@ async def saml_acs(
             relay_state=relay_state,
             app_base_url=base,
         )
-    except SsoFlowError as exc:
+    except SignInFlowError as exc:
         return _error_redirect(base, exc.code, status_code=see_other)
     return _outcome_redirect(base, outcome, status_code=see_other)
 

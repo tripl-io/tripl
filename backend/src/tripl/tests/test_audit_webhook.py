@@ -45,6 +45,7 @@ from tripl.models.domain_enums import OrganizationStatus
 from tripl.models.organization import Organization
 from tripl.services import audit_service, audit_webhook_delivery, safe_http
 from tripl.services.audit_rows import COLUMNS, row_record
+from tripl.services.oidc import idp_http
 from tripl.services.safe_http import HttpResponse
 from tripl.tests._members import add_org_member
 from tripl.tests.conftest import TestSessionLocal
@@ -1028,13 +1029,12 @@ def test_both_callers_pass_a_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(safe_http, "send", fake_send)
     audit_webhook_delivery._send(RECEIVER, {}, b"{}")
-    from tripl.services import sso_http
 
-    sso_http._send("GET", "https://idp.example.com/jwks", {}, None)
+    idp_http._send("GET", "https://idp.example.com/jwks", {}, None)
     assert seen[0]["deadline"] == audit_webhook_delivery.DEADLINE_SECONDS
     assert seen[0]["max_response_bytes"] == 0
-    assert seen[1]["deadline"] == sso_http.DEADLINE_SECONDS
-    assert seen[1]["max_response_bytes"] == sso_http.MAX_RESPONSE_BYTES
+    assert seen[1]["deadline"] == idp_http.DEADLINE_SECONDS
+    assert seen[1]["max_response_bytes"] == idp_http.MAX_RESPONSE_BYTES
 
 
 def test_a_send_past_its_deadline_is_a_timeout_failure(monkeypatch: pytest.MonkeyPatch) -> None:

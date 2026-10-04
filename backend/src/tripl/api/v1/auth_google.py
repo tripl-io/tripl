@@ -13,13 +13,13 @@ from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import RedirectResponse
 
 from tripl.api.deps import SessionDep
+from tripl.api.v1._auth_redirects import app_base_url, error_redirect
 from tripl.api.v1.auth import _set_session_cookie
-from tripl.api.v1.auth_sso import _error_redirect, app_base_url
 from tripl.config import settings
 from tripl.middleware.rate_limit import allow, sso_rate_limiter
 from tripl.schemas.text_filters import FreeTextFilter
 from tripl.services import google_login_service
-from tripl.services.sso_login_service import ERR_RATE_LIMITED, SsoFlowError
+from tripl.services.oidc.flow import ERR_RATE_LIMITED, SignInFlowError
 
 router = APIRouter(prefix="/auth/google", tags=["auth"])
 
@@ -48,11 +48,11 @@ async def start(
     """Send the browser to Google's account chooser."""
     base = await app_base_url(session, request)
     if not await allow(sso_rate_limiter, request):
-        return _error_redirect(base, ERR_RATE_LIMITED)
+        return error_redirect(base, ERR_RATE_LIMITED)
     try:
         started = await google_login_service.start(next_path=next_path, app_base_url=base)
-    except SsoFlowError as exc:
-        return _error_redirect(base, exc.code)
+    except SignInFlowError as exc:
+        return error_redirect(base, exc.code)
     response = RedirectResponse(started.authorization_url, status_code=status.HTTP_302_FOUND)
     response.set_cookie(
         key=STATE_COOKIE,
@@ -78,7 +78,7 @@ async def callback(
     """Google's redirect back: signed in and into the app, or back to sign-in."""
     base = await app_base_url(session, request)
     if not await allow(sso_rate_limiter, request):
-        return _clear_state(_error_redirect(base, ERR_RATE_LIMITED))
+        return _clear_state(error_redirect(base, ERR_RATE_LIMITED))
     try:
         outcome = await google_login_service.callback(
             session,
@@ -88,8 +88,8 @@ async def callback(
             cookie=request.cookies.get(STATE_COOKIE),
             app_base_url=base,
         )
-    except SsoFlowError as exc:
-        return _clear_state(_error_redirect(base, exc.code))
+    except SignInFlowError as exc:
+        return _clear_state(error_redirect(base, exc.code))
     response = RedirectResponse(f"{base}{outcome.next_path}", status_code=status.HTTP_302_FOUND)
     _set_session_cookie(response, outcome.session_token)
     return _clear_state(response)

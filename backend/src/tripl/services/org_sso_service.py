@@ -7,7 +7,7 @@ rules kept here:
   settings are kept as saved when a save omits them;
 * the client secret is encrypted with the operator key and never read back;
 * the issuer is an https URL; on a hosted instance its host must be public, at
-  save time here and again before every request (``sso_http``);
+  save time here and again before every request (``idp_http``);
 * SAML: the IdP's SSO URL is https (tripl never calls it: the browser is sent
   there), its certificates parse and none has expired — checked when a value
   is new (or its protocol is being switched on), not when a save echoes back

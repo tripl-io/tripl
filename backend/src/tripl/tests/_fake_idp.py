@@ -1,7 +1,7 @@
 """A fake OIDC identity provider for the SSO tests. Not a test module.
 
-It stands in for the network at ``sso_http._send`` (monkeypatched), so every
-policy of ``sso_http`` — https only, the private-host check, the redirect and
+It stands in for the network at ``idp_http._send`` (monkeypatched), so every
+policy of ``idp_http`` — https only, the private-host check, the redirect and
 size refusals — still runs in front of it. It serves:
 
 * ``/.well-known/openid-configuration`` (overridable per test);
@@ -30,7 +30,7 @@ from urllib.parse import parse_qs, urlparse
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from tripl.services.sso_http import HttpResponse
+from tripl.services.oidc.idp_http import HttpResponse
 
 ISSUER = "https://idp.example.com"
 CLIENT_ID = "tripl-client"

@@ -20,7 +20,7 @@ Provisioning (``POST``):
   account joins as ``member``; its password is not set. An account nobody
   ever proved the address of (an unverified hosted sign-up) in a verified
   domain is taken over clean first, exactly as a provider-verified SSO sign-in
-  would (:func:`tripl.services.sso_login_service.reclaim_if_unclaimed`: new
+  would (:func:`tripl.services.oidc_accounts.reclaim_if_unclaimed`: new
   unusable password, sessions and API keys gone) and marked verified;
 * an account with a link row that is not a member (deprovisioned, or DELETEd)
   is re-used by a ``POST``: the link is updated and the user re-activated, so
@@ -76,9 +76,9 @@ from tripl.services import (
     email_verification_service,
     org_service,
     org_sso_service,
-    sso_login_service,
     user_service,
 )
+from tripl.services.oidc import accounts as oidc_accounts
 from tripl.services.scim_errors import INVALID_PATH, MUTABILITY, bad_request, conflict, not_found
 from tripl.services.scim_resources import (
     USER_FILTER_ATTRIBUTES,
@@ -645,7 +645,7 @@ async def create_user(
         created = True
     else:
         if domain_verified and user.email_verified_at is None:
-            reclaimed = await sso_login_service.reclaim_if_unclaimed(session, user)
+            reclaimed = await oidc_accounts.reclaim_if_unclaimed(session, user)
             if reclaimed:
                 email_verification_service.mark_verified(user)
     link = ScimUserLink(

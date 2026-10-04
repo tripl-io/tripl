@@ -28,7 +28,7 @@ from __future__ import annotations
 import json
 import logging
 
-# Not used here any more: the tests patch ``sso_http.socket`` (the one module
+# Not used here any more: the tests patch ``idp_http.socket`` (the one module
 # object ``safe_http`` resolves and connects through).
 import socket  # noqa: F401
 from dataclasses import dataclass

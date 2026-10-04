@@ -17,13 +17,14 @@ from sqlalchemy import func, select
 from tripl.config import REGISTRATION_DISABLED, settings
 from tripl.models.organization import DEFAULT_ORG_ID, Organization, OrganizationMember
 from tripl.models.user import User
-from tripl.services import google_login_service, sso_http
-from tripl.services.sso_tokens import IdTokenClaims
+from tripl.services import google_login_service
+from tripl.services.oidc import idp_http
+from tripl.services.oidc.id_tokens import IdTokenClaims
 from tripl.tests.conftest import TestSessionLocal
 
 START = "/api/v1/auth/google/start"
 CALLBACK = "/api/v1/auth/google/callback"
-DISCOVERY = sso_http.Discovery(
+DISCOVERY = idp_http.Discovery(
     issuer=google_login_service.GOOGLE_ISSUER,
     authorization_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
     token_endpoint="https://oauth2.googleapis.com/token",
@@ -54,7 +55,7 @@ class Google:
 def google(monkeypatch: pytest.MonkeyPatch) -> Google:
     monkeypatch.setattr(settings, "google_client_id", "client-1")
     monkeypatch.setattr(settings, "google_client_secret", "secret-1")
-    monkeypatch.setattr(sso_http, "fetch_discovery", lambda _issuer: DISCOVERY)
+    monkeypatch.setattr(idp_http, "fetch_discovery", lambda _issuer: DISCOVERY)
     fake = Google()
     monkeypatch.setattr(google_login_service, "_authenticate", fake.authenticate)
     return fake

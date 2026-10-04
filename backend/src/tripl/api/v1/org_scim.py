@@ -23,7 +23,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from tripl.api.deps import ManagedOrgDep, PathOrgOwnerUserDep, SessionDep
-from tripl.api.v1.auth_sso import app_base_url
+from tripl.api.v1._auth_redirects import app_base_url
 from tripl.schemas.org_scim import (
     OrgScimConfigResponse,
     OrgScimConfigUpdate,

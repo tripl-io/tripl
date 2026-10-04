@@ -43,8 +43,9 @@ from tripl.models.audit_log import AuditLog
 from tripl.models.org_sso import OrgSsoConfig, UserSsoIdentity
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
-from tripl.services import org_sso_service, sso_http
-from tripl.services.sso_login_service import safe_next
+from tripl.services import org_sso_service
+from tripl.services.oidc import idp_http
+from tripl.services.oidc.flow import safe_next
 from tripl.tests._fake_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, KID, FakeIdp
 from tripl.tests._members import add_org_member
 from tripl.tests.conftest import TestSessionLocal
@@ -119,7 +120,7 @@ async def acme(people: People) -> uuid.UUID:
 @pytest.fixture
 def idp(monkeypatch: pytest.MonkeyPatch) -> FakeIdp:
     fake = FakeIdp()
-    monkeypatch.setattr(sso_http, "_send", fake.send)
+    monkeypatch.setattr(idp_http, "_send", fake.send)
     return fake
 
 
@@ -391,19 +392,19 @@ async def test_the_connection_test_checks_the_discovery_document(
 def test_idp_requests_refuse_redirects_oversize_and_plain_http(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(sso_http, "_send", lambda *_a: sso_http.HttpResponse(status=302, body=b""))
-    with pytest.raises(sso_http.IdpError) as redirect:
-        sso_http.fetch_discovery(ISSUER)
+    monkeypatch.setattr(idp_http, "_send", lambda *_a: idp_http.HttpResponse(status=302, body=b""))
+    with pytest.raises(idp_http.IdpError) as redirect:
+        idp_http.fetch_discovery(ISSUER)
     assert redirect.value.code == "idp_redirect"
 
-    big = b"{" + b" " * (sso_http.MAX_RESPONSE_BYTES + 1) + b"}"
-    monkeypatch.setattr(sso_http, "_send", lambda *_a: sso_http.HttpResponse(status=200, body=big))
-    with pytest.raises(sso_http.IdpError) as oversize:
-        sso_http.fetch_discovery(ISSUER)
+    big = b"{" + b" " * (idp_http.MAX_RESPONSE_BYTES + 1) + b"}"
+    monkeypatch.setattr(idp_http, "_send", lambda *_a: idp_http.HttpResponse(status=200, body=big))
+    with pytest.raises(idp_http.IdpError) as oversize:
+        idp_http.fetch_discovery(ISSUER)
     assert oversize.value.code == "idp_response_too_large"
 
-    with pytest.raises(sso_http.IdpError) as insecure:
-        sso_http.fetch_discovery("http://idp.example.com")
+    with pytest.raises(idp_http.IdpError) as insecure:
+        idp_http.fetch_discovery("http://idp.example.com")
     assert insecure.value.code == "idp_insecure_url"
 
 

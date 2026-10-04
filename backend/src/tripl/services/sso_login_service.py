@@ -8,7 +8,7 @@ The flow (``api.v1.auth_sso``), OIDC or SAML 2.0 by the organization's
    browser to the provider (SAML: the HTTP-Redirect binding, ``RelayState``
    carrying the state).
 2. ``callback`` (OIDC) consumes that state, exchanges the code and verifies the
-   id_token (``sso_tokens``); the SAML ACS (``saml_login_service``) consumes it
+   id_token (``id_tokens``); the SAML ACS (``saml_login_service``) consumes it
    and verifies the posted response (``saml_response``). Both then hand the
    verified ``(issuer, subject, email)`` to :func:`complete_sign_in`, which
    requires the email in one of the organization's DNS-verified domains and:
@@ -32,15 +32,13 @@ The flow (``api.v1.auth_sso``), OIDC or SAML 2.0 by the organization's
      invitation.
 
 Every session this issues is ``auth_method='sso'`` for the organization. Errors
-are :class:`SsoFlowError` with a short code the browser is sent back with
+are :class:`SignInFlowError` with a short code the browser is sent back with
 (``/auth?sso_error=<code>``); the provider's text never reaches it.
 """
 
 from __future__ import annotations
 
 import asyncio
-import base64
-import hashlib
 import logging
 import secrets
 import uuid
@@ -53,11 +51,9 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tripl.auth_utils import hash_password, hash_session_token, normalize_email
+from tripl.auth_utils import hash_session_token, normalize_email
 from tripl.crypto import decrypt_value, encrypt_value
-from tripl.models.api_key import ApiKey
 from tripl.models.domain_enums import OrganizationRole, OrganizationStatus
-from tripl.models.email_verification_token import EmailVerificationToken
 from tripl.models.org_sso import (
     PROTOCOL_OIDC,
     PROTOCOL_SAML,
@@ -68,7 +64,6 @@ from tripl.models.org_sso import (
     UserSsoIdentity,
 )
 from tripl.models.organization import Organization, OrganizationMember
-from tripl.models.password_reset_token import PasswordResetToken
 from tripl.models.user import User
 from tripl.models.user_session import UserSession
 from tripl.services import (
@@ -78,11 +73,25 @@ from tripl.services import (
     org_sso_service,
     saml_response,
     saml_xml,
-    sso_http,
-    sso_tokens,
 )
-from tripl.services.sso_http import IdpError
-from tripl.services.sso_tokens import IdTokenClaims
+from tripl.services.oidc import id_tokens, idp_http
+from tripl.services.oidc.accounts import is_unclaimed, reclaim
+from tripl.services.oidc.flow import (
+    ERR_DENIED,
+    ERR_DOMAIN,
+    ERR_EMAIL_UNVERIFIED,
+    ERR_FAILED,
+    ERR_IDP,
+    ERR_STATE,
+    ERR_UNAVAILABLE,
+    SignInFlowError,
+    flow_code,
+    pkce_challenge,
+    safe_next,
+    unusable_password_hash,
+)
+from tripl.services.oidc.id_tokens import IdTokenClaims
+from tripl.services.oidc.idp_http import IdpError
 
 logger = logging.getLogger(__name__)
 
@@ -92,18 +101,8 @@ _TOKEN_BYTES = 32
 _VERIFIER_BYTES = 64
 _MAX_NEXT = 2048
 
-# The codes the browser can come back with. Stable: the SPA maps them to text.
-ERR_UNAVAILABLE = "sso_unavailable"
-ERR_STATE = "invalid_state"
-ERR_IDP = "idp_error"
-ERR_DENIED = "idp_denied"
-ERR_TOKEN = "invalid_token"
-ERR_EMAIL_MISSING = "email_missing"
-ERR_EMAIL_UNVERIFIED = "email_not_verified"
-ERR_DOMAIN = "email_domain_not_allowed"
-ERR_FAILED = "sso_failed"
+# The codes only an organization's sign-in ends with (the shared ones: oidc.flow).
 ERR_REMOVED = "membership_removed"
-ERR_RATE_LIMITED = "rate_limited"
 ERR_SAML = saml_response.ERR_INVALID
 ERR_SAML_SIGNATURE = saml_response.ERR_SIGNATURE
 ERR_SAML_UNSOLICITED = saml_response.ERR_UNSOLICITED
@@ -114,42 +113,8 @@ ERR_LINK = "invalid_link"
 ERR_LINK_SIGN_IN = "link_sign_in_required"
 
 
-class SsoFlowError(Exception):
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-
-
-def _flow_code(error: IdpError) -> str:
-    if error.code.startswith("id_token_"):
-        return ERR_TOKEN
-    if error.code == "email_missing":
-        return ERR_EMAIL_MISSING
-    return ERR_IDP
-
-
-def safe_next(value: str | None) -> str:
-    """``value`` when it is a same-origin path, else ``/``.
-
-    A path starts with one ``/`` (never ``//`` or ``/\\``, which browsers read
-    as another host) and carries no backslash or control character.
-    """
-    if not value or len(value) > _MAX_NEXT:
-        return "/"
-    if not value.startswith("/") or value.startswith("//"):
-        return "/"
-    if "\\" in value or any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
-        return "/"
-    return value
-
-
 def _digest(raw: str) -> str:
     return hash_session_token(raw)
-
-
-def _pkce_challenge(verifier: str) -> str:
-    digest = hashlib.sha256(verifier.encode("ascii")).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 # ── lookups ─────────────────────────────────────────────────────────────────
@@ -177,7 +142,7 @@ async def enabled_org(session: AsyncSession, org_slug: str) -> SsoOrg:
         )
     ).first()
     if row is None:
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     org, config = cast(tuple[Organization, OrgSsoConfig], tuple(row))
     return SsoOrg(id=org.id, slug=org.slug, name=org.name, config=config)
 
@@ -229,7 +194,7 @@ async def _start_saml(
     """An unsigned AuthnRequest on the HTTP-Redirect binding; ``RelayState`` is the state."""
     config = org.config
     if not config.saml_idp_sso_url or not saml_xml.check_https_url(config.saml_idp_sso_url):
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     now = datetime.now(UTC)
     await _purge_states(session, now)
     state = secrets.token_urlsafe(_TOKEN_BYTES)
@@ -269,12 +234,12 @@ async def start(
     if org.config.protocol == PROTOCOL_SAML:
         return await _start_saml(session, org, next_path=next_path, app_base_url=app_base_url)
     if not org.config.issuer or not org.config.client_id:
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     try:
-        discovery = await asyncio.to_thread(sso_http.fetch_discovery, org.config.issuer)
+        discovery = await asyncio.to_thread(idp_http.fetch_discovery, org.config.issuer)
     except IdpError as exc:
         logger.warning("SSO start for %s failed: %s", org.slug, exc.code)
-        raise SsoFlowError(ERR_IDP) from None
+        raise SignInFlowError(ERR_IDP) from None
 
     now = datetime.now(UTC)
     await _purge_states(session, now)
@@ -300,7 +265,7 @@ async def start(
             "scope": org.config.scopes,
             "state": state,
             "nonce": nonce,
-            "code_challenge": _pkce_challenge(verifier),
+            "code_challenge": pkce_challenge(verifier),
             "code_challenge_method": "S256",
         }
     )
@@ -349,7 +314,7 @@ async def consume_state(session: AsyncSession, org: SsoOrg, raw_state: str) -> S
         ),
     )
     if row is None or row.organization_id != org.id:
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     claimed = await session.execute(
         update(SsoLoginState)
         .where(
@@ -362,7 +327,7 @@ async def consume_state(session: AsyncSession, org: SsoOrg, raw_state: str) -> S
     )
     await session.commit()
     if int(getattr(claimed, "rowcount", 0) or 0) != 1:
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     return row
 
 
@@ -377,8 +342,8 @@ def _authenticate(
 ) -> IdTokenClaims:
     """Discovery, code exchange, JWKS and id_token checks. Blocking."""
     issuer, client_id = config.issuer or "", config.client_id or ""
-    discovery = sso_http.fetch_discovery(issuer)
-    id_token = sso_tokens.exchange_code(
+    discovery = idp_http.fetch_discovery(issuer)
+    id_token = id_tokens.exchange_code(
         discovery,
         client_id=client_id,
         client_secret=client_secret,
@@ -386,8 +351,8 @@ def _authenticate(
         redirect_uri=redirect_uri,
         code_verifier=code_verifier,
     )
-    keys = sso_http.fetch_jwks(discovery)
-    return sso_tokens.verify_id_token(
+    keys = idp_http.fetch_jwks(discovery)
+    return id_tokens.verify_id_token(
         id_token, keys=keys, issuer=issuer, client_id=client_id, nonce=nonce
     )
 
@@ -456,23 +421,12 @@ async def _linked_user(session: AsyncSession, org: SsoOrg, claims: VerifiedIdent
     return await session.get(User, identity.user_id)
 
 
-async def _unusable_password_hash() -> str:
-    """A real scrypt hash of a secret nobody knows.
-
-    The account signs in through its provider (a password reset can still give
-    it a password). A real hash, not a marker: ``/auth/login`` then spends the
-    same scrypt time on it as on any account or an unknown address, so the
-    response time does not tell SSO-only accounts apart.
-    """
-    return await asyncio.to_thread(hash_password, secrets.token_urlsafe(_TOKEN_BYTES))
-
-
 async def _provision(session: AsyncSession, org: SsoOrg, claims: VerifiedIdentity) -> User:
     """A new account for ``claims``: verified, a plain member, linked. Flushes."""
     user = User(
         email=claims.email,
         name=claims.name,
-        password_hash=await _unusable_password_hash(),
+        password_hash=await unusable_password_hash(),
         is_platform_admin=False,
     )
     email_verification_service.mark_verified(user)
@@ -530,17 +484,17 @@ async def callback(
     """Finish an OIDC sign-in; see the module docstring for the outcomes."""
     org = await enabled_org(session, org_slug)
     if org.config.protocol != PROTOCOL_OIDC:
-        raise SsoFlowError(ERR_UNAVAILABLE)
+        raise SignInFlowError(ERR_UNAVAILABLE)
     if not raw_state:
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     state = await consume_state(session, org, raw_state)
     if state.request_id is not None:
         # A SAML sign-in's state: it ends at the ACS, never here.
-        raise SsoFlowError(ERR_STATE)
+        raise SignInFlowError(ERR_STATE)
     if idp_error:
-        raise SsoFlowError(ERR_DENIED)
+        raise SignInFlowError(ERR_DENIED)
     if not code:
-        raise SsoFlowError(ERR_IDP)
+        raise SignInFlowError(ERR_IDP)
     try:
         claims = await asyncio.to_thread(
             _authenticate,
@@ -553,9 +507,9 @@ async def callback(
         )
     except IdpError as exc:
         logger.warning("SSO callback for %s refused: %s", org.slug, exc.code)
-        raise SsoFlowError(_flow_code(exc)) from None
+        raise SignInFlowError(flow_code(exc)) from None
     if not claims.email_verified:
-        raise SsoFlowError(ERR_EMAIL_UNVERIFIED)
+        raise SignInFlowError(ERR_EMAIL_UNVERIFIED)
     identity = VerifiedIdentity(
         issuer=claims.issuer, subject=claims.subject, email=claims.email, name=claims.name
     )
@@ -576,7 +530,7 @@ async def complete_sign_in(
     email = identity.email
     domain = email.rsplit("@", 1)[-1]
     if "@" not in email or domain not in await org_sso_service.verified_domains(session, org.id):
-        raise SsoFlowError(ERR_DOMAIN)
+        raise SignInFlowError(ERR_DOMAIN)
 
     try:
         linked = await _linked_user(session, org, identity)
@@ -591,12 +545,12 @@ async def complete_sign_in(
                 session, org, user, action="user.sso_provision", next_path=next_path
             )
         if await _rejoin_blocked(session, org.id, existing.id):
-            raise SsoFlowError(ERR_REMOVED)
+            raise SignInFlowError(ERR_REMOVED)
         return await _issue_link_ticket(session, org, existing, identity, next_path)
     except IntegrityError:
         # A concurrent sign-in created the account or the link first.
         await session.rollback()
-        raise SsoFlowError(ERR_FAILED) from None
+        raise SignInFlowError(ERR_FAILED) from None
 
 
 # ── linking an existing account ─────────────────────────────────────────────
@@ -613,55 +567,11 @@ class LinkPreview:
     sign_in_required: bool
 
 
-def _unclaimed(user: User) -> bool:
-    """An account nobody has proved the address of: a hosted sign-up still unverified.
-
-    Self-hosted accounts are verified at creation, and a platform admin is
-    never treated as unclaimed.
-    """
-    return user.email_verified_at is None and not user.is_platform_admin
-
-
 async def _rejoin_blocked(session: AsyncSession, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
     """Not a member, and removed from the organization since (no new invitation)."""
     if await _member_role(session, org_id, user_id) is not None:
         return False
     return await org_sso_service.membership_blocked(session, org_id, user_id)
-
-
-async def _reclaim(session: AsyncSession, user: User, now: datetime) -> None:
-    """Take over an unclaimed account for the provider-verified person. No commit.
-
-    Whoever registered the address without proving it loses everything they
-    held: the password becomes unusable, and every session, API key, password
-    reset and verification token of the account goes.
-    """
-    user.password_hash = await _unusable_password_hash()
-    for model in (UserSession, PasswordResetToken, EmailVerificationToken):
-        await session.execute(
-            delete(model)
-            .where(model.user_id == user.id)
-            .execution_options(synchronize_session=False)
-        )
-    await session.execute(
-        update(ApiKey)
-        .where(ApiKey.user_id == user.id, ApiKey.revoked_at.is_(None))
-        .values(revoked_at=now)
-        .execution_options(synchronize_session=False)
-    )
-
-
-async def reclaim_if_unclaimed(session: AsyncSession, user: User) -> bool:
-    """Take ``user`` over clean if nobody ever proved the address (:func:`_unclaimed`).
-
-    For SCIM provisioning (F20), which vouches for an address in one of the
-    organization's verified domains the way a provider-verified sign-in does.
-    Returns whether it did. No commit.
-    """
-    if not _unclaimed(user):
-        return False
-    await _reclaim(session, user, datetime.now(UTC))
-    return True
 
 
 async def _live_ticket(session: AsyncSession, raw_ticket: str) -> SsoLinkTicket:
@@ -672,7 +582,7 @@ async def _live_ticket(session: AsyncSession, raw_ticket: str) -> SsoLinkTicket:
         ),
     )
     if row is None or row.used_at is not None or row.expires_at <= datetime.now(UTC):
-        raise SsoFlowError(ERR_LINK)
+        raise SignInFlowError(ERR_LINK)
     return row
 
 
@@ -684,13 +594,13 @@ async def preview_link(
     org = await session.get(Organization, row.organization_id)
     user = await session.get(User, row.user_id)
     if org is None or user is None:
-        raise SsoFlowError(ERR_LINK)
+        raise SignInFlowError(ERR_LINK)
     return LinkPreview(
         email=user.email,
         org_slug=org.slug,
         org_name=org.name,
         expires_at=row.expires_at,
-        sign_in_required=not _unclaimed(user) and session_user_id != user.id,
+        sign_in_required=not is_unclaimed(user) and session_user_id != user.id,
     )
 
 
@@ -720,22 +630,22 @@ async def confirm_link(
         select(Organization.slug).where(Organization.id == row.organization_id)
     )
     if org_slug is None:
-        raise SsoFlowError(ERR_LINK)
+        raise SignInFlowError(ERR_LINK)
     try:
         org = await enabled_org(session, org_slug)
-    except SsoFlowError:
-        raise SsoFlowError(ERR_UNAVAILABLE) from None
+    except SignInFlowError:
+        raise SignInFlowError(ERR_UNAVAILABLE) from None
     if org_sso_service.idp_issuer(org.config) != row.issuer:
         # The provider changed after the ticket was issued.
-        raise SsoFlowError(ERR_LINK)
+        raise SignInFlowError(ERR_LINK)
     user = await session.get(User, row.user_id)
     if user is None:
-        raise SsoFlowError(ERR_LINK)
-    unclaimed = _unclaimed(user)
+        raise SignInFlowError(ERR_LINK)
+    unclaimed = is_unclaimed(user)
     if not unclaimed and (session_user is None or session_user.id != user.id):
-        raise SsoFlowError(ERR_LINK_SIGN_IN)
+        raise SignInFlowError(ERR_LINK_SIGN_IN)
     if await _rejoin_blocked(session, org.id, user.id):
-        raise SsoFlowError(ERR_REMOVED)
+        raise SignInFlowError(ERR_REMOVED)
     now = datetime.now(UTC)
     claimed = await session.execute(
         update(SsoLinkTicket)
@@ -745,9 +655,9 @@ async def confirm_link(
     )
     if int(getattr(claimed, "rowcount", 0) or 0) != 1:
         await session.rollback()
-        raise SsoFlowError(ERR_LINK)
+        raise SignInFlowError(ERR_LINK)
     if unclaimed:
-        await _reclaim(session, user, now)
+        await reclaim(session, user, now)
     elif session_token_hash is not None:
         # The session that proved the account is replaced by the SSO one.
         await session.execute(
@@ -767,7 +677,7 @@ async def confirm_link(
             )
         )
         if taken is not None and taken != user.id:
-            raise SsoFlowError(ERR_FAILED)
+            raise SignInFlowError(ERR_FAILED)
         if taken is None:
             session.add(
                 UserSsoIdentity(
@@ -796,5 +706,5 @@ async def confirm_link(
         )
     except IntegrityError:
         await session.rollback()
-        raise SsoFlowError(ERR_FAILED) from None
+        raise SignInFlowError(ERR_FAILED) from None
     return signed_in, org.id
