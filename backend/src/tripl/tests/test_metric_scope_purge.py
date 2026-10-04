@@ -1,4 +1,4 @@
-"""Batch 3 lane A2: the metric-scope purge, signed volume floors, event_type filters.
+"""The metric-scope purge, signed volume floors, event_type filters.
 
 Three defects that share nothing but the files they live in:
 

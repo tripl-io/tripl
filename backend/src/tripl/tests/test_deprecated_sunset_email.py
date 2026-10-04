@@ -1,4 +1,4 @@
-"""Batch 4 — what the sunset alert's EMAIL says it is.
+"""What the sunset alert's EMAIL says it is.
 
 ``check_deprecated_sunset_events`` does not resolve a destination of its own:
 it reuses ``alerts_channels._send_digest_to_destination``, the helper written

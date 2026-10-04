@@ -1,4 +1,4 @@
-"""Batch 5, lane W2: the BigQuery adapter, the worker's curated-error set, and the
+"""The BigQuery adapter, the worker's curated-error set, and the
 BigQuery half of the data-source schema.
 
 Four defects, three modules:
@@ -413,7 +413,7 @@ def test_the_curated_messages_carry_no_connection_details() -> None:
     """Widening ``_CURATED_ERRORS`` moved this adapter's messages onto a verbatim
     path, so "the message is tripl-authored and carries nothing sensitive" stopped
     being documentation and became a guarantee. Pinned for the two messages this
-    lane promoted; the other eleven raise sites were read, not tested."""
+    change promoted; the other eleven raise sites were read, not tested."""
     adapter, _client = _bq()
     adapter._project = "secret-project"
     adapter._dataset = "secret-dataset"

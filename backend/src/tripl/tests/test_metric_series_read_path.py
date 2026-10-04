@@ -1,4 +1,4 @@
-"""Batch 6, lane B: catalog-metric series and the metrics read path.
+"""Catalog-metric series and the metrics read path.
 
 Regression tests for four findings in ``services/metric_series_service``:
 
@@ -249,7 +249,7 @@ class TestBreakdownValueKind:
 
         An ``event_composition`` ``single`` metric IS a count, where a missing
         bucket genuinely means zero happened. Hard-coding ``count_shaped=False``
-        in ``get_metric_breakdowns`` would also close .113 and would redden this.
+        in ``get_metric_breakdowns`` would also close the count-shaped case and would redden this.
         """
         slug = project["slug"]
         metric_id = await _seed_count_shaped_metric(
@@ -329,7 +329,7 @@ class TestVersionFold:
 
         An ``event_composition`` ``single`` metric is count-shaped, so folding
         two retired releases' volumes into "Other" must remain a sum. A fix that
-        averaged unconditionally would close .114 and redden this.
+        averaged unconditionally would pass the count-shaped case and redden this.
         """
         slug = project["slug"]
         update_resp = await client.patch(
@@ -425,7 +425,7 @@ class TestMetricGridIsolation:
         belong to.
 
         This is the TOO-NARROW half of the population rule, and it is the defect
-        the first repair of .115 introduced. Putting ``scan_config_id == X``
+        the first repair of the grid population introduced. Putting ``scan_config_id == X``
         back in ``_grid_population_filter`` reddens two assertions here:
         ``metric_grid_stmt`` resolves this metric to ``android`` (it holds the
         newest bucket, B2), so B0 plots 5.0 under a band computed for 8.0, and
@@ -675,7 +675,7 @@ class TestBranchEventsMetrics:
         A type authored ON the branch has no twin on main and genuinely has no
         collected volume, so the card is legitimately empty. A "fix" that
         ignored ``event_type_id`` whenever it failed to resolve would close
-        .111 by charting the project total under this tab, and would redden
+        the empty-tab case by charting the project total under this tab, and would redden
         this.
         """
         slug = "batch6-branch-new-type"

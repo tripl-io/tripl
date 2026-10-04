@@ -853,7 +853,7 @@ describe('ScansTab — coached demo scenario', () => {
   })
 })
 
-describe('ScansTab — data layer and feedback (batch 4)', () => {
+describe('ScansTab — data layer and feedback', () => {
   it('asks each scan for the head of its history, not 50 full jobs', async () => {
     setupFetch()
     renderTab()

@@ -1,6 +1,6 @@
-"""Batch 7, R3: the branch copy and the merge, repaired after review.
+"""The branch copy and the merge, repaired after review.
 
-Second half of the event-scoping fix — the batch closed the write door for an event
+Second half of the event-scoping fix — the first half closed the write door for an event
 pointing outside its own branch (``event_service`` now scopes both the event
 type and the meta-field definitions it accepts) and taught the RELATION copy in
 ``deep_copy_plan_to_branch`` to answer 409 for the rows stored before that
@@ -152,7 +152,7 @@ async def test_a_main_event_holding_another_branchs_meta_field_names_itself(
     creating a branch stops being a 409 that names the event and becomes a bare
     500 that names nothing — and the project can never take a branch again.
 
-    The row is the one the batch's own ``_normalize_meta_values`` docstring
+    The row is the one that fix's own ``_normalize_meta_values`` docstring
     describes: before that scoping, a main event could be posted with a meta
     field definition belonging to another branch, and no migration sweeps the
     ones already stored.

@@ -950,7 +950,7 @@ async def test_conflicts_endpoint_reports_every_type_and_the_merge_gate(
     assert bad_field.status_code == 422
 
 
-# --- references and tokens across renames (review round 2) ------------------------------
+# --- references and tokens across renames, second pass ------------------------------
 
 
 async def _event_on(session: AsyncSession, branch_id: uuid.UUID | str, name: str) -> Event:
@@ -1335,7 +1335,7 @@ async def test_conflicts_header_is_behind_for_a_cosmetic_overlap(client: AsyncCl
     assert preview["conflicts"]["behind"] is True
 
 
-# --- references across kept rows and renames (review round 3) -----------------------
+# --- references across kept rows and renames, third pass -----------------------
 
 
 def _pick(entity_type: str, name: str, field: str, choice: str) -> dict[str, Any]:

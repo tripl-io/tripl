@@ -1,4 +1,4 @@
-"""Batch 4, the cadence lane: switching a destination back to "Immediately".
+"""Switching a destination back to "Immediately".
 
 a held scope is delivered by exactly ONE of the two paths.
 
@@ -216,7 +216,7 @@ def _seed(
                 min_percent_delta=0,
                 min_absolute_delta=0,
                 min_expected_count=0,
-                # The default. Load-bearing for this lane: it is long enough
+                # The default. Load-bearing for these tests: it is long enough
                 # that a scope already reported stays quiet, so a second
                 # delivery cannot be explained away as the cooldown lapsing.
                 cooldown_minutes=1440,

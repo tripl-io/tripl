@@ -1,4 +1,4 @@
-"""Alerting contract and service regressions from batch 08."""
+"""Alerting contract and service regressions."""
 
 from __future__ import annotations
 

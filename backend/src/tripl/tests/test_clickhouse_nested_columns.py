@@ -1,4 +1,4 @@
-"""Batch 5, ClickHouse adapter: nested columns that are not JSON documents.
+"""ClickHouse adapter: nested columns that are not JSON documents.
 
 ClickHouse has three unrelated nested families (``JSON``,
 ``Map``, ``Tuple``) and one shape function per family. The adapter used to emit

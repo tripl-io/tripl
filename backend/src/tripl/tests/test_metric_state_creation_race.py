@@ -1,6 +1,6 @@
-"""Batch 4, the Copilot review of PR #169: the metric-state creation race.
+"""The Copilot review of PR #169: the metric-state creation race.
 
-``uq_alert_rule_state_metric_scope`` — the partial unique index batch 4 added
+``uq_alert_rule_state_metric_scope`` — the partial unique index added
 over the NULL ``scan_config_id`` space — DETECTS a duplicate project-global
 metric state. It does not make the creation of one race-safe, and adding it
 turned a survivable bug into a fatal one.
@@ -28,7 +28,7 @@ forbid. With the index the loser's INSERT violates it, and nothing wraps
 whole ``collect_metrics`` run down with it, discarding the anomaly
 recalculation, the cooldown updates and every delivery for every scope of that
 scan, on every collection for as long as the scope keeps firing. That is an
-earlier blast radius reached from a different direction, and batch 4 is
+earlier blast radius reached from a different direction, and that index is
 what made it reachable.
 
 The fix is ``dispatch._claim_rule_state``: an INSERT ... ON CONFLICT DO NOTHING
@@ -67,7 +67,7 @@ by compiling the real statement against the real dialect.
 THE SAME BUG ONE TABLE OVER: the incident row.
 
 ``_touch_correlation_state`` was the other select-then-``session.add`` in this
-module, and batch 4 made it collidable for the same reason. Its key is
+module, and the same change made it collidable for the same reason. Its key is
 ``uq_alert_correlation_state_project_group`` on ``(project_id,
 correlation_group_id)``, and since an earlier fix the handle in that second column
 is the same in every worker by design: it hashes the scope's PARTITION, which for

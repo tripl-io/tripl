@@ -1,4 +1,4 @@
-"""Batch-4: a muted monitor delivers nothing, on either delivery path.
+"""A muted monitor delivers nothing, on either delivery path.
 
 ``AlertRule.muted_until`` is read by the worker in two places —
 ``metrics.dispatch._prepare_alert_deliveries`` on the way in and

@@ -1,4 +1,4 @@
-"""Regressions for the variables leftovers batch (2026-09-25)."""
+"""Regressions for variables."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Follow-ups to the design review's alerting findings (lane F2-alerting).
+"""Follow-ups to the alerting findings of the design review.
 
 "Send test" from the destination dialog, before the destination is
 saved — ``POST /projects/{slug}/alert-destinations/test``. The draft is sent

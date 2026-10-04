@@ -1,10 +1,10 @@
-"""Batch 7, lane B: fields and their audit trail.
+"""Fields and their audit trail.
 
-Both findings routed to this lane have their DEFECT outside the lane's file
-list, in another service each — ``schema_drift_service`` for the cache bust and
-``demo/builders/audit`` for the audit trail. A test does not have to live beside
-the code it pins, so the two REGRESSION tests below drive those two fixes
-through the API and name the exact edit that reddens them:
+Both findings have their DEFECT outside this file's subject, in another service
+each — ``schema_drift_service`` for the cache bust and ``demo/builders/audit``
+for the audit trail. A test does not have to live beside the code it pins,
+so the two REGRESSION tests below drive those two fixes through the API and
+name the exact edit that reddens them:
 
 * ``schema_drift_service.apply_drift_action`` guarded its
   event-type cache bust on ``event_type.branch_id is None``, a NOT NULL column
@@ -23,11 +23,11 @@ through the API and name the exact edit that reddens them:
   else looks at.
 
 The three tests after those two are REFERENCE, not regression: they assert what
-``field_service`` and ``api/v1/fields.py`` already did before this batch and
+``field_service`` and ``api/v1/fields.py`` already did before this change and
 still do after it, and they are green either way. They are kept because the
 cache-bust fix is written as "mirror ``field_service._on_main``", and that
 claim is worth something only if the thing being mirrored is itself held still.
-Do not count them toward this batch's regression coverage.
+Do not count them toward regression coverage.
 """
 
 from __future__ import annotations
@@ -275,7 +275,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
 async def test_every_field_write_on_main_busts_the_cached_event_type_list(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """REFERENCE, green before and after this batch. ``EventTypeResponse``
+    """REFERENCE, green before and after this change. ``EventTypeResponse``
     carries ``field_definitions`` and the main list is cached for 300 s, so
     every write that changes a field on main has to drop
     ``prefix_event_types``. All five of them do, and that is the behaviour the
@@ -284,7 +284,7 @@ async def test_every_field_write_on_main_busts_the_cached_event_type_list(
     Reddens on removing ``if is_main: await cache.delete_prefix(...)`` from any
     of ``create_field``, ``bulk_create_fields``, ``update_field``,
     ``delete_field`` or ``reorder_fields`` in ``field_service`` — none of which
-    this batch touches.
+    this change touches.
     """
     slug = "b7-field-cache-main"
     event_type_id = await _project_with_event_type(client, slug)
@@ -310,7 +310,7 @@ async def test_every_field_write_on_main_busts_the_cached_event_type_list(
 async def test_a_field_write_on_a_working_branch_leaves_mains_event_type_cache_alone(
     client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """REFERENCE, green before and after this batch. The other arm: a branch
+    """REFERENCE, green before and after this change. The other arm: a branch
     write changes no row main's cached list serves, and ``_on_main`` reads that
     off the event type's own branch rather than off the caller's ``?branch=``
     parameter.
@@ -344,7 +344,7 @@ async def test_a_field_write_on_a_working_branch_leaves_mains_event_type_cache_a
 async def test_field_audit_rows_type_their_target_field_definition_and_name_the_bare_field(
     client: AsyncClient,
 ) -> None:
-    """REFERENCE, green before and after this batch. The shape a real field
+    """REFERENCE, green before and after this change. The shape a real field
     write files: ``target_type="field_definition"``, ``target_name`` the field's
     own name — never ``"<event type>.<field>"`` — and ``target_id`` the
     FieldDefinition's id, on the bulk route as well as the single one. This is

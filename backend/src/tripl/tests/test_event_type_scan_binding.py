@@ -1,6 +1,6 @@
-"""Batch 7, lane R2 — event types, the scan binding that guards them, and the lookup.
+"""Event types, the scan binding that guards them, and the lookup.
 
-Every behaviour below shipped in this batch with no test at all.
+Every behaviour below shipped with no test at all.
 
 ``scan_configs.event_type_id`` is ``ON DELETE SET NULL``, so
 deleting a bound event type never failed: it silently unbound every scan that
@@ -215,7 +215,7 @@ async def test_deleting_an_event_type_one_scan_binds_is_refused(client: AsyncCli
 async def test_the_refusal_names_every_scan_and_agrees_with_its_own_count(
     client: AsyncClient,
 ) -> None:
-    """The plural wording, which no test in the batch produced.
+    """The plural wording, which no other test produced.
 
     RED on a revert: make ``event_type_binding_conflict_detail`` render the
     singular arms unconditionally and the body reads "1 scan", "that scan would

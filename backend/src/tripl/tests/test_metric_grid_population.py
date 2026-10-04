@@ -1,4 +1,4 @@
-"""Regression tests for the metrics read-path leftovers of batch 6.
+"""Regression tests for the metrics read path.
 
 * the grid-population predicate lives once, in
   :mod:`tripl.metric_grid`, for the async read path and the sync detector.

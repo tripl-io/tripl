@@ -1,4 +1,4 @@
-"""Backend follow-ups of the round-3 frontend review (#199, #205, #209).
+"""Backend follow-ups for the frontend (#199, #205, #209).
 
 - Keyset cursors on ``GET /alert-inbox`` and ``GET /alert-deliveries``.
 - ``unit`` and ``detected_at`` on active signals.

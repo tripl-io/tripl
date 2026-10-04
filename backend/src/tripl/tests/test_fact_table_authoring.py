@@ -1,4 +1,4 @@
-"""Batch 5, lane W6-facttables: fact-table authoring, disclosure and project scope.
+"""Fact-table authoring, disclosure and project scope.
 
 Six defects, each pinned by an assertion that goes red if the production change is
 reverted:

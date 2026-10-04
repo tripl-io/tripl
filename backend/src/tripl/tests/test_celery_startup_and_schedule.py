@@ -1,4 +1,4 @@
-"""Celery startup and schedule regression tests for batch 10."""
+"""Celery startup and schedule regression tests."""
 
 from __future__ import annotations
 

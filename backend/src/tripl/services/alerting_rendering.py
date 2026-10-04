@@ -34,7 +34,7 @@ SCOPE_RELEASE_REGRESSION = MetricScopeType.release_regression.value
 #
 # It is spelled twice only because the leaf both renderers already share —
 # ``alert_templates``, where ``NO_BASELINE_LABEL`` lives for exactly this reason
-# — is owned by another lane in this batch. Hoisting it there, beside a shared
+# — was being changed separately. Hoisting it there, beside a shared
 # ``expected_basis(scope_type, expected_count)``, is the follow-up; until then
 # the equality test is what stops the copy drifting.
 _ADOPTION_ADJUSTED_LABEL = " (adoption-adjusted)"

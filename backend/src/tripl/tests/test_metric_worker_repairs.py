@@ -1,6 +1,6 @@
-"""Regression tests for the WORKER half of batch 6, and for its own repairs.
+"""Regression tests for the WORKER half of the metric fixes, and for its own repairs.
 
-Batch 6 fixed four things on both sides of the request/worker seam but only
+That change fixed four things on both sides of the request/worker seam but only
 tested the request side, so reverting the worker half was invisible
 (``_reject_foreign_data_source``, the ``validate_select_sql`` re-raise,
 ``_metric_breakdown_columns``' self-dedupe and ``_drop_non_finite_values`` were

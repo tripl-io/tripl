@@ -1,7 +1,6 @@
-"""Batch 5, the cross-engine parity lane: one contract, four warehouse engines.
+"""Cross-engine parity: one contract, four warehouse engines.
 
-Shared file. Each agent in this lane appends its own section below and leaves the
-sections above it alone; the fakes at the top are common ground.
+Each section below covers one engine contract; the fakes at the top are shared.
 
 ``BaseAdapter``'s top-N breakdown contract, plus a row layout
 the same file contradicted itself about.

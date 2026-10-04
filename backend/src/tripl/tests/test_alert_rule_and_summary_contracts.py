@@ -1,4 +1,4 @@
-"""Backend asks from design-review batches 5-12.
+"""Backend contracts for the alert-rule and project-summary surfaces.
 
 The ``metric`` alert-rule filter, the demo link template,
 ``ScanConfig.monitoring_enabled``, failing alert destinations on the

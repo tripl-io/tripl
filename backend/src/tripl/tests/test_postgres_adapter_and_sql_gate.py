@@ -1,4 +1,4 @@
-"""Batch 5, lane W1: the PostgreSQL adapter and the shared read-only SQL gate.
+"""The PostgreSQL adapter and the shared read-only SQL gate.
 
 Five findings, one file:
 

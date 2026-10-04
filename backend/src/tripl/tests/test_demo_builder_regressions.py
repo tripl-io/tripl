@@ -1,4 +1,4 @@
-"""Regression tests for batch 16 of an earlier backend review (demo builders).
+"""Regression tests for the demo builders.
 
 - The search builder must not commit mid-seed, and the cancel and sweep paths
   drop the audit trail of a demo that never became one.
@@ -13,7 +13,7 @@
 - Both ``SimulatedRuleFiring`` builders go through
   ``SimulatedRuleFiring.from_candidate``.
 
-One further item in the batch corrected a code comment only and has no behaviour to pin.
+One further item in this group corrected a code comment only and has no behaviour to pin.
 """
 
 from __future__ import annotations

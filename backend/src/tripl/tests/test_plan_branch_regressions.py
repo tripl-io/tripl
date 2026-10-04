@@ -1,4 +1,4 @@
-"""Batch 18 plan-branch regressions."""
+"""Plan-branch regressions."""
 
 from __future__ import annotations
 

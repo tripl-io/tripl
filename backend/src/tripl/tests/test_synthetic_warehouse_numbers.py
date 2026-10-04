@@ -1,4 +1,4 @@
-"""Batch-5 regression tests for the synthetic warehouse and the demo catalog.
+"""Regression tests for the synthetic warehouse and the demo catalog.
 
 Five findings, all of which produced a WRONG NUMBER rather than an error, so
 every test here asserts a value relationship rather than "something came back":
@@ -521,7 +521,7 @@ def test_capability_error_is_a_warehouse_capability_error() -> None:
     worded "only supports plain table scans" reached a demo user as "Scan failed
     due to an internal error." Both sanitisers key on the BASE class, so the
     inheritance is the whole fix on this side; the preview path is asserted here
-    because it needs nothing outside this lane to hold.
+    because it needs nothing outside this file to hold.
     """
     from tripl.services.metric_preview_service import _warehouse_error_message
 

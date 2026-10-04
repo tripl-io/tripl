@@ -1,6 +1,6 @@
 """Source freshness and scan lag (#269).
 
-Covers the seams of the backend-core lane:
+Covers the backend core seams:
 
 * the pure helper ``services.source_freshness`` (status table, thresholds);
 * the metrics worker recording ``last_event_at`` / ``last_collection_at``

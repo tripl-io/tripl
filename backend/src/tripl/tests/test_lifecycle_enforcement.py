@@ -1,6 +1,6 @@
 """Lifecycle enforcement (#258): seen in data, sunset watch, successor adoption.
 
-Covers the backend-data lane:
+Covers the backend data side:
 
 * the pure window arithmetic (``services.lifecycle_rules``) — a daily bucket
   that started before the 24h window still counts, traffic before the sunset

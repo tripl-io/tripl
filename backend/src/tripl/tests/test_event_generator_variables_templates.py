@@ -1,4 +1,4 @@
-"""Regression tests for batch 13: event generator, variables and name templates."""
+"""Regression tests for the event generator, variables and name templates."""
 
 from __future__ import annotations
 

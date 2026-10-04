@@ -1,4 +1,4 @@
-"""Batch 18 merge-time races.
+"""Merge-time races.
 
 One mechanism closes all three (``services/_plan_branch_locks.py``): a plan
 write holds its branch's ``plan_branches`` row ``FOR SHARE`` in its own

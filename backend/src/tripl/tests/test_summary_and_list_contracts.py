@@ -1,4 +1,4 @@
-"""Backend asks from design-review batches 13-20.
+"""Backend contracts for summaries and lists.
 
 ``ProjectSummary.metric_count``, the metric list's ``reviewed`` /
 ``owner_id`` filters, fact-table list rollups, the inbox
@@ -150,7 +150,7 @@ async def test_fact_table_list_reports_metric_column_and_identifier_counts(
             )
         )
         # A cross-table ratio names its denominator's table only inside
-        # ``config``; that table is still in use (review F7).
+        # ``config``; that table is still in use.
         session.add(
             MetricDefinition(
                 id=uuid.uuid4(),

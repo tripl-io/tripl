@@ -1,4 +1,4 @@
-"""Batch 4: what an alert SAYS — one item, one weekly digest — and who gets it.
+"""What an alert SAYS — one item, one weekly digest — and who gets it.
 
 the rule simulator and the live send each built
 ``${scope_label}`` and ``${drift_line}`` from their own copy of the rules, and
@@ -161,8 +161,8 @@ _DRIFT_SCOPES: dict[str, dict[str, object]] = {
         "drift_type": "distribution_shift",
         "sample_value": "psi=0.412; ios 61.0%->38.0%",
     },
-    # All four are reachable from a replay: a fix in this same batch
-    # put release regressions and value drifts into the simulator's candidate
+    # All four are reachable from a replay: a fix made together with
+    # this file put release regressions and value drifts into the simulator's candidate
     # set, so the last two below describe firings an operator can preview today
     # rather than a family this file pinned ahead of time. The shared builder is
     # what keeps them from previewing differently the moment they became
@@ -331,7 +331,7 @@ def test_the_release_line_names_the_rollout_window_on_both_sides() -> None:
 
     ``window_from`` was the one fact a delivered item had and a replayed firing
     did not, so this test used to render the send's half alone. A fix
-    ended that inside this same batch: the replay loads ``ReleaseRegression``
+    ended that alongside it: the replay loads ``ReleaseRegression``
     rows, which record both ends of the overlap, and the firing carries the
     start through ``alerting_rendering._drift_facts``. The clause is an equality
     now. The cases above still leave the window unset on both sides — nothing

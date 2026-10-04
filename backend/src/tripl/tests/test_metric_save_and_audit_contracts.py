@@ -1,4 +1,4 @@
-"""Backend + contract slices of the leftovers, batch A.
+"""Backend and contract checks for metric save and audit.
 
 * the dialect lint runs on metric save, not only in the preview;
 * ``GET /metrics/{id}/generated-sql`` has the metric read's gate;

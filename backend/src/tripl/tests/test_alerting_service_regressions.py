@@ -1,6 +1,6 @@
-"""Batch 4, the alerting services lane.
+"""Alerting service regressions.
 
-One section per tracker id, in the order the fixes landed. Everything here runs
+One section per fix, in the order the fixes landed. Everything here runs
 on the shared in-memory SQLite of ``conftest`` through the app, unless a section
 says otherwise.
 """

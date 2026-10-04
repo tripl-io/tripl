@@ -679,7 +679,7 @@ describe('ScanFormSections — field labelling', () => {
   })
 })
 
-describe('ScanFormSections — batch 4', () => {
+describe('ScanFormSections — source scoping', () => {
   it("offers only this project's and workspace-wide sources", async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)

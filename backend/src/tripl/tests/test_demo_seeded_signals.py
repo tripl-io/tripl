@@ -1,4 +1,4 @@
-"""Batch 4, demo lane: what the seeded demo claims about its own signals.
+"""What the seeded demo claims about its own signals.
 
 Two seeder defects, both on the surface a new operator reads first.
 

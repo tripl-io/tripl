@@ -1,4 +1,4 @@
-"""Batch 7, lane A — the events domain core.
+"""The events domain core.
 
 nothing checked that ``event_type_id`` (or
 ``meta_field_definition_id``) belongs to the project AND branch the event is
@@ -889,7 +889,7 @@ async def test_a_tag_stored_before_normalisation_is_still_reachable_from_the_fac
     """Normalising the write side does nothing for the rows already stored.
 
     No migration rewrites ``event_tags.name``, so every tag an MCP tool or a raw
-    client wrote before this batch keeps its spelling — and the tag facet only
+    client wrote earlier keeps its spelling — and the tag facet only
     ever offers the lower-cased form now, so a pre-existing ``Checkout`` was a
     row the list displays that no filter the UI can spell could find. The read
     side case-folds instead: the facet lower-cases, and ``?tag=`` compares
@@ -989,7 +989,7 @@ async def test_a_bulk_paste_keeps_the_owner_and_reviewed_flag_it_was_given(
     assert reread.json()["owner_id"] == owner_id
     assert reread.json()["reviewed"] is True
 
-    # The single door, for the same body — this is the contract the batch broke.
+    # The single door, for the same body — this is the contract that change broke.
     single = await client.post(
         f"/api/v1/projects/{slug}/events",
         json={
@@ -1023,7 +1023,7 @@ async def test_patching_metric_breakdown_columns_to_null_clears_them_instead_of_
     by SQLite too, so the autoflush inside ``_reindex_branch_documents`` raises
     IntegrityError, the save rolls back and the request answers 500 — the
     ``== 200`` assertion fails. Not the TypeError the finding was filed for: the
-    same batch gave ``_search_documents._event_document`` its ``or []``, so the
+    same change gave ``_search_documents._event_document`` its ``or []``, so the
     join no longer blows up and the column refuses the value one layer down.
     """
     slug = "b7a-breakdown-null"

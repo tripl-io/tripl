@@ -1,4 +1,4 @@
-"""Seam follow-ups after the design & UX review lanes.
+"""Seam follow-ups after the design and UX review.
 
 The draft destination test reached through ``alerting_service``, a
 catalog run's warehouse rows counted as warehouse rows in the 24h scan

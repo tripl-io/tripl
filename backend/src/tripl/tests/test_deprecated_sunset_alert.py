@@ -1,4 +1,4 @@
-"""Batch 4 — the deprecated-sunset alert, both halves.
+"""The deprecated-sunset alert, both halves.
 
 ``check_deprecated_sunset_events`` was registered, callable, tested, and on
 nobody's timer: no beat entry named it and nothing else invoked it, so whatever
@@ -43,8 +43,8 @@ against:
 * the capped message fits Slack's ``text`` field even at the widest name the
   ``events.name`` column allows.
 
-The final section belongs to a different issue in the same lane
-(crosslane-35-33) and is here because this lane owns one test file. It covers
+The final section belongs to a different fix, about the same outgoing
+messages. It covers
 what a RESUMED Telegram digest says about itself once the remainder needs more
 than one message — the half of that fix that lives in
 ``alerts_messages.split_telegram_messages`` rather than in the send task, and
@@ -559,7 +559,7 @@ def test_the_capped_message_fits_slacks_text_field_at_the_widest_event_name(
 
 
 # ---------------------------------------------------------------------------
-# crosslane-35-33 — what a RESUMED Telegram digest says about itself.
+# What a RESUMED Telegram digest says about itself.
 # ---------------------------------------------------------------------------
 
 _TG = ALERT_MESSAGE_FORMAT_TELEGRAM_HTML

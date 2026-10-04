@@ -1,4 +1,4 @@
-"""Batch 5, lane W5-demopause: a PAUSED demo must not be collected.
+"""A PAUSED demo must not be collected.
 
 ``advance_demos`` already skips a demo nobody has opened for
 ``DEMO_IDLE_PAUSE_MINUTES``. The metrics dispatcher did not, and the two together

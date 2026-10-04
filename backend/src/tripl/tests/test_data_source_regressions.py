@@ -1,4 +1,4 @@
-"""Regressions for the data-source half of batch 11."""
+"""Regressions for the data-source layer."""
 
 import uuid
 

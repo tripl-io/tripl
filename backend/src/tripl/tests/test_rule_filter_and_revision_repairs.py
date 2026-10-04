@@ -1,4 +1,4 @@
-"""Regression tests for the backend review findings on design-review batches 5-12.
+"""Regression tests for the backend review findings.
 
 The server-side ``min_percent_delta`` default, a deleted catalog metric
 leaving its id behind in rules' ``metric`` filters, and the plan-revision migration

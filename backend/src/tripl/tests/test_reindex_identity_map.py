@@ -1,4 +1,4 @@
-"""Batch 7, the seam: findings no single lane could reach.
+"""Findings that cross module boundaries and so no single module's tests reached.
 
 every reindex runs inside the writer's own transaction and so
 shares the writer's identity map. A ``selectinload`` does NOT overwrite a
@@ -19,7 +19,7 @@ database-backed test could have caught it; what is pinned here is the ARITHMETIC
 
 eight partial-update schemas let an explicit JSON ``null``
 through to a NOT NULL column, where the generic ``setattr`` loops turned a client
-error into a blank 500. Batch 6 built ``schemas/not_null_update`` for exactly
+error into a blank 500. ``schemas/not_null_update`` was built for exactly
 this; these reuse it rather than inventing a second spelling.
 
 ``accept_shadow_event`` built the event without passing
@@ -637,7 +637,7 @@ async def test_the_demo_trail_matches_the_routes_it_imitates(client: AsyncClient
 #
 # What shipped for this finding is the diff-side warning, pinned by
 # test_plan_diff_and_snapshots. The merge's own half waits on an
-# origin id on branch copies, which is where batch 2 had already put it: telling
+# origin id on branch copies, which is where an earlier fix had already put it: telling
 # the two rows apart is the thing no message or gate can substitute for.
 
 

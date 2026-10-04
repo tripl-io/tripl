@@ -91,7 +91,7 @@ const ACTIVITY_LIMIT = 8
 // summary monitoring_signal_count) and the Anomalies page's default
 // "Significant" view.
 // A successful source connection test older than this is shown as "stale" rather
-// than a confident "healthy" — an old green check is misleading (issue M1).
+// than a confident "healthy" — an old green check is misleading.
 const SOURCE_HEALTH_STALE_MS = 24 * 60 * 60 * 1000
 // The volume card asked for the scan's ENTIRE metric history — the endpoint's
 // from/to simply were never passed — so it was still fetching 2.2 s after every
@@ -121,7 +121,7 @@ export default function OverviewPage() {
   const volumeRange = useLiveTimeRange(VOLUME_WINDOW_MS)
   // The project query is the single authority on whether the slug exists. Gate
   // every project-scoped widget query on its success so they never fan out
-  // 404s against a nonexistent project (issue .9).
+  // 404s against a nonexistent project.
   const volumeQuery = useQuery({
     // The window length is in the key but its moving bounds are NOT: every
     // refetch reads the live range, while keying on `to` would mint a fresh
@@ -186,13 +186,13 @@ export default function OverviewPage() {
   // Scope the Source-health rail to this project: workspace-global sources
   // (project_id == null) plus sources owned by the current project. Without this
   // a demo project's project-scoped synthetic source leaks into unrelated
-  // projects (issue .14). Falls back to the full list until the project loads.
+  // projects. Falls back to the full list until the project loads.
   const allSources = sourcesQuery.data ?? []
   const sources = projectId
     ? allSources.filter((s) => s.project_id == null || s.project_id === projectId)
     : allSources
 
-  // "Open signals" comes from the SAME array the panel below renders (issue H1) —
+  // "Open signals" comes from the SAME array the panel below renders —
   // now the significant, all-scope signals — so the headline equals the sidebar
   // badge (monitoring_signal_count) and the Anomalies page.
   const signalCount = signals.length
@@ -248,7 +248,7 @@ export default function OverviewPage() {
   const canConnectSource = isOwner(user?.role)
 
   // A nonexistent slug is a 404 on the project query itself: replace the whole
-  // widget grid with the app's full-page not-found (issue .9). Non-404 project
+  // widget grid with the app's full-page not-found. Non-404 project
   // failures (500/503) keep the compact KPI-strip ErrorState below so a transient
   // outage is not misreported as a missing project.
   if (projectQuery.error instanceof ApiError && projectQuery.error.status === 404) {
@@ -813,7 +813,7 @@ function VolumeSkeleton() {
 
 /**
  * A panel body's rows while its query is in flight: the loaded shape instead of
- * a "Loading…" word, so the cards hold their height (batch 5). One
+ * a "Loading…" word, so the cards hold their height. One
  * `role="status"` with the label; the bars are aria-hidden.
  */
 function RowsSkeleton({ rows, label }: { rows: number; label: string }) {
@@ -992,7 +992,7 @@ function volumeHeadlineLabel(summary: VolumeSummary): string {
   return `Volume in the last 24 hours: ${formatNumber(summary.last24h)}${change}`
 }
 
-// Text alternative for the volume sparkline (issue M8): the SVG itself is
+// Text alternative for the volume sparkline: the SVG itself is
 // aria-hidden, so the surrounding role="img" needs an accessible summary. Names
 // the scan the series is scoped to rather than calling it the project
 // total, which it never was.

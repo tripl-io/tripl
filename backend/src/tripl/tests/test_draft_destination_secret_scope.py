@@ -1,4 +1,4 @@
-"""Review follow-ups for the backend lane of the design follow-ups change.
+"""Review follow-ups for the backend side of the design follow-ups change.
 
 * F6 — a draft destination test never lends a stored secret to a host it was
   not saved for, and the audit entry records the host the test was aimed at.

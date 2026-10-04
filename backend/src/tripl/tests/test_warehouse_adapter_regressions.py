@@ -1,4 +1,4 @@
-"""Batch-14 regression tests for the warehouse adapter layer (lane ADAPTERS).
+"""Regression tests for the warehouse adapter layer.
 
 * The in-memory warehouse read only a depth-0
   ``WHERE``, so the per-metric fact path (which wraps the fact SQL one paren

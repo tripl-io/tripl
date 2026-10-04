@@ -1,4 +1,4 @@
-"""Reverting a branch change against an older base or an awkward name (batch 2).
+"""Reverting a branch change against an older base or an awkward name.
 
 - The revert reads the base snapshot the way the diff reads it,
   through ``with_snapshot_defaults``. A base taken before a key joined v2 has no
@@ -9,7 +9,7 @@
   branch events answer to is a 409 rather than a guess or a 500 — as is a key
   two BASE events answered to. The event being reverted is never its own
   successor, though it can spell the key itself.
-- review2#18: rebuilding a deleted event puts its successor back, resolved the
+- Rebuilding a deleted event puts its successor back, resolved the
   way the field revert resolves it — including both 409s.
 - Namesakes (cut back): a branch copy does not record which base
   row it came from, so when several base rows answer to the key a change or a
@@ -503,7 +503,7 @@ async def test_revert_never_names_the_event_as_its_own_successor(
         assert restored["superseded_by_event_id"] is None
 
 
-# --- review2#18: a rebuilt event gets its successor back -----------------------
+# --- a rebuilt event gets its successor back -----------------------
 
 
 async def _checkout_pointing_at_its_successor(client: AsyncClient, slug: str) -> str:

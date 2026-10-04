@@ -1,7 +1,6 @@
-"""Regression tests for the batch-14 DETECTION lane (.101, .104-.107,
-.342, .343, .346).
+"""Regression tests for detection.
 
-Each test fails when the fix it names is reverted. .104 is a documentation fix
+Each test fails when the fix it names is reverted. One item is a documentation fix
 (the release-regression volume-drop bar reuses the project's ``sigma_threshold``,
 which the docs now say) and has no behaviour to pin.
 """

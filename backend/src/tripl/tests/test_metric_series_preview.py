@@ -1,4 +1,4 @@
-"""Metrics follow-ups (lane F6): the series dry run and the Used-by catalog filter.
+"""Metrics follow-ups: the series dry run and the Used-by catalog filter.
 
 * ``POST /metrics/series-preview`` previews a draft ``fact`` or
   ``event_composition`` metric's series with the collector's own code and

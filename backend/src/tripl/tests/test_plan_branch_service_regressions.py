@@ -1,4 +1,4 @@
-"""Plan-branch service regressions from an earlier sweep, batch 2.
+"""Plan-branch service regressions.
 
 - ``?include_diff_counts=true`` counts open branches only, so its
   cost follows the work in flight rather than the project's branch history.

@@ -1,4 +1,4 @@
-"""Scan and data-source follow-ups (lane F7).
+"""Scan and data-source follow-ups.
 
 * A catalog run reports the warehouse rows behind its breakdown
   (``catalog_rows_scanned``), not only the grouped combinations.

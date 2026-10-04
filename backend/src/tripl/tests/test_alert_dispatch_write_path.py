@@ -1,4 +1,4 @@
-"""Batch 4, the dispatch lane: seven defects around the alert write path.
+"""Seven defects around the alert write path.
 
 the alert link base URL is resolved once, not once per link.
 every scope label fits the column it is stored in.

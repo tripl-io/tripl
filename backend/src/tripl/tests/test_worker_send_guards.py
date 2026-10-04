@@ -1,4 +1,4 @@
-"""Worker import and send-time guard regressions from batch 08."""
+"""Worker import and send-time guard regressions."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
-"""Batch 6, lane C: what a fact-table edit is allowed to refuse, and how it says so.
+"""What a fact-table edit is allowed to refuse, and how it says so.
 
-Three defects in the referential guard batch 5 put on ``update_fact_table``. Each
+Three defects in the referential guard on ``update_fact_table``. Each
 is pinned by an assertion that goes red if the production change is reverted:
 
 * the guard's filter predicate unioned BOTH ratio operands, so a
@@ -224,7 +224,7 @@ def test_metric_named_filters_attributes_each_name_to_its_own_operands_table() -
 
     assert metric_named_filters(metric, fact_table_id=numerator_table) == {"paid"}
     assert metric_named_filters(metric, fact_table_id=denominator_table) == {"eu"}
-    # Unscoped stays the union: that is a different question, and the batch-5
+    # Unscoped stays the union: that is a different question, and the
     # callers that ask it are not deciding whether ONE table's edit is safe.
     assert metric_named_filters(metric) == {"paid", "eu"}
     assert metrics_needing_filter([metric], "paid", fact_table_id=denominator_table) == []
@@ -446,7 +446,7 @@ async def test_every_referential_door_the_module_claims_to_cover_is_closed(
     """``fact_table_dependents``'s docstring names three update doors; all three 409.
 
     This is the assertion that keeps the docstring honest. The ``columns`` row is
-    the one batch 5 shipped a false claim about, so reverting the column branch
+    the one the docstring made a false claim about, so reverting the column branch
     turns that parametrisation red.
     """
     project = await _create_project(client, f"doors-{body_key.replace('_', '-')}")
@@ -509,7 +509,7 @@ def test_metric_used_columns_covers_measure_condition_and_breakdown_columns() ->
 
 
 def test_metric_used_columns_does_not_charge_one_operands_column_to_the_other_table() -> None:
-    """The .351 scoping applies to columns too: 'amount' on ORDERS is not on SESSIONS."""
+    """The per-table scoping applies to columns too: 'amount' on ORDERS is not on SESSIONS."""
     orders = uuid.uuid4()
     sessions = uuid.uuid4()
     metric = MetricDefinition(

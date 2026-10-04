@@ -1,4 +1,4 @@
-"""Batch 5, scan preview: nested warehouse values and JSON path discovery.
+"""Scan preview: nested warehouse values and JSON path discovery.
 
 A preview payload must be ``json.dumps``-able with the
 stdlib encoder, because ``ScanPreviewJob.result_summary`` is ``sa.JSON`` and the

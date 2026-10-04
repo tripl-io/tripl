@@ -1,4 +1,4 @@
-"""Plan revisions and relations: batch 7 of the backend review.
+"""Plan revisions and relations.
 
 * a key two rows share no longer swallows a change whole. The
   deletion of a namesake that is not the one listed last used to produce no

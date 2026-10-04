@@ -1,13 +1,13 @@
-"""Photo attachments, batch 2 of the backend review sweep.
+"""Photo attachments.
 
-* .146 — one blob backs a main photo and every branch twin of it, so deleting
+* one blob backs a main photo and every branch twin of it, so deleting
   any one row must leave the blob to the others.
-* .214 / .236 — an upload is refused on type and size before it is buffered,
+* an upload is refused on type and size before it is buffered,
   and the request body is capped before it is spooled.
-* .213 — a signing failure falls back to the /file route instead of a 500.
-* .237 — a reorder that repeats a photo is refused.
-* .211 — the shipped images can create the default photo directory.
-* .145 — a merged or closed branch's event takes no photo or spec writes,
+* a signing failure falls back to the /file route instead of a 500.
+* a reorder that repeats a photo is refused.
+* the shipped images can create the default photo directory.
+* a merged or closed branch's event takes no photo or spec writes,
   although these routes never see ``?branch=``; its photos can still be
   discussed, and main, stored as merged, stays writable.
 """

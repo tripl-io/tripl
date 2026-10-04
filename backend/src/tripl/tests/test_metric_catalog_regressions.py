@@ -1,4 +1,4 @@
-"""Batch 6, lane A: the metric catalog service, its schemas and its router.
+"""The metric catalog service, its schemas and its router.
 
 Each defect is pinned by an assertion that goes red the moment the production
 change is reverted:

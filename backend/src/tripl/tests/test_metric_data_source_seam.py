@@ -1,4 +1,4 @@
-"""Batch 6, seam lane: the three defects that span two lanes' files.
+"""The three defects that span two modules.
 
 * one question, two answers. The ``sql``-metric doors decided
   which data source a project may use by OWNERSHIP; the fact-table doors demanded

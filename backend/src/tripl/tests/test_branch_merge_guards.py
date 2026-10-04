@@ -1,6 +1,6 @@
-"""The branch merge, batch 2 of the backend review sweep.
+"""The branch merge.
 
-* .146 — a screenshot the merge deletes from main releases its blob once no
+* a screenshot the merge deletes from main releases its blob once no
   row holds the key any more — only after the merge has committed — and a
   failure there never fails the merge.
 """

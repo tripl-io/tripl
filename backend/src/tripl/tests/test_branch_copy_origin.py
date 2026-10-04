@@ -3,11 +3,11 @@
 Two events may share (type, name) and two relations may link the same two
 fields — nothing forbids it, and production holds such pairs. Every branch path
 paired rows by that natural key, one row per key, so the pair collapsed to
-whichever row a dict kept: batch 2 found 21 defects of that one root. A branch
+whichever row a dict kept: an earlier review found 21 defects of that one root. A branch
 copy now records the main row it was made from (``origin_id``) and the diff,
 the conflict scan, the merge, a revert and the discussion twin pair by it.
 
-One scenario per defect class batch 2 listed, each built on two namesakes, each
+One scenario per defect class that review listed, each built on two namesakes, each
 arranged so the natural-key pairing gets it WRONG — acting on the namesake a
 key-keyed dict does not keep (the last one listed), or on the one the old twin
 rule did not pick (the lowest id) — so reverting to that pairing fails it.
@@ -159,7 +159,7 @@ async def test_merge_writes_each_copys_edits_onto_its_own_origin(client: AsyncCl
     assert second_row is not None and second_row.description == "second"
 
 
-# --- the rest of the batch-2 defect list -----------------------------------------
+# --- the rest of the defect list -----------------------------------------
 
 
 @pytest.mark.asyncio

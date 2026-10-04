@@ -1,4 +1,4 @@
-"""Batch 4: what the rule REPLAY can see.
+"""What the rule REPLAY can see.
 
 Live dispatch merges FIVE candidate sources (``worker/tasks/metrics/dispatch``);
 the in-UI replay merged three. Variable-value drifts and release regressions
@@ -990,7 +990,7 @@ def _release_regression_pair(
 def test_the_preview_words_a_release_regression_the_way_the_send_does(
     message_format: str,
 ) -> None:
-    """The whole default item, byte for byte, for the family .158 made reachable.
+    """The whole default item, byte for byte, for the family the replay newly made reachable.
 
     ``test_alert_message_content`` asserts this equality for schema and distribution
     drift and deliberately excludes release regressions, because at the time

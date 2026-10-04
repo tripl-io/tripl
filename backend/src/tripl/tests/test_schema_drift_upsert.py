@@ -1,4 +1,4 @@
-"""Schema-drift upsert regressions: type-name width and provenance (batch 3).
+"""Schema-drift upsert regressions: type-name width and provenance.
 
 Two defects on the same write path, both in
 ``worker/tasks/metrics/schema_drift._upsert_schema_drifts``:

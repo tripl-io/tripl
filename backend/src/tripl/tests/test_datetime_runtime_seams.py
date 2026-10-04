@@ -1,4 +1,4 @@
-"""Regression tests for batch 10 datetime and runtime seams."""
+"""Regression tests for datetime and runtime seams."""
 
 from datetime import UTC, datetime
 

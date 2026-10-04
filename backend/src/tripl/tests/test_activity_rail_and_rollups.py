@@ -1,4 +1,4 @@
-"""Batch 17 regressions: activity rail, monitor rollup, reconciliation, contracts.
+"""Regressions: activity rail, monitor rollup, reconciliation, contracts.
 
 Each test pins one finding and fails if that fix is
 reverted.

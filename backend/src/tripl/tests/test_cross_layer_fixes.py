@@ -1,11 +1,11 @@
-"""Batch 4, cross-lane: three fixes whose reporter could not reach the file.
+"""Three fixes that each live in a different layer from where they were found.
 
 Each of the three was found while fixing something else, in a module the finder
 did not own, and each lands in a different layer — a service, a demo seeder, a
 schema. They are together here because that is the one thing they have in
 common; nothing in this file shares a fixture with anything else in it.
 
-Service lane: the Inbox **Retry** button has to hand the
+Service: the Inbox **Retry** button has to hand the
 send task a CLAIMABLE row. The single-flight lease that fix added refuses a
 delivery whose ``claimed_at`` is newer than ``STRANDED_DELIVERY_MINUTES``, and
 ``retry_delivery`` flips a `failed` row back to `pending` without clearing it.
@@ -14,11 +14,11 @@ does clear it, and says why: the hand-off must not depend on the send path's own
 release having run. This is defence in depth rather than a live bug, and the
 test says which: see ``test_retry_hands_the_send_task_a_row_it_can_claim``.
 
-Demo lane: ``scope_name`` is a String(255) fed by wider
+Demo: ``scope_name`` is a String(255) fed by wider
 sources, and ``demo.builders.alerts`` was the last writer family outside the
-trim the rest of the batch installed.
+trim the other writers already had.
 
-Schema lane: a per-destination From: override that every
+Schema: a per-destination From: override that every
 reader of the column would happily deliver could not be SAVED, because the save
 used the strict validator and the send paths use ``validate_sender_address``.
 The mirror image of an earlier fix, which closed the same disagreement at the

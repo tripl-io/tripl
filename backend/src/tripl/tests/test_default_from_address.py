@@ -1,4 +1,4 @@
-"""Batch 4, review follow-up: the whitespace-only Default From.
+"""Review follow-up: the whitespace-only Default From.
 
 ``EmailSettingsUpdate._check_smtp_from_address`` guards the global Default From
 with the send path's own helper, and its own comment says ``None`` and ``""``

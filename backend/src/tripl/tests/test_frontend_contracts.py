@@ -1,4 +1,4 @@
-"""Backend halves of the round-2 frontend review leftovers.
+"""Backend halves of the frontend contracts.
 
 Each block names the finding it closes. They share one module because each is a
 small contract the frontend now leans on: who may delete a comment,
