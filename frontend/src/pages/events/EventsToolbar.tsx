@@ -26,10 +26,10 @@ import type { EventsSavedView } from './savedViews'
 import type { EventsSortOrder } from './useEventsQuery'
 
 /**
- * The Status trigger in the FilterSelect chip geometry (DS-15): 28px, caption
+ * The Status trigger in the FilterSelect chip geometry: 28px, caption
  * text, "{Label}: {value}". Status is a multi-select menu, so it cannot be a
  * FilterSelect itself. `whitespace-nowrap`: "Status / any" wrapped inside the
- * chip on a phone (EV-1).
+ * chip on a phone.
  */
 const CHIP_TRIGGER_CLASS = 'h-7 w-auto gap-1.5 whitespace-nowrap text-caption font-normal'
 const CHIP_UNSET_CLASS = 'border-dashed bg-transparent text-fg-muted'
@@ -41,7 +41,7 @@ const SILENT_DAY_PRESETS = [1, 7, 30]
 /** "no filter" for the single-value FilterSelects below. */
 const ANY = '__all__'
 
-/** Plain words for a silent-days preset: "Silent > 1d" was jargon (EV-15). */
+/** Plain words for a silent-days preset: "Silent > 1d" was jargon. */
 function silentDaysLabel(days: number): string {
   return `No events for ${days}+ day${days === 1 ? '' : 's'}`
 }
@@ -139,7 +139,7 @@ export function EventsToolbar({
    *  file that reads like "nothing matched". */
   canExport: boolean
   isExporting: boolean
-  /** Omitted for a viewer: creating events is an editor's job (EVT-9). */
+  /** Omitted for a viewer: creating events is an editor's job. */
   onNewEvent?: () => void
   onBulkNew?: () => void
   /** Off where the table is embedded in another page: a saved view navigates
@@ -148,7 +148,7 @@ export function EventsToolbar({
 }) {
   // A silent-days value from a shared link that no preset names used to leave
   // the single-value select showing "Any", so it gets an item of its own that
-  // says what is actually applied (EVT-35).
+  // says what is actually applied.
   const customSilentDays =
     filterSilentDays !== undefined && !SILENT_DAY_PRESETS.includes(filterSilentDays)
       ? filterSilentDays
@@ -158,7 +158,7 @@ export function EventsToolbar({
     ...(customSilentDays !== undefined ? [customSilentDays] : []),
   ].map(days => ({ value: String(days), label: silentDaysLabel(days) }))
   // Below sm the chips fold behind one "Filters (n)" toggle; from sm up they
-  // are always shown and the toggle is not rendered (EV-1).
+  // are always shown and the toggle is not rendered.
   const [filtersOpen, setFiltersOpen] = useState(false)
   const filtersId = useId()
   const activeChipCount =
@@ -168,10 +168,10 @@ export function EventsToolbar({
     (filterOpenQuestions !== undefined ? 1 : 0) +
     (filterProperty ? 1 : 0)
   // A search is a filter to the reader: "Clear filters" appears for it and
-  // clears it too (EV-16).
+  // clears it too.
   const anythingToClear = hasActiveFilters || search.trim() !== ''
   return (
-    // One wrapping row, ordered per breakpoint (EV-1 / EV-2). The old two
+    // One wrapping row, ordered per breakpoint. The old two
     // groups — filters `flex-1 min-w-0`, actions `ml-auto shrink-0` — let the
     // action buttons draw over the Activity and Reviewed chips at 390, and at
     // 768/1024 squeezed the filters into a five-row column.
@@ -285,7 +285,7 @@ export function EventsToolbar({
         </DropdownMenu>
       </div>
 
-      {/* The shared filter bar (DS-15): "{Label}: {value}" chips that apply
+      {/* The shared filter bar: "{Label}: {value}" chips that apply
           instantly, then "Clear filters" while anything is set. A full line of
           its own below lg, between search and actions from lg up. */}
       <FilterBar
@@ -364,7 +364,7 @@ export function EventsToolbar({
           anyLabel="Any"
         />
         {/* Sort orders the rows, it filters nothing, so it does not wear the
-            dashed filter-chip look (EV-14): a quiet ghost control with a sort
+            dashed filter-chip look: a quiet ghost control with a sort
             icon, never tinted as "set", not counted by "Clear filters". The
             48h column header toggles the same order on desktop. */}
         <Select
@@ -392,7 +392,7 @@ export function EventsToolbar({
 }
 
 /**
- * The status filter as a real multi-select (EVT-35). The list endpoint takes
+ * The status filter as a real multi-select. The list endpoint takes
  * repeated `?status=` params and a shared link can already carry several, but
  * a single-value select could only show or pick one. Nothing ticked is the
  * default — every status but archived, or the tab's own default — which is why

@@ -52,12 +52,12 @@ import { SignalActions } from './anomalies/SignalActions'
 import { countHiddenSignals, signalIncidentId, triageStatusLabel } from './anomalies/signalTriage'
 
 // Change sits right after the scope and its trend, the one figure a reader
-// scans for (MO-19). The trend column is sm+ only: its cell is `hidden` below,
+// scans for. The trend column is sm+ only: its cell is `hidden` below,
 // which takes it out of the phone card's grid altogether.
 // Below `sm` the same four cells fold into a two-line card — scope and change on
 // the first line, values and time on the second — instead of a 640px table in a
-// sideways scroller that hid "how bad" and "how recent" off-screen (MO-20).
-// The last column is the row's action menu (MO-4). On a phone it spans both
+// sideways scroller that hid "how bad" and "how recent" off-screen.
+// The last column is the row's action menu. On a phone it spans both
 // lines of the two-line card, so the other cells keep their two columns.
 const ANOMALY_GRID =
   'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-0.5 px-4 sm:grid-cols-[minmax(0,1.7fr)_80px_88px_minmax(0,1fr)_120px_28px]'
@@ -217,7 +217,7 @@ export default function AnomaliesPage() {
   // the notice below says so, or this list reads quieter than the data is.
   const freshnessItems = useSourceFreshness(slug)
 
-  // Muted and expected signals (MO-4 / JR-5) are left out of the list and every
+  // Muted and expected signals are left out of the list and every
   // count here, as they are from the bell, Overview and the sidebar badge;
   // `?hidden=1` brings them back, flagged, so a verdict can be reviewed or undone.
   const showHidden = searchParams.get('hidden') === '1'
@@ -254,7 +254,7 @@ export default function AnomaliesPage() {
   // Verdict first: it decides which signals the page is about at all.
   const byVerdict = signals.filter((s) => matchesVerdictFilter(s, verdictFilter))
   // Row sparklines, one batched request beside the signals list rather than
-  // inside its shared 30 s cache (MO-19).
+  // inside its shared 30 s cache.
   const seriesQuery = useSignalSeries(slug, signalsQuery.data)
   const activePreset = MAGNITUDE_PRESETS.find((p) => p.id === level) ?? MAGNITUDE_PRESETS[0]
   const threshold = activePreset.minRelEffect
@@ -324,7 +324,7 @@ export default function AnomaliesPage() {
   // Magnitude first, then scan, then rank biggest first — by relative effect,
   // as Overview and the bell do, with |z| only breaking ties. Ranking by |z|
   // alone let quiet-scope noise lead this list while Overview led with a
-  // different anomaly (MON-14).
+  // different anomaly.
   const filtered =
     activeScanId === ALL_SCANS
       ? byMagnitude
@@ -384,7 +384,7 @@ export default function AnomaliesPage() {
   // Nothing open AND nothing that could ever open anything: no scan collects
   // volume on a schedule (a Catalog only scan has no interval). The reassuring
   // "No anomalies right now" was a false all-clear for a project that has not
-  // started monitoring (MO-23). Decided only once the scan list has loaded.
+  // started monitoring. Decided only once the scan list has loaded.
   const monitoringIsOff =
     isEmpty && hiddenTotal === 0 && scansQuery.isSuccess && !(scansQuery.data ?? []).some((scan) => scan.interval)
   // First load: a skeleton of the stat strip and the table, never zeros.
@@ -398,7 +398,7 @@ export default function AnomaliesPage() {
         eyebrow="Observe"
         title="Anomalies"
         titleAddon={slug && <TermHint slug={slug} {...TERM_HINTS.scopes} />}
-        // Two queues that looked alike (JR-6): say which one owes work.
+        // Two queues that looked alike: say which one owes work.
         description={
           slug ? (
             <>
@@ -440,10 +440,10 @@ export default function AnomaliesPage() {
           compact
         />
       ) : monitoringIsOff ? null : (
-        // Hidden when monitoring is off: three zeros say nothing there (MO-23).
+        // Hidden when monitoring is off: three zeros say nothing there.
         <MiniStatStrip boxed className={isEmpty ? 'opacity-60' : undefined}>
-          {/* Neutral at zero, not green: an empty list is not praise (MO-17).
-              A pending value is a skeleton, never a "0" (DS-25). */}
+          {/* Neutral at zero, not green: an empty list is not praise.
+              A pending value is a skeleton, never a "0". */}
           <MiniStat
             label="Open signals"
             value={signalsQuery.data ? formatNumber(visibleCount) : <StatValueSkeleton />}
@@ -454,7 +454,7 @@ export default function AnomaliesPage() {
             }
           />
           {/* `valueTone`, not `tone`: these carry no delta, and `tone` paints
-              only the delta — so the emphasis never rendered (MON-42). */}
+              only the delta — so the emphasis never rendered. */}
           <MiniStat
             label="Spikes"
             value={signalsQuery.data ? formatNumber(spikes) : <StatValueSkeleton />}
@@ -535,7 +535,7 @@ export default function AnomaliesPage() {
                 : undefined
             }
             right={
-              // Filter chips, the one filter idiom (DS-15): each shows its
+              // Filter chips, the one filter idiom: each shows its
               // current value ("Magnitude: Significant") and applies instantly.
               // A segmented control is for switching views, not for filtering.
               <FilterBar className="min-w-0 max-w-full">
@@ -577,7 +577,7 @@ export default function AnomaliesPage() {
                   />
                 )}
                 {/* Each level names its bar in the % the rows show, so why a
-                    row is or is not "Major" reads off the control (MO-3). */}
+                    row is or is not "Major" reads off the control. */}
                 <FilterSelect
                   label="Magnitude"
                   value={level}
@@ -650,7 +650,7 @@ export default function AnomaliesPage() {
                 <div role="table" aria-label="Anomaly signals">
                   <div role="rowgroup">
                     {/* No header row on phones: each row is a two-line card
-                        there, and every cell reads on its own (MO-20). */}
+                        there, and every cell reads on its own. */}
                     <div
                       role="row"
                       className={`${ANOMALY_GRID} hidden border-b py-2 micro-label sm:grid border-border-subtle text-fg-tertiary`}
@@ -662,7 +662,7 @@ export default function AnomaliesPage() {
                       {/* The cell leads with the bucket's absolute START (its
                           tooltip says so) and adds when the detector found it:
                           one absolute and one relative time, not two relative
-                          ones that read as a contradiction (MON-40, MO-21). */}
+                          ones that read as a contradiction. */}
                       <span role="columnheader" className="text-right">When</span>
                       <span role="columnheader">
                         <span className="sr-only">Actions</span>
@@ -674,7 +674,7 @@ export default function AnomaliesPage() {
                       <AnomalyRow
                         // Scan id too: a legacy and a live scan watching the
                         // same event open one signal each on the same bucket,
-                        // and the three-part key collided (MON-16).
+                        // and the three-part key collided.
                         key={signalRowKey(signal)}
                         slug={slug}
                         signal={signal}
@@ -695,7 +695,7 @@ export default function AnomaliesPage() {
 /**
  * A bucket's start as a short absolute time — "Today 18:00", "Sep 25, 18:00" —
  * which, unlike "1h ago", cannot read as contradicting "found 16m ago" under
- * it (MO-21).
+ * it.
  */
 function formatShortWhen(iso: string, now: Date = new Date()): string {
   const date = new Date(iso)
@@ -721,7 +721,7 @@ function localTimeZone(): string {
 }
 
 /**
- * One anomaly. A linkable row is a real link (MON-13): the label is an `<a>`
+ * One anomaly. A linkable row is a real link: the label is an `<a>`
  * whose `::after` is stretched over the row, so the whole row stays the click
  * target while Cmd/Ctrl-click, middle-click and "open in new tab" work, and a
  * screen reader announces a link rather than a table row it cannot act on.
@@ -749,7 +749,7 @@ function AnomalyRow({
   const incidentStatus = signal.incident?.status ?? signal.incident_status ?? null
   // The "Spike on" / "Drop on" prefix is visual on sm+ only: on a phone the
   // arrow already carries the direction and the words cost the scope name
-  // most of its width (MO-20). `sr-only` rather than `hidden` keeps it in the
+  // most of its width. `sr-only` rather than `hidden` keeps it in the
   // link's accessible name at every width, since the arrow is aria-hidden.
   // The separating space sits outside the span: inside it, the name ran the
   // words together ("Spike onMetric · …"). Out of flow on phones, the prefix
@@ -765,7 +765,7 @@ function AnomalyRow({
   return (
     <div
       role="row"
-      // The row height follows the Density setting (DS-9), as the Events
+      // The row height follows the Density setting, as the Events
       // table's does.
       className={`${ANOMALY_GRID} relative min-h-(--row-h) border-b py-2 last:border-0 ${
         href ? 'transition-colors hover:bg-[var(--surface-hover)]' : ''
@@ -773,7 +773,7 @@ function AnomalyRow({
     >
       <span role="cell" className="flex min-w-0 items-center gap-2">
         {/* Static in a list: with every row pulsing, a flooded project
-            shimmered and motion stopped meaning "new" (MO-18). */}
+            shimmered and motion stopped meaning "new". */}
         <Dot tone={signalDirectionTone(signal.direction)} size={7} />
         <DirIcon aria-hidden="true" className="h-3.5 w-3.5 shrink-0" style={{ color: severityColor }} />
         {href ? (
@@ -796,13 +796,13 @@ function AnomalyRow({
             className="relative hidden shrink-0 whitespace-nowrap text-micro sm:inline text-fg-tertiary"
             title={`This scope fired as part of a project-total ${isDrop ? 'drop' : 'spike'} on the same bucket`}
           >
-            {/* Says what it means; "part of total" read as a data annotation
-                (MO-22). A child is keyed to its parent by direction too, so a
+            {/* Says what it means; "part of total" read as a data annotation.
+                A child is keyed to its parent by direction too, so a
                 drop child sits under a total drop, never a spike. */}
             · within total {isDrop ? 'drop' : 'spike'}
           </span>
         )}
-        {/* The verdict a user gave this signal (MO-4 / JR-5). A hidden one is
+        {/* The verdict a user gave this signal. A hidden one is
             listed only under "Show hidden". */}
         {triageStatus && (
           <span
@@ -813,7 +813,7 @@ function AnomalyRow({
           </span>
         )}
         {/* The incident a rule routed this signal into, so the queue that
-            owes work is one click away (JR-6). `relative` lifts it over the
+            owes work is one click away. `relative` lifts it over the
             row link. */}
         {slug && incidentId && (
           <Link
@@ -826,7 +826,7 @@ function AnomalyRow({
         )}
       </span>
       {/* The shape of the move, flagged bucket marked: a one-off spike, a
-          sustained rise and a slow drift read differently at a glance (MO-19).
+          sustained rise and a slow drift read differently at a glance.
           A catalog-metric row has no scan series, so it stays blank. */}
       <span role="cell" className="hidden sm:block">
         {sparkline ? (
@@ -842,9 +842,9 @@ function AnomalyRow({
         ) : null}
       </span>
       {/* The change first, in the direction colour: "+203%" where the row used
-          to print z=40.7 (MO-2). The magnitude word rides underneath and the
-          z-score in the tooltip, for whoever wants them (JR-31). Figures in
-          sans with tabular digits: numbers, not code (DS-17). `relative` lifts
+          to print z=40.7. The magnitude word rides underneath and the
+          z-score in the tooltip, for whoever wants them. Figures in
+          sans with tabular digits: numbers, not code. `relative` lifts
           the figure over the row link so its tooltip shows. */}
       <span role="cell" className="flex flex-col items-end text-right">
         <span
@@ -866,7 +866,7 @@ function AnomalyRow({
       </span>
       <span role="cell" className="tnum text-right text-caption text-fg-tertiary">
         {/* `relative` lifts it over the row link, so the tooltip naming this as
-            the bucket's start is reachable (MON-40). */}
+            the bucket's start is reachable. */}
         <time
           dateTime={signal.bucket}
           title={`Bucket starting ${formatTimestamp(signal.bucket)} (${localTimeZone()})`}
@@ -875,7 +875,7 @@ function AnomalyRow({
           {formatShortWhen(signal.bucket)}
         </time>
         {/* When the detector caught it, which can be long after the bucket
-            began — an hourly bucket is flagged at the scan after it (MON-40). */}
+            began — an hourly bucket is flagged at the scan after it. */}
         {signal.detected_at && (
           <time
             dateTime={signal.detected_at}

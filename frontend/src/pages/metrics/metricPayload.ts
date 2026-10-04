@@ -4,7 +4,7 @@
  * The create body is exactly presentation + definition, so it is built as one
  * spread of the other two. The form used to write each kind's payload twice
  * (create and update) plus an inline copy of the operand mapper, and the copies
- * had drifted: event-type refs were sent on update but never on create (MET-42).
+ * had drifted: event-type refs were sent on update but never on create.
  */
 
 import type {

@@ -38,7 +38,7 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-describe('useEventsViewState volume chart toggle (EV-21)', () => {
+describe('useEventsViewState volume chart toggle', () => {
   it('starts collapsed', () => {
     const { result } = renderViewState('demo', 'all')
     expect(result.current.isTabChartOpen).toBe(false)

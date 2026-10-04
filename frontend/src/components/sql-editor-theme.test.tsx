@@ -35,7 +35,7 @@ function ruleBody(css: string, selector: RegExp): string {
   return match?.[1] ?? ''
 }
 
-describe('SqlEditor theme (DS-1)', () => {
+describe('SqlEditor theme', () => {
   beforeEach(() => {
     themes.length = 0
     localStorage.clear()
@@ -65,7 +65,7 @@ describe('SqlEditor theme (DS-1)', () => {
     expect(selected).toMatch(/color:\s*var\(--fg\)/)
   })
 
-  it('draws one frame, on the 3:1 form-control edge (DS-7, DS-8)', () => {
+  it('draws one frame, on the 3:1 form-control edge', () => {
     const css = readIndexCss()
     const frame = ruleBody(css, /\.sql-editor\s+\.cm-editor/)
     expect(frame).toMatch(/border:\s*1px solid var\(--input\)/)

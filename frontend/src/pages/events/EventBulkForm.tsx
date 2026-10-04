@@ -51,7 +51,7 @@ const EMPTY_EVENT_TYPES: EventType[] = []
  * How many distinct pasted names are checked against the catalog.
  *
  * All of them in ONE exact-name lookup (`GET /events/by-names`), answered by
- * the rule create refuses on (EVT-37). It used to read up to 5,000 full event
+ * the rule create refuses on. It used to read up to 5,000 full event
  * rows on every type selection, and then one substring search per name. Past
  * this many names the page says so rather than reporting a preview it could
  * not have verified; the server refuses a taken identity regardless, so a miss
@@ -90,7 +90,7 @@ const STATUS_COLOR: Record<BulkRow['status'], string> = {
   exists: 'var(--warning)',
 }
 
-/** A verdict's icon, so it reads without its colour (AU-20): a check for a
+/** A verdict's icon, so it reads without its colour: a check for a
  *  line that will be created, a cross for one that will not. */
 const STATUS_ICON: Record<BulkRow['status'], LucideIcon> = {
   ready: Check,
@@ -128,7 +128,7 @@ export default function EventBulkForm() {
   const [status, setStatus] = useState<EventStatus>('draft')
   const [draft, setDraft] = useState('')
   // Shared by the whole batch, so it does not need a second pass through the
-  // list's bulk bar to set them (AU-20).
+  // list's bulk bar to set them.
   const [ownerId, setOwnerId] = useState('')
   const [tags, setTags] = useState<string[]>([])
   // The pasted list is the work at risk; a type or status choice alone is one
@@ -137,7 +137,7 @@ export default function EventBulkForm() {
 
   // The query string comes along: it is the list's filters and the `?branch=`
   // EventsPage carries into this page on purpose, and dropping it returned the
-  // reader to an unfiltered list on main (EVT-38).
+  // reader to an unfiltered list on main.
   const listPath = !tab || tab === 'all' ? projectPath(currentOrgSlug(), slug, '/events') : projectPath(currentOrgSlug(), slug, `/events/${tab}`)
   const goBack = () => {
     navigate(`${listPath}${location.search}`)
@@ -181,7 +181,7 @@ export default function EventBulkForm() {
     })
   }, [selectedEt, nameFormat, namingColumns])
   // A required field the name is not built from used to make the whole type
-  // unpasteable (AU-19); the paste now carries it as a column of its own,
+  // unpasteable; the paste now carries it as a column of its own,
   // after the identity columns and before the title.
   const extraColumns = useMemo(
     () => bulkExtraColumns(selectedEt?.field_definitions ?? [], namingColumns),
@@ -272,10 +272,10 @@ export default function EventBulkForm() {
   )
   // Until the paste has settled and every probe has answered, "will be created"
   // would be a guess: an empty `taken` set reads every line as free, and a
-  // Create pressed then sends a batch the server refuses whole (EVT-37).
+  // Create pressed then sends a batch the server refuses whole.
   const checking = rows.length > 0 && (draft !== debouncedDraft || probes.pending)
   const uncheckedCount = overLimitCount + probes.unchecked.size
-  // Why Create is greyed out, on the sticky bar beside it (AU-6): a disabled
+  // Why Create is greyed out, on the sticky bar beside it: a disabled
   // button alone left the reason off screen or unsaid.
   const cannotPaste = !!etId && (!!unsupported || unmappedColumns.length > 0)
   const blockingReason = !etId
@@ -314,7 +314,7 @@ export default function EventBulkForm() {
       qc.invalidateQueries({ queryKey: branchEventsKey(slug, branchId) })
       qc.invalidateQueries({ queryKey: branchEventIdentityProbesKey(slug, branchId) })
       unsaved.release()
-      // The page used to step back to the list with no word (AU-20).
+      // The page used to step back to the list with no word.
       const count = Array.isArray(created) && created.length > 0 ? created.length : ready.length
       toast.success(count === 1 ? 'Created 1 event' : `Created ${count} events`)
       // And the list it returns to scrolls to and marks the new rows.
@@ -340,7 +340,7 @@ export default function EventBulkForm() {
     )
   }
 
-  // The page's shape while the types load, not an empty picker (AU-43).
+  // The page's shape while the types load, not an empty picker.
   if (eventTypesQuery.isPending && slug) {
     return (
       <PageContainer width="narrow">
@@ -384,7 +384,7 @@ export default function EventBulkForm() {
       : 'one per line'
 
   return (
-    // The narrow page container (DS-3), from the shell's own left edge.
+    // The narrow page container, from the shell's own left edge.
     <PageContainer width="narrow" className="space-y-0 pb-0">
       {unsaved.dialog}
       <div>
@@ -459,7 +459,7 @@ export default function EventBulkForm() {
         </SurfCard>
 
         {/* A type a pasted list cannot fill is a dead end unless the page
-            says where to go instead (AU-19): the two remedies the sentence
+            says where to go instead: the two remedies the sentence
             names, as actions. Create is hidden below rather than left at a
             disabled "Create 0 events". */}
         {cannotPaste && selectedEt && (
@@ -555,7 +555,7 @@ export default function EventBulkForm() {
                           >
                             {row.line}
                           </TableCell>
-                          {/* Sans like the catalog's names (DS-17); the paste above stays
+                          {/* Sans like the catalog's names; the paste above stays
                               mono, since it is raw identifier input. */}
                           <TableCell className="py-[6px] max-md:pl-4">
                             {row.name}
@@ -614,7 +614,7 @@ export default function EventBulkForm() {
           </div>
         )}
 
-        {/* The sticky action row (AU-6 / AU-7): the Button primitives rather
+        {/* The sticky action row: the Button primitives rather
             than hand-painted ones, and Create stays on screen however long the
             parsed list gets. */}
         <SaveBar status={blockingReason} statusTone={blockingReason === CHECKING_STATUS ? 'muted' : 'danger'}>

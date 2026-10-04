@@ -5,7 +5,7 @@ export const AUTO_RERUN_MS = 800
 
 /**
  * Re-run a dry run on its own once its inputs settle — but only once the
- * author has run it by hand (MT-19). A preview reaches a warehouse, so the
+ * author has run it by hand. A preview reaches a warehouse, so the
  * first run is always a click; after that, an edit that makes the shown
  * result stale re-runs it `delayMs` after the last keystroke instead of
  * leaving the author to press Preview again.

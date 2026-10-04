@@ -35,7 +35,7 @@ function typeInto(textarea: HTMLElement, value: string) {
   fireEvent.change(textarea, { target: { value, selectionStart: value.length } })
 }
 
-describe('TemplateEditor — the variable combobox works from the keyboard (ALR-19)', () => {
+describe('TemplateEditor — the variable combobox works from the keyboard', () => {
   it('moves through the suggestions with the arrows and inserts on Enter', () => {
     render(<Harness />)
     const textarea = screen.getByRole('combobox', { name: 'Message Template' })
@@ -78,7 +78,7 @@ describe('TemplateEditor — the variable combobox works from the keyboard (ALR-
   })
 })
 
-describe('TemplateEditor — labels (ALR-18)', () => {
+describe('TemplateEditor — labels', () => {
   it('gives two editors on one form two distinct format labels', () => {
     render(
       <>
@@ -93,7 +93,7 @@ describe('TemplateEditor — labels (ALR-18)', () => {
     expect(new Set(ids).size).toBe(2)
   })
 
-  it('offers no format until a destination is picked (ALR-4)', () => {
+  it('offers no format until a destination is picked', () => {
     render(<Harness destinationType={null} />)
 
     expect(screen.queryByRole('combobox', { name: 'Message format' })).toBeNull()
@@ -120,7 +120,7 @@ describe('TemplateEditor — labels (ALR-18)', () => {
   })
 })
 
-describe('TemplateEditor — unknown variables (ALR-21)', () => {
+describe('TemplateEditor — unknown variables', () => {
   it('names a typo under the editor, and ties it to the textarea', () => {
     render(<Harness initial="Rule ${rule_nme}" />)
 
@@ -136,7 +136,7 @@ describe('TemplateEditor — unknown variables (ALR-21)', () => {
   })
 })
 
-describe('TemplateEditor — preview (AL-37)', () => {
+describe('TemplateEditor — preview', () => {
   it('renders the template with sample values instead of raw variables', () => {
     render(<Harness initial="Rule ${rule_name}: ${matched_count} alerts" />)
 

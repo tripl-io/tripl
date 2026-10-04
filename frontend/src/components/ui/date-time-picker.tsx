@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
  * A date + time picker in the design system's own controls: a button that opens
  * a small calendar grid in a popover, and a time field beside it. It replaces the
  * native `datetime-local` input, whose picker looks different in every browser
- * and ignores the app's theme (MON-27, LIVE-21).
+ * and ignores the app's theme.
  *
  * The value keeps the `datetime-local` wire format, `YYYY-MM-DDTHH:mm` in the
  * viewer's local time, so a form that used the native input keeps parsing it
@@ -347,7 +347,7 @@ export interface DatePickerProps {
 /**
  * The date half of {@link DateTimePicker} on its own, for a day filter: the
  * value is the native `type="date"` wire format, `YYYY-MM-DD`, so a caller
- * that read a date input keeps parsing it the same way (F27/AL-15).
+ * that read a date input keeps parsing it the same way (F27).
  */
 export function DatePicker({
   value,

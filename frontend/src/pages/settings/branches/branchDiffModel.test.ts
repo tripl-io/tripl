@@ -158,7 +158,7 @@ describe('revertOutcome', () => {
 })
 
 describe('changeSummary', () => {
-  it('names changed fields in words, not their keys (PL-12)', () => {
+  it('names changed fields in words, not their keys', () => {
     expect(
       changeSummary(
         entry({
@@ -178,7 +178,7 @@ describe('mergePrompt', () => {
 
     expect(prompt.title).toBe('Merge to main')
     expect(prompt.confirmLabel).toBe('Merge')
-    // Words, not git's "+0 ~1 −0" tally (PL-29), and the names that land.
+    // Words, not git's "+0 ~1 −0" tally, and the names that land.
     expect(prompt.message).toContain('Merge 2 changes into main (1 modified, 1 renamed)?')
     expect(prompt.message).toContain('open a new branch that reverts')
     expect(prompt.message).not.toContain('cannot be undone here')
@@ -194,13 +194,13 @@ describe('mergePrompt', () => {
     expect(prompt.message).toContain('removes 1 property from main: variant')
     expect(prompt.message).toContain('Main has moved on')
     expect(prompt.message).toContain('2 fields you changed were also changed there')
-    // An action to take, not "recreate the branch" (PL-8).
+    // An action to take, not "recreate the branch".
     expect(prompt.message).toContain('Pick the value to keep for each in the Conflicts panel below')
     expect(prompt.message).toContain('or update from main')
     expect(prompt.message).not.toMatch(/recreate/i)
   })
 
-  it('says nothing about main having moved on when nothing overlaps (PL-8)', () => {
+  it('says nothing about main having moved on when nothing overlaps', () => {
     const prompt = mergePrompt(pairedDiffCounts(RENAME), [], true, [], 0)
 
     expect(prompt.message).not.toContain('Main has moved on')
@@ -226,7 +226,7 @@ describe('describeBranchActionError', () => {
   })
 })
 
-describe('describeBranchActionError after PL-8', () => {
+describe('describeBranchActionError', () => {
   it('points a main-side refusal at Update from main, never at recreating the branch', () => {
     expect(describeBranchActionError(conflict({ conflicts: [{}] }))).toBe(
       'Merge blocked: main changed the same entities. Update the branch from main, then merge.',

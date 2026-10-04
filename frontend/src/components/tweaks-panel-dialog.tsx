@@ -12,8 +12,8 @@ import { SegmentedControl, type SegmentedOption } from '@/components/ui/segmente
 
 // No colour values here: each swatch carries its accent's class, so it paints
 // `--accent` exactly as that accent resolves in the current theme. Hard-coded
-// dark tones used to preview colours the light theme never shows (DS-19 /
-// SH-24), and drifted from index.css whenever a hue moved.
+// dark tones used to preview colours the light theme never shows,
+// and drifted from index.css whenever a hue moved.
 const ACCENTS: { id: Accent; label: string }[] = [
   { id: 'teal', label: 'Teal' },
   { id: 'violet', label: 'Violet' },
@@ -51,9 +51,9 @@ function fallbackAnchorRect(): DOMRect {
  *
  * Opened from the sidebar's account controls. It used to be reached from a disc
  * fixed over the bottom-right of every page — over table rows, sticky form
- * actions and pagination on a phone (SHELL-35 / LIVE-33), then from a panel
+ * actions and pagination on a phone, then from a panel
  * fixed to the bottom-left corner that covered the sidebar footer and the
- * page's cards like a stuck toast (SH-24). It is now a popover hung from the
+ * page's cards like a stuck toast. It is now a popover hung from the
  * control that opened it: focus moves in, Escape or a press outside closes
  * it, and focus returns to that control.
  */
@@ -120,7 +120,7 @@ export function TweaksPanel({
         <div className="flex flex-col gap-3.5 p-3.5">
           <Group label="Theme">
             {/* "System" is a choice of its own: offering only the two resolved
-                values overwrote it for good on the first click (SHELL-33). */}
+                values overwrote it for good on the first click. */}
             <PanelSeg<Theme>
               label="Theme"
               value={theme}
@@ -191,7 +191,7 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /**
- * The shared SegmentedControl (DS-16), stretched to the panel width with its
+ * The shared SegmentedControl, stretched to the panel width with its
  * options sharing it equally. It replaces a hand-rolled copy of the same look.
  */
 function PanelSeg<T extends string>({

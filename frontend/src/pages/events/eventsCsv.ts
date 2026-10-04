@@ -128,6 +128,6 @@ export function downloadCsv(filename: string, csv: string): void {
   link.remove()
   // Deferred: some browsers (Safari, older Firefox) start the download after
   // `click()` returns, and a URL revoked in the same tick fails a large export
-  // with a network error (EVT-41).
+  // with a network error.
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

@@ -728,7 +728,7 @@ async def simulate_rule(
     ``draft`` is the editor's unsaved PATCH body. When given, the replay runs
     the stored rule with those changes laid over it (``draft_rule``: validated
     as Save validates, never written), so a user can see what an edit would
-    have sent before saving it onto a rule that may be live (ALR-12). The
+    have sent before saving it onto a rule that may be live. The
     ``*_saved`` fields still report the stored rule.
 
     Every override answers a what-if WITHOUT writing anything: the rule under

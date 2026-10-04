@@ -81,10 +81,10 @@ interface EventsPageProps {
  * `/events/:tab/:eventId` is a link to the editor. The redirect happens here,
  * before the list mounts: rendered inside the page it ran after every list,
  * tag, count, signal and metrics query had already been sent, all thrown away
- * by the navigation (EVT-50).
+ * by the navigation.
  *
  * A viewer cannot edit, so the same link takes them to the event's read view,
- * the monitoring detail page, instead of an editable-looking form (EV-34).
+ * the monitoring detail page, instead of an editable-looking form.
  */
 export default function EventsPage(props: EventsPageProps = {}) {
   const { slug, tab, eventId } = useParams<{ slug: string; tab?: string; eventId?: string }>()
@@ -134,7 +134,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   } = useEventsRouteState(lockType)
   const branchId = useActiveBranchId()
   // Viewers read the plan; every create, bulk, reorder and edit affordance is
-  // an editor's, and each used to end in a 403 toast (EVT-9).
+  // an editor's, and each used to end in a 403 toast.
   const canWrite = useCanWriteProject()
   const { search: locationSearch } = useLocation()
   const usersQuery = useQuery({ queryKey: usersKey(), queryFn: () => usersApi.list() })
@@ -239,7 +239,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   })
 
   // On the All and queue tabs, a field only some types define starts hidden:
-  // it was a column of dashes for every other type (EV-11). The Columns menu
+  // it was a column of dashes for every other type. The Columns menu
   // still lists it, and ticking it there is remembered like any other choice.
   // A column with an active filter (an `f.<name>` from a link or saved view)
   // stays out of that default: hiding its header, where the filter is shown
@@ -320,7 +320,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   } = useEventsSelection({
     events,
     // A selection belongs to the result set it was made in: a new tab, branch
-    // or server filter drops it (EVT-10). Sort order is not part of it: it
+    // or server filter drops it. Sort order is not part of it: it
     // reorders the same set, so switching sort keeps the selection.
     scopeKey: JSON.stringify([activeTab, branchId, { ...serverFilters, order_by: undefined }]),
   })
@@ -336,7 +336,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   // Drag-reorder renumbers the catalog order of the rows it is sent, so it is
   // only offered while the rows ARE in catalog order. Under "Busiest first" one
   // small drag rewrote the manual order of every loaded row into volume order,
-  // with nothing visible changing (EVT-3). Filters and search keep catalog
+  // with nothing visible changing. Filters and search keep catalog
   // order, so a drag among the rows they leave still means what it shows.
   // The same goes for "Least healthy first" (F15, #268).
   const canReorder = canWrite && sort === 'catalog'
@@ -380,7 +380,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   })
 
   // What the form the reader just left created: scrolled to and marked, so a
-  // new row is not lost in a long catalog (AU-20, AU-21, JR-13).
+  // new row is not lost in a long catalog.
   const createdIds = useCreatedEventsHighlight({
     slug,
     events,
@@ -404,7 +404,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   const eventSignals = useEventRowSignals({ slug, events, virtualItems })
   const healthByEvent = useEventsHealth({ slug, events: rawEvents, enabled: !hideHealth })
 
-  // Schema drift, once per event type (EVT-33). `drift_count` on a row is its
+  // Schema drift, once per event type. `drift_count` on a row is its
   // type's count, so the loaded rows name every drifting type they cover.
   const typeDrifts = useMemo((): EventTypeDrift[] => {
     const byType = new Map<string, EventTypeDrift>()
@@ -453,8 +453,8 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   // Bulk actions operate on the FULL selection (`selectedEventIds`), not just
   // the loaded rows, so "select all N matching" can sweep events that have not
   // scrolled into view yet. Each one asks first when the sweep reaches rows off
-  // screen, is large, or archives (EVT-10), and says what it did when it lands,
-  // with an Undo where every row's previous value is known (EVT-11).
+  // screen, is large, or archives, and says what it did when it lands,
+  // with an Undo where every row's previous value is known.
   const runBulkUpdate = useCallback(async (patch: BulkUpdatePatch, actionLabel: string) => {
     const eventIds = selectedEventIds
     if (!eventIds.length) return
@@ -549,7 +549,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   // Pull every id matching the current view and select them, so triage can
   // accept or archive an entire prefix/queue in one bulk action. The column
   // filters apply here too: selecting the server's 5,000 under a column filter
-  // showing 12 rows, then deleting, deleted 5,000 events (EVT-2).
+  // showing 12 rows, then deleting, deleted 5,000 events.
   const [isSelectingAll, setIsSelectingAll] = useState(false)
   const handleSelectAllMatching = useCallback(async () => {
     setIsSelectingAll(true)
@@ -653,7 +653,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
 
   // A project with no events yet has nothing to filter, sort, column, or chart,
   // so the page is a first-run empty state instead: no toolbar, no stat strip,
-  // no volume card and no table frame (EV-18). Guard on the *unfiltered* result:
+  // no volume card and no table frame. Guard on the *unfiltered* result:
   // an active filter or search that merely matches nothing on a populated
   // project must keep the full toolbar so the user can still clear it.
   //
@@ -666,7 +666,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   //
   // Only on the "all" tab: an empty Review queue, Archived tab or type tab is an
   // empty slice of a populated project, and collapsing there took away saved
-  // views, columns, sort, export and "Add many events" (EVT-15).
+  // views, columns, sort, export and "Add many events".
   const hasNoEvents =
     activeTab === 'all' && eventsQuery.isSuccess && total === 0 && !hasActiveFilters && !search
 
@@ -687,7 +687,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
   }
 
   // A type tab that names no type: a stale bookmark to a deleted or renamed
-  // type used to list every event under that type's heading (EVT-13).
+  // type used to list every event under that type's heading.
   if (isUnknownTab && !blockingError) {
     return (
       <EmptyState
@@ -707,11 +707,11 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
 
   return (
     <div
-      // The table's scroller measures itself against this root (EV-4).
+      // The table's scroller measures itself against this root.
       data-events-page=""
       className={embedded ? 'flex min-h-[420px] flex-col' : 'flex min-h-[calc(100vh-7rem)] flex-col'}
       // Room for the floating bulk bar, so it never sits over the table's last
-      // rows and footer while a selection is open (EVT-5).
+      // rows and footer while a selection is open.
       style={canWrite && selectedCount > 0 ? { paddingBottom: '7rem' } : undefined}
     >
       {dialog}
@@ -736,7 +736,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
         />
       )}
       {/* The embedded table (an event type's detail view) has no header, and
-          the rows no longer carry the badge (EVT-33), so the type's drift
+          the rows no longer carry the badge, so the type's drift
           shows here or nowhere. */}
       {embedded && slug && shownTypeDrifts.length > 0 && (
         <div className="mb-3 flex items-center">
@@ -757,7 +757,7 @@ function EventsListPage({ lockType, embedded = false }: EventsPageProps) {
         <>
           {!canWrite && <ReadOnlyNotice className="mb-3" />}
           {hasNoEvents ? (
-            // First run (EV-18): no stat strip of zeroes, no table frame with
+            // First run: no stat strip of zeroes, no table frame with
             // column headers over nothing, and one place to start — including
             // the scan path, which is how most events arrive.
             <EmptyState

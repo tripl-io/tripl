@@ -156,7 +156,7 @@ async def get_meta_field_usage(
 ) -> MetaFieldUsageResponse:
     """How many values, on how many events, the field holds on this branch.
 
-    The delete confirm names both before the cascade removes them (AU-37). An
+    The delete confirm names both before the cascade removes them. An
     empty string is not a value anyone would miss, so it is not counted.
     """
     project_id = await resolve_project_id(session, slug)

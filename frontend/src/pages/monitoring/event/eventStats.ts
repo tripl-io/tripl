@@ -19,7 +19,7 @@ export interface EventDetailStats {
  * anchored on NOW and carry the same coverage verdict. The hero used to split on
  * the newest bucket with no coverage check, which compared a partial day with a
  * full one and printed a different Δ than the Events row for the same event at
- * the same moment — "+2%" here, "−3%*" there (MON-28 / LIVE-17).
+ * the same moment — "+2%" here, "−3%*" there.
  */
 export function computeEventStats(
   points: EventMetricPoint[] | undefined,

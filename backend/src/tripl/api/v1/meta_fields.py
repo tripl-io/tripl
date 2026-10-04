@@ -51,7 +51,7 @@ async def get_meta_field_usage(
     meta_field_id: uuid.UUID,
     branch_id: BranchIdDep,
 ) -> MetaFieldUsageResponse:
-    """Values and events a delete of this field would clear (AU-37)."""
+    """Values and events a delete of this field would clear."""
     return await meta_field_service.get_meta_field_usage(session, slug, meta_field_id, branch_id)
 
 

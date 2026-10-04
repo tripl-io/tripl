@@ -12,7 +12,7 @@ type MiniStatProps = {
    * Colours the `delta` (and its pulse dot). With no delta to ride on it
    * colours the figure instead: it used to show nothing at all, so Overview's
    * Implemented / Needs review / Coverage, the Coverage page and others passed
-   * a tone that read as meaningful at the call site and never rendered (MON-42).
+   * a tone that read as meaningful at the call site and never rendered.
    */
   tone?: MiniStatTone
   /**
@@ -24,11 +24,11 @@ type MiniStatProps = {
   /**
    * Rendered inline right after the caption text, e.g. an info icon. Placed
    * beside the whole stat, the icon sat 60–100px from its caption on a wide
-   * figure and read as belonging to the next stat (LIVE-23).
+   * figure and read as belonging to the next stat.
    */
   labelAddon?: ReactNode
   /**
-   * Makes the stat a toggle that filters something (F31/AL-47): it renders a
+   * Makes the stat a toggle that filters something (F31): it renders a
    * `<button aria-pressed>` whose name reads "<label> <value>". A `<dl>`
    * cannot sit inside a button, so the pressable stat is spans laid out the
    * same way. `labelAddon` must not be interactive here: it would nest a
@@ -60,7 +60,7 @@ const TONE_DOT: Record<MiniStatTone, DotTone> = {
 }
 
 /**
- * The one KPI idiom (DS-5): an uppercase 10.5px caption over a 16px sans
+ * The one KPI idiom: an uppercase 10.5px caption over a 16px sans
  * `tnum` figure, with an optional toned delta. Page stats go in a
  * `MiniStatStrip`; the bordered sentence-case `StatCard` tiles and the
  * Card-wrapped stat grids it replaces are gone.
@@ -68,7 +68,7 @@ const TONE_DOT: Record<MiniStatTone, DotTone> = {
  * While the figure is still loading, pass `<StatValueSkeleton />` (from
  * `@/components/states`) as `value` and leave `delta` and `tone` off: a `?? 0`
  * fallback flashed "0" and "quiet" before the data arrived, which read as a
- * real answer (#237 DS-25).
+ * real answer (#237).
  */
 export function MiniStat({
   label,
@@ -89,7 +89,7 @@ export function MiniStat({
   const figure = (
     <>
       {/* Sans with tabular digits, not mono: a KPI figure ("1h ago",
-          "4.4K rows", "92%") is a number, not code (DS-17). */}
+          "4.4K rows", "92%") is a number, not code. */}
       <span
         data-slot="mini-stat-value"
         className="tnum text-heading font-semibold tracking-[-0.01em]"
@@ -152,9 +152,9 @@ export function MiniStat({
 }
 
 /**
- * A wrapping row of stats with a hairline between neighbours (LIVE-8).
+ * A wrapping row of stats with a hairline between neighbours.
  *
- * `boxed` gives the one page-KPI container (DS-5): the sunken
+ * `boxed` gives the one page-KPI container: the sunken
  * `rounded-card border bg-bg-sunken px-4 py-3` box that Overview, Metrics,
  * Anomalies and Coverage each spelled out by hand. Leave it off for a strip
  * that already sits inside a panel or a header.
@@ -172,7 +172,7 @@ export function MiniStat({
  *
  * `phoneGrid` lays a four-stat strip out as a 2×2 grid below `sm`, with no
  * dividers: wrapped as a row, the fourth stat sat alone on its own line at
- * 390px (MT-26, SH-27).
+ * 390px.
  */
 export function MiniStatStrip({
   children,

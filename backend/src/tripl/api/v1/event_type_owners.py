@@ -12,7 +12,7 @@ router = APIRouter(
 )
 
 
-# The whole project's owners in one read, for the event-type list (PLAN-42):
+# The whole project's owners in one read, for the event-type list:
 # a sibling router, since ``router``'s prefix names one event type.
 project_router = APIRouter(prefix="/projects/{slug}/event-type-owners", tags=["event-type-owners"])
 

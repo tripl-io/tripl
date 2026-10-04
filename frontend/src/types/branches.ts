@@ -13,7 +13,7 @@ export interface PlanRevisionSummary {
   summary: string
   created_at: string
   created_by: string | null
-  /** What produced it: a user snapshot, a branch's merge base, or a merge (PL-21). */
+  /** What produced it: a user snapshot, a branch's merge base, or a merge. */
   kind: PlanRevisionKind
   /** The branch behind a `branch_base` or `merge`; null once that branch is deleted. */
   branch_id: string | null
@@ -80,7 +80,7 @@ export type ResolutionChoice = 'ours' | 'theirs'
 export interface PlanBranchConflictField {
   /** A field of the entity, or `@presence` when one side deleted the entity
    * (or its parent) while the other edited or added it; `base`/`ours`/`theirs`
-   * are then `"present"` or `"absent"` (PL-8). */
+   * are then `"present"` or `"absent"`. */
   field: string
   base: unknown
   ours: unknown
@@ -108,7 +108,7 @@ export interface PlanBranchConflicts {
   entities: PlanBranchConflictEntity[]
   unresolved_count: number
   /** Main changed since the branch's base: the same test as the list's
-   * `behind_base`. Absent on responses from an older instance (PL-8). */
+   * `behind_base`. Absent on responses from an older instance. */
   behind?: boolean
   /** Distinct entities changed both here and on main. */
   overlap_count?: number

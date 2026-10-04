@@ -323,7 +323,7 @@ class AiSettingsResponse(BaseModel):
 
 
 class AiPromptDefaultsResponse(BaseModel):
-    """The built-in system prompts, whatever is stored over them (ST-30).
+    """The built-in system prompts, whatever is stored over them.
 
     A "Restore default" link fills the editor from these; saving ``null`` for
     the field clears the override and has the same effect server-side.
@@ -338,7 +338,7 @@ class RowLimitDefaultsResponse(BaseModel):
     """The instance's effective row caps for a scan with no limit of its own.
 
     Readable by every signed-in user, unlike the rest of ``/settings``: the scan
-    form's Limits hints quote them to whoever is filling it in (B15).
+    form's Limits hints quote them to whoever is filling it in.
     """
 
     scan_row_limit_default: int

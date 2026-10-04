@@ -185,7 +185,7 @@ describe('JsonEditor template authoring', () => {
   })
 })
 
-describe('JsonEditor outside changes (EVT-22)', () => {
+describe('JsonEditor outside changes', () => {
   it('shows a value the parent resets, as "Hand back to scans" does', () => {
     const { rerender } = render(<JsonEditor defaultMode="json" value='{"source":"cta"}' onChange={vi.fn()} />)
     const editor = screen.getByRole('combobox')

@@ -5,7 +5,7 @@ import { buttonVariants } from '@/components/ui/button-variants'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 /**
- * An icon-only button that cannot ship unnamed (DS-12 / DS-13).
+ * An icon-only button that cannot ship unnamed.
  *
  * `label` is required and does two jobs: it is the accessible name, and it is
  * the visible tooltip on hover AND keyboard focus. A `title=` attribute did

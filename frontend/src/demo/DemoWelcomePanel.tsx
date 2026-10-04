@@ -5,7 +5,7 @@
  * and hands them to the one guided path: the chapters. It is dismissible and
  * remembered per project so it doesn't become permanent chrome.
  *
- * One row, never a card that expands (#251 SH-3 / SH-4): it used to open into
+ * One row, never a card that expands (#251): it used to open into
  * ~500px of tour button, links, the seven chapters and the metric building
  * blocks — the same chapter list the "Tour & chapters" dialog shows, so a new
  * user met two lists and three step counters before the product. Now it is a
@@ -46,7 +46,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
 
   /**
    * One unconfirmed click puts the panel away, and it sits right beside the
-   * row's buttons — easy to hit by accident on a touch screen (DEMO-25). So
+   * row's buttons — easy to hit by accident on a touch screen. So
    * the dismissal offers Undo and names the way back for later.
    */
   function dismiss(): void {
@@ -66,7 +66,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
 
   return (
     // --fg-subtle, never --fg-faint, for text on this --accent-soft fill: faint
-    // measures about 4.05:1 on it, below AA (DEMO-24).
+    // measures about 4.05:1 on it, below AA.
     <section
       aria-labelledby="demo-welcome-heading"
       className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-3 py-1.5 bg-accent-soft border-accent"
@@ -78,7 +78,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
         </h2>
       </div>
       {/* No "Local synthetic data" badge here: the demo banner right above
-          already carries it on every surface (LIVE-9). */}
+          already carries it on every surface. */}
       <p className="hidden min-w-0 text-caption md:block text-fg-secondary">
         Everything runs on a local, synthetic warehouse — nothing outside is touched.
       </p>
@@ -101,7 +101,7 @@ export function DemoWelcomePanel({ project }: { project: Project }) {
         <Button asChild size="xs" variant="ghost">
           <Link to={workspacePath()}>Create a real project</Link>
         </Button>
-        {/* A 36px target (DEMO-25), pulled into the row's padding so the row
+        {/* A 36px target, pulled into the row's padding so the row
             stays one line high. */}
         <button
           type="button"

@@ -65,7 +65,7 @@ export function granularityForInterval(interval: string | null | undefined): Met
 }
 
 /**
- * The one default-granularity rule every drilldown scope shares (MON-43): the
+ * The one default-granularity rule every drilldown scope shares: the
  * range's readable default, but never finer than the collection interval — a
  * daily metric at 7d charts days, an hourly one hours. It used to be two rules
  * (interval for metrics, range for everything else), so moving between a
@@ -87,7 +87,7 @@ type MetricShape = {
 }
 
 /**
- * How a catalog metric rolls up to a coarser bucket (MON-2 / MET-12).
+ * How a catalog metric rolls up to a coarser bucket.
  *
  * Only additive metrics sum: a single-event composition (a count) and a fact
  * `count` or `sum`. Ratios, averages, min/max, distinct counts and free SQL are

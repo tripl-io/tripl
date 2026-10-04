@@ -2,7 +2,7 @@
  * The per-field pieces of the single-event form: the control a field or meta
  * field renders, and the notes under it. Split out of `EventForm.tsx`, which
  * had grown to 1,600 lines holding five helpers, the route page and the form
- * itself (EVT-30).
+ * itself.
  */
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -83,7 +83,7 @@ export function ScanMaintenanceNotice({
  * column in the breakdown set and a reader who knew the tab existed; this is
  * both, from where the question is asked.
  *
- * It does not toggle the column itself (AU-23): a second switch far from the
+ * It does not toggle the column itself: a second switch far from the
  * Metric breakdowns row changed the set without the reader seeing why. It says
  * whether the field is split, and takes the reader to the row's toggle.
  */
@@ -157,7 +157,7 @@ export function FieldTemplateHints({
 }) {
   // The shared copy hook, reported through a toast as the spec card does: the
   // bare `writeText` claimed "Copied" on plain HTTP and on a refused
-  // permission, and the label never went away (EVT-49).
+  // permission, and the label never went away.
   const { copy } = useCopyToClipboard()
   const copyValue = async (text: string) => {
     if (await copy(text)) toast.success(`Copied ${text}`)
@@ -209,7 +209,7 @@ export function FieldTemplateHints({
               className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               onClick={() => void copyValue(allowedValue)}
             >
-              {/* A code value, so the code token of the badge taxonomy (DS-6). */}
+              {/* A code value, so the code token of the badge taxonomy. */}
               <CodeToken className="cursor-pointer hover:bg-surface-hover">{allowedValue}</CodeToken>
             </button>
           ))}
@@ -235,7 +235,7 @@ type FieldValueControlProps = {
   /**
    * The form flagged this row (an empty required value after Save). The form
    * is `noValidate`, so `required` is announced (`aria-required`) and checked
-   * by the form, not by a browser bubble (AU-4).
+   * by the form, not by a browser bubble.
    */
   invalid?: boolean
 }
@@ -282,7 +282,7 @@ export function FieldValueControl({
   if (field.field_type === 'number') {
     // Text, not a native number input: that one refused `$` and `{`, so the
     // variable autocomplete could never open, and it showed a stored `${price}`
-    // as an empty box while the form still saved the token (EVT-23). The form
+    // as an empty box while the form still saved the token. The form
     // validates "a number or a ${variable}" instead, and blocks Save on
     // anything else.
     const invalid = !isNumberFieldValue(value)
@@ -301,7 +301,7 @@ export function FieldValueControl({
           describedBy={invalid ? errorId : undefined}
         />
         {/* Red, not amber: a value that is neither a number nor a token
-            blocks Save (AU-5). */}
+            blocks Save. */}
         {invalid && (
           <FieldError
             id={errorId}
@@ -345,7 +345,7 @@ export function MetaFieldControl({
 }) {
   const value = values[0] ?? ''
   // Announced, not enforced: the label has always marked a required meta field,
-  // and a screen reader heard only "star" (EVT-48). Native `required` would
+  // and a screen reader heard only "star". Native `required` would
   // start blocking saves the form has never blocked.
   const ariaRequired = metaField.is_required
   const setOne = (next: string) => onChange(next === '' ? [] : [next])
@@ -422,8 +422,8 @@ export function MetaFieldControl({
           ${value}" named a mechanism and left the reader to work out that the
           box wants the key, not the link. A template with no
           ${value} in it resolves no link at all, so there is nothing true to
-          say about it here; the meta-field settings are where it gets fixed
-          (AU-9). */}
+          say about it here; the meta-field settings are where it gets fixed.
+          */}
       {example && (
         <p className="mt-1 text-caption text-fg-tertiary">
           Enter the key, e.g. <span className="mono">{META_FIELD_LINK_EXAMPLE_KEY}</span>

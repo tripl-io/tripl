@@ -342,7 +342,7 @@ export function useEventsQuery({
   // the types have loaded. Until then the list must wait: an undefined id reads
   // as "every type", so each cold load of /events/se first fetched and rendered
   // the whole catalog, and a stale link to a deleted or renamed type showed
-  // every event under that type's heading (EVT-13).
+  // every event under that type's heading.
   const isUnknownTab = isTypeTab && eventTypesLoaded && !filterEtId
   const canQuery = !!slug && (!isTypeTab || !!filterEtId)
 

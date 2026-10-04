@@ -3,7 +3,7 @@ import { fieldErrorId } from '@/lib/fieldErrors'
 import { cn } from '@/lib/utils'
 
 /**
- * The one inline validation message under a control (AU-4 / AL-28, AU-5).
+ * The one inline validation message under a control.
  *
  * Forms used to validate three ways: native browser bubbles (first field only,
  * gone on the next click), red text in some dialogs and amber text in others.

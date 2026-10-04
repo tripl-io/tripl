@@ -9,7 +9,7 @@ import { PROJECT_ROLE_OPTIONS, ROLE_OPTIONS, type ProjectMemberRole, type Role }
  */
 export type ChipRole = Role | ProjectMemberRole
 
-/** One tone per role, app-wide: a label maps to exactly one tone (DS-7). */
+/** One tone per role, app-wide: a label maps to exactly one tone. */
 const ROLE_TONE: Readonly<Record<ChipRole, ChipTone>> = {
   owner: 'accent',
   admin: 'info',
@@ -30,7 +30,7 @@ function roleLabel(role: ChipRole): string {
 /**
  * A member's role as a status pill. Members and Profile used to draw "Owner"
  * two ways — a 10px beige pill on one page, a larger teal one on the other —
- * each hand-rolled (ST-16).
+ * each hand-rolled.
  */
 export function RoleChip({
   role,

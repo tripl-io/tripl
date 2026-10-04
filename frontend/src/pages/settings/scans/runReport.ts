@@ -16,7 +16,7 @@ type RunRowsKind = 'catalog' | 'catalogRows' | 'metrics'
 
 const ROWS_READ_TITLE: Record<RunRowsKind, string> = {
   // The catalog analyzer groups in the warehouse (GROUP BY ALL), so what it
-  // reads back are distinct column combinations, not warehouse rows (#247 DA-4).
+  // reads back are distinct column combinations, not warehouse rows (#247).
   catalog: 'Distinct column combinations the catalog analyzer read back this run, grouped in the warehouse (capped by the row cap).',
   catalogRows: 'Warehouse rows behind the column combinations the catalog analyzer read back this run (capped by the row cap).',
   metrics: 'Warehouse rows read across every metrics chunk (capped by the metrics row cap).',
@@ -140,7 +140,7 @@ export function buildRunReport(
     const chunks = chunksRead(summary)
     // A catalog run's figure is grouped combinations, not warehouse rows: the
     // same data read "28,160 rows" in the dry run and "153 warehouse rows" in
-    // the run (#247 DA-4).
+    // the run (#247).
     const rowsText = scanned.unit === 'rows'
       ? scanned.combinations != null
         ? `${countOf(scanned.value, 'warehouse row', 'warehouse rows')} (${countOf(scanned.combinations, 'distinct column combination', 'distinct column combinations')}, grouped in the warehouse)`

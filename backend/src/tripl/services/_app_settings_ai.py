@@ -127,7 +127,7 @@ def disabled_ai_config() -> AiConfig:
 
 
 def ai_prompt_defaults() -> dict[str, str]:
-    """The built-in system prompts, before any stored override (ST-30)."""
+    """The built-in system prompts, before any stored override."""
     return {
         "describe_system_prompt": DEFAULT_DESCRIBE_SYSTEM_PROMPT,
         "ask_system_prompt": DEFAULT_ASK_SYSTEM_PROMPT,

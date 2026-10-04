@@ -129,7 +129,7 @@ export function SecuritySection({
           value={form.security.hsts_enabled}
           onChange={value => setField('security', 'hsts_enabled', value)}
         />
-        {/* Editable, but visibly idle while its switch is off (ST-26). */}
+        {/* Editable, but visibly idle while its switch is off. */}
         <InactiveGroup inactive={!form.security.hsts_enabled} reason="Not used while HSTS is off.">
           <Field
             label="HSTS max age"

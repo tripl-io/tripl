@@ -90,7 +90,7 @@ function renderEventsPage(
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 ) {
   // The app mounts one TooltipProvider in main.tsx; the page no longer brings
-  // its own (DS-12), so the test stands in for main.tsx.
+  // its own, so the test stands in for main.tsx.
   return render(
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
@@ -186,7 +186,7 @@ describe('EventsPage', () => {
     )
   })
 
-  it('sends a viewer on an event link to its read view, not the editor (EV-34)', async () => {
+  it('sends a viewer on an event link to its read view, not the editor', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => mockJsonResponse({ items: [], total: 0 }))
 
     renderEventsPage(['/p/demo/events/all/ev-1?branch=feat-1'], viewerAuth())
@@ -332,7 +332,7 @@ describe('EventsPage', () => {
     // thirteen in this test are not what makes it slow.
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim())
     expect(headers).toContain('Event')
-    // The volume and trend lead; Type follows (EV-12).
+    // The volume and trend lead; Type follows.
     expect(headers.indexOf('48h')).toBeLessThan(headers.indexOf('Type'))
     // the signal-state column is headed "Signal", not "Monitor" —
     // its cells report detection output, which exists without any monitor, and
@@ -343,15 +343,15 @@ describe('EventsPage', () => {
     // reordering is now drag-handle only.
     expect(headers).not.toContain('Actions')
     expect(screen.getByText('48h')).toBeInTheDocument()
-    // The volume chart starts collapsed (EV-21); opening it shows its controls.
+    // The volume chart starts collapsed; opening it shows its controls.
     fireEvent.click(screen.getByRole('button', { name: /Show chart/ }))
     expect(await screen.findByRole('button', { name: '7d' })).toBeInTheDocument()
     // The fixture's series is empty: the card stays a header that says so,
-    // without a bucket select for a chart that is not there (EV-16).
+    // without a bucket select for a chart that is not there.
     expect(await screen.findByText(/No volume in the last 7 days/)).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'Time granularity' })).not.toBeInTheDocument()
     // An image, not a button: pressing it did nothing, so it was a dead tab
-    // stop on every row (EVT-46).
+    // stop on every row.
     const metricsButton = await screen.findByRole('img', { name: /Homepage View metrics: 1K events in last 48 hours/ })
     expect(metricsButton).toBeInTheDocument()
     // The row exposes no inline action buttons — Edit/Metrics/Archive/Delete and
@@ -510,7 +510,7 @@ describe('EventsPage', () => {
     expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument()
   })
 
-  it('offers a viewer no create, select, reorder or edit controls (EVT-9)', async () => {
+  it('offers a viewer no create, select, reorder or edit controls', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/event-types')) return mockJsonResponse([])
@@ -550,14 +550,14 @@ describe('EventsPage', () => {
     expectAbsent('checkbox', 'Select Homepage View')
     expectAbsent('checkbox', 'Select all visible events')
     // With no select-all, the phone header bar would be empty: it is hidden
-    // below md for a viewer (EV-28).
+    // below md for a viewer.
     const headerRow = screen.getByRole('columnheader', { name: 'Event' }).closest('tr') as HTMLElement
     expect(headerRow.className).toContain('max-md:hidden')
     expectAbsent('button', 'Drag to reorder Homepage View')
     expectAbsent('button', 'Edit Homepage View')
   })
 
-  it('sends a viewer on the edit URL to the event page, not a disabled form (EV-34 / AU-33)', async () => {
+  it('sends a viewer on the edit URL to the event page, not a disabled form', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.includes('/api/v1/projects/demo/branches')) return mockJsonResponse({ items: [], total: 0 })
@@ -649,7 +649,7 @@ describe('EventsPage', () => {
     expect(await screen.findByText('Homepage View')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Select Homepage View'))
     // One of two selected: the header box reads "mixed", and a click from
-    // there clears the selection rather than selecting everything (EV-26).
+    // there clears the selection rather than selecting everything.
     const selectAll = screen.getByRole('checkbox', { name: 'Select all visible events' })
     expect(selectAll).toHaveAttribute('aria-checked', 'mixed')
     fireEvent.click(selectAll)
@@ -1080,7 +1080,7 @@ function mockCatalogFetch({
   events: ReturnType<typeof makeEvent>[]
   listGate?: Promise<void>
   /** Adds a second type without the `screen` field, so on the All tab
-   *  `screen` is a type-specific column that starts hidden (EV-11). */
+   *  `screen` is a type-specific column that starts hidden. */
   withFieldlessType?: boolean
 }) {
   const listUrls: string[] = []
@@ -1170,7 +1170,7 @@ function screenEvent(id: string, name: string, screen: string) {
 }
 
 describe('EventsPage current view', () => {
-  it('keeps a filtered type-specific column visible on the All tab (EV-11)', async () => {
+  it('keeps a filtered type-specific column visible on the All tab', async () => {
     // A link or saved view carrying `f.screen` narrows the rows; hiding the
     // Screen header by default would hide where that filter is shown.
     mockCatalogFetch({
@@ -1184,7 +1184,7 @@ describe('EventsPage current view', () => {
     expect(screen.getByRole('button', { name: 'Filter Screen' })).toBeInTheDocument()
   })
 
-  it('starts an unfiltered type-specific column hidden on the All tab (EV-11)', async () => {
+  it('starts an unfiltered type-specific column hidden on the All tab', async () => {
     mockCatalogFetch({
       events: [screenEvent('event-1', 'checkout_view', 'checkout')],
       withFieldlessType: true,
@@ -1196,7 +1196,7 @@ describe('EventsPage current view', () => {
     expectAbsent('button', 'Filter Screen')
   })
 
-  it('selects only the rows a column filter leaves when selecting all matching (EVT-2)', async () => {
+  it('selects only the rows a column filter leaves when selecting all matching', async () => {
     // The column filter showed 12 rows; "Select all" took the server's 5,000
     // and "Delete selected" deleted them all.
     const { bulkDeleteBodies } = mockCatalogFetch({
@@ -1223,7 +1223,7 @@ describe('EventsPage current view', () => {
     await waitFor(() => expect(bulkDeleteBodies).toEqual([{ event_ids: ['event-1'] }]))
   })
 
-  it('offers no drag-reorder while sorted busiest first (EVT-3)', async () => {
+  it('offers no drag-reorder while sorted busiest first', async () => {
     mockCatalogFetch({ events: [screenEvent('event-1', 'checkout_view', 'checkout')] })
 
     renderEventsPage(['/p/demo/events?sort=volume'])
@@ -1233,7 +1233,7 @@ describe('EventsPage current view', () => {
     expectAbsent('button', 'Drag to reorder checkout_view')
   })
 
-  it('says it is loading, not "No events yet", during the cold load (EVT-14)', async () => {
+  it('says it is loading, not "No events yet", during the cold load', async () => {
     let releaseList = () => {}
     const listGate = new Promise<void>((resolve) => {
       releaseList = resolve
@@ -1249,7 +1249,7 @@ describe('EventsPage current view', () => {
     expect(await screen.findByText('checkout_view')).toBeInTheDocument()
   })
 
-  it('keeps the full toolbar on an empty Review tab (EVT-15)', async () => {
+  it('keeps the full toolbar on an empty Review tab', async () => {
     mockCatalogFetch({ events: [] })
 
     renderEventsPage(['/p/demo/events/review'])
@@ -1259,7 +1259,7 @@ describe('EventsPage current view', () => {
     expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument()
   })
 
-  it('redirects an event link to the editor without loading the list first (EVT-50)', async () => {
+  it('redirects an event link to the editor without loading the list first', async () => {
     const { listUrls } = mockCatalogFetch({ events: [] })
 
     renderEventsPage(['/p/demo/events/all/ev-1'])
@@ -1270,7 +1270,7 @@ describe('EventsPage current view', () => {
     expect(listUrls.filter((url) => url.includes('limit=200'))).toEqual([])
   })
 
-  it('reports a bulk status change and offers to undo it (EVT-11)', async () => {
+  it('reports a bulk status change and offers to undo it', async () => {
     vi.mocked(toast.success).mockClear()
     const { bulkUpdateBodies } = mockCatalogFetch({
       events: [
@@ -1302,7 +1302,7 @@ describe('EventsPage current view', () => {
     expect(screen.queryByRole('combobox', { name: 'Set status' })).not.toBeInTheDocument()
   })
 
-  it('undoes to what the table showed, not a stale list in another cache (EVT-11)', async () => {
+  it('undoes to what the table showed, not a stale list in another cache', async () => {
     vi.mocked(toast.success).mockClear()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     // Another tab's list, cached before this one and minutes out of date.
@@ -1365,7 +1365,7 @@ describe('EventsPage current view', () => {
     expect(screen.getByRole('combobox', { name: 'Set status' })).toBeInTheDocument()
   })
 
-  it("shows the type's schema drift in the embedded table, which has no header (EVT-33)", async () => {
+  it("shows the type's schema drift in the embedded table, which has no header", async () => {
     mockCatalogFetch({
       events: [makeEvent({ ...screenEvent('event-1', 'checkout_view', 'checkout'), drift_count: 2 })],
     })

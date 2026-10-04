@@ -1,7 +1,7 @@
 /**
  * The persistent scenario strip.
  *
- * Mounted inside the demo banner's row on every surface (LIVE-9: one bar, not
+ * Mounted inside the demo banner's row on every surface (one bar, not
  * two stacked blocks), so the active chapter's
  * step chain stays visible while the user walks the app. It renders nothing but
  * what the context already decided: the chapter, the step, the deep link,
@@ -49,7 +49,7 @@ const RESET_RESTORES_COPY = 'Resetting the demo project restores every guided ex
 
 /**
  * A viewer on a step's surface has no coach mark because the control is not
- * rendered for their role (#251 JR-17): "isn't visible … reset" read as a bug
+ * rendered for their role (#251): "isn't visible … reset" read as a bug
  * and pointed at a Reset they cannot use either.
  */
 const NEEDS_EDITOR_COPY =
@@ -68,8 +68,8 @@ function useDeferredFlag(value: boolean, delayMs: number): boolean {
 }
 
 /**
- * The strip is a segment of the demo banner's row, not a card of its own
- * (LIVE-9): the two stacked pushed the page's title far down every screen. On
+ * The strip is a segment of the demo banner's row, not a card of its own:
+ * the two stacked pushed the page's title far down every screen. On
  * one line from `lg` up — the long text shrinks and truncates instead of
  * wrapping — and a full-width block in the phone panel, which wraps.
  * `data-demo-scenario` is how the banner knows the slot is filled, to give up
@@ -114,7 +114,7 @@ interface ActiveStripProps {
   /** The user is on the step's surface but no coach mark is mounted there. */
   targetMissing: boolean
   /**
-   * The user is already on the page the step's link opens (#251 SH-6): the
+   * The user is already on the page the step's link opens (#251): the
    * "Open Scans" button there was a no-op, and its room goes to the
    * instruction instead.
    */
@@ -202,7 +202,7 @@ function ActiveStrip({
         )}
         {/* The same toggle the coach card offers, here in the normal tab
             order: the card is portalled to the end of <body>, so a keyboard
-            user had to Tab through the whole page to reach it (DEMO-12). */}
+            user had to Tab through the whole page to reach it. */}
         {!hintsMuted && hasMark && (
           <Button
             type="button"
@@ -383,7 +383,7 @@ export function DemoScenarioStrip() {
       ? `${MISSING_TARGET_COPY} ${RESET_RESTORES_COPY}`
       : MISSING_TARGET_COPY
 
-  // First visit (LIVE-9): the Overview's welcome panel already offers every
+  // First visit: the Overview's welcome panel already offers every
   // chapter, and banner + strip + panel stacked three demo blocks above the
   // page title. Until the user engages, the panel stands in for the strip
   // there instead of beside it. Engaging is more than leaving the first step:

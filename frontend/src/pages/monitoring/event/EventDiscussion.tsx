@@ -6,7 +6,7 @@ import { eventCommentsKey } from '@/lib/queryKeys'
 
 /**
  * The event's discussion on its detail page. Viewers are sent here from the
- * edit URL (EV-34), and the editor was the only place the thread was drawn, so
+ * edit URL, and the editor was the only place the thread was drawn, so
  * a viewer lost the one way to read it. Same thread and cache key as the edit
  * page; CommentThread hides the composer from anyone who cannot write.
  *

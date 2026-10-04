@@ -42,7 +42,7 @@ export function BranchSwitcher({ slug, compact = false }: { slug: string; compac
   // form with a draft would be remounted empty. Ask the page's unsaved-changes
   // guard first; the popover closes either way.
   // The switch is said out loud: it changes where every edit goes, and the
-  // rail is not where the eye is (PL-1).
+  // rail is not where the eye is.
   const switchTo = (id: string | null) => {
     setOpen(false)
     if (id === branchId) return
@@ -59,8 +59,8 @@ export function BranchSwitcher({ slug, compact = false }: { slug: string; compac
   }
 
   // "New branch" opens the create dialog on the branches page (`?new=1`)
-  // rather than only landing on the list, where it had to be found again
-  // (PL-13 / JR-11). Managing the list is its own item.
+  // rather than only landing on the list, where it had to be found again.
+  // Managing the list is its own item.
   const goToBranches = (create: boolean) => {
     setOpen(false)
     navigate(projectPath(currentOrgSlug(), slug, `/branches${create ? '?new=1' : ''}`))
@@ -89,7 +89,7 @@ export function BranchSwitcher({ slug, compact = false }: { slug: string; compac
         ) : (
         // On a branch the trigger wears the info edge the shell's branch strip
         // uses, the full name in its title (the label truncates), and the
-        // branch's status instead of a "feature" chip that said nothing (PL-1).
+        // branch's status instead of a "feature" chip that said nothing.
         <button
           type="button"
           title={`Switch branch (current: ${activeLabel})`}
@@ -202,7 +202,7 @@ function BranchRow({
       />
       <span className="mono min-w-0 flex-1 truncate">{branch.name}</span>
       {/* Which branch waits for review and which is approved, so the right
-          one can be picked from here (JR-11). */}
+          one can be picked from here. */}
       {!isMain && (
         <Chip tone={STATUS_TONE[branch.status]} size="xs" className="shrink-0">
           {STATUS_LABEL[branch.status]}

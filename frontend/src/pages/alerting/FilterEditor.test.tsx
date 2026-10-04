@@ -149,7 +149,7 @@ describe('FilterEditor — event scope picker', () => {
   })
 })
 
-describe('FilterEditor — icon buttons carry names (DS-13 / ALR-23)', () => {
+describe('FilterEditor — icon buttons carry names', () => {
   it('names each row remove button by position and field, and each chip by its value', async () => {
     mockEventsFetch()
     renderEventFilter([
@@ -165,7 +165,7 @@ describe('FilterEditor — icon buttons carry names (DS-13 / ALR-23)', () => {
   })
 })
 
-// A catalog metric filter (JR-15): values are MetricDefinition ids, so the row
+// A catalog metric filter: values are MetricDefinition ids, so the row
 // must name them from the metrics catalog — not fall back to the direction
 // picker and print raw uuids.
 function mockMetricsFetch(): string[] {
@@ -190,7 +190,7 @@ function mockMetricsFetch(): string[] {
   return calls
 }
 
-describe('FilterEditor — metric filter (JR-15)', () => {
+describe('FilterEditor — metric filter', () => {
   it('names a saved metric from the catalog, under the Metric field', async () => {
     mockMetricsFetch()
     renderEventFilter([

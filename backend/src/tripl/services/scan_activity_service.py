@@ -126,7 +126,7 @@ async def _rows_read_since(
     rows a metrics run read, ``catalog_rows_scanned`` the warehouse rows behind
     a catalog run's breakdown (newer runs only), and ``scan_rows_processed`` the
     GROUP BY ALL combinations a catalog run got back. The mixed total stays for
-    older clients; the split sums name their unit (B15), and a catalog run that
+    older clients; the split sums name their unit, and a catalog run that
     reports warehouse rows counts there rather than as combinations.
     """
     summary = ScanJob.result_summary

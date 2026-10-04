@@ -624,7 +624,7 @@ def detect_field_conflicts(
     key reports its differing fields with ``base=None``. The identity each
     entity is matched by is the merge's — see ``_plan_branch_three_way``, which
     "Update from main" applies from, so what this lists is exactly what an
-    update asks the user to choose (PL-8).
+    update asks the user to choose.
 
     ``_field_conflicts_event_type`` stays as the merge's own gate: its rows are
     the event-type slice of these, without the presence rows the merge refuses

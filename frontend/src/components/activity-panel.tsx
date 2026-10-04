@@ -60,7 +60,7 @@ type RowIcon = { icon: LucideIcon; tone?: string }
 
 // Event rows are told apart by what happened to the event. One check mark for
 // every kind made "Event needs review" and "Event archived" read as done
-// (#238 SH-22). Matched on the action in the title stem ("Event archived").
+// (#238). Matched on the action in the title stem ("Event archived").
 const EVENT_ACTION_ICON: ReadonlyArray<[RegExp, RowIcon]> = [
   [/implemented/i, { icon: CheckCircle2, tone: 'var(--success)' }],
   [/review/i, { icon: Eye, tone: 'var(--warning)' }],
@@ -121,7 +121,7 @@ function itemName(item: ActivityItem): string {
 /**
  * A scan-generated event is named by its key/value signature
  * ("event_name=Home Screen View | screen_name=Home"). A preview reads the
- * values, "Home Screen View · Home", not the raw keys (#238 SH-22).
+ * values, "Home Screen View · Home", not the raw keys (#238).
  */
 function displayName(name: string): string {
   const parts = name.split('|').map((part) => part.trim())
@@ -194,7 +194,7 @@ function burstAction(stem: string): string {
 }
 
 // The stem is written for one item ("Event needs review"); a count of them
-// takes the plural verb, or the summary read "6 events needs review" (SH-22).
+// takes the plural verb, or the summary read "6 events needs review".
 const PLURAL_VERB: Record<string, string> = { needs: 'need', is: 'are', was: 'were', has: 'have' }
 
 function pluralAction(action: string): string {
@@ -236,7 +236,7 @@ export function ActivityPanel({
   inline?: boolean
   /**
    * Drawer mode: shows a Close button in the header. The drawer (every width
-   * below 1600px) had only a refresh icon, and covers most of a phone (SH-22).
+   * below 1600px) had only a refresh icon, and covers most of a phone.
    */
   onClose?: () => void
 }) {
@@ -266,7 +266,7 @@ export function ActivityPanel({
   const items = activityQuery.data ?? []
   const isInitialLoading = activityQuery.isLoading && items.length === 0
   // A failed refresh keeps what was already loaded: one missed poll used to
-  // replace a good feed with "Activity unavailable" (SHELL-40).
+  // replace a good feed with "Activity unavailable".
   const hasItems = items.length > 0
   // Quiet = loaded, healthy, and genuinely empty. Only then do we shrink the
   // rail and drop its footer so it stops dominating an empty project.
@@ -282,7 +282,7 @@ export function ActivityPanel({
         className="flex h-11 items-center gap-2 border-b px-3.5 border-border"
       >
         <Dot tone={activityQuery.isError ? 'warning' : 'accent'} pulse={activityQuery.isFetching} size={7} />
-        {/* "Activity", as the top-bar toggle says (#238 SH-8). "Recent
+        {/* "Activity", as the top-bar toggle says (#238). "Recent
             activity" is the Overview card's name. */}
         <span className="text-body-sm font-semibold">Activity</span>
         {!isQuiet && (
@@ -432,7 +432,7 @@ function ActivityRow({
         >
           {item.detail}
         </div>
-        {/* Sans, not mono: a relative time is prose, not an identifier (DS-17). */}
+        {/* Sans, not mono: a relative time is prose, not an identifier. */}
         <div
           className="mt-[3px] text-caption font-medium text-fg-secondary"
         >

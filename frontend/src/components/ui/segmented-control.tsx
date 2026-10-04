@@ -16,7 +16,7 @@ export type SegmentedOption<T extends string | number> = {
 
 /**
  * Two to four mutually exclusive VIEWS of the same content: a time range, a
- * theme, a density (DS-16). Not for filters (use FilterBar) and not for
+ * theme, a density. Not for filters (use FilterBar) and not for
  * switching panels (use <Tabs> with <TabsList variant="segmented">, which
  * brings tabpanel wiring and arrow-key roving).
  *

@@ -84,7 +84,7 @@ async def list_project_owners(session: AsyncSession, slug: str) -> list[EventTyp
 
     The event-type list shows each type's owners and derives its merge-gate
     status from them; asking ``list_owners`` once per type made that page one
-    request per event type (PLAN-42). Grouped by event type, then oldest grant
+    request per event type. Grouped by event type, then oldest grant
     first, the order ``list_owners`` returns one type's owners in.
     """
     project_id = await resolve_project_id(session, slug)  # 404 for an unknown project

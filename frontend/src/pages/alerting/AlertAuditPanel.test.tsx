@@ -53,7 +53,7 @@ function page(count: number, total: number): AlertDeliveryListResponse {
       mockDelivery({ id: `delivery-${index + 1}` }),
     ),
     total,
-    // The Delivery log pages by offset (ALR-36); the cursor is not read here.
+    // The Delivery log pages by offset; the cursor is not read here.
     next_cursor: null,
   }
 }
@@ -104,7 +104,7 @@ function Harness({
       pinnedDelivery={null}
       deliveryFilters={filters}
       // What the page does: one write that sets the filters and drops the
-      // offset together (ALR-36).
+      // offset together.
       onDeliveryFiltersChange={next => {
         setFilters(next)
         setOffset(0)
@@ -157,13 +157,13 @@ function renderPanel(props: HarnessProps = {}, role: Persona = 'member') {
   )
 }
 
-/** The range is one "Sent" chip now; its two inputs live in a popover (AL-19). */
+/** The range is one "Sent" chip now; its two inputs live in a popover. */
 function openDates() {
   fireEvent.click(screen.getByRole('button', { name: /^Sent filter:/ }))
 }
 
 /**
- * Picks the 12th of the month the calendar opens on (AL-19: the app's
+ * Picks the 12th of the month the calendar opens on (the app's
  * DatePicker, not a native date input). With nothing picked it opens on the
  * current month, so the day is always there; returns the day as `YYYY-MM-DD`.
  */
@@ -185,7 +185,7 @@ describe('AlertAuditPanel states', () => {
 
     expect(screen.getByText('Loading deliveries…')).toBeInTheDocument()
     expect(screen.queryByText('No deliveries yet.')).toBeNull()
-    // Nor "0 deliveries" in the header before the first answer (AL-21).
+    // Nor "0 deliveries" in the header before the first answer.
     expect(screen.queryByText('0 deliveries')).toBeNull()
   })
 
@@ -333,7 +333,7 @@ describe('AlertAuditPanel filters', () => {
     renderPanel({ deliveries: page(2, 5), initialOffset: 2, onOffset })
     expect(onOffset).toHaveBeenLastCalledWith(2)
 
-    // From is the app's DatePicker now (AL-19), not a native date input, so
+    // From is the app's DatePicker now, not a native date input, so
     // pick a day through its calendar rather than typing into it.
     openDates()
     await pickTwelfth('From')
@@ -397,7 +397,7 @@ describe('AlertAuditPanel viewer gating', () => {
 
 // A retry moving a row out of Status=Failed, or a destination deleted
 // elsewhere, can shrink the log under the offset — page 3 then answers zero
-// rows while `total` is still positive (ALR-38).
+// rows while `total` is still positive.
 describe('AlertAuditPanel — a page emptied under the reader', () => {
   it('says the page is empty now, instead of that nothing was ever sent', () => {
     renderPanel({ deliveries: page(0, 3), initialOffset: 4 })

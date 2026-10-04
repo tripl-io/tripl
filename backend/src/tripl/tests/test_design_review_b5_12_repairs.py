@@ -1,7 +1,7 @@
 """Regression tests for the backend review findings on design-review batches 5-12.
 
-AL-2 (the server-side ``min_percent_delta`` default), a deleted catalog metric
-leaving its id behind in rules' ``metric`` filters, and the PL-21 migration
+The server-side ``min_percent_delta`` default, a deleted catalog metric
+leaving its id behind in rules' ``metric`` filters, and the plan-revision migration
 backfill refusing to read meaning out of a look-alike free-text summary.
 """
 
@@ -41,7 +41,7 @@ async def _project_with_destination(client: AsyncClient, slug: str) -> tuple[str
 
 
 # --------------------------------------------------------------------------- #
-# AL-2: a rule created without the field starts at 30, not 100
+# a rule created without the field starts at 30, not 100
 # --------------------------------------------------------------------------- #
 
 
@@ -167,5 +167,5 @@ async def test_deleting_a_metric_drops_it_from_rule_filters(client: AsyncClient)
 
 
 # --------------------------------------------------------------------------- #
-# PL-21 migration backfill: ``kind = 'merge'`` only through a merged branch
+# Plan-revision migration backfill: ``kind = 'merge'`` only through a merged branch
 # --------------------------------------------------------------------------- #

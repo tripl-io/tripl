@@ -263,7 +263,7 @@ describe('Instance settings write-through vs the unsaved draft', () => {
     expect(screen.getByLabelText('Ask prompt')).toHaveValue(PROMPT)
   })
 
-  // WS-23: Save used to send the whole form, so an edit left behind in another
+  // Save used to send the whole form, so an edit left behind in another
   // section went out with this one and nothing on screen said so.
   it('saves only the section on screen and names the other unsaved sections', async () => {
     const { update, showSection } = renderInstanceSettings('security')
@@ -319,7 +319,7 @@ describe('Instance settings reset card', () => {
     expect(await screen.findByText(/Clears the 1 Email override on this instance/)).toBeInTheDocument()
   })
 
-  it('offers no reset card at all when nothing in the section is overridden (ST-29)', async () => {
+  it('offers no reset card at all when nothing in the section is overridden', async () => {
     renderSection('email', {})
 
     await screen.findByRole('button', { name: 'Discard' })
@@ -340,7 +340,7 @@ describe('Instance settings reset card', () => {
     const legend = await screen.findByText(/Fields marked Override are stored here/)
     expect(legend).toHaveTextContent(/built-in default where none is set/i)
     expect(screen.queryByText('Env')).toBeNull()
-    // A value at its default carries no badge at all (ST-25).
+    // A value at its default carries no badge at all.
     expect(screen.queryByText('Default')).toBeNull()
   })
 })
@@ -357,7 +357,7 @@ describe('Instance settings source badges', () => {
     expect(await screen.findByText('Env')).toBeInTheDocument()
     // Only the one field the server said was delivered.
     expect(screen.getAllByText('Env')).toHaveLength(1)
-    // The rest stay unbadged rather than wearing a grey "Default" each (ST-25).
+    // The rest stay unbadged rather than wearing a grey "Default" each.
     expect(screen.queryByText('Default')).toBeNull()
   })
 })
@@ -385,7 +385,7 @@ describe('Instance settings save row', () => {
     expect(legend).toHaveTextContent(/built-in default where none is set/i)
   })
 
-  it('keeps the sticky note to one line about when saving takes effect (ST-28)', async () => {
+  it('keeps the sticky note to one line about when saving takes effect', async () => {
     renderSection('ai')
 
     const note = await screen.findByText(/no restart needed/i)
@@ -404,7 +404,7 @@ describe('Instance settings save row', () => {
   })
 })
 
-describe('Instance settings load failure (WS-1)', () => {
+describe('Instance settings load failure', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -433,7 +433,7 @@ describe('Instance settings load failure (WS-1)', () => {
   })
 })
 
-describe('Instance settings lock-out confirmation (WS-24)', () => {
+describe('Instance settings lock-out confirmation', () => {
   it('confirms a session cookie rename before saving it', async () => {
     const update = renderSection('security')
 
@@ -465,7 +465,7 @@ describe('Instance settings lock-out confirmation (WS-24)', () => {
   })
 })
 
-describe('Instance settings numeric fields (WS-25)', () => {
+describe('Instance settings numeric fields', () => {
   it('keeps an emptied number empty and blocks Save until it is valid', async () => {
     renderSection('ai')
 
@@ -481,7 +481,7 @@ describe('Instance settings numeric fields (WS-25)', () => {
   })
 })
 
-describe('Instance settings AI availability (WS-29)', () => {
+describe('Instance settings AI availability', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
@@ -498,7 +498,7 @@ describe('Instance settings AI availability (WS-29)', () => {
   })
 })
 
-describe('Instance storage backend cards (WS-30)', () => {
+describe('Instance storage backend cards', () => {
   it('marks the card of the backend that is not selected as inactive', async () => {
     renderSection('storage')
 
@@ -509,7 +509,7 @@ describe('Instance storage backend cards (WS-30)', () => {
   })
 })
 
-describe('Instance settings review 208 follow-ups', () => {
+describe('Instance settings follow-ups', () => {
   it('keeps a failed save error on the section it belongs to', async () => {
     vi.spyOn(serviceSettingsApi, 'get').mockResolvedValue(SETTINGS)
     vi.spyOn(serviceSettingsApi, 'update').mockRejectedValue(new Error('Invalid CORS origin'))

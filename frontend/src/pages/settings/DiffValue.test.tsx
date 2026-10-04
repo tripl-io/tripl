@@ -96,7 +96,7 @@ describe('RecordTable', () => {
   })
 })
 
-describe('DiffPair (PL-10)', () => {
+describe('DiffPair', () => {
   const BEFORE = 'Fired when the user completes a purchase on the web checkout'
   const AFTER = 'Fired when the user completes a purchase on the mobile checkout'
 

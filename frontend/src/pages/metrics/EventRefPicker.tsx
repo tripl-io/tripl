@@ -44,17 +44,17 @@ interface EventRefPickerProps {
  * The native select this replaces was fed `eventsApi.list(slug)` with no
  * limit, i.e. the endpoint's default first 200 events: anything later could
  * not be picked, and editing a metric already on one painted "Select event…"
- * as if it were unset (MET-2). The roster is now searched on the server, and
+ * as if it were unset. The roster is now searched on the server, and
  * the selected event is fetched by id and always offered.
  *
  * Event-type references are valid on the backend and preserved by the form,
  * but the old select had no option for them, so such a metric also read
  * "Select event…" while validation passed on hidden state, and nothing could
- * clear or change the type (MET-14). They are a second option group here.
+ * clear or change the type. They are a second option group here.
  *
  * One combobox, not a search box stacked over a select: the pair read as two
  * fields, the select could not show whose type an event was beyond a text
- * suffix, and a capped roster said so only in a caption under both (MT-10).
+ * suffix, and a capped roster said so only in a caption under both.
  * Typing filters; each row carries its type's dot and a muted type chip.
  */
 export function EventRefPicker({
@@ -133,7 +133,7 @@ export function EventRefPicker({
   const activeIdx = Math.min(highlight, rows.length - 1)
   const optionId = (i: number) => `${listboxId}-opt-${i}`
 
-  // Keep the highlighted row in view as the arrow keys move it (DS-35).
+  // Keep the highlighted row in view as the arrow keys move it.
   // Optional call — jsdom has no scrollIntoView.
   useEffect(() => {
     if (!expanded || activeIdx < 0) return
@@ -141,7 +141,7 @@ export function EventRefPicker({
   }, [expanded, activeIdx, listboxId])
 
   // A project with no events at all: an empty list is a dead end, so the
-  // picker says so and links to where events come from (MT-11).
+  // picker says so and links to where events come from.
   const noEvents =
     rosterQuery.isSuccess && !debouncedSearch && roster.length === 0 && !value.eventId
 
@@ -230,7 +230,7 @@ export function EventRefPicker({
   const statusRow = 'px-2 py-[5px] text-caption text-fg-tertiary'
 
   return (
-    // 280px like every other select on the form (MT-10).
+    // 280px like every other select on the form.
     <div className="flex flex-col gap-1.5" style={{ maxWidth: 280 }}>
       <div ref={wrapperRef} className="relative">
         <input

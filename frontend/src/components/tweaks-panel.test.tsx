@@ -65,7 +65,7 @@ afterEach(() => {
 })
 
 describe('TweaksPanel', () => {
-  it('renders no floating trigger over the page (SHELL-35)', () => {
+  it('renders no floating trigger over the page', () => {
     renderPanel()
     expect(screen.queryByRole('button', { name: 'Open tweaks panel' })).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -101,7 +101,7 @@ describe('TweaksPanel', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('is a popover hung from its trigger, not a panel fixed to the corner (SH-24)', async () => {
+  it('is a popover hung from its trigger, not a panel fixed to the corner', async () => {
     renderPanel()
     const opener = screen.getByRole('button', { name: 'Appearance' })
     fireEvent.click(opener)
@@ -129,12 +129,12 @@ describe('TweaksPanel', () => {
     expect(screen.getByRole('button', { name: 'Teal' })).toHaveAttribute('aria-pressed', 'false')
 
     const density = screen.getByRole('group', { name: 'Density' })
-    // The shared SegmentedControl (DS-16), not a hand-rolled copy.
+    // The shared SegmentedControl, not a hand-rolled copy.
     expect(density).toHaveAttribute('data-slot', 'segmented-control')
     expect(density.querySelector('[aria-pressed="true"]')).toHaveTextContent('Compact')
   })
 
-  it('previews each accent through its own class and names the choice (DS-19 / SH-24)', async () => {
+  it('previews each accent through its own class and names the choice', async () => {
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Appearance' }))
 
@@ -159,7 +159,7 @@ describe('TweaksPanel', () => {
     expect(screen.queryByText('Teal')).toBeNull()
   })
 
-  it('offers System, and a System theme follows the OS as it changes (SHELL-33)', async () => {
+  it('offers System, and a System theme follows the OS as it changes', async () => {
     const setOsDark = installColorScheme(false)
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Appearance' }))

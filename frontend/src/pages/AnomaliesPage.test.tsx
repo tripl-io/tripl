@@ -30,7 +30,7 @@ import { sourceFreshnessApi } from '@/api/sourceFreshness'
 
 /**
  * Matches a row's scope label by its full text. The "Spike on" / "Drop on"
- * prefix is its own element (visually hidden on phones, MO-20), so the default
+ * prefix is its own element (visually hidden on phones), so the default
  * text matcher, which reads only an element's own text nodes, no longer sees
  * "Spike on Event · Signup" as one string.
  */
@@ -100,7 +100,7 @@ function renderAnomalies(entry = '/p/demo/anomalies') {
   )
 }
 
-// The filters are FilterSelect chips (DS-15): "Magnitude: Significant",
+// The filters are FilterSelect chips: "Magnitude: Significant",
 // "Scan: All scans 7". A chip names itself "<Label> filter: <value>", so the
 // value is announced with it; these match the label part whatever is set.
 const MAGNITUDE = /^Magnitude filter: /
@@ -148,7 +148,7 @@ describe('AnomaliesPage — scope names', () => {
     renderAnomalies()
 
     // Label reads "Metric · <display name>" straight off the signal.
-    // A linkable row is a real link (MON-13), so it opens in a new tab, and a
+    // A linkable row is a real link, so it opens in a new tab, and a
     // screen reader announces something it can follow.
     const link = await screen.findByRole('link', { name: 'Spike on Metric · Checkout conversion' })
     expect(link).toHaveAttribute('href', '/p/demo/monitoring/metric/metric-abc')
@@ -245,7 +245,7 @@ describe('AnomaliesPage — scope names', () => {
     const childRow = screen
       .getByText(rowLabel('Spike on Event type · Signup'))
       .closest('[role="row"]') as HTMLElement
-    // Worded as what it means, not the "part of total" annotation (MO-22).
+    // Worded as what it means, not the "part of total" annotation.
     expect(childRow).toHaveTextContent('within total spike')
     expect(childRow).not.toHaveTextContent('part of total')
     expect(parentRow).not.toHaveTextContent('within total spike')
@@ -276,7 +276,7 @@ describe('AnomaliesPage — scope names', () => {
     expect(row).not.toHaveTextContent('within total spike')
   })
 
-  it('keeps the direction prefix in the accessible name but hides it visually on phones (MO-20)', async () => {
+  it('keeps the direction prefix in the accessible name but hides it visually on phones', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_ref: 'metric-abc', scope_name: 'Checkout conversion' }),
     ])
@@ -314,7 +314,7 @@ describe('AnomaliesPage — severity label', () => {
     expect(row).not.toHaveTextContent('z=-20')
   })
 
-  it('leads with the % change and keeps the z-score in the tooltip (MO-2, JR-31)', async () => {
+  it('leads with the % change and keeps the z-score in the tooltip', async () => {
     // makeSignal() defaults to a spike with z_score 8, 120 actual vs 80
     // expected: +50%, exactly on the Significant bar.
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
@@ -334,7 +334,7 @@ describe('AnomaliesPage — severity label', () => {
     expect(row).not.toHaveTextContent('z=8.0')
   })
 
-  it('puts the change straight after the scope, not last (MO-19)', async () => {
+  it('puts the change straight after the scope, not last', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_name: 'Checkout conversion' }),
     ])
@@ -348,16 +348,16 @@ describe('AnomaliesPage — severity label', () => {
       'Change',
       'Actual / expected',
       'When',
-      // The row menu's column, named for screen readers only (MO-4).
+      // The row menu's column, named for screen readers only.
       'Actions',
     ])
     // The table is no longer a fixed-width strip inside a sideways scroller,
-    // which hid the change and the time off a phone screen (MO-20).
+    // which hid the change and the time off a phone screen.
     expect(screen.getByRole('table', { name: 'Anomaly signals' }).className).not.toContain('min-w-')
   })
 })
 
-describe('AnomaliesPage — row actions (MO-4, JR-6)', () => {
+describe('AnomaliesPage — row actions', () => {
   it('offers Open detail and View alerts from the row menu', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_type: 'event_type', scope_ref: 'et-1', scope_name: 'Signup' }),
@@ -468,7 +468,7 @@ describe('AnomaliesPage — magnitude filter', () => {
     expect(filterChip(MAGNITUDE)).toHaveTextContent('Magnitude:Significant (≥50%)')
   })
 
-  it('names each level’s threshold in the % the rows show (MO-3)', async () => {
+  it('names each level’s threshold in the % the rows show', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_name: 'Checkout conversion' }),
     ])
@@ -811,7 +811,7 @@ describe('AnomaliesPage — scan facet', () => {
   })
 })
 
-describe('AnomaliesPage — ranking and keys (MON-14, MON-16)', () => {
+describe('AnomaliesPage — ranking and keys', () => {
   it('ranks by relative effect like Overview and the bell, not by |z|', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       // Quiet scope: a huge z on a tiny absolute move (relative effect 0.6).
@@ -845,7 +845,7 @@ describe('AnomaliesPage — ranking and keys (MON-14, MON-16)', () => {
   })
 })
 
-describe('AnomaliesPage — when column (MON-40, MO-21)', () => {
+describe('AnomaliesPage — when column', () => {
   it('shows the bucket start as an absolute time, and says it is the bucket start', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_name: 'Checkout conversion', bucket: '2026-07-01T00:00:00Z' }),
@@ -885,7 +885,7 @@ describe('AnomaliesPage — when column (MON-40, MO-21)', () => {
   })
 })
 
-describe('AnomaliesPage — rollup tones (MON-42)', () => {
+describe('AnomaliesPage — rollup tones', () => {
   it('colours the Spikes and Drops figures, which have no delta to carry a tone', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([
       makeSignal({ scope_ref: 'a', scope_name: 'A' }),
@@ -902,7 +902,7 @@ describe('AnomaliesPage — rollup tones (MON-42)', () => {
   })
 })
 
-describe('AnomaliesPage — filter chips (DS-15)', () => {
+describe('AnomaliesPage — filter chips', () => {
   it('filters with chips that name their current value, not a segmented control', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([makeSignal({ scope_name: 'A' })])
 
@@ -920,9 +920,9 @@ describe('AnomaliesPage — filter chips (DS-15)', () => {
   })
 })
 
-// LIVE-11: Anomalies sat beside Metrics and Coverage under the kit's own page
+// Anomalies sat beside Metrics and Coverage under the kit's own page
 // head (22px title, 12px description) while its siblings used PageHeader.
-describe('AnomaliesPage — the shared page header (LIVE-11)', () => {
+describe('AnomaliesPage — the shared page header', () => {
   it('renders the same title element as its Observe siblings', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
     renderAnomalies()
@@ -935,7 +935,7 @@ describe('AnomaliesPage — the shared page header (LIVE-11)', () => {
   })
 })
 
-describe('AnomaliesPage — page states (MO-17, MO-23, JR-6, DS-25)', () => {
+describe('AnomaliesPage — page states', () => {
   it('holds a skeleton, not zeros, until the signals arrive', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockReturnValue(new Promise<MonitoringSignal[]>(() => {}))
 
@@ -973,12 +973,12 @@ describe('AnomaliesPage — page states (MO-17, MO-23, JR-6, DS-25)', () => {
 
     expect(await screen.findByText('No anomalies right now')).toBeInTheDocument()
     expect(screen.queryByText('Monitoring isn’t running yet')).not.toBeInTheDocument()
-    // A green 0 read as praise (MO-17): zero is neutral.
+    // A green 0 read as praise: zero is neutral.
     const open = screen.getByText('Open signals').closest('dl') as HTMLElement
     expect(within(open).getByText('0')).not.toHaveAttribute('data-tone')
   })
 
-  it('points at Alerting as the place where triage happens (JR-6)', async () => {
+  it('points at Alerting as the place where triage happens', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([makeSignal({ scope_name: 'A' })])
 
     renderAnomalies()
@@ -992,7 +992,7 @@ describe('AnomaliesPage — page states (MO-17, MO-23, JR-6, DS-25)', () => {
   })
 })
 
-describe('AnomaliesPage — row sparklines (MO-19)', () => {
+describe('AnomaliesPage — row sparklines', () => {
   it('asks for every scan-backed signal in one request and marks the flagged bucket', async () => {
     const flagged = '2026-07-01T20:00:00Z'
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([

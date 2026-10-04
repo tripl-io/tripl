@@ -14,11 +14,11 @@ import {
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 const EVENT_TYPES_EXPANDED_KEY = 'tripl-sidebar-event-types-expanded'
-/** Event-type rows shown under Events before a "Show N more" row (#238 SH-9). */
+/** Event-type rows shown under Events before a "Show N more" row (#238). */
 const EVENT_TYPE_ROW_CAP = 6
 
 /**
- * A nav count (DS-6, DS-28): the CountBadge geometry, fed the pre-formatted
+ * A nav count: the CountBadge geometry, fed the pre-formatted
  * figure ("1.2K") the nav model carries. Neutral grey for counts; solid red
  * only for unacknowledged alerts (Alerting's open incidents). The figure
  * stays in the link's accessible name ("Anomalies 9"). The neutral pill is
@@ -122,7 +122,7 @@ function useEventTypesExpanded() {
 }
 
 /**
- * Events with its per-type filters nested under it (#238 SH-9 / JR-24).
+ * Events with its per-type filters nested under it (#238).
  *
  * The type rows open the Events list filtered by type, so they belong to
  * Events. They used to hang under "Event types", whose own row opens the

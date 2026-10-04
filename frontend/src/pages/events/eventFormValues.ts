@@ -23,7 +23,7 @@ const pad = (value: number): string => String(value).padStart(2, '0')
  * The form used to slice the ISO string — UTC wall time shown as if it were
  * local — and post the local string back with no offset, which the backend took
  * as UTC. In UTC+3, 09:00 entered was stored as 09:00Z, and the detail page
- * (which formats the instant locally) showed 12:00 (EVT-27).
+ * (which formats the instant locally) showed 12:00.
  */
 export function sunsetInputValue(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -51,7 +51,7 @@ const TEMPLATE_TOKEN = /\$\{[^}]+\}/
  * What a number field may hold: a number, or a value carrying a `${variable}`
  * token that is resolved later. A native number input refused both `$` and `{`,
  * so the token could not be typed, and a stored `${price}` rendered as an empty
- * box while the form still saved it (EVT-23). Empty is "no value".
+ * box while the form still saved it. Empty is "no value".
  */
 export function isNumberFieldValue(value: string): boolean {
   const trimmed = value.trim()
@@ -76,7 +76,7 @@ export function normalizeNumberFieldValue(value: string): string {
 /**
  * A chip list with the text still sitting in its input added, the way Enter
  * would add it. Text typed into Tags and not committed with Enter used to be
- * dropped on save without a word (EVT-26). Only ever adds: Enter on the
+ * dropped on save without a word. Only ever adds: Enter on the
  * breakdown input toggles a column, but text left in a box is never read as
  * "remove this".
  */
@@ -104,7 +104,7 @@ function fitsField(field: FieldDefinition, value: string): boolean {
  * The field values of one event type carried onto another, by field name.
  *
  * Changing the type on the create form used to clear every value, even where
- * the new type has the same fields (EVT-47). A value moves when the new type has
+ * the new type has the same fields. A value moves when the new type has
  * a field of the same name whose control can hold it; `dropped` names the
  * filled fields that could not come along, so the form can ask first.
  */
@@ -126,13 +126,13 @@ export function carryFieldValues(
   return { values: carried, dropped }
 }
 
-/** The id of a column's toggle in the Metric breakdowns row (AU-23). */
+/** The id of a column's toggle in the Metric breakdowns row. */
 export const breakdownChipId = (column: string): string =>
   `form-breakdown-chip-${encodeURIComponent(column)}`
 
 /**
  * Bring a column's breakdown toggle into view and focus it. The per-field line
- * only points here (AU-23): a second toggle far from the row changed the set
+ * only points here: a second toggle far from the row changed the set
  * without the reader seeing why.
  */
 export function focusBreakdownChip(column: string): void {

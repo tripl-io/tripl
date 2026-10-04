@@ -1,6 +1,6 @@
 """Follow-ups to the design review's alerting findings (lane F2-alerting).
 
-AL-30: "Send test" from the destination dialog, before the destination is
+"Send test" from the destination dialog, before the destination is
 saved — ``POST /projects/{slug}/alert-destinations/test``. The draft is sent
 through the same channel senders, the same demo zero-egress predicate and the
 same private-host refusal as a saved destination's Test; an edit dialog lends

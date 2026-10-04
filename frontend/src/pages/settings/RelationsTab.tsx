@@ -31,7 +31,7 @@ export function RelationsTab({ slug }: { slug: string }) {
   const canWrite = useCanWriteProject()
   const branchId = useActiveBranchId()
   const [showForm, setShowForm] = useState(false)
-  // The relation the dialog edits; null while it creates one (AU-13).
+  // The relation the dialog edits; null while it creates one.
   const [editing, setEditing] = useState<EventTypeRelation | null>(null)
   const [srcEtId, setSrcEtId] = useState('')
   const [tgtEtId, setTgtEtId] = useState('')
@@ -91,7 +91,7 @@ export function RelationsTab({ slug }: { slug: string }) {
   }
 
   // Edit in place: the same From/To dialog, seeded with the relation's ends,
-  // so fixing a wrong field no longer means delete and re-create (AU-13).
+  // so fixing a wrong field no longer means delete and re-create.
   const openEdit = (r: EventTypeRelation) => {
     saveMut.reset()
     setEditing(r)
@@ -116,7 +116,7 @@ export function RelationsTab({ slug }: { slug: string }) {
   )
   // A relation IS its two fields: two relations between the same pair of types
   // differ only there, so a row (and a delete confirm) naming only the types
-  // could not say which one it meant (PLAN-52).
+  // could not say which one it meant.
   const endpoint = (typeId: string, fieldId: string) => {
     const et = etMap[typeId]
     const fieldName = et?.field_definitions.find(f => f.id === fieldId)?.name
@@ -139,8 +139,8 @@ export function RelationsTab({ slug }: { slug: string }) {
   return (
     <PageContainer className="space-y-4">
       {dialog}
-      {/* The shared page header (DS-1): the page had no title of its own,
-          only the Panel's. "New relation" matches the dialog (DS-29). */}
+      {/* The shared page header: the page had no title of its own,
+          only the Panel's. "New relation" matches the dialog. */}
       <PageHeader
         eyebrow="Plan"
         title="Relations"
@@ -157,7 +157,7 @@ export function RelationsTab({ slug }: { slug: string }) {
 
       {/* Create / edit dialog. Each end of the join is one group — its type, then
           its field — read top to bottom, with a live preview of the join
-          instead of a 2x2 grid read diagonally (AU-13). */}
+          instead of a 2x2 grid read diagonally. */}
       <Dialog open={showForm} onOpenChange={open => { if (!open) closeForm() }}>
         <DialogContent>
           <form className="flex min-h-0 flex-col gap-4" onSubmit={e => { e.preventDefault(); saveMut.mutate() }}>
@@ -226,14 +226,14 @@ export function RelationsTab({ slug }: { slug: string }) {
       >
         {relationsQuery.isError && relationsQuery.data !== undefined && (
           // A failed REFRESH keeps the rows on screen: replacing them with an
-          // error would unmount whatever is being edited (review 204).
+          // error would unmount whatever is being edited.
           <p role="alert" className="px-4 py-2 text-body-sm text-destructive">
             Couldn't refresh relations: {getErrorMessage(relationsQuery.error)}
           </p>
         )}
         {relationsQuery.isPending ? (
           // A pending list is not an empty one: "No relations" used to flash on
-          // every cold load (PLAN-41).
+          // every cold load.
           <div className="space-y-2 px-4 py-4" aria-busy="true" aria-label="Loading relations">
             {Array.from({ length: 3 }, (_, index) => (
               <Skeleton key={index} className="h-9 w-full" />
@@ -256,7 +256,7 @@ export function RelationsTab({ slug }: { slug: string }) {
                 <TableRow>
                   {/* One cell per join, so source and target read as one
                       thing instead of floating apart across a wide arrow
-                      column (AU-13). */}
+                      column. */}
                   <TableHead>Join</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="sticky right-0 w-20 bg-surface"><span className="sr-only">Actions</span></TableHead>

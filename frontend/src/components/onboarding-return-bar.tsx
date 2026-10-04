@@ -5,7 +5,7 @@ import { parseOnboardingReturn } from '@/components/onboarding-steps'
 import { projectHomePath } from '@/lib/navigation'
 
 /**
- * The way back from a getting-started step (#250 JR-3). A step link opens its
+ * The way back from a getting-started step (#250). A step link opens its
  * page (data sources, scans, the review queue…) tagged with `?onboarding=…`;
  * on that page this slim bar says which step it is and leads back to the
  * checklist on the project's Overview. Without the tag it renders nothing, so

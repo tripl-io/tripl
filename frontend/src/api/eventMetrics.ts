@@ -47,7 +47,7 @@ function triageQuery(scope: SignalTriageScope, withBucket: boolean): string {
  * Not the metrics catalog. User-defined metrics (fact, SQL and event
  * composition), their CRUD, collection and series live in
  * {@link metricsCatalogApi} (`api/metricsCatalog.ts`). This module was
- * `metricsApi` in `api/metrics.ts` until MET-45 renamed it.
+ * `metricsApi` in `api/metrics.ts` until it was renamed.
  */
 export const eventMetricsApi = {
   // `branchId` scopes the tag / status / search filter to that branch's events;
@@ -133,12 +133,12 @@ export const eventMetricsApi = {
 
   /**
    * `POST /anomalies/signals/series` — row sparklines for many open signals in
-   * one request (MO-19): the buckets around each flagged one.
+   * one request: the buckets around each flagged one.
    */
   getSignalSeries: (slug: string, scopes: SignalSeriesScope[]) =>
     api.post<SignalSeries[]>(`/projects/${slug}/anomalies/signals/series`, { scopes }),
 
-  // --- Signal triage (MO-4 / JR-5) --------------------------------------------
+  // --- Signal triage --------------------------------------------
   // Only for signals no rule routed to an incident (the server answers 409
   // otherwise). Each POST returns the signal's new triage fields; each DELETE
   // is the Undo and is idempotent.

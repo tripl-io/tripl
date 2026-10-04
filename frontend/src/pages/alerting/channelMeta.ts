@@ -16,7 +16,7 @@ export interface ChannelMeta {
 // add-channel affordance, so every type stays addable from one place.
 export const CHANNEL_META: ChannelMeta[] = [
   // A chat bubble for Slack, not lucide's Webhook glyph: that is the same
-  // concept as the separate Webhook channel below (AL-27). Lucide has no
+  // concept as the separate Webhook channel below. Lucide has no
   // brand marks.
   { channel: 'slack', label: CHANNEL_LABELS.slack, Icon: MessageSquare },
   { channel: 'telegram', label: CHANNEL_LABELS.telegram, Icon: Send },

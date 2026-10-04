@@ -49,7 +49,7 @@ describe('events saved views storage', () => {
   })
 })
 
-describe('saved view params (EVT-36)', () => {
+describe('saved view params', () => {
   it('keeps only filter keys, sorted, and never the branch', () => {
     expect(viewParamsOf('branch=b1&tag=web&q=checkout&f.screen=home&utm=x&status=live&status=draft'))
       .toBe('f.screen=home&q=checkout&status=draft&status=live&tag=web')

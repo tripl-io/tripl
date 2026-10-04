@@ -19,7 +19,7 @@ type ListQuery = NonNullable<
  * The list endpoint's query parameters, derived from the generated OpenAPI
  * types rather than restated by hand. The hand-written copy drifted: it had no
  * `has_open_questions`, so the toolbar's "Open questions" filter reached the URL
- * and saved views but never the server, and the list came back unfiltered (EVT-1).
+ * and saved views but never the server, and the list came back unfiltered.
  * `branch` travels separately through `withBranch`; `null` is the backend's
  * "absent", which callers express by omitting the key.
  *
@@ -83,7 +83,7 @@ export const eventsApi = {
   },
   /**
    * Which of `names` an event of this type already holds as its scan identity,
-   * by exact match and by the rule create refuses on (EVT-37). One request for
+   * by exact match and by the rule create refuses on. One request for
    * a whole list, where each name used to be a substring search of its own.
    */
   byNames: (

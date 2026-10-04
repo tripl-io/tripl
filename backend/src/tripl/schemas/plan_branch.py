@@ -23,7 +23,7 @@ BranchTransitionAction = Literal[
 # A new branch's name reads like a ref everywhere it appears (the switcher,
 # ``?branch=`` links): a letter or digit first, then letters, digits and
 # ``- _ / .``, at most 64 characters. Mirrors ``branchNameProblem`` in the
-# frontend's branchMeta.ts, which only explains it earlier (PL-5). The 64 is
+# frontend's branchMeta.ts, which only explains it earlier. The 64 is
 # checked in the validator rather than as the field's ``max_length``, which
 # stays the column width (see below).
 BRANCH_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9/_.-]*")
@@ -226,7 +226,7 @@ class ConflictField(BaseModel):
     changed it: ``base``/``ours``/``theirs`` are then ``"present"`` or
     ``"absent"``. ``dependents`` counts, for an event type main deleted, the
     fields, events and relations this branch added or edited under it — what
-    taking main's side removes with it (PL-8).
+    taking main's side removes with it.
     """
 
     field: str
@@ -253,7 +253,7 @@ class BranchConflictsResponse(BaseModel):
     entities: list[ConflictEntity]
     unresolved_count: int
     # Main changed since the branch's base — the same test as the list's
-    # ``behind_base`` (PL-8).
+    # ``behind_base``.
     behind: bool = False
     # How many distinct entities both sides changed (the rows above).
     overlap_count: int = 0
@@ -288,7 +288,7 @@ class ResolutionResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# --- "Update from main" (PL-8) ------------------------------------------------
+# --- "Update from main" ------------------------------------------------
 
 
 class EntityChangeCount(BaseModel):

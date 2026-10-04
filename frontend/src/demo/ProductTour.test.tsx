@@ -157,7 +157,7 @@ describe('ProductTour accessibility', () => {
   })
 })
 
-describe('ProductTour — the search step opens search (DEMO-18)', () => {
+describe('ProductTour — the search step opens search', () => {
   it('opens the command palette instead of linking to the page the user is on', () => {
     window.localStorage.setItem('tripl-tour:acme', String(LAST_INDEX))
     const setOpen = vi.fn()
@@ -181,7 +181,7 @@ describe('ProductTour — the search step opens search (DEMO-18)', () => {
   })
 })
 
-describe('ProductTour — paging for keyboard and screen-reader users (DEMO-19)', () => {
+describe('ProductTour — paging for keyboard and screen-reader users', () => {
   it('announces the step Next and Back land on', () => {
     const steps = buildTourSteps('acme')
     renderTour()
@@ -221,7 +221,7 @@ describe('ProductTour — paging for keyboard and screen-reader users (DEMO-19)'
   })
 })
 
-describe('ProductTour — the surface index (DEMO-20)', () => {
+describe('ProductTour — the surface index', () => {
   it('keeps the index behind a disclosure until asked for', () => {
     renderTour()
 
@@ -252,7 +252,7 @@ describe('ProductTour — the surface index (DEMO-20)', () => {
   })
 })
 
-describe('ProductTour — the welcome panel is its own choice (DEMO-26)', () => {
+describe('ProductTour — the welcome panel is its own choice', () => {
   it('offers the dismissed welcome panel back without restoring it on open', () => {
     act(() => {
       setWelcomeDismissed('acme', true)
@@ -302,7 +302,7 @@ function renderTourWithDock(options: { initiallyOpen?: boolean; palette?: () => 
 
 const dock = () => screen.queryByRole('region', { name: 'Product tour' })
 
-describe('ProductTour — the tour stays with you on the surface it opens (#251 JR-22)', () => {
+describe('ProductTour — the tour stays with you on the surface it opens (#251)', () => {
   it('docks on the opened surface, and Next walks on to the following one', () => {
     const steps = buildTourSteps('acme')
     renderTourWithDock()

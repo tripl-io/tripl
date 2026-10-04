@@ -14,7 +14,7 @@ import { viewerProject, type Persona } from '@/test/persona'
 import { PersonaProject } from '@/test/PersonaProject'
 import { ActiveProjectContext } from '@/components/active-project-context'
 
-/** The Inbox's status facet is a FilterSelect chip now (DS-15), not toggle buttons. */
+/** The Inbox's status facet is a FilterSelect chip now, not toggle buttons. */
 async function pickInboxStatus(label: string) {
   fireEvent.click(screen.getByRole('combobox', { name: /^Status filter/ }))
   fireEvent.click(await screen.findByRole('option', { name: label }))
@@ -51,7 +51,7 @@ vi.mock('sonner', () => ({
 }))
 
 /**
- * The tab strip's counts (AL-46), stubbed. Their two probes are covered by
+ * The tab strip's counts, stubbed. Their two probes are covered by
  * useAlertingTabCounts.test.tsx; here they would add requests to every URL log
  * below and a "(n)" to every tab name, so they answer nothing unless a test
  * sets them.
@@ -337,7 +337,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     expect(screen.queryByText('Signals route to destinations via rules.')).toBeNull()
 
     // The empty "Delivery log / No deliveries yet." panel that sat under the
-    // setup is gone (AL-33): guided state has zero deliveries by definition.
+    // setup is gone: guided state has zero deliveries by definition.
     expect(screen.queryByText('No deliveries yet.')).toBeNull()
 
     // ...but every channel type is still addable from the guided flow.
@@ -348,7 +348,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     expect(screen.getByRole('button', { name: 'Slack' })).toHaveAccessibleDescription('Post to a channel')
   })
 
-  it('names the missing scan as the first step when nothing can alert yet (AL-33)', async () => {
+  it('names the missing scan as the first step when nothing can alert yet', async () => {
     mockAlertingFetch([], { scanCount: 0 })
     renderTab()
 
@@ -397,7 +397,7 @@ describe('ProjectAlertingTab — guided setup', () => {
     expect(screen.queryByText('Set up alerting')).toBeNull()
 
     // Rules is the fourth, and it is where the rules went. It was
-    // called Monitors until JR-28 gave the object one name.
+    // called Monitors until the object was given one name.
     for (const name of ['Inbox', 'Rules', 'Destinations', 'Delivery log']) {
       expect(screen.getByRole('tab', { name })).toBeInTheDocument()
     }
@@ -536,13 +536,13 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     // identical database work.
     expect(inboxUrls[0]).toContain('limit=50')
     expect(inboxUrls[0]).toContain('offset=0')
-    // The triage queue opens on Open (AL-14), and standing on the default is
+    // The triage queue opens on Open, and standing on the default is
     // not a filter the reader set, so there is nothing to clear.
     expect(inboxUrls[0]).toContain('status=open')
     expect(screen.queryByRole('button', { name: /Clear filters/ })).toBeNull()
   })
 
-  it('asks for every status on ?status=all (AL-14)', async () => {
+  it('asks for every status on ?status=all', async () => {
     const { inboxUrls } = mockPagedInbox([makeInboxGroup()])
     renderInboxTab(undefined, '/p/demo/alerting?section=inbox&status=all')
 
@@ -617,7 +617,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
       ),
     ).toBeInTheDocument()
 
-    // ...and "All" is spelled out, because no key now means Open (AL-14)...
+    // ...and "All" is spelled out, because no key now means Open...
     await pickInboxStatus('any')
     expect(
       await screen.findByText('alerting-location:/p/demo/alerting?section=inbox&status=all'),
@@ -672,13 +672,13 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
 
     fireEvent.click(await screen.findByRole('button', { name: 'Show all' }))
 
-    // Every status, not the default Open queue (AL-14).
+    // Every status, not the default Open queue.
     expect(
       await screen.findByText('alerting-location:/p/demo/alerting?section=inbox&status=all'),
     ).toBeInTheDocument()
   })
 
-  it('shows an incident once when a refetch shifts it across the page seam (ALR-27)', async () => {
+  it('shows an incident once when a refetch shifts it across the page seam', async () => {
     // Paging is by offset under a 60s refetch. An incident inserted at the head
     // between page 1 and "Load more" starts page 2 one row early, so its first
     // row is page 1's last one again — two cards under one React key.
@@ -723,7 +723,7 @@ describe('ProjectAlertingTab — the Inbox is a queue you can get to the bottom 
     expect(screen.getAllByText('event_1')).toHaveLength(1)
   })
 
-  it('continues "Load more" from the server cursor, not an offset (ALR-27)', async () => {
+  it('continues "Load more" from the server cursor, not an offset', async () => {
     // An incident on page 1 acknowledged before "Load more" sorts DOWN past the
     // seam; with an offset page 2 would start one row late and never serve the
     // next one. The cursor continues after the last row the page holds.
@@ -864,7 +864,7 @@ describe('ProjectAlertingTab — an inbox action reports on its own row', () => 
     expect(acks[1]).toBeEnabled()
   })
 
-  it('keeps the first card busy when a second card acts before it settles (ALR-28)', async () => {
+  it('keeps the first card busy when a second card acts before it settles', async () => {
     mockInboxWithHeldAction([
       makeInboxGroup(),
       makeInboxGroup({
@@ -1134,7 +1134,7 @@ describe('ProjectAlertingTab — several incidents, one decision', () => {
    * taking the selection with it.
    */
   // `?status=all`: these fixtures mix open and muted incidents, and the inbox
-  // opens on Open by default (AL-14).
+  // opens on Open by default.
   function renderInboxSection(role?: Persona) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const treeAtRole = (current?: Persona) => {
@@ -1839,7 +1839,7 @@ describe('ProjectAlertingTab — per-scan focus via ?scan=', () => {
       expect(deliveryUrls.at(-1)).not.toContain('scan_config_id')
     })
   })
-  it('does not claim a filter is active when the unknown ?scan= was dropped (ALR-39)', async () => {
+  it('does not claim a filter is active when the unknown ?scan= was dropped', async () => {
     const deliveryUrls = mockWithDeliveryUrls([{ id: 'scan-1', name: 'Snowplow Events (iOS)' }])
     renderWithFocus('scan-that-was-deleted')
 
@@ -1856,8 +1856,8 @@ describe('ProjectAlertingTab — per-scan focus via ?scan=', () => {
 // The Inbox moved its filters to the URL so a filtered view survives Back and
 // can be shared; the Delivery log kept status, channel, destination, rule,
 // dates and the page in component state, so opening a scope link from a
-// delivery and pressing Back lost all of them (ALR-36).
-describe('ProjectAlertingTab — the delivery log remembers where it was (ALR-36)', () => {
+// delivery and pressing Back lost all of them.
+describe('ProjectAlertingTab — the delivery log remembers where it was', () => {
   function mockDeliveryLog() {
     const deliveryUrls: string[] = []
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -2058,7 +2058,7 @@ describe('ProjectAlertingTab — viewer role', () => {
     for (const name of [
       'Add rule',
       'Edit rule payment_failed spike',
-      // Mute and Delete live behind this menu (AL-8).
+      // Mute and Delete live behind this menu.
       'More actions for payment_failed spike',
       'Delete rule payment_failed spike',
       'Mute payment_failed spike',
@@ -2204,7 +2204,7 @@ describe('ProjectAlertingTab — a config write reaches the incident views', () 
 
   /** Delete the one rule on the card, through its confirm. */
   async function deleteTheRule() {
-    // Delete sits behind the row's "More actions" menu (AL-8).
+    // Delete sits behind the row's "More actions" menu.
     fireEvent.keyDown(
       await screen.findByRole('button', { name: 'More actions for payment_failed spike' }),
       { key: 'Enter' },
@@ -2339,7 +2339,7 @@ describe('ProjectAlertingTab — guided setup lands step 2 on step 3', () => {
     expect(
       screen.getByRole('combobox', { name: 'Destination', hidden: true }),
     ).toHaveTextContent('Ops Slack')
-    // Step 2 says it worked, and step 3 opens named and marked (AL-34).
+    // Step 2 says it worked, and step 3 opens named and marked.
     expect(toastSuccess).toHaveBeenCalledWith(
       'Destination "Ops Slack" created — now choose what should alert',
     )
@@ -2347,7 +2347,7 @@ describe('ProjectAlertingTab — guided setup lands step 2 on step 3', () => {
     expect(screen.getByText('Step 3 of 3')).toBeInTheDocument()
   })
 
-  it('asks before Escape drops an edited rule draft, and keeps it on Cancel (ALR-17)', async () => {
+  it('asks before Escape drops an edited rule draft, and keeps it on Cancel', async () => {
     mockCreatableDestinations()
     renderTab()
 
@@ -2435,7 +2435,7 @@ describe('ProjectAlertingTab — the tab strip honours the contract it declares'
     configured()
     renderTab('inbox')
 
-    // The strip is `ui/Tabs` now (AL-46): Radix moves focus on the next tick,
+    // The strip is `ui/Tabs` now: Radix moves focus on the next tick,
     // and selection follows focus, so each step is awaited.
     const inbox = await screen.findByRole('tab', { name: 'Inbox' })
     // Radix's roving group records the focused tab in state: focus inside act.
@@ -2595,7 +2595,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     }],
   ]
 
-  it.each(CHANNELS)('creates a %s destination with only its own fields — no chat_id (ALR-1)', async (label, type, fields, expected) => {
+  it.each(CHANNELS)('creates a %s destination with only its own fields — no chat_id', async (label, type, fields, expected) => {
     const writes = mockDestinationWrites(configured())
     renderTab('destinations')
 
@@ -2612,7 +2612,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(at(writes, 0).body).not.toHaveProperty('chat_id')
   })
 
-  it('stays on Destinations and says so when a project that has rules adds a channel (ALR-9)', async () => {
+  it('stays on Destinations and says so when a project that has rules adds a channel', async () => {
     mockDestinationWrites(configured())
     renderTab('destinations')
 
@@ -2623,7 +2623,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(screen.queryByText('New alert rule')).toBeNull()
   })
 
-  it('attaches a server error to the field it names, in words (ALR-8)', async () => {
+  it('attaches a server error to the field it names, in words', async () => {
     mockDestinationWrites(configured(), {
       refuse: { loc: ['body', 'webhook_url'], msg: 'Value error, Slack webhook URL must start with https://hooks.slack.com/' },
     })
@@ -2638,7 +2638,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(screen.queryByText(/webhook_url/)).toBeNull()
   })
 
-  it('reopens without the previous attempt\'s error (ALR-7)', async () => {
+  it('reopens without the previous attempt\'s error', async () => {
     mockDestinationWrites(configured(), { refuse: { loc: ['body'], msg: 'Value error, Destination refused' } })
     renderTab('destinations')
 
@@ -2657,7 +2657,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(screen.queryByText('Destination refused')).toBeNull()
   })
 
-  it('refuses to save a schedule other than the one on screen (ALR-3)', async () => {
+  it('refuses to save a schedule other than the one on screen', async () => {
     const writes = mockDestinationWrites([
       makeDestination({ delivery_schedule_cron: '0 9 * * *', rules: [makeRule()] }),
     ])
@@ -2674,7 +2674,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(writes).toHaveLength(0)
   })
 
-  it('masks every credential, and keeps password managers out of it (ALR-25)', async () => {
+  it('masks every credential, and keeps password managers out of it', async () => {
     mockDestinationWrites(configured())
     renderTab('destinations')
 
@@ -2691,7 +2691,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(within(dialog).getByLabelText('Name')).toHaveAttribute('maxLength', '255')
   })
 
-  it('asks for the header value a new header name needs (ALR-24)', async () => {
+  it('asks for the header value a new header name needs', async () => {
     const writes = mockDestinationWrites(configured())
     renderTab('destinations')
 
@@ -2705,7 +2705,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(writes).toHaveLength(0)
   })
 
-  it('names every missing required field inline instead of a browser bubble (AL-28)', async () => {
+  it('names every missing required field inline instead of a browser bubble', async () => {
     const writes = mockDestinationWrites(configured())
     renderTab('destinations')
 
@@ -2726,7 +2726,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(writes).toHaveLength(0)
   })
 
-  it('removes a stored webhook header as a pair of nulls (ALR-24)', async () => {
+  it('removes a stored webhook header as a pair of nulls', async () => {
     const writes = mockDestinationWrites([
       makeDestination({
         type: 'webhook',
@@ -2748,7 +2748,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(at(writes, 0).body).toMatchObject({ webhook_header_name: null, webhook_header_value: null })
   })
 
-  it('keeps an edited Jira base URL required, so emptying it is not silently ignored (ALR-26)', async () => {
+  it('keeps an edited Jira base URL required, so emptying it is not silently ignored', async () => {
     mockDestinationWrites([
       makeDestination({
         type: 'jira',
@@ -2772,7 +2772,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(within(dialog).getByLabelText('API token')).not.toBeRequired()
   })
 
-  it('edits a demo local sink as name, switch and schedule, and saves it (ALR-2)', async () => {
+  it('edits a demo local sink as name, switch and schedule, and saves it', async () => {
     const writes = mockDestinationWrites(
       [
         makeDestination({
@@ -2791,7 +2791,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Edit destination Local demo sink' }))
     const dialog = await screen.findByRole('dialog')
 
-    // A read-only line, not a select: a channel is fixed once saved (AL-32).
+    // A read-only line, not a select: a channel is fixed once saved.
     expect(within(dialog).getByTestId('dest-channel')).toHaveTextContent('Local sink')
     expect(within(dialog).queryByRole('combobox', { name: 'Channel' })).toBeNull()
     expect(within(dialog).queryByLabelText('API key')).toBeNull()
@@ -2802,7 +2802,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(at(writes, 0).body).toEqual({ name: 'Sink', enabled: true, delivery_schedule_cron: null })
   })
 
-  it('lets a demo rename its disabled Slack example, which has no webhook stored (ALR-2)', async () => {
+  it('lets a demo rename its disabled Slack example, which has no webhook stored', async () => {
     mockDestinationWrites(
       [makeDestination({ enabled: false, name: 'Slack example', webhook_set: false, rules: [] })],
       { isDemo: true },
@@ -2815,7 +2815,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(within(dialog).getByLabelText('Webhook URL')).not.toBeRequired()
   })
 
-  it('shows a failed destinations list as an error, not as "No alert destinations" (ALR-11)', async () => {
+  it('shows a failed destinations list as an error, not as "No alert destinations"', async () => {
     mockDestinationWrites([], { failList: true })
     renderTab('destinations')
 
@@ -2824,7 +2824,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument()
   })
 
-  it('does not tell Monitors there are no rules when the list failed (ALR-11)', async () => {
+  it('does not tell Monitors there are no rules when the list failed', async () => {
     mockDestinationWrites([], { failList: true })
     renderTab('monitors')
 
@@ -2832,7 +2832,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(screen.queryByText('No rules yet')).toBeNull()
   })
 
-  it('keeps a loaded list on screen when a refetch of it fails (ALR-11)', async () => {
+  it('keeps a loaded list on screen when a refetch of it fails', async () => {
     mockDestinationWrites(configured(), { failListAfter: 1 })
     renderTab('destinations')
 
@@ -2853,7 +2853,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(screen.queryByText('Could not load alert destinations')).toBeNull()
   })
 
-  it('offers no channel switch on create, so no channel inherits another\'s error (AL-32 / ALR-7)', async () => {
+  it('offers no channel switch on create, so no channel inherits another\'s error', async () => {
     mockDestinationWrites(configured(), {
       refuse: { loc: ['body', 'webhook_url'], msg: 'Value error, Slack webhook URL must start with https://hooks.slack.com/' },
     })
@@ -2867,7 +2867,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
 
     // The button that opened the form chose the channel and the title carries
     // it; the select that used to sit here only offered to wipe the form, and
-    // carried the last channel's server error onto the next (ALR-7).
+    // carried the last channel's server error onto the next.
     expect(within(dialog).getByText('New Slack destination')).toBeInTheDocument()
     expect(within(dialog).queryByRole('combobox', { name: 'Channel' })).toBeNull()
     expect(within(dialog).queryByTestId('dest-channel')).toBeNull()
@@ -2890,7 +2890,7 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
     expect(time).toHaveAccessibleDescription('Invalid cron expression')
   })
 
-  it('names all six channels in the page description (ALR-44)', async () => {
+  it('names all six channels in the page description', async () => {
     mockDestinationWrites(configured())
     renderTab('destinations')
 
@@ -2903,8 +2903,8 @@ describe('ProjectAlertingTab — the destination dialog (#197)', () => {
 
 // `hasRules` is read off the destinations list, which defaults to `[]` — so a
 // failed list used to leave a project full of incidents reading "No rules yet,
-// so nothing can raise an incident" forever, with the list hidden (ALR-10).
-describe('ProjectAlertingTab — the Inbox when destinations will not load (ALR-10)', () => {
+// so nothing can raise an incident" forever, with the list hidden.
+describe('ProjectAlertingTab — the Inbox when destinations will not load', () => {
   it('lists the incidents anyway and says what failed', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
@@ -2937,8 +2937,8 @@ describe('ProjectAlertingTab — the Inbox when destinations will not load (ALR-
   })
 })
 
-// The strip itself as a triage signal (AL-46): "Inbox 3", "Delivery log 2".
-describe('ProjectAlertingTab — counts on the section tabs (AL-46)', () => {
+// The strip itself as a triage signal: "Inbox 3", "Delivery log 2".
+describe('ProjectAlertingTab — counts on the section tabs', () => {
   afterEach(() => {
     tabCounts.value = { openIncidents: undefined, failedDeliveries: undefined }
   })
@@ -2966,8 +2966,8 @@ describe('ProjectAlertingTab — counts on the section tabs (AL-46)', () => {
 })
 
 // The counts arrived on every inbox page but the page's merged view of its
-// pages dropped them, so the Status filter never showed one (AL-14).
-describe('ProjectAlertingTab — status counts reach the Status filter (AL-14)', () => {
+// pages dropped them, so the Status filter never showed one.
+describe('ProjectAlertingTab — status counts reach the Status filter', () => {
   it('shows each status option with its incident count', async () => {
     const spy = mockAlertingFetch([makeDestination({ rules: [makeRule()] })], {
       inbox: [makeInboxGroup()],

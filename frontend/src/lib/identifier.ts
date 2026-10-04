@@ -12,7 +12,7 @@ const CYRILLIC: Record<string, string> = {
  * stripped of accents, lower-cased, runs of anything else collapsed to one
  * underscore, trimmed. A name with nothing Latin left in it (Chinese, Arabic…)
  * yields `fallback` instead of the empty string it used to, which left the
- * required internal-name field blank until submit (MET-34). Shared by the
+ * required internal-name field blank until submit. Shared by the
  * metric and fact-table forms, which both pre-fill an internal name this way.
  */
 export function toIdentifier(input: string, fallback: string): string {

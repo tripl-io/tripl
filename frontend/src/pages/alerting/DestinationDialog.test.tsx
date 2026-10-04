@@ -65,8 +65,8 @@ beforeEach(() => {
   testDestinationDraft = vi.spyOn(alertingApi, 'testDestinationDraft')
 })
 
-// Setting up Slack took Create, close, find the card, then Test (AL-30).
-describe('DestinationDialog — Send test before saving (AL-30)', () => {
+// Setting up Slack took Create, close, find the card, then Test.
+describe('DestinationDialog — Send test before saving', () => {
   it('tests the unsaved settings and says the channel took the message', async () => {
     testDestinationDraft.mockResolvedValue({ ok: true, error: null, sent_at: null })
     renderDialog({ mode: 'create', type: 'slack', handOffToRule: false })

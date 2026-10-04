@@ -83,7 +83,7 @@ describe('ApiKeysSection', () => {
     expect(screen.getByLabelText('Name')).toHaveFocus()
   })
 
-  // AU-4: an empty name is flagged inline on Generate, not by a browser bubble.
+  // an empty name is flagged inline on Generate, not by a browser bubble.
   it('says an empty key name is required, inline', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
     vi.spyOn(projectsApi, 'list').mockResolvedValue([])
@@ -120,7 +120,7 @@ describe('ApiKeysSection', () => {
     expect(screen.queryByText('5 keys')).not.toBeInTheDocument()
   })
 
-  it('folds revoked keys away behind a count (ST-20)', async () => {
+  it('folds revoked keys away behind a count', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([
       key({ id: 'k1', name: 'codex' }),
       key({ id: 'k3', name: 'ro', revoked_at: '2026-05-01T12:00:00Z' }),
@@ -135,7 +135,7 @@ describe('ApiKeysSection', () => {
     expect(screen.getByText('revoked 2026-05-01')).toBeInTheDocument()
   })
 
-  it('teaches what a key is for when there are none (ST-22)', async () => {
+  it('teaches what a key is for when there are none', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
     vi.spyOn(projectsApi, 'list').mockResolvedValue([])
     renderSection()
@@ -161,7 +161,7 @@ describe('ApiKeysSection', () => {
     expect(screen.queryByRole('heading', { name: 'No active keys' })).toBeNull()
   })
 
-  // WS-5: a failed load fell through to "No API keys yet".
+  // a failed load fell through to "No API keys yet".
   it('shows an error with retry, not an empty list, when the keys fail to load', async () => {
     vi.spyOn(apiKeysApi, 'list').mockRejectedValue(new Error('Server exploded'))
     vi.spyOn(projectsApi, 'list').mockResolvedValue([])
@@ -174,7 +174,7 @@ describe('ApiKeysSection', () => {
     expect(screen.queryByText(/0 active/)).not.toBeInTheDocument()
   })
 
-  // WS-40: active keys show when they expire, using the inclusive rule.
+  // active keys show when they expire, using the inclusive rule.
   it('shows the expiry date of active keys', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([
       key({ id: 'k1', name: 'expiring', expires_at: '2999-06-15T12:00:00Z' }),
@@ -188,7 +188,7 @@ describe('ApiKeysSection', () => {
     expect(screen.getByText('no expiry')).toBeInTheDocument()
   })
 
-  // ST-1: the single line keys off the row's width, not the viewport's, so the
+  // the single line keys off the row's width, not the viewport's, so the
   // narrow settings column at 768px keeps the stacked layout.
   it('switches a key row to one line by container width, not viewport', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([key({ id: 'k1', name: 'codex' })])
@@ -203,7 +203,7 @@ describe('ApiKeysSection', () => {
     expect(row.parentElement).toHaveClass('@container')
   })
 
-  // WS-6: revoke failures were silent and one pending revoke disabled every row.
+  // revoke failures were silent and one pending revoke disabled every row.
   it('scopes the pending revoke to its row and reports a failed revoke', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([
       key({ id: 'k1', name: 'codex' }),
@@ -272,7 +272,7 @@ describe('ApiKeysSection', () => {
     expect(screen.getByRole('button', { name: 'Revoking… claude' })).toBeDisabled()
   })
 
-  // WS-41: Cancel used to keep the abandoned draft and its error.
+  // Cancel used to keep the abandoned draft and its error.
   it('clears the draft and the error when the form is cancelled', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
     vi.spyOn(projectsApi, 'list').mockResolvedValue([])
@@ -292,7 +292,7 @@ describe('ApiKeysSection', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  // WS-39: the scope and project pickers are named kit selects.
+  // the scope and project pickers are named kit selects.
   it('labels the scope and project selects', async () => {
     vi.spyOn(apiKeysApi, 'list').mockResolvedValue([])
     vi.spyOn(projectsApi, 'list').mockResolvedValue([])
@@ -326,23 +326,23 @@ describe('ApiKeysSection', () => {
       return screen.findByRole('dialog', { name: 'Copy your API key now' })
     }
 
-    // WS-3: Esc or an outside click discarded a token that is never shown again.
+    // Esc or an outside click discarded a token that is never shown again.
     it('stays open on Escape and closes only through its own button', async () => {
       const dialog = await mintKey()
 
       fireEvent.keyDown(dialog, { key: 'Escape' })
       expect(screen.getByRole('dialog', { name: 'Copy your API key now' })).toBeInTheDocument()
       expect(within(dialog).queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
-      // Says which key and how to send it (ST-21).
+      // Says which key and how to send it.
       expect(within(dialog).getByText('agent · read-only · All projects · no expiry')).toBeInTheDocument()
       expect(within(dialog).getByText('Authorization: Bearer <key>')).toBeInTheDocument()
 
-      // Not copied yet: closing is the reader's claim to have saved it (ST-21).
+      // Not copied yet: closing is the reader's claim to have saved it.
       fireEvent.click(within(dialog).getByRole('button', { name: 'I’ve saved it' }))
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     })
 
-    // WS-2: navigator.clipboard is undefined over plain HTTP; the copy threw.
+    // navigator.clipboard is undefined over plain HTTP; the copy threw.
     it('selects the token and says so when the clipboard is unavailable', async () => {
       Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
       const dialog = await mintKey()
@@ -357,7 +357,7 @@ describe('ApiKeysSection', () => {
       expect(token).toHaveFocus()
     })
 
-    // WS-49: a browser that refuses the write is a failure too, not a silent "Copied".
+    // a browser that refuses the write is a failure too, not a silent "Copied".
     it('reports a refused clipboard write and selects the token', async () => {
       const writeText = vi.fn().mockRejectedValue(new Error('NotAllowedError'))
       Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })

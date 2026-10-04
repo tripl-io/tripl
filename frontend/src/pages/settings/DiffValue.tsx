@@ -10,7 +10,7 @@
  * The other half of the reason was size: BranchesTab.tsx was far past this
  * repo's 800-line ceiling, and this block was the largest piece of it that
  * owed the tab nothing. The rest of the tab has since been
- * split into ./branches/ (PLAN-22).
+ * split into ./branches/.
  */
 
 import { useMemo, useState } from 'react'
@@ -252,7 +252,7 @@ function WordDiffText({ segments, side }: { segments: WordSegment[]; side: 'befo
 }
 
 /** The merged paragraph: shared text once, removed words struck through in
- * the danger tint, added words in the success tint (PL-10). Sans, because it
+ * the danger tint, added words in the success tint. Sans, because it
  * is prose; the marks are real <del>/<ins>. */
 function InlineWordDiff({ segments }: { segments: InlineSegment[] }) {
   return (
@@ -280,14 +280,14 @@ function InlineWordDiff({ segments }: { segments: InlineSegment[] }) {
 }
 
 /**
- * A before → after pair, as a reviewer reads it (PLAN-19).
+ * A before → after pair, as a reviewer reads it.
  *
  * The two sides used to differ only in colour, so each now carries a visually
  * hidden "before:" / "after:" for a screen reader. Two long strings — a
  * rewritten description — are word-diffed. Prose reads as ONE paragraph in the
  * body font with the removed and added words marked in place, instead of the
- * whole sentence twice in monospace with an arrow dangling between them
- * (PL-10); "Show before / after" brings the two-sided view back. Short
+ * whole sentence twice in monospace with an arrow dangling between them;
+ * "Show before / after" brings the two-sided view back. Short
  * identifiers and enum values keep the mono `a → b`.
  */
 export function DiffPair({ before, after }: { before: unknown; after: unknown }) {

@@ -75,7 +75,7 @@ describe('EventsToolbar property filter (F23)', () => {
   })
 })
 
-describe('EventsToolbar filter bar (DS-15)', () => {
+describe('EventsToolbar filter bar', () => {
   it('reads each filter as "{Label}: {value}" and offers "Clear filters" only when one is set', () => {
     renderToolbar()
 
@@ -84,7 +84,7 @@ describe('EventsToolbar filter bar (DS-15)', () => {
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
   })
 
-  it('counts a search as something to clear (EV-16)', () => {
+  it('counts a search as something to clear', () => {
     const onClearFilters = vi.fn()
     renderToolbar({ search: 'checkout', onClearFilters })
 
@@ -92,7 +92,7 @@ describe('EventsToolbar filter bar (DS-15)', () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1)
   })
 
-  it('folds the chips behind a "Filters (n)" toggle for phones (EV-1)', () => {
+  it('folds the chips behind a "Filters (n)" toggle for phones', () => {
     renderToolbar({ filterSilentDays: 7, filterReviewed: true })
 
     const toggle = screen.getByRole('button', { name: 'Filters (2)' })
@@ -109,7 +109,7 @@ describe('EventsToolbar filter bar (DS-15)', () => {
     expect(onClearFilters).toHaveBeenCalledTimes(1)
   })
 
-  it('names the create action in sentence case (DS-29)', () => {
+  it('names the create action in sentence case', () => {
     renderToolbar()
 
     expect(screen.getByRole('button', { name: 'New event' })).toBeInTheDocument()
@@ -120,7 +120,7 @@ describe('EventsToolbar reviewed filter', () => {
   it('offers a verified filter so the flag "Mark as verified" writes can be isolated', () => {
     renderToolbar()
 
-    // "Verified", so it cannot be read as the In review status (JR-27).
+    // "Verified", so it cannot be read as the In review status.
     expect(screen.getByRole('combobox', { name: /^Verified filter/ })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: /^Reviewed filter/ })).toBeNull()
   })
@@ -171,7 +171,7 @@ describe('EventsToolbar More menu', () => {
   })
 })
 
-describe('EventsToolbar search shortcut (EVT-34)', () => {
+describe('EventsToolbar search shortcut', () => {
   it('focuses the search box on "/" pressed outside a text field', () => {
     renderToolbar()
     const search = screen.getByRole('searchbox', { name: 'Search events' })
@@ -194,7 +194,7 @@ describe('EventsToolbar search shortcut (EVT-34)', () => {
   })
 })
 
-describe('EventsToolbar filters that came from a link (EVT-35)', () => {
+describe('EventsToolbar filters that came from a link', () => {
   it('shows every status in the URL, not "Any status"', () => {
     renderToolbar({ filterStatuses: ['draft', 'live'] })
 
@@ -210,7 +210,7 @@ describe('EventsToolbar filters that came from a link (EVT-35)', () => {
   })
 })
 
-describe('EventsToolbar saved views (EVT-36)', () => {
+describe('EventsToolbar saved views', () => {
   it('offers no saved views where the table is embedded in another page', () => {
     renderToolbar({ showSavedViews: false })
 
@@ -219,7 +219,7 @@ describe('EventsToolbar saved views (EVT-36)', () => {
   })
 })
 
-describe('EventsToolbar status multi-select (EVT-35)', () => {
+describe('EventsToolbar status multi-select', () => {
   function openStatusMenu() {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Status filter' }), { key: 'Enter' })
   }
@@ -274,7 +274,7 @@ describe('EventsToolbar status multi-select (EVT-35)', () => {
   })
 })
 
-describe('EventsToolbar status filter on a narrowing tab (EVT-35)', () => {
+describe('EventsToolbar status filter on a narrowing tab', () => {
   it('names the archived tab default instead of reading "Any"', async () => {
     renderToolbar({ filterStatuses: [], tabDefaultStatuses: ['archived'] })
 

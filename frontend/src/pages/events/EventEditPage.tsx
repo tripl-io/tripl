@@ -69,7 +69,7 @@ export default function EventEditPage() {
       return
     }
     // With the query string: the list's filters and the `?branch=` EventsPage
-    // carries here on purpose, which a cold-opened link otherwise lost (EVT-38).
+    // carries here on purpose, which a cold-opened link otherwise lost.
     navigate(`${listPath}${location.search}`)
   }
 
@@ -129,8 +129,8 @@ export default function EventEditPage() {
   // grid reads the same cached query.
   const eventPropertyIds = useEventPropertyIds(slug, branchId, eventId)
   // The plan's branches, for two things: whether the event opened here lives
-  // on the branch being edited (AU-1 / PL-2), and the branch's name in the
-  // "added to branch" confirmation (JR-13). The same query the branch banner
+  // on the branch being edited, and the branch's name in the
+  // "added to branch" confirmation. The same query the branch banner
   // runs, so it is read once.
   const rowBranchId = eventQuery.data?.branch_id
   const branchesQuery = useQuery({
@@ -141,7 +141,7 @@ export default function EventEditPage() {
   })
 
   // A viewer creating an event has nothing to be shown, so they are told so
-  // once and returned to the list (AU-33). A toast id, so a re-run of the
+  // once and returned to the list. A toast id, so a re-run of the
   // effect does not stack a second one.
   useEffect(() => {
     if (!canWrite && isNew) toast.info('Only editors can add events.', { id: 'viewer-new-event' })
@@ -149,7 +149,7 @@ export default function EventEditPage() {
 
   // Viewers get the page built for reading — the event's detail page, with its
   // spec and activity — instead of a disabled form with live-looking
-  // controls, required stars and authoring hints (#237 MT-28 / AU-33 / JR-18).
+  // controls, required stars and authoring hints (#237).
   if (!canWrite && slug) {
     return (
       <Navigate
@@ -160,7 +160,7 @@ export default function EventEditPage() {
   }
 
   // The event itself first: a missing one is not an error to retry but a
-  // dead link, with the way back to the list (#237 SH-33).
+  // dead link, with the way back to the list (#237).
   if (eventQuery.error) {
     return (
       <PageContainer width="narrow">
@@ -179,7 +179,7 @@ export default function EventEditPage() {
   if (loadError) {
     return (
       <PageContainer width="narrow">
-        {/* Names what failed, not the view (SH-33). */}
+        {/* Names what failed, not the view. */}
         <ErrorState
           title="Could not load the event types, meta fields or properties"
           error={loadError}
@@ -201,10 +201,10 @@ export default function EventEditPage() {
     || variablesQuery.isLoading
     || (!isNew && eventQuery.isLoading)
     // The branch lock below reads the branch list; rendering before it lands
-    // showed an editable form with Save live until the list arrived (AU-1).
+    // showed an editable form with Save live until the list arrived.
     || (!!rowBranchId && branchesQuery.isPending)
 
-  // The form's shape while it loads, not a sentence in an empty column (AU-43).
+  // The form's shape while it loads, not a sentence in an empty column.
   if (isLoading || !slug) {
     return (
       <PageContainer width="narrow">
@@ -231,7 +231,7 @@ export default function EventEditPage() {
     : null
   const activeBranchName = branchId ? branches?.find(b => b.id === branchId)?.name : undefined
 
-  // Say that it worked, and where (AU-21, JR-13): "Create event" used to step
+  // Say that it worked, and where: "Create event" used to step
   // back to a long list with nothing to find the new row by, and on a branch
   // the diff it had just grown was two clicks away.
   const announceCreated = (created: EventMutationResponse) => {
@@ -307,13 +307,13 @@ export default function EventEditPage() {
             // to. The read is lenient and the write is strict, so a mismatch
             // rendered a perfectly normal form and failed as a bare 404 at
             // Save. Under the title, as part of the page, not above its back
-            // link (AU-1).
+            // link.
             <EntityBranchBanner
               slug={slug}
               rowBranchId={eventQuery.data?.branch_id}
               path={projectPath(currentOrgSlug(), slug, `/events/${tab ?? 'all'}/${eventId}/edit`)}
               // Not this page's id on main: it is the branch row's, which main
-              // would render again under a mismatch warning (EVT-42). The main
+              // would render again under a mismatch warning. The main
               // twin's page when the server names one, else the list on main.
               mainPath={
                 eventQuery.data?.main_event_id
@@ -337,7 +337,7 @@ export default function EventEditPage() {
           event to hang a thread on until one exists. */}
       {eventId && (
         // Below the sticky save bar with a clear break, so the page end is not
-        // mistaken for more of the form (AU-6).
+        // mistaken for more of the form.
         <div className="mt-10 max-w-[880px] pb-10">
           {/* The event's property list (F23): its own card outside the form,
               because each change saves at once, apart from Save. The open
@@ -390,7 +390,7 @@ export default function EventEditPage() {
             composerId="event-discussion-body"
             // @ offers the project's members; a mention notifies them (#259).
             mentionSlug={slug}
-            // The form's card geometry (AU-8), not a smaller box of its own.
+            // The form's card geometry, not a smaller box of its own.
             className="flex flex-col rounded-card border bg-(--surface) p-4"
           />
         </div>

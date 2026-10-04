@@ -112,7 +112,7 @@ describe('HistoryTab — a revision row keeps its identity readable', () => {
   })
 })
 
-describe('HistoryTab — what wrote each revision (PL-21)', () => {
+describe('HistoryTab — what wrote each revision', () => {
   it('folds branch openings away when the page has merges or snapshots, and shows them on request', async () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue({
       items: [
@@ -234,7 +234,7 @@ describe('HistoryTab — what wrote each revision (PL-21)', () => {
   })
 })
 
-describe('HistoryTab — a large diff stays readable (PL-22)', () => {
+describe('HistoryTab — a large diff stays readable', () => {
   it('groups entries by type, starts them closed, and filters by kind', async () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue({
       items: [makeRevision({ id: 'rev-2' }), makeRevision({ id: 'rev-1' })],
@@ -279,7 +279,7 @@ describe('HistoryTab — a large diff stays readable (PL-22)', () => {
   })
 })
 
-describe('HistoryTab — diff failure (SH-35)', () => {
+describe('HistoryTab — diff failure', () => {
   it('reports a failed diff through the shared error card', async () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue({
       items: [makeRevision({ id: 'rev-2' }), makeRevision({ id: 'rev-1' })],
@@ -294,7 +294,7 @@ describe('HistoryTab — diff failure (SH-35)', () => {
   })
 })
 
-describe('HistoryTab — paging past the first page (PLAN-50)', () => {
+describe('HistoryTab — paging past the first page', () => {
   function page(ids: string[]): PlanRevisionSummary[] {
     return ids.map((id) => makeRevision({ id, summary: `Snapshot ${id}` }))
   }
@@ -341,7 +341,7 @@ describe('HistoryTab — paging past the first page (PLAN-50)', () => {
     )
   })
 
-  it('shows a failed load as an error with a retry, not as "No revisions yet" (PLAN-41)', async () => {
+  it('shows a failed load as an error with a retry, not as "No revisions yet"', async () => {
     vi.mocked(planRevisionsApi.list).mockRejectedValue(new Error('boom'))
     renderHistory()
 
@@ -351,7 +351,7 @@ describe('HistoryTab — paging past the first page (PLAN-50)', () => {
   })
 })
 
-describe('HistoryTab — a diff says what changed, not only where (PLAN-51)', () => {
+describe('HistoryTab — a diff says what changed, not only where', () => {
   it('renders before and after values, in the branch review words', async () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue({
       items: [makeRevision({ id: 'rev-2' }), makeRevision({ id: 'rev-1' })],
@@ -382,7 +382,7 @@ describe('HistoryTab — a diff says what changed, not only where (PLAN-51)', ()
   })
 })
 
-describe('HistoryTab — the diff reads aloud (review 204)', () => {
+describe('HistoryTab — the diff reads aloud', () => {
   it('names before, after and each member change for a screen reader', async () => {
     vi.mocked(planRevisionsApi.list).mockResolvedValue({
       items: [makeRevision({ id: 'rev-2' }), makeRevision({ id: 'rev-1' })],

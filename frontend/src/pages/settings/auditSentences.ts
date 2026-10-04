@@ -15,7 +15,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  *
  * Only `create`/`update`/`delete` used to be coloured, so `bulk_delete`,
  * `remove_owner`, `merge` and `close` all rendered neutral: a destructive bulk
- * action looked exactly like a snapshot (PLAN-49). Suffix rules mean a future
+ * action looked exactly like a snapshot. Suffix rules mean a future
  * `bulk_<verb>` lands in the right tone without this list learning it. First
  * match wins.
  */
@@ -65,8 +65,8 @@ export function displayTarget(entry: { target_name?: string | null; target_type:
 }
 
 /** Past-tense verbs for the action codes, so a row reads as a sentence
- * ("Approved branch") instead of a server log line (`plan_branch.approve`,
- * PL-23). An unknown verb is humanised; the raw code stays in the chip's
+ * ("Approved branch") instead of a server log line (`plan_branch.approve`).
+ * An unknown verb is humanised; the raw code stays in the chip's
  * title. */
 const VERB_PAST: Record<string, string> = {
   create: 'Created',
@@ -165,7 +165,7 @@ export function actionSentence(action: string): string {
 
 /**
  * The Action filter's option labels: the same sentence the row chip shows, not
- * the code (ST-34). Two codes can read alike (`event.delete` and
+ * the code. Two codes can read alike (`event.delete` and
  * `event.bulk_delete` are both "Deleted event"), and a menu with two identical
  * entries cannot be chosen from, so only those carry their code in brackets.
  */
@@ -197,7 +197,7 @@ export function targetPath(entry: AuditEntry): string | null {
   }
 }
 
-/** "Today", "Yesterday" or the date, for the day headers (PL-24). */
+/** "Today", "Yesterday" or the date, for the day headers. */
 export function dayLabel(iso: string, now = new Date()): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''

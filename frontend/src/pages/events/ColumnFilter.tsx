@@ -40,7 +40,7 @@ export function ColumnFilter({
             active
               ? 'opacity-100 text-[color:var(--accent)]'
               // Hover-revealed only where there is hover: on a touch screen
-              // an invisible control cannot be found at all (EVT-21).
+              // an invisible control cannot be found at all.
               : 'opacity-0 pointer-coarse:opacity-100 text-fg-tertiary hover:text-foreground',
             open && 'opacity-100',
           )}

@@ -36,7 +36,7 @@ const MAX_FILL_OPACITY = 0.96
 const LEGEND_STOPS = [0, 0.25, 0.5, 0.75, 1] as const
 
 // The shared compact count: this file's own copy printed "1.0k" where every
-// chart prints "1k" (MON-36 / DS-30).
+// chart prints "1k".
 const formatCount = formatCompactNumber
 
 function fillOpacity(intensity: number): number {
@@ -45,7 +45,7 @@ function fillOpacity(intensity: number): number {
 
 // The grid is cut server-side from UTC bucket starts (weekday()/hour of an
 // aware UTC datetime), so every slot names its zone: a UTC+3 reader would
-// otherwise take "Wed 14:00" for their own afternoon (MON-5).
+// otherwise take "Wed 14:00" for their own afternoon.
 function slotLabel(weekday: number, hour: number): string {
   const day = WEEKDAYS_SHORT[weekday] ?? `Day ${weekday}`
   return `${day} ${hour.toString().padStart(2, '0')}:00 UTC`
@@ -104,11 +104,11 @@ export function SeasonalityHeatmap({
   color = 'var(--chart-1)',
 }: SeasonalityHeatmapProps) {
   const { data, isLoading, isError, error, refetch } = useQuery({
-    // The card renders the failure itself (MON-30).
+    // The card renders the failure itself.
     meta: SILENT_ERROR_META,
     // Keyed on the range length, not the live bounds: those step every five
-    // minutes, and a key that moved with them refetched the grid each time
-    // (MON-3). The query function reads the current window on each fetch, as
+    // minutes, and a key that moved with them refetched the grid each time.
+    // The query function reads the current window on each fetch, as
     // the By version and Breakdowns tabs do.
     queryKey: seasonalityKey(slug, scanConfigId, scopeType, scopeRef, rangeDays),
     queryFn: () =>
@@ -138,7 +138,7 @@ export function SeasonalityHeatmap({
   const scale = useMemo(() => buildScale(data?.cells ?? []), [data?.cells])
   // The slot under the pointer or last tapped, spelled out under the grid: a
   // native `title` was the only way to read a cell, invisible on touch and
-  // unstyled in dark mode (MO-30).
+  // unstyled in dark mode.
   const [activeSlot, setActiveSlot] = useState<string | null>(null)
 
   if (isLoading) {
@@ -149,7 +149,7 @@ export function SeasonalityHeatmap({
   // is still showing keeps the grid (placeholderData above).
   if (isError && !data) {
     // An outage used to read "Not enough data to build a seasonality heatmap",
-    // which is a claim about the scope, not about the request (MON-30).
+    // which is a claim about the scope, not about the request.
     return (
       <ErrorState
         title="Seasonality heatmap unavailable"
@@ -201,7 +201,7 @@ export function SeasonalityHeatmap({
       : 'Volume by weekday and hour (UTC).'
 
   return (
-    // The shared section-card geometry (DS-4 / MO-10): a header bar with the
+    // The shared section-card geometry: a header bar with the
     // 12.5px h2 and its subtitle, then the grid in the body.
     <Card>
       <CardHeader>
@@ -292,7 +292,7 @@ export function SeasonalityHeatmap({
                             empty and quiet slots, exactly where an anomaly (a drop
                             to near zero) matters most. The ring stays on the
                             unfaded element, and a dot adds a shape so the mark does
-                            not rest on colour alone (MON-18). The ring is its own
+                            not rest on colour alone. The ring is its own
                             overlay painted AFTER the fill: an inset box-shadow on
                             the wrapper paints below its children, so the fill
                             (up to 96 % opaque on the busiest slot) covered it. */}
@@ -301,7 +301,7 @@ export function SeasonalityHeatmap({
                           className={
                             // An empty slot gets an outline, not the lightest
                             // ramp colour: "no traffic yet" and "a little
-                            // traffic" looked the same (MO-30).
+                            // traffic" looked the same.
                             `relative h-6 w-full rounded-sm${count === 0 ? ' border border-dashed border-border' : ''}${
                               activeSlot === tooltipText ? ' ring-2 ring-ring' : ''}`
                           }

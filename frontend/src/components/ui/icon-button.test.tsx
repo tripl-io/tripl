@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { describe, expect, it, vi } from 'vitest'
 import { IconButton } from './icon-button'
 
-describe('IconButton (DS-12 / DS-13)', () => {
+describe('IconButton', () => {
   it('is named by its label and works without an app-level TooltipProvider', () => {
     const onClick = vi.fn()
     render(

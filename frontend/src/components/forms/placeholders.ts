@@ -1,5 +1,5 @@
 /**
- * Placeholders that cannot be mistaken for a value (MT-6 / DA-37, MT-7).
+ * Placeholders that cannot be mistaken for a value.
  *
  * A placeholder of exactly what a real value looks like (`created_at`,
  * `localhost`, `default`, `%`, a runnable query) read as prefilled, so

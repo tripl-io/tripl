@@ -7,7 +7,7 @@ import { signalDirectionTone } from '@/lib/statusLexicon'
 import type { MonitoringSignal } from '@/types'
 
 /**
- * The detail page's signal card as one sentence and its reason (MO-2 / MO-4):
+ * The detail page's signal card as one sentence and its reason:
  * "Sep 25, 6:00 PM: 5,767 events, 82% above the expected 3,174 (16.0σ)."
  * The 4-up grid of raw figures it replaces asked the reader to assemble that
  * sentence themselves, and never said why the bucket was flagged.
@@ -28,7 +28,7 @@ export function SignalSummary({
   sigmaThreshold?: number | null
   /**
    * Start an annotation on the flagged bucket. Given on the scopes without the
-   * event hero, whose signal banner already carries one (JR-5); omitted for a
+   * event hero, whose signal banner already carries one; omitted for a
    * viewer, who cannot annotate.
    */
   onAnnotate?: (bucket: string) => void

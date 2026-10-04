@@ -49,7 +49,7 @@ export interface MetricBreakdownParams extends MetricSeriesParams {
  * Catalog metric CRUD + the per-metric series surfaces (volume / breakdowns /
  * versions) that back the monitoring drilldown. Everything about a user-defined
  * metric lives here; `eventMetricsApi` (`api/eventMetrics.ts`) is event and scan
- * monitoring, not the catalog (MET-45). Mirrors the thin-wrapper style
+ * monitoring, not the catalog. Mirrors the thin-wrapper style
  * of `eventMetricsApi` / `eventsApi`: each call builds the query string explicitly
  * and is typed off the committed OpenAPI schemas.
  */
@@ -114,7 +114,7 @@ export const metricsCatalogApi = {
     api.post<FactOperandPreviewResponse>(`/projects/${slug}/metrics/fact-preview`, data),
 
   /**
-   * Dry-run a draft fact or event-composition metric's series (MT-9); nothing
+   * Dry-run a draft fact or event-composition metric's series; nothing
    * is saved. SQL metrics keep `preview`, which takes the query instead.
    */
   previewSeries: (slug: string, data: FactMetricDefinition | EventCompositionMetricDefinition) =>

@@ -205,8 +205,8 @@ async def lookup_events_by_names(
     branch_id: BranchIdDep,
     event_type_id: uuid.UUID,
     # Exact identities, repeated: ``?names=a&names=b``. An authoring form's
-    # "is this name taken" check, answered with the rule create enforces
-    # (EVT-37); a substring ``search`` per name was the only way to ask before.
+    # "is this name taken" check, answered with the rule create enforces;
+    # a substring ``search`` per name was the only way to ask before.
     names: Annotated[
         list[FreeTextFilter],
         Query(min_length=1, max_length=MAX_IDENTITY_LOOKUP_NAMES),

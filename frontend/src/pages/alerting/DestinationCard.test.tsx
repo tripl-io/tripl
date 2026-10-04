@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-/** The toaster, stubbed: a refused switch says why in one (ALR-6). */
+/** The toaster, stubbed: a refused switch says why in one. */
 const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }))
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: toastError },
@@ -219,7 +219,7 @@ describe('DestinationCard viewer gating', () => {
   })
 })
 
-describe('DestinationCard after an edit (ALR-40)', () => {
+describe('DestinationCard after an edit', () => {
   it('drops a refusal that described the credentials stored before the edit', async () => {
     vi.spyOn(alertingApi, 'testDestination').mockResolvedValue({
       ok: false,
@@ -275,7 +275,7 @@ describe('DestinationCard after an edit (ALR-40)', () => {
   })
 })
 
-describe('DestinationCard enable switch (ALR-6)', () => {
+describe('DestinationCard enable switch', () => {
   it('says why when the server refuses the write', async () => {
     vi.spyOn(alertingApi, 'updateDestination').mockRejectedValue(
       new Error('Value error, A demo destination cannot be enabled'),
@@ -291,7 +291,7 @@ describe('DestinationCard enable switch (ALR-6)', () => {
 })
 
 
-describe('DestinationCard test failures in words (AL-30)', () => {
+describe('DestinationCard test failures in words', () => {
   it('says what a transport error means and keeps the raw text under Details', async () => {
     vi.spyOn(alertingApi, 'testDestination').mockResolvedValue({
       ok: false,
@@ -312,7 +312,7 @@ describe('DestinationCard test failures in words (AL-30)', () => {
   })
 })
 
-describe('DestinationCard facts (AL-24)', () => {
+describe('DestinationCard facts', () => {
   it('names the channel instead of printing its enum, and folds stored secrets into one word', () => {
     renderCard()
 
@@ -331,7 +331,7 @@ describe('DestinationCard facts (AL-24)', () => {
   })
 })
 
-describe('DestinationCard delete (AL-25)', () => {
+describe('DestinationCard delete', () => {
   it('puts Delete inside the card, named by the destination', () => {
     const onDelete = vi.fn()
     const queryClient = new QueryClient()

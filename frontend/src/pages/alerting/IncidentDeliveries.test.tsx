@@ -98,7 +98,7 @@ describe('IncidentDeliveries', () => {
 })
 
 // It fetched 50 and ignored `total`, under a toggle promising every delivery —
-// a long-running incident with 120 silently showed 50 (ALR-32).
+// a long-running incident with 120 silently showed 50.
 describe('IncidentDeliveries — more than one page', () => {
   const page = (from: number, count: number) =>
     Array.from({ length: count }, (_, index) =>
@@ -144,7 +144,7 @@ describe('IncidentDeliveries — more than one page', () => {
     expect(screen.getAllByText('Dest 49')).toHaveLength(1)
   })
 
-  it('continues from the server cursor when the page carries one (ALR-27)', async () => {
+  it('continues from the server cursor when the page carries one', async () => {
     vi.mocked(alertingApi.listDeliveries).mockImplementation(async (_slug, params) =>
       params?.cursor === 'after-49'
         ? { items: page(50, 2), total: 52, next_cursor: null }

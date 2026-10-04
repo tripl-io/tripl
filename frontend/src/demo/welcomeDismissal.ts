@@ -42,8 +42,8 @@ export function setWelcomeDismissed(slug: string, dismissed: boolean): void {
 function subscribe(listener: () => void): () => void {
   listeners.add(listener)
   // Another tab dismissing or restoring the panel writes the same key; the
-  // store has to hear that too, or the two tabs disagree until a reload
-  // (DEMO-16). `key === null` is a storage-wide clear.
+  // store has to hear that too, or the two tabs disagree until a reload.
+  // `key === null` is a storage-wide clear.
   const onStorage = (event: StorageEvent) => {
     if (event.key === null || event.key.startsWith(DISMISS_PREFIX)) listener()
   }

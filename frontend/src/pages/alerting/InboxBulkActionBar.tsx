@@ -165,7 +165,7 @@ export function InboxBulkActionBar({
   // The bar is fixed to the viewport, so it floats OVER the end of the list —
   // and on a phone, with the note and the mute presets open, it wraps to three
   // or four rows and covered the last cards' actions and "Load more", with no
-  // way to scroll them out from under it (ALR-31). The spacer below reserves
+  // way to scroll them out from under it. The spacer below reserves
   // exactly its height at the end of the section, measured rather than guessed
   // because its height is whatever its wrapping makes it.
   const [barHeight, setBarHeight] = useState(0)
@@ -236,7 +236,7 @@ export function InboxBulkActionBar({
     <div
       ref={measureBar}
       // Below `sm` the bar is a full-width strip pinned to the bottom edge,
-      // clear of the home indicator, with one row of actions (AL-16): as a
+      // clear of the home indicator, with one row of actions: as a
       // floating card it wrapped into a ~190px box in mid-screen.
       className="fixed inset-x-0 bottom-0 z-(--z-bar) flex flex-col gap-1.5 border-t px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-[18px] sm:left-1/2 sm:max-w-[calc(100vw-2rem)] sm:-translate-x-1/2 sm:rounded-card sm:border sm:py-1.5 sm:pl-3.5 sm:pr-2 bg-bg-elevated border-border-strong"
       style={{
@@ -342,7 +342,7 @@ export function InboxBulkActionBar({
       <Button
         size="sm"
         variant="outline"
-        // Folded into "More" below `sm` (AL-16).
+        // Folded into "More" below `sm`.
         className="max-sm:hidden"
         aria-expanded={noteOpen}
         aria-label={`Add a note to ${target}`}
@@ -387,7 +387,7 @@ export function InboxBulkActionBar({
       <Button
         size="sm"
         variant="outline"
-        // Folded into "More" below `sm` (AL-16).
+        // Folded into "More" below `sm`.
         className="max-sm:hidden"
         aria-expanded={muteOpen}
         // The shared "Mute <target>" sentence, given a count instead of a scope.
@@ -404,7 +404,7 @@ export function InboxBulkActionBar({
       <Button
         size="sm"
         variant="outline"
-        // Folded into "More" below `sm` (AL-16).
+        // Folded into "More" below `sm`.
         className="max-sm:hidden"
         // One word for one slot, and it is the surface's own word, not mute
         // vocabulary: `reopen` lifts acknowledge, resolve and false-positive as
@@ -419,7 +419,7 @@ export function InboxBulkActionBar({
         Reopen
       </Button>
       {/* Phones get the count, the two decisions that close most incidents,
-          and this menu for the rest — one row, not four (AL-16). The items
+          and this menu for the rest — one row, not four. The items
           call the same handlers as the buttons they stand in for, so a note
           typed here still rides along with the next action. */}
       <DropdownMenu>

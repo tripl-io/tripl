@@ -69,7 +69,7 @@ afterEach(() => {
 })
 
 describe('ScanDetail', () => {
-  it('offers Apply to existing events only to owners, on the group rules row (#247 DA-18)', async () => {
+  it('offers Apply to existing events only to owners, on the group rules row (#247)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/scans/activity')) return mockJsonResponse(activityFor())
@@ -113,7 +113,7 @@ describe('ScanDetail', () => {
     expect(screen.getByText('1 rule')).toBeInTheDocument()
   })
 
-  it('offers no Apply action on a scan with no group rules (#247 DA-18)', async () => {
+  it('offers no Apply action on a scan with no group rules (#247)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/scans/activity')) return mockJsonResponse(activityFor())
@@ -277,7 +277,7 @@ describe('ScanDetail', () => {
     )
     const view = render(report('owner'))
     /** The raw error is the owner's, and only behind "View technical details",
-     * folded (DATA-19): never in the row, the summary or the next step. */
+     * folded: never in the row, the summary or the next step. */
     const expectRawErrorOnlyInClosedTechnicalDetails = () => {
       expect(screen.getAllByText('View technical details').length).toBeGreaterThan(0)
       for (const pattern of [/clickhouse\.internal/, /8443/]) {
@@ -297,14 +297,14 @@ describe('ScanDetail', () => {
     expect(screen.queryByText(/clickhouse\.internal/)).not.toBeInTheDocument()
 
     // Why it failed is readable in the row itself, not only in a title or
-    // after expanding (#247 DA-20).
+    // after expanding (#247).
     expect(screen.getByText('Scan failed: the data source did not respond in time.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand run details' }))
     expect(
       screen.getAllByText('Scan failed: the data source did not respond in time.'),
 ).toHaveLength(2)
-    // …and what to do about it, not only the diagnosis (#247 DA-20).
+    // …and what to do about it, not only the diagnosis (#247).
     expect(screen.getByText(/Read less per run/)).toBeInTheDocument()
     // The link names the section, so Limits opens and scrolls into view.
     expect(screen.getByRole('link', { name: 'Open Limits' })).toHaveAttribute(
@@ -536,7 +536,7 @@ describe('ScanDetail', () => {
     expect(screen.getByLabelText('checkout present on android')).toHaveTextContent('✓')
     expect(screen.getByLabelText('signup absent on android')).toHaveTextContent('—')
     expect(screen.getByLabelText('signup present on ios')).toHaveTextContent('✓')
-    // The panel says how much of the plan the matrix covers (#247 DA-19).
+    // The panel says how much of the plan the matrix covers (#247).
     expect(screen.getByText('1 of 2 events seen on every platform value')).toBeInTheDocument()
   })
 
@@ -569,12 +569,12 @@ describe('ScanDetail', () => {
     )
 
     // No platform column: one line in Event mapping, not a full-width panel
-    // holding a dead end (#247 DA-19).
+    // holding a dead end (#247).
     expect(await screen.findByText('Set in Configuration › App version')).toBeInTheDocument()
     expect(screen.queryByText('Platform presence')).not.toBeInTheDocument()
   })
 
-  it('says the platform presence failed to load instead of claiming no column (DATA-21)', async () => {
+  it('says the platform presence failed to load instead of claiming no column', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/scans/activity')) return mockJsonResponse(activityFor())
@@ -600,7 +600,7 @@ describe('ScanDetail', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   })
 
-  it('shows when a queued run was queued, and asks before stopping it (DATA-23, DATA-24)', async () => {
+  it('shows when a queued run was queued, and asks before stopping it', async () => {
     const queuedAt = new Date(Date.now() - 5_000).toISOString()
     const cancel = vi.fn()
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -692,7 +692,7 @@ describe('ScanDetail', () => {
     fireEvent.click(expander)
     expect(screen.getByRole('button', { name: /Hide 4 repeated failed runs/ })).toBeInTheDocument()
     // Retry rides only on the latest settled failure: on the older ones it
-    // offered nothing Run again does not (#247 DA-22).
+    // offered nothing Run again does not (#247).
     expect(screen.getAllByRole('button', { name: 'Retry scan' })).toHaveLength(1)
   })
 })

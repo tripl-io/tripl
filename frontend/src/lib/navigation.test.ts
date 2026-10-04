@@ -69,7 +69,7 @@ describe('buildNavGroups', () => {
     })
   })
 
-  it('names Overview and Meta fields for what they are (#238 SH-8 / AU-10)', () => {
+  it('names Overview and Meta fields for what they are (#238)', () => {
     const items = buildNavGroups('demo', undefined).flatMap((g) => g.items)
     expect(items.find((i) => i.id === 'overview')!.label).toBe('Overview')
     expect(items.find((i) => i.id === 'schema')!.label).toBe('Meta fields')
@@ -103,7 +103,7 @@ describe('buildNavGroups', () => {
     const observe = buildNavGroups('demo', summary).find((g) => g.label === 'Observe')!
     const badged = observe.items.filter((i) => i.count !== undefined)
     expect(badged.map((i) => i.id)).toEqual(['anomalies', 'alerting'])
-    // Only the open-incident backlog is an unacknowledged alert (DS-6, DS-28).
+    // Only the open-incident backlog is an unacknowledged alert.
     expect(badged.filter((i) => i.urgent).map((i) => i.id)).toEqual(['alerting'])
   })
 
@@ -117,7 +117,7 @@ describe('buildNavGroups', () => {
       .find((i) => i.id === 'anomalies')!
     expect(anomalies.count).toBe('9')
     // Signals are information; the danger tone is kept for Alerting's
-    // incidents, the work somebody owes (#240 JR-6).
+    // incidents, the work somebody owes (#240).
     expect(anomalies.tone).toBe('warning')
   })
 
@@ -163,7 +163,7 @@ describe('buildNavGroups', () => {
     }
   })
 
-  it('tones both Observe backlogs, keeping danger for the work Alerting owes (#240 JR-6)', () => {
+  it('tones both Observe backlogs, keeping danger for the work Alerting owes (#240)', () => {
     // The original defect: Alerting was the only backlog surface in the
     // Observe group whose badge was untoned. Both stay toned, but no longer in
     // the same red — signals are information (warning), incidents are the work
@@ -471,7 +471,7 @@ describe('resolveActivityTargetPath', () => {
   })
 })
 
-describe('legacySettingsRedirectPath (JR-25 / AL-42 / ST-5)', () => {
+describe('legacySettingsRedirectPath', () => {
   it('sends every moved surface to its top-level route', () => {
     for (const tab of [
       'event-types',
@@ -540,7 +540,7 @@ describe('switchProjectPath', () => {
   })
 })
 
-describe('formatCount (DS-30)', () => {
+describe('formatCount', () => {
   it('compacts sidebar counts with the shared formatter', () => {
     expect(formatCount(842)).toBe('842')
     expect(formatCount(1_000)).toBe('1k')

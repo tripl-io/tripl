@@ -101,7 +101,7 @@ describe('SeasonalityHeatmap', () => {
     expect(screen.getByText('800')).toBeInTheDocument()
   })
 
-  // MON-36: this file's own formatter printed "1.0k" where every chart prints "1k".
+  // this file's own formatter printed "1.0k" where every chart prints "1k".
   it('prints compact counts the way the charts do', async () => {
     vi.mocked(eventMetricsApi.getSeasonalityHeatmap).mockResolvedValue(
       heatmap([
@@ -116,7 +116,7 @@ describe('SeasonalityHeatmap', () => {
     expect(screen.queryByText('1.0k')).toBeNull()
   })
 
-  // MON-5: the grid is cut from UTC buckets and used to say nothing about it.
+  // the grid is cut from UTC buckets and used to say nothing about it.
   it('labels the grid and each slot as UTC', async () => {
     vi.mocked(eventMetricsApi.getSeasonalityHeatmap).mockResolvedValue(
       heatmap([
@@ -131,7 +131,7 @@ describe('SeasonalityHeatmap', () => {
     expect(screen.getByText(/Thu 14:00 UTC — 800 events/)).toBeInTheDocument()
   })
 
-  // MO-30: a native title was the only way to read a cell, and touch has none.
+  // a native title was the only way to read a cell, and touch has none.
   it('spells out the hovered or tapped slot under the grid', async () => {
     vi.mocked(eventMetricsApi.getSeasonalityHeatmap).mockResolvedValue(
       heatmap([
@@ -184,7 +184,7 @@ describe('SeasonalityHeatmap', () => {
     expect(container.querySelector('table')).toBeNull()
   })
 
-  it('keys on the range length, not the live window that steps every few minutes (MON-3)', async () => {
+  it('keys on the range length, not the live window that steps every few minutes', async () => {
     const fetchHeatmap = vi.mocked(eventMetricsApi.getSeasonalityHeatmap)
     fetchHeatmap.mockReset()
     fetchHeatmap.mockResolvedValue(heatmap([cell({ weekday: 0, hour: 0, count: 5 })]))
@@ -204,7 +204,7 @@ describe('SeasonalityHeatmap', () => {
     await waitFor(() => expect(fetchHeatmap).toHaveBeenCalledTimes(2))
     expect(fetchHeatmap).toHaveBeenLastCalledWith('demo', 'scan-1', expect.objectContaining(monthWindow))
   })
-  it('keeps the anomaly ring off the faded fill and adds a non-colour mark (MON-18)', async () => {
+  it('keeps the anomaly ring off the faded fill and adds a non-colour mark', async () => {
     vi.mocked(eventMetricsApi.getSeasonalityHeatmap).mockResolvedValue(
       heatmap([
         // The quiet slot is the one whose anomaly used to vanish: its fill sits
@@ -253,7 +253,7 @@ describe('SeasonalityHeatmap', () => {
     expect(ring.style.opacity).toBe('')
   })
 
-  it('shows an error with a retry instead of "not enough data" when the request fails (MON-30)', async () => {
+  it('shows an error with a retry instead of "not enough data" when the request fails', async () => {
     const fetchHeatmap = vi.mocked(eventMetricsApi.getSeasonalityHeatmap)
     fetchHeatmap.mockReset()
     fetchHeatmap.mockRejectedValueOnce(new Error('upstream timeout'))

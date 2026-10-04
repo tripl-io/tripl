@@ -98,16 +98,16 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 const METRIC_GRID =
   'grid grid-cols-[18px_20px_minmax(0,2fr)_minmax(0,1fr)_104px_84px_84px_28px] items-center gap-3 px-4'
   // Tablet (md-lg): the Updated column goes, or the grid ran 22px wider than
-  // its card and clipped the row menus at 768 (MT-24).
+  // its card and clipped the row menus at 768.
   + ' max-lg:grid-cols-[18px_20px_minmax(0,2fr)_minmax(0,1fr)_104px_84px_28px]'
   // Below md each row is a two-line card instead of a 748px-wide strip the
   // phone scrolls sideways through: handle, checkbox, name and menu on top,
   // the latest value and status under the name. The trend sparkline and the
-  // relative "updated" time are the columns a phone does without (DS-5).
+  // relative "updated" time are the columns a phone does without.
   + ' max-md:grid-cols-[18px_20px_minmax(0,1fr)_auto_28px] max-md:gap-y-1'
 /**
  * A viewer can neither reorder, select nor act on a row, so their grid has no
- * handle, checkbox or menu tracks: those left an empty 44px gutter (MT-29).
+ * handle, checkbox or menu tracks: those left an empty 44px gutter.
  */
 const VIEWER_GRID =
   'grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_104px_84px_84px] items-center gap-3 px-4'
@@ -130,12 +130,12 @@ const VIEWER_PHONE_CELL = {
   latest: 'max-md:col-start-1 max-md:row-start-2',
   status: 'max-md:col-start-2 max-md:row-start-2',
 } as const
-/** The Updated column: dropped on tablets as well as phones (MT-24). */
+/** The Updated column: dropped on tablets as well as phones. */
 const UPDATED_CELL = 'max-lg:hidden'
 
 /**
- * The kind chip in a row: short, so it stops eating the name at tablet width
- * (MT-24). The full label rides in its title.
+ * The kind chip in a row: short, so it stops eating the name at tablet width.
+ * The full label rides in its title.
  */
 const KIND_CHIP_LABEL: Record<MetricKind, string> = {
   fact: 'Fact',
@@ -149,7 +149,7 @@ const STATUS_TONE: Record<MetricStatus, ChipTone> = {
   archived: 'warning',
 }
 
-// The filter chips' options (DS-15). "Not filtering" is the chip's own `any`,
+// The filter chips' options. "Not filtering" is the chip's own `any`,
 // which Radix Select needs because it cannot carry the URL's empty value.
 const ANY_FILTER = 'any'
 const KIND_FILTER_OPTIONS: { value: MetricKind; label: string }[] = [
@@ -184,13 +184,13 @@ const STALE_INTERVAL_MULTIPLIER = 3
 type SignalFilter = 'anomalies' | 'stale'
 const SIGNAL_FILTERS: readonly SignalFilter[] = ['anomalies', 'stale']
 
-/** The URL search params the catalog's filters live in (MET-24). */
+/** The URL search params the catalog's filters live in. */
 type FilterParam = 'q' | 'status' | 'kind' | 'review' | 'signal' | 'fact_table'
 
 /** How long the search box waits after the last keystroke before writing `q`. */
 const SEARCH_URL_WRITE_MS = 250
 
-/** How long an archive/restore toast (and its Undo) stays up (MT-38). */
+/** How long an archive/restore toast (and its Undo) stays up. */
 const ARCHIVE_TOAST_MS = 10_000
 
 // The list endpoint caps a page at 1000 rows (backend metrics_catalog.py).
@@ -203,7 +203,7 @@ const MAX_CATALOG_PAGES = 20
  * The whole filtered catalog, page after page. The screen renders, counts,
  * selects and reorders "the catalog", so a single default page (200 rows) left
  * everything past it invisible while the header still said "250 total", and a
- * drag sent a partial `metric_ids` list (MET-7). If the server's total still
+ * drag sent a partial `metric_ids` list. If the server's total still
  * outruns what arrived (rows added mid-walk, or the page cap), the caller sees
  * `items.length < total` and says so instead of pretending.
  */
@@ -253,7 +253,7 @@ function isStaleMetric(metric: MetricDefinitionListItem, now: number): boolean {
 // copy name: `<name>_copy`, then `_2` / `_3`… on collision against the loaded
 // catalog. The source name is already a valid identifier, so the suffix keeps it
 // one.
-// Name clashes the duplicate retries through before giving up (MET-22).
+// Name clashes the duplicate retries through before giving up.
 const MAX_COPY_NAME_ATTEMPTS = 5
 
 function makeCopyName(baseName: string, existing: ReadonlySet<string>): string {
@@ -290,7 +290,7 @@ function buildDuplicatePayload(
     display_name: displayName,
     name,
     // 0 appends the copy to the end of the catalog; the source's own order
-    // made the backend keep it, so the two tied for one position (MET-22).
+    // made the backend keep it, so the two tied for one position.
     order: 0,
     owner_id: def.owner_id,
     platform_column: def.platform_column,
@@ -334,7 +334,7 @@ function buildDuplicatePayload(
       kind: 'fact',
       composition: 'single',
       interval: def.interval ?? '1h',
-      // One narrowing reader for every stored operand (MET-43): it validates
+      // One narrowing reader for every stored operand: it validates
       // the aggregation, filters `row_filters` to strings and folds a legacy
       // single `row_filter` in, which this copy used to lose.
       ...factOperandConfigToPayload(
@@ -369,7 +369,7 @@ function invalidateCatalog(qc: QueryClient, slug: string | undefined): void {
 
 /**
  * Put metrics back to the statuses they had before a status change — the
- * Undo on the success toast (MET-23). One bulk call per previous status.
+ * Undo on the success toast. One bulk call per previous status.
  */
 async function restoreStatuses(
   slug: string,
@@ -402,7 +402,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   // deep-linkable (the demo's "metric building blocks" link to Fact / SQL /
   // Event composition), and opening a metric then pressing Back
   // returns to the same search, status and signal slice instead of a reset
-  // catalog (MET-24). Unknown values fall back to "no filter" rather than
+  // catalog. Unknown values fall back to "no filter" rather than
   // querying a bogus one. Writes replace the history entry, so typing a search
   // does not bury the previous page under one entry per keystroke.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -414,7 +414,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const statusFilter: '' | MetricStatus = METRIC_STATUSES.includes(statusParam as MetricStatus)
     ? (statusParam as MetricStatus)
     : ''
-  // Review status is a server-side filter like status and kind (MT-25).
+  // Review status is a server-side filter like status and kind.
   const reviewParam = searchParams.get('review')
   const reviewFilter: '' | ReviewFilter =
     reviewParam === 'reviewed' || reviewParam === 'unreviewed' ? reviewParam : ''
@@ -490,14 +490,14 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
     staleTime: 30_000,
     // A new filter or search is a new cache entry. Without this every change
     // swapped the whole table for "Loading…" and the stats for "—", then
-    // repainted, losing the scroll position on each pause in typing (MET-11).
+    // repainted, losing the scroll position on each pause in typing.
     // The previous rows stay, dimmed, until the new ones land.
     placeholderData: keepPreviousData,
   })
   const isRefreshing = metricsQuery.isPlaceholderData
   // The stat strip is a project-level summary, so it reads the UNFILTERED
   // catalog: counted from the filtered list, a search made the project look
-  // like it had 0 metrics (MT-23). With no filter on this is the same cache
+  // like it had 0 metrics. With no filter on this is the same cache
   // entry as the list above, so it costs no second request.
   const summaryQuery = useQuery({
     queryKey: metricsCatalogListKey(slug, '', '', ''),
@@ -513,7 +513,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const metrics = useMemo(() => data?.items ?? [], [data])
   const total = data ? data.total : 0
   // More rows on the server than arrived: say so, and keep whole-catalog
-  // actions (reorder) off, rather than acting on a slice (MET-7).
+  // actions (reorder) off, rather than acting on a slice.
   const isTruncated = !!data && metrics.length < total
   // Internal names of the loaded catalog — the collision set for the "Duplicate
   // as draft" copy-name suffixing.
@@ -525,11 +525,11 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const active = summary?.active_total ?? summaryItems.filter(m => m.status === 'active').length
   // Staleness is judged against a clock that keeps moving. A "now" frozen at
   // mount never counted a metric that went stale while the tab stayed open —
-  // the normal life of a monitoring surface (MET-26). A fresh fetch moves it
+  // the normal life of a monitoring surface. A fresh fetch moves it
   // too, so the count agrees with the rows it just received.
   const tickMs = useNow(60_000)
   const nowMs = Math.max(tickMs, metricsQuery.dataUpdatedAt)
-  // Operational rollups over the whole catalog (MT-23): no
+  // Operational rollups over the whole catalog: no
   // filter — search, status, kind or the stat toggles themselves — changes them.
   const anomalyCount = useMemo(() => summaryItems.filter(hasActiveSignal).length, [summaryItems])
   const staleCount = useMemo(
@@ -578,7 +578,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
   const canReorder =
     canWrite && !hasFilters && !isTruncated && !isRefreshing && metrics.length > 1
 
-  // The active filters, named, for the "nothing matched" state (MET-25).
+  // The active filters, named, for the "nothing matched" state.
   const activeFilterLabels = [
     searchInput ? `search “${searchInput}”` : null,
     statusFilter ? `status ${METRIC_STATUS_LABEL[statusFilter]}` : null,
@@ -604,8 +604,8 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
       return next
     })
   }
-  // From "some selected" the header box clears, as its minus sign promises
-  // (EV-26); only an empty selection selects everything.
+  // From "some selected" the header box clears, as its minus sign promises;
+  // only an empty selection selects everything.
   const toggleAll = () => {
     setSelectedIds(selected.length > 0 ? new Set() : new Set(visibleMetrics.map(m => m.id)))
   }
@@ -659,7 +659,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
       setSelectedIds(new Set())
       invalidateCatalog(qc, slug)
       // One click used to archive N metrics and stop their collection with no
-      // way back (MET-23). The toast carries the way back.
+      // way back. The toast carries the way back.
       toast.success(
         `${pluralMetrics(count)} set to ${METRIC_STATUS_LABEL[status].toLowerCase()}.`,
         previous.length > 0 && slug
@@ -682,7 +682,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
     },
   })
 
-  // Marks every selected metric reviewed in one call (MT-25).
+  // Marks every selected metric reviewed in one call.
   const bulkReviewMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: async () => {
@@ -756,7 +756,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
       ) : (
         <MiniStatStrip boxed phoneGrid className={isEmpty ? 'opacity-60' : undefined}>
           {/* Pending values are a skeleton bar with no tone, never "—" or a
-              green 0 that reads as an answer (#237 DS-25 / MT-33). */}
+              green 0 that reads as an answer (#237). */}
           <MiniStat label="Metrics" value={summary ? formatNumber(summaryTotal) : <StatValueSkeleton />} />
           <MiniStat
             label="Active"
@@ -775,7 +775,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
             // whose anomalies all sit outside the metric catalog therefore
             // renders 0 here beside a red 3 in the nav ~300px away, and a
             // reader stops trusting both numbers. "With" keeps
-            // that scope beside the "Metrics" tile without repeating it (MT-26).
+            // that scope beside the "Metrics" tile without repeating it.
             label="With anomalies"
             value={
               summary ? (
@@ -842,9 +842,9 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
                 : undefined
             }
           >
-            {/* The app's one filter bar (DS-15): search, then "{Label}: {value}"
+            {/* The app's one filter bar: search, then "{Label}: {value}"
                 chips that apply instantly. Native selects here drew a different
-                height, font and dropdown from every other control (DS-14). */}
+                height, font and dropdown from every other control. */}
             <FilterBar
               active={hasFilters}
               onClear={clearFilters}
@@ -939,7 +939,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
               <SectionSkeleton variant="rows" label="Loading metrics…" />
             ) : visibleMetrics.length === 0 ? (
               // Names what is filtering, the stat toggle included: it is not an
-              // obvious control to undo (MET-25). The one-click way out is the
+              // obvious control to undo. The one-click way out is the
               // filter bar's "Clear filters" directly above.
               <div
                 className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-6 text-body-sm text-fg-tertiary"
@@ -1000,7 +1000,7 @@ export function MetricsCatalog({ slug }: { slug?: string }) {
                             screen readers still get the header. */}
                         <span role="columnheader" className="text-right max-md:sr-only">Latest</span>
                         {/* "20 pts" said nothing about the time span; the
-                            count of collections sits in the tooltip (MT-34). */}
+                            count of collections sits in the tooltip. */}
                         <span
                           role="columnheader"
                           className={PHONE_CELL.dropped}
@@ -1073,7 +1073,7 @@ function MetricRow({
   const navigate = useNavigate()
   const href = slug ? getMetricMonitoringPath(slug, metric.id) : undefined
   // The roster names an owned metric's owner; rows share the one request,
-  // and a catalog with no owners makes none (MT-25).
+  // and a catalog with no owners makes none.
   const { data: users } = useQuery({
     queryKey: usersKey(),
     queryFn: () => usersApi.list(),
@@ -1112,14 +1112,14 @@ function MetricRow({
 
   // No tabIndex and no key handler on the row: the name Link is the keyboard
   // route to the same page, so a focusable row only added a second Tab stop
-  // per row that did the same thing, announced as every cell run together
-  // (MET-39). The row click stays for the pointer, as a bigger target.
+  // per row that did the same thing, announced as every cell run together.
+  // The row click stays for the pointer, as a bigger target.
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- pointer-only convenience; the name Link is the keyboard route (MET-39)
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- pointer-only convenience; the name Link is the keyboard route
     <div
       ref={setNodeRef}
       role="row"
-      // Height follows the Appearance density (DS-9): `--row-h` is the floor,
+      // Height follows the Appearance density: `--row-h` is the floor,
       // so compact rows sit tighter and comfy rows open up like the Events table.
       className={`${canWrite ? METRIC_GRID : VIEWER_GRID} min-h-(--row-h) border-b py-1.5 last:border-0 ${
         href ? 'cursor-pointer transition-colors hover:bg-[var(--surface-hover)]' : 'cursor-default'
@@ -1141,7 +1141,7 @@ function MetricRow({
                 type="button"
                 aria-label={`Reorder ${metric.display_name}`}
                 // Dragging a row on a phone is impractical; the handle stays
-                // for a pointer from md up (MT-26).
+                // for a pointer from md up.
                 className="flex cursor-grab touch-none items-center justify-center rounded-sm p-0.5 hover:bg-[var(--surface-hover)] active:cursor-grabbing max-md:hidden text-fg-tertiary"
                 onClick={event => event.stopPropagation()}
                 {...attributes}
@@ -1193,19 +1193,19 @@ function MetricRow({
             {metric.display_name}
           </span>
         )}
-        {/* A kind tag is an outline pill, a status a soft one (DS-6). */}
+        {/* A kind tag is an outline pill, a status a soft one. */}
         <Chip variant="outline" title={METRIC_KIND_LABEL[metric.kind]}>
           {KIND_CHIP_LABEL[metric.kind]}
         </Chip>
-        {/* Who answers for the metric (MT-25). In the name's flexible track:
+        {/* Who answers for the metric. In the name's flexible track:
             the 84px Status cell has no room left beside its chip and check. */}
         {ownerName && <UserAvatar name={ownerName} size={18} label={`Owner: ${ownerName}`} />}
       </span>
       <span
         role="cell"
         title={latestTitle}
-        // A figure, not an identifier: sans with tabular digits (DS-17),
-        // right-aligned so magnitudes line up (MT-34).
+        // A figure, not an identifier: sans with tabular digits,
+        // right-aligned so magnitudes line up.
         className={`tnum truncate text-body-sm font-medium md:text-right ${cell.latest}`}
         style={{ color: signalTone ? `var(--${signalTone})` : 'var(--fg)' }}
       >
@@ -1225,7 +1225,7 @@ function MetricRow({
           {METRIC_STATUS_LABEL[metric.status]}
         </Chip>
         {/* The review state events already show, so a reader can tell which
-            metrics are vetted (MT-25). */}
+            metrics are vetted. */}
         {metric.reviewed && (
           <span title="Reviewed" className="inline-flex shrink-0 text-success">
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1281,7 +1281,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
       const def = await metricsCatalogApi.get(slug, metric.id)
       // The loaded list is only the filtered view, so a hidden `<name>_copy`
       // can still be taken: on a name clash take the next suffix rather than
-      // failing the whole action (MET-22).
+      // failing the whole action.
       const taken = new Set(existingNames)
       for (let attempt = 1; ; attempt += 1) {
         const name = makeCopyName(def.name, taken)
@@ -1309,9 +1309,9 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
     mutationFn: (status: MetricStatus) => metricsCatalogApi.update(slug, metric.id, { status }),
     onSuccess: (_data, status) => {
       invalidateCatalog(qc, slug)
-      // Archiving stops collection; the toast carries the way back (MET-23),
+      // Archiving stops collection; the toast carries the way back,
       // names the metric and stays long enough to be read: a misclicked
-      // Archive went unnoticed behind the default ~4s toast (MT-38).
+      // Archive went unnoticed behind the default ~4s toast.
       const previousStatus = metric.status
       const name = `“${metric.display_name}”`
       toast.success(
@@ -1332,7 +1332,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
     },
   })
 
-  // The review state metrics carry but no screen could set (MT-25).
+  // The review state metrics carry but no screen could set.
   const reviewMut = useMutation({
     mutationFn: (reviewed: boolean) => metricsCatalogApi.update(slug, metric.id, { reviewed }),
     onSuccess: (_data, reviewed) => {
@@ -1347,7 +1347,7 @@ function MetricRowMenu({ metric, slug, existingNames, isCoachTarget }: MetricRow
 
   // The watch is detached from this row: search, a filter, a stat toggle or
   // leaving the page all unmount the row, and each used to end the watch
-  // silently, breaking the "you will be notified" promise (MET-8). The list is
+  // silently, breaking the "you will be notified" promise. The list is
   // refreshed on success AND on error, so the row's status never stays stale.
   const isCollecting = useIsMetricCollectionWatched(slug, metric.id)
   const collectMut = useMutation({

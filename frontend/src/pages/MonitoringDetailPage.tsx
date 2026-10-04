@@ -91,7 +91,7 @@ const EMPTY_META_FIELDS: MetaFieldDefinition[] = []
  * One page, four scopes: an event, an event type, a scan's project total, and a
  * catalog metric. The page owns the queries that define the entity (the event,
  * the metric definition, the series); every secondary tab lives under
- * `pages/monitoring/` and owns its own query and error state (MON-35).
+ * `pages/monitoring/` and owns its own query and error state.
  */
 
 export default function MonitoringDetailPage() {
@@ -104,7 +104,7 @@ export default function MonitoringDetailPage() {
   const navigate = useNavigate()
   const location = useLocation()
   // Edit, collect, delete and annotations are EditorUserDep; a viewer reads the
-  // page without them instead of meeting each as a 403 (MON-6).
+  // page without them instead of meeting each as a 403.
   const canWrite = useCanWriteProject()
   // The legacy `/events/detail/:eventId` route carries no `:scope`; default to
   // the event scope when an eventId is present so the page never crashes on an
@@ -116,14 +116,14 @@ export default function MonitoringDetailPage() {
   // `/monitoring/` (event-type, project-total) belongs to Anomalies.
   // The eyebrow names the nav group and the scope, the rule
   // every Observe page follows, instead of a separate back button above the
-  // header (DS-2 / MO-40); the top bar's breadcrumb is the way back.
+  // header; the top bar's breadcrumb is the way back.
   const eyebrow = scope === 'metric'
     ? 'Observe · Metric'
     : scope === 'event_type'
       ? 'Observe · Event type'
       : 'Observe · Project total'
 
-  // Tab, range, granularity and filters live in the URL (MON-24).
+  // Tab, range, granularity and filters live in the URL.
   const [search, searchActions] = useMonitoringDetailSearch()
   const { rangeDays } = search
   const metricsRef = useRef<HTMLDivElement>(null)
@@ -164,7 +164,7 @@ export default function MonitoringDetailPage() {
 
   // Only the event and event-type pages read event types (the type's fields,
   // name and colour); a metric or project-total page used to download every
-  // type with its field definitions, and blank itself if that failed (MON-37).
+  // type with its field definitions, and blank itself if that failed.
   const eventTypesQuery = useQuery({
     queryKey: eventTypesKey(slug, branchId),
     queryFn: () => eventTypesApi.list(slug!, branchId),
@@ -174,7 +174,7 @@ export default function MonitoringDetailPage() {
   const eventTypes = eventTypesQuery.data
 
   // Secondary: a failure only costs the meta-field labels, and the global
-  // toast says so — it is not a reason to blank the page (MON-8).
+  // toast says so — it is not a reason to blank the page.
   const metaFieldsQuery = useQuery({
     queryKey: metaFieldsKey(slug, branchId),
     queryFn: () => metaFieldsApi.list(slug!, branchId),
@@ -200,7 +200,7 @@ export default function MonitoringDetailPage() {
   // chart ticks, the tooltip and the stat card alike: percent units store
   // fractions (0.08 for 8 %) and render ×100, currency units lead
   // ('$1,234', not '1,234 $'), and a sub-1 value keeps two significant digits
-  // (a 0.004 s latency used to tick and tooltip as '0', DS-31 / MET-40). The
+  // (a 0.004 s latency used to tick and tooltip as '0'). The
   // axis leaves a trailing unit off, where every tick would repeat it; the
   // tooltip spells it out. Event scopes keep the count rendering.
   const metricUnit = metricDefinition?.unit ?? null
@@ -218,7 +218,7 @@ export default function MonitoringDetailPage() {
   // historical 'events'.
   const metricSeriesLabel = scope === 'metric' ? metricDefinition?.unit || 'value' : 'events'
   // Event volumes sum into a coarser bucket; a ratio, average or percentage
-  // metric averages instead (MON-2 / MET-12).
+  // metric averages instead.
   const rollupMode = scope === 'metric' ? metricRollupMode(metricDefinition) : 'sum'
   // Until a metric's definition arrives its rollup is unknown: anything drawn
   // with the 'sum' fallback would show a ratio metric summed, then snap.
@@ -251,10 +251,10 @@ export default function MonitoringDetailPage() {
     meta: SILENT_ERROR_META,
   })
   const metrics = metricsQuery.data
-  // One default rule for every scope (MON-43): the range's readable default,
+  // One default rule for every scope: the range's readable default,
   // never finer than the collection interval. A manual pick wins and stays
   // sticky across range changes — but is bumped coarser when it would draw more
-  // points than a chart can take over the new range (MON-23).
+  // points than a chart can take over the new range.
   // The collection interval's own granularity is exempt from that cap, so a
   // 15 min series can still be read at 15 min with its band and forecast.
   const nativeGranularity = granularityForInterval(metrics?.interval)
@@ -270,7 +270,7 @@ export default function MonitoringDetailPage() {
   const scanConfigId = metrics?.scan_config_id ?? (scope === 'project_total' ? scopeId : null)
 
   // Secondary: without it the By version tab stays hidden, and the global toast
-  // names the failure (MON-8).
+  // names the failure.
   const scanConfigQuery = useQuery({
     queryKey: scanConfigKey(slug, scanConfigId),
     queryFn: () => scansApi.get(slug!, scanConfigId!),
@@ -309,7 +309,7 @@ export default function MonitoringDetailPage() {
   const selectedTab: MonitoringDetailTab = availableTabs.includes(search.tab) ? search.tab : 'volume'
 
   // On a phone the tab strip scrolls; keep the active tab inside it, and fade
-  // the right edge so the tabs past it are discoverable (MO-32). The strip is
+  // the right edge so the tabs past it are discoverable. The strip is
   // scrolled directly: scrollIntoView would also scroll the page to it. The
   // strip is held in state, not a ref: the page first paints a skeleton, and a
   // ref's effect keyed on the tab alone never re-ran once the strip mounted, so
@@ -326,7 +326,7 @@ export default function MonitoringDetailPage() {
     }
   }, [selectedTab, tabStrip])
 
-  // The hero's "Discussion (n)" chip and the banner's "Discuss" (JR-7 / JR-5).
+  // The hero's "Discussion (n)" chip and the banner's "Discuss".
   // The thread's own query and cache key, so the count and the thread below
   // cannot disagree, and a posted comment updates both.
   const discussionQuery = useQuery({
@@ -341,7 +341,7 @@ export default function MonitoringDetailPage() {
     document.getElementById('event-detail-discussion-body')?.focus({ preventScroll: true })
   }
 
-  // The Events list's bulk "Mark as verified", for this one event (JR-8).
+  // The Events list's bulk "Mark as verified", for this one event.
   const queryClient = useQueryClient()
   const markVerifiedMutation = useMutation({
     mutationFn: () => eventsApi.bulkUpdate(slug!, [scopeId], { reviewed: true }, branchId),
@@ -372,7 +372,7 @@ export default function MonitoringDetailPage() {
   )
   // Where the collected series ends: the newest bucket's start plus one
   // bucket. An annotation past it is parked on that bucket, and the form says
-  // so (MO-8).
+  // so.
   const dataEnd = useMemo(() => {
     const points = metrics?.data ?? []
     const last = points.at(-1)
@@ -418,7 +418,7 @@ export default function MonitoringDetailPage() {
     if (scope === 'metric') {
       if (metricDefinition?.description) return metricDefinition.description
       // A placeholder sentence said nothing; the gap is an invitation to fill
-      // it in (#246 JR-16).
+      // it in (#246).
       return metricDefinition && canWrite ? (
         <Link
           to={metricEditPath}
@@ -432,7 +432,7 @@ export default function MonitoringDetailPage() {
     if (scope === 'event_type') return eventType?.description || 'Aggregated volume for the event type.'
     return event?.description || 'Monitoring detail for the selected event.'
   })()
-  // Why the chart is empty, per scope (#246 JR-16): a draft is never
+  // Why the chart is empty, per scope (#246): a draft is never
   // collected (the header's Activate is the action), and a fact or SQL metric
   // is computed on its own schedule rather than by a scan.
   const chartEmptyDescription = (() => {
@@ -452,7 +452,7 @@ export default function MonitoringDetailPage() {
   const isEventScope = scope === 'event'
 
   // Only the queries that define the entity blank the page; every tab renders
-  // its own failure inside itself (MON-8). A disabled query never errors, so
+  // its own failure inside itself. A disabled query never errors, so
   // the list covers every scope.
   const entityQueries = [eventQuery, eventTypesQuery, metricDefinitionQuery, metricsQuery]
   const failedEntityQuery = entityQueries.find(query => query.isError)
@@ -480,7 +480,7 @@ export default function MonitoringDetailPage() {
     ? (column, value) => `${location.pathname}${breakdownValueSearch(location.search, column, value)}`
     : undefined
   const scanSettingsHref = slug && scanConfigId ? projectPath(currentOrgSlug(), slug, `/scans/${scanConfigId}`) : null
-  // A missing entity is not a failure to retry (SH-33): a deleted event or
+  // A missing entity is not a failure to retry: a deleted event or
   // metric, or a stale link, says so and offers the way back to its list.
   const notFound = scope === 'metric'
     ? { title: 'Metric not found', back: { to: projectPath(currentOrgSlug(), slug, '/metrics'), label: 'Back to Metrics' } }
@@ -502,7 +502,7 @@ export default function MonitoringDetailPage() {
           notFound={notFound}
           // Retry exactly what failed: the metric definition was never retried
           // before, and refetching a disabled query ignores `enabled` and fired
-          // a request with a null scan id (MON-7).
+          // a request with a null scan id.
           onRetry={() => {
             for (const query of entityQueries) {
               if (query.isError) void query.refetch()
@@ -540,7 +540,7 @@ export default function MonitoringDetailPage() {
   }
 
   // The event hero, not the generic header, is what an event page settles into;
-  // painting the generic one first made the layout jump (MON-9).
+  // painting the generic one first made the layout jump.
   if (isEventScope && !event) {
     return (
       <PageContainer>
@@ -557,17 +557,17 @@ export default function MonitoringDetailPage() {
   return (
     // The list pages' container: no padding of its own inside the shell's, and
     // no narrower centred column, so the page lines up with the banner and the
-    // top bar (DS-3 / MO-9).
+    // top bar.
     <PageContainer>
       {/* Above the title, where the edit page has it: under the chart and
-          the KPI tiles nobody saw it (PL-3). */}
+          the KPI tiles nobody saw it. */}
       {isEventScope && event && slug && (
         <EntityBranchBanner
           slug={slug}
           rowBranchId={event.branch_id}
           path={projectPath(currentOrgSlug(), slug, `/monitoring/event/${event.id}`)}
           // Not this id on main: it is the branch row's, which main would
-          // render again under a mismatch warning (EVT-42). The main twin's
+          // render again under a mismatch warning. The main twin's
           // page when the server names one, else the events list on main.
           mainPath={
             event.main_event_id
@@ -601,7 +601,7 @@ export default function MonitoringDetailPage() {
           onMarkVerified={canWrite && !event.reviewed && !markVerifiedMutation.isPending
             ? () => markVerifiedMutation.mutate()
             : undefined}
-          // The signal's incident carries Ack / Mute / Resolve (MO-4 / JR-5):
+          // The signal's incident carries Ack / Mute / Resolve:
           // its inbox item when the payload names it (#254), else the inbox.
           alertsPath={slug
             ? getAlertingPath(slug, {
@@ -685,7 +685,7 @@ export default function MonitoringDetailPage() {
 
       {isEventScope && event && (
         // grid-cols-1 is minmax(0, 1fr): an auto column grew to the Fields
-        // table's width on a phone and the page scrolled sideways (LIVE-5).
+        // table's width on a phone and the page scrolled sideways.
         <div className="grid grid-cols-1 items-start gap-[14px] lg:grid-cols-[1.5fr_1fr] [&>*]:min-w-0">
           <EventFieldsTable eventType={eventType} event={event} fieldDefMap={fieldDefMap} />
           <EventSideColumn
@@ -718,11 +718,11 @@ export default function MonitoringDetailPage() {
 
       {/* The hero's "Metrics" action scrolls here. The anchor used to be a
           separate span with -mt-5, which cancelled the page gap and glued the
-          tab strip to the card above it (LIVE-12). */}
+          tab strip to the card above it. */}
       <div ref={metricsRef} className="min-w-0 scroll-mt-4">
         <Tabs value={selectedTab} onValueChange={value => searchActions.setTab(value as MonitoringDetailTab)}>
           {/* The strip scrolls on its own on a phone instead of widening the
-              page: five triggers do not fit 375px (LIVE-5). */}
+              page: five triggers do not fit 375px. */}
           <div
             ref={setTabStrip}
             className="tripl-scroll-x relative -mx-1 overflow-x-auto px-1 pr-8 [mask-image:linear-gradient(to_right,black_85%,transparent)] sm:pr-1 sm:[mask-image:none]"
@@ -780,7 +780,7 @@ export default function MonitoringDetailPage() {
               annotatePrefill={annotatePrefill}
               dataEnd={dataEnd}
               canWrite={canWrite}
-              // The event hero's signal banner carries its own Annotate (JR-5).
+              // The event hero's signal banner carries its own Annotate.
               onAnnotate={canWrite && !isEventScope ? startAnnotation : undefined}
               onRangeDaysChange={searchActions.setRangeDays}
               onGranularityChange={setGranularity}

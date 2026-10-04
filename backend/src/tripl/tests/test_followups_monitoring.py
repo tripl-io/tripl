@@ -1,11 +1,11 @@
 """Monitoring follow-ups (lane F3): row sparkline series, collection timing on
 the drilldown response, and the Events tab's rolling-week totals.
 
-* MO-19 — ``POST /anomalies/signals/series``: a batched per-scope series for the
+* ``POST /anomalies/signals/series``: a batched per-scope series for the
   Anomalies row sparklines, kept out of the 30 s signals cache.
 * L4 — ``last_collected_at`` / ``next_collection_at`` on ``EventMetricsResponse``,
   answered by the scheduler's own pure due-check.
-* EV-21 — ``week_total`` / ``prior_week_total`` on the Events tab's series.
+* ``week_total`` / ``prior_week_total`` on the Events tab's series.
 """
 
 from __future__ import annotations
@@ -213,7 +213,7 @@ async def test_a_scope_far_behind_the_grid_is_due_now(client: AsyncClient) -> No
 
 
 # --------------------------------------------------------------------------- #
-# MO-19: batched sparkline series for open signals
+# batched sparkline series for open signals
 # --------------------------------------------------------------------------- #
 
 
@@ -360,7 +360,7 @@ async def test_signal_series_rejects_an_oversized_batch(client: AsyncClient) -> 
 
 
 # --------------------------------------------------------------------------- #
-# EV-21: rolling-week totals on the Events tab's series
+# rolling-week totals on the Events tab's series
 # --------------------------------------------------------------------------- #
 
 

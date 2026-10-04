@@ -7,7 +7,7 @@ import { createContext, useContext } from 'react'
  * The hints on this form are consequential — "Saving this stops scans from
  * updating the field", "An event already answers to this name" — and they were
  * visual only, so a screen-reader user tabbing into the box heard the label and
- * nothing of what typing into it would do (EVT-48). The controls read this
+ * nothing of what typing into it would do. The controls read this
  * rather than taking a prop because a row's control is often nested a few
  * components deep (a coach mark, a field-type switch).
  */

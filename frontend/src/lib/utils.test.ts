@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cn } from './utils'
 
-describe('cn with the app type and radius scale (DS-20)', () => {
+describe('cn with the app type and radius scale', () => {
   it('keeps a scale size next to a colour class', () => {
     expect(cn('text-body-sm', 'text-fg-subtle')).toBe('text-body-sm text-fg-subtle')
     expect(cn('text-micro', 'text-fg-tertiary')).toBe('text-micro text-fg-tertiary')

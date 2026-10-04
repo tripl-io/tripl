@@ -24,7 +24,7 @@ export function downloadJson(filename: string, data: unknown): void {
   document.body.appendChild(link)
   link.click()
   link.remove()
-  // Deferred for the same reason as the events CSV (EVT-41): some browsers
+  // Deferred for the same reason as the events CSV: some browsers
   // start the download after click() returns.
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

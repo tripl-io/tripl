@@ -351,7 +351,7 @@ class EventResponse(BaseModel):
     # collection finds it, and on list responses, which do not compute it.
     first_seen_at: datetime | None = None
     # A branch copy's twin on main (``_branch_counterparts.main_counterparts``),
-    # so a branch page can link to the same event on main (EVT-42). Null on a
+    # so a branch page can link to the same event on main. Null on a
     # main row, on a branch event main has no counterpart of, and — like
     # ``first_seen_at`` — on every response but the single-event read.
     main_event_id: uuid.UUID | None = None
@@ -450,7 +450,7 @@ MAX_IDENTITY_LOOKUP_NAMES = 200
 
 
 class EventIdentityHolder(BaseModel):
-    """An event that already answers to a looked-up identity (EVT-37).
+    """An event that already answers to a looked-up identity.
 
     ``identity`` is the name that was asked about; ``name`` is the holder's own
     name, which differs when a scanned event has since been renamed.

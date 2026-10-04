@@ -71,7 +71,7 @@ describe('RelationsTab', () => {
     expect(screen.queryByRole('button', { name: /Edit relation/ })).not.toBeInTheDocument()
   })
 
-  it('names the joined fields in each row and in the delete confirm (PLAN-52)', async () => {
+  it('names the joined fields in each row and in the delete confirm', async () => {
     renderTab(authAs('member'))
 
     expect(await screen.findByText('purchase.user_id')).toBeInTheDocument()
@@ -96,7 +96,7 @@ describe('RelationsTab', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Relation is in use')
   })
 
-  it('shows a skeleton, not "No relations", while the list loads (PLAN-41)', async () => {
+  it('shows a skeleton, not "No relations", while the list loads', async () => {
     vi.mocked(relationsApi.list).mockReturnValue(new Promise(() => {}))
     renderTab(authAs('member'), { seed: false })
 
@@ -104,7 +104,7 @@ describe('RelationsTab', () => {
     expect(screen.queryByText('No relations')).not.toBeInTheDocument()
   })
 
-  it('shows a failed load as an error with a retry, not as an empty list (PLAN-41)', async () => {
+  it('shows a failed load as an error with a retry, not as an empty list', async () => {
     vi.mocked(relationsApi.list).mockRejectedValue(new Error('boom'))
     renderTab(authAs('member'), { seed: false })
 
@@ -113,7 +113,7 @@ describe('RelationsTab', () => {
     expect(screen.queryByText('No relations')).not.toBeInTheDocument()
   })
 
-  it('shows the relation type in words and the join in one cell (AU-13)', async () => {
+  it('shows the relation type in words and the join in one cell', async () => {
     renderTab(authAs('member'))
 
     const source = await screen.findByText('purchase.user_id')
@@ -121,7 +121,7 @@ describe('RelationsTab', () => {
     expect(source.closest('td')).toHaveTextContent('purchase.user_id→ to signup.user_id')
   })
 
-  it('groups each end of a new relation and previews the join (AU-13)', async () => {
+  it('groups each end of a new relation and previews the join', async () => {
     renderTab(authAs('member'))
     await screen.findByText('purchase.user_id')
 
@@ -141,7 +141,7 @@ describe('RelationsTab', () => {
     expect(within(dialog).getByRole('button', { name: 'Create' })).toBeEnabled()
   })
 
-  it('edits a relation in place with the same From/To dialog (AU-13)', async () => {
+  it('edits a relation in place with the same From/To dialog', async () => {
     vi.mocked(relationsApi.update).mockResolvedValue(RELATION)
     renderTab(authAs('member'))
 

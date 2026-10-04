@@ -30,7 +30,7 @@ describe('buildRunReport — "Rows read" covers two populations', () => {
     const metricsRows = lineById(buildRunReport(job({ query_rows_scanned: 900 }), 'monitoring'), 'rows-read')!
 
     // The catalog analyzer groups in the warehouse, so its figure is distinct
-    // column combinations, not warehouse rows (#247 DA-4).
+    // column combinations, not warehouse rows (#247).
     expect(catalogRows.text).toBe('Read 900 distinct column combinations (grouped in the warehouse).')
     expect(metricsRows.text).toBe('Read 900 warehouse rows.')
 
@@ -44,7 +44,7 @@ describe('buildRunReport — "Rows read" covers two populations', () => {
     expect(metricsRows.title).toContain('capped by the metrics row cap')
   })
 
-  it('reads a catalog run in warehouse rows, with its combinations beside them (i9mt.16)', () => {
+  it('reads a catalog run in warehouse rows, with its combinations beside them', () => {
     const summary = { catalog_rows_scanned: 28160, scan_rows_processed: 153 }
     const line = lineById(buildRunReport(job(summary), 'catalog'), 'rows-read')!
     expect(line.text).toBe(

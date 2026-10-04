@@ -20,7 +20,7 @@ interface EntityBranchBannerProps {
    * Where "View main plan" goes from a row that lives on a branch. Not `path`:
    * a branch row's id names the branch row, and reads are lenient, so main
    * rendered that same branch row again under a "you are viewing main" warning
-   * and its Save 404'd (EVT-42). A page passes the row's main twin
+   * and its Save 404'd. A page passes the row's main twin
    * (`main_event_id`) when the server names one, else somewhere on main that
    * exists (its list), or no link at all.
    */
@@ -64,8 +64,8 @@ export function EntityBranchBanner({
   if (!mismatch) {
     if (rowIsMain) return null
     // The info tone the shell's branch strip uses, with the status in the same
-    // words every branch surface uses ("Ready for review"), not the raw enum
-    // (PL-3). Pages render it above their title.
+    // words every branch surface uses ("Ready for review"), not the raw enum.
+    // Pages render it above their title.
     return (
       <div
         className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-card border border-info/40 bg-info-soft px-3 py-2 text-body-sm text-fg-secondary"
@@ -92,7 +92,7 @@ export function EntityBranchBanner({
   const target = rowIsMain ? path : `${path}${path.includes('?') ? '&' : '?'}branch=${encodeURIComponent(rowBranchId)}`
   const activeName = activeBranchId ? (byId.get(activeBranchId)?.name ?? 'another branch') : 'main'
   // The page below this banner reads a row the active branch does not have:
-  // its edit form cannot save there (AU-1 / PL-2). This is the first thing on
+  // its edit form cannot save there. This is the first thing on
   // the page and an alert, and the way out is a real button, not an inline link.
   return (
     <div

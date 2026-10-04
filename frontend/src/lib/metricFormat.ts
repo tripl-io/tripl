@@ -46,7 +46,7 @@ export function isIntervalFinerThan(a: MetricScanInterval, b: MetricScanInterval
  * The display precision shared by tiles, tables and tooltips, in the app
  * locale: whole numbers at >= 100, two decimals from 1 to 100, and two
  * SIGNIFICANT digits below 1. The old rule rounded everything under 100 to two
- * decimals, so a 0.004 s latency or a small rate read "0" (MET-40).
+ * decimals, so a 0.004 s latency or a small rate read "0".
  */
 function formatForDisplay(value: number): string {
   const abs = Math.abs(value)
@@ -75,7 +75,7 @@ function withUnit(text: string, unit: string | null): string {
 /**
  * Human-readable metric value with its unit. Percent units render the stored
  * fraction ×100 with the sign attached ('8%', the spelling the chart axis uses
- * too — the tile and the axis used to disagree on '8 %' vs '8%', DS-31);
+ * too — the tile and the axis used to disagree on '8 %' vs '8%');
  * currency units lead ('$1,234'); other units trail ('123 ms').
  */
 export function formatMetricValue(value: number | null | undefined, unit: string | null): string {

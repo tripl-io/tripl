@@ -1,5 +1,5 @@
 /**
- * Triage for open signals (MO-4 / JR-5) and their verdicts (#254).
+ * Triage for open signals and their verdicts (#254).
  *
  * A signal no alert rule routed to an incident can be acknowledged (seen,
  * stays listed) or have its scope muted (hidden for 24 h, 7 d or until

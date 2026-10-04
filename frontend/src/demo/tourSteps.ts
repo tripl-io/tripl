@@ -13,7 +13,7 @@ export interface TourStep {
   id: string
   /**
    * The sidebar group this surface sits in — Plan, Observe or Govern — read
-   * from `buildNavGroups` itself, never typed here (#251 JR-22): the typed
+   * from `buildNavGroups` itself, never typed here (#251): the typed
    * copy said Govern for Plan branches and Alerting and drifted every time the
    * sidebar moved an item. Null for a step with no sidebar item (search lives
    * in the command palette), which prints no chip rather than a wrong one.
@@ -25,7 +25,7 @@ export interface TourStep {
   /** Deep link to the real surface for this step. */
   to: string
   /**
-   * What the step's button does instead of following `to` (DEMO-18). The
+   * What the step's button does instead of following `to`. The
    * search step's surface is the command palette, which has no URL: linking to
    * the Overview the user is usually already on just closed the tour.
    */
@@ -162,7 +162,7 @@ function tourStepSpecs(base: string): [TourStepSpec, ...TourStepSpec[]] {
     {
       id: 'monitors',
       // A section of Alerting, not a page of its own: it takes Alerting's
-      // group, and its own name — one name for the object: alert rule (#238 JR-28).
+      // group, and its own name — one name for the object: alert rule (#238).
       navId: 'alerting',
       title: 'Alert rules',
       blurb: 'The rules that decide which spikes and drops are worth notifying about, and their live state.',
@@ -181,7 +181,7 @@ function tourStepSpecs(base: string): [TourStepSpec, ...TourStepSpec[]] {
       id: 'coverage',
       navId: 'coverage',
       // What the page measures: plan implementation, not which platforms
-      // report (#251 JR-22).
+      // report (#251).
       blurb: 'How much of your plan is implemented, and which implemented events went silent.',
       to: `${base}/coverage`,
     },

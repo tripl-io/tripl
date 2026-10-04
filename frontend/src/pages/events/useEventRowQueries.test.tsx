@@ -56,7 +56,7 @@ afterEach(() => {
   queryClient.clear()
 })
 
-describe('useEventRowMetrics (EVT-18)', () => {
+describe('useEventRowMetrics', () => {
   it('keeps the rows filled while the live window steps to its next key', async () => {
     vi.mocked(eventMetricsApi.getEventsWindowMetrics).mockResolvedValue([metric('e0')])
     const rows = events(3)
@@ -83,7 +83,7 @@ describe('useEventRowMetrics (EVT-18)', () => {
   })
 })
 
-describe('useEventRowSignals (EVT-19)', () => {
+describe('useEventRowSignals', () => {
   it('asks for the signals of the buckets on screen, not every loaded bucket', async () => {
     vi.mocked(eventMetricsApi.getActiveSignals).mockResolvedValue([])
     const rows = events(450)

@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 import { initialsOf } from './initials'
 
 /**
- * A person's initials on the identity chip colour (DS-32 / WS-38).
+ * A person's initials on the identity chip colour.
  *
  * The ONE avatar: the app sidebar, the settings rail, Users, Profile and the
  * event-type owner list all render this. The background is always

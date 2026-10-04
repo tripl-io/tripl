@@ -91,7 +91,7 @@ describe('DeliveryScheduleField', () => {
     expect(screen.getByText(/5 fields/)).toBeInTheDocument()
   })
 
-  it('tells the form the draft on screen cannot be saved, and when it can again (ALR-3)', () => {
+  it('tells the form the draft on screen cannot be saved, and when it can again', () => {
     render(<Harness initial="*/5 9-17 * * 1-5" />)
 
     fireEvent.change(screen.getByLabelText('Cron expression'), { target: { value: '' } })
@@ -107,7 +107,7 @@ describe('DeliveryScheduleField', () => {
     expect(screen.getByTestId('cron')).toHaveTextContent('0 8 * * *')
   })
 
-  it('offers the native time picker for a single time, and ties the error to it (ALR-51)', () => {
+  it('offers the native time picker for a single time, and ties the error to it', () => {
     render(<Harness initial="0 9 * * *" />)
 
     const time = screen.getByLabelText('Time of day')

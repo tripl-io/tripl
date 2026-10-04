@@ -64,7 +64,7 @@ const RULE_FIELD_LABELS: Readonly<Record<string, string>> = {
 }
 
 /**
- * The three thresholds, worded as the sentence they complete (AL-2): "Alert
+ * The three thresholds, worded as the sentence they complete: "Alert
  * when the change is at least 30 %, and at least 0 events". "Min percent
  * delta 100" named the column, not the question, and gave no hint that a
  * drop can never exceed 100%.
@@ -114,7 +114,7 @@ function RequiredMark() {
   )
 }
 
-/** One titled step of the editor, with a one-line lead (AL-1). */
+/** One titled step of the editor, with a one-line lead. */
 function EditorSection({
   id,
   step,
@@ -166,7 +166,7 @@ interface RuleEditorDialogProps {
    */
   onReplaySaved?: () => void
   /**
-   * Replay the rule WITH the edits on this form, unsaved (ALR-12). Offered
+   * Replay the rule WITH the edits on this form, unsaved. Offered
    * beside "Replay saved rule" once the form differs from what it opened with.
    */
   onReplayDraft?: () => void
@@ -178,7 +178,7 @@ interface RuleEditorDialogProps {
    */
   scopeReadiness?: AlertScopeReadiness
   /**
-   * Opened as the last step of guided setup (AL-34): the header says "Step 3
+   * Opened as the last step of guided setup: the header says "Step 3
    * of 3", so the reader knows the destination they just made is done and
    * this is the part left.
    */
@@ -230,18 +230,18 @@ export function RuleEditorDialog({
 }: RuleEditorDialogProps) {
   // Drives the format choices, which differ per channel. No fallback: before a
   // destination is picked there is no channel, and offering the FIRST
-  // destination's formats showed choices for a channel nobody chose (ALR-4).
+  // destination's formats showed choices for a channel nobody chose.
   const destination = destinations.find(item => item.id === destinationId) ?? null
   const destinationType = destination?.type ?? null
   // Enabled destinations first; a disabled one is still a valid target (it can
-  // be switched back on), but it is not an equal choice (AL-3).
+  // be switched back on), but it is not an equal choice.
   const destinationOptions = [...destinations].sort(
     (left, right) => Number(right.enabled) - Number(left.enabled),
   )
 
   // Problems the form can see for itself, named beside their inputs instead of
-  // coming back as a raw 422 — or not coming back at all (ALR-5, ALR-14,
-  // ALR-15, ALR-16). One timing for all of them (AL-5): a group (scopes,
+  // coming back as a raw 422 — or not coming back at all.
+  // One timing for all of them: a group (scopes,
   // direction) speaks on change, since unticking the last box is the whole
   // mistake; a text field speaks once it is left; everything speaks on submit.
   // A filter row just added is not an error before anyone could fill it.
@@ -271,11 +271,11 @@ export function RuleEditorDialog({
   const numericError = (field: RuleNumericField) =>
     (shows(field) ? problems.numeric[field] : undefined) ?? server.fields[field]
   // The name was the one field left to the browser's `required` bubble, which
-  // named only itself and vanished on the next click (AL-28). It is refused
+  // named only itself and vanished on the next click. It is refused
   // here, inline, like every other field of this form.
   const nameProblem = ruleForm.name.trim() ? undefined : REQUIRED_MESSAGE
   const nameError = (shows('name') ? nameProblem : undefined) ?? server.fields.name
-  // Create stays enabled without a destination (AL-3): a disabled button
+  // Create stays enabled without a destination: a disabled button
   // 1,300px below the empty picker gave no reason. Submit names it instead.
   const destinationProblem = destinationId ? undefined : 'Pick a destination.'
   const destinationError = submitAttempted ? destinationProblem : undefined
@@ -291,7 +291,7 @@ export function RuleEditorDialog({
   const submit = () => {
     setSubmitAttempted(true)
     if (blocked) {
-      // The body scrolls under a fixed header and footer (AL-4), so a refused
+      // The body scrolls under a fixed header and footer, so a refused
       // submit takes the reader to the first field it highlighted.
       requestAnimationFrame(() => {
         if (formRef.current) focusFirstInvalid(formRef.current)
@@ -301,7 +301,7 @@ export function RuleEditorDialog({
     onSubmit()
   }
 
-  // The cooldown is edited as an amount and a unit (AL-6) and saved as the
+  // The cooldown is edited as an amount and a unit and saved as the
   // minutes the API stores. The pair is re-derived whenever it no longer
   // produces the form's value — a reset, a rule opened for editing — and left
   // alone while it does, so typing "1.5" hours is not rewritten under the caret.
@@ -323,7 +323,7 @@ export function RuleEditorDialog({
     ruleForm.include_variable_value_drifts && scopeReadiness?.variable_value_drift === false
 
   // Metric signals are project-wide, so a scan binding does nothing for a rule
-  // that only watches metrics — except stop it from ever firing (JR-15).
+  // that only watches metrics — except stop it from ever firing.
   const metricsOnly =
     ruleForm.include_metrics
     && !RULE_SIGNAL_GROUPS.some(group =>
@@ -332,7 +332,7 @@ export function RuleEditorDialog({
   const showScanPicker = !metricsOnly || !!ruleForm.scan_config_id
 
   // The obvious "tell me when X drops" rule at 100% only fires at zero volume.
-  // Said, not refused: someone may mean exactly that (AL-2).
+  // Said, not refused: someone may mean exactly that.
   const percent = Number(ruleForm.min_percent_delta.trim())
   const dropNeedsZero =
     ruleForm.notify_on_drop && ruleForm.min_percent_delta.trim() !== '' && percent >= 100
@@ -344,7 +344,7 @@ export function RuleEditorDialog({
   const summary = ruleDraftSummary(ruleForm, destination?.name ?? null)
 
   // Two 8-row templates, filters and thresholds: Escape, a stray overlay click
-  // or Cancel used to drop all of it at once (ALR-17). They ask first now,
+  // or Cancel used to drop all of it at once. They ask first now,
   // while the form differs from what it opened with.
   const dirty = useDirtySinceOpen(open, { ruleForm, destinationId })
   const unsaved = useUnsavedDialogGuard(dirty)
@@ -368,7 +368,7 @@ export function RuleEditorDialog({
       <DialogContent
         className="max-w-3xl"
         // An open variable-suggestion list takes Escape first: TemplateEditor
-        // closes it, and the form stays (ALR-19). Radix listens for Escape on
+        // closes it, and the form stays. Radix listens for Escape on
         // the document before the textarea's own handler runs, so the dialog
         // has to be told here.
         onEscapeKeyDown={event => {
@@ -383,8 +383,8 @@ export function RuleEditorDialog({
         }}
       >
         {/* `noValidate`: every field is checked by the form itself and named
-            inline (AL-28). Only the body scrolls; the title and the actions
-            stay on screen (AL-4). */}
+            inline. Only the body scrolls; the title and the actions
+            stay on screen. */}
         <form
           ref={formRef}
           noValidate
@@ -417,7 +417,7 @@ export function RuleEditorDialog({
 
             {/* 1 · What to watch — the "X" in "tell me when X drops" comes
                 first now, with its filters directly under it. They used to
-                sit last, under ~900px of template syntax (AL-1). */}
+                sit last, under ~900px of template syntax. */}
             <EditorSection
               id="rule-what"
               step={1}
@@ -429,7 +429,7 @@ export function RuleEditorDialog({
                 aria-describedby={problems.scopes ? 'rule-scopes-error' : undefined}
               >
                 <legend className="sr-only">Signals</legend>
-                {/* Two groups rather than one 5-column run (AL-38): volume
+                {/* Two groups rather than one 5-column run: volume
                     changes, by the level they are counted at, and the drift
                     detectors, which are a different question. */}
                 {RULE_SIGNAL_GROUPS.map(group => (
@@ -488,7 +488,7 @@ export function RuleEditorDialog({
             >
               {/* Two independent switches, labelled as such. They read "Up only"
                   and "Down only" while both started ticked — a contradiction —
-                  and unticking both saved a rule the API refused (ALR-14). */}
+                  and unticking both saved a rule the API refused. */}
               <fieldset aria-describedby={problems.direction ? 'rule-direction-error' : undefined}>
                 <legend className="mb-2 text-body-sm font-medium">Notify on</legend>
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -552,8 +552,8 @@ export function RuleEditorDialog({
 
               {/* The text in the box, not `Number(text)`: an emptied field
                   read back as "0" and could not be cleared to retype, and a
-                  cleared cooldown saved as 0, which the API refuses (ALR-16).
-                  An amount and a unit rather than "1440" minutes (AL-6). */}
+                  cleared cooldown saved as 0, which the API refuses.
+                  An amount and a unit rather than "1440" minutes. */}
               <div className="grid gap-1.5">
                 <Label htmlFor="rule-cooldown">Don&apos;t re-alert the same scope for</Label>
                 <div className="flex items-center gap-2">
@@ -678,8 +678,8 @@ export function RuleEditorDialog({
                     <SelectContent>
                       <SelectItem value={ALL_SCANS_OPTION}>All scans</SelectItem>
                       {/* The bound scan's name is not known until the list
-                          answers; say so rather than render a blank trigger
-                          (ALR-47). */}
+                          answers; say so rather than render a blank trigger.
+                          */}
                       {!scansLoaded
                         && ruleForm.scan_config_id
                         && !scans.some(scan => scan.id === ruleForm.scan_config_id) && (
@@ -711,7 +711,7 @@ export function RuleEditorDialog({
 
             {/* 4 · Message — collapsed by default: the defaults are fine for
                 almost everyone, and two raw template editors made a first rule
-                look like configuring a mail server (AL-1). */}
+                look like configuring a mail server. */}
             <Collapsible open={messageOpen || !!templateServerError} onOpenChange={setMessageOpen}>
               <section aria-labelledby="rule-message-title" className="grid gap-3 border-t border-border-subtle pt-4">
                 <div className="grid gap-0.5">
@@ -766,7 +766,7 @@ export function RuleEditorDialog({
             </Collapsible>
 
             {/* Advanced: switches most rules never touch, out of the way
-                of the four steps above (AL-1). */}
+                of the four steps above. */}
             <section aria-labelledby="rule-advanced-title" className="grid gap-2 border-t border-border-subtle pt-4">
               <h3 id="rule-advanced-title" className="m-0 text-body-sm font-semibold text-fg">Advanced</h3>
               <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -811,7 +811,7 @@ export function RuleEditorDialog({
               </p>
             )}
           </DialogBody>
-          {/* What Create will set up, in one sentence (AL-1). */}
+          {/* What Create will set up, in one sentence. */}
           {summary && (
             <p className="m-0 shrink-0 text-body-sm text-fg-subtle">
               {summary}

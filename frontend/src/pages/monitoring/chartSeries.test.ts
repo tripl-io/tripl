@@ -38,7 +38,7 @@ function breakdown(value: string, data: EventMetricPoint[], total = 0): EventMet
   return { breakdown_value: value, is_other: false, total_count: total, data, parity_anomalies: [] }
 }
 
-describe('seriesSlot (MON-29)', () => {
+describe('seriesSlot', () => {
   it('repeats the eight hues with a dash so the ninth series is not a twin of the first', () => {
     expect(seriesSlot(0).dash).toBeUndefined()
     expect(seriesSlot(8).color).toBe(seriesSlot(0).color)

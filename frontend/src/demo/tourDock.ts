@@ -1,5 +1,5 @@
 /**
- * Which tour step is docked on the page, per project (#251 JR-22).
+ * Which tour step is docked on the page, per project (#251).
  *
  * "Open X" in the tour navigates to X, and the tour then stays on screen as a
  * small docked card ("Step 4 of 11 · Next") instead of disappearing. The two

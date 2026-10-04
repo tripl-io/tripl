@@ -32,7 +32,7 @@ export const GRANULARITY_OPTIONS: { value: MetricsGranularity; label: string }[]
  * Used as the *default* only — a manual granularity pick overrides it and stays
  * sticky across range changes. A series collected coarser than this default
  * (a daily metric at 7d) keeps its collection interval instead: the monitoring
- * page charts the coarser of the two (MON-43).
+ * page charts the coarser of the two.
  */
 export function defaultGranularityForRange(rangeDays: number): MetricsGranularity {
   if (rangeDays <= 7) return 'hour'
@@ -58,7 +58,7 @@ const GRANULARITY_SPAN_MS: Record<MetricsGranularity, number> = {
 /**
  * The most buckets one series may draw. A 15 min pick over 90 days is 8,640
  * SVG points per series, times up to eight series, and the page janks on every
- * range change and hover (MON-23). 500 keeps each preset's finest readable
+ * range change and hover. 500 keeps each preset's finest readable
  * option: hours for 7d, 6 hours for 30d and 90d. A series' own collection
  * granularity is exempt (see {@link granularityFitsRange}).
  */
@@ -196,7 +196,7 @@ const AGGREGATE_ANOMALY_Z_THRESHOLD = 3
  * `sum` is right for anything additive — event counts, a fact `count` or `sum`.
  * Everything else (ratios, averages, percentages, min/max, distinct counts) is
  * NOT additive: summing 24 hourly values of an 8 % conversion rate plots 192 %
- * per day (MON-2 / MET-12). Those roll up by `mean`, which keeps the value on
+ * per day. Those roll up by `mean`, which keeps the value on
  * the scale it was collected on.
  */
 export type MetricRollupMode = 'sum' | 'mean'

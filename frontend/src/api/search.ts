@@ -10,7 +10,7 @@ type SearchParams = {
   semantic?: boolean
   /**
    * Fold events that differ only in one naming-rule placeholder into their
-   * best-ranked member, which then carries `variant_group` (#238 JR-20).
+   * best-ranked member, which then carries `variant_group` (#238).
    */
   group_variants?: boolean
 }

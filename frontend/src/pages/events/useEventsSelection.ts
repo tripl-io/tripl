@@ -11,7 +11,7 @@ export function useEventsSelection({
    * Identifies the result set the selection was made in (tab, branch, server
    * filters). When it changes the selection is dropped: 20 rows ticked on
    * Review and then "Set status" on Archived changed 20 events the operator
-   * could no longer see (EVT-10). Sort order is not part of it — it reorders
+   * could no longer see. Sort order is not part of it — it reorders
    * the same set. Client-side column filters are not part of it either; the
    * bar and the confirmations name off-screen rows instead.
    */
@@ -71,7 +71,7 @@ export function useEventsSelection({
 
   // Add many ids in one update. Ticking them one by one through
   // `toggleEventSelected` was quadratic (an `includes` per id) for a large
-  // name cluster (EVT-40).
+  // name cluster.
   const selectMany = useCallback((ids: string[]) => {
     setSelectedEventIds(current => {
       const next = new Set(current)

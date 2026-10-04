@@ -77,11 +77,10 @@ const SHADOW_TAB_LABEL: Record<ShadowEventStatus, string> = {
   dismissed: 'Dismissed',
 }
 // The inbox reads one page at a time, and "Show more" asks for the next one by
-// offset (DATA-39), so every row of a large inbox is reachable.
+// offset, so every row of a large inbox is reachable.
 const SHADOW_PAGE_SIZE = 100
 // Dead events arrive as one unpaginated list. Rendering every row (each with a
-// Radix checkbox) froze large plans, so the panel shows them a page at a time
-// (DATA-47).
+// Radix checkbox) froze large plans, so the panel shows them a page at a time.
 const DEAD_PAGE_SIZE = 200
 
 type BulkAction = 'accept' | 'dismiss'
@@ -161,14 +160,14 @@ export default function ReconciliationPage() {
   const branchId = useActiveBranchId()
   const qc = useQueryClient()
   const { notifyStepCompleted } = useDemoScenarioActions()
-  // Accept, dismiss and archive are EditorUserDep (DATA-7); a viewer reads the
+  // Accept, dismiss and archive are EditorUserDep; a viewer reads the
   // reconciliation without the checkboxes and buttons that only answer 403.
   const canWrite = useCanWriteProject()
 
   // Dead events are computed on the main branch only (the endpoint takes no
   // `?branch`), so on a feature branch archiving them would write straight to
   // main from a view that reads as branch-scoped. The panel says so and does
-  // not offer the action there (DATA-42).
+  // not offer the action there.
   const onFeatureBranch = branchId != null
   const canArchive = canWrite && !onFeatureBranch
   const { confirm, dialog } = useConfirm()
@@ -183,7 +182,7 @@ export default function ReconciliationPage() {
   const [selectedEventType, setSelectedEventType] = useState<Record<string, string>>({})
   const [rowError, setRowError] = useState<Record<string, string>>({})
   // A Set, not an array: select-all used `includes` over arrays, O(n²) on a
-  // large plan (DATA-47).
+  // large plan.
   const [selectedDead, setSelectedDead] = useState<ReadonlySet<string>>(() => new Set())
   const [deadShown, setDeadShown] = useState(DEAD_PAGE_SIZE)
   const [deadError, setDeadError] = useState<string | null>(null)
@@ -218,7 +217,7 @@ export default function ReconciliationPage() {
   })
 
   // Whether any scan has run here: the empty state below is for a project no
-  // scan has read yet (JR-4). The shell already holds this query (Layout), so
+  // scan has read yet. The shell already holds this query (Layout), so
   // it is a cache hit; silent, since a failure only means the panels show.
   const projectQuery = useQuery({
     ...projectQueryOptions(slug),
@@ -233,8 +232,8 @@ export default function ReconciliationPage() {
     staleTime: 60_000,
   })
 
-  // Everything a reconciliation write can change outside its own list
-  // (DATA-41). Accept adds a planned event and archive retires some, so the
+  // Everything a reconciliation write can change outside its own list.
+  // Accept adds a planned event and archive retires some, so the
   // project summary behind Coverage's counts, the event and event-type lists,
   // the data match and the dead list all move; before this they sat stale for
   // up to a minute and Coverage contradicted the action just taken.
@@ -385,7 +384,7 @@ export default function ReconciliationPage() {
   const shadowIsEmpty = !!shadow && shadow.items.length === 0 && !shadowQuery.isError
   // No scan has ever run, and so nothing read, nothing unexpected, nothing
   // silent: every panel would only report an absence of data. Keyed on an
-  // executed scan (JR-4), not on empty panels alone: a project whose shadow
+  // executed scan, not on empty panels alone: a project whose shadow
   // events were all accepted or dismissed and that read nothing lately still
   // needs its Accepted / Dismissed history, and has scans. Decided once every
   // query answered, so a slow one never flashes the empty state over a
@@ -402,7 +401,7 @@ export default function ReconciliationPage() {
     dead.items.length === 0 &&
     !deadQuery.isError
 
-  // Bulk triage (DATA-39) works on the "new" rows on screen. The selection is
+  // Bulk triage works on the "new" rows on screen. The selection is
   // read through the current rows, so an id that a refetch dropped is never
   // acted on.
   const shadowSelectable = canWrite && shadowStatus === 'new'
@@ -429,7 +428,7 @@ export default function ReconciliationPage() {
     setBulkNotice(null)
   }
 
-  // One batch request per MAX_SHADOW_BATCH rows (DATA-39). The server handles
+  // One batch request per MAX_SHADOW_BATCH rows. The server handles
   // each row on its own, so one refused row does not sink the rest; each
   // refusal lands on its own row, in the server's words.
   const runBulk = async (action: BulkAction, items: ShadowEvent[]) => {
@@ -493,7 +492,7 @@ export default function ReconciliationPage() {
   const shownDeadIds = shownDeadItems.map((item) => item.event_id)
   // Read the selection through the current list: an id that dropped out of a
   // refetch used to stay selected, and the atomic archive endpoint then 404ed
-  // the whole batch (DATA-47).
+  // the whole batch.
   const selectedDeadIds = deadItems
     .map((item) => item.event_id)
     .filter((id) => selectedDead.has(id))
@@ -514,7 +513,7 @@ export default function ReconciliationPage() {
   const toggleSelectAllDead = (checked: boolean) =>
     setSelectedDead(checked ? new Set(shownDeadIds) : new Set())
 
-  // Archive asks first and reports what it did (DATA-40): select-all plus one
+  // Archive asks first and reports what it did: select-all plus one
   // click used to retire the whole list silently.
   const handleArchive = async () => {
     const ids = selectedDeadIds
@@ -545,7 +544,7 @@ export default function ReconciliationPage() {
       {nothingToReconcile ? (
         // A first-run project read "No unexpected events" and "No dead
         // events" under a big "0%": reassurance that was really an absence
-        // of data. One state that says what the page needs instead (DA-29).
+        // of data. One state that says what the page needs instead.
         <EmptyState
           icon={GitCompare}
           title="Nothing to reconcile yet"
@@ -565,7 +564,7 @@ export default function ReconciliationPage() {
         <>
           {/* Data match — share of planned events actually seen in data (distinct from plan coverage) */}
           {/* The window is a static label on the panel it describes, not a disabled
-              button that read as a greyed-out date picker (DATA-44). Dead events
+              button that read as a greyed-out date picker. Dead events
               runs on the shared DEAD_EVENT_DAYS window and names it itself, so a
               page-level "Last 14 days" would misdescribe that panel. */}
           <Panel
@@ -596,10 +595,10 @@ export default function ReconciliationPage() {
             {coverage && (
               <div className="flex items-center gap-6 p-4">
                 <div className="flex min-w-[120px] flex-col gap-0.5">
-                  {/* The hero figure: the display step of the type scale (DS-13),
-                      sans with tabular digits rather than mono (DS-17). */}
+                  {/* The hero figure: the display step of the type scale,
+                      sans with tabular digits rather than mono. */}
                   {/* No occurrences is not a result: a neutral "—", not a big
-                      accent "0%" (DA-29). */}
+                      accent "0%". */}
                   <span
                     className="tnum text-display font-semibold leading-none"
                     style={{
@@ -626,7 +625,7 @@ export default function ReconciliationPage() {
 
           <div
             // items-start: a one-line panel no longer stretches to its
-            // neighbour's height (DA-29).
+            // neighbour's height.
             className={`grid grid-cols-1 items-start gap-3 ${
               shadowIsEmpty ? 'lg:grid-cols-[auto_1fr]' : 'lg:grid-cols-[1.5fr_1fr]'
             }`}
@@ -636,9 +635,9 @@ export default function ReconciliationPage() {
               title="Shadow events inbox"
               subtitle="Seen in data, missing from plan"
               // No panel tone: a queue beside the neutral Dead events panel, not
-              // an alert. The warning sits on the New count alone (DA-33).
+              // an alert. The warning sits on the New count alone.
               right={
-                // Three views of one inbox: the shared segmented control (DS-16)
+                // Three views of one inbox: the shared segmented control
                 // rather than a fourth hand-rolled look. Switching mid-run would
                 // clear the selection and land the run's result notice in the
                 // other view's panel, so it is disabled while one runs.
@@ -707,7 +706,7 @@ export default function ReconciliationPage() {
                 <div className="flex flex-wrap items-center gap-2.5 px-4 py-2">
                   <Checkbox
                     // Mixed while only some rows are picked, and a click from there
-                    // clears the selection rather than selecting everything (EV-26).
+                    // clears the selection rather than selecting everything.
                     checked={
                       allShadowSelected ? true : selectedShadowItems.length > 0 ? 'indeterminate' : false
                     }
@@ -721,7 +720,7 @@ export default function ReconciliationPage() {
                     disabled={bulkRunning}
                     aria-label="Select all new shadow events"
                   />
-                  {/* The inbox's one primary; the rows' own Accept is outline (DA-32). */}
+                  {/* The inbox's one primary; the rows' own Accept is outline. */}
                   <Button
                     size="sm"
                     disabled={bulkRunning || acceptableShadowItems.length === 0}
@@ -806,7 +805,7 @@ export default function ReconciliationPage() {
                 )
               })}
               {/* The inbox is paged; it used to stop at 100 rows without saying so,
-                  and then at 500 with no way past them (DATA-39). */}
+                  and then at 500 with no way past them. */}
               {shadow && shadow.total > shadow.items.length && (
                 <div
                   className="flex flex-wrap items-center gap-2.5 border-t px-4 py-2 text-caption border-border-subtle text-fg-tertiary"
@@ -863,8 +862,8 @@ export default function ReconciliationPage() {
             >
               {deadItems.length > 0 && (
                 // The advice says when archiving is right rather than "often
-                // expected", which hinted it was often wrong without saying when
-                // (DA-34). "Planned" also disagreed with the "Implemented" subtitle.
+                // expected", which hinted it was often wrong without saying when.
+                // "Planned" also disagreed with the "Implemented" subtitle.
                 <div className="flex flex-col gap-1.5 px-4 py-2">
                   <p className="text-caption text-fg-tertiary">
                     Seasonal or rarely fired events can show up here; archive only what you have
@@ -875,7 +874,7 @@ export default function ReconciliationPage() {
                       <Checkbox
                         id="dead-select-all"
                         // Mixed while only some rows are picked; a click from there
-                        // clears the selection (EV-26).
+                        // clears the selection.
                         checked={allDeadSelected ? true : someDeadSelected ? 'indeterminate' : false}
                         onCheckedChange={() => toggleSelectAllDead(!someDeadSelected)}
                         aria-label="Select all dead events"
@@ -982,8 +981,8 @@ const HOUR_MS = 60 * 60 * 1000
 /**
  * What one bucket spans, read off the spacing of the buckets themselves. The
  * backend buckets per scan run (hourly for the demo), not per day, so counting
- * buckets as days printed "on each of the last 335 days" inside a 14-day panel
- * (DA-3). Anything under a day reads as hourly; a single bucket or unparsable
+ * buckets as days printed "on each of the last 335 days" inside a 14-day panel.
+ * Anything under a day reads as hourly; a single bucket or unparsable
  * timestamps fall back to days.
  */
 function bucketUnit(items: CoverageBucket[]): BucketUnit {
@@ -1017,7 +1016,7 @@ function describeDataMatch(items: CoverageBucket[], days: number, unit: BucketUn
 }
 
 // Faint reference lines on the fixed 0–100% scale, so a bar's height reads as
-// a value rather than only relative to its neighbours (LIVE-28).
+// a value rather than only relative to its neighbours.
 const GRIDLINES_PCT = [100, 50] as const
 
 function CoverageStrip({ items, days }: { items: CoverageBucket[]; days: number }) {
@@ -1032,8 +1031,8 @@ function CoverageStrip({ items, days }: { items: CoverageBucket[]; days: number 
   const unit = bucketUnit(items)
   if (!hasCoverageVariation(items) && hasBucketData(head)) {
     // Constant coverage carries no per-bucket signal. A flat line across most
-    // of the card said nothing without a scale (LIVE-28), so say it in words.
-    // The window comes from `days`, never from the bucket count (DA-3).
+    // of the card said nothing without a scale, so say it in words.
+    // The window comes from `days`, never from the bucket count.
     const steadyPct = bucketLabelPct(head)
     return (
       <div className="flex flex-1 items-center">
@@ -1053,7 +1052,7 @@ function CoverageStrip({ items, days }: { items: CoverageBucket[]; days: number 
       {/* role="img" with a spoken summary; the per-bucket values are in the
           visually hidden table below. The bars' `title`s cannot be reached by
           touch, keyboard or a screen reader, and their colour alone carried
-          the tone (DATA-43). */}
+          the tone. */}
       <div className="relative h-14" role="img" aria-label={describeDataMatch(items, days, unit)}>
         {GRIDLINES_PCT.map((line) => (
           <div
@@ -1184,7 +1183,7 @@ function ShadowRow({
   const samples = item.sample_properties ?? []
   const samplesId = `shadow-samples-${item.id}`
   return (
-    // Row height follows the Density setting (DS-9).
+    // Row height follows the Density setting.
     <div
       className="flex min-h-(--row-h) flex-col justify-center gap-2 border-t px-4 py-2 border-border-subtle"
     >
@@ -1203,7 +1202,7 @@ function ShadowRow({
           </span>
           {/* Each separator opens the item after it, so a wrapped line
               starts with "·" instead of leaving one dangling at the end of
-              the line above (DA-32). The scan links to where it was seen. */}
+              the line above. The scan links to where it was seen. */}
           <div
             className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-micro [&>*+*]:before:mr-1.5 [&>*+*]:before:content-['·'] text-fg-tertiary"
           >
@@ -1217,7 +1216,7 @@ function ShadowRow({
             <span className="tnum">{item.observed_count.toLocaleString()} seen</span>
             <span>last seen {formatRelativeTime(item.last_seen_at)}</span>
             {/* What the event looks like before it is accepted: the rows the
-                latest collection saw for it (DA-32). */}
+                latest collection saw for it. */}
             {samples.length > 0 && (
               <button
                 type="button"
@@ -1252,7 +1251,7 @@ function ShadowRow({
             >
               {/* Outline: a column of solid primaries down a long inbox left
                   no primary at all. The bulk "Accept N selected" is the
-                  queue's action (DA-32). */}
+                  queue's action. */}
               <Button size="sm" variant="outline" disabled={isActing} onClick={onAccept}>
                 Accept
               </Button>

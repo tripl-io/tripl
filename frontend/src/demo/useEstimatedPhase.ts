@@ -2,7 +2,7 @@
  * Drives the estimated phase pointer for a blocking demo request.
  *
  * There is no server-side stage feed for either create or reset, so the pointer
- * is a timer. This is the ONE copy of that loop (DEMO-22): the reset dialog
+ * is a timer. This is the ONE copy of that loop: the reset dialog
  * mounts it only while its request is in flight, and the create controller
  * passes `running` — each time it turns true the pointer starts again from
  * phase 0, so a retry never resumes where the failed attempt parked.

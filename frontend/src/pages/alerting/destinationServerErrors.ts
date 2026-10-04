@@ -44,7 +44,7 @@ function plainTail(rest: string): string | null {
 
 /**
  * One server sentence about a destination field, in the form's words — and
- * which field it is about, when it names one (AL-29).
+ * which field it is about, when it names one.
  *
  * "Webhook target_url must be a valid https URL" named the API field and sat
  * above the footer, not under Target URL. A sentence that does not start with

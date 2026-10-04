@@ -4,7 +4,7 @@
  * The inputs used to be parsed with no word back: "0,5" or "abc" in Null share,
  * Min or Max became `null`, which quietly cleared that rule, and the same typo in
  * Bad share became `0`, the strictest setting there is, so every value failed
- * the contract on the next scan (PLAN-38). Nothing checked the 0–1 range, that
+ * the contract on the next scan. Nothing checked the 0–1 range, that
  * Min is not above Max either. Now nothing is dropped or tightened: a number
  * that does not parse is an error the form shows.
  *

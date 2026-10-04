@@ -4,21 +4,21 @@ import type { CSSProperties } from 'react'
  * The form-control boundary: `--input`, pinned by measurement to the 3:1 WCAG
  * 1.4.11 floor for non-text contrast. `--border` is a hairline for row
  * separators (1.20-1.31:1) and left every kit field's edge close to invisible,
- * worst in dark mode (DS-8). The same token `ui/input` and `ui/switch` use, so
- * the two control families now share their edge (DS-9).
+ * worst in dark mode. The same token `ui/input` and `ui/switch` use, so
+ * the two control families now share their edge.
  */
 export const INPUT_EDGE = '1px solid var(--input)'
 
 /**
  * Corner radius shared with `ui/*` controls (`rounded-md` = --radius). The kit
  * used 7px against ui's 8px, one of the differences that made a settings row
- * and a dialog field look like two design systems (DS-9).
+ * and a dialog field look like two design systems.
  */
 export const INPUT_RADIUS = 'var(--radius)'
 
 /**
  * The kit's control text size: 16px below `md`, the dense 12.5px (body-sm)
- * from `md` up (MT-27). iOS Safari zooms into any focused field under 16px,
+ * from `md` up. iOS Safari zooms into any focused field under 16px,
  * so on a phone every tap on a 12.5px metric or fact-table field zoomed the
  * page. INPUT_BASE is an inline style, which cannot carry a media query, so
  * the breakpoint is a step function of the viewport width: `(768px - 100vw)`
@@ -32,7 +32,7 @@ export const INPUT_FONT_SIZE = 'clamp(var(--text-body-sm), calc((768px - 100vw) 
 // sibling controls (e.g. the column-suggest combobox) import it to render
 // inputs that match the kit's text fields exactly.
 //
-// 32px / 12.5px from `md` up, the same as ui/input (DS-14): at 34px a kit
+// 32px / 12.5px from `md` up, the same as ui/input: at 34px a kit
 // field stood taller than the ui fields and the 32px buttons beside it.
 export const INPUT_BASE: CSSProperties = {
   height: 32,
@@ -52,7 +52,7 @@ export const INPUT_BASE: CSSProperties = {
 export const INPUT_TEXT_CLASS = 'text-base md:text-body-sm'
 
 /**
- * One invalid look for every control (MT-7, AU-5): a `--danger` edge plus a
+ * One invalid look for every control: a `--danger` edge plus a
  * soft danger halo whenever the control carries `aria-invalid="true"`. The kit
  * sets `aria-invalid` on a row's control when its Field has an `error`, but
  * nothing styled it, so the only cue on a long form was 12px of red text.
@@ -65,7 +65,7 @@ export const INPUT_INVALID_CLASS =
   'aria-invalid:border-(--danger)! aria-invalid:shadow-[0_0_0_3px_var(--danger-soft)]'
 
 /**
- * Placeholder text in `--fg-faint` (MT-6 / DA-37), never the value colour, so
+ * Placeholder text in `--fg-faint`, never the value colour, so
  * an example cannot pass for a filled-in field. Pair with an instruction-style
  * placeholder ("e.g. created_at"), see components/forms/placeholders.
  */

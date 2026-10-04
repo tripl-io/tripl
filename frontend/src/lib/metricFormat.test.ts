@@ -40,7 +40,7 @@ describe('formatMetricValue', () => {
     expect(formatMetricValue(42, '%')).toBe('4,200%')
   })
 
-  it('spells a percent the way the chart axis does (DS-31)', () => {
+  it('spells a percent the way the chart axis does', () => {
     expect(formatMetricValue(0.08, '%')).toBe(metricAxisFormatter('%')(0.08))
   })
 
@@ -50,13 +50,13 @@ describe('formatMetricValue', () => {
     expect(formatMetricValue(1234.56, 'ms')).toBe('1,235 ms')
   })
 
-  it('keeps small magnitudes visible instead of rounding them to 0 (MET-40)', () => {
+  it('keeps small magnitudes visible instead of rounding them to 0', () => {
     expect(formatMetricValue(0.004, 's')).toBe('0.004 s')
     expect(formatMetricValue(0.00123, null)).toBe('0.0012')
     expect(formatMetricValue(0, 'ms')).toBe('0 ms')
   })
 
-  it('puts a currency unit in front of the number (MET-40)', () => {
+  it('puts a currency unit in front of the number', () => {
     expect(formatMetricValue(1234, '$')).toBe('$1,234')
     expect(formatMetricValue(-12.5, '€')).toBe('-€12.5')
   })
@@ -78,7 +78,7 @@ describe('metricAxisFormatter', () => {
     expect(format(2_500_000)).toBe('2.5M')
   })
 
-  it('compacts negatives and never prints float noise (DS-31 / MET-40)', () => {
+  it('compacts negatives and never prints float noise', () => {
     const format = metricAxisFormatter(null)
     expect(format(-2_000_000)).toBe('-2M')
     expect(format(-1_234_567)).toBe('-1.2M')

@@ -332,7 +332,7 @@ describe('scenarioReducer — chapter lifecycle', () => {
     })
   })
 
-  it('marks the scenario engaged once the user starts or restarts a chapter (LIVE-9)', () => {
+  it('marks the scenario engaged once the user starts or restarts a chapter', () => {
     expect(initialScenarioState().engaged).toBeUndefined()
     const started = scenarioReducer(initialScenarioState(), {
       type: 'startChapter',
@@ -479,7 +479,7 @@ describe('buildChapterSteps and the seeded deep links', () => {
   })
 })
 
-describe('stepCompletedByPath — consecutive steps never share an arrival path (DEMO-14)', () => {
+describe('stepCompletedByPath — consecutive steps never share an arrival path', () => {
   // The provider advances on arrival during render, one step per render. Two
   // consecutive steps completed by the same path would skip the second one the
   // moment the first landed, before the user ever saw it.

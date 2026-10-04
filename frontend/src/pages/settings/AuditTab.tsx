@@ -96,7 +96,7 @@ function AuditPayload({ entryId }: { entryId: string }) {
   const keys = Object.keys(payload)
   if (keys.length === 0) return null
   // The known keys as a labelled list; the JSON the backend stored stays one
-  // click away for whoever needs the exact record (PL-23).
+  // click away for whoever needs the exact record.
   return (
     <div className="mt-2 ml-5 space-y-1.5">
       <dl className="grid grid-cols-1 gap-x-3 gap-y-1 text-caption sm:grid-cols-[minmax(0,160px)_1fr]">
@@ -134,7 +134,7 @@ function AuditPayload({ entryId }: { entryId: string }) {
  * `/audit` is owner-only. The sidebar hides the link from everyone else, but the
  * route still renders for a shared link or a typed URL, and an editor landing
  * here was told "No audit entries yet" — a false statement on a compliance
- * surface (PLAN-47). So the page says who can read it instead of asking.
+ * surface. So the page says who can read it instead of asking.
  */
 export function AuditTab({ slug }: { slug: string }) {
   const isOwner = useIsOwner()
@@ -173,7 +173,7 @@ function AuditLog({ slug }: { slug?: string }) {
   //
   // The vocabulary is the backend's (GET /audit/actions), grouped where the
   // actions are recorded. It used to be a hand-kept list of ~100 strings here
-  // that drifted behind the backend again and again (PLAN-49). `project` holds
+  // that drifted behind the backend again and again. `project` holds
   // the actions recorded with a project, the only ones a project-scoped query
   // can match; `workspace` the ones recorded with none. Until it answers the
   // select offers "All actions" alone.
@@ -206,7 +206,7 @@ function AuditLog({ slug }: { slug?: string }) {
 
   // The email box filters as you type, after a pause. It used to wait for Enter
   // while the action and dates applied at once, and the count line did not move
-  // until then, which read as "the filter does nothing" (PLAN-49). Enter still
+  // until then, which read as "the filter does nothing". Enter still
   // applies at once. Followed during render, like the page
   // offset below, so the offset reset lands in the same pass.
   const debouncedEmail = useDebouncedValue(emailInput.trim(), EMAIL_DEBOUNCE_MS)
@@ -313,7 +313,7 @@ function AuditLog({ slug }: { slug?: string }) {
   }
 
   // One line in the header; the rest of what a compliance reader needs to know
-  // folds under "About this log" (PL-24).
+  // folds under "About this log".
   const summaryLine = "Every change to this project's plan, scans, metrics and alerting."
   const description = workspace ? (
     <>
@@ -345,8 +345,8 @@ function AuditLog({ slug }: { slug?: string }) {
           renders the title and a one-line description through SHeader, so a
           second "Audit log" heading would be the page saying its own name
           twice — and so would a second one-liner under that description, which
-          is why the workspace scope opens straight on "About this log" (ST-34).
-          The project scope gets the shared page header (DS-1 / PL-25): a real
+          is why the workspace scope opens straight on "About this log".
+          The project scope gets the shared page header: a real
           h1, no inline icon. */}
       {!workspace && (
         <PageHeader eyebrow="Govern" title="Audit log" description={summaryLine} />
@@ -358,7 +358,7 @@ function AuditLog({ slug }: { slug?: string }) {
         <p className="mt-1.5 max-w-[640px] text-body-sm text-fg-tertiary">{description}</p>
       </details>
 
-      {/* The shared filter bar (DS-15): every filter applies as it changes —
+      {/* The shared filter bar: every filter applies as it changes —
           no Apply step (Enter in the email box still applies at once) — with
           "Clear filters" and the match count on the same line. */}
       <div className="space-y-2">
@@ -461,7 +461,7 @@ function AuditLog({ slug }: { slug?: string }) {
               Fix the date range to see entries.
             </div>
           ) : listQuery.isError ? (
-            // A 403 or a 500 is not "No audit entries yet" (PLAN-47).
+            // A 403 or a 500 is not "No audit entries yet".
             <div className="p-3">
               {listQuery.error instanceof ApiError && listQuery.error.status === 403 ? (
                 <ErrorState
@@ -505,7 +505,7 @@ function AuditLog({ slug }: { slug?: string }) {
           ) : (
             <div aria-busy={isPaging}>
               {/* Rows under day headers, newest first, with the time of day on
-                  the row and the full second in its title (PL-24). */}
+                  the row and the full second in its title. */}
               {groupByDay(items).map((group) => (
               <section key={group.label} aria-label={group.label}>
               <h2 className="sticky top-0 z-10 border-b bg-surface px-3 py-1.5 micro-label text-fg-tertiary">
@@ -521,12 +521,12 @@ function AuditLog({ slug }: { slug?: string }) {
                   <li key={entry.id} className="min-h-(--row-h) px-3 py-2 text-body-sm">
                     {/* Two lines below `sm`: when and who first, then what. As
                         one non-wrapping line a phone truncated the target, the
-                        field a reader came for, to nothing (PLAN-48). The
+                        field a reader came for, to nothing. The
                         zero-height break and the `order` classes do the
                         stacking. From `sm` up it is one line on a fixed grid —
                         time, action, branch/project, target, person — so every
                         row's target starts at the same x whatever the chips
-                        before it are (ST-34). */}
+                        before it are. */}
                     <button
                       type="button"
                       onClick={() => toggle(entry.id)}
@@ -545,7 +545,7 @@ function AuditLog({ slug }: { slug?: string }) {
                       >
                         {timeOfDay(entry.created_at)}
                       </span>
-                      {/* The person, with the address in the title (PL-23). */}
+                      {/* The person, with the address in the title. */}
                       <span
                         className="order-1 ml-auto min-w-0 truncate text-fg-tertiary text-caption sm:order-last sm:ml-0"
                         title={entry.user_email}

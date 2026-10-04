@@ -74,7 +74,7 @@ export function VariableOverridesSection({
   const [overrideValues, setOverrideValues] = useState<string[]>([])
   // The roster is only fetched once someone reaches for the override picker.
   // Opening a variable to fix a description used to pull 100 full event rows
-  // first (PLAN-30).
+  // first.
   const [pickerActive, setPickerActive] = useState(false)
   const valueRule = valueRuleFor(variableType)
 
@@ -142,7 +142,7 @@ export function VariableOverridesSection({
   })
 
   // An override can hold many hand-curated values and has no undo, and the
-  // trash icon deleted it on one click, pending or not (PLAN-28).
+  // trash icon deleted it on one click, pending or not.
   const handleOverrideDelete = async (override: Override) => {
     const ok = await confirm({
       title: 'Delete override',
@@ -267,7 +267,7 @@ export function VariableOverridesSection({
           <div className="grid gap-1">
             <ChipListInput values={overrideValues} onChange={setOverrideValues} placeholder="Values for this event" ariaLabel="Add override value" {...valueRule} />
             {/* The chip input checks only NEW chips, so values loaded by Edit
-                on an override are checked here (review 204). */}
+                on an override are checked here. */}
             {invalidEditedOverrideValues.length > 0 && (
               <p className="text-caption text-warning">
                 Not valid for {TYPE_LABELS[variableType]}: {invalidEditedOverrideValues.join(', ')}.

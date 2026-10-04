@@ -15,7 +15,7 @@ function isInfiniteData(data: unknown): data is InfiniteData<unknown> {
  *
  * Invalidating an infinite query re-requests EVERY loaded page, one after
  * another, so after scrolling 12 pages each bulk action fired 12 sequential
- * 200-row requests (EVT-12). A list is cut back to its first page first when
+ * 200-row requests. A list is cut back to its first page first when
  * nobody would see the cut: no mounted table shows it, or the table's viewport
  * sits inside page 0 — the rest refill on demand as it scrolls, exactly as they
  * loaded the first time. A table scrolled past page 0 refetches its pages in

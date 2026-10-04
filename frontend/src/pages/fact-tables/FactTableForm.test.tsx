@@ -118,7 +118,7 @@ function submit() {
 }
 
 // What `fillRequired()`'s SQL introspects to. A save whose columns do not
-// describe the current SQL previews first (MET-9), so most saves reach this.
+// describe the current SQL previews first, so most saves reach this.
 const PREVIEWED = {
   columns: [
     { name: 'id', type: 'bigint' },
@@ -190,7 +190,7 @@ describe('FactTableForm', () => {
     expect(list).toHaveTextContent('id')
     expect(list).toHaveTextContent('bigint')
     expect(list).toHaveTextContent('user_id')
-    // The suggestion is applied to the boxes, so no line repeats it (MT-20).
+    // The suggestion is applied to the boxes, so no line repeats it.
     expect(screen.getByLabelText('Use user_id as an identifier column')).toBeChecked()
     expect(screen.queryByText(/Suggested identifiers:/)).not.toBeInTheDocument()
 
@@ -237,7 +237,7 @@ describe('FactTableForm', () => {
     )
   })
 
-  it('refuses a save with a half-filled row filter instead of dropping it (MET-3)', async () => {
+  it('refuses a save with a half-filled row filter instead of dropping it', async () => {
     renderForm()
     fillRequired()
     fireEvent.click(screen.getByRole('button', { name: /Add row filter/ }))
@@ -250,7 +250,7 @@ describe('FactTableForm', () => {
       summary().getByText(/Row filter 1 needs both a name and a SQL condition/),
     ).toBeInTheDocument()
     // Inline too, on the half that is missing: the condition is a compact SQL
-    // editor (MT-22), which mirrors these props onto its contenteditable.
+    // editor, which mirrors these props onto its contenteditable.
     const conditionProps = sqlEditorProps.mock.calls
       .map(([props]) => props)
       .filter(props => props.ariaLabel === 'Row filter 1 SQL condition')
@@ -358,7 +358,7 @@ describe('FactTableForm', () => {
     expect(identifiers).toHaveLength(3)
   })
 
-  it('derives the internal name from the display name until the user edits it (MET-34)', () => {
+  it('derives the internal name from the display name until the user edits it', () => {
     renderForm()
     const displayName = screen.getByLabelText('Display name', { exact: false })
     const internalName = screen.getByLabelText('Internal name', { exact: false })
@@ -422,7 +422,7 @@ function reloadIsGuarded(): boolean {
   return event.defaultPrevented
 }
 
-describe('FactTableForm unsaved-changes guard (MET-5)', () => {
+describe('FactTableForm unsaved-changes guard', () => {
   it('arms the reload prompt once the draft differs from what the form opened with', () => {
     renderForm()
     expect(reloadIsGuarded()).toBe(false)
@@ -546,7 +546,7 @@ const SAVED_ORDERS = {
   updated_at: '2026-06-20T00:00:00Z',
 } as unknown as FactTable
 
-describe('FactTableForm columns follow the SQL (MET-9)', () => {
+describe('FactTableForm columns follow the SQL', () => {
   it('introspects the columns on a create that was never previewed', async () => {
     renderForm()
     fillRequired()
@@ -636,7 +636,7 @@ describe('FactTableForm columns follow the SQL (MET-9)', () => {
   })
 })
 
-describe('FactTableForm validation matches the metric form (MET-35)', () => {
+describe('FactTableForm validation matches the metric form', () => {
   it('marks the field, says why under it, and moves focus to the first one', async () => {
     renderForm()
 
@@ -676,7 +676,7 @@ describe('FactTableForm validation matches the metric form (MET-35)', () => {
   })
 })
 
-describe('FactTableForm delete (MET-36)', () => {
+describe('FactTableForm delete', () => {
   it('deletes after confirmation and closes the editor', async () => {
     vi.mocked(factTablesApi.remove).mockResolvedValue(undefined)
     const { onClose } = renderForm(SAVED_ORDERS)
@@ -712,7 +712,7 @@ describe('FactTableForm delete (MET-36)', () => {
   })
 })
 
-describe('FactTableForm columns card (MT-19, MT-20)', () => {
+describe('FactTableForm columns card', () => {
   it('fills an empty timestamp from the only timestamp column the preview found', async () => {
     renderForm()
     fireEvent.change(document.getElementById('fact-data-source')!, { target: { value: 'ds-1' } })
@@ -739,8 +739,8 @@ describe('FactTableForm columns card (MT-19, MT-20)', () => {
   })
 })
 
-describe('FactTableForm follow-ups (MT-19, MT-35)', () => {
-  it('re-reads the columns by itself after the first Preview once typing pauses (MT-19)', async () => {
+describe('FactTableForm follow-ups', () => {
+  it('re-reads the columns by itself after the first Preview once typing pauses', async () => {
     renderForm()
     fillRequired()
     fireEvent.click(screen.getByRole('button', { name: /Preview columns/ }))
@@ -770,7 +770,7 @@ describe('FactTableForm follow-ups (MT-19, MT-35)', () => {
     expect(screen.getByText(/They are read from the SQL when you preview or save/)).toBeInTheDocument()
   })
 
-  it('gives a new table the first palette colour no listed table uses (MT-35)', () => {
+  it('gives a new table the first palette colour no listed table uses', () => {
     queryClient.setQueryData(factTablesKey('demo'), {
       total: 1,
       items: [{ id: 'ft-1', color: '#6366f1' }],

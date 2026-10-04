@@ -1,4 +1,4 @@
-"""Comparable forms of what a snapshot spells by name, for "Update from main" (PL-8).
+"""Comparable forms of what a snapshot spells by name, for "Update from main".
 
 A snapshot names other rows by their display names: an event's values name
 variables as ``${token}``s, a variable's overrides name events by

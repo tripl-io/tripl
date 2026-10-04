@@ -51,14 +51,14 @@ function volumeTitle(tabLabel: string, isTypeTab: boolean): string {
   return !isTypeTab && tabLabel === 'All events' ? 'Event volume' : `${tabLabel} volume`
 }
 
-/** The bucket a range reads best at: hourly past a week is a dense sawtooth (EV-21). */
+/** The bucket a range reads best at: hourly past a week is a dense sawtooth. */
 function defaultGranularity(rangeDays: number): MetricsGranularity {
   return rangeDays > 7 ? 'day' : 'hour'
 }
 
 /**
  * The open signal as a marker on the chart, so "View signal" points at
- * something the reader can see: the line alone showed no anomaly (EV-21).
+ * something the reader can see: the line alone showed no anomaly.
  */
 function signalAnnotation(signal: MonitoringSignal | null): ChartAnnotation[] | undefined {
   if (!signal?.bucket) return undefined
@@ -149,11 +149,11 @@ export function TabMetricsCard({
 
   const hasChartData = tabMetricsData.length > 0
   // Loaded and empty: the card stays a header with one line, not a box around
-  // "No recent volume" with live range controls (EV-16).
+  // "No recent volume" with live range controls.
   const isEmpty = isOpen && !isLoading && !hasChartData
   const annotations = useMemo(() => signalAnnotation(activeTabSignal), [activeTabSignal])
-  // "612k in 7d · +4% vs prior week" (EV-21). The weekly totals do not follow
-  // the chart's range. Collapsed, the card does not fetch (EVT-20), so the
+  // "612k in 7d · +4% vs prior week". The weekly totals do not follow
+  // the chart's range. Collapsed, the card does not fetch, so the
   // strip shows the line only while an earlier open left the series cached.
   const weekSummary = formatWeekSummary(tabMetrics)
 
@@ -163,21 +163,21 @@ export function TabMetricsCard({
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
           <div className="min-w-0">
             {/* Sentence case, and says what is drawn: "Event volume", not
-                "All Events Dynamics" (DS-29). The title scale is the Panel's
-                (DS-4). */}
+                "All Events Dynamics". The title scale is the Panel's.
+                */}
             <h2 className="text-body-sm font-semibold leading-tight">{volumeTitle(activeTabLabel, !!activeEt)}</h2>
             {/* The series is scoped to ONE scan — summing every scan
                 double-counts the events a legacy/backfill scan also collected —
                 so name it here rather than let the title imply the project's
                 whole volume. */}
             {/* Collapsed by default, and then a bare header: the chart pushed
-                the table below the fold on every visit (EV-21). */}
+                the table below the fold on every visit. */}
             {isOpen && (
               <p className="text-caption leading-tight text-fg-tertiary">
                 {isEmpty ? `No volume in the last ${rangeDays} days` : `Last ${rangeDays} days, grouped by ${granularity}`}
                 {tabMetrics?.scan_config_name ? ` · scan: ${tabMetrics.scan_config_name}` : ''}
                 {/* The collection interval rides in the subtitle instead of a
-                    line of its own under the chart (EV-21). */}
+                    line of its own under the chart. */}
                 {tabMetrics?.interval ? ` · collected every ${tabMetrics.interval}` : ''}
                 {weekSummary ? ` · ${weekSummary}` : ''}.
                 {unappliedFilters.length > 0 && ` Not narrowed by ${unappliedFilters.join(', ')}.`}
@@ -188,9 +188,9 @@ export function TabMetricsCard({
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Range and bucket only while the chart is shown (EV-22); the
+            {/* Range and bucket only while the chart is shown; the
                 bucket only while there is a series to bucket. The same range
-                control the monitoring drilldown uses (LIVE-26). */}
+                control the monitoring drilldown uses. */}
             {isOpen && (
               <RangeSegmentedControl
                 size="sm"
@@ -248,7 +248,7 @@ export function TabMetricsCard({
                 // The served band multiplier rather than the chart's own
                 // constant, so this card can never disagree with the drilldown
                 // it links to. No `color`: volume takes the one
-                // fixed single-series hue (DS-27).
+                // fixed single-series hue.
                 <MetricsChart
                   data={tabMetricsData}
                   forecast={tabMetrics?.forecast}

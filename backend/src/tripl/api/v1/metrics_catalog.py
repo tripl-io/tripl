@@ -290,7 +290,7 @@ async def get_metric_generated_sql(
     """Return a saved fact metric's primary dependency-batch SQL without running it.
 
     Same gate as ``GET /{metric_id}``: anyone who can read the metric. The SQL is
-    compiled from config that read already returns (MET-41) and nothing executes.
+    compiled from config that read already returns and nothing executes.
     """
     return await metric_preview_service.get_saved_fact_metric_sql(
         session,

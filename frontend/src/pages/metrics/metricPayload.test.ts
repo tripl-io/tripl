@@ -19,7 +19,7 @@ const base = (patch: Partial<MetricDraft>): MetricDraft => ({
   ...patch,
 })
 
-describe('buildCreatePayload (MET-42)', () => {
+describe('buildCreatePayload', () => {
   it('is presentation plus the definition, so create and update cannot drift', () => {
     const draft = base({
       kind: 'event_composition',
@@ -61,7 +61,7 @@ describe('buildCreatePayload (MET-42)', () => {
 })
 
 describe('validateDraft', () => {
-  it('blocks a fact operand with an incomplete filter row (MET-3)', () => {
+  it('blocks a fact operand with an incomplete filter row', () => {
     const named = makeNamedFilter()
     const errors = validateDraft(
       base({
@@ -82,7 +82,7 @@ describe('validateDraft', () => {
   })
 })
 
-describe('columnsOfReferencedTables (MET-17)', () => {
+describe('columnsOfReferencedTables', () => {
   const tables = [
     { name: 'events', columns: [{ name: 'bucket' }, { name: 'platform' }] },
     { name: 'events_daily', columns: [{ name: 'day' }] },

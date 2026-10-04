@@ -42,7 +42,7 @@ describe('Table container', () => {
   })
 })
 
-describe('Table density (DS-9)', () => {
+describe('Table density', () => {
   it('sizes rows and cell gutters from the density tokens', () => {
     const { container } = render(
       <Table>

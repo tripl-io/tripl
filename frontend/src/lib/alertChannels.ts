@@ -13,8 +13,8 @@ export const CHANNEL_LABELS = {
 } as const satisfies Record<string, string>
 
 /**
- * "Slack", not the raw `slack` / `demo_sink` type the API carries (AL-3,
- * AL-11). The demo sink is not a creatable channel, but it is a destination
+ * "Slack", not the raw `slack` / `demo_sink` type the API carries.
+ * The demo sink is not a creatable channel, but it is a destination
  * people see. Takes any string: a delivery's `channel` is not narrowed to
  * AlertDestinationType, and an unknown one reads as itself.
  */
@@ -26,6 +26,6 @@ export function channelLabel(type: string): string {
 /**
  * Channels where a delivery opens an issue rather than posting a message. A
  * retry there is a second ticket, not a repeated message, so every retry
- * control asks first (AL-40).
+ * control asks first.
  */
 export const TICKET_CHANNELS: ReadonlySet<string> = new Set(['jira', 'linear'])

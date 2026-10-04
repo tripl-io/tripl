@@ -7,7 +7,7 @@ import type {
 } from '@/types'
 
 /**
- * The body of `POST /metrics/series-preview` (MT-9): the definition a save
+ * The body of `POST /metrics/series-preview`: the definition a save
  * would send for a fact or event-composition metric. SQL metrics keep their
  * own `/preview`, which takes the query rather than a definition.
  */

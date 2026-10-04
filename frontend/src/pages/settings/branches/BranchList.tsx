@@ -39,7 +39,7 @@ export function BranchList({
   const activeBranches = items.filter((branch) => !isLandedBranch(branch))
   const landedBranches = items.filter(isLandedBranch)
   // Main is listed first on the open tab but is not "open work": an empty
-  // project used to say "Active 1" (PL-15).
+  // project used to say "Active 1".
   const openCount = activeBranches.filter((branch) => branch.kind !== 'main').length
   // The main branch counts as "working on it" when no branch is selected.
   const workingOnId = activeBranchId ?? items.find((branch) => branch.kind === 'main')?.id ?? null
@@ -47,7 +47,7 @@ export function BranchList({
   const selectedIsLanded = landedBranches.some((branch) => branch.id === selectedId)
   const tab: BranchListTab = pickedTab ?? (selectedIsLanded ? 'merged' : 'active')
   const shown = tab === 'merged' ? landedBranches : activeBranches
-  // The dot beside "↑n" explained itself only in a `title` (PL-8): a visible
+  // The dot beside "↑n" explained itself only in a `title`: a visible
   // legend whenever a listed row wears one.
   const legendId = useId()
   const anyBehind = shown.some(
@@ -64,7 +64,7 @@ export function BranchList({
           value={tab}
           onChange={setPickedTab}
           // "Closed" holds merged and closed-without-merging branches alike;
-          // each row's chip says which (PL-15).
+          // each row's chip says which.
           options={[
             { value: 'active', label: `Open ${openCount}` },
             { value: 'merged', label: `Closed ${landedBranches.length}` },
@@ -94,14 +94,14 @@ export function BranchList({
               type="button"
               onClick={() => onSelect(branch)}
               // The background alone told only sighted users which branch the
-              // pane was showing (PLAN-20).
+              // pane was showing.
               aria-current={isActive ? 'true' : undefined}
               // The legend describes the dot; a description is announced on
               // the focusable row, never on a generic span inside it.
               aria-describedby={!isMain && counts?.behind ? legendId : undefined}
               className="flex w-full items-center gap-2.5 border-t px-4 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)]"
               // The selection wears the sidebar's accent edge and fill, not the
-              // hover colour it was indistinguishable from (PL-15).
+              // hover colour it was indistinguishable from.
               style={{
                 borderColor: 'var(--border-subtle)',
                 background: isActive ? 'var(--accent-soft)' : 'transparent',
@@ -131,7 +131,7 @@ export function BranchList({
                   ) : null}
                 </div>
                 <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-micro text-fg-tertiary">
-                  {/* Which branch waits for review, which is approved (PL-15). */}
+                  {/* Which branch waits for review, which is approved. */}
                   {!isMain ? (
                     <Chip tone={STATUS_TONE[branch.status]} size="xs" className="shrink-0">
                       {STATUS_LABEL[branch.status]}
@@ -142,7 +142,7 @@ export function BranchList({
               </div>
               {/* Only once the counts are known — "↑0" before they arrive is a
                   verdict we have not earned. `behind_base` is a yes/no, not a
-                  distance, so it is a dot and not a number (PLAN-14). */}
+                  distance, so it is a dot and not a number. */}
               {!isMain && counts && (
                 <span
                   className="flex shrink-0 items-center gap-1 text-micro tnum text-fg-tertiary"

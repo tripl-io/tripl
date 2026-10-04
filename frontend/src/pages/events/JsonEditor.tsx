@@ -69,7 +69,7 @@ export function JsonEditor({
   // The value this editor last saw from its parent. `raw` used to be read from
   // `value` once and never again, so a reset from outside — "Hand back to
   // scans" clearing the field — changed state the box never showed, and the
-  // next keystroke wrote the old payload straight back (EVT-22).
+  // next keystroke wrote the old payload straight back.
   // Adjust-during-render with an equality guard, this repo's idiom for state
   // that follows a prop (see ProjectAlertingTab.tsx). Only a CHANGE of `value`
   // is considered, and not one that merely echoes what this editor emitted:
@@ -225,7 +225,7 @@ export function JsonEditor({
 
   return (
     <div className="space-y-1">
-      {/* A small toolbar above the box (AU-40): Format used to sit alone under
+      {/* A small toolbar above the box: Format used to sit alone under
           the box's right edge and read as stray text. Not an overlay either —
           that covered the first line of every payload wider than the box. */}
       <div className="flex items-center justify-between gap-2">
@@ -268,7 +268,7 @@ export function JsonEditor({
       <div ref={wrapperRef} className="relative">
         {/* The form's one control style, not the shared Textarea: its border,
             background and focus colour differed from every neighbouring input
-            (AU-40, the last LIVE-30 holdout). `aria-invalid` draws the danger
+            (the last holdout). `aria-invalid` draws the danger
             edge through INPUT_CLASS. */}
         <textarea
           ref={textareaRef}

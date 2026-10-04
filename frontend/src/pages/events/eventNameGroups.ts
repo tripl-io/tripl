@@ -19,7 +19,7 @@ export const MIN_GROUP_SIZE = 3
  * Stricter bar for the events table's cluster banner. Any three names sharing
  * one segment (`checkout:started|completed|failed`) formed a cluster, so the
  * banner showed on almost every catalog and stopped meaning "these look
- * machine-generated" (EVT-40).
+ * machine-generated".
  */
 export const TABLE_CLUSTER_MIN_SIZE = 5
 

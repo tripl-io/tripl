@@ -3,8 +3,8 @@ import { createContext, useContext, type RefObject } from 'react'
 export type TweaksPanelContextValue = {
   open: boolean
   /**
-   * Opens or closes the panel. `anchor` is the control the popover hangs from
-   * (SH-24); without one it hangs from whatever had focus, which is the
+   * Opens or closes the panel. `anchor` is the control the popover hangs from;
+   * without one it hangs from whatever had focus, which is the
    * clicked button in the common case.
    */
   setOpen: (next: boolean, anchor?: HTMLElement | null) => void

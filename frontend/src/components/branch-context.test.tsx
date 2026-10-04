@@ -203,7 +203,7 @@ describe('BranchProvider', () => {
     expect(toast.info).not.toHaveBeenCalled()
   })
 
-  it('asks the page guard before Back re-adopts an older ?branch= on the same page (SHELL-19)', async () => {
+  it('asks the page guard before Back re-adopts an older ?branch= on the same page', async () => {
     listReturns([MAIN, FEATURE])
     renderProvider([`/p/demo/events?branch=${FEATURE.id}`, `/p/demo/events?branch=${FEATURE.id}&q=x`], {
       withForm: true,

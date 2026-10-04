@@ -20,7 +20,7 @@ function namedScans(ds: DataSource): string | null {
 
 /**
  * The delete confirm's sentence: counted from the list's usage fields when the
- * server sent them (DA-40), with the scans named when there are few, and named
+ * server sent them, with the scans named when there are few, and named
  * without numbers when it sent none.
  */
 export function dataSourceDeleteMessage(ds: DataSource): string {
@@ -42,7 +42,7 @@ export function dataSourceDeleteMessage(ds: DataSource): string {
 
 /**
  * A source that scans read must be deleted deliberately: the confirm arms only
- * once its name is typed (DA-40). A source nothing reads keeps the plain confirm.
+ * once its name is typed. A source nothing reads keeps the plain confirm.
  */
 export function dataSourceDeleteRequireText(ds: DataSource): string | undefined {
   return (ds.scan_count ?? 0) > 0 ? ds.name : undefined

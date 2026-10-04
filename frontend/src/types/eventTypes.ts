@@ -79,7 +79,7 @@ export interface EventTypeRelation {
   description: string
 }
 
-/** GET /meta-fields/{id}/usage: what deleting the field would clear (AU-37). */
+/** GET /meta-fields/{id}/usage: what deleting the field would clear. */
 export interface MetaFieldUsage {
   // Non-empty stored values; a multi-value field holds several per event.
   value_count: number
@@ -112,6 +112,6 @@ export interface MetaFieldDefinition {
  * picked one. It has to equal the backend column default (the API schemas
  * document `@default #6366f1`), so a row created without a colour and a form
  * opened fresh show the same swatch; it was repeated as a magic hex in five
- * places (DS-33).
+ * places.
  */
 export const DEFAULT_ENTITY_COLOR = '#6366f1'

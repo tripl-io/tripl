@@ -31,7 +31,7 @@ function summaryText() {
   return screen.getByTestId('signal-summary').textContent ?? ''
 }
 
-describe('SignalSummary (MO-2)', () => {
+describe('SignalSummary', () => {
   it('reads a spike as one sentence with its reason', () => {
     render(
       <SignalSummary signal={signal()} formatActual={formatActual} formatExpected={formatExpected} sigmaThreshold={4} />,

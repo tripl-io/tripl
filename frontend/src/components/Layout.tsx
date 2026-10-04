@@ -47,14 +47,14 @@ import { forgetLastProjectSlug } from '@/lib/lastProjectSlug'
 
 // Demo-only chrome, rendered for a demo project alone. Loaded on demand so the
 // product tour, chapter picker and reset dialog stay out of every other
-// user's first load (#194 SHELL-4).
+// user's first load (#194).
 const DemoBanner = lazyWithReload(() =>
   import('@/demo/DemoBanner').then((m) => ({ default: m.DemoBanner })),
 )
 const DemoScenarioStrip = lazyWithReload(() =>
   import('@/demo/DemoScenarioStrip').then((m) => ({ default: m.DemoScenarioStrip })),
 )
-// The way back to the Get-started checklist (#250 JR-3). It only renders on a
+// The way back to the Get-started checklist (#250). It only renders on a
 // URL tagged `?onboarding=…`, so its chunk is fetched for those alone.
 const OnboardingReturnBar = lazyWithReload(() =>
   import('@/components/onboarding-return-bar').then((m) => ({ default: m.OnboardingReturnBar })),
@@ -65,7 +65,7 @@ const OnboardingReturnBar = lazyWithReload(() =>
 const ActivityPanel = lazyWithReload(() =>
   import('@/components/activity-panel').then((m) => ({ default: m.ActivityPanel })),
 )
-// The `?` shortcut sheet (JR-21), fetched on the first `?` alone.
+// The `?` shortcut sheet, fetched on the first `?` alone.
 const ShortcutsDialog = lazyWithReload(() => import('@/components/shell/shortcuts-dialog'))
 
 const ACTIVITY_STORAGE_KEY = 'tripl-activity-open'
@@ -95,12 +95,12 @@ function useActivityOpen() {
 // also the rail's default-open threshold above). Below it the 304px rail
 // collapses to an off-canvas drawer toggled from the top bar. It was 1280px,
 // and at 1440 — the commonest laptop — the rail and the sidebar left the Events
-// table 830px, ten of its seventeen columns off-screen (LIVE-6).
+// table 830px, ten of its seventeen columns off-screen.
 const ACTIVITY_INLINE_MIN_WIDTH = 1600
 const ACTIVITY_INLINE_QUERY = `(min-width: ${ACTIVITY_INLINE_MIN_WIDTH}px)`
 
 // At/above this width the sidebar is pinned in flow; below it, it is a drawer.
-// Pinned from 768px it left a tablet ~528px of page (LIVE-7). Mirrors the
+// Pinned from 768px it left a tablet ~528px of page. Mirrors the
 // `lg:` utilities on the sidebar wrapper, the backdrop and the hamburger.
 const NAV_PERSISTENT_QUERY = '(min-width: 1024px)'
 
@@ -151,20 +151,20 @@ type Crumbs = {
   /**
    * An editor route: once the page names itself `editPageTitle(name)`, the
    * entity becomes a crumb and this word the title ("Metrics › Active
-   * Sessions › Edit", #246 MT-31).
+   * Sessions › Edit", #246).
    */
   entityAction?: string
 }
 
-/** A detail route's own crumb before its entity has loaded (JR-33). */
+/** A detail route's own crumb before its entity has loaded. */
 const DETAIL_PENDING_TITLE = ''
 
 // Workspace-level surfaces: the portfolio dashboard reachable at three paths.
 // None of them is inside a project, so none gets a project root crumb — `/`
 // already rendered a bare "Overview" and `/workspace` is the identical page.
 const WORKSPACE_PATHS: readonly string[] = ['/', '/workspace', '/projects']
-// The page's own name, the sidebar's and the palette's: one name per route
-// (LIVE-34). It used to be "Overview" here, a word a project page also uses.
+// The page's own name, the sidebar's and the palette's: one name per route.
+// It used to be "Overview" here, a word a project page also uses.
 const WORKSPACE_TITLE = 'All projects'
 
 // Concepts sits below the sidebar divider rather than inside the Plan / Observe
@@ -186,7 +186,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   // segment. The literal placeholder this used to emit read as an untranslated
   // template leaking into the UI.
   // Plain strings are nav groups (not pages); a surface passes a Crumb with
-  // its link (MO-13). The project crumb opens the project's home.
+  // its link. The project crumb opens the project's home.
   const withProject = (...rest: (string | Crumb)[]): Crumb[] => {
     const trail = rest.map((crumb) => (typeof crumb === 'string' ? { label: crumb } : crumb))
     if (!projectName) return trail
@@ -197,7 +197,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   // Detail surfaces carry their nav area so the breadcrumb reads
   // "project › Area › Page › <entity>"; the page names the entity through
   // usePageTitle, and until it has, the crumb stays blank rather than flash
-  // a generic "Detail" (JR-33); Layout then shows the area's page as the
+  // a generic "Detail"; Layout then shows the area's page as the
   // title. An event's catalog detail is served under
   // /monitoring/event/<id> (the canonical event route), but it belongs to
   // Plan › Events — only project-total/event-type signal detail falls through
@@ -214,7 +214,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   // What is left — event-type and project-total volume drilldowns — is named
   // from the entity, not from the route the reader happened to arrive by: the
   // trail said "Observe › Anomalies" even when the page was opened from the
-  // sidebar or an event type (#241 MO-13). An event type's volume sits under
+  // sidebar or an event type (#241). An event type's volume sits under
   // "Plan › Event types", where the nav files Event types; the project total
   // is its own page ("Total volume").
   if (pathname.includes('/monitoring/event-type/')) {
@@ -224,12 +224,12 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
     return { crumbs: withProject('Observe'), title: DETAIL_PENDING_TITLE }
   }
   // One branch: "Plan › Plan branches › <name>", the page naming the branch
-  // once it has loaded (#243 PL-17). The bare list keeps its nav crumb.
+  // once it has loaded (#243). The bare list keeps its nav crumb.
   if (/^\/p\/[^/]+\/branches\/[^/]+/.test(pathname)) {
     return { crumbs: withProject('Plan', nav('Plan branches')), title: DETAIL_PENDING_TITLE }
   }
   // An alert rule's history: "Observe › Alerting › Rules › <rule>", the tab
-  // the rule lives on, instead of "Observe › <rule>" (#241 MO-13, #238 JR-28).
+  // the rule lives on, instead of "Observe › <rule>" (#241, #238).
   if (/^\/p\/[^/]+\/monitors\/[^/]+/.test(pathname)) {
     const alerting = nav('Alerting')
     const rules: Crumb = alerting.to ? { label: 'Rules', to: `${alerting.to}?section=monitors` } : { label: 'Rules' }
@@ -237,7 +237,7 @@ function resolveCrumbs(fullPathname: string, slug?: string, projectName?: string
   }
   // Metric and fact-table editors name themselves under the Metrics surface
   // instead of passing for the list: "Metrics › New metric", "Metrics › Edit
-  // metric", "Metrics › Fact tables › Edit fact table" (#246 MT-31).
+  // metric", "Metrics › Fact tables › Edit fact table" (#246).
   const metricsSub = /^\/p\/[^/]+\/metrics\/(.+)$/.exec(pathname)?.[1]
   const factTables: Crumb = slug
     ? { label: 'Fact tables', to: projectPath(currentOrgSlug(), slug, '/metrics/fact-tables') }
@@ -305,15 +305,15 @@ export default function Layout() {
   const activeOrg = useActiveOrg()
   const [activityOpen, setActivityOpen] = useActivityOpen()
 
-  // A page may ask for the rail to stay out of its way (the 404, LIVE-35).
+  // A page may ask for the rail to stay out of its way (the 404).
   const [railSuppressed, setRailSuppressed] = useState(false)
-  // `?` opens the shortcut sheet; `c` presses the page's "New …" (JR-21).
+  // `?` opens the shortcut sheet; `c` presses the page's "New …".
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const openShortcuts = useCallback(() => setShortcutsOpen(true), [])
   useShellShortcuts({ onOpenHelp: openShortcuts })
   // A detail page names its entity here (usePageTitle); null keeps the route's.
   const [pageTitle, setPageTitle] = useState<string | null>(null)
-  // The same name reaches the browser-tab title (JR-33).
+  // The same name reaches the browser-tab title.
   const setDocumentEntityTitle = useContext(DocumentEntityTitleContext)
   const shellChrome = useMemo(
     () => ({
@@ -340,7 +340,7 @@ export default function Layout() {
   // the sidebar to static flow regardless).
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
-  // Drawers behave like the modal they look like (SHELL-21): focus moves in on
+  // Drawers behave like the modal they look like: focus moves in on
   // open, Escape closes, and closing by hand hands focus back to the button
   // that opened it. While one is open the rest of the shell is `inert`, which
   // is also what keeps Tab inside it.
@@ -410,7 +410,7 @@ export default function Layout() {
 
   // A client-side navigation announces nothing and leaves focus on the link
   // that was followed, so a keyboard user had to walk the rest of the sidebar
-  // to reach the new page (SHELL-25). Move focus to the content — unless it is
+  // to reach the new page. Move focus to the content — unless it is
   // already there: a tab strip inside the page changes the path too, and must
   // keep its own focus. Skipped on the first render, which is a page load.
   const mainRef = useRef<HTMLElement | null>(null)
@@ -469,7 +469,7 @@ export default function Layout() {
   //
   // Only a 404/403 means "no such project". Anything else — a 5xx, the network —
   // says nothing about the slug and is offered as a retry, not as a 404 page
-  // (#194 SHELL-46). Both wait for the list, which may still name the project.
+  // (#194). Both wait for the list, which may still name the project.
   const confirmError = confirmProject.error
   const confirmSaysMissing =
     confirmError instanceof ApiError && (confirmError.status === 404 || confirmError.status === 403)
@@ -544,7 +544,7 @@ export default function Layout() {
   // project-scoped requests the moment it mounts, so rendering optimistically is
   // what produced the doomed fan-out in the first place.
   if (projectResolving) {
-    // The shell's shape, not one grey sentence on a blank screen (#237 SH-23).
+    // The shell's shape, not one grey sentence on a blank screen (#237).
     return <ShellSkeleton label="Loading project…" />
   }
   if (projectLookupFailed) {
@@ -585,7 +585,7 @@ export default function Layout() {
       <CommandPaletteProvider>
         {/* `dvh`, not `vh`: on mobile Safari and Chrome 100vh is the LARGE
             viewport, so the sidebar footer (Sign out) and the last rows of every
-            page sat under the browser toolbar (SHELL-22). */}
+            page sat under the browser toolbar. */}
         <div
           className="relative flex h-screen overflow-hidden supports-[height:100dvh]:h-dvh bg-background text-fg"
         >
@@ -607,7 +607,7 @@ export default function Layout() {
             }
           >
             {/* As a drawer it closes rather than collapsing into a 52px rail
-                over a blurred page (#238 SH-13). */}
+                over a blurred page (#238). */}
             <AppSidebar drawer={!isWideNav} onCloseDrawer={closeDrawers} />
           </div>
 
@@ -654,14 +654,14 @@ export default function Layout() {
                       <Suspense fallback={<DemoBannerPlaceholder />}>
                         {/* The placeholder holds the banner's box while its
                             chunk loads, so the page does not jump down when it
-                            lands (#251 SH-2). */}
-                        {/* One row, not two stacked cards (LIVE-9): the coached
+                            lands (#251). */}
+                        {/* One row, not two stacked cards: the coached
                             scenario sits INSIDE the banner's row. Gated with
                             the banner, but it decides for itself whether there
                             is anything left to coach. Passed as an element so
                             each keeps its own lazy chunk. On the in-project 404
                             (railSuppressed) there is nothing to coach, so the
-                            strip is left out (#251 SH-36). */}
+                            strip is left out (#251). */}
                         {railSuppressed ? (
                           <DemoBanner project={project} />
                         ) : (
@@ -685,7 +685,7 @@ export default function Layout() {
 
                       It is the `<main>` landmark too. The top bar used to sit
                       inside `<main>`, so the landmark opened on chrome and the
-                      skip target was a nested div (SHELL-47).
+                      skip target was a nested div.
 
                       This element's box is ALSO the content column — the page
                       gutter is padding on the parent, so this box starts and

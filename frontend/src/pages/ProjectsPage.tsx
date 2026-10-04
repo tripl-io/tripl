@@ -46,7 +46,7 @@ export default function MainPage() {
   const { user } = useAuth()
   const publicDemo = usePublicDemo()
   // `?new=1` opens the create dialog on arrival: the sidebar project
-  // switcher's "New project" item lands here (#238 SH-15).
+  // switcher's "New project" item lands here (#238).
   const [searchParams, setSearchParams] = useSearchParams()
   const [showForm, setShowFormState] = useState(() => searchParams.get('new') === '1')
   const setShowForm = (open: boolean) => {
@@ -58,7 +58,7 @@ export default function MainPage() {
     }
   }
   // The slug whose delete succeeded but whose list refetch has not landed yet:
-  // its card is still listed and must keep saying "Deleting…" (WS-9).
+  // its card is still listed and must keep saying "Deleting…".
   const [settlingSlug, setSettlingSlug] = useState<string | null>(null)
   const { confirm, dialog } = useConfirm()
 
@@ -69,7 +69,7 @@ export default function MainPage() {
   })
 
   // One pass over the list, memoised: the sort and the roll-up used to run on
-  // every render of the page (WS-44).
+  // every render of the page.
   const {
     projects,
     totals: portfolio,
@@ -87,7 +87,7 @@ export default function MainPage() {
 
   // The workspace list is the one place that knows every project this browser
   // can still reach, so it clears demo state left behind by projects that are
-  // gone — deleted elsewhere, or by someone else (DEMO-17).
+  // gone — deleted elsewhere, or by someone else.
   const loadedProjects = projectsQuery.data
   useEffect(() => {
     if (loadedProjects) sweepOrphanedDemoLocalState(loadedProjects.map((project) => project.slug))
@@ -99,7 +99,7 @@ export default function MainPage() {
   )
 
   // The delete dialog shows its own failure, and the card shows its own
-  // pending state, so neither is left to a toast or to nothing at all (WS-9).
+  // pending state, so neither is left to a toast or to nothing at all.
   //
   // The confirm dialog runs the delete and closes once the DELETE succeeds; the
   // list refetch after it is tracked by `settlingSlug` rather than by keeping
@@ -110,7 +110,7 @@ export default function MainPage() {
     onSuccess: (_data, projectSlug) => {
       queryClient.removeQueries({ queryKey: projectKey(projectSlug) })
       // A demo's tour, scenario and welcome state is keyed by slug and would
-      // otherwise outlive it (DEMO-17); harmless for any other project.
+      // otherwise outlive it; harmless for any other project.
       forgetDemoLocalState(projectSlug)
       setSettlingSlug(projectSlug)
       void queryClient
@@ -129,7 +129,7 @@ export default function MainPage() {
   // Every demo is an extra synthetic workspace inside the real roll-ups, so the
   // second one asks first and points at Reset instead.
   //
-  // At the cap the button is disabled with the reason beside it (DEMO-27): the
+  // At the cap the button is disabled with the reason beside it: the
   // old confirm there had two buttons that both did nothing.
   const ownedDemos = ownedDemoCount(projects, user?.id)
   const demoBlockedReason = demoGenerationBlockedReason(ownedDemos)
@@ -162,7 +162,7 @@ export default function MainPage() {
   const dataSourceValue = dataSourcesQuery.isError
     ? 'Unavailable'
     : dataSourcesQuery.isLoading
-      // A placeholder bar, not "..." (#237 DS-25): the strip never claims a
+      // A placeholder bar, not "..." (#237): the strip never claims a
       // figure it has not loaded.
       ? <StatValueSkeleton />
       : String(dataSourceCount)
@@ -193,12 +193,12 @@ export default function MainPage() {
       />
 
       {/* Title + create actions. Stats moved into the single stat row below so
-          the header no longer doubles as a stat strip (UX-10). The shared page
-          header (DS-1): the eyebrow is the sidebar group, as on every page. */}
+          the header no longer doubles as a stat strip. The shared page
+          header: the eyebrow is the sidebar group, as on every page. */}
       <PageHeader
         eyebrow="Workspace"
         // One name for this page wherever it is named — the sidebar, the
-        // top bar, the tab and the palette all say "All projects" (LIVE-34).
+        // top bar, the tab and the palette all say "All projects".
         title="All projects"
         description="See which tracking plans are filling out, which projects still need review, and how much scan and alerting coverage exists across the workspace."
         actions={
@@ -246,8 +246,8 @@ export default function MainPage() {
 
       {/* No error card of its own: this page only renders inside Layout, whose
           "Backend is unavailable" card already reports a failed project list,
-          with its own retry. A second card here said the same thing twice
-          (fj5g.6). The empty-workspace hero stays out of it, below. */}
+          with its own retry. A second card here said the same thing twice.
+          The empty-workspace hero stays out of it, below. */}
 
       {isEmptyWorkspace && (
         <WorkspaceWelcome
@@ -263,7 +263,7 @@ export default function MainPage() {
           {/* One consolidated panel, two tiers: calm STATE metrics on top, a
               divider, then the attention-worthy ACTION-NEEDED cards under them.
               Projects/Coverage live here exactly once — no duplicated tiers,
-              and no metric is shown twice on the page (UX-10).
+              and no metric is shown twice on the page.
 
               The tiers used to sit side by side, which left the three action
               cards ~365px of a 904px panel at 1512px — under the 170px min each
@@ -338,7 +338,7 @@ export default function MainPage() {
               <AttentionStat
                 icon={AlertTriangle}
                 label="Failed runs"
-                // "0 projects" under "Failed runs" read backwards (SH-27).
+                // "0 projects" under "Failed runs" read backwards.
                 value={projectsWithFailedScan > 0 ? String(projectsWithFailedScan) : 'None'}
                 unit={
                   projectsWithFailedScan > 0

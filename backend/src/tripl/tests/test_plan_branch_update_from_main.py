@@ -1,4 +1,4 @@
-"""``/branches/{id}/update-from-main``: a three-way merge of main INTO a branch (PL-8).
+"""``/branches/{id}/update-from-main``: a three-way merge of main INTO a branch.
 
 Main is edited through the ORM, the way the merge tests edit a branch, so each
 test states exactly which side changed what. SQLite enforces no foreign keys,

@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react'
 
 /**
- * The unsent note on each incident card, held outside React state (ALR-29).
+ * The unsent note on each incident card, held outside React state.
  *
  * The drafts used to be a `Record` in ProjectAlertingTab's state, so every
  * keystroke in any card re-rendered the whole page and all 50–250 cards under

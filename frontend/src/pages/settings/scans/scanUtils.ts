@@ -60,7 +60,7 @@ export function jobRowsScanned(job: ScanJob | null): number | null {
  * (`query_rows_scanned`); the catalog analyzer reports the rows of its
  * `GROUP BY ALL` breakdown (`scan_rows_processed`), which are distinct column
  * combinations grouped in the warehouse, not warehouse rows. Printing both as
- * "rows" put a catalog run 180× below its dry run's row count (#247 DA-4).
+ * "rows" put a catalog run 180× below its dry run's row count (#247).
  */
 export type JobScannedUnit = 'rows' | 'combinations'
 
@@ -69,7 +69,7 @@ export interface JobScanned {
   unit: JobScannedUnit
   /**
    * A catalog run that reported both: the distinct combinations its GROUP BY
-   * returned, behind the warehouse rows in `value` (i9mt.16).
+   * returned, behind the warehouse rows in `value`.
    */
   combinations?: number
 }
@@ -174,7 +174,7 @@ export interface MetricsFreshness {
 }
 
 /**
- * The server's answer for one scan (`GET /scans/{id}`, i9mt.16): the newest
+ * The server's answer for one scan (`GET /scans/{id}`): the newest
  * scheduled collection and the scheduler's own next due moment.
  */
 export interface MetricsSchedule {
@@ -192,7 +192,7 @@ function parseMs(value: string | null | undefined): number | null {
  * How current a monitoring scan's metric series is, from its own job list.
  * The detail page's "Metric points" card read the newest run, which is usually
  * a catalog Run now with no points, so every monitoring scan showed "—" and
- * nothing said whether the series was up to date (#247 DA-5).
+ * nothing said whether the series was up to date (#247).
  *
  * With the server's `schedule`, the next run is the scheduler's due check
  * (the next interval boundary, not "last run + interval"), and the last run
@@ -361,7 +361,7 @@ export function eligibleChunkIntervals(interval: string): IntervalCode[] {
  * Every numeric scan limit is `ge=1` on the backend. Truncating `0`, `-3` or
  * `2.5` into a number used to send it anyway and come back as a raw 422; an
  * invalid value now never reaches the wire, and {@link positiveIntError} is what
- * tells the user why the form will not save it (DATA-25).
+ * tells the user why the form will not save it.
  */
 export function parseOptionalPositiveInt(value: string): number | null {
   const trimmed = value.trim()
@@ -394,7 +394,7 @@ export function parseOptionalShare(value: string): number | null {
 /**
  * Why a traffic share cannot be saved, or null when it can. `5` meaning 5% used
  * to become null and save as the 0.05 default, so the value the user typed just
- * disappeared (DATA-25).
+ * disappeared.
  */
 export function shareError(value: string): string | null {
   if (!value.trim() || parseOptionalShare(value) !== null) return null
@@ -405,6 +405,6 @@ export function isJsonPreviewType(typeName: string) {
   return typeName.toLowerCase().includes('json')
 }
 
-// One shared native-select class, focus ring included (DATA-48): this copy had
+// One shared native-select class, focus ring included: this copy had
 // none, so keyboard focus on the scan form's selects was invisible.
 export { SELECT_CLASS } from '@/components/data-sources/connection-settings'

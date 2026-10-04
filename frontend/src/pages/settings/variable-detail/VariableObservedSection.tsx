@@ -18,7 +18,7 @@ import type { Variable } from '@/types'
  *
  * `variable` is the LIVE row from the variables list, not a copy: after a clear
  * the list refetches, and a snapshot kept offering to clear "12 contexts" of a
- * variable that had none left (PLAN-29). `scrollClassName` caps the table in
+ * variable that had none left. `scrollClassName` caps the table in
  * the dialog; the page lets it run.
  */
 export function VariableObservedSection({
@@ -58,7 +58,7 @@ export function VariableObservedSection({
 
   const handleClearValues = async () => {
     // Read off the live row, so a second click after a clear cannot quote the
-    // count from before it (PLAN-29).
+    // count from before it.
     const contextCount = variable.context_count ?? 0
     const ok = await confirm({
       title: 'Clear observed values',
@@ -107,7 +107,7 @@ export function VariableObservedSection({
       )}
       {/* Four columns, all scan-derived. Variable, Type and Description used to
           repeat the definition on every row and pushed Event, Source and Values
-          into a sideways scroll (PLAN-30). */}
+          into a sideways scroll. */}
       <div className={`${scrollClassName} overflow-auto rounded-sm border bg-background`}>
         <Table>
           <TableHeader>

@@ -30,10 +30,10 @@ export interface VariablesTableRowProps {
   onEdit: (variable: Variable) => void
   onExclude: (variable: Variable) => void
   onDelete: (variable: Variable) => void
-  /** Where an "Observed in" event name links (AU-29). Without it — or outside
+  /** Where an "Observed in" event name links. Without it — or outside
    * a router — the names are plain text. */
   eventHref?: (eventId: string) => string
-  /** Where the `${name}` token links: the variable's own page (AU-26). Without
+  /** Where the `${name}` token links: the variable's own page. Without
    * it, or outside a router, the token is plain text. */
   detailHref?: (variableId: string) => string
   /** Where the "On N events" line links: the property's Events tab (F23). */
@@ -58,7 +58,7 @@ function VariablesTableRowImpl({
   // Everything the row shows ships with the list response — event names and
   // observed values included — so a row costs zero extra requests.
   const inRouter = useInRouterContext()
-  // Ids when the server sent them, so each name can open its event (AU-29);
+  // Ids when the server sent them, so each name can open its event;
   // names alone otherwise. Same order and cap either way.
   const eventRefs: { id: string | null; name: string }[] =
     variable.event_refs ?? (variable.event_names ?? []).map(name => ({ id: null, name }))
@@ -123,7 +123,7 @@ function VariablesTableRowImpl({
               {`\${${variable.name}}`}
             </code>
           )}
-          {/* The badge taxonomy (DS-6): the type is a kind tag, the drift
+          {/* The badge taxonomy: the type is a kind tag, the drift
               count a warning status. Both pills, in sans. */}
           <Chip variant="outline" size="xs" className="font-mono">
             {typeLabel}
@@ -164,7 +164,7 @@ function VariablesTableRowImpl({
           <span className="text-fg-tertiary">—</span>
         ) : eventNames.length <= MAX_INLINE_EVENTS ? (
           // Keyed by position: two event types can each hold an event of the
-          // same name, and a duplicate key made React drop one of them (PLAN-33).
+          // same name, and a duplicate key made React drop one of them.
           <ul className="space-y-0.5">
             {eventRefs.map((ref, index) => (
               <li key={index}>{eventLabel(ref)}</li>
@@ -227,7 +227,7 @@ function VariablesTableRowImpl({
         )}
       </TableCell>
       {/* Pinned to the right edge like its header, so a phone reader can act
-          on a row without first finding the sideways scroll (AU-27). */}
+          on a row without first finding the sideways scroll. */}
       <TableCell className="sticky right-0 bg-surface">
         <div className="flex gap-1 justify-end">
           {/* Exactly one row carries the inspect mark: the seeded drifting

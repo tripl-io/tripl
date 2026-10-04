@@ -12,7 +12,7 @@ import {
   REQUIRED_MESSAGE,
 } from './validation'
 
-describe('FieldError + invalidAria (AU-4 / MT-7)', () => {
+describe('FieldError + invalidAria', () => {
   function Row({ error }: { error?: string }) {
     return (
       <div>
@@ -75,7 +75,7 @@ describe('validation summaries', () => {
   })
 })
 
-describe('placeholders (MT-6 / DA-37)', () => {
+describe('placeholders', () => {
   it('marks a single-line example', () => {
     expect(examplePlaceholder('created_at')).toBe('e.g. created_at')
     expect(examplePlaceholder('%', 'ms', '$')).toBe('e.g. %, ms, $')
@@ -89,7 +89,7 @@ describe('placeholders (MT-6 / DA-37)', () => {
   })
 })
 
-describe('SaveBar (AU-6 / MT-4 / ST-3)', () => {
+describe('SaveBar', () => {
   it('holds the actions and a live status line', () => {
     render(
       <SaveBar status="Fill in: Name" statusTone="danger">
@@ -124,7 +124,7 @@ describe('SaveBar (AU-6 / MT-4 / ST-3)', () => {
   })
 })
 
-describe('Label optional suffix (AL-28)', () => {
+describe('Label optional suffix', () => {
   it('appends a muted "(optional)" only when asked', () => {
     const { rerender } = render(
       <>

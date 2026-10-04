@@ -1,12 +1,11 @@
 """Backend asks from design-review batches 13-20.
 
-JR-2 (``ProjectSummary.metric_count``), MT-25 (metric list ``reviewed`` /
-``owner_id`` filters), MT-30 (fact-table list rollups), AL-14 (inbox
-``status_counts``), ST-39 (reset ``dry_run``), B15 (split 24h scan rows, the
-readable row-limit defaults), DA-40 (data-source usage counts), AU-37 (meta
-field usage), ST-24 (``email_configured`` on ``/auth/status``), ST-30 (AI prompt
-defaults), AU-29 (variable ``event_refs``), AU-13 (``PATCH`` a relation) and
-AL-30 (test-send ``error_kind``).
+``ProjectSummary.metric_count``, the metric list's ``reviewed`` /
+``owner_id`` filters, fact-table list rollups, the inbox
+``status_counts``, the reset ``dry_run``, split 24h scan rows and the
+readable row-limit defaults, data-source usage counts, meta field usage,
+``email_configured`` on ``/auth/status``, AI prompt defaults, variable
+``event_refs``, ``PATCH`` on a relation and the test-send ``error_kind``.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ from tripl.tests.test_projects import (
 )
 
 # --------------------------------------------------------------------------- #
-# JR-2: metric_count on the project summary
+# metric_count on the project summary
 # --------------------------------------------------------------------------- #
 
 
@@ -64,7 +63,7 @@ async def test_project_summary_counts_metrics(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# MT-25: reviewed / owner_id filters on the metrics list
+# reviewed / owner_id filters on the metrics list
 # --------------------------------------------------------------------------- #
 
 
@@ -104,7 +103,7 @@ async def test_metric_list_filters_by_reviewed_and_owner(client: AsyncClient) ->
 
 
 # --------------------------------------------------------------------------- #
-# MT-30: fact-table list rollups
+# fact-table list rollups
 # --------------------------------------------------------------------------- #
 
 
@@ -179,7 +178,7 @@ async def test_fact_table_list_reports_metric_column_and_identifier_counts(
 
 
 # --------------------------------------------------------------------------- #
-# AL-14: status_counts on the inbox
+# status_counts on the inbox
 # --------------------------------------------------------------------------- #
 
 
@@ -275,7 +274,7 @@ async def test_alert_inbox_status_counts_follow_the_other_filters(client: AsyncC
 
 
 # --------------------------------------------------------------------------- #
-# ST-39: dry-run danger-zone resets
+# dry-run danger-zone resets
 # --------------------------------------------------------------------------- #
 
 
@@ -327,7 +326,7 @@ async def test_reset_anomalies_dry_run_counts_without_deleting(client: AsyncClie
 
 
 # --------------------------------------------------------------------------- #
-# B15: split 24h rows and readable row-limit defaults
+# Split 24h rows and readable row-limit defaults
 # --------------------------------------------------------------------------- #
 
 
@@ -375,7 +374,7 @@ async def test_row_limit_defaults_are_readable(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# DA-40: data-source usage
+# data-source usage
 # --------------------------------------------------------------------------- #
 
 
@@ -432,7 +431,7 @@ async def test_tested_and_edited_sources_keep_their_usage_counts(
 
 
 # --------------------------------------------------------------------------- #
-# AU-37: meta-field usage
+# meta-field usage
 # --------------------------------------------------------------------------- #
 
 
@@ -469,7 +468,7 @@ async def test_meta_field_usage_counts_values_and_events(client: AsyncClient) ->
 
 
 # --------------------------------------------------------------------------- #
-# ST-24 / ST-30: auth status email flag, AI prompt defaults
+# Auth status email flag, AI prompt defaults
 # --------------------------------------------------------------------------- #
 
 
@@ -492,7 +491,7 @@ async def test_ai_prompt_defaults_are_the_built_in_prompts(client: AsyncClient) 
 
 
 # --------------------------------------------------------------------------- #
-# AU-29: variable event refs
+# variable event refs
 # --------------------------------------------------------------------------- #
 
 
@@ -535,7 +534,7 @@ async def test_variable_list_carries_event_refs(client: AsyncClient) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# AU-13: edit a relation
+# edit a relation
 # --------------------------------------------------------------------------- #
 
 
@@ -610,7 +609,7 @@ async def test_relation_can_be_edited_and_ends_are_rechecked(client: AsyncClient
 
 
 # --------------------------------------------------------------------------- #
-# AL-30: classify a failed test send
+# classify a failed test send
 # --------------------------------------------------------------------------- #
 
 

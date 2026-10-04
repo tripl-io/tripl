@@ -53,7 +53,7 @@ describe('shared query keys', () => {
     expect(eventTypesKey('demo', 'branch-1').slice(0, project.length)).toEqual([...project])
   })
 
-  it('makes each metric drilldown key a prefix of the page query it refreshes (MET-27)', () => {
+  it('makes each metric drilldown key a prefix of the page query it refreshes', () => {
     // MonitoringDetailPage keys the series `[family, slug, scope, scopeId, …range]`;
     // an invalidation only reaches it while these stay prefixes of that shape.
     const [series, breakdowns, versions] = metricDrilldownKeys('demo', 'm-1')
@@ -62,7 +62,7 @@ describe('shared query keys', () => {
     expect(versions).toEqual(['appVersionSeries', 'demo', 'metric', 'm-1'])
   })
 
-  it('keys the single-project query by branch, nested under the bare project key (SH-11)', () => {
+  it('keys the single-project query by branch, nested under the bare project key', () => {
     // Main keeps the shared key the other project readers use; a branch's
     // summary counts its own plan, so it gets its own cache, still under the
     // `projectKey(slug)` prefix every invalidation of the project reaches.
@@ -102,7 +102,7 @@ describe('shared query keys', () => {
   })
 })
 
-describe('query key values (SHELL-50)', () => {
+describe('query key values', () => {
   // Every key below used to be an array literal typed out at its call sites.
   // Moving them here must not change one value: a cache written under the old
   // spelling would be orphaned, and an invalidation prefix that no longer

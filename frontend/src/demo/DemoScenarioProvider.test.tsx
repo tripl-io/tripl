@@ -285,7 +285,7 @@ describe('DemoScenarioProvider — notify- and visit-driven chapters', () => {
     expect(readScenarioState(SLUG).chapters.variables?.step).toBe('variables/inspect-values')
   })
 
-  it('persists an arrival advance made in the same commit as a project switch (DEMO-14)', () => {
+  it('persists an arrival advance made in the same commit as a project switch', () => {
     const OTHER = 'other'
     writeScenarioState(OTHER, chapterState('variables', 'variables/open-variables'))
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -389,7 +389,7 @@ describe('DemoScenarioProvider — eligibility and controls', () => {
     expect(screen.getByTestId('muted').textContent).toBe('false')
   })
 
-  it('keeps "Hide hints" for the session, per project, across a remount (DEMO-15)', () => {
+  it('keeps "Hide hints" for the session, per project, across a remount', () => {
     const first = renderProvider(demoProject())
     fireEvent.click(screen.getByText('mute'))
     expect(screen.getByTestId('muted').textContent).toBe('true')
@@ -399,7 +399,7 @@ describe('DemoScenarioProvider — eligibility and controls', () => {
     expect(screen.getByTestId('muted').textContent).toBe('true')
   })
 
-  it('adopts progress another tab made instead of overwriting it (DEMO-16)', () => {
+  it('adopts progress another tab made instead of overwriting it', () => {
     renderProvider(demoProject())
     expect(step()).toBe('live-loop/run-scan')
 

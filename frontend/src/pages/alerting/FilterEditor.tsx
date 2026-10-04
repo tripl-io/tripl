@@ -70,7 +70,7 @@ export function FilterEditor({
   /**
    * Why a row cannot be saved, keyed by its `uid`. A row with no values used
    * to be dropped from the payload without a word, so the rule saved broader
-   * than the form showed (ALR-5); the dialog now refuses the submit and the
+   * than the form showed; the dialog now refuses the submit and the
    * row says why.
    */
   rowErrors?: Record<string, string>
@@ -202,7 +202,7 @@ function useEventOptions({
   }
 }
 
-/** Server-side options for the `metric` filter field (JR-15).
+/** Server-side options for the `metric` filter field.
  *
  * The values are MetricDefinition ids — a catalog signal's scope_ref — so the
  * picker lists the metrics catalog rather than anything event-shaped. Same two
@@ -329,7 +329,7 @@ function FilterRow({
       return DIRECTION_VALUE_OPTIONS
     }
     // `event` and `metric` come from the server; anything else has no options
-    // here rather than borrowing the direction ones (JR-15).
+    // here rather than borrowing the direction ones.
     return []
   }, [filter.field, eventTypes])
 
@@ -355,7 +355,7 @@ function FilterRow({
   }, [staticOptions, serverPage, serverSelected])
 
   // "Choose event types…" rather than "Select value": the row reads as a
-  // sentence — "Event type · is one of · Choose event types…" (AL-39).
+  // sentence — "Event type · is one of · Choose event types…".
   const valuePlaceholder =
     filter.field === 'event_type'
       ? single ? 'Choose an event type…' : 'Choose event types…'
@@ -392,8 +392,8 @@ function FilterRow({
   return (
     <div className="rounded-md border p-2 space-y-2">
       {/* Wraps below `sm`: the two fixed selects, the picker and the bin on
-          one line left the picker 0-30px at 375px, its label unreadable
-          (ALR-22). The picker takes a line of its own there; from `sm` up the
+          one line left the picker 0-30px at 375px, its label unreadable.
+          The picker takes a line of its own there; from `sm` up the
           row is one line again. */}
       <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
         <Select value={filter.field} onValueChange={value => onFieldChange(value as AlertRuleFilterField)}>
@@ -429,7 +429,7 @@ function FilterRow({
           errorId={error ? `${errorIdBase}-error` : undefined}
         />
         {/* Named by position and field: several rows share this icon, and an
-            unnamed "button" gave no hint which filter it removes (ALR-23). */}
+            unnamed "button" gave no hint which filter it removes. */}
         <IconButton
           label={`Remove filter ${position}: ${fieldLabel}`}
           className="h-8 w-8 text-fg-tertiary hover:text-destructive ml-auto"

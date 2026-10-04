@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 /**
- * A password field with a show/hide toggle (#250 SH-31). The 12-character
+ * A password field with a show/hide toggle (#250). The 12-character
  * policy makes a typo likely on register, reset and invite, and a masked field
  * gave no way to check one. The toggle is a pressed/unpressed button with one
  * fixed name, so a screen reader hears "Show password, toggle button, pressed"

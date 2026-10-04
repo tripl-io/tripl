@@ -50,13 +50,13 @@ function renderSettings(activePath: string) {
 }
 
 describe('SettingsLayout signposting', () => {
-  it('drops the subtitle that named only two of the four groups (ST-10)', () => {
+  it('drops the subtitle that named only two of the four groups', () => {
     renderSettings('members')
 
     expect(screen.queryByText('Workspace & account configuration')).toBeNull()
   })
 
-  it('names where the way back goes: the bound project, or the workspace (ST-4)', () => {
+  it('names where the way back goes: the bound project, or the workspace', () => {
     const { unmount } = render(
       <RouterProvider
         router={dataRouter(
@@ -85,7 +85,7 @@ describe('SettingsLayout signposting', () => {
     expect(screen.queryByRole('link', { name: /Back to project/i })).toBeNull()
   })
 
-  it('names the current section in the phone header, with a way out (ST-11)', () => {
+  it('names the current section in the phone header, with a way out', () => {
     renderSettings('instance/storage')
 
     const main = screen.getByRole('main')
@@ -93,7 +93,7 @@ describe('SettingsLayout signposting', () => {
     expect(within(main).getByRole('link', { name: 'Close settings' })).toHaveAttribute('href', '/')
   })
 
-  it('does not repeat a group name as its sub-label (ST-7)', () => {
+  it('does not repeat a group name as its sub-label', () => {
     renderSettings('members')
 
     // "Project Project" / "Organization Organization" while nothing names them.
@@ -116,7 +116,7 @@ describe('SettingsLayout signposting', () => {
     expect(back).toHaveAttribute('href', '/p/demo/events')
   })
 
-  it('links the bound project\'s tracking plan and alerting from the Project group (#238 ST-5)', () => {
+  it('links the bound project\'s tracking plan and alerting from the Project group (#238)', () => {
     render(
       <RouterProvider
         router={dataRouter(
@@ -133,7 +133,7 @@ describe('SettingsLayout signposting', () => {
     )
   })
 
-  it('tags the unbuilt Plan rules section "Soon" without renaming its link (ST-5 / PL-26)', () => {
+  it('tags the unbuilt Plan rules section "Soon" without renaming its link', () => {
     renderSettings('members')
 
     const planRules = screen.getByRole('link', { name: 'Plan rules' })
@@ -151,13 +151,13 @@ describe('SettingsLayout signposting', () => {
 
     expect(screen.getByText('Shared across everyone in the organization')).toBeInTheDocument()
     expect(screen.getByText('Settings just for you')).toBeInTheDocument()
-    // Who a group is for once, in the sub-label, not again in the description (ST-7).
+    // Who a group is for once, in the sub-label, not again in the description.
     expect(screen.getByText('Server-wide settings')).toBeInTheDocument()
     expect(screen.getByText('Platform admin')).toBeInTheDocument()
   })
 })
 
-describe('SettingsLayout project switcher (ST-6)', () => {
+describe('SettingsLayout project switcher', () => {
   const PROJECTS = [
     { slug: 'demo', name: 'Demo' },
     { slug: 'other', name: 'Other' },
@@ -297,7 +297,7 @@ describe('SettingsLayout responsive rail', () => {
   })
 })
 
-describe('SettingsLayout off-canvas rail keyboard behaviour (DS-11)', () => {
+describe('SettingsLayout off-canvas rail keyboard behaviour', () => {
   function rail(container: HTMLElement): HTMLElement {
     return container.querySelector('aside') as HTMLElement
   }
@@ -405,7 +405,7 @@ describe('SettingsLayout unsaved-changes guard', () => {
   }
 
   // Save on Instance is per section, so an edit left in another section needs
-  // a pointer back to it on the rail (WS-23).
+  // a pointer back to it on the rail.
   it('marks the rail entries of sections with unsaved changes', async () => {
     const dirtyPaths = ['instance/security'] as const
     render(

@@ -47,11 +47,11 @@ export function AnnotationsCard({
   query: ReturnType<typeof useChartAnnotations>
   /**
    * A bucket to put in the form, e.g. the flagged one when the signal
-   * banner's "Annotate" sent the reader here (JR-5).
+   * banner's "Annotate" sent the reader here.
    */
   prefillBucket?: string | null
   /** Where the collected series ends (the newest bucket's end), to say when a
-   *  new annotation is past the data (MO-8). */
+   *  new annotation is past the data. */
   dataEnd?: string | null
 }) {
   const queryClient = useQueryClient()
@@ -76,7 +76,7 @@ export function AnnotationsCard({
       chartAnnotationsApi.create(slug, {
         bucket: new Date(bucket).toISOString(),
         label: label.trim(),
-        // Never the backend's red default: red is the anomaly colour (MON-25).
+        // Never the backend's red default: red is the anomaly colour.
         color: ANNOTATION_DEFAULT_COLOR,
         scope_type: scope,
         scope_ref: scopeId,
@@ -86,7 +86,7 @@ export function AnnotationsCard({
       setLabel('')
       void invalidate()
       // The list grows below the fold and the marker may sit at the chart's
-      // right edge, so say it worked (MO-8). The default "now" is usually past
+      // right edge, so say it worked. The default "now" is usually past
       // the newest collected bucket: the chart then parks the marker on that
       // bucket, and the toast says why it is not where it was placed yet.
       const endTime = dataEnd ? new Date(dataEnd).getTime() : Number.NaN
@@ -111,7 +111,7 @@ export function AnnotationsCard({
     onError: error => toast.error(`Could not delete the annotation — ${getErrorMessage(error)}`),
   })
   // One click used to delete at once, and the list includes project-wide
-  // markers that every chart in the project draws (MON-26).
+  // markers that every chart in the project draws.
   const deleteAnnotation = async (annotation: ChartAnnotation) => {
     const projectWide = annotation.scope_type === null
     const ok = await confirm({
@@ -130,7 +130,7 @@ export function AnnotationsCard({
   const hasBody = canWrite || createMut.isError || query.isError || annotations.length > 0
 
   return (
-    // The shared section-card geometry (DS-4 / MO-10): header bar with the
+    // The shared section-card geometry: header bar with the
     // 12.5px h2 and its subtitle, then the body.
     <Card id="chart-annotations" className="scroll-mt-4">
       <CardHeader>
@@ -161,7 +161,7 @@ export function AnnotationsCard({
             >
               <div className="flex flex-col gap-0.5">
                 {/* The design-system picker, not the native datetime-local input
-                    whose popup ignored the theme (MON-27, LIVE-21). Same value
+                    whose popup ignored the theme. Same value
                     format, so the ISO conversion below is unchanged. */}
                 <DateTimePicker
                   id="annotation-bucket"
@@ -182,7 +182,7 @@ export function AnnotationsCard({
                   value={label}
                   maxLength={ANNOTATION_LABEL_MAX}
                   onChange={event => setLabel(event.target.value)}
-                  // 16px on phones so iOS does not zoom in on focus (MT-27).
+                  // 16px on phones so iOS does not zoom in on focus.
                   className={`w-[280px] max-w-full ${INPUT_TEXT_CLASS}`}
                 />
               </div>

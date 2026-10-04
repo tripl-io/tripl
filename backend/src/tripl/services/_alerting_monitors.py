@@ -147,7 +147,7 @@ async def get_monitors_summary(session: AsyncSession, slug: str) -> MonitorsSumm
 async def _load_firing_scopes(
     session: AsyncSession, firing: list[AlertRuleState]
 ) -> list[MonitorFiringScope]:
-    """Describe each firing state from the item that last notified it (MO-36).
+    """Describe each firing state from the item that last notified it.
 
     ``AlertRuleState`` keeps only the scope's identity and timestamps; its name,
     event and direction live on the delivery item ``last_notified_delivery_id``

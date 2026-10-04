@@ -55,13 +55,13 @@ export default function ApiKeysSection() {
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   // "Required" under the name after an empty Create, not the browser's
-  // bubble (AU-4).
+  // bubble.
   const [nameError, setNameError] = useState<string | null>(null)
   const [scope, setScope] = useState<ApiKeyScope>('read')
   const [projectSlug, setProjectSlug] = useState('')
   const [expiresInDays, setExpiresInDays] = useState('')
   const [revealed, setRevealed] = useState<ApiKeyWithToken | null>(null)
-  // Revoked keys stay listed forever; they fold away behind a count (ST-20).
+  // Revoked keys stay listed forever; they fold away behind a count.
   const [showRevoked, setShowRevoked] = useState(false)
   const tokenRef = useRef<HTMLInputElement>(null)
   const { state: copyState, copy, reset: resetCopy } = useCopyToClipboard(tokenRef)
@@ -171,7 +171,7 @@ export default function ApiKeysSection() {
   const activeCount = keys.length - inactiveCount
 
   // What each scope lets a client do, in the reader's words rather than HTTP
-  // verbs (ST-19).
+  // verbs.
   const scopeOptions = [
     { value: 'read', label: 'Read-only: can view the plan and data' },
     ...(canCreateWriteKeys ? [{ value: 'write', label: 'Read & write: same access as an editor' }] : []),
@@ -194,8 +194,7 @@ export default function ApiKeysSection() {
         title="API keys"
         description="Long-lived bearer tokens for non-browser clients (LLM agents, CLI scripts)."
         actions={
-          // Off while the form is open: pressing it again did nothing visible
-          // (ST-19).
+          // Off while the form is open: pressing it again did nothing visible.
           // Marked for the `c` shortcut, which otherwise looks for "New …".
           <Button size="sm" onClick={openForm} disabled={showForm} data-create-action="">
             <Plus className="h-3.5 w-3.5" />
@@ -212,7 +211,7 @@ export default function ApiKeysSection() {
           title="New API key"
           description="Generate a long-lived bearer token for non-browser clients."
           // The card's own action band, the sunken footer every settings card
-          // uses, with the page's `sm` buttons (ST-19).
+          // uses, with the page's `sm` buttons.
           footer={
             <div className="flex w-full flex-wrap items-center justify-end gap-2">
               {createMut.isError && (
@@ -227,7 +226,7 @@ export default function ApiKeysSection() {
                 type="submit"
                 form={NEW_KEY_FORM_ID}
                 size="sm"
-                // An empty name is said inline on press (AU-4), not by a
+                // An empty name is said inline on press, not by a
                 // silently disabled button.
                 disabled={createMut.isPending || expiryProblem != null}
               >
@@ -263,7 +262,7 @@ export default function ApiKeysSection() {
                 // A raw <input> does not read the Field's slot, so it carries
                 // the row's state itself: announced as required, and marked
                 // invalid so the message is read with it and
-                // focusFirstInvalid can land on it (AU-4).
+                // focusFirstInvalid can land on it.
                 aria-required
                 {...invalidAria('key-name', nameError)}
                 // eslint-disable-next-line jsx-a11y/no-autofocus -- form revealed by explicit "Create key" click; focusing its first input is expected
@@ -283,7 +282,7 @@ export default function ApiKeysSection() {
                 />
               </Field>
             ) : (
-              // One choice is a fact, not a select (ST-19).
+              // One choice is a fact, not a select.
               <Field label="Scope" htmlFor={false}>
                 <span className="block pt-1.5 text-body-sm">{scopeOptions[0]!.label}</span>
               </Field>
@@ -325,8 +324,8 @@ export default function ApiKeysSection() {
         </SCard>
       )}
 
-      {/* About keys that exist: above an empty list it warned about nothing
-          (ST-22). The create form shows it too, where the key is born. */}
+      {/* About keys that exist: above an empty list it warned about nothing.
+          The create form shows it too, where the key is born. */}
       {(showForm || keys.length > 0) && (
       <div
         className="mb-5 flex gap-2.5 rounded-card px-3.5 py-3"
@@ -375,7 +374,7 @@ export default function ApiKeysSection() {
             />
           </div>
         ) : shownKeys.length === 0 ? (
-          // What a key is for and the next step, not one grey line (ST-22).
+          // What a key is for and the next step, not one grey line.
           // Also when every key is revoked and hidden: the card held nothing
           // but the "Show revoked" toggle.
           <EmptyState
@@ -405,7 +404,7 @@ export default function ApiKeysSection() {
             const expired = !revoked && isKeyInactive(k)
             const revoking = pendingRevokes.has(k.id)
             return (
-              // The row reads its own width, not the viewport's (ST-1): from
+              // The row reads its own width, not the viewport's: from
               // `md` the settings rail is pinned and the column is ~424px at
               // 768px, so a viewport breakpoint put the ~560px line in too
               // narrow a card. Same 560px container step as FormRow.
@@ -427,7 +426,7 @@ export default function ApiKeysSection() {
                     <Lock className="h-3.5 w-3.5" />
                   </div>
                   {/* The name takes the free width: a fixed 180px cut "created …"
-                      even at 1440 beside an empty middle column (ST-20). */}
+                      even at 1440 beside an empty middle column. */}
                   <div className="col-start-2 row-start-1 min-w-0 @min-[560px]:flex-1">
                     <div className="truncate text-body font-medium" title={k.name}>
                       {k.name}
@@ -472,7 +471,7 @@ export default function ApiKeysSection() {
                     </div>
                   </div>
                   {!revoked && (
-                    // Bare red: a destructive row action, not a neutral one (ST-20).
+                    // Bare red: a destructive row action, not a neutral one.
                     <Button
                       variant="danger"
                       size="sm"
@@ -531,7 +530,7 @@ export default function ApiKeysSection() {
             <DialogDescription>
               This token is shown only once. Copy it now and store it somewhere safe.
             </DialogDescription>
-            {/* Which key this is, while the overlay hides its row (ST-21). */}
+            {/* Which key this is, while the overlay hides its row. */}
             {revealed && (
               <p className="m-0 text-body-sm text-fg-secondary">
                 {describeRevealedKey(
@@ -587,7 +586,7 @@ export default function ApiKeysSection() {
               }}
             >
               {/* Until Copy has worked, closing is a claim the reader makes
-                  about a token that is never shown again (ST-21). */}
+                  about a token that is never shown again. */}
               {copyState === 'copied' ? 'Done' : 'I’ve saved it'}
             </Button>
           </DialogFooter>

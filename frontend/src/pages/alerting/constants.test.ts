@@ -70,7 +70,7 @@ function form(overrides: Partial<RuleFormState> = {}): RuleFormState {
   return { ...defaultRuleForm(), name: 'Rule', ...overrides }
 }
 
-describe('ruleToForm → ruleFormToPayload (ALR-43)', () => {
+describe('ruleToForm → ruleFormToPayload', () => {
   it('round-trips a saved rule to the same settings on the wire', () => {
     const payload = ruleFormToPayload(ruleToForm(makeRule()))
 
@@ -88,7 +88,7 @@ describe('ruleToForm → ruleFormToPayload (ALR-43)', () => {
     })
   })
 
-  it('sends numbers, not the text the inputs hold (ALR-16)', () => {
+  it('sends numbers, not the text the inputs hold', () => {
     const payload = ruleFormToPayload(form({ cooldown_minutes: ' 45 ', min_percent_delta: '12.5' }))
 
     expect(payload.cooldown_minutes).toBe(45)
@@ -106,7 +106,7 @@ describe('ruleToForm → ruleFormToPayload (ALR-43)', () => {
     expect(ruleFormToPayload(form({ scan_config_id: '' }))).toHaveProperty('scan_config_id', null)
   })
 
-  it('keeps a filter row with no values on the wire instead of silently widening the rule (ALR-5)', () => {
+  it('keeps a filter row with no values on the wire instead of silently widening the rule', () => {
     const payload = ruleFormToPayload(
       form({ filters: [{ uid: 'f-1', field: 'event_type', operator: 'in', values: [] }] }),
     )
@@ -128,7 +128,7 @@ describe('ruleFormProblems', () => {
     expect(hasRuleFormProblems(ruleFormProblems(form()))).toBe(false)
   })
 
-  it('refuses an emptied or zero cooldown, and a fractional one (ALR-16)', () => {
+  it('refuses an emptied or zero cooldown, and a fractional one', () => {
     expect(ruleFormProblems(form({ cooldown_minutes: '' })).numeric.cooldown_minutes).toMatch(/number/)
     expect(ruleFormProblems(form({ cooldown_minutes: '0' })).numeric.cooldown_minutes).toMatch(/1 or more/)
     expect(ruleFormProblems(form({ cooldown_minutes: '1.5' })).numeric.cooldown_minutes).toMatch(/whole/)
@@ -140,7 +140,7 @@ describe('ruleFormProblems', () => {
     expect(ruleFormProblems(form({ min_expected_count: '0' })).numeric.min_expected_count).toBeUndefined()
   })
 
-  it('names a filter row with no values by its uid (ALR-5)', () => {
+  it('names a filter row with no values by its uid', () => {
     const problems = ruleFormProblems(
       form({ filters: [{ uid: 'f-9', field: 'event_type', operator: 'in', values: [] }] }),
     )
@@ -149,7 +149,7 @@ describe('ruleFormProblems', () => {
     expect(hasRuleFormProblems(problems)).toBe(true)
   })
 
-  it('refuses a rule with no direction (ALR-14) or no scope (ALR-15)', () => {
+  it('refuses a rule with no direction or no scope', () => {
     expect(ruleFormProblems(form({ notify_on_spike: false, notify_on_drop: false })).direction)
       .toMatch(/direction/)
     expect(
@@ -162,7 +162,7 @@ describe('ruleFormProblems', () => {
   })
 })
 
-describe('message format on a destination switch (ALR-4)', () => {
+describe('message format on a destination switch', () => {
   it('keeps a format the new channel supports', () => {
     expect(messageFormatForDestination('plain', 'telegram')).toBe('plain')
     expect(messageFormatForDestination('telegram_html', 'telegram')).toBe('telegram_html')
@@ -194,7 +194,7 @@ describe('message format on a destination switch (ALR-4)', () => {
   })
 })
 
-describe('unknownTemplateVariables (ALR-21)', () => {
+describe('unknownTemplateVariables', () => {
   it('names a typo once, in the order it appears', () => {
     expect(
       unknownTemplateVariables('${scope_nme} ${rule_name} ${scope_nme} ${oops}', TEMPLATE_VARIABLE_OPTIONS),
@@ -236,13 +236,13 @@ describe('findTemplateVariableToken', () => {
   })
 })
 
-describe('defaultRuleForm — a drop rule that can fire before zero (AL-2)', () => {
+describe('defaultRuleForm — a drop rule that can fire before zero', () => {
   it('starts at 30%, not the 100% a drop can only reach at zero volume', () => {
     expect(defaultRuleForm().min_percent_delta).toBe('30')
   })
 })
 
-describe('cooldown units (AL-6)', () => {
+describe('cooldown units', () => {
   it.each([
     ['1440', { amount: '1', unit: 'days' }],
     ['360', { amount: '6', unit: 'hours' }],
@@ -269,14 +269,14 @@ describe('cooldown units (AL-6)', () => {
   })
 })
 
-describe('filter operators read as words (AL-39)', () => {
+describe('filter operators read as words', () => {
   it('has no SQL-speak', () => {
     expect(FILTER_OPERATOR_OPTIONS.map(option => option.label))
       .toEqual(['is', 'is not', 'is one of', 'is not one of'])
   })
 })
 
-describe('ruleConditionSummary (AL-11, JR-15)', () => {
+describe('ruleConditionSummary', () => {
   it('writes the condition as a sentence and lists what the rule watches', () => {
     const summary = ruleConditionSummary(makeRule({
       notify_on_spike: true,
@@ -299,7 +299,7 @@ describe('ruleConditionSummary (AL-11, JR-15)', () => {
   })
 })
 
-describe('ruleDraftSummary (AL-1)', () => {
+describe('ruleDraftSummary', () => {
   it('says what Create will set up', () => {
     const form: RuleFormState = { ...defaultRuleForm(), name: 'x' }
     expect(ruleDraftSummary(form, '#alerts')).toBe(

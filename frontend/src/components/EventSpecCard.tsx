@@ -70,7 +70,7 @@ export function EventSpecCard({
         const fv = valueByField.get(field.id)
         const value = fv?.value ?? ''
         // Only the variables this value names: a field reading `home` listed
-        // `${user_id} = u_001, u_002…` from a context it does not use (EV-32).
+        // `${user_id} = u_001, u_002…` from a context it does not use.
         const tokens = templateTokens(value)
         return {
           field,
@@ -86,7 +86,7 @@ export function EventSpecCard({
   }, [event.field_values, eventType?.field_definitions, rule])
   // Optional fields with no value (often auto-created by accepted drift) fold
   // into one line, and the copies leave them out too: the spec to copy was
-  // mostly empty rows (EV-32).
+  // mostly empty rows.
   const specRows = useMemo(() => rows.filter(row => !isUnsetOptional(row)), [rows])
   const unsetRows = useMemo(() => rows.filter(isUnsetOptional), [rows])
   const [showUnset, setShowUnset] = useState(false)
@@ -176,7 +176,7 @@ export function EventSpecCard({
 
       {shownRows.length > 0 && (
         // The design-system table scrolls itself, with the edge fade that says
-        // there is more to the right on a phone (LIVE-5); the card is
+        // there is more to the right on a phone; the card is
         // `--surface`, so the fade's cover is set to match. A phone drops the
         // field type, the column a reader of the spec needs least.
         <div
@@ -205,7 +205,7 @@ export function EventSpecCard({
                       {(row.field.is_required || row.namesTheEvent) && (
                         <span className="text-micro text-danger">required</span>
                       )}
-                      {/* A kind tag, so the outline pill (DS-6). */}
+                      {/* A kind tag, so the outline pill. */}
                       {row.namesTheEvent && (
                         <Chip size="xs" variant="outline">
                           names the event

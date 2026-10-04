@@ -2,7 +2,7 @@ import type { MetricsGranularity } from '@/lib/metrics'
 
 /**
  * The empty buckets that stretch a series out to the window the reader asked
- * for (MON-22).
+ * for.
  *
  * A categorical x-axis spans only the buckets it is given, so a scope that
  * started reporting two days into a 30-day window drew those two days

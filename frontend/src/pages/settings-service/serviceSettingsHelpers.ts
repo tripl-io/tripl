@@ -425,7 +425,7 @@ export function resetPayload(section: SectionKey): ServiceSettingsUpdate {
  * on Storage and Observability, which do).
  */
 // One line each: the sticky bar held a 3-4 line paragraph, a quarter of a
-// phone screen pinned while scrolling (ST-28). The fallback rule every section
+// phone screen pinned while scrolling. The fallback rule every section
 // shares lives once, in SOURCE_LEGEND, not in every bar.
 const APPLY_NOTES: Record<SectionKey, string> = {
   runtime: 'Applies to the next request or scan task — no restart needed.',
@@ -437,8 +437,8 @@ const APPLY_NOTES: Record<SectionKey, string> = {
 }
 
 /**
- * What the source badges mean, said once per page above the fields (ST-25,
- * ST-28). "Or to the built-in default where none is set" is not hedging: on AI
+ * What the source badges mean, said once per page above the fields.
+ * "Or to the built-in default where none is set" is not hedging: on AI
  * the three system prompts have no environment variable at all — the backend
  * reads them off ai_defaults — and an unset variable falls back to the pydantic
  * default, not to nothing.

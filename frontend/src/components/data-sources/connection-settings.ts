@@ -65,10 +65,10 @@ export const MAX_DATASET_ALLOWLIST = MAX_SCHEMA_DATASETS - 1
 // The one native <select> look for settings forms: the data-source dialogs and
 // the scan form (scanUtils re-exports it). The copies used to differ in
 // background and, worse, the scan form's had no focus ring at all, so its
-// selects were invisible to keyboard users (DATA-48).
-// The ui-kit control spec (DS-14): 32px, `rounded-control`, 12.5px text from
-// `md` (16px on phones so iOS does not zoom, MT-27), and the one `aria-invalid`
-// look (MT-7).
+// selects were invisible to keyboard users.
+// The ui-kit control spec: 32px, `rounded-control`, 12.5px text from
+// `md` (16px on phones so iOS does not zoom), and the one `aria-invalid`
+// look.
 export const SELECT_CLASS =
   `flex h-8 w-full rounded-control border border-input bg-background px-2.5 py-1 ${INPUT_TEXT_CLASS} shadow-sm ` +
   `focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${INPUT_INVALID_CLASS}`
@@ -82,7 +82,7 @@ export const HELP_CLASS = 'text-body-sm text-fg-tertiary'
 export const ERROR_CLASS = 'text-body-sm text-destructive'
 
 /**
- * Attributes every credential input and textarea carries (DATA-28, DATA-29).
+ * Attributes every credential input and textarea carries.
  *
  * - No spellcheck: Chrome's enhanced spell check sends the typed text — a
  *   private key included — to a remote service.

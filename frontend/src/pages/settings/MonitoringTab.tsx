@@ -45,7 +45,7 @@ const SAVED_HINT_MS = 2000
  * so an edit made elsewhere still lands here; empty and non-numeric input is
  * dropped and the field snaps back to the last saved value.
  *
- * Three more things an autosave owes the person typing (PLAN-55). A value
+ * Three more things an autosave owes the person typing. A value
  * outside `min`/`max` is refused here with the bound named, instead of being
  * sent to earn a 422. A rejected save puts the saved value back: the server
  * value never changed, so the re-seed above never ran and the input kept the
@@ -95,7 +95,7 @@ function NumberSetting({
       return
     }
     if ((min !== undefined && parsed < min) || (max !== undefined && parsed > max)) {
-      // The refused number STAYS in the box beside the message (AL-44). It used
+      // The refused number STAYS in the box beside the message. It used
       // to snap back to the saved value while the red border and "Must be at
       // least 0.1." stayed up under it: the reader could not see what had been
       // rejected, and the error sat under a valid number until they typed again.
@@ -195,7 +195,7 @@ function ScopeOverridesCard({ slug, canWrite }: { slug: string; canWrite: boolea
 
   // Removing an override is not undoable from here either: the scope drops
   // straight back to the project settings, and only more false-positive marks
-  // would tighten it again. One click used to do it (PLAN-55).
+  // would tighten it again. One click used to do it.
   const handleRemove = async (overrideId: string, scopeName: string) => {
     const ok = await confirm({
       title: 'Remove scope override',
@@ -207,7 +207,7 @@ function ScopeOverridesCard({ slug, canWrite }: { slug: string; canWrite: boolea
   }
 
   return (
-    // A titled section (AL-43), not a <Label> posing as a heading: the field
+    // A titled section, not a <Label> posing as a heading: the field
     // labels were larger than it, so the hierarchy read upside down.
     <Panel
       title="Scope overrides"
@@ -287,7 +287,7 @@ function ScopeOverridesCard({ slug, canWrite }: { slug: string; canWrite: boolea
 
 /**
  * One setting: its label, the input, ONE line of help, and the full
- * explanation behind "Learn more" (AL-43). Each field used to carry three to
+ * explanation behind "Learn more". Each field used to carry three to
  * five lines of 12px text, so the page read as a wall of grey and paired
  * fields' help blocks misaligned their rows.
  */
@@ -392,7 +392,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
   }
 
   if (settingsQuery.isError && !settings) {
-    // A failed load used to read "Loading detection settings…" forever (PLAN-41).
+    // A failed load used to read "Loading detection settings…" forever.
     return (
       <ErrorState
         title="Couldn't load detection settings"
@@ -444,7 +444,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
           "Monitoring" while its only card called itself "Anomaly Detection",
           giving one thing three names. Detection raises
           SIGNALS; alert rules are layered on top. The shared page header gives
-          it a real h1 (DS-1). */}
+          it a real h1. */}
       <PageHeader
         eyebrow="Observe"
         title="Detection settings"
@@ -452,8 +452,8 @@ export function MonitoringTab({ slug }: { slug: string }) {
       />
 
       {!canWrite && <ReadOnlyNotice />}
-      {/* Persistent while it is off, not only at the moment of the switch
-          (AL-45): the page otherwise looks configured and working. */}
+      {/* Persistent while it is off, not only at the moment of the switch:
+          the page otherwise looks configured and working. */}
       {!settings.anomaly_detection_enabled && (
         <p
           role="status"
@@ -465,7 +465,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
       )}
       {settingsQuery.isError && (
         // A failed refresh after an autosave keeps the settings on screen
-        // rather than replacing the whole tab (review 204).
+        // rather than replacing the whole tab.
         <p role="alert" className="text-body-sm text-destructive">
           Couldn't refresh detection settings: {getErrorMessage(settingsQuery.error)}
         </p>
@@ -520,7 +520,7 @@ export function MonitoringTab({ slug }: { slug: string }) {
               </div>
             </fieldset>
 
-            {/* Two groups (AL-43): what counts as unusual, and when a bucket is
+            {/* Two groups: what counts as unusual, and when a bucket is
                 judged. Sentence-case labels and `content-start` cells hold for
                 every field. */}
             <SettingGroup

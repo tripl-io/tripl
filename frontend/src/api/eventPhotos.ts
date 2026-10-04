@@ -26,7 +26,7 @@ export function photoFileUrl(url: string): string {
  * JSON-encodes every body and `fetch` reports no upload progress, while a photo
  * is a multipart body worth a progress bar. It keeps the client's contract —
  * `X-Request-ID` out, `ApiError` back, the re-auth prompt on a 401 — so a
- * failed upload reads like every other failed request (EVT-28).
+ * failed upload reads like every other failed request.
  */
 function uploadWithProgress<T>(
   path: string,

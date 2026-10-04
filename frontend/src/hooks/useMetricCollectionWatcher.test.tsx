@@ -177,7 +177,7 @@ describe('useMetricCollectionWatcher', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Collection failed.'))
   })
 
-  // SHELL-32: a failing poll used to error the query, which kept refetching on
+  // a failing poll used to error the query, which kept refetching on
   // the interval — a toast every 3 s and a spinner that never stopped.
   it('settles with "no longer exists" when the metric was deleted mid-watch', async () => {
     vi.mocked(metricsCatalogApi.get).mockRejectedValue(new ApiError('Not found', 404))
@@ -319,7 +319,7 @@ function WatchedBadge({ metricId }: { metricId: string }) {
   return <span>{useIsMetricCollectionWatched('demo', metricId) ? 'watching' : 'idle'}</span>
 }
 
-describe('startMetricCollectionWatch (MET-8)', () => {
+describe('startMetricCollectionWatch', () => {
   afterEach(() => {
     stopAllMetricCollectionWatches()
   })

@@ -21,10 +21,10 @@ interface SeriesPreviewCardProps {
 }
 
 /**
- * The series preview for fact and event-composition metrics (MT-9): the chart,
+ * The series preview for fact and event-composition metrics: the chart,
  * range and last value SQL metrics already had, from a server dry run of the
  * definition this form would save. Only Preview starts it; once it has run, an
- * edit re-runs it a moment after the author stops typing (MT-19).
+ * edit re-runs it a moment after the author stops typing.
  */
 export function SeriesPreviewCard({ slug, draft, request, canWrite }: SeriesPreviewCardProps) {
   const requestKey = JSON.stringify(request)
@@ -48,7 +48,7 @@ export function SeriesPreviewCard({ slug, draft, request, canWrite }: SeriesPrev
     const key = requestKey
     setAttemptedKey(key)
     // Per-call callback: a run the author has since edited past paints
-    // nothing, because its key no longer matches (MET-4).
+    // nothing, because its key no longer matches.
     previewMut.mutate(request, { onSuccess: result => setShown({ key, result }) })
   }
   const onPreview = () => {

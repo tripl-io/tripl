@@ -321,7 +321,7 @@ def firing_monitor_states[StateT: _MonitorState](
 ) -> list[StateT]:
     """The states ``summarize_monitor_states`` counts as firing, themselves.
 
-    Split out so the monitor detail can LIST the scopes firing now (MO-36) by
+    Split out so the monitor detail can LIST the scopes firing now by
     the very rule that produced its ``firing_scope_count`` — a second copy of
     the horizon test is how the count and the list would come to disagree.
     """

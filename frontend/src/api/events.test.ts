@@ -17,7 +17,7 @@ afterEach(() => {
 })
 
 describe('eventsApi.list', () => {
-  it('sends the open-questions filter to the server (EVT-1)', async () => {
+  it('sends the open-questions filter to the server', async () => {
     // The hand-written params type had no `has_open_questions`, so "Questions →
     // Open questions" reached the URL and saved views and never the request.
     const fetchSpy = vi

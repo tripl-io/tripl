@@ -4,7 +4,7 @@ import type { DataSource } from '@/types'
 import { dataSourceUsedBy } from './used-by-scans-model'
 
 /**
- * The card's "Used by" line (DA-40): the scans reading this source, each a link
+ * The card's "Used by" line: the scans reading this source, each a link
  * to its scan page, so the delete's reach and the way back to a scan are both
  * on the card. Falls back to the bare count when the server sent no names.
  */

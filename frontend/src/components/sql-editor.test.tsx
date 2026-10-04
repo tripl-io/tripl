@@ -25,7 +25,7 @@ describe('SqlEditor', () => {
     expect(screen.getByLabelText('Fact metric SQL')).toBeInTheDocument()
   })
 
-  // DS-6: the name and the id belong on the contenteditable (role="textbox"),
+  // the name and the id belong on the contenteditable (role="textbox"),
   // not on the outer wrapper div where a label cannot resolve and a screen
   // reader ignores an aria-label.
   it('names the editable surface and lets a <label htmlFor> reach it', () => {
@@ -43,7 +43,7 @@ describe('SqlEditor', () => {
     expect(container.querySelectorAll('[id="metric-sql"]')).toHaveLength(1)
   })
 
-  // MET-15: the focusable surface is CodeMirror's contenteditable, so that is
+  // the focusable surface is CodeMirror's contenteditable, so that is
   // where a validation message has to be linked, not the wrapper div.
   it('puts validation attributes on the editable surface', () => {
     const { container, rerender } = render(
@@ -168,7 +168,7 @@ describe('SqlEditor', () => {
   })
 })
 
-describe('SqlEditor compact mode and inline error (MT-14, MT-8)', () => {
+describe('SqlEditor compact mode and inline error', () => {
   it('drops Format and the table browser for a one-line fragment', () => {
     render(
       <SqlEditor

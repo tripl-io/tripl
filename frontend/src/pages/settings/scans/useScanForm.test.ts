@@ -309,7 +309,7 @@ describe('hasEventTarget — the gate on asking the warehouse anything', () => {
   })
 })
 
-describe('useScanForm — a query edit keeps the saved selections (DATA-1)', () => {
+describe('useScanForm — a query edit keeps the saved selections', () => {
   const saved = {
     id: 'sc-1',
     data_source_id: 'ds-1',
@@ -361,7 +361,7 @@ describe('useScanForm — a query edit keeps the saved selections (DATA-1)', () 
   })
 })
 
-describe('useScanForm — answers belong to the draft that asked (DATA-2)', () => {
+describe('useScanForm — answers belong to the draft that asked', () => {
   const oldColumns: ScanConfigPreview = {
     columns: [{ name: 'legacy_name', type_name: 'String', is_nullable: false }],
     rows: [],
@@ -438,7 +438,7 @@ describe('useScanForm — answers belong to the draft that asked (DATA-2)', () =
   })
 })
 
-describe('scanFieldErrors — numeric limits the backend would refuse (DATA-25)', () => {
+describe('scanFieldErrors — numeric limits the backend would refuse', () => {
   it('flags zero, negatives and fractions instead of truncating them', () => {
     const errors = scanFieldErrors(formState({ scanRowLimit: '0', scanLookbackHours: '-3', metricsRowLimit: '2.5' }))
     expect(Object.keys(errors).sort()).toEqual(['metricsRowLimit', 'scanLookbackHours', 'scanRowLimit'])

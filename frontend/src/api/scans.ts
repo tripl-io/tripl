@@ -18,7 +18,7 @@ const PREVIEW_POLL_TIMEOUT_MS = 5 * 60 * 1000
  * Failed polls in a row a job survives before the wait gives up. A job is a
  * warehouse query that keeps running on the worker whatever this loop does, so
  * one 502 or network blip mid-wait used to throw away a result that was about to
- * arrive, and the only way back was a new (billed) warehouse job (DATA-3).
+ * arrive, and the only way back was a new (billed) warehouse job.
  */
 const POLL_MAX_CONSECUTIVE_FAILURES = 3
 
@@ -251,7 +251,7 @@ export const scansApi = {
   }) => api.post<ScanJob>(`/projects/${slug}/scans/${scanId}/metrics/replay`, data),
 
   // Newest first. `limit` defaults to the backend's 50; the list page only needs
-  // the head of each scan's history and passes a smaller one (DATA-17).
+  // the head of each scan's history and passes a smaller one.
   listJobs: (slug: string, scanId: string, options: { limit?: number } = {}) =>
     api.get<ScanJob[]>(
       `/projects/${slug}/scans/${scanId}/jobs${options.limit ? `?limit=${options.limit}` : ''}`,

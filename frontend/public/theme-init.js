@@ -13,8 +13,8 @@
       ? 'oklch(0.14 0.01 250)'
       : 'oklch(0.99 0.002 250)'
     // Accent and density too, before first paint: set only by React after the
-    // entry chunk ran, a violet user saw teal and a "comfy" user saw rows jump
-    // (SHELL-34). Same allow-lists as theme-provider.tsx.
+    // entry chunk ran, a violet user saw teal and a "comfy" user saw rows jump.
+    // Same allow-lists as theme-provider.tsx.
     var accent = localStorage.getItem('tripl-ui-theme-accent')
     if (['teal', 'violet', 'lime', 'amber', 'rose'].indexOf(accent) === -1) accent = 'teal'
     var density = localStorage.getItem('tripl-ui-theme-density')

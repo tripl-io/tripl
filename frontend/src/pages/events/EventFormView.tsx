@@ -116,14 +116,14 @@ export function EventForm({
   hasOtherUnsavedInput?: boolean
   /** Rendered above the action row. The create page's draft discussion note
    *  sat below "Create event", so an author working top to bottom pressed
-   *  Create — and left the page — before reaching it (EVT-44). Outside the
+   *  Create — and left the page — before reaching it. Outside the
    *  fieldset and not part of the payload. */
   beforeActions?: ReactNode
   /** Rendered under the page title, as part of the page: the branch banner. */
   banner?: ReactNode
   /**
    * Why this event cannot be saved from here even by an editor — a main event
-   * opened while a branch is active (AU-1 / PL-2). The form turns read-only,
+   * opened while a branch is active. The form turns read-only,
    * the reason takes Save's place on the action bar, and `lockedAction` (the
    * banner's "Switch to main") takes the button's. It used to render a form
    * with no type and no field values whose Save answered "Event not found".
@@ -377,7 +377,7 @@ export function EventForm({
     [sortedFields, fieldValues],
   )
   // Number fields take text now, so the same gate names a row holding neither
-  // a number nor a ${variable} (EVT-23). Only a value the author typed: the
+  // a number nor a ${variable}. Only a value the author typed: the
   // backend does not validate number values, so a scan may have stored `N/A`,
   // and blocking on it held the whole event hostage — the description could
   // not be saved without rewriting a value that rewriting freezes against scans.
@@ -396,7 +396,7 @@ export function EventForm({
 
   const completedName =
     generatedName && generatedName.missing.length === 0 ? generatedName.name : null
-  // A typed name is probed too (AU-2): the check used to run only for a name a
+  // A typed name is probed too: the check used to run only for a name a
   // scan rule composes, so on any other type "Save and add another" followed
   // by an unchanged Create made a byte-identical second event.
   const typedName = !generatedName && isNew ? name.trim() : ''
@@ -419,8 +419,8 @@ export function EventForm({
     && createdHere.some(item => item.name === typedName && item.eventTypeId === etId)
   const namesake = !generatedName && !repeatsCreated ? identityTaken : null
 
-  // The convention this type's own events follow, read off a few of them
-  // (AU-41): the placeholder shows one, and a name in another style is pointed
+  // The convention this type's own events follow, read off a few of them:
+  // the placeholder shows one, and a name in another style is pointed
   // out without blocking. Only for a free name — a rule writes the name itself.
   const nameSampleQuery = useQuery({
     queryKey: eventNameSampleKey(slug, branchId, etId),
@@ -510,7 +510,7 @@ export function EventForm({
   if (justCreated !== null && composedName !== justCreated) setJustCreated(null)
 
   // Text still sitting in the Tags and column inputs is part of the draft: it
-  // is added on save (EVT-26), so it counts as a change and is what is sent.
+  // is added on save, so it counts as a change and is what is sent.
   const effectiveTags = withPendingChip(tags, tagInput, normalizeTag)
   const effectiveBreakdownColumns = normalizeMetricBreakdownColumns(
     withPendingChip(metricBreakdownColumns, breakdownInput),
@@ -582,7 +582,7 @@ export function EventForm({
   const setFieldValue = (fieldId: string, value: string) =>
     setFieldValues(current => ({ ...current, [fieldId]: value }))
 
-  // Changing the type used to wipe every field value without a word (EVT-47).
+  // Changing the type used to wipe every field value without a word.
   // Values move to the new type's field of the same name; only when some cannot
   // follow does the form ask before dropping them.
   const changeEventType = async (nextId: string) => {
@@ -681,7 +681,7 @@ export function EventForm({
       if (branchId === null) qc.invalidateQueries({ queryKey: projectHealthRootKey(slug) })
       if (!event) {
         // The name just created is no longer free: a probe that answered "not
-        // taken" a moment ago must ask again (EVT-25).
+        // taken" a moment ago must ask again.
         qc.invalidateQueries({ queryKey: branchEventIdentityProbesKey(slug, branchId) })
         if (_data.id && _data.name) {
           setCreatedHere(current => [
@@ -770,7 +770,7 @@ export function EventForm({
 
   const save = (closeAfterSave: boolean) => {
     // What is left in the chip inputs becomes chips now, so the form shows what
-    // was sent (EVT-26).
+    // was sent.
     setTags(effectiveTags)
     setTagInput('')
     setMetricBreakdownColumns(effectiveBreakdownColumns)
@@ -783,8 +783,8 @@ export function EventForm({
     })
   }
 
-  // Required rows, validated by the form rather than by browser bubbles
-  // (AU-4): the form is `noValidate`, a refused Save marks every empty row with
+  // Required rows, validated by the form rather than by browser bubbles:
+  // the form is `noValidate`, a refused Save marks every empty row with
   // "Required", names them beside the button and focuses the first. Shown only
   // once Save has been pressed, never while an empty form is being filled in.
   const [submitted, setSubmitted] = useState(false)
@@ -824,10 +824,10 @@ export function EventForm({
 
   const typeLabel = selectedEt?.display_name ?? etId
   const blockingFieldLabels = [...invalidJsonFieldLabels, ...invalidNumberFieldLabels]
-  // One line beside Save, in red because every reason here blocks it (AU-5).
+  // One line beside Save, in red because every reason here blocks it.
   // A JSON or number field can sit far above the fold, so the reason a
   // disabled Save is disabled belongs next to the button, not only beside the
-  // field (AU-6).
+  // field.
   const blockingSummary =
     blockingFieldLabels.length > 0 ? (
       <>
@@ -842,7 +842,7 @@ export function EventForm({
     ) : null
 
   return (
-    // The narrow page container (DS-3): the shell already pads the page, so
+    // The narrow page container: the shell already pads the page, so
     // the form starts at the same left edge as the list it came from instead
     // of its own centred, re-padded 880px column.
     <PageContainer width="narrow" className="space-y-0 pb-0">
@@ -857,7 +857,7 @@ export function EventForm({
           className="mb-[18px]"
           eyebrow="Plan · Event"
           // A viewer is told what they are looking at, not handed a generic
-          // "Event" (JR-18).
+          // "Event".
           title={isNew ? 'New event' : canWrite ? 'Edit event' : event!.name}
           back={
             <button
@@ -939,7 +939,7 @@ export function EventForm({
               notes={
                 <>
                   {generatedName && generatedName.missing.length > 0 && (
-                    // Red, not amber: it blocks Save (AU-5).
+                    // Red, not amber: it blocks Save.
                     <p className="mt-1 text-body-sm text-(--danger)">
                       Fill field values for: {missingFieldLabels.join(', ')}
                     </p>
@@ -1026,7 +1026,7 @@ export function EventForm({
                 onChange={e => setName(e.target.value)}
                 // No example to offer once the rule writes this box.
                 // Not a fixed sample either: "e.g. checkout:completed" suggested
-                // a convention next to catalogs that use another one (AU-41). A
+                // a convention next to catalogs that use another one. A
                 // name of this type's own is the example when its events agree
                 // on a style; otherwise the one rule that holds everywhere.
                 placeholder={
@@ -1206,7 +1206,7 @@ export function EventForm({
           </div>
         )}
 
-        {/* The sticky action row (AU-6): Save stays on screen however long the
+        {/* The sticky action row: Save stays on screen however long the
             form, with the one line that says why it is blocked, or what the
             last "Save and add another" created. */}
         <SaveBar
@@ -1214,7 +1214,7 @@ export function EventForm({
             lockedReason ??
             blockingSummary ??
             (justCreated !== null ? (
-              // Success-toned, with a check (AU-21): a grey line was easy to
+              // Success-toned, with a check: a grey line was easy to
               // miss, and missing it is how a second press happened.
               <span className="inline-flex items-start gap-1.5">
                 <CheckCircle2 className="mt-[3px] size-3.5 shrink-0" aria-hidden="true" />
@@ -1232,7 +1232,7 @@ export function EventForm({
                 successor.
               </span>
             ) : isNew && activeBranchName ? (
-              // Where this lands, beside the button that lands it (AU-25).
+              // Where this lands, beside the button that lands it.
               <>
                 Adds to branch <span className="font-medium">{activeBranchName}</span>; it
                 reaches main when the branch is merged.

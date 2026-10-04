@@ -12,7 +12,7 @@ function Controlled({ variables, type }: { variables: VariableSuggestion[]; type
   return <VariableInput id="v" value={value} onChange={setValue} variables={variables} type={type} />
 }
 
-describe('VariableInput suggestions (EVT-24)', () => {
+describe('VariableInput suggestions', () => {
   it('caps a long property list instead of running past the viewport', () => {
     render(<Controlled variables={MANY} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '$' } })
@@ -65,7 +65,7 @@ describe('VariableInput suggestions (EVT-24)', () => {
   })
 })
 
-describe('VariableInput suggestion list placement (DS-35)', () => {
+describe('VariableInput suggestion list placement', () => {
   it('portals the list out of the field, so a clipping card cannot cut it off', () => {
     const { container } = render(<Controlled variables={MANY} />)
     const input = screen.getByRole('combobox')

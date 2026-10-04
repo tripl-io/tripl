@@ -176,7 +176,7 @@ describe('AlertingInbox item and scope counts', () => {
     expect(screen.getByText('8 items')).toBeInTheDocument()
     expect(screen.getByText('(4 distinct scope names shown)')).toBeInTheDocument()
     // The headline is the first scope, with the rest counted rather than
-    // listed (AL-12); the full list stays on the "+N more" title.
+    // listed; the full list stays on the "+N more" title.
     expect(screen.getByText('one')).toBeInTheDocument()
     expect(screen.getByText('+3 more')).toHaveAttribute('title', 'one, two, three, four')
   })
@@ -1094,7 +1094,7 @@ describe('AlertingInbox — narrowing the list past its status', () => {
 
     // "volume", not "event": the chip on the card below says the former, and a
     // picker with its own vocabulary makes one column read as two things.
-    // The design-system Select, like the Delivery log's filter bar (ALR-49).
+    // The design-system Select, like the Delivery log's filter bar.
     fireEvent.click(screen.getByRole('combobox', { name: /^Kind filter/ }))
     expect(await screen.findByRole('option', { name: 'release regression' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('option', { name: 'volume' }))
@@ -1110,11 +1110,11 @@ describe('AlertingInbox — narrowing the list past its status', () => {
     // The list is read over 30 days and then capped, so a date older than that
     // narrows nothing — a control that accepted one and answered "none" would
     // be describing the project rather than the page.
-    // The range and its caveat are one chip now, opened on demand (AL-15).
+    // The range and its caveat are one chip now, opened on demand.
     fireEvent.click(screen.getByRole('button', { name: 'Last fired filter: any' }))
     expect(screen.getByText(/Dates narrow the 30 days this list already covers/)).toBeInTheDocument()
 
-    // The app's calendar rather than a native date input (AL-15): the bound
+    // The app's calendar rather than a native date input: the bound
     // is a disabled day, not a `min` attribute.
     const earliest = earliestReachableDay(new Date())
     // A date-only string with a time and no zone parses as LOCAL midnight.
@@ -1188,7 +1188,7 @@ describe('AlertingInbox — narrowing the list past its status', () => {
   })
 })
 
-describe('AlertingInbox — each card keeps its own action state (ALR-28)', () => {
+describe('AlertingInbox — each card keeps its own action state', () => {
   const twoCards = () =>
     makeInbox({
       items: [
@@ -1231,7 +1231,7 @@ describe('AlertingInbox — each card keeps its own action state (ALR-28)', () =
   })
 })
 
-describe('AlertingInbox — clearing cannot be undone by a pending scope search (ALR-50)', () => {
+describe('AlertingInbox — clearing cannot be undone by a pending scope search', () => {
   const settleDebounce = () =>
     act(async () => {
       await new Promise(resolve => setTimeout(resolve, SEARCH_DEBOUNCE_MS * 2))
@@ -1271,7 +1271,7 @@ describe('AlertingInbox — clearing cannot be undone by a pending scope search 
   })
 })
 
-describe('AlertingInbox — the filter bar speaks the design system (ALR-49)', () => {
+describe('AlertingInbox — the filter bar speaks the design system', () => {
   it('offers direction through the same Select the Delivery log uses', async () => {
     const { onFiltersChange } = renderInbox()
 
@@ -1297,7 +1297,7 @@ describe('AlertingInbox — the filter bar speaks the design system (ALR-49)', (
   })
 })
 
-describe('AlertingInbox — the card leads with what broke and by how much (AL-12, AL-17, AL-18)', () => {
+describe('AlertingInbox — the card leads with what broke and by how much', () => {
   it('puts a signed delta badge beside the scope headline', () => {
     renderInbox()
 

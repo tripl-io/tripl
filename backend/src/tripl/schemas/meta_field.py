@@ -121,7 +121,7 @@ class MetaFieldResponse(BaseModel):
 
 
 class MetaFieldUsageResponse(BaseModel):
-    """What deleting a meta field would take with it (AU-37).
+    """What deleting a meta field would take with it.
 
     ``value_count`` is every non-empty stored value (a multi-value field holds
     several per event); ``event_count`` is the events holding at least one.

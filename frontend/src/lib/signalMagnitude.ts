@@ -51,7 +51,7 @@ export const MAJOR_MIN_REL_EFFECT = 1
 /**
  * The magnitude filter levels. `threshold` is the bar in the words the rows
  * use (% change from expected), so the filter explains itself instead of
- * leaving "why is this row not Major?" to the reader (MO-3).
+ * leaving "why is this row not Major?" to the reader.
  */
 export const MAGNITUDE_PRESETS = [
   { id: 'all', label: 'All', minRelEffect: 0, threshold: null },
@@ -66,7 +66,7 @@ export const MAGNITUDE_PRESETS = [
 
 export type MagnitudeLevel = (typeof MAGNITUDE_PRESETS)[number]['id']
 
-/** "Significant (≥50%)": a preset's option label, threshold included (MO-3). */
+/** "Significant (≥50%)": a preset's option label, threshold included. */
 export function magnitudePresetLabel(preset: (typeof MAGNITUDE_PRESETS)[number]): string {
   return preset.threshold ? `${preset.label} (${preset.threshold})` : preset.label
 }
@@ -75,7 +75,7 @@ export type MagnitudeWord = 'Minor' | 'Significant' | 'Major'
 
 /**
  * How unusual a signal is, in words, on the same bars as the filter: a PM
- * reads "Major" where a z-score means nothing to them (JR-31). "Minor" is
+ * reads "Major" where a z-score means nothing to them. "Minor" is
  * everything under the Significant bar, i.e. what only "All" shows.
  */
 export function signalMagnitudeWord(
@@ -94,7 +94,7 @@ export const DEFAULT_MAGNITUDE_LEVEL: MagnitudeLevel = 'significant'
  * The significant open signals a user has not hidden, biggest effect first.
  *
  * Hidden is a triage verdict — the scope was muted, or this signal was marked
- * expected (MO-4 / JR-5). A signal with a verdict (#254) — expected, tracking
+ * expected. A signal with a verdict (#254) — expected, tracking
  * bug, false positive, real issue, or its incident's — has been answered and
  * leaves the count too; acknowledged alone has not. The backend's badge count
  * applies the same two rules, so the bell, the Overview headline and the
@@ -127,8 +127,8 @@ export function selectSignificantSignals(
  *
  * The Anomalies page sorted by |z| alone while Overview and the bell sorted by
  * `relativeEffect`, so the top anomaly on Overview was not the top row of the
- * Anomalies list, and quiet-scope noise — where z is inflated — led the page
- * (MON-14). A comparator, not a selector, so a caller that has already filtered
+ * Anomalies list, and quiet-scope noise — where z is inflated — led the page.
+ * A comparator, not a selector, so a caller that has already filtered
  * sorts its own copy.
  */
 export function compareSignalsByMagnitude(a: MonitoringSignal, b: MonitoringSignal): number {

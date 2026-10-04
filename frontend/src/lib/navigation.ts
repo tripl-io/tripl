@@ -54,7 +54,7 @@ export type NavItem = {
   tone?: NavTone
   /**
    * The count is an unacknowledged alert backlog: the sidebar paints it solid
-   * red (DS-6, DS-28). Only Alerting's open incidents set it; a danger tone
+   * red. Only Alerting's open incidents set it; a danger tone
    * alone (Anomalies) stays a neutral count.
    */
   urgent?: boolean
@@ -74,7 +74,7 @@ export type NavItem = {
 export type NavGroup = { label: string; items: NavItem[] }
 
 /**
- * A sidebar badge count: the shared compact formatter (DS-30). The local copy
+ * A sidebar badge count: the shared compact formatter. The local copy
  * printed "1.0k" for 1,000 and "1500k" for 1.5 million.
  */
 export function formatCount(n: number): string {
@@ -143,7 +143,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           id: 'schema',
           // Named for what the page holds: the meta fields every event
           // carries. "Schema & fields" promised the per-type schema, which
-          // lives on each event type (#238 AU-10 / JR-30). The old name stays a
+          // lives on each event type (#238). The old name stays a
           // palette keyword.
           label: 'Meta fields',
           icon: Braces,
@@ -207,7 +207,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           id: 'overview',
           // The project's home (projectHomePath): KPIs, volume, signals and the
           // get-started checklist. "Live activity" undersold it and collided
-          // with the top bar's activity feed (#238 SH-8 / JR-35).
+          // with the top bar's activity feed (#238).
           label: 'Overview',
           icon: Activity,
           href: `${base}/overview`,
@@ -253,7 +253,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // Badges the open-signal population (monitoring_signal_count) — the raw
           // anomalies feed this page lists. Warning, not danger: signals are
           // information about what detection found; the work somebody owes is
-          // the incident on Alerting, which keeps danger (#240 JR-6). Omitted
+          // the incident on Alerting, which keeps danger (#240). Omitted
           // when nothing is open.
           count: openSignals > 0 ? formatCount(openSignals) : undefined,
           tone: openSignals > 0 ? 'warning' : undefined,
@@ -328,7 +328,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           id: 'scans',
           label: 'Scans',
           // Not the magnifier: on the collapsed rail Scans and Search were the
-          // same icon a few rows apart (#238 SH-13).
+          // same icon a few rows apart (#238).
           icon: ScanLine,
           href: `${base}/scans`,
           match: (p) => p.startsWith(`${base}/scans`),
@@ -343,7 +343,7 @@ export function buildNavGroups(slug: string, summary: ProjectSummary | undefined
           // (AuditTab), so "who changed my plan?" is answered for this plan
           // alone. Actions that belong to no project (members, API keys, a
           // project's deletion) are in Settings › Instance › Audit log
-          // (#238 JR-26). Owner-only because the endpoint is.
+          // (#238). Owner-only because the endpoint is.
           ownerOnly: true,
         },
       ],
@@ -383,7 +383,7 @@ const NAV_SUBSURFACE_LEAVES: Record<string, string> = {
 /**
  * The one landing page of a project. "/" sends a single-project account here,
  * and the project switcher and palette used to pick Events instead, so the same
- * project had two front doors (SHELL-44).
+ * project had two front doors.
  */
 export function projectHomePath(slug: string): string {
   return projectPath(currentOrgSlug(), slug, '/overview')
@@ -392,7 +392,7 @@ export function projectHomePath(slug: string): string {
 /**
  * The Plan, Observe and Govern pages that used to be routed as
  * `/p/:slug/settings/<surface>` and are `/p/:slug/<surface>` now
- * (#238 JR-25 / AL-42 / ST-5). The sidebar presents them as first-class pages,
+ * (#238). The sidebar presents them as first-class pages,
  * and the `settings/` in their address — echoed by the palette and the
  * breadcrumb — framed them as configuration. `/p/:slug/settings` keeps only
  * project settings: general, plan rules and detection (`settings/monitoring`).

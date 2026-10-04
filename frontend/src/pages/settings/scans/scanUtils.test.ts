@@ -103,7 +103,7 @@ describe('jobRowsScanned', () => {
   })
 })
 
-describe('jobScanned (#247 DA-4)', () => {
+describe('jobScanned (#247)', () => {
   it('names a catalog figure as combinations and a metrics figure as rows', () => {
     expect(jobScanned(job({ result_summary: { query_rows_scanned: 4428, scan_rows_processed: 9 } })))
       .toEqual({ value: 4428, unit: 'rows' })
@@ -112,7 +112,7 @@ describe('jobScanned (#247 DA-4)', () => {
     expect(jobScanned(job({ result_summary: {} }))).toBeNull()
   })
 
-  it('reads a catalog run in warehouse rows once the worker reports them (i9mt.16)', () => {
+  it('reads a catalog run in warehouse rows once the worker reports them', () => {
     expect(jobScanned(job({ result_summary: { catalog_rows_scanned: 28160, scan_rows_processed: 153 } })))
       .toEqual({ value: 28160, unit: 'rows', combinations: 153 })
     expect(jobRowsScanned(job({ result_summary: { catalog_rows_scanned: 28160, scan_rows_processed: 153 } })))
@@ -127,7 +127,7 @@ describe('jobScanned (#247 DA-4)', () => {
   })
 })
 
-describe('metricsFreshness (#247 DA-5)', () => {
+describe('metricsFreshness (#247)', () => {
   const now = Date.parse('2026-01-01T12:00:00Z')
 
   it('reads the newest metrics run, not the newest run', () => {
@@ -159,7 +159,7 @@ describe('metricsFreshness (#247 DA-5)', () => {
     expect(freshness.overdue).toBe(true)
   })
 
-  it('takes the next run from the scheduler when the server sent it (i9mt.16)', () => {
+  it('takes the next run from the scheduler when the server sent it', () => {
     const jobs = [
       job({ status: 'completed', completed_at: '2026-01-01T11:30:00Z', result_summary: { mode: 'metrics_collection' } }),
     ]
@@ -295,7 +295,7 @@ describe('eligibleChunkIntervals', () => {
   })
 })
 
-describe('formatCount (DATA-38)', () => {
+describe('formatCount', () => {
   it('moves up a unit when rounding reaches 1000 of the smaller one', () => {
     expect(formatCount(999_949)).toBe('999.9K')
     expect(formatCount(999_950)).toBe('1M')
@@ -313,7 +313,7 @@ describe('formatCount (DATA-38)', () => {
   })
 })
 
-describe('numeric limit parsing (DATA-25)', () => {
+describe('numeric limit parsing', () => {
   it('never turns 0, a negative or a fraction into a limit the backend refuses', () => {
     expect(parseOptionalPositiveInt('0')).toBeNull()
     expect(parseOptionalPositiveInt('-3')).toBeNull()

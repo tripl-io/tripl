@@ -13,7 +13,7 @@ const TweaksPanel = lazyWithReload(() =>
 
 export function TweaksPanelProvider({ children }: { children: ReactNode }) {
   const [open, setOpenState] = useState(false)
-  // The control the panel hangs from (SH-24). Closing hands focus straight
+  // The control the panel hangs from. Closing hands focus straight
   // back to it.
   const anchorRef = useRef<HTMLElement | null>(null)
   const setOpen = useCallback((next: boolean, anchor?: HTMLElement | null) => {

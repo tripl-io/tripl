@@ -2,7 +2,7 @@
  * The Branches tab's pure diff logic: how a branch diff is counted, paired,
  * reverted and merged, and how a refused action is worded.
  *
- * Lifted out of BranchesTab.tsx (PLAN-22), where it was reachable only by
+ * Lifted out of BranchesTab.tsx, where it was reachable only by
  * mounting the whole tab behind a router and five mocked APIs. Nothing here
  * touches React, so branchDiffModel.test.ts calls it directly.
  */
@@ -109,7 +109,7 @@ export function entryKey(
 
 /** A stable React key for one diff row. Not the list index: a revert removes a
  * row, and index keys would then shift every later row onto a different
- * component and collapse whatever the reviewer had expanded (PLAN-15). The
+ * component and collapse whatever the reviewer had expanded. The
  * kind is part of it because a removal and an addition can share a name. */
 export function entryRowKey(entry: PlanDiffEntry): string {
   return `${entryKey(entry.entity_type, entry.parent, entry.name)}:${entry.kind}`
@@ -218,7 +218,7 @@ export function fieldRevertPrompt(entry: PlanDiffEntry, field: string): ConfirmP
  * The confirm for a whole-entry revert. There is none for an ambiguous rename:
  * `_row_renamed_from` answers that with a 409 rather than rename a sibling the
  * reviewer never looked at, so the row offers no revert at all and says why
- * instead of asking consent for a request it knows will fail (PLAN-18).
+ * instead of asking consent for a request it knows will fail.
  */
 export function entryRevertPrompt(
   entry: PlanDiffEntry,
@@ -347,24 +347,24 @@ export function diffView(diff: PlanBranchDiffSummary | undefined): DiffView {
 }
 
 /**
- * The confirm every merge asks for (PLAN-8). A merge rewrites production's plan
+ * The confirm every merge asks for. A merge rewrites production's plan
  * and the UI cannot undo it, so it is never one click — and the question names
  * what is about to land, in the same paired counts the strip shows. The
  * variable-deletion warning and the behind-main note ride in the same dialog
  * rather than as a second one. The behind-main note only appears when main's
  * newer changes overlap this branch's: a main that merely moved on does not
- * stop the merge, and warning about it on every branch was noise (PL-8).
+ * stop the merge, and warning about it on every branch was noise.
  */
 export function mergePrompt(
   counts: PairedDiffCounts,
   removedVariables: string[],
   behindBase: boolean,
-  /** What lands, by name; the first five are listed (PL-29). */
+  /** What lands, by name; the first five are listed. */
   names: readonly string[] = [],
-  /** Fields changed both here and on main since the branch opened (PL-8). */
+  /** Fields changed both here and on main since the branch opened. */
   unresolvedConflicts = 0,
 ): ConfirmPrompt {
-  // Words, not git's "+0 ~1 −0" tally, which needed decoding (PL-29).
+  // Words, not git's "+0 ~1 −0" tally, which needed decoding.
   const kinds = [
     counts.changed > 0 ? `${counts.changed} modified` : null,
     counts.added > 0 ? `${counts.added} added` : null,
@@ -425,7 +425,7 @@ export const MERGE_BLOCKED_BY_MAIN =
   'Merge blocked: main changed the same entities. Update the branch from main, then merge.'
 
 /** Update from main cannot help a branch whose base predates complete
- * snapshots: there is no base to merge three ways against (PL-8). */
+ * snapshots: there is no base to merge three ways against. */
 export const INCOMPLETE_BASE_MESSAGE =
   'This branch predates the complete merge baseline, so updating it from main cannot help. Copy your changes to a new branch.'
 
@@ -449,7 +449,7 @@ export function describeBranchActionError(error: unknown): string {
       return 'Merge blocked: owners of the touched event types have not approved.'
     }
     // "Recreate the branch" meant redoing the work; the branch can take
-    // main's changes in place now (PL-8).
+    // main's changes in place now.
     if (detail.branch_behind_base || (detail.conflicts && !detail.unresolved_field_conflicts)) {
       return MERGE_BLOCKED_BY_MAIN
     }
@@ -507,7 +507,7 @@ export function housekeepingLine(entries: PlanDiffEntry[]): string {
 
 /** Parse the merge policy's "Required approvals" input: a whole number from 0
  * to 100 (the backend's bound), or null. `parseInt` used to accept "1.5" as 1
- * and "150" as 150 and send them (PLAN-21). */
+ * and "150" as 150 and send them. */
 export function parseMinApprovals(raw: string): number | null {
   const trimmed = raw.trim()
   if (!/^\d+$/.test(trimmed)) return null
@@ -527,7 +527,7 @@ function shortScalar(value: unknown): string | null {
 /**
  * The collapsed change row's one-line summary, built from the field names
  * rather than the backend's quoted before/after strings: two long quotes with
- * a shared prefix truncated before the actual difference (PL-9). Short scalars
+ * a shared prefix truncated before the actual difference. Short scalars
  * read "Status live → deprecated", everything else "Description edited", at
  * most three fields plus "+N more". Falls back to the backend's own text when
  * the entry has no field changes (a new event, a removal).
@@ -538,7 +538,7 @@ export function changeSummary(entry: PlanDiffEntry): string {
   const shown = changes.slice(0, 3).map((change) => {
     const before = shortScalar(change.before)
     const after = shortScalar(change.after)
-    // "Metric breakdowns edited", not "metric_breakdown_columns edited" (PL-12).
+    // "Metric breakdowns edited", not "metric_breakdown_columns edited".
     const label = stateKeyLabel(change.field)
     return before !== null && after !== null
       ? `${label} ${before} → ${after}`
@@ -549,7 +549,7 @@ export function changeSummary(entry: PlanDiffEntry): string {
 }
 
 // ---------------------------------------------------------------------------
-// Update from main (PL-8)
+// Update from main
 // ---------------------------------------------------------------------------
 
 /** The header note under the diff counts once main has moved on: neutral when

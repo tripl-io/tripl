@@ -361,7 +361,7 @@ feature, so pin the `oxlint` version and re-run the rule tests on every bump):
   audit log's filter-bar chip).
 - `tripl/no-muted-foreground`: no `muted-foreground` class or `var()` (off in
   tests). The alias is gone from `index.css`; use `text-fg-tertiary` for
-  captions and meta, `text-fg-secondary` for body copy (DS-22).
+  captions and meta, `text-fg-secondary` for body copy.
 
 Which files each rule covers is set in the `overrides` of `.oxlintrc.json`: a
 later override wins over an earlier one for the files both match. A new rule

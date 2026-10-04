@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MiniStat, MiniStatStrip } from './mini-stat'
 
-// MON-42: `tone` with no delta used to render nothing, while the call sites
+// `tone` with no delta used to render nothing, while the call sites
 // (Overview's Implemented / Needs review / Coverage, the Coverage page) read as
 // if their figures were coloured.
 describe('MiniStat tone', () => {
@@ -28,7 +28,7 @@ describe('MiniStat tone', () => {
   })
 })
 
-// LIVE-8: the divider was a sibling element, so a wrapped row ended with one.
+// the divider was a sibling element, so a wrapped row ended with one.
 describe('MiniStatStrip', () => {
   it('gives every stat but the first its own divider', () => {
     const { container } = render(
@@ -74,7 +74,7 @@ describe('MiniStatStrip', () => {
   })
 })
 
-// LIVE-23: an info icon placed beside the whole stat sat far from its caption.
+// an info icon placed beside the whole stat sat far from its caption.
 describe('MiniStat labelAddon', () => {
   it('renders the addon inside the caption', () => {
     render(
@@ -86,7 +86,7 @@ describe('MiniStat labelAddon', () => {
   })
 })
 
-// DS-17: a KPI figure is a number, not code.
+// a KPI figure is a number, not code.
 describe('MiniStat figure', () => {
   it('sets the value in sans with tabular digits, never mono', () => {
     render(<MiniStat label="Last run" value="1h ago" />)
@@ -97,7 +97,7 @@ describe('MiniStat figure', () => {
   })
 })
 
-// DS-5: one page-KPI container instead of each page spelling it out.
+// one page-KPI container instead of each page spelling it out.
 describe('MiniStatStrip boxed', () => {
   it('draws the sunken card box when boxed', () => {
     const { container } = render(
@@ -121,7 +121,7 @@ describe('MiniStatStrip boxed', () => {
   })
 })
 
-// MT-26 / SH-27: four stats as a 2x2 grid on a phone, not a row that orphans
+// Four stats as a 2x2 grid on a phone, not a row that orphans
 // the last one with its own divider.
 describe('MiniStatStrip phoneGrid', () => {
   it('lays the row out as a two-column grid below sm and hides the dividers there', () => {
@@ -172,7 +172,7 @@ describe('MiniStatStrip phoneGrid', () => {
   })
 })
 
-// F31/AL-47: a stat that filters is a real toggle button, not a <dl> inside a
+// F31: a stat that filters is a real toggle button, not a <dl> inside a
 // role="button" div.
 describe('MiniStat pressable', () => {
   it('renders a toggle named "<label> <value>" with no definition list inside', () => {

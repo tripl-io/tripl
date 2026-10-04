@@ -32,7 +32,7 @@ export const NO_DELIVERY_FILTERS: DeliveryFilters = {
 export const DELIVERY_STATUSES = ['pending', 'sent', 'failed'] as const
 
 /**
- * URL keys (ALR-36). Prefixed with `delivery_` because the Inbox already owns
+ * URL keys. Prefixed with `delivery_` because the Inbox already owns
  * the bare `status`, `scope`, `direction` and `scope_type` on this same route —
  * and a Delivery log link pasted to a colleague must not also filter their
  * Inbox. `scan` is the exception, and deliberately so: it is the key a scan
@@ -145,7 +145,7 @@ export function hasActiveDeliveryFilters(filters: DeliveryFilters): boolean {
 }
 
 /**
- * Where "Newer" should land from `offset` (ALR-38).
+ * Where "Newer" should land from `offset`.
  *
  * Normally one page back. But the log can shrink under an offset — a retry
  * moves a row out of Status=Failed, a destination is deleted elsewhere — and a

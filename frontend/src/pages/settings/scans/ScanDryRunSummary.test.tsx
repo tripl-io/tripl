@@ -339,7 +339,7 @@ describe('ScanDryRunSummary — the panel names events, not rows', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows the event type beside a field when the fields span several (#247 DA-2)', () => {
+  it('shows the event type beside a field when the fields span several (#247)', () => {
     render(
       <ScanDryRunSummary
         dryRun={dryRun({
@@ -357,7 +357,7 @@ describe('ScanDryRunSummary — the panel names events, not rows', () => {
   })
 })
 
-describe('ScanDryRunSummary — a draft that would swamp the plan (#247 DA-1)', () => {
+describe('ScanDryRunSummary — a draft that would swamp the plan (#247)', () => {
   const combinatorial = Array.from({ length: 30 }, (_, index) =>
     event(`event_name=screen_${index} | button_id= | product_id= | amount=`, 10),
   )

@@ -8,7 +8,7 @@ import { chartAnnotationsRangeKey } from '@/lib/queryKeys'
  * The annotations of one drilldown, shared by the volume chart (markers) and
  * the Annotations card (list + form). Keyed on the range length, not on the
  * live window's moving bounds, so the list does not drop to "(0)" and the
- * markers do not vanish every five minutes (MON-3).
+ * markers do not vanish every five minutes.
  */
 export function useChartAnnotations({
   slug,

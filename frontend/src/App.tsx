@@ -58,7 +58,7 @@ const DocsPage = lazyWithReload(() => import('./pages/docs/DocsPage'))
 
 /**
  * Route-level loading: a page-shaped skeleton rather than "Loading page…" in
- * an empty column (#237 SH-23 group). The variant follows the page's shape,
+ * an empty column (#237 group). The variant follows the page's shape,
  * so the header, stat strip and first card are where the page will draw them.
  */
 function RouteFallback({ variant = 'list', label = 'Loading page…' }: {
@@ -159,7 +159,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
 /**
  * A signed-in visitor on a link meant for someone without a session — a
  * password reset. Bouncing them to `/` dropped the token and read
- * as a broken link (SHELL-16); this says who they are signed in as and lets
+ * as a broken link; this says who they are signed in as and lets
  * them sign out without leaving the URL.
  */
 function SignedInInterstitial({ purpose }: { purpose: string }) {
@@ -328,7 +328,7 @@ function ScansRedirect() {
 /**
  * Bare `/p/:slug` → the project's home. It used to render the Events list, so
  * a project link from outside the app opened on a different page than every
- * in-app project entry (#250 JR-1).
+ * in-app project entry (#250).
  */
 function ProjectHomeRedirect() {
   const { slug } = useParams<{ slug: string }>()
@@ -431,8 +431,7 @@ function projectRoutes() {
           /p/:slug/events (App.test.tsx pins this). */}
       <Route path="settings/scans/:itemId" element={<ScansRedirect />} />
       <Route path="settings/scans" element={<ScansRedirect />} />
-      {/* Plan, Observe and Govern surfaces at their own addresses (#238
-          JR-25 / AL-42 / ST-5). One page renders them all, so they share
+      {/* Plan, Observe and Govern surfaces at their own addresses (#238). One page renders them all, so they share
           a Suspense key and moving between them never remounts the page. */}
       <Route path="event-types/:itemId" element={withSuspense('project-settings', <ProjectSettingsPage surface="event-types" />, 'detail')} />
       <Route path="event-types" element={withSuspense('project-settings', <ProjectSettingsPage surface="event-types" />)} />
@@ -501,7 +500,7 @@ function Takeover({ section }: { section: string }) {
       {/* Its own boundary: a section that throws keeps the takeover (and a way
           out of it) instead of blanking the whole app. Reset on navigation. */}
       <RouteErrorBoundary>
-        {/* A rail and section skeleton, not a word on a blank screen (ST-35). */}
+        {/* A rail and section skeleton, not a word on a blank screen. */}
         <Suspense fallback={<ShellSkeleton label="Loading settings…" />}>
           <SettingsArea section={section} />
         </Suspense>
@@ -541,7 +540,7 @@ function PlatformRedirect() {
 
 /**
  * Bare "/" entry. Most accounts have exactly one project, so landing on the
- * multi-project workspace dashboard is a redundant hop (UX-11 / UX-25). When
+ * multi-project workspace dashboard is a redundant hop. When
  * exactly one project exists we send the user straight into it; with 0 or 2+
  * projects we render the workspace dashboard unchanged. The dashboard stays
  * reachable for single-project users via the stable `/workspace` route, which
@@ -589,7 +588,7 @@ function DocumentTitle({ entityTitle }: { entityTitle: string | null }) {
   // the shell shows a not-found state for it, so the tab has to agree.
   //
   // A detail page that has loaded its entity names the tab after it instead,
-  // "Screen View · Event type volume · tripl" (JR-33): three open monitoring
+  // "Screen View · Event type volume · tripl": three open monitoring
   // tabs used to read "Monitoring · acme · tripl" alike.
   const entityLabel =
     entityTitle && !slugIsUnknown

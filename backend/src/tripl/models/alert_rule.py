@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 # volume falls to zero. The earlier default of 100 was measured on volume
 # (replaying 24 hours of live iOS collections gave 436 items in 54 deliveries at
 # 0, 267/32 at 50 and 37/7 at 100), but it also meant the obvious "tell me when
-# X drops" rule ignored a 50 % or a 90 % fall (AL-2). 30 is a move worth hearing
+# X drops" rule ignored a 50 % or a 90 % fall. 30 is a move worth hearing
 # about in either direction, and the rule editor starts new rules there too
 # (``DEFAULT_RULE_MIN_PERCENT_DELTA`` in the frontend). Migration a4c8e2f61b93
 # moved the server default; stored rows keep the value they were saved with.

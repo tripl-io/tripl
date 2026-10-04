@@ -1,6 +1,6 @@
 """Metrics follow-ups (lane F6): the series dry run and the Used-by catalog filter.
 
-* ``POST /metrics/series-preview`` (MT-9) previews a draft ``fact`` or
+* ``POST /metrics/series-preview`` previews a draft ``fact`` or
   ``event_composition`` metric's series with the collector's own code and
   persists nothing.
 * ``GET /metrics?fact_table_id=`` (F7) narrows the catalog to the metrics that

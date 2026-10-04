@@ -7,7 +7,7 @@ import type { ProjectCreateInput, ProjectCreateResult } from '../types/projectTe
 export interface DetectionResetPeriod {
   before?: string | null
   after?: string | null
-  /** Count what the reset would delete, and delete nothing (ST-39). */
+  /** Count what the reset would delete, and delete nothing. */
   dry_run?: boolean
 }
 
@@ -19,7 +19,7 @@ export interface AnomalyResetCounts {
 }
 
 /** Outcome of asking an in-flight demo provision to abandon itself. Derived
- *  from the generated schema so the gen:api drift check covers it (DEMO-29). */
+ *  from the generated schema so the gen:api drift check covers it. */
 export type DemoCancelResult = components['schemas']['DemoCancelResponse']
 
 /** What a variable-retirement pass did, and why it spared what it spared.
@@ -46,7 +46,7 @@ export const projectsApi = {
   list: (signal?: AbortSignal) => api.get<Project[]>('/projects', signal),
   // `branchId` scopes the summary's plan counters (event types, events,
   // variables) to that working branch, so the Overview's KPIs agree with the
-  // branch's own lists (SH-11). Omitted, they are main's.
+  // branch's own lists. Omitted, they are main's.
   get: (slug: string, signal?: AbortSignal, branchId?: string | null) =>
     api.get<Project>(withBranch(`/projects/${slug}`, branchId), signal),
   // With a `template_id` the server also opens the template's plan as a draft
@@ -66,7 +66,7 @@ export const projectsApi = {
   // `cancelled` is false when it was already too late.
   cancelDemo: () => api.post<DemoCancelResult>('/projects/demo/cancel', {}),
   // Reset re-seeds just as long as a create, so it takes a signal for the same
-  // timeout (DEMO-4).
+  // timeout.
   resetDemo: (slug: string, signal?: AbortSignal) =>
     api.post<Project>(`/projects/demo/${slug}/reset`, {}, signal),
   deleteDemo: (slug: string) => api.del(`/projects/demo/${slug}`),

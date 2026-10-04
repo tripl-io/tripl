@@ -92,7 +92,7 @@ export interface ScanFormState {
   metricBreakdownValuesLimit: string
   distributionDriftFields: string[]
   // A string like every other numeric input: `Number('')` made a cleared field
-  // a 0 the backend rejects with a raw 422 (DATA-25).
+  // a 0 the backend rejects with a raw 422.
   cardinalityThreshold: string
   interval: string
   chunkInterval: string
@@ -265,7 +265,7 @@ export type ScanNumericField = keyof typeof SCAN_NUMERIC_FIELD_LABEL
  * Field-level messages for every numeric input holding a value the backend
  * would refuse (`ge=1`, or a share in (0, 1)). The form renders each under its
  * input, and {@link scanFormBlocker} refuses the save, so a bad value is neither
- * coerced into a different one nor answered by a raw 422 (DATA-25).
+ * coerced into a different one nor answered by a raw 422.
  */
 export function scanFieldErrors(state: ScanFormState): Partial<Record<ScanNumericField, string>> {
   const errors: Partial<Record<ScanNumericField, string>> = {}
@@ -334,7 +334,7 @@ export function scanFormBlocker(state: ScanFormState): string | null {
  *
  * Each loaded preview is stamped with the draft it was requested for, the way a
  * dry run is, so an answer that arrives after the user moved on can never land
- * on the newer draft (DATA-2). The time column and lookback are left out on
+ * on the newer draft. The time column and lookback are left out on
  * purpose: they bound which rows come back, not which columns, and they are
  * picked FROM a loaded preview — keying on them would throw away a reload the
  * moment the user chose a time column while it was in flight.
@@ -431,7 +431,7 @@ export function useScanForm(
     { answer: ScanDryRunResponse; requestKey: string } | null
   >(null)
   // The draft the newest preview was asked for. An older request that answers
-  // later is dropped rather than replacing a newer preview (DATA-2).
+  // later is dropped rather than replacing a newer preview.
   const latestPreviewKeyRef = useRef<string | null>(null)
   // Aborted when the draft changes source or query, and on unmount, so a
   // warehouse job's poll loop stops once nobody is waiting for its answer. The
@@ -593,7 +593,7 @@ export function useScanForm(
    * carry. Clearing them here meant one space typed into a saved scan's query
    * (or its Format button) wiped every saved path and drift field behind a
    * preview gate the user could not see past, and the next Save sent the empty
-   * lists (DATA-1).
+   * lists.
    */
   const resetPreviewDerived = () => {
     abortInFlight()

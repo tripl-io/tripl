@@ -54,7 +54,7 @@ class ScanActivityItem(BaseModel):
     # Warehouse rows runs read (a metrics run's ``query_rows_scanned``, a newer
     # catalog run's ``catalog_rows_scanned``), and the GROUP BY ALL combinations
     # older catalog runs returned (``scan_rows_processed`` of jobs with no
-    # warehouse count), over the same window (B15).
+    # warehouse count), over the same window.
     warehouse_rows_24h: int = 0
     catalog_combinations_24h: int = 0
 

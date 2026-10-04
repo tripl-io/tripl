@@ -20,7 +20,7 @@ import { sourceFor } from './serviceSettingsHelpers'
 // Ports named in the labels because the mode and the port have to agree, and
 // disagreeing does not produce an error the operator can act on — the client
 // waits for a greeting that never arrives and stalls until it times out.
-// Short enough to show whole: the long forms were cut mid-parenthesis (ST-27);
+// Short enough to show whole: the long forms were cut mid-parenthesis;
 // the hint under the select says what each mode does.
 const SECURITY_OPTIONS = [
   { value: 'starttls', label: 'STARTTLS (ports 587, 2525)' },
@@ -60,7 +60,7 @@ export function EmailSection({
   })
   // The probe sends with the SAVED settings and needs both a host and a From:
   // address (the backend's `email_can_send`); without either it can only
-  // fail, so it waits for them (ST-32).
+  // fail, so it waits for them.
   const testBlocker = !settings.email.smtp_host.trim()
     ? 'Set an SMTP host and save first.'
     : !settings.email.smtp_from_address.trim()
@@ -172,7 +172,7 @@ export function EmailSection({
         </Field>
       </SCard>
 
-      {/* Named for what it does; "Check" told the reader little (ST-32). */}
+      {/* Named for what it does; "Check" told the reader little. */}
       <SCard
         title="Send a test email"
         description="Sends one message to your own address. Uses the saved settings, so save your changes first."

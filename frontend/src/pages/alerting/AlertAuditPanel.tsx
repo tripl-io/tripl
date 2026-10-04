@@ -24,7 +24,7 @@ import {
   type DeliveryFilters,
 } from './deliveryFilters'
 
-// Re-exported: the type moved to ./deliveryFilters with the URL codec (ALR-36),
+// Re-exported: the type moved to ./deliveryFilters with the URL codec,
 // and the page and tests have always imported it from here.
 export type { DeliveryFilters } from './deliveryFilters'
 
@@ -53,9 +53,9 @@ interface AlertAuditPanelProps {
   // exactly when `?scan=` names a scan this project does not have, which the
   // page degrades to "All" — and a panel reading the raw state then said "N
   // deliveries match the filter" and offered Clear over a filter that was not
-  // filtering anything (ALR-39).
+  // filtering anything.
   deliveryFilters: DeliveryFilters
-  // One write per change. The page keeps both in the URL (ALR-36), and a filter
+  // One write per change. The page keeps both in the URL, and a filter
   // write resets the offset in the SAME navigation — two back-to-back
   // `setSearchParams` calls read the same stale params and the second undoes
   // the first.
@@ -121,7 +121,7 @@ export function AlertAuditPanel({
   // The range as the date inputs hold it: the reader's calendar days.
   const dateFrom = formatIsoDate(deliveryFilters.date_from)
   const dateTo = formatIsoDate(deliveryFilters.date_to)
-  // Parked past the end of a list that shrank under the offset (ALR-38): a
+  // Parked past the end of a list that shrank under the offset: a
   // retry moved a row out of Status=Failed, or a destination went elsewhere.
   // The rows exist — `total` says so — the page the reader is on just no longer
   // reaches them, and "No deliveries yet." over it would be false.
@@ -172,7 +172,7 @@ export function AlertAuditPanel({
     return (
       <div className="rounded-lg border">
         {/* Columns and widths live with the row (DeliveryTable), so the
-            incident card's nested table cannot drift from this one (ALR-32). */}
+            incident card's nested table cannot drift from this one. */}
         <DeliveryTable>
           {pinnedDelivery && (
             <AlertDeliveryRow
@@ -202,7 +202,7 @@ export function AlertAuditPanel({
       {/* "delivery"/"deliveries" is why countOf takes both forms rather than
           appending an "s" — the first alert a project ever sends lands here. */}
       {/* No count until the first answer: "0 deliveries" while loading
-          stated something false for a moment, then jumped (AL-21). */}
+          stated something false for a moment, then jumped. */}
       <Panel
         title="Delivery log"
         subtitle={deliveries ? countOf(total, 'delivery', 'deliveries') : undefined}
@@ -216,7 +216,7 @@ export function AlertAuditPanel({
           {!canWrite && (
             <ReadOnlyNotice>{VIEWER_READ_ONLY_NOTICE}</ReadOnlyNotice>
           )}
-          {/* The app's one filter bar (DS-15), the same as the Inbox's beside
+          {/* The app's one filter bar, the same as the Inbox's beside
               it: "{Label}: {value}" chips that apply instantly, then "Clear
               filters" and the match count. */}
           <FilterBar
@@ -260,7 +260,7 @@ export function AlertAuditPanel({
               onValueChange={value => updateFilters({ scan_config_id: value === ANY ? '' : value })}
               options={scans.map(scan => ({ value: scan.id, label: scan.name }))}
             />
-            {/* One chip for the range, as on the Inbox beside it (AL-19). No
+            {/* One chip for the range, as on the Inbox beside it. No
                 format hint on the pickers inside: they show the day in the
                 app's own date format, so a hard-coded "(YYYY-MM-DD)" would
                 contradict what the control shows. Only the

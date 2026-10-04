@@ -112,7 +112,7 @@ describe('FactFilterEditor filter check', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('says how many rows the filters matched (MT-9)', () => {
+  it('says how many rows the filters matched', () => {
     renderEditor({ onCheck: vi.fn(), checkResult: clean(12340) })
     expect(screen.getByRole('status')).toHaveTextContent('matched 12,340 rows in the last 7 days')
   })
@@ -220,7 +220,7 @@ describe('filtersToPayload', () => {
     ])
   })
 
-  it('keeps each IN value whole, commas included (MET-32)', () => {
+  it('keeps each IN value whole, commas included', () => {
     expect(
       filtersToPayload(
         [makeConditionFilter('customer', 'in', ['Smith, John', 'Doe, Jane'])],
@@ -260,7 +260,7 @@ describe('filtersFromConfig', () => {
     ])
   })
 
-  it('splits SQL fragments it joined itself back into separate rows (MET-31)', () => {
+  it('splits SQL fragments it joined itself back into separate rows', () => {
     const saved = filtersToPayload([makeSqlFilter('a = 1 OR b = 2'), makeSqlFilter('c = 3')])
     const filters = filtersFromConfig(config([], saved.filter_sql!))
     expect(filters).toMatchObject([
@@ -302,7 +302,7 @@ describe('filter_sql round-trip idempotency', () => {
   })
 
   // Stripping them on load used to be a "self-heal", but any change to the
-  // stored filter_sql deletes the metric's history on save (MET-1): an
+  // stored filter_sql deletes the metric's history on save: an
   // untouched load→save now sends it back exactly.
   it('keeps stored redundant parens verbatim instead of rewriting them', () => {
     const polluted = "((((platform = 'ios'))))"
@@ -354,7 +354,7 @@ describe('splitAndedFragments', () => {
 })
 
 // A row the payload cannot express used to be dropped on save, so the metric
-// saved LESS filtered than the editor showed (MET-3).
+// saved LESS filtered than the editor showed.
 describe('filterRowErrors', () => {
   it('names every incomplete row by id and passes complete ones', () => {
     const named = makeNamedFilter()
@@ -390,7 +390,7 @@ function StatefulEditor(props: Partial<Parameters<typeof FactFilterEditor>[0]>) 
   )
 }
 
-describe('FactFilterEditor Add filter menu (MET-16)', () => {
+describe('FactFilterEditor Add filter menu', () => {
   it('is a real menu: keyboard opens it, focus moves in, Escape closes it', async () => {
     render(<StatefulEditor />)
     const trigger = screen.getByRole('button', { name: 'Add filter' })
@@ -413,7 +413,7 @@ describe('FactFilterEditor Add filter menu (MET-16)', () => {
   })
 })
 
-describe('FactFilterEditor conditions (MET-32)', () => {
+describe('FactFilterEditor conditions', () => {
   const operatorLabels = () =>
     Array.from(
       (screen.getByLabelText('Filter 1 condition operator') as HTMLSelectElement).options,
@@ -483,7 +483,7 @@ describe('FactFilterEditor row errors and disabled state', () => {
     expect(control).toHaveAccessibleDescription('Filter 1: Pick a named filter, or remove this row.')
   })
 
-  it('makes a SQL row read-only while the editor is disabled (MET-30)', () => {
+  it('makes a SQL row read-only while the editor is disabled', () => {
     render(
       <FactFilterEditor
         filters={[makeSqlFilter('x = 1')]}
@@ -495,7 +495,7 @@ describe('FactFilterEditor row errors and disabled state', () => {
     expect(screen.getByLabelText('Filter 1 SQL')).toHaveAttribute('readonly')
   })
 
-  it('explains why the check cannot run yet (MET-33)', () => {
+  it('explains why the check cannot run yet', () => {
     render(
       <FactFilterEditor
         filters={[]}

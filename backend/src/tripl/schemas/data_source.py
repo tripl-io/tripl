@@ -426,7 +426,7 @@ DATA_SOURCE_SCAN_REFS_LIMIT = 20
 
 
 class DataSourceScanRef(BaseModel):
-    """One scan reading a data source, enough to link to it (DA-40)."""
+    """One scan reading a data source, enough to link to it."""
 
     id: uuid.UUID
     name: str
@@ -461,7 +461,7 @@ class DataSourceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # What depends on this source (DA-40): the scans reading it and the runs
+    # What depends on this source: the scans reading it and the runs
     # they logged — both deleted with the source. Counted over the projects the
     # caller is a member of (every project for an instance owner), so a shared
     # source never reveals a project the caller cannot see. Merged in per
@@ -486,7 +486,7 @@ class DataSourceTestResponse(BaseModel):
 
 
 class DataSourceConnectionTest(DataSourceCreate):
-    """An unsaved data-source config to test a connection with (DATA-30).
+    """An unsaved data-source config to test a connection with.
 
     The create body, validated the same way (host format included), so a form
     can test exactly what Create would store. ``name`` is optional because the

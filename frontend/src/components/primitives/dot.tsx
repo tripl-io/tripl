@@ -19,8 +19,8 @@ type DotProps = {
   /**
    * What the colour means, for a dot that stands alone. Several statuses share
    * a tone, and colour is never enough on its own (WCAG 1.4.1), so a dot with
-   * no visible label beside it names itself to screen readers and on hover
-   * (DS-45). Leave it off when the meaning is already written next to it.
+   * no visible label beside it names itself to screen readers and on hover.
+   * Leave it off when the meaning is already written next to it.
    */
   label?: string
 }

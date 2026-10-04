@@ -60,7 +60,7 @@ function renderTemplateValue(value: string, variables?: Variable[]): ReactNode {
   const parts = splitTemplateValue(value, variables)
   if (parts.length === 1 && !parts[0]?.token) return value
   // A token reads as data, not a link: the quiet sunken CodeToken instead of
-  // saturated accent mono, which was the brightest text in the table (EV-13).
+  // saturated accent mono, which was the brightest text in the table.
   return parts.map((part, i) =>
     part.token ? (
       part.known === false ? (
@@ -86,7 +86,7 @@ const ROW_INTERACTIVE = 'a, button, input, label, select, textarea, [role="check
 /**
  * The newest bucket with volume, for a row whose `last_seen_at` is unset but
  * whose 48h series has events: "never" beside thousands of events broke trust
- * in the whole row (EV-8).
+ * in the whole row.
  */
 function lastBucketWithVolume(points: EventMetricPoint[]): string | null {
   let latest: string | null = null
@@ -154,7 +154,7 @@ export type EventRowProps = {
   windowTotal: number | undefined
   windowData: EventMetricPoint[]
   /** The 48h metrics for this row have not answered yet: its cells show a
-   *  placeholder, not the "—" that means "no data" (EV-20). */
+   *  placeholder, not the "—" that means "no data". */
   metricsPending?: boolean
   /** Field id → every value this row holds for it, in API order. */
   metaValueMap: Map<string, string[]> | undefined
@@ -167,14 +167,14 @@ export type EventRowProps = {
   /**
    * The rows are in catalog order, so dragging one means something. False
    * under "Busiest first", where a drag would renumber the catalog into volume
-   * order (EVT-3); the handle is not offered then.
+   * order; the handle is not offered then.
    */
   reorderable?: boolean
   /** Virtualizer hooks: measure this row's real height at this index. */
   measureRef?: (el: HTMLTableRowElement | null) => void
   virtualIndex?: number
   /** Created by the form the reader just left: marked so it can be found in a
-   *  long list (AU-20, AU-21, JR-13). */
+   *  long list. */
   justCreated?: boolean
 }
 
@@ -271,7 +271,7 @@ export const EventRow = memo(function EventRow({
     activeBranchId,
   )
 
-  // The whole row opens the event's detail page, not just the name (EV-27).
+  // The whole row opens the event's detail page, not just the name.
   // The name stays the real anchor (new tab, copy link); a click on anything
   // interactive in the row, or one that ends a text selection, keeps its own
   // meaning.
@@ -316,7 +316,7 @@ export const EventRow = memo(function EventRow({
       <TableCell className="w-8 px-1" data-no-row-click={canWrite || undefined}>
         {canWrite && reorderable && (
           // Hover-revealed only where the pointer can hover: on a touch screen
-          // an invisible handle cannot be found at all (EVT-21).
+          // an invisible handle cannot be found at all.
           <button
             type="button"
             className="flex h-6 w-6 cursor-grab touch-none items-center justify-center rounded-sm text-fg-tertiary opacity-0 transition-opacity hover:bg-muted focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100 active:cursor-grabbing"
@@ -347,14 +347,14 @@ export const EventRow = memo(function EventRow({
         {/* Capped, so the name, title and badges truncate. Cells never wrap
             and auto table layout sizes a cell to its content, so a 120-char
             scan-generated name made the sticky cluster wider than a phone and
-            every other column scrolled underneath it (EVT-7). The cap sits on
+            every other column scrolled underneath it. The cap sits on
             this box, not the cell: browsers ignore max-width on table cells. */}
         <div
           className={`flex items-center gap-2 align-middle ${PHONE_NAME_CONTENT}`}
           style={{ maxWidth: PINNED_EVENT_CONTENT_MAX_WIDTH }}
         >
           {/* Only when the Status column is hidden: beside it the dot said the
-              same thing again, in colours close to the type colours (EV-9). */}
+              same thing again, in colours close to the type colours. */}
           {hideStatus && (
             <Dot
               tone={statusTone}
@@ -375,8 +375,8 @@ export const EventRow = memo(function EventRow({
                 onClick={detailLink.onClick}
                 // Sans, not mono: "Home Screen View" is a display name, not
                 // code. Mono made the pinned column ~25% wider and set one
-                // entity in a different face from every other page (DS-17 /
-                // EV-10). The cell's font-medium carries the weight.
+                // entity in a different face from every other page.
+                // The cell's font-medium carries the weight.
                 className="min-w-0 truncate text-left text-body-sm hover:underline underline-offset-4"
                 // Native title only when there's no description to show in the
                 // richer tooltip — avoids a double (native + Radix) popover.
@@ -449,7 +449,7 @@ export const EventRow = memo(function EventRow({
                 onClick={() => onRowAction('edit', ev)}
                 aria-label={`Edit ${nameLabel}`}
                 // Always there, quiet until the row is hovered or focused: a
-                // hover-only pencil was the one way to the edit form (EV-27).
+                // hover-only pencil was the one way to the edit form.
                 className={`flex size-6 shrink-0 items-center justify-center rounded-sm text-fg-tertiary transition-opacity hover:bg-muted focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100 ${
                   coachEdit ? 'opacity-100' : 'opacity-40'
                 }`}
@@ -463,10 +463,10 @@ export const EventRow = memo(function EventRow({
       {!hideMonitor && (
         <TableCell className={rowSignal ? undefined : PHONE_QUIET_CELL}>
           {/* "Open"/"Recent", never "Live": Live is the lifecycle status in
-              green one column over, and one word must map to one tone
-              (EV-5 / DS-7). The label comes from SIGNAL_LEVEL. With no open
+              green one column over, and one word must map to one tone.
+              The label comes from SIGNAL_LEVEL. With no open
               signal the cell is a faint dash: a "Monitored" pill on 16 of 17
-              rows drowned the one chip the column exists for (EV-6); the
+              rows drowned the one chip the column exists for; the
               coverage stays in the dash's title. A phone card drops the
               quiet cell: with no column over it the dash was a stray mark. */}
           {rowSignal ? (
@@ -515,7 +515,7 @@ export const EventRow = memo(function EventRow({
         </div>
       </TableCell>
       {!hideDelta && (
-        // Kept on a phone card, beside the count: it is the row's trend (EV-28).
+        // Kept on a phone card, beside the count: it is the row's trend.
         <TableCell className="tnum text-right text-caption">
           {(() => {
             if (metricsPending) {
@@ -536,7 +536,7 @@ export const EventRow = memo(function EventRow({
             }
             // Coloured by the figure itself, never by the row's signal: a
             // spike signal beside a -5% figure painted the -5% red and made
-            // the two contradict louder (EV-7). Volume change is not good or
+            // the two contradict louder. Volume change is not good or
             // bad by itself, so only a large move is toned.
             const color = deltaColor(pct)
             return (
@@ -545,7 +545,7 @@ export const EventRow = memo(function EventRow({
                 title={title}
                 // A window the series does not fully cover is marked with a
                 // dotted underline and explained by the title, instead of an
-                // asterisk on nearly every row (EV-7).
+                // asterisk on nearly every row.
                 className={delta.partial ? 'underline decoration-dotted underline-offset-2' : undefined}
                 data-partial={delta.partial || undefined}
               >
@@ -559,14 +559,14 @@ export const EventRow = memo(function EventRow({
       {!hideLastSeen && (() => {
         // Unset `last_seen_at` next to 48h volume said "never" beside thousands
         // of events: the two come from different sources. Fall back to the
-        // newest bucket of the series the 48h column draws (EV-8).
+        // newest bucket of the series the 48h column draws.
         const seenInSeries = ev.last_seen_at ? null : lastBucketWithVolume(windowData)
         const seenAt = ev.last_seen_at ?? seenInSeries
         return (
           <TableCell
             className={`text-caption tnum ${PHONE_DROPPED_CELL}`}
             style={{ color: seenAt ? 'var(--fg-subtle)' : 'var(--fg-faint)' }}
-            // Humanized like every other instant in the app (DS-25), not the
+            // Humanized like every other instant in the app, not the
             // raw ISO string.
             title={
               ev.last_seen_at

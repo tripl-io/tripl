@@ -22,7 +22,7 @@ const field = (id: string, name: string, extra: Partial<FieldDefinition> = {}) =
     ...extra,
   }) as unknown as FieldDefinition
 
-describe('sunset date (EVT-27)', () => {
+describe('sunset date', () => {
   // Pinned off UTC: CI runs in UTC, where local wall time and UTC coincide, so
   // an implementation that read the picker as UTC would pass there.
   beforeEach(() => {
@@ -55,7 +55,7 @@ describe('sunset date (EVT-27)', () => {
   })
 })
 
-describe('number field values (EVT-23)', () => {
+describe('number field values', () => {
   it('takes numbers, tokens and nothing', () => {
     expect(isNumberFieldValue('')).toBe(true)
     expect(isNumberFieldValue('12.5')).toBe(true)
@@ -82,7 +82,7 @@ describe('number field values (EVT-23)', () => {
   })
 })
 
-describe('pending chip text (EVT-26)', () => {
+describe('pending chip text', () => {
   it('adds what is typed, once, and never removes', () => {
     expect(withPendingChip(['a'], ' b ')).toEqual(['a', 'b'])
     expect(withPendingChip(['a'], 'a')).toEqual(['a'])
@@ -91,7 +91,7 @@ describe('pending chip text (EVT-26)', () => {
   })
 })
 
-describe('carrying field values across a type change (EVT-47)', () => {
+describe('carrying field values across a type change', () => {
   it('moves values by field name', () => {
     const from = [field('a1', 'variant'), field('a2', 'payload')]
     const to = [field('b1', 'variant')]

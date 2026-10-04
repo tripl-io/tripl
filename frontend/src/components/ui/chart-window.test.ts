@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { windowPaddingBuckets } from './chart-window'
 
-// MON-22: a series that starts late in the window is drawn at its real place.
+// a series that starts late in the window is drawn at its real place.
 describe('windowPaddingBuckets', () => {
   it('pads both ends out to the window, keeping the series alignment', () => {
     expect(

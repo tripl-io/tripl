@@ -27,7 +27,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('displayUser (WS-47)', () => {
+describe('displayUser', () => {
   it('keeps "unknown" for a deleted account, whose id is null', () => {
     expect(displayUser(new Map(), null)).toBe('unknown')
     expect(displayUser(Object.assign(new Map(), { status: 'pending' as const }), null)).toBe(

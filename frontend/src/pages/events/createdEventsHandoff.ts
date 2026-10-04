@@ -1,6 +1,6 @@
 /**
  * The events a form has just created, handed to the Events list so it can
- * scroll to them and mark them (AU-20, AU-21, JR-13).
+ * scroll to them and mark them.
  *
  * Session storage, not router state: the single-event form closes with
  * `navigate(-1)` when there is somewhere in-app to go back to, and a history

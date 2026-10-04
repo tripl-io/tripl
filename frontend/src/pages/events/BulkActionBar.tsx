@@ -45,7 +45,7 @@ export function BulkActionBar({
    * Total events matching the current filters/tab (may exceed loaded rows).
    * `null` when the match count is not known — a client-side column filter
    * narrows rows the server total still counts — so the button offers "all
-   * matching" without a number rather than print the wrong one (EVT-2).
+   * matching" without a number rather than print the wrong one.
    */
   matchingTotal?: number | null
   /** Select every matching event so one bulk action sweeps the whole queue. */
@@ -71,8 +71,8 @@ export function BulkActionBar({
     (matchingTotal === null || matchingTotal > selectedCount)
   return (
     // Wraps, and never wider than the viewport: on one line the bar was ~750px,
-    // so at 375px both ends were cut off and Delete and Clear were unreachable
-    // (EVT-5). The page reserves room under the table while it is open.
+    // so at 375px both ends were cut off and Delete and Clear were unreachable.
+    // The page reserves room under the table while it is open.
     <div
       className="fixed bottom-[18px] left-1/2 z-(--z-bar) flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2.5 rounded-card border py-1.5 pl-3.5 pr-2 bg-bg-elevated border-border-strong"
       style={{
@@ -81,7 +81,7 @@ export function BulkActionBar({
     >
       <span className="text-body-sm text-fg-secondary">
         {/* Sans + tabular figures: a count is not code, and mono has no
-            real semibold (DS-17). */}
+            real semibold. */}
         <span className="tnum font-semibold text-fg">{selectedCount}</span> selected
       </span>
       {selectedVisibleCount !== undefined && selectedVisibleCount < selectedCount && (
@@ -92,7 +92,7 @@ export function BulkActionBar({
       {canSelectAll && (
         <>
         {/* A rule between the count and the widening action: run together,
-            "2 selected Select all 17" read as one phrase (EV-31). */}
+            "2 selected Select all 17" read as one phrase. */}
         <div className="hidden h-5 w-px sm:block bg-border" />
         <Button
           type="button"
@@ -127,7 +127,7 @@ export function BulkActionBar({
           ))}
         </SelectContent>
       </Select>
-      {/* Every control in the bar is 32px, one row height (EV-31). */}
+      {/* Every control in the bar is 32px, one row height. */}
       <Button
         variant="outline"
         size="sm"
@@ -137,7 +137,7 @@ export function BulkActionBar({
       >
         <CheckCheck />
         {/* "Verified", not "reviewed": this flag does not move an event out
-            of the In review queue (#238 JR-27). */}
+            of the In review queue (#238). */}
         Mark as verified
       </Button>
       {owners.length > 0 && (

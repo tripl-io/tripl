@@ -1,6 +1,6 @@
 
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
-/** The sections of the variable page, in tab order (AU-26). */
+/** The sections of the variable page, in tab order. */
 export const VARIABLE_DETAIL_TABS = [
   { id: 'definition', label: 'Definition' },
   { id: 'events', label: 'Events' },

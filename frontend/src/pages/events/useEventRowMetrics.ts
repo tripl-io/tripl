@@ -94,7 +94,7 @@ export function useEventRowMetrics({
   // The window is NOT part of the key. It steps every few minutes, and with it
   // in the key every bucket went back to `data: undefined` on each step, so the
   // 48h cell, Δ and the derived Signal chips all blanked until the refetch
-  // landed, which reads as "no data" or "signal cleared" (EVT-18).
+  // landed, which reads as "no data" or "signal cleared".
   // `placeholderData` cannot bridge that inside `useQueries`: a new key gets a
   // new observer with no previous data. So the key stays per bucket, the query
   // function reads the current window, and a step invalidates the buckets —
@@ -116,7 +116,7 @@ export function useEventRowMetrics({
     combine: results => ({
       metrics: results.flatMap(result => result.data ?? EMPTY_EVENT_WINDOW_METRICS),
       // Per bucket, whether its request has answered (either way). A row in an
-      // unanswered bucket is loading, not empty (EV-20).
+      // unanswered bucket is loading, not empty.
       settled: results.map(result => !result.isPending),
     }),
   })
@@ -161,7 +161,7 @@ export function useEventRowMetrics({
   }, [eventSignals, eventWindowMetricsByEvent, events])
 
   // Ids whose 48h metrics have answered: the cells of every other row show a
-  // placeholder, not the "—" that means "no data" (EV-20). Keyed on the
+  // placeholder, not the "—" that means "no data". Keyed on the
   // settled flags' content, so a refetch does not mint a new set.
   const settledKey = bucketSettled.map(settled => (settled ? '1' : '0')).join('')
   const rowMetricsSettled = useMemo(() => {

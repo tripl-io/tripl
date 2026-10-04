@@ -6,7 +6,7 @@ import PlanRulesSection from './PlanRulesSection'
 /**
  * Nothing on Plan rules is wired to anything. The page first rendered every
  * control live and pre-set to a governed state, then as dozens of
- * disabled controls set to "off" (WS-37). Neither was a settings page: it is
+ * disabled controls set to "off". Neither was a settings page: it is
  * now one "Coming later" card that describes the rules and offers no control
  * that could be read as a setting.
  */
@@ -38,7 +38,7 @@ describe('Project · Plan rules states that none of it is built', () => {
       expect(screen.getByRole('region', { name: group })).toBeInTheDocument()
     }
     // The approval gate that exists today is the merge policy, not a plan
-    // rule; the planned list no longer duplicates it (PL-26).
+    // rule; the planned list no longer duplicates it.
     expect(screen.queryByText(/Require an approval/)).not.toBeInTheDocument()
     // Written as what the rule would do, never as a policy in force.
     expect(screen.queryByDisplayValue('1 approval')).not.toBeInTheDocument()
@@ -46,7 +46,7 @@ describe('Project · Plan rules states that none of it is built', () => {
   })
 })
 
-describe('Project · Plan rules points at what exists today (PL-26)', () => {
+describe('Project · Plan rules points at what exists today', () => {
   it('links the merge policy for the project', () => {
     render(
       <MemoryRouter>

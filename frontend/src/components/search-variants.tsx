@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { SearchVariant, SearchVariantGroup } from '@/types'
 
 /**
- * Variant groups in the command palette's search results (#238 JR-20).
+ * Variant groups in the command palette's search results (#238).
  *
  * The search service folds events of one event type whose names differ only in
  * one naming-rule placeholder — `screen=Home`, `screen=Map`, … — under the

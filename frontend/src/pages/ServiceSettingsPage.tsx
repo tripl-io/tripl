@@ -283,13 +283,13 @@ export default function ServiceSettingsSection({
       {dialog}
       {section !== 'system' && (
         // The badge legend and the fallback rule, once, above the fields
-        // rather than inside the sticky bar (ST-25, ST-28).
+        // rather than inside the sticky bar.
         <p className="m-0 text-body-sm text-fg-tertiary">
           {SOURCE_LEGEND}
         </p>
       )}
       {section !== 'system' && (
-        // The one settings save model (ST-3): the kit's sticky bar, shared
+        // The one settings save model: the kit's sticky bar, shared
         // with Project · General. The only Save control used to be a
         // non-sticky first child of the scrolling pane, so the AI page's three
         // prompt textareas were all edited with it off-screen.

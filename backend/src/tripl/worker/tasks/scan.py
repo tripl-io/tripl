@@ -410,7 +410,7 @@ def run_scan(self: object, scan_config_id: str, job_id: str) -> dict[str, object
             # The warehouse rows behind those combinations: the sum of the
             # ``_cnt`` every breakdown row carries, the population the dry run
             # reports as "sampled rows". ``scan_rows_processed`` alone put a
-            # catalog run ~180x below its own dry run (DA-4). Omitted when a row
+            # catalog run ~180x below its own dry run. Omitted when a row
             # carries no count, rather than guessed.
             **(
                 {"catalog_rows_scanned": catalog_rows_scanned}

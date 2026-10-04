@@ -121,7 +121,7 @@ export function EventSideColumn({
   event: TEvent
   eventType: EventType | undefined
   history: EventHistoryItem[]
-  /** The history request's failure; the card says so instead of "No recent changes" (MON-8). */
+  /** The history request's failure; the card says so instead of "No recent changes". */
   historyError?: unknown
   onRetryHistory?: () => void
   metaFieldMap: Map<string, MetaFieldDefinition>
@@ -226,7 +226,7 @@ export function EventSideColumn({
         </h2>
         <div className="flex flex-wrap gap-[6px] px-4 py-[12px]">
           {breakdowns.length > 0
-            // Column names are identifiers: code tokens, not pills (DS-6).
+            // Column names are identifiers: code tokens, not pills.
             ? breakdowns.map(column => <CodeToken key={column}>{column}</CodeToken>)
             : <span className="text-body-sm text-fg-tertiary">No event-level breakdowns</span>}
         </div>

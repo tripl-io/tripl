@@ -9,7 +9,7 @@ import { cn, getErrorMessage } from '@/lib/utils'
  * A 401 while the session-expired dialog is open means the session ran out and
  * the dialog is already asking for the password over this page. A red
  * "Authentication required" card under it read as data loss beside a dialog
- * promising nothing was lost (#237 SH-35); the query refetches once the user
+ * promising nothing was lost (#237); the query refetches once the user
  * signs back in. With no dialog up (signed out, or a 401 the provider did not
  * treat as an expiry) there is nothing to wait for, so the normal card shows.
  */
@@ -37,7 +37,7 @@ export function ErrorState({
   /**
    * Level of the title heading. 2 when the error replaces a page's content
    * under its h1; 3 inside a card that already has an h2 title, so the outline
-   * does not flatten into two siblings (DS-16).
+   * does not flatten into two siblings.
    */
   headingLevel?: 2 | 3 | 4
 }) {
@@ -79,7 +79,7 @@ export function ErrorState({
           {/* h2 for the same reason as EmptyState: an error surface replaces a
               page's content directly under its h1. On
               EmptyState's scale too: heading/body, or body-sm/caption when
-              compact, so it no longer out-sizes the panel around it (DS-21). */}
+              compact, so it no longer out-sizes the panel around it. */}
           <Heading className={cn('font-semibold text-foreground', compact ? 'text-body-sm' : 'text-heading')}>{title}</Heading>
           {description && (
             <p className={cn('mt-1 text-fg-secondary', compact ? 'text-caption' : 'text-body')}>
@@ -92,7 +92,7 @@ export function ErrorState({
           {onRetry && (
             <Button type="button" variant="outline" size={compact ? 'sm' : 'default'} className="mt-3" onClick={onRetry}>
               {/* No margin or size here: Button already spaces and sizes its
-                  icons, and `mr-2` on top doubled the gap (DS-47). */}
+                  icons, and `mr-2` on top doubled the gap. */}
               <RefreshCw aria-hidden="true" />
               {retryLabel}
             </Button>

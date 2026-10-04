@@ -60,7 +60,7 @@ describe('SqlSchemaBrowser', () => {
     expect(screen.queryByRole('button', { name: 'sessions' })).toBeNull()
   })
 
-  // DS-42: a search force-expands every matching table, so the list is capped.
+  // a search force-expands every matching table, so the list is capped.
   it('lists at most 50 matching tables and counts the rest', async () => {
     const many: TableSchema[] = Array.from({ length: 53 }, (_, index) => ({
       name: `events_${index}`,

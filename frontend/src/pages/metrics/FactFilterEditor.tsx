@@ -68,7 +68,7 @@ interface FactFilterEditorProps {
 
 const MENU_ITEM_CLASS = 'text-body-sm'
 
-/** Each row's visible type, beside its number (MT-12 / MT-13). */
+/** Each row's visible type, beside its number. */
 const FILTER_KIND_LABEL: Record<FactFilter['kind'], string> = {
   named: 'Named',
   condition: 'Where',
@@ -84,7 +84,7 @@ const FILTER_KIND_LABEL: Record<FactFilter['kind'], string> = {
  * The menu is the shared Radix dropdown: it portals out of the card's
  * `overflow-hidden`, follows its trigger on scroll, flips at the viewport edge,
  * and gives the arrow-key / Escape / focus behaviour its `menu` role promises —
- * the hand-rolled one before it had none of that (MET-16).
+ * the hand-rolled one before it had none of that.
  *
  * "Check filters" dry-runs the list against the warehouse. Until it existed, a
  * fact metric's filters were only ever executed inside a Celery worker — so a
@@ -155,7 +155,7 @@ export function FactFilterEditor({
             return (
               <li key={filter.id} className="flex flex-col gap-1">
                 {/* Rows are ANDed, and numbered so "Filter 2: …" in an error
-                    points at a row the reader can find (MT-13). The controls
+                    points at a row the reader can find. The controls
                     carry the same number in their names. */}
                 {index > 0 && (
                   <span aria-hidden="true" className="micro-label text-fg-tertiary">
@@ -174,7 +174,7 @@ export function FactFilterEditor({
                     {filter.kind === 'named' ? (
                       <NativeSelect
                         // Fills the row's cell; the kit's 280px cap left a
-                        // hole in the middle of it (MT-12).
+                        // hole in the middle of it.
                         width="fill"
                         id={rowId}
                         value={filter.name}
@@ -206,7 +206,7 @@ export function FactFilterEditor({
                         dialect={dialect}
                         tables={tables}
                         // A WHERE fragment: no gutter, Format or table
-                        // browser per row; completion still works (MT-14).
+                        // browser per row; completion still works.
                         compact
                         readOnly={disabled}
                         ariaInvalid={aria['aria-invalid']}
@@ -305,7 +305,7 @@ interface ConditionRowProps {
 /**
  * Column / operator / value for one condition. Operators are narrowed to the
  * column's type, and `in` / `not in` take one chip per value, so a value that
- * itself contains a comma can be matched (MET-32).
+ * itself contains a comma can be matched.
  */
 function ConditionRow({
   id,

@@ -46,7 +46,7 @@ interface SqlDefinitionFieldsProps {
   onPreviewColumns: (columns: string[] | null) => void
   /**
    * Whether the last preview failed (true) or no longer applies (false), so
-   * Create can ask before saving a query that just errored (MT-15).
+   * Create can ask before saving a query that just errored.
    */
   onPreviewFailed?: (failed: boolean) => void
 }
@@ -85,7 +85,7 @@ export function SqlDefinitionFields({
   })
 
   // Which input Preview still needs, said under the button rather than
-  // leaving it silently grey (MT-15).
+  // leaving it silently grey.
   const previewBlocker = !draft.dataSourceId
     ? 'Pick a data source to preview.'
     : !draft.metricSql.trim()
@@ -100,7 +100,7 @@ export function SqlDefinitionFields({
     // The result is taken through the PER-CALL callback, not the options-level
     // one: TanStack drops per-call callbacks for a mutation `reset()` detached,
     // so a run still in flight when the SQL is edited can no longer paint its
-    // result beside the edited query (MET-4).
+    // result beside the edited query.
     previewMut.mutate(
       {
         data_source_id: draft.dataSourceId,
@@ -198,7 +198,7 @@ export function SqlDefinitionFields({
             }}
             // A commented-out example in the selected warehouse's dialect: a
             // complete query as the placeholder read as SQL already in the
-            // editor, so "SQL is required" looked wrong (MT-6).
+            // editor, so "SQL is required" looked wrong.
             placeholder={sqlPlaceholder(
               'Return a time column and a numeric value, e.g.',
               starterSql('event-volume', dataSources.find(ds => ds.id === draft.dataSourceId)?.db_type),
@@ -211,7 +211,7 @@ export function SqlDefinitionFields({
             ariaInvalid={!!errors['metric-sql-query']}
             ariaDescribedBy={errors['metric-sql-query'] ? fieldErrorId('metric-sql-query') : undefined}
             // Right under the editor, not under the Preview row 60-100px
-            // below, where it read like a preview failure (MT-8).
+            // below, where it read like a preview failure.
             error={<FieldError inputId="metric-sql-query" message={errors['metric-sql-query']} />}
           />
           <div className="mt-[10px] flex flex-wrap items-center gap-[10px]">

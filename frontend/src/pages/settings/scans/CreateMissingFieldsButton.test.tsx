@@ -93,7 +93,7 @@ describe('CreateMissingFieldsButton — one source of truth for "which column ha
 
   // The list is the dry run's answer from BEFORE the fields existed, so the
   // button used to keep offering "Create 1 field" — a second click made a
-  // duplicate or hit a conflict, and nothing said the first one worked (DATA-27).
+  // duplicate or hit a conflict, and nothing said the first one worked.
   it('says what it created, stops offering it, and asks for a fresh answer', async () => {
     const onCreated = vi.fn()
     renderButton(['props'], onCreated)

@@ -271,7 +271,7 @@ async def _rename_main_variables(
 
 # Nothing in it is main-specific — it renames whichever rows it is handed — so
 # "Update from main" moves a branch's variables through the same parking pass
-# when main renamed them, cycles included (PL-8).
+# when main renamed them, cycles included.
 rename_variables_with_parking = _rename_main_variables
 
 

@@ -33,7 +33,7 @@ const SCAN_FAILED_CONNECT = 'Scan failed: could not connect to the data source.'
  * RAW_INTERNAL_MARKERS below are and for the same reason: as bare substrings,
  * any message naming a column such as `session_timeout` or `connection_id` read
  * as "the data source did not respond in time" or "could not connect" — a
- * confidently wrong diagnosis rather than the generic one (DATA-20). The
+ * confidently wrong diagnosis rather than the generic one. The
  * driver's own spellings (`ReadTimeout`, `ConnectionError`, `ConnectionRefused`)
  * are listed whole, since a boundary check would otherwise reject them.
  */

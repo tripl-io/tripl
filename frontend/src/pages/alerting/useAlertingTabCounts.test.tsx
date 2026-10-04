@@ -24,7 +24,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('useAlertingTabCounts (AL-46)', () => {
+describe('useAlertingTabCounts', () => {
   it('asks for one open incident and one failed delivery, and reads their totals', async () => {
     const listInbox = vi
       .spyOn(alertingApi, 'listInbox')

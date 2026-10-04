@@ -694,7 +694,7 @@ _METRIC_POINT_KEYS = (
 # catalog analyzer reports the rows of its ``GROUP BY ALL`` breakdown
 # (``scan_rows_processed``), which are distinct column combinations, not
 # warehouse rows. Calling both "rows scanned" put one catalog run on screen as
-# "153 combos" on its scan page and "153 rows scanned" here (#247 DA-4).
+# "153 combos" on its scan page and "153 rows scanned" here (#247).
 _SCANNED_KEYS = (
     ("query_rows_scanned", "row scanned", "rows scanned"),
     ("scan_rows_processed", "column combination", "column combinations"),

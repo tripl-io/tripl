@@ -1,5 +1,5 @@
 /**
- * The one validation pattern for authoring forms (AU-4 / AL-28, MT-7, AU-5).
+ * The one validation pattern for authoring forms.
  *
  *   1. `<form noValidate onSubmit={submit}>`: no native `required`/`pattern`
  *      bubbles. Keep `required` off the inputs (or keep it only as

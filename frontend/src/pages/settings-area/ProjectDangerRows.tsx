@@ -12,9 +12,9 @@ import { RESET_PERIODS } from './projectGeneralFields'
  * A settings row with text on the left and an action group on the right, which
  * stacks until the ROW is 560px wide. Side by side at 375px, a period Select
  * (up to 280px) plus a button left the text a few characters wide and pushed
- * the row past the card (WS-14). Keyed to the viewport's `sm`, the same thing
+ * the row past the card. Keyed to the viewport's `sm`, the same thing
  * happened at 768px, where the pinned settings rail leaves the card ~430px and
- * the hint became a one-word-per-line column (ST-1). So it reads the width of
+ * the hint became a one-word-per-line column. So it reads the width of
  * its container, like the kit's FormRow: put it inside a
  * {@link DANGER_ROW_CONTAINER_CLASS} element.
  */
@@ -95,7 +95,7 @@ export function DangerResetRow({
             options={RESET_PERIODS}
             disabled={busy}
           />
-          {/* Bare red in a row; the solid red is the confirm's (DS-20). */}
+          {/* Bare red in a row; the solid red is the confirm's. */}
           <Button variant="danger" size="sm" disabled={busy} onClick={onReset}>
             <RotateCcw className="h-3 w-3" />
             {busy ? 'Resetting…' : buttonLabel}
@@ -130,7 +130,7 @@ export function DangerRetireVariablesRow({
   last?: boolean
 }) {
   // Why Retire is grey, said beside it: a disabled button alone read as a
-  // neutral chip with no hint of the Preview it waits for (ST-38).
+  // neutral chip with no hint of the Preview it waits for.
   const retireBlocker = busy
     ? null
     : !preview

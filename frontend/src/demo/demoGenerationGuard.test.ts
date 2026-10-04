@@ -75,7 +75,7 @@ describe('demoGenerationWarning', () => {
   })
 })
 
-describe('demoGenerationBlockedReason (DEMO-27)', () => {
+describe('demoGenerationBlockedReason', () => {
   it('leaves the button enabled below the cap', () => {
     expect(demoGenerationBlockedReason(0)).toBeNull()
     expect(demoGenerationBlockedReason(MAX_DEMOS_PER_CREATOR - 1)).toBeNull()

@@ -1,4 +1,4 @@
-"""Triage on open signals no rule routed to an incident (MO-4 / JR-5).
+"""Triage on open signals no rule routed to an incident.
 
 Covers the three verdicts (acknowledge, mute, mark as expected) and their
 undo: the editor gate, the 409 for a signal that is an incident, the NULL-space

@@ -2,7 +2,7 @@ import { countOf } from '@/lib/plural'
 import type { MetaFieldUsage } from '@/types'
 
 /**
- * The delete confirm's sentence (AU-37): counted when the usage is known,
+ * The delete confirm's sentence: counted when the usage is known,
  * named when it is not, and honest when nothing holds a value.
  */
 export function metaFieldDeleteMessage(displayName: string, usage: MetaFieldUsage | null): string {

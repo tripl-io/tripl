@@ -84,7 +84,7 @@ export interface DataSource {
   last_test_message: string | null
   created_at: string
   updated_at: string
-  // What depends on the source across the workspace, deleted with it (DA-40).
+  // What depends on the source across the workspace, deleted with it.
   // Always sent; optional so fixtures written before them still type.
   scan_count?: number
   scan_run_count?: number
@@ -94,7 +94,7 @@ export interface DataSource {
   scans?: DataSourceScanRef[]
 }
 
-/** One scan reading a data source (DA-40). */
+/** One scan reading a data source. */
 export interface DataSourceScanRef {
   id: string
   name: string

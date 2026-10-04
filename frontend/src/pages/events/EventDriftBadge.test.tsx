@@ -62,7 +62,7 @@ afterEach(() => {
 })
 
 describe('EventDriftBadge', () => {
-  it('shows a viewer the drifts without the triage buttons (EVT-9)', async () => {
+  it('shows a viewer the drifts without the triage buttons', async () => {
     vi.mocked(eventTypesApi.listDrifts).mockResolvedValue({ items: [DRIFT], total: 1 })
     const viewer: AuthContextValue = personaAuth('viewer')
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -102,7 +102,7 @@ describe('EventDriftBadge', () => {
     expect(screen.getByText(/property enum/)).toBeInTheDocument()
   })
 
-  it('shows a paused note, not a red auth failure, when the drift list 401s under the sign-in dialog (SH-35)', async () => {
+  it('shows a paused note, not a red auth failure, when the drift list 401s under the sign-in dialog', async () => {
     vi.mocked(eventTypesApi.listDrifts).mockRejectedValue(new ApiError('Authentication required', 401))
 
     // The paused note is for a 401 while the session-expired dialog is up.

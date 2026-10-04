@@ -3,7 +3,7 @@ import { describeCron } from './deliverySchedule'
 
 /**
  * A destination's delivery schedule as a sentence, with what it is holding
- * folded in: "Weekdays at 09:00 UTC · 3 held for next digest" (AL-24).
+ * folded in: "Weekdays at 09:00 UTC · 3 held for next digest".
  *
  * The card used to show "Custom schedule (0 9 * * 1-5) · UTC" and a separate
  * "nothing held" pill. {@link describeCron} names the cadence, the weekday
@@ -31,7 +31,7 @@ const HTTP_STATUS = /HTTP(?: Error)? (\d{3})\b/i
 
 /**
  * What a refused test send means, for someone who is not reading a Python
- * traceback (AL-30).
+ * traceback.
  *
  * The server passes the channel library's exception text straight through:
  * "<urlopen error Tunnel connection failed: 403 Forbidden>", "HTTP Error 404:
@@ -56,7 +56,7 @@ export function describeTestFailure(
     return `The channel refused the request (HTTP ${code}).`
   }
 
-  // The server's own classification first (AL-30): it reads the exception
+  // The server's own classification first: it reads the exception
   // types, where the patterns below can only guess at their wording.
   switch (structured?.error_kind) {
     case 'http_status':

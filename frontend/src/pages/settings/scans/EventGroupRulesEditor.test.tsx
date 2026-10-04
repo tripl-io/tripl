@@ -18,7 +18,7 @@ function Harness({ initial }: { initial: UiEventGroupRule[] }) {
   return <EventGroupRulesEditor rules={rules} onChange={setRules} />
 }
 
-describe('EventGroupRulesEditor — one line per rule (#247 DA-7)', () => {
+describe('EventGroupRulesEditor — one line per rule (#247)', () => {
   it('lists saved rules closed, with their conditions on the line, and a count', () => {
     render(<Harness initial={[rule(1), rule(2)]} />)
 

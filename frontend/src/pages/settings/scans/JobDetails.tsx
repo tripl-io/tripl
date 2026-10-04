@@ -137,7 +137,7 @@ export function JobDetails({
   const signalsAdded = summary?.signals_added ?? 0
   const openSignalsQuery = useExpandedSignals(slug, { enabled: signalsAdded > 0 })
   const openSignals = openSignalsQuery.data
-    // Muted and expected signals are out of every open count (MO-4 / JR-5).
+    // Muted and expected signals are out of every open count.
     ? openSignalsQuery.data.filter(signal => signal.scan_config_id === scanConfigId && !signal.hidden).length
     : null
 
@@ -151,7 +151,7 @@ export function JobDetails({
       {error && (
         <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-body-sm text-destructive">
           {error.message}
-          {/* The diagnosis, then what to do about it (#247 DA-20). */}
+          {/* The diagnosis, then what to do about it (#247). */}
           {nextStep && (
             <div className="mt-2 space-y-2 text-foreground">
               <p className="m-0">{nextStep.text}</p>
@@ -203,7 +203,7 @@ export function JobDetails({
             </button>
           </div>
           {countersOpen && (
-            // The one KPI strip (DS-5) instead of a grid of centred Card tiles
+            // The one KPI strip instead of a grid of centred Card tiles
             // with 18px bold figures.
             <MiniStatStrip boxed>
               <MiniStat label="Events created" value={summary.events_created ?? 0} valueTone="success" />

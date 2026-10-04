@@ -17,9 +17,9 @@ import { isOnboardingDismissed, setOnboardingDismissed } from '@/lib/onboardingD
 import { currentOrgSlug, projectPath } from '@/lib/navigation'
 
 /**
- * Guided first-run checklist (UX-24). A newcomer lands on the Overview with no
+ * Guided first-run checklist. A newcomer lands on the Overview with no
  * "start here"; this surfaces the core loop as up to five concrete steps, in
- * the order of the fastest path: connect, scan, review, metric, alert (JR-2;
+ * the order of the fastest path: connect, scan, review, metric, alert (
  * the steps themselves live in onboarding-steps.ts). Each step's done-state is
  * derived from REAL project state (the cheap project summary + the
  * data-sources count already loaded by the Overview), so steps tick off automatically as the user makes progress —
@@ -29,7 +29,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
  * dismiss, remembered per project in localStorage (lib/onboardingDismissal.ts),
  * so once dismissed it stays dismissed across remounts and later visits. It is
  * not a one-way door: the dismissal offers Undo, and the command palette's
- * "Show getting started" brings it back (WS-35). The card also
+ * "Show getting started" brings it back. The card also
  * auto-hides on its own in two cases so it never becomes permanent chrome:
  * once every step is complete, and — crucially for a mature
  * project — once the core loop is set up and coverage is high but the only
@@ -51,7 +51,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 // Steps a mature owner can legitimately leave undone forever. Alerting is opt-in:
 // a high-coverage project that never wires up a destination should not be nagged
 // by a checklist that, by design, can never reach 5 of 5. A key
-// metric is the same for a project that predates the metric step (JR-2).
+// metric is the same for a project that predates the metric step.
 const OPTIONAL_STEP_IDS: ReadonlySet<OnboardingStepId> = new Set<OnboardingStepId>(['alert', 'metric'])
 
 // Reconciliation coverage (implemented ÷ active planned events) at/above this
@@ -62,7 +62,7 @@ type StepState = 'done' | 'active' | 'upcoming' | 'owner-only'
 
 interface OnboardingChecklistProps {
   slug: string
-  /** Keys the dismissal, so it survives a slug rename (WS-35). */
+  /** Keys the dismissal, so it survives a slug rename. */
   projectId?: string
   summary: ProjectSummary | undefined
   /** Number of connected data sources (the Overview already lists these). */
@@ -203,7 +203,7 @@ export function OnboardingChecklist({
   // The first not-yet-done step the current user can actually action is the
   // "active" one; later incomplete steps are upcoming. They are links like any
   // other step, so they keep full opacity and only their number goes muted: at
-  // 60% they read as disabled while still being clickable (SH-37). An
+  // 60% they read as disabled while still being clickable. An
   // owner-only step is skipped over for a non-owner so "Next" never lands on a
   // step they can't complete.
   const activeIndex = steps.findIndex((s) => !s.done && counts(s))
@@ -215,7 +215,7 @@ export function OnboardingChecklist({
         <>
           {`${steps.length} steps to your first monitored event`} ·{' '}
           {/* The glossary, for a reader who does not know the words the
-              steps use yet (#238 JR-32). */}
+              steps use yet (#238). */}
           <Link to={projectPath(currentOrgSlug(), slug, '/concepts')} className="text-accent no-underline hover:underline">
             What is this?
           </Link>
@@ -224,7 +224,7 @@ export function OnboardingChecklist({
       right={
         <div className="flex items-center gap-2">
           <Chip tone="info" size="sm">{`${completed} of ${total}`}</Chip>
-          {/* Expanded from the slim bar: the way back to it (WS-35). */}
+          {/* Expanded from the slim bar: the way back to it. */}
           {isMostlyDone && (
             <button
               type="button"
@@ -288,7 +288,7 @@ function StepRow({ step, number, state }: { step: OnboardingStep; number: number
         <StepIndicator state={state} number={number} />
         <div className="min-w-0 flex-1">
           {/* Wrapped to two lines on a phone rather than cut to a few words:
-              the hint is the only guidance the step gives (WS-36). */}
+              the hint is the only guidance the step gives. */}
           <div
             className="line-clamp-2 text-body-sm font-medium sm:truncate"
             style={{ color: state === 'done' ? 'var(--fg-subtle)' : 'var(--fg)' }}
@@ -319,7 +319,7 @@ function StepRow({ step, number, state }: { step: OnboardingStep; number: number
         )}
       </Link>
       {/* A second way through the step, outside the row link so the two
-          anchors do not nest (JR-2: no warehouse yet → add events by hand). */}
+          anchors do not nest (no warehouse yet → add events by hand). */}
       {step.alternative && state !== 'done' && (
         <p className="m-0 -mt-1.5 pb-2.5 pl-[50px] pr-4 text-caption">
           <Link to={step.alternative.href} className="text-accent no-underline hover:underline">

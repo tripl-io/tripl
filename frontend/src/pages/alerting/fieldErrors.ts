@@ -10,7 +10,7 @@ import { fieldErrorId } from '@/lib/fieldErrors'
  * the flattened `loc: msg` string, with Pydantic's "Value error, " prefix and a
  * snake_case path ("chat_id: Value error, Telegram chat_id is required"), and
  * the offending input never highlighted although `ApiError.fields` carried
- * exactly which one it was (ALR-8).
+ * exactly which one it was.
  */
 export interface SplitFieldErrors<K extends string> {
   /** One message per input the form knows, prefix stripped. */

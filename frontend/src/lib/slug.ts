@@ -3,7 +3,7 @@
  * dialog on the workspace page and Project settings › General. The pattern
  * mirrors the backend's `ProjectCreate.slug` / `ProjectUpdate.slug` Field
  * pattern (backend/src/tripl/schemas/project.py); the two used to carry their
- * own copies of it, and only one of them explained it (WS-17).
+ * own copies of it, and only one of them explained it.
  */
 export const SLUG_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*$'
 export const SLUG_RE = new RegExp(SLUG_PATTERN)

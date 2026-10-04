@@ -77,7 +77,7 @@ describe('Account · Security', () => {
   /**
    * The old card held an "Update password" button that did nothing
    * and then told the reader to sign out and find "Forgot your password?".
-   * The reset flow works, so the card runs it for the signed-in address (WS-37).
+   * The reset flow works, so the card runs it for the signed-in address.
    */
   it('emails a reset link to the signed-in address', async () => {
     const fetchSpy = mockApi({ emailConfigured: true })
@@ -102,12 +102,12 @@ describe('Account · Security', () => {
 
     expect(await screen.findByText(/can't send email, so no link went out/i)).toBeInTheDocument()
     // Not "ask a workspace owner… or to reset the password for you": there is
-    // no such action, and the reader may be the owner (ST-24).
+    // no such action, and the reader may be the owner.
     expect(screen.getByText(/Ask a platform admin to set it up/)).toBeInTheDocument()
     expect(screen.queryByText(/reset the password for you/i)).toBeNull()
   })
 
-  it('tells a platform admin up front that email is off, with the way to set it up (ST-24)', async () => {
+  it('tells a platform admin up front that email is off, with the way to set it up', async () => {
     // SMTP is operator-only: one relay carries every organization's mail.
     mockAuth.platformAdmin = true
     mockApi({ emailConfigured: false })
@@ -121,7 +121,7 @@ describe('Account · Security', () => {
     expect(screen.getByRole('button', { name: 'Email me a reset link' })).toBeDisabled()
   })
 
-  it('tells anyone else up front too, and to ask a platform admin (ST-24)', async () => {
+  it('tells anyone else up front too, and to ask a platform admin', async () => {
     mockApi({ emailConfigured: false })
     renderSection()
 

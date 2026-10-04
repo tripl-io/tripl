@@ -71,7 +71,7 @@ afterEach(() => {
 })
 
 describe('CommentThread', () => {
-  it('lets a viewer read the thread but offers no write (EVT-9)', async () => {
+  it('lets a viewer read the thread but offers no write', async () => {
     const viewer = personaAuth('viewer')
     render(
       createElement(
@@ -192,7 +192,7 @@ function renderAs(
   return { remove, create }
 }
 
-describe('CommentThread delete (EVT-29)', () => {
+describe('CommentThread delete', () => {
   it('asks first, and a cancelled delete deletes nothing', async () => {
     const { remove } = renderThread([comment({ id: 'c1', body: 'first' })])
     fireEvent.click(await screen.findByRole('button', { name: 'Delete comment' }))
@@ -239,7 +239,7 @@ describe('CommentThread delete (EVT-29)', () => {
   })
 })
 
-describe('CommentThread catalog counts (EVT-29)', () => {
+describe('CommentThread catalog counts', () => {
   it("refreshes the catalog's open-question count when a new question is posted", async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     renderAs('member', [], { onAction: vi.fn().mockResolvedValue({}) })

@@ -8,7 +8,7 @@ import { ReadOnlyDefinition, ReadOnlyNotice, type DefinitionItem } from '@/compo
 import type { DataSource, FactTable } from '@/types'
 
 /**
- * A fact table for someone who cannot edit it (#237 MT-28). The editor used to
+ * A fact table for someone who cannot edit it (#237). The editor used to
  * render for viewers inside a disabled fieldset: live borders, required stars,
  * "Run Preview to list the columns…" hints and a Preview button in the tab
  * order, and 2,000px of form chrome to scroll for a definition. Fact tables

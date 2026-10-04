@@ -32,7 +32,7 @@ function signal(over: Partial<MonitoringSignal> = {}): MonitoringSignal {
   }
 }
 
-describe('signal triage helpers (MO-4 / JR-5)', () => {
+describe('signal triage helpers', () => {
   it('offers triage only on a signal no rule routed to an incident', () => {
     expect(canTriageSignal(signal())).toBe(true)
     expect(canTriageSignal(signal({ incident_id: 'group-1' }))).toBe(false)

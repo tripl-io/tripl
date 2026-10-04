@@ -9,7 +9,7 @@ export type PillarId = 'plan' | 'observe' | 'govern'
  * The welcome hero and the Concepts page each wrote their own description of
  * the same three pillars, and the two had already drifted apart: the hero said
  * anomaly detection needed "Nothing to configure" while Concepts explained the
- * scans and monitors that have to be set up (WS-46). Both now take the names,
+ * scans and monitors that have to be set up. Both now take the names,
  * taglines and icons from here. Lives apart from any component so tests can
  * import it without tripping react-refresh's components-only rule.
  */
@@ -44,7 +44,7 @@ export const WELCOME_PILLARS: ReadonlyArray<{
     title: 'Watch the real data',
     // Not "Nothing to configure": signals need a monitoring scan that records
     // metric points, and notifications need a monitor — the Concepts glossary
-    // says so, and this card has to agree with it (WS-46).
+    // says so, and this card has to agree with it.
     description:
       "Scans read your warehouse, and once a monitoring scan records metrics, anomaly detection learns each event's normal rhythm — flagging spikes, drops, and schema drift. Alert rules decide who hears about it.",
   },

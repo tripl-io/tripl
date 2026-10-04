@@ -96,7 +96,7 @@ export function ConnectionCoreFields({
   // says it is empty, the way the instance SMTP password field already does
   // ("Not configured").
   // On create the box is labelled by what it wants, not by eight dots that
-  // read as a password already typed in (DA-37).
+  // read as a password already typed in.
   const passwordPlaceholder = !isEdit
     ? 'Password'
     : secretSet
@@ -187,7 +187,7 @@ export function ConnectionCoreFields({
       ) : (
         <>
           {/* One column on phones: in a 375px dialog five columns left Port
-              about 50px wide (DATA-36). */}
+              about 50px wide. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
             <div className={`sm:col-span-2 ${FIELD_COL_CLASS}`}>
               <Label htmlFor={`${idPrefix}-host`}>Host</Label>
@@ -258,7 +258,7 @@ export function ConnectionCoreFields({
           help wrapped into four ragged lines down the left half while the right
           half of the dialog stayed empty. */}
       <div className={FIELD_COL_CLASS}>
-        {/* The unit in words, like the scan form's "Lookback (hours)" (DA-43). */}
+        {/* The unit in words, like the scan form's "Lookback (hours)". */}
         <Label htmlFor={`${idPrefix}-timeout`}>Timeout (seconds)</Label>
         <Input
           id={`${idPrefix}-timeout`}
@@ -297,10 +297,10 @@ export function ConnectionCoreFields({
 
 /**
  * "Upload key file": reads a downloaded service-account JSON into the field, so
- * the key does not have to travel through the clipboard (DATA-29). The file
+ * the key does not have to travel through the clipboard. The file
  * never leaves the browser until the form is saved.
  *
- * The native file input is visually hidden behind an outline button (DA-44):
+ * The native file input is visually hidden behind an outline button:
  * the browser's "Choose File / No file chosen" control clashed with the rest
  * of the dialog, most of all in dark mode. The loaded file's name shows as a
  * chip beside the button instead.

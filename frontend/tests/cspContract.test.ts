@@ -61,7 +61,7 @@ describe('production CSP contract', () => {
 
   // Two deploy shapes serve the SPA: the API's own static handler and the
   // standalone nginx image. They drifted once — nginx had no frame-src, so the
-  // Figma embed was blocked there only (#194 SHELL-37).
+  // Figma embed was blocked there only (#194).
   it('matches the backend default CSP exactly', () => {
     const backend = readFrontendFile('../backend/src/tripl/middleware/security_headers.py')
     const block = backend.match(/_DEFAULT_SPA_CSP = \(([\s\S]*?)\n\)/)?.[1]

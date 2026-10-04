@@ -2,8 +2,8 @@
  * Every piece of browser storage the demo keeps per project, named in one place.
  *
  * Demo slugs are random (`demo-xxxxxx`) and a reset or delete retires them, so
- * keys written against a slug outlive the project unless something removes them
- * (DEMO-17). Keeping the prefixes here lets the delete path clear exactly what
+ * keys written against a slug outlive the project unless something removes them.
+ * Keeping the prefixes here lets the delete path clear exactly what
  * the tour, the scenario, the welcome panel and the hint toggle wrote.
  */
 
@@ -39,7 +39,7 @@ export function forgetDemoLocalState(slug: string): void {
 
 /**
  * Drop what the demo remembered about every project that is no longer in
- * `liveSlugs` (DEMO-17). The delete paths forget their own project, but a demo
+ * `liveSlugs`. The delete paths forget their own project, but a demo
  * deleted from another browser, reset (a re-seed keeps the slug, so that one is
  * fine) or removed by an owner elsewhere left its keys behind for good.
  * Best effort, never throws.
@@ -72,7 +72,7 @@ export function sweepOrphanedDemoLocalState(liveSlugs: Iterable<string>): void {
   }
 }
 
-/** Whether "Hide hints" is on for this project in this browser session (DEMO-15). */
+/** Whether "Hide hints" is on for this project in this browser session. */
 export function readHintsMuted(slug: string | undefined): boolean {
   if (!slug) return false
   try {

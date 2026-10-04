@@ -41,8 +41,7 @@ function rangeSummary(from: string, to: string): string {
 
 /**
  * A date range as ONE filter chip, the same shape as a FilterSelect — dashed
- * while unset, accent once set — that opens the two date inputs in a popover
- * (AL-15, AL-19).
+ * while unset, accent once set — that opens the two date inputs in a popover.
  *
  * Two labelled inputs and a caveat paragraph used to sit in the bar itself, so
  * at 390px the filters stood ~330px tall before the first incident, and the
@@ -93,7 +92,7 @@ export function DateRangeFilter({
               {fromLabel}
             </Label>
             {/* The app's own calendar, not <input type="date">: the native
-                control rendered "mm/dd/yyyy" whatever the theme (AL-15). Same
+                control rendered "mm/dd/yyyy" whatever the theme. Same
                 YYYY-MM-DD value, so nothing downstream changes. */}
             <DatePicker
               id={fromId}

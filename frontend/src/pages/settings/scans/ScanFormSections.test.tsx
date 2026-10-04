@@ -105,8 +105,8 @@ function renderCreatePage() {
 }
 
 /**
- * The edit form is an owner's (DATA-6); anyone else gets the read view
- * (i9mt.12), so the form's own tests render as an owner.
+ * The edit form is an owner's; anyone else gets the read view
+ *, so the form's own tests render as an owner.
  */
 function renderConfigurationTab(scanConfig: ScanConfig, role: Persona = 'owner') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -126,7 +126,7 @@ afterEach(() => {
 })
 
 describe('ScanFormSections — the New scan page scaffolding', () => {
-  // MT-6 / DA-37: an example query that reads as code already in the editor
+  // An example query that reads as code already in the editor
   // made "SQL is required" baffling; every placeholder line is a comment.
   it('shows the base-query example as a comment, not a runnable query', async () => {
     setupFetch()
@@ -137,7 +137,7 @@ describe('ScanFormSections — the New scan page scaffolding', () => {
     expect(lines.every(line => line.startsWith('--'))).toBe(true)
   })
 
-  // DS-1: a real h1 under the Govern eyebrow, and a sticky Create (AU-6).
+  // a real h1 under the Govern eyebrow, and a sticky Create.
   it('has the shared page header and a sticky save bar', async () => {
     setupFetch()
     const { container } = renderCreatePage()
@@ -229,14 +229,14 @@ describe('ScanFormSections — where event names come from', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Main scan' } })
     fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'ds-1' } })
     // The SQL editor is lazy-loaded, so it may land a tick after the form. Its
-    // placeholder is the example as an SQL comment (MT-6).
+    // placeholder is the example as an SQL comment.
     fireEvent.change(await screen.findByPlaceholderText(/SELECT \* FROM analytics\.events/), {
       target: { value: 'SELECT * FROM analytics.events' },
     })
 
     const create = screen.getByRole('button', { name: /Create scan/ })
     expect(create).toBeDisabled()
-    // The reason is visible text the button points at (#237 DA-9).
+    // The reason is visible text the button points at (#237).
     expect(create).toHaveAccessibleDescription(
       'Pick an Event type, or the Event type column your event names are in.',
     )
@@ -399,7 +399,7 @@ describe('ScanFormSections — the mode choice', () => {
 
     const create = screen.getByRole('button', { name: /Create scan/ })
     expect(create).toBeDisabled()
-    // The reason is visible text the button points at (#237 DA-9).
+    // The reason is visible text the button points at (#237).
     expect(create).toHaveAccessibleDescription(
       'Catalog + monitoring needs a time column and a schedule.',
     )
@@ -426,7 +426,7 @@ describe('ScanFormSections — the mode choice', () => {
       screen.queryByText('Pick a schedule — monitoring needs one to record metric points.'),
     ).toBeNull()
     // Nothing is lost: the gate is still on, and the reason is visible text
-    // next to the button, not a `title` a disabled button never shows (#237 DA-9).
+    // next to the button, not a `title` a disabled button never shows (#237).
     const create = screen.getByRole('button', { name: /Create scan/ })
     expect(create).toBeDisabled()
     expect(create).toHaveAccessibleDescription('A scan needs a name, a data source and a base query.')
@@ -609,7 +609,7 @@ describe('ScanFormSections — field labelling', () => {
   // headings, the one section that did not read down the form's label column.
   // They now sit in Field rows like the essentials card and App version, so
   // their captions are the rows' — naming each checkbox list as a group — and
-  // the value limit is a row of its own (#247 DA-12).
+  // the value limit is a row of its own (#247).
   it('lays the breakdown and drift pickers out as Field rows in the shared label column', async () => {
     setupFetch([eventType])
     const { container } = renderCreatePage()
@@ -662,7 +662,7 @@ describe('ScanFormSections — field labelling', () => {
     expect(limit).toHaveAttribute('aria-invalid', 'true')
     expect(limit).toHaveAccessibleDescription(/whole number of 1 or more/)
 
-    // The limit is a Field row of its own (#247 DA-12): outside the
+    // The limit is a Field row of its own (#247): outside the
     // breakdown checkboxes' group, captioned in the shared label column
     // rather than by a label squeezed in beside the checkboxes.
     const breakdowns = screen.getByRole('group', { name: 'Metric breakdowns' })
@@ -680,7 +680,7 @@ describe('ScanFormSections — field labelling', () => {
 })
 
 describe('ScanFormSections — batch 4', () => {
-  it("offers only this project's and workspace-wide sources (DATA-15)", async () => {
+  it("offers only this project's and workspace-wide sources", async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/api/v1/data-sources')) {
@@ -708,7 +708,7 @@ describe('ScanFormSections — batch 4', () => {
     expect(picker).not.toHaveTextContent('Other demo warehouse')
   })
 
-  it('explains a limit the backend would refuse instead of saving it (DATA-25)', async () => {
+  it('explains a limit the backend would refuse instead of saving it', async () => {
     setupFetch()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -740,7 +740,7 @@ describe('ScanFormSections — batch 4', () => {
     expect(rowCap).toHaveAccessibleDescription(/whole number of 1 or more/)
     const save = screen.getByRole('button', { name: 'Save changes' })
     expect(save).toBeDisabled()
-    // Visible beside Save, not in a `title` a disabled button never shows (#237 DA-9).
+    // Visible beside Save, not in a `title` a disabled button never shows (#237).
     expect(save).toHaveAccessibleDescription('Fix Row cap per run.')
     expect(screen.getByText('Fix Row cap per run.')).toBeVisible()
   })
@@ -771,7 +771,7 @@ describe('ScanFormSections — batch 4', () => {
     }
   })
 
-  it('shows a non-owner the configuration as a definition, not a disabled form (i9mt.12)', async () => {
+  it('shows a non-owner the configuration as a definition, not a disabled form', async () => {
     setupFetch()
     renderConfigurationTab({
       id: 'sc-1',

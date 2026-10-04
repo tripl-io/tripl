@@ -10,7 +10,7 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
 
-  it('names the safe answer for what it does when asked (AU-42)', () => {
+  it('names the safe answer for what it does when asked', () => {
     const onCancel = vi.fn()
     render(
       <ConfirmDialog

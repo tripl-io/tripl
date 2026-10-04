@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
  * A sheet: a modal panel that slides in from a screen edge instead of floating
  * in the middle. Built on the Radix dialog (focus trap, Escape, scroll lock,
  * a title the dialog is named by). `side="bottom"` is the phone pattern — the
- * collapsed filter bar opens one (DS-15); `side="right"` suits a detail drawer.
+ * collapsed filter bar opens one; `side="right"` suits a detail drawer.
  *
  *   <Sheet open={open} onOpenChange={setOpen}>
  *     <SheetContent side="bottom">

@@ -73,7 +73,7 @@ export type RuleFormState = {
   // Also email the owners of each affected event type / metric (F07, #260).
   notify_owners: boolean
   // The four numeric settings are held as the TEXT in their inputs and parsed
-  // by `ruleFormToPayload` (ALR-16). Holding them as numbers made an emptied
+  // by `ruleFormToPayload`. Holding them as numbers made an emptied
   // box read back as "0" on the next render — the field could not be cleared
   // to retype, and a cleared cooldown shipped as 0, which the API refuses.
   min_percent_delta: string
@@ -90,13 +90,13 @@ export const FILTER_FIELD_OPTIONS: { value: AlertRuleFilterField; label: string 
   { value: 'event_type', label: 'Event type' },
   { value: 'event', label: 'Event' },
   { value: 'direction', label: 'Direction' },
-  // A catalog metric, by its definition id (JR-15). Only catalog-metric signals
+  // A catalog metric, by its definition id. Only catalog-metric signals
   // carry one, so every other signal passes a metric filter through.
   { value: 'metric', label: 'Metric' },
 ]
 
 // Words, not SQL: a filter row reads as a sentence — "Event type · is one
-// of · Checkout started" — where "IN" / "!=" asked a PM to read a query (AL-39).
+// of · Checkout started" — where "IN" / "!=" asked a PM to read a query.
 export const FILTER_OPERATOR_OPTIONS: { value: AlertRuleFilterOperator; label: string }[] = [
   { value: 'eq', label: 'is' },
   { value: 'ne', label: 'is not' },
@@ -361,13 +361,13 @@ export function isDefaultItemsTemplate(
 export const ALL_SCANS_OPTION = 'all'
 
 /**
- * Said wherever project-wide detection is off (AL-45): on Detection settings
+ * Said wherever project-wide detection is off: on Detection settings
  * and above Alerting's rules, which cannot fire while it is.
  */
 export const DETECTION_OFF_MESSAGE =
   'Detection is off for this project. No new signals are raised, so no alert rule can fire.'
 
-/** The percent gate a new rule starts at (AL-2); see `defaultRuleForm`. */
+/** The percent gate a new rule starts at; see `defaultRuleForm`. */
 export const DEFAULT_RULE_MIN_PERCENT_DELTA = 30
 
 export function defaultRuleForm(): RuleFormState {
@@ -396,7 +396,7 @@ export function defaultRuleForm(): RuleFormState {
     ai_explanation_enabled: false,
     // Opt-in: a rule keeps sending to its destination only, as before (F07).
     notify_owners: false,
-    // 30, not the server's old 100 (AL-2). The gate is
+    // 30, not the server's old 100. The gate is
     // |actual − expected| / expected × 100, so a DROP can reach at most 100% —
     // and only when volume falls to zero. At 100 the obvious "tell me when X
     // drops" rule ignored a 50% or a 90% fall. 30% is a move worth hearing
@@ -456,7 +456,7 @@ export function ruleFormToPayload(ruleForm: RuleFormState) {
   const normalizedItemsTemplate = normalizeRuleTemplate(ruleForm.items_template)
   // Every row goes on the wire, an empty one included. Dropping a row with no
   // values used to save the rule WITHOUT the filter the form still showed, so
-  // it matched everything (ALR-5). `ruleFormProblems` refuses the submit
+  // it matched everything. `ruleFormProblems` refuses the submit
   // instead, naming the row; should a caller skip it, the API's own "Filter
   // must have at least one value" is the right answer, not a broader rule.
   const filters: AlertRuleFilterPayload[] = ruleForm.filters.map(filter => ({
@@ -501,9 +501,9 @@ export type RuleNumericField =
  *
  * Each of these used to reach the API and come back as a raw 422 at the bottom
  * of the dialog — or, worse, not reach it at all and save something else: an
- * emptied cooldown shipped as 0 (ALR-16), a filter row with no values was
- * dropped so the rule matched everything (ALR-5), and a rule with no scope or
- * no direction saved and could never fire (ALR-14, ALR-15). The bounds mirror
+ * emptied cooldown shipped as 0, a filter row with no values was
+ * dropped so the rule matched everything, and a rule with no scope or
+ * no direction saved and could never fire. The bounds mirror
  * `AlertRuleBase` (backend schemas/alerting.py): the three thresholds are
  * `ge=0` floats and the cooldown an `int` with `ge=1`.
  */
@@ -578,7 +578,7 @@ export function hasRuleFormProblems(problems: RuleFormProblems): boolean {
  * The message format a rule keeps when it is pointed at another destination.
  *
  * Formats are per channel, so `slack_mrkdwn` chosen for a Slack destination is
- * refused by the API once the rule routes to Telegram (ALR-4) — and the format
+ * refused by the API once the rule routes to Telegram — and the format
  * Select rendered blank, because the value was not among its options. A format
  * the new channel supports is kept; anything else falls back to plain text,
  * which every channel accepts.
@@ -626,7 +626,7 @@ const TEMPLATE_VARIABLE_PATTERN = /\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g
 
 /**
  * Variables in a template that the given list does not know, in first-seen
- * order (ALR-21). A typo such as `${scope_nme}`, or an item variable used in
+ * order. A typo such as `${scope_nme}`, or an item variable used in
  * the message template, used to surface only as a 422 after submit, printed
  * far below the textarea it was about.
  */
@@ -704,7 +704,7 @@ export const COOLDOWN_UNITS: readonly {
 
 /**
  * The cooldown as the editor shows it: an amount and a unit, instead of the
- * raw "1440" the API stores (AL-6). The form keeps `cooldown_minutes` as the
+ * raw "1440" the API stores. The form keeps `cooldown_minutes` as the
  * text that ships, so these two must round-trip: `joinCooldown(splitCooldown(x))`
  * is `x` for every string, a half-typed or invalid one included — the dialog
  * re-derives its amount/unit pair whenever the two disagree, and a pair that
@@ -745,7 +745,7 @@ type RuleScopeFlags = Partial<Pick<RuleFormState, 'include_lifecycle' | 'include
 >
 
 /**
- * The two kinds of signal a rule listens to (AL-38): volume changes, by the
+ * The two kinds of signal a rule listens to: volume changes, by the
  * level they are measured at, and the drift detectors. One list feeds the
  * editor's checkboxes, the rule list's condition line and the monitor page's
  * "Watching" chips, so the three cannot name one scope three ways.
@@ -801,7 +801,7 @@ export function directionPhrase(rule: Pick<RuleFormState, 'notify_on_spike' | 'n
 }
 
 /**
- * The rule list's condition as a sentence (AL-11, JR-15): "Spikes & drops
+ * The rule list's condition as a sentence: "Spikes & drops
  * ≥ 30% · 1d cooldown", and on a second line what it watches — so a rule that
  * only watches metrics no longer reads exactly like every other rule.
  */
@@ -827,8 +827,8 @@ function countFilters(count: number): string {
 }
 
 /**
- * One line above the rule editor's footer saying what Create will set up
- * (AL-1): "Sends to Alerts when any of project total, event types, events
+ * One line above the rule editor's footer saying what Create will set up:
+ * "Sends to Alerts when any of project total, event types, events
  * spikes or drops by at least 30%, then waits 1 day before alerting on the
  * same scope again."
  */

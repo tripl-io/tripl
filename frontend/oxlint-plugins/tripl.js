@@ -9,7 +9,7 @@
 
 // Every code-split component goes through lib/lazyWithReload.ts, which
 // recovers a tab left open across a deploy. A bare React.lazy turns that
-// first click after a release into a raw chunk-load error (#194 SHELL-6).
+// first click after a release into a raw chunk-load error (#194).
 // Checked on the AST rather than with an import ban, which would also reject
 // every `import * as React from 'react'` because a namespace could reach lazy.
 const noBareLazy = {
@@ -42,8 +42,8 @@ const noBareLazy = {
 
 // A query key typed out by hand is how one cache ends up with two spellings:
 // the reader and the writer stop seeing each other and the screen goes quietly
-// stale, or a key changes shape and an invalidation prefix stops matching
-// (SHELL-50). Keys are built in lib/queryKeys.ts; tests may still spell a key
+// stale, or a key changes shape and an invalidation prefix stops matching.
+// Keys are built in lib/queryKeys.ts; tests may still spell a key
 // out, which is how they pin the value a builder produces.
 
 // The QueryClient methods whose first argument is a bare key.
@@ -86,7 +86,7 @@ const noQueryKeyLiterals = {
 
 // Pages build selects from the kit's NativeSelect, not a raw <select> that
 // copies the control styling by hand and drifts from it: two form-control
-// systems with different sizes, borders and disabled states is how DS-9 began.
+// systems with different sizes, borders and disabled states is how that drift began.
 const noRawSelect = {
   meta: {
     type: 'suggestion',
@@ -107,7 +107,7 @@ const noRawSelect = {
   },
 }
 
-// The type, icon and radius scales (DS-13, DS-23, DS-24; index.css @theme):
+// The type, icon and radius scales (index.css @theme):
 // sizes come from the named steps, not a pixel value typed at the call site.
 // That is how the app drifted to seven text sizes half a pixel apart. Tests
 // may still spell a banned class, which is how they assert it is gone.
@@ -148,7 +148,7 @@ const noArbitrarySizes = {
 }
 
 // shadcn's `muted-foreground` is the tertiary grey but reads as "secondary",
-// which is how body copy and captions ended up one colour (DS-22). The alias
+// which is how body copy and captions ended up one colour. The alias
 // is gone from index.css, so a class or var() naming it would also render
 // with no colour at all. `sidebar-muted-foreground` is a different token.
 const MUTED_FOREGROUND = /(?<!sidebar-)muted-foreground\b/

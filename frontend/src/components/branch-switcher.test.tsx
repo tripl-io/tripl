@@ -114,11 +114,11 @@ describe('BranchSwitcher', () => {
     expect(screen.getByText('checkout-v2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /New branch from main/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Manage branches/i })).toBeInTheDocument()
-    // Each working branch says where its review stands (JR-11).
+    // Each working branch says where its review stands.
     expect(screen.getByText('Approved')).toBeInTheDocument()
   })
 
-  it('shows the active branch status, not a "feature" chip, and names it in full (PL-1)', async () => {
+  it('shows the active branch status, not a "feature" chip, and names it in full', async () => {
     branchState.id = FEATURE.id
     vi.mocked(planBranchesApi.list).mockResolvedValue({ items: [MAIN, FEATURE], total: 2 })
 

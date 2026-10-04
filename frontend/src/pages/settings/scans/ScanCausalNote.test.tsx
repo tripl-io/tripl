@@ -73,7 +73,7 @@ describe('ScanCausalNote — a scan says what it produces', () => {
     expect(note).not.toMatch(/so it is never run/)
   })
 
-  it('adds only what the monitoring radio lacks: when points arrive, where output shows (#247 DA-13)', () => {
+  it('adds only what the monitoring radio lacks: when points arrive, where output shows (#247)', () => {
     const note = noteText(<ScanCausalNote variant="form" mode="monitoring" />)
 
     // Per-schedule for the points — the split the backend makes, and the one
@@ -85,7 +85,7 @@ describe('ScanCausalNote — a scan says what it produces', () => {
     expect(note).not.toContain('tracking plan')
   })
 
-  it('has nothing to add under Catalog only, whose radio already says it all (#247 DA-13)', () => {
+  it('has nothing to add under Catalog only, whose radio already says it all (#247)', () => {
     const { rerender } = render(<ScanCausalNote variant="form" mode="monitoring" />)
     expect(screen.getByTestId('scan-causal-note')).toHaveTextContent('Metric points are recorded')
 

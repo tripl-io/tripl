@@ -251,7 +251,7 @@
         "type": "object"
       },
       "AiPromptDefaultsResponse": {
-        "description": "The built-in system prompts, whatever is stored over them (ST-30).\n\nA \"Restore default\" link fills the editor from these; saving ``null`` for\nthe field clears the override and has the same effect server-side.",
+        "description": "The built-in system prompts, whatever is stored over them.\n\nA \"Restore default\" link fills the editor from these; saving ``null`` for\nthe field clears the override and has the same effect server-side.",
         "properties": {
           "alert_explanation_system_prompt": {
             "title": "Alert Explanation System Prompt",
@@ -1322,7 +1322,7 @@
         "type": "object"
       },
       "AlertDestinationDraftTestRequest": {
-        "description": "A destination's settings as the dialog holds them, to test before saving (AL-30).\n\nSetting up Slack used to take Create, close, find the card, then Test \u2014 and\na wrong webhook was a stored destination by the time anyone learned it.\n\n``destination_id`` names the saved destination an EDIT dialog is open on.\nThe dialog never holds that row's secrets (they are write-only), so a\nsecret left blank here means \"the one on file\", exactly as the PATCH reads\nit; every other field is taken as sent. Without it this is an unsaved\ndestination and nothing is borrowed from anywhere.\n\nDeliberately lenient about what is MISSING: a half-filled form is the\nnormal state of a draft, and the answer to testing one is the same\n``ok: false`` / ``config`` result a stored destination with a bad value gets\n\u2014 not a 422 the dialog would render as \"the request was wrong\". What is\nchecked here is only what a send must never carry at all: header names and\nvalues that could inject, and ids that could reach another endpoint's path.\nFields the form sends that a test does not use (``enabled``, the cadence,\nthe subject template) are ignored.",
+        "description": "A destination's settings as the dialog holds them, to test before saving.\n\nSetting up Slack used to take Create, close, find the card, then Test \u2014 and\na wrong webhook was a stored destination by the time anyone learned it.\n\n``destination_id`` names the saved destination an EDIT dialog is open on.\nThe dialog never holds that row's secrets (they are write-only), so a\nsecret left blank here means \"the one on file\", exactly as the PATCH reads\nit; every other field is taken as sent. Without it this is an unsaved\ndestination and nothing is borrowed from anywhere.\n\nDeliberately lenient about what is MISSING: a half-filled form is the\nnormal state of a draft, and the answer to testing one is the same\n``ok: false`` / ``config`` result a stored destination with a bad value gets\n\u2014 not a 422 the dialog would render as \"the request was wrong\". What is\nchecked here is only what a send must never carry at all: header names and\nvalues that could inject, and ids that could reach another endpoint's path.\nFields the form sends that a test does not use (``enabled``, the cadence,\nthe subject template) are ignored.",
         "properties": {
           "bot_token": {
             "anyOf": [
@@ -2663,7 +2663,7 @@
         "type": "string"
       },
       "AlertInboxStatusCounts": {
-        "description": "Incidents per effective status over the whole window (AL-14).\n\nCounted after the non-status filters and before the status one, so a chip\nreads what choosing it would list, without loading every page.",
+        "description": "Incidents per effective status over the whole window.\n\nCounted after the non-status filters and before the status one, so a chip\nreads what choosing it would list, without loading every page.",
         "properties": {
           "acknowledged": {
             "default": 0,
@@ -6428,7 +6428,7 @@
         "type": "object"
       },
       "ConflictField": {
-        "description": "A single field that diverged on both sides.\n\n``base`` is the value when the branch was created (or last updated from\nmain); ``ours`` is main's current value; ``theirs`` is the branch's current\nvalue. ``choice`` names the value to END with \u2014 ``ours`` takes main's,\n``theirs`` keeps the branch's \u2014 for the merge and for \"Update from main\"\nalike; ``None`` means unresolved.\n\n``field`` is ``@presence`` when one side deleted the entity and the other\nchanged it: ``base``/``ours``/``theirs`` are then ``\"present\"`` or\n``\"absent\"``. ``dependents`` counts, for an event type main deleted, the\nfields, events and relations this branch added or edited under it \u2014 what\ntaking main's side removes with it (PL-8).",
+        "description": "A single field that diverged on both sides.\n\n``base`` is the value when the branch was created (or last updated from\nmain); ``ours`` is main's current value; ``theirs`` is the branch's current\nvalue. ``choice`` names the value to END with \u2014 ``ours`` takes main's,\n``theirs`` keeps the branch's \u2014 for the merge and for \"Update from main\"\nalike; ``None`` means unresolved.\n\n``field`` is ``@presence`` when one side deleted the entity and the other\nchanged it: ``base``/``ours``/``theirs`` are then ``\"present\"`` or\n``\"absent\"``. ``dependents`` counts, for an event type main deleted, the\nfields, events and relations this branch added or edited under it \u2014 what\ntaking main's side removes with it.",
         "properties": {
           "base": {
             "anyOf": [
@@ -6669,7 +6669,7 @@
         "type": "string"
       },
       "DataSourceConnectionTest": {
-        "description": "An unsaved data-source config to test a connection with (DATA-30).\n\nThe create body, validated the same way (host format included), so a form\ncan test exactly what Create would store. ``name`` is optional because the\ntest does not store anything. Every secret the probe needs travels in this\nrequest; nothing is read from or written to a stored source.",
+        "description": "An unsaved data-source config to test a connection with.\n\nThe create body, validated the same way (host format included), so a form\ncan test exactly what Create would store. ``name`` is optional because the\ntest does not store anything. Every secret the probe needs travels in this\nrequest; nothing is read from or written to a stored source.",
         "properties": {
           "connection_settings": {
             "anyOf": [
@@ -7049,7 +7049,7 @@
         "type": "object"
       },
       "DataSourceScanRef": {
-        "description": "One scan reading a data source, enough to link to it (DA-40).",
+        "description": "One scan reading a data source, enough to link to it.",
         "properties": {
           "id": {
             "format": "uuid",
@@ -7436,7 +7436,7 @@
         "type": "object"
       },
       "DemoCancelResponse": {
-        "description": "Outcome of asking an in-flight demo provision to abandon itself.\n\n``cancelled`` is only true when a still-seeding shell was found and flagged;\nthe provision then deletes itself instead of promoting.\n\nWhen it is false there was nothing to stop, and ``state`` says which of two\nvery different things that means (DEMO-28): ``finished`` \u2014 a demo of this\nuser's became ready moments ago, so it WILL be in their projects list and\nthe caller should say so \u2014 or ``none`` \u2014 no recent demo exists, the create\nnever got far enough (or failed on its own), and the caller must not promise\nanything will appear. ``stopped`` always pairs with ``cancelled=true``.",
+        "description": "Outcome of asking an in-flight demo provision to abandon itself.\n\n``cancelled`` is only true when a still-seeding shell was found and flagged;\nthe provision then deletes itself instead of promoting.\n\nWhen it is false there was nothing to stop, and ``state`` says which of two\nvery different things that means: ``finished`` \u2014 a demo of this\nuser's became ready moments ago, so it WILL be in their projects list and\nthe caller should say so \u2014 or ``none`` \u2014 no recent demo exists, the create\nnever got far enough (or failed on its own), and the caller must not promise\nanything will appear. ``stopped`` always pairs with ``cancelled=true``.",
         "properties": {
           "cancelled": {
             "title": "Cancelled",
@@ -7625,7 +7625,7 @@
         "type": "object"
       },
       "DetectionResetPeriod": {
-        "description": "Optional half-open window (``after <= t < before``) for a danger-zone reset.\n\nBoth bounds are optional; omitting both clears the whole project.\n\n``dry_run`` returns the counts the reset WOULD delete and deletes nothing, so\nthe confirm dialog can name them (ST-39). It defaults to false, unlike\n``VariableRetirementRequest``: this body predates it, and a client that\nomits it has always meant \"delete\".",
+        "description": "Optional half-open window (``after <= t < before``) for a danger-zone reset.\n\nBoth bounds are optional; omitting both clears the whole project.\n\n``dry_run`` returns the counts the reset WOULD delete and deletes nothing, so\nthe confirm dialog can name them. It defaults to false, unlike\n``VariableRetirementRequest``: this body predates it, and a client that\nomits it has always meant \"delete\".",
         "properties": {
           "after": {
             "anyOf": [
@@ -11423,7 +11423,7 @@
         "type": "object"
       },
       "EventIdentityHolder": {
-        "description": "An event that already answers to a looked-up identity (EVT-37).\n\n``identity`` is the name that was asked about; ``name`` is the holder's own\nname, which differs when a scanned event has since been renamed.",
+        "description": "An event that already answers to a looked-up identity.\n\n``identity`` is the name that was asked about; ``name`` is the holder's own\nname, which differs when a scanned event has since been renamed.",
         "properties": {
           "event_id": {
             "format": "uuid",
@@ -16488,7 +16488,7 @@
         "type": "object"
       },
       "MetaFieldUsageResponse": {
-        "description": "What deleting a meta field would take with it (AU-37).\n\n``value_count`` is every non-empty stored value (a multi-value field holds\nseveral per event); ``event_count`` is the events holding at least one.",
+        "description": "What deleting a meta field would take with it.\n\n``value_count`` is every non-empty stored value (a multi-value field holds\nseveral per event); ``event_count`` is the events holding at least one.",
         "properties": {
           "event_count": {
             "title": "Event Count",
@@ -18882,7 +18882,7 @@
         "type": "object"
       },
       "MonitorFiringScope": {
-        "description": "One scope of a monitor that is firing now (MO-36).\n\nChosen by the same horizon test as ``firing_scope_count``, so the list and\nthe count cannot disagree. ``scope_name``, ``event_id`` and ``direction``\ncome from the item of the delivery that last notified this scope; all three\nare null for a scope the rule has not notified (a cooldown or a mute can\nhold the first message back while the state is already open).",
+        "description": "One scope of a monitor that is firing now.\n\nChosen by the same horizon test as ``firing_scope_count``, so the list and\nthe count cannot disagree. ``scope_name``, ``event_id`` and ``direction``\ncome from the item of the delivery that last notified this scope; all three\nare null for a scope the rule has not notified (a cooldown or a mute can\nhold the first message back while the state is already open).",
         "properties": {
           "direction": {
             "anyOf": [
@@ -21832,7 +21832,7 @@
         "type": "object"
       },
       "PhotoLimitsResponse": {
-        "description": "What the upload endpoint will take, for the browser to say so up front.\n\n``photo_max_size_mb`` is an owner setting; every signed-in user may read it,\nbecause an editor's upload is what it refuses (EVT-28). Both values are the\norganization's (F20 PR11): its own cap, never above the operator's, and its\nallow-list, never wider than the operator's.",
+        "description": "What the upload endpoint will take, for the browser to say so up front.\n\n``photo_max_size_mb`` is an owner setting; every signed-in user may read it,\nbecause an editor's upload is what it refuses. Both values are the\norganization's (F20 PR11): its own cap, never above the operator's, and its\nallow-list, never wider than the operator's.",
         "properties": {
           "photo_allowed_mime": {
             "items": {
@@ -22606,7 +22606,7 @@
         "type": "object"
       },
       "PlanRevisionKind": {
-        "description": "What produced a revision (PL-21).\n\n``snapshot`` is a user-taken one (``POST /plan-revisions``); ``branch_base``\nis the merge base captured when a branch opens; ``merge`` is the live plan\nright after a branch merged into it. Stored rather than parsed back out of\n``summary``, which is free text a user can also write.",
+        "description": "What produced a revision.\n\n``snapshot`` is a user-taken one (``POST /plan-revisions``); ``branch_base``\nis the merge base captured when a branch opens; ``merge`` is the live plan\nright after a branch merged into it. Stored rather than parsed back out of\n``summary``, which is free text a user can also write.",
         "enum": [
           "snapshot",
           "branch_base",
@@ -26069,7 +26069,7 @@
         "type": "object"
       },
       "RelationUpdate": {
-        "description": "Editing a relation in place (AU-13); every field optional, none nullable.\n\nAn end is re-checked against the project branch whenever either of its ids\nchanges, with the stored id standing in for the one not sent.",
+        "description": "Editing a relation in place; every field optional, none nullable.\n\nAn end is re-checked against the project branch whenever either of its ids\nchanges, with the stored id standing in for the one not sent.",
         "properties": {
           "description": {
             "anyOf": [
@@ -26472,7 +26472,7 @@
         "type": "object"
       },
       "RowLimitDefaultsResponse": {
-        "description": "The instance's effective row caps for a scan with no limit of its own.\n\nReadable by every signed-in user, unlike the rest of ``/settings``: the scan\nform's Limits hints quote them to whoever is filling it in (B15).",
+        "description": "The instance's effective row caps for a scan with no limit of its own.\n\nReadable by every signed-in user, unlike the rest of ``/settings``: the scan\nform's Limits hints quote them to whoever is filling it in.",
         "properties": {
           "metrics_row_limit_default": {
             "title": "Metrics Row Limit Default",
@@ -26997,7 +26997,7 @@
         "type": "object"
       },
       "ScanConfigDetailResponse": {
-        "description": "One scan config with its metrics schedule (DA-5).\n\nOnly ``GET /scans/{id}`` computes these, so they are not on the list rows.\n``last_metrics_run_at`` is when the newest scheduled metrics collection\nfinished; ``next_metrics_run_at`` the earliest moment the scheduler\nconsiders the config due again (``now`` when it is due already). Both are\nnull for a scan the scheduler never collects (no interval or no time\ncolumn), and ``last_metrics_run_at`` also before its first collection.",
+        "description": "One scan config with its metrics schedule.\n\nOnly ``GET /scans/{id}`` computes these, so they are not on the list rows.\n``last_metrics_run_at`` is when the newest scheduled metrics collection\nfinished; ``next_metrics_run_at`` the earliest moment the scheduler\nconsiders the config due again (``now`` when it is due already). Both are\nnull for a scan the scheduler never collects (no interval or no time\ncolumn), and ``last_metrics_run_at`` also before its first collection.",
         "properties": {
           "app_version_active_share_min": {
             "anyOf": [
@@ -27220,7 +27220,7 @@
             "title": "Metrics Row Limit"
           },
           "monitoring_enabled": {
-            "description": "Whether the scheduler collects metrics for this scan (MO-23).\n\nDerived, never stored: the beat schedule and every monitoring read path\nselect on ``interval IS NOT NULL``, so this is that test said out loud\nrather than a second switch that could disagree with it.",
+            "description": "Whether the scheduler collects metrics for this scan.\n\nDerived, never stored: the beat schedule and every monitoring read path\nselect on ``interval IS NOT NULL``, so this is that test said out loud\nrather than a second switch that could disagree with it.",
             "readOnly": true,
             "title": "Monitoring Enabled",
             "type": "boolean"
@@ -27668,7 +27668,7 @@
             "title": "Metrics Row Limit"
           },
           "monitoring_enabled": {
-            "description": "Whether the scheduler collects metrics for this scan (MO-23).\n\nDerived, never stored: the beat schedule and every monitoring read path\nselect on ``interval IS NOT NULL``, so this is that test said out loud\nrather than a second switch that could disagree with it.",
+            "description": "Whether the scheduler collects metrics for this scan.\n\nDerived, never stored: the beat schedule and every monitoring read path\nselect on ``interval IS NOT NULL``, so this is that test said out loud\nrather than a second switch that could disagree with it.",
             "readOnly": true,
             "title": "Monitoring Enabled",
             "type": "boolean"
@@ -29473,7 +29473,7 @@
         "type": "object"
       },
       "SearchVariant": {
-        "description": "One folded member of a :class:`SearchVariantGroup` (JR-20).\n\nDeliberately slim \u2014 enough to render and open the event, not a second full\n:class:`SearchResult`: a group of 40 scan variants would otherwise carry 40\ncopies of snippets, highlights and variable bindings nobody reads until the\ngroup is expanded, and then only the name.",
+        "description": "One folded member of a :class:`SearchVariantGroup`.\n\nDeliberately slim \u2014 enough to render and open the event, not a second full\n:class:`SearchResult`: a group of 40 scan variants would otherwise carry 40\ncopies of snippets, highlights and variable bindings nobody reads until the\ngroup is expanded, and then only the name.",
         "properties": {
           "confidence": {
             "default": 0.0,
@@ -29531,7 +29531,7 @@
         "type": "object"
       },
       "SearchVariantGroup": {
-        "description": "Event hits folded under their best-ranked member (JR-20).\n\nEvents of ONE event type whose names differ only in the value substituted\nfor ONE naming-rule placeholder \u2014 the scan's ``event_name_format``, or the\ndefault ``column=value | column=value`` name a scan without one writes.\n``search_service.group_event_variants`` owns the rule.",
+        "description": "Event hits folded under their best-ranked member.\n\nEvents of ONE event type whose names differ only in the value substituted\nfor ONE naming-rule placeholder \u2014 the scan's ``event_name_format``, or the\ndefault ``column=value | column=value`` name a scan without one writes.\n``search_service.group_event_variants`` owns the rule.",
         "properties": {
           "count": {
             "minimum": 2.0,
@@ -30204,7 +30204,7 @@
         "type": "object"
       },
       "ShadowEventBatchRequest": {
-        "description": "Accept or dismiss many inbox rows in one request (DATA-39).",
+        "description": "Accept or dismiss many inbox rows in one request.",
         "properties": {
           "action": {
             "enum": [
@@ -30666,7 +30666,7 @@
         "type": "object"
       },
       "SignalSeriesScope": {
-        "description": "One open signal whose recent series a row sparkline draws (MO-19).",
+        "description": "One open signal whose recent series a row sparkline draws.",
         "properties": {
           "bucket": {
             "format": "date-time",
@@ -32660,7 +32660,7 @@
         "type": "object"
       },
       "VariableEventRef": {
-        "description": "One event a variable was observed in, with the id a link needs (AU-29).",
+        "description": "One event a variable was observed in, with the id a link needs.",
         "properties": {
           "id": {
             "format": "uuid",
@@ -34854,7 +34854,7 @@
     },
     "/api/v1/data-sources/test": {
       "post": {
-        "description": "Test a connection before it is saved (DATA-30).\n\nThe create gate (org owner/admin, browser session) and the create body's validation,\nhost format included; nothing is stored and no stored secret is read. Always\n200: a refused connection is the answer the caller asked for.",
+        "description": "Test a connection before it is saved.\n\nThe create gate (org owner/admin, browser session) and the create body's validation,\nhost format included; nothing is stored and no stored secret is read. Always\n200: a refused connection is the answer the caller asked for.",
         "operationId": "test_unsaved_data_source_connection_api_v1_data_sources_test_post",
         "requestBody": {
           "content": {
@@ -38511,7 +38511,7 @@
     },
     "/api/v1/projects/{slug}/alert-destinations/test": {
       "post": {
-        "description": "Send the test message through settings that are not saved yet (AL-30).\n\nThe destination dialog's \"Send test\": an unsaved destination, or an edit\nin progress, where ``destination_id`` lends the stored secrets the form\nleft blank. Same contract as the saved destination's Test \u2014 editor-only,\nalways 200 with ``ok``/``error`` \u2014 and the same audit action, so \"who\npressed Test\" has one place to look whichever button it was.",
+        "description": "Send the test message through settings that are not saved yet.\n\nThe destination dialog's \"Send test\": an unsaved destination, or an edit\nin progress, where ``destination_id`` lends the stored secrets the form\nleft blank. Same contract as the saved destination's Test \u2014 editor-only,\nalways 200 with ``ok``/``error`` \u2014 and the same audit action, so \"who\npressed Test\" has one place to look whichever button it was.",
         "operationId": "test_alert_destination_draft_api_v1_projects__slug__alert_destinations_test_post",
         "parameters": [
           {
@@ -40424,7 +40424,7 @@
     },
     "/api/v1/projects/{slug}/anomalies/signals/series": {
       "post": {
-        "description": "Row sparklines for many open signals in one request (MO-19). POST for\nthe same reason as ``/signals/query``: the batch outgrows a query string.",
+        "description": "Row sparklines for many open signals in one request. POST for\nthe same reason as ``/signals/query``: the batch outgrows a query string.",
         "operationId": "query_signal_series_api_v1_projects__slug__anomalies_signals_series_post",
         "parameters": [
           {
@@ -41961,7 +41961,7 @@
     },
     "/api/v1/projects/{slug}/danger/reset-anomalies": {
       "post": {
-        "description": "Owner-only: clear every anomaly (+ breakdown) in the project's period.\n\nDestructive and irreversible. Derived monitoring signals disappear with the\nanomalies they are computed from. ``dry_run`` only counts (ST-39).",
+        "description": "Owner-only: clear every anomaly (+ breakdown) in the project's period.\n\nDestructive and irreversible. Derived monitoring signals disappear with the\nanomalies they are computed from. ``dry_run`` only counts.",
         "operationId": "reset_anomalies_api_v1_projects__slug__danger_reset_anomalies_post",
         "parameters": [
           {
@@ -42014,7 +42014,7 @@
     },
     "/api/v1/projects/{slug}/danger/reset-drifts": {
       "post": {
-        "description": "Owner-only: clear every schema + distribution drift in the project's period.\n\nDestructive and irreversible. ``dry_run`` only counts (ST-39).",
+        "description": "Owner-only: clear every schema + distribution drift in the project's period.\n\nDestructive and irreversible. ``dry_run`` only counts.",
         "operationId": "reset_drifts_api_v1_projects__slug__danger_reset_drifts_post",
         "parameters": [
           {
@@ -49471,7 +49471,7 @@
     },
     "/api/v1/projects/{slug}/meta-fields/{meta_field_id}/usage": {
       "get": {
-        "description": "Values and events a delete of this field would clear (AU-37).",
+        "description": "Values and events a delete of this field would clear.",
         "operationId": "get_meta_field_usage_api_v1_projects__slug__meta_fields__meta_field_id__usage_get",
         "parameters": [
           {
@@ -50455,7 +50455,7 @@
     },
     "/api/v1/projects/{slug}/metrics/{metric_id}/generated-sql": {
       "get": {
-        "description": "Return a saved fact metric's primary dependency-batch SQL without running it.\n\nSame gate as ``GET /{metric_id}``: anyone who can read the metric. The SQL is\ncompiled from config that read already returns (MET-41) and nothing executes.",
+        "description": "Return a saved fact metric's primary dependency-batch SQL without running it.\n\nSame gate as ``GET /{metric_id}``: anyone who can read the metric. The SQL is\ncompiled from config that read already returns and nothing executes.",
         "operationId": "get_metric_generated_sql_api_v1_projects__slug__metrics__metric_id__generated_sql_get",
         "parameters": [
           {
@@ -53185,7 +53185,7 @@
     },
     "/api/v1/projects/{slug}/reconciliation/shadow-events/batch": {
       "post": {
-        "description": "Accept or dismiss many inbox rows in one request (DATA-39).\n\nEach row is handled and audited exactly as its single route would, and a\nrefused row is reported in ``results`` without stopping the rest.",
+        "description": "Accept or dismiss many inbox rows in one request.\n\nEach row is handled and audited exactly as its single route would, and a\nrefused row is reported in ``results`` without stopping the rest.",
         "operationId": "batch_shadow_events_api_v1_projects__slug__reconciliation_shadow_events_batch_post",
         "parameters": [
           {
@@ -57756,7 +57756,7 @@
     },
     "/api/v1/settings/ai/defaults": {
       "get": {
-        "description": "The built-in AI system prompts, for each prompt's \"Restore default\" (ST-30).",
+        "description": "The built-in AI system prompts, for each prompt's \"Restore default\".",
         "operationId": "get_ai_prompt_defaults_api_v1_settings_ai_defaults_get",
         "responses": {
           "200": {
@@ -57861,7 +57861,7 @@
     },
     "/api/v1/settings/photo-limits": {
       "get": {
-        "description": "The photo upload limits, readable by every signed-in user.\n\nThe rest of this router is for settings admins; these values are not, because it is\nan editor's upload they refuse and the browser should say so before the\nupload rather than after (EVT-28). The caller's organization's limits\n(F20 PR11), resolved like the rest of the legacy route; the operator's when\nit resolves none. ``/orgs/{org}/settings/photo-limits`` names one.",
+        "description": "The photo upload limits, readable by every signed-in user.\n\nThe rest of this router is for settings admins; these values are not, because it is\nan editor's upload they refuse and the browser should say so before the\nupload rather than after. The caller's organization's limits\n(F20 PR11), resolved like the rest of the legacy route; the operator's when\nit resolves none. ``/orgs/{org}/settings/photo-limits`` names one.",
         "operationId": "get_photo_limits_api_v1_settings_photo_limits_get",
         "responses": {
           "200": {
@@ -57883,7 +57883,7 @@
     },
     "/api/v1/settings/row-limits": {
       "get": {
-        "description": "The instance row caps a scan falls back to, readable by every signed-in user.\n\nAdmin-only like the rest of this router would hide the real numbers from the\neditors who fill in a scan's Limits, so the form hard-coded the shipped\ndefaults instead (B15). Two integers, nothing about the connection.\n\nThe caller's organization's caps (F20 PR9), resolved like the rest of the\nlegacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.",
+        "description": "The instance row caps a scan falls back to, readable by every signed-in user.\n\nAdmin-only like the rest of this router would hide the real numbers from the\neditors who fill in a scan's Limits, so the form hard-coded the shipped\ndefaults instead. Two integers, nothing about the connection.\n\nThe caller's organization's caps (F20 PR9), resolved like the rest of the\nlegacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.",
         "operationId": "get_row_limit_defaults_api_v1_settings_row_limits_get",
         "responses": {
           "200": {

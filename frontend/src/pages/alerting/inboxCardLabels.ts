@@ -4,7 +4,7 @@ import { hasBaseline } from '@/lib/percentDelta'
 import type { AlertInboxGroup } from '@/types'
 
 /**
- * The card's headline: the first scope it names, plus how many more (AL-12).
+ * The card's headline: the first scope it names, plus how many more.
  *
  * The card used to lead with chips and put WHAT broke on its second line as a
  * muted comma list, so triage meant reading every card in full. The first name
@@ -21,7 +21,7 @@ export function incidentHeadline(group: Pick<AlertInboxGroup, 'scope_names'>): {
 
 /**
  * The signed size of the change, for the badge at the right of the card's
- * title row: "+82%", "−59%", "dropped to zero" (AL-12).
+ * title row: "+82%", "−59%", "dropped to zero".
  *
  * Signed by DIRECTION, through the same {@link formatSignalEffect} every signal
  * list uses, so one incident reads one number on the Inbox and on Anomalies.

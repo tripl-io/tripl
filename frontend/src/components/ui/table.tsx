@@ -43,7 +43,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
-// Rows and cells follow the density setting (DS-9): --row-h is the row's
+// Rows and cells follow the density setting: --row-h is the row's
 // height (a floor, as on any table row) and --cell-px the cell gutter, so
 // compact/cozy/comfy change every ui/Table, not only `.tripl-table`. The cell's
 // vertical padding stays small so the row height, not the padding, decides.
@@ -63,7 +63,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
 // One header typography for every table idiom: the 10.5px semibold uppercase
 // caption `.tripl-table th` (index.css) and the settings tables use. This one
 // was 12px medium with wide tracking, so a ui/Table and a data table on the
-// same page captioned their columns differently (DS-34).
+// same page captioned their columns differently.
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th

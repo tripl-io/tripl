@@ -29,7 +29,7 @@ interface DestinationCardProps {
   onEditDestination: (destination: AlertDestination) => void
   /** Delete, confirmed by the page. Absent where the section offers none. */
   onDeleteDestination?: (destination: AlertDestination) => void
-  /** This destination's delete is in flight: its control is inert (ALR-6). */
+  /** This destination's delete is in flight: its control is inert. */
   isDeleting?: boolean
 }
 
@@ -60,7 +60,7 @@ export function DestinationCard({
   //
   // A refusal says why. The switch snaps back to the server's value either
   // way, and on its own that read as a click that did nothing — a 403 after a
-  // demotion, or the API refusing to enable a demo's Slack example (ALR-6).
+  // demotion, or the API refusing to enable a demo's Slack example.
   const updateDestinationMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: (data: { enabled?: boolean }) =>
@@ -79,7 +79,7 @@ export function DestinationCard({
   // `testedVersion` is the channel's configuration fingerprint when the test
   // was sent: a result describes the settings stored THEN. After a change it is
   // hidden rather than left saying "the channel refused… Unauthorized" under a
-  // token the operator has just replaced (ALR-40).
+  // token the operator has just replaced.
   //
   // Not `updated_at`: that moves on every write to the row, including the
   // digest flusher's `last_flushed_at` on each cadence tick and the Enabled
@@ -98,8 +98,8 @@ export function DestinationCard({
   const testFailed = testIsCurrent && testDestinationMut.isError
 
   // Whether any write-only credential is stored. One muted "Configured" says
-  // it, where four "webhook set" / "bot token set" / "url set" pills did
-  // (AL-24); which value is stored is not something the card can show anyway.
+  // it, where four "webhook set" / "bot token set" / "url set" pills did;
+  // which value is stored is not something the card can show anyway.
   const hasStoredCredential =
     destination.webhook_set
     || destination.bot_token_set
@@ -116,7 +116,7 @@ export function DestinationCard({
   return (
     // A disabled destination reads as muted — the switch is the state, so a
     // solid "enabled" pill beside it only drew the eye to the least important
-    // fact on the card (AL-24).
+    // fact on the card.
     <Card className={cn(!destination.enabled && 'bg-bg-sunken')}>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -127,7 +127,7 @@ export function DestinationCard({
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               {/* The channel as its icon and its name, not the raw uppercase
-                  enum (`WEBHOOK`, `DEMO_SINK`) it used to be (AL-24). */}
+                  enum (`WEBHOOK`, `DEMO_SINK`) it used to be. */}
               <ChannelGlyph
                 type={destination.type}
                 aria-hidden="true"
@@ -228,7 +228,7 @@ export function DestinationCard({
             </IconButton>
             {/* Inside the card, beside Edit, like the Monitors rule rows — it
                 used to float under the card, in the gap before the next one,
-                where it was unclear which card it deleted (AL-25). The
+                where it was unclear which card it deleted. The
                 confirm itself lives on the page that owns the delete mutation
                 and states the same cascade through the same helper; the
                 tooltip repeats it on the control, for a reader still deciding
@@ -258,7 +258,7 @@ export function DestinationCard({
             answer the button was pressed for, so it renders as a result and
             not as a crash. Only a transport failure gets `role="alert"`.
             One inline row with an icon and its own Dismiss, rather than a
-            sentence alone in a tall card with a far-away button (AL-30). */}
+            sentence alone in a tall card with a far-away button. */}
         {(testDestinationMut.isPending || testResult || testFailed) && (
           <div
             data-tone={testTone}

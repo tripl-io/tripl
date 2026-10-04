@@ -3,7 +3,7 @@ import { formatRatioDelta, ratioDelta } from '@/lib/percentDelta'
 import type { EventMetricsResponse } from '@/types'
 
 /**
- * The Events tab's one-line summary of its series (EV-21): "612K in 7d · +4%
+ * The Events tab's one-line summary of its series: "612K in 7d · +4%
  * vs prior week". Null when the response carries no weekly totals (a scope
  * other than the Events series, or a server that predates them). A prior week
  * with nothing in it has no baseline, so the comparison is left off rather

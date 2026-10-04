@@ -97,7 +97,7 @@ describe('CoveragePage', () => {
     ).not.toBeInTheDocument()
 
     // …and names the population in an info tip, in the user's terms rather
-    // than as a cross-page footnote (DA-31).
+    // than as a cross-page footnote.
     expect(
       screen.getByRole('button', {
         name: 'Implemented events older than 30 days that sent no data in the last 30 days.',
@@ -106,7 +106,7 @@ describe('CoveragePage', () => {
     expect(screen.queryByText(/Silent > 30d/)).not.toBeInTheDocument()
   })
 
-  // DA-30: "which ones, and who owns them?" had no answer on the page.
+  // "which ones, and who owns them?" had no answer on the page.
   it('links the not-implemented remainder to the filtered Events list and breaks it down', async () => {
     vi.spyOn(projectsApi, 'get').mockResolvedValue(project())
     vi.spyOn(reconciliationApi, 'deadEvents').mockResolvedValue(dead)
@@ -172,8 +172,7 @@ describe('CoveragePage', () => {
   })
 
   // 322 of 323 is a partial plan. The headline already said "99.7%", but the
-  // bar's aria-label rounded it to "100% of active events are implemented"
-  // (DATA-45).
+  // bar's aria-label rounded it to "100% of active events are implemented".
   it('never announces a partial plan as 100% implemented', async () => {
     vi.spyOn(projectsApi, 'get').mockResolvedValue(
       project({ event_count: 323, active_event_count: 323, implemented_event_count: 322 }),
@@ -190,8 +189,7 @@ describe('CoveragePage', () => {
   })
 
   // Reconciliation's dead-event rows link to the event's monitoring page and
-  // render names through <EventName>; the same list here was plain text
-  // (DATA-46).
+  // render names through <EventName>; the same list here was plain text.
   it('links each gap row to the event and renders it like Reconciliation', async () => {
     vi.spyOn(projectsApi, 'get').mockResolvedValue(project())
     vi.spyOn(reconciliationApi, 'deadEvents').mockResolvedValue({

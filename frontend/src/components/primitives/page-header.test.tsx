@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PageHeader } from './page-header'
 
-// DS-19 / LIVE-11: one header component instead of two "canonical" ones and a
+// One header component instead of two "canonical" ones and a
 // dozen hand-rolled h1s.
 describe('PageHeader', () => {
   it('renders the title as the page heading with its count', () => {
@@ -34,7 +34,7 @@ describe('PageHeader', () => {
     expect(container.querySelector('p, button, a')).toBeNull()
   })
 
-  // DS-1: one h1 per page, whatever the slots; DS-5: the stat row sits under
+  // one h1 per page, whatever the slots; the stat row sits under
   // the title block, not in the actions slot.
   it('renders exactly one h1 and puts the stats row after the title block', () => {
     const { container } = render(

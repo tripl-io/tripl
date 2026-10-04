@@ -90,7 +90,7 @@ export function useSavedViews({
   }, [navigate, searchParams, slug])
 
   // A view is a hand-built filter set with no undo, and the trash icon sat
-  // right beside the row that applies it — it went on one click (DS-28).
+  // right beside the row that applies it — it went on one click.
   const deleteSavedView = useCallback(async (name: string) => {
     if (!slug) return
     const ok = await confirm({

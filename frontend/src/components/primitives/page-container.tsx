@@ -19,7 +19,7 @@ const WIDTH_CLASS: Record<PageContainerWidth, string> = {
 }
 
 /**
- * The one page wrapper (DS-3 / MO-9). The app shell (`Layout`) already pads
+ * The one page wrapper. The app shell (`Layout`) already pads
  * the page (12 / 20 / 32px), so a page adds no padding and no `mx-auto` of its
  * own: detail pages used to wrap themselves in `p-4 sm:p-6` or
  * `mx-auto max-w-[1000px] px-4 sm:px-6` and sat 16-24px further in than the

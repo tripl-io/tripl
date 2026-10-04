@@ -11,7 +11,7 @@ export const EVENT_PICKER_PAGE_SIZE = 100
 /**
  * One page of the metric event picker's roster for `search`. Shared with the
  * kind step, which reads the unfiltered page's `total` to say a project has no
- * events yet (MT-3): the same key, so the picker opens from that cache.
+ * events yet: the same key, so the picker opens from that cache.
  */
 export function eventRosterQuery(slug: string, search: string) {
   return queryOptions({

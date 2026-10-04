@@ -10,10 +10,10 @@ import { KIND_META } from './branches/branchMeta'
  * the whole list.
  *
  * The same presentation the branch review gives a changed entry, read-only,
- * so a revision diff says what changed and not only which fields did
- * (PLAN-51). Kinds wear the branch review's own labels and tones, and a pair
+ * so a revision diff says what changed and not only which fields did.
+ * Kinds wear the branch review's own labels and tones, and a pair
  * renders through the review's own `DiffPair`, so a revision diff gets the
- * same word diff and the same visually hidden "before:"/"after:" (PLAN-19).
+ * same word diff and the same visually hidden "before:"/"after:".
  *
  * The branch review renders its changed entries through this list too, with a
  * per-field Revert in `renderAction`; the revision history passes none.

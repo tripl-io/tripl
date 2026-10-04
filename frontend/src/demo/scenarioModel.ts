@@ -173,7 +173,7 @@ export interface ScenarioState {
   /**
    * Set once the user starts or restarts a chapter themselves. The initial
    * state is already on live-loop's first step, so the step alone cannot tell
-   * a pristine scenario from one the user chose (LIVE-9's strip rule).
+   * a pristine scenario from one the user chose (the strip rule).
    */
   engaged?: true
 }

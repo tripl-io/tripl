@@ -96,7 +96,7 @@ function isHealthCheckStale(ds: DataSource, now: number = Date.now()): boolean {
 }
 
 /**
- * Inline validation for the connection dialogs (DATA-29): a malformed
+ * Inline validation for the connection dialogs: a malformed
  * service-account key or PEM block is caught here instead of at connect time.
  *
  * Only fields that differ from `baseline` are checked. On edit the baseline is
@@ -106,7 +106,7 @@ function isHealthCheckStale(ds: DataSource, now: number = Date.now()): boolean {
 interface ConnectionErrors {
   secret: string | null
   pem: PemErrors
-  /** Required core fields left empty, flagged inline under each (AU-4). */
+  /** Required core fields left empty, flagged inline under each. */
   missing: CoreMissing
 }
 
@@ -138,7 +138,7 @@ function hasConnectionErrors(errors: ConnectionErrors): boolean {
 
 /**
  * After a refused submit, move focus to the first flagged control once the
- * render that marks it has landed (AL-4 / AU-4): in a long dialog the
+ * render that marks it has landed: in a long dialog the
  * message could sit below the fold with nothing pointing at it.
  */
 function focusFirstInvalidSoon(root: HTMLElement | null) {
@@ -168,7 +168,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   const createFormRef = useRef<HTMLFormElement>(null)
   const editFormRef = useRef<HTMLFormElement>(null)
   // The inputs the last Create / Save was sent with, so a server refusal is
-  // only pinned to a field until that field changes (DA-38).
+  // only pinned to a field until that field changes.
   const [createSentKey, setCreateSentKey] = useState<string | null>(null)
   const [editSentKey, setEditSentKey] = useState<string | null>(null)
 
@@ -191,7 +191,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     // Only auto-update the port if the user hasn't typed their own. Compared
     // with EVERY adapter's default, not just the previous type's: BigQuery has
     // no port, so Postgres → BigQuery → ClickHouse used to keep 5432 and the
-    // test failed like a network problem (DA-39).
+    // test failed like a network problem.
     const portIsADefault = !core.port || DB_TYPE_OPTIONS.some((o) => o.defaultPort === core.port)
     if (nextDefault && portIsADefault) {
       patchCore({ port: nextDefault })
@@ -213,7 +213,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   }
 
   // Every source with a test in flight. One shared id let testing A then B
-  // re-enable A's button mid-test, and A's finish re-enabled B's (DATA-34).
+  // re-enable A's button mid-test, and A's finish re-enabled B's.
   const [testingIds, setTestingIds] = useState<ReadonlySet<string>>(() => new Set())
   const canManageDataSources = isOwner(user?.role)
   // A public demo connects to no warehouse of one's own.
@@ -248,7 +248,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     onSuccess: (created) => {
       resetForm()
       // Arrived from the Get-started checklist: the next step is one click
-      // away rather than a trip back to Overview (#250 JR-3).
+      // away rather than a trip back to Overview (#250).
       const onboarding = parseOnboardingReturn(location.pathname, location.search)
       if (onboarding?.step === 'source') {
         const scansHref = onboardingStepHref(projectPath(currentOrgSlug(), onboarding.slug, '/scans'), 'scan', onboarding.slug)
@@ -257,7 +257,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
         })
       }
       // Tested again the moment it is saved, so the card shows its health right
-      // away instead of "unverified" until the first scan (DATA-30).
+      // away instead of "unverified" until the first scan.
       void qc
         .invalidateQueries({ queryKey: dataSourcesKey() })
         .then(() => handleTest(created.id))
@@ -298,7 +298,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   })
 
   // Delete renders its error on the card it failed for, like scan delete/run
-  // failures do on the Scans page (DATA-5), so the global toast stays quiet.
+  // failures do on the Scans page, so the global toast stays quiet.
   const deleteMut = useMutation({
     meta: SILENT_ERROR_META,
     mutationFn: (id: string) => dataSourcesApi.del(id),
@@ -311,7 +311,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   const handleDelete = async (ds: DataSource) => {
     const ok = await confirm({
       title: 'Delete data source',
-      // Counts what goes with it when the list says (DA-40).
+      // Counts what goes with it when the list says.
       message: dataSourceDeleteMessage(ds),
       // Scans go with it, so a source in use takes its name typed first.
       requireText: dataSourceDeleteRequireText(ds),
@@ -367,7 +367,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   const populateEditForm = useCallback((ds: DataSource) => {
     if (editingDsIdRef.current === ds.id) return
     editingDsIdRef.current = ds.id
-    // A failure from another source's save must not greet this one (DATA-32).
+    // A failure from another source's save must not greet this one.
     resetUpdate()
     setEditErrors(NO_CONNECTION_ERRORS)
     setEditNameError(null)
@@ -391,8 +391,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     editingDsIdRef.current = null
     setEditingDs(null)
     // Drop the typed secret and any stale error with the dialog, rather than
-    // keeping a pasted key in memory until the next edit opens (DATA-29,
-    // DATA-32).
+    // keeping a pasted key in memory until the next edit opens.
     setEditCore(EMPTY_CONNECTION_CORE_FORM)
     setEditSettings(EMPTY_CONNECTION_SETTINGS_FORM)
     setEditErrors(NO_CONNECTION_ERRORS)
@@ -421,7 +420,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     }
   }, [openDsId, dataSources, populateEditForm, canManageDataSources, navigate])
 
-  // Test connection before saving (DATA-30): the unsaved config goes to the
+  // Test connection before saving: the unsaved config goes to the
   // server, which probes it and stores nothing. The answer is for the inputs it
   // was run with, so it is hidden as soon as any of them changes.
   const draftKey = JSON.stringify({ dbType, core, settings })
@@ -443,7 +442,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     draftTestMut.mutate({ key: draftKey, payload: buildCreatePayload() })
   }
 
-  // A 422 from Create or Test, split onto the controls it names (DA-38): it
+  // A 422 from Create or Test, split onto the controls it names: it
   // used to arrive as "host: String should have at least 1 character; …" at the
   // foot of the dialog with nothing marked. Like the test answer, a field
   // refusal belongs to the inputs it was sent with and clears once they change.
@@ -502,7 +501,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   const submitEdit = () => {
     if (!editingDs) return
     // The form is `noValidate`; this catches an empty name and a name of
-    // spaces, which the backend would otherwise answer with a raw 422 (DATA-33).
+    // spaces, which the backend would otherwise answer with a raw 422.
     if (!editName.trim()) {
       setEditNameError('Enter a name.')
       focusFirstInvalidSoon(editFormRef.current)
@@ -529,7 +528,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
   }
 
   // One stray overlay click or Escape used to throw away a pasted service-account
-  // key or PEM certificate (DATA-31). Both dialogs now ask first while they hold
+  // key or PEM certificate. Both dialogs now ask first while they hold
   // anything the user typed; Cancel asks too, since it is the same loss.
   const createDirty = useDirtySinceOpen(showForm, { name, dbType, core, settings })
   const createGuard = useUnsavedDialogGuard(createDirty)
@@ -554,7 +553,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
     (ds) => ds.last_test_status === 'success' && !isHealthCheckStale(ds),
   ).length
   // A stale "healthy" check renders amber on its card, so it counts here too;
-  // the header read "Warnings 0" above amber cards (DATA-35).
+  // the header read "Warnings 0" above amber cards.
   const warningCount = dataSources.filter(
     (ds) => ds.last_test_status === 'failed' || isHealthCheckStale(ds),
   ).length
@@ -573,10 +572,10 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       {/* Compact stats header (page title comes from the Settings tab bar).
           It wraps, and is never right-aligned: a non-wrapping `justify-end` row
           overflowed off the LEFT edge at 375px, where nothing can scroll to it,
-          and "Connections" read as "TIONS" (DATA-35 / LIVE-4). */}
+          and "Connections" read as "TIONS". */}
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <MiniStatStrip boxed>
-          {/* Pending values are a skeleton with no tone (#237 DS-25). */}
+          {/* Pending values are a skeleton with no tone (#237). */}
           <MiniStat
             label="Connections"
             value={statsPending ? <StatValueSkeleton /> : String(dataSources.length)}
@@ -585,7 +584,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
             label="Healthy"
             value={statsPending ? <StatValueSkeleton /> : String(healthyCount)}
             // No "up" delta: it read "Healthy 2 · up", a trend the page never
-            // measured (DA-41).
+            // measured.
             tone={statsPending ? undefined : 'success'}
             pulse={!statsPending && healthyCount > 0}
           />
@@ -608,8 +607,8 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
       <Dialog open={showForm} onOpenChange={(v) => { if (!v) createGuard.requestClose(resetForm) }}>
         <DialogContent className="sm:max-w-lg">
           {/* noValidate: every empty required field is flagged inline on
-              submit, not by the browser's bubble on the first one (AU-4).
-              DialogBody scrolls; the title and actions stay in view (AL-4). */}
+              submit, not by the browser's bubble on the first one.
+              DialogBody scrolls; the title and actions stay in view. */}
           <form
             ref={createFormRef}
             noValidate
@@ -631,7 +630,7 @@ function ConnectionsTab({ openDsId }: { openDsId?: string }) {
                       setCreateNameError(null)
                     }}
                     aria-required
-                    // Follows the type, so BigQuery is not offered "Production ClickHouse" (DA-44).
+                    // Follows the type, so BigQuery is not offered "Production ClickHouse".
                     placeholder={examplePlaceholder(
                       `Production ${DB_TYPE_OPTIONS.find((o) => o.value === dbType)?.label ?? 'warehouse'}`,
                     )}
@@ -868,7 +867,7 @@ function DataSourceCard({
   const health = dataSourceHealthLexeme(ds.last_test_status, stale)
   const statusTone = health.tone
   const statusLabel = health.label
-  // One health indicator and one type marker per card (LIVE-36). A card used
+  // One health indicator and one type marker per card. A card used
   // to carry a dot, a health chip AND the last-test row (three health
   // markers), plus a "synthetic" type chip next to the Synthetic badge. The
   // last-test row now leads with the health word; the chip only stands in
@@ -895,16 +894,16 @@ function DataSourceCard({
   const secretLabel = isBigQuery ? 'Service account key set' : 'Password set'
 
   return (
-    // A card in the page, on the page's surface (DS-10): --bg-elevated is for
-    // floating layers now. The one card radius (DS-24).
+    // A card in the page, on the page's surface: --bg-elevated is for
+    // floating layers now. The one card radius.
     <div
       className="flex flex-col overflow-hidden rounded-card border transition-colors hover:border-[var(--border-strong)]"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
     >
       <div className="flex items-start gap-3 p-3.5">
         {/* The warehouse glyph the Scans pages use for this source, not the
-            first two letters of its type ("SY", "CL"), which meant nothing
-            (DA-41). The type itself is named in the chip row below. */}
+            first two letters of its type ("SY", "CL"), which meant nothing.
+            The type itself is named in the chip row below. */}
         <SrcIcon dbType={ds.db_type} size={36} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -942,12 +941,12 @@ function DataSourceCard({
         {ds.username && <Chip size="xs">{ds.username}</Chip>}
         {ds.timeout_seconds != null && <Chip size="xs">timeout {ds.timeout_seconds}s</Chip>}
         {/* What reads this source, each scan a link to its page, so the
-            delete's reach shows before its confirm (DA-40). */}
+            delete's reach shows before its confirm. */}
         <UsedByScans ds={ds} />
         <div className="flex-1" />
-        {/* A relative time is not code: sans + tabular digits (DS-17). */}
+        {/* A relative time is not code: sans + tabular digits. */}
         {/* Labelled: two bare relative times on one card (this and the last
-            test's) could not be told apart (DA-41). */}
+            test's) could not be told apart. */}
         <span className="tnum text-micro text-fg-tertiary">
           Edited {formatRelativeTime(ds.updated_at)}
         </span>

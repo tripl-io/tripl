@@ -43,13 +43,13 @@ export function ScanConfigurationTab({
   onDeleted: () => void
   /**
    * Throw the edits away. The page remounts this form from the saved config,
-   * which is the one reset that cannot miss a field (#247 DA-26).
+   * which is the one reset that cannot miss a field (#247).
    */
   onDiscard?: () => void
   /**
    * Told whether the form holds unsaved edits, and `false` once it unmounts.
    * The page owns the leave guard: it also has to ask before its own tab strip
-   * unmounts this form (DATA-12), which no guard in here can see.
+   * unmounts this form, which no guard in here can see.
    */
   onDirtyChange?: (dirty: boolean) => void
 }) {
@@ -58,7 +58,7 @@ export function ScanConfigurationTab({
   const { confirm, dialog } = useConfirm()
   const form = useScanForm(slug, scanConfig)
   // Update, preview, replay and delete are all OwnerUserDep: anyone else reads
-  // the configuration as a definition list, with no Save (DATA-6, i9mt.12).
+  // the configuration as a definition list, with no Save.
   const canEdit = useIsOwner()
 
   const { data: dataSources = [] } = useProjectDataSources()
@@ -97,7 +97,7 @@ export function ScanConfigurationTab({
     mutationFn: () => scansApi.del(slug, scanConfig.id),
     onSuccess: () => {
       // The list mounts from cache (staleTime 60s), so without this the deleted
-      // scan was still listed there with a Run now that 404s (DATA-4). Drop it
+      // scan was still listed there with a Run now that 404s. Drop it
       // from the cache now, then refetch for anything else that changed.
       qc.setQueryData<ScanConfig[]>(scansKey(slug), current =>
         current?.filter(config => config.id !== scanConfig.id),
@@ -125,7 +125,7 @@ export function ScanConfigurationTab({
   const saveBlocker = scanFormBlocker(form.state)
 
   // "Saved." only while the form still holds what was saved: it used to stay up
-  // after further edits, under every card at once (DATA-14).
+  // after further edits, under every card at once.
   const saveStatus = updateMut.isPending
     ? ''
     : dirty
@@ -136,7 +136,7 @@ export function ScanConfigurationTab({
 
   // A reader gets the definition, not the edit form with every control
   // disabled: live borders, pickers and author hints for someone who can only
-  // read (#237 rule 4, i9mt.12). After every hook, so their order holds.
+  // read (#237 rule 4). After every hook, so their order holds.
   if (!canEdit) {
     return (
       <div className="flex flex-col">
@@ -177,14 +177,14 @@ export function ScanConfigurationTab({
 
       {/* One Save for the whole form. Every card used to carry its own, which
           read as "save this card" while each one sent the entire form — so
-          Save under Limits also committed a half-edited query two cards up
-          (DATA-14). Sticky, so it is in reach from whichever card was edited. */}
+          Save under Limits also committed a half-edited query two cards up.
+          Sticky, so it is in reach from whichever card was edited. */}
       {/* Only while there is something to say: a clean form showed a grey strip
           holding a disabled Save and no text, which read as an empty footer.
           Once edited it names the state and offers Discard beside Save
-          changes, like the other settings forms (#247 DA-26). The blocker is
+          changes, like the other settings forms (#247). The blocker is
           visible text beside Save: a `title` on a disabled button never shows
-          (#237 DA-9). */}
+          (#237). */}
       {(dirty || updateMut.isPending || updateMut.isSuccess) && (
         <SaveBar
           className="mb-5"
@@ -222,7 +222,7 @@ export function ScanConfigurationTab({
 
       <SCard title="Danger zone" tone="danger">
         {/* Only Delete here: Replay re-reads history and deletes nothing, so
-            it moved to the page header as a dialog (#247 DA-8). */}
+            it moved to the page header as a dialog (#247). */}
         <div className="flex items-center gap-[18px] px-4 py-3.5">
           <div className="flex-1">
             <div className="text-body font-medium text-fg">
@@ -232,7 +232,7 @@ export function ScanConfigurationTab({
               Stops adding events from this query. Events already in your plan are kept.
             </div>
           </div>
-          {/* Bare red in a row; the solid red is the confirm dialog's (DS-20). */}
+          {/* Bare red in a row; the solid red is the confirm dialog's. */}
           <Button
             type="button"
             variant="danger"
@@ -269,7 +269,7 @@ export function ScanCreatePage({
   const branchId = useActiveBranchId()
   const form = useScanForm(slug, null)
   // A typed SQL query and its group rules used to vanish on Back or a reload,
-  // with no route to come back to and nothing asking first (DATA-13).
+  // with no route to come back to and nothing asking first.
   const [initialSnapshot] = useState(() => JSON.stringify(form.state))
   const unsaved = useUnsavedChangesGuard(JSON.stringify(form.state) !== initialSnapshot)
 
@@ -298,7 +298,7 @@ export function ScanCreatePage({
   const createBlocker = scanFormBlocker(form.state)
   // When the dry run shows the draft would swamp the plan, the line beside
   // Create says what pressing it leads to, instead of the neutral "Creates the
-  // scan" it gave a good answer too (#247 DA-1).
+  // scan" it gave a good answer too (#247).
   const explosion = form.dryRunStale ? null : dryRunNameExplosion(form.dryRun)
 
   const sectionProps = {
@@ -347,7 +347,7 @@ export function ScanCreatePage({
       )}
 
       {/* Sticky, like the edit form's bar: Create sat under five cards and was
-          a full scroll away from the query at the top (AU-6 / MT-4). */}
+          a full scroll away from the query at the top. */}
       <SaveBar
         status={
           // In Catalog + monitoring the preview is not optional: the time column
@@ -355,7 +355,7 @@ export function ScanCreatePage({
           // "optional" either any more — it is how you find out what this scan
           // would put in your plan before you create it.
           // A blocker leads, as visible text, since a disabled button's
-          // `title` never shows (#237 DA-9); the next step stays under it.
+          // `title` never shows (#237); the next step stays under it.
           // Muted, not warning: on a form nobody has typed into yet it is the
           // next step, not a fault.
           <>

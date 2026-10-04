@@ -133,7 +133,7 @@ export function entityPath(slug: string, entry: PlanDiffEntry): string | null {
  * first-class one, so this skips the list route that would otherwise bounce
  * through EventsPage.
  *
- * A variable's editor is its own page now (AU-26), Definition tab first — the
+ * A variable's editor is its own page now, Definition tab first — the
  * same address `entityPath` focuses. The row keeps the Edit action anyway:
  * without it, fixing a variable from a branch review cost
  * exactly the clicks already removed for events: expand the row, find the
@@ -167,7 +167,7 @@ const BRANCH_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/
 export const BRANCH_NAME_MAX = 64
 export const BRANCH_NAME_HINT = 'Letters, numbers and - _ / . only, e.g. checkout/paywall-copy or PROJ-4770.'
 
-/** Why a new branch name cannot be used, or null when it can (PL-5). Empty is
+/** Why a new branch name cannot be used, or null when it can. Empty is
  * the caller's "Required", shown only after a submit. */
 export function branchNameProblem(name: string, existing: readonly string[]): string | null {
   const trimmed = name.trim()
@@ -200,7 +200,7 @@ export function suggestBranchName(name: string): string | null {
   return suggestion && suggestion !== name.trim() ? suggestion : null
 }
 
-/** Readable labels for the entity keys a diff's full state carries (PL-12).
+/** Readable labels for the entity keys a diff's full state carries.
  * Keys missing here are humanised ("sunset_at" → "Sunset at"). */
 const STATE_KEY_LABEL: Record<string, string> = {
   event_type_name: 'Event type',

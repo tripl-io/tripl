@@ -115,8 +115,7 @@ export function resolveMetaFieldHref(
     return null
   }
   // A stored value is user input: used as the href itself, only web and mail
-  // links become anchors, so a `data:` or other scheme renders as plain text
-  // (EVT-43).
+  // links become anchors, so a `data:` or other scheme renders as plain text.
   const rawLink = (href: string) => (SAFE_LINK.test(href) ? href : null)
   if (metaField.link_template) {
     // A value that already is a link — pasted whole, or stored before the

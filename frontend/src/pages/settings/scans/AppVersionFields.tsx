@@ -42,7 +42,7 @@ export function AppVersionFields({
   onPrereleasePatternChange: (value: string) => void
   onActiveShareMinChange: (value: string) => void
   onPlatformColumnChange: (column: string) => void
-  /** Why the share above cannot be saved (DATA-25). */
+  /** Why the share above cannot be saved. */
   activeShareMinError?: string
 }) {
   const availableColumns = columns?.filter(column => !isJsonPreviewType(column.type_name)) ?? []
@@ -55,7 +55,7 @@ export function AppVersionFields({
   const platformSelectDisabled = !columns && !hasSelectedPlatform
 
   // One label column with the rest of the form: `Field` rows, like the
-  // essentials card, instead of stacked labels in a two-column grid (#247 DA-12).
+  // essentials card, instead of stacked labels in a two-column grid (#247).
   return (
     <>
       <Field label="App version column" htmlFor="app-version-column">

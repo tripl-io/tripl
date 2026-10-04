@@ -195,7 +195,7 @@ describe('EventTypesTab list', () => {
     // Only once the owners have answered: an unanswered request is "—", not a
     // guess of "Open to merge".
     expect(await within(row).findByText('Open to merge')).toBeInTheDocument()
-    // The column says what it is about (AU-12).
+    // The column says what it is about.
     expect(screen.getByRole('columnheader', { name: 'Merge approval' })).toBeInTheDocument()
     // the cryptic raw words are gone
     expect(screen.queryByText('open merge')).not.toBeInTheDocument()
@@ -300,7 +300,7 @@ describe('FieldsEditor fields table', () => {
   })
 })
 
-describe('FieldsEditor field edit subpage (PLAN-46)', () => {
+describe('FieldsEditor field edit subpage', () => {
   function openNewField() {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       mockJsonResponse({}),
@@ -401,7 +401,7 @@ describe('EventTypeDetail tabbed page', () => {
     // data contract section is present in the subpage
     expect(screen.getByText('Data contract')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    // The other cards step aside while the field page is open (AU-15).
+    // The other cards step aside while the field page is open.
     expect(screen.getByText('Danger zone')).not.toBeVisible()
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
     // back to fields list
@@ -431,7 +431,7 @@ describe('EventTypeDetail tabbed page', () => {
     expect(screen.queryByText('Edit field · order_id')).not.toBeInTheDocument()
   })
 
-  it('asks before a tab switch throws away a field draft (DATA-12)', async () => {
+  it('asks before a tab switch throws away a field draft', async () => {
     renderWithRoutes('/p/demo/event-types/type-1', async (input) => detailFetch(input))
 
     selectTab(await screen.findByRole('tab', { name: 'Settings' }))
@@ -489,7 +489,7 @@ describe('EventTypesTab in branch context', () => {
     // Nor does the list pretend to know: the Owner column stays hidden.
     expect(screen.queryByText('Owner')).not.toBeInTheDocument()
     // …and so does Merge approval, which used to call every type "ungated" here —
-    // wrong for exactly the types whose owners will gate this branch (PLAN-40).
+    // wrong for exactly the types whose owners will gate this branch.
     expect(screen.queryByRole('columnheader', { name: 'Merge approval' })).not.toBeInTheDocument()
     expect(screen.queryByText('Open to merge')).not.toBeInTheDocument()
   })
@@ -514,7 +514,7 @@ describe('EventTypesTab in branch context', () => {
   })
 })
 
-describe('EventTypesTab list states and rows (PLAN-39 / PLAN-41)', () => {
+describe('EventTypesTab list states and rows', () => {
   it('shows a skeleton, not "No event types yet", while the list loads', async () => {
     renderWithRoutes('/p/demo/event-types', () => new Promise<Response>(() => {}))
 
@@ -551,7 +551,7 @@ describe('EventTypesTab list states and rows (PLAN-39 / PLAN-41)', () => {
   })
 })
 
-describe('FieldsEditor field form (PLAN-36 / PLAN-38)', () => {
+describe('FieldsEditor field form', () => {
   function openNewField() {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       mockJsonResponse({}),
@@ -580,7 +580,7 @@ describe('FieldsEditor field form (PLAN-36 / PLAN-38)', () => {
     expect(screen.getByLabelText('Max invalid share')).toHaveAttribute('inputmode', 'decimal')
   })
 
-  it('offers only the contract rules the field type can use (AU-16)', () => {
+  it('offers only the contract rules the field type can use', () => {
     openNewField()
     // A string field: a pattern, no bounds.
     expect(screen.getByLabelText('Regex')).toBeInTheDocument()
@@ -623,7 +623,7 @@ describe('FieldsEditor field form (PLAN-36 / PLAN-38)', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('saves a Python/RE2 pattern JavaScript cannot compile, with a note (review 204)', async () => {
+  it('saves a Python/RE2 pattern JavaScript cannot compile, with a note', async () => {
     const { fetchSpy } = openNewField()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'order_id' } })
     fireEvent.change(screen.getByLabelText('Regex'), { target: { value: '(?i)^checkout_' } })
@@ -637,7 +637,7 @@ describe('FieldsEditor field form (PLAN-36 / PLAN-38)', () => {
     expect(JSON.parse(String(init?.body))).toMatchObject({ contract_regex: '(?i)^checkout_' })
   })
 
-  it('lets a field with a saved RE2 pattern be edited and saved (review 204)', async () => {
+  it('lets a field with a saved RE2 pattern be edited and saved', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => mockJsonResponse({}))
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -688,7 +688,7 @@ describe('FieldsEditor field form (PLAN-36 / PLAN-38)', () => {
   })
 })
 
-describe('EventTypeDetail settings (PLAN-42 / PLAN-43 / PLAN-45)', () => {
+describe('EventTypeDetail settings', () => {
   const OWNER = {
     id: 'o-1',
     event_type_id: 'type-1',
@@ -841,7 +841,7 @@ describe('EventTypeDetail settings (PLAN-42 / PLAN-43 / PLAN-45)', () => {
   })
 })
 
-describe('EventTypeDetail across a branch switch (PLAN-44)', () => {
+describe('EventTypeDetail across a branch switch', () => {
   const BRANCH_COPY = { ...CHECKOUT, id: 'type-9' }
 
   function ParamRoute() {
@@ -889,7 +889,7 @@ describe('EventTypeDetail across a branch switch (PLAN-44)', () => {
   })
 })
 
-describe('FieldsEditor reordering (PLAN-37)', () => {
+describe('FieldsEditor reordering', () => {
   it('moves the row at once, announces it, and keeps focus on a working button', async () => {
     let types = [CHECKOUT]
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -926,7 +926,7 @@ describe('FieldsEditor reordering (PLAN-37)', () => {
     )
 
     const up = await screen.findByRole('button', { name: 'Move email up' })
-    // Focus opens the button's tooltip (DS-12), a state update of its own.
+    // Focus opens the button's tooltip, a state update of its own.
     act(() => up.focus())
     fireEvent.click(up)
 
@@ -939,7 +939,7 @@ describe('FieldsEditor reordering (PLAN-37)', () => {
   })
 })
 
-describe('review 204 follow-ups', () => {
+describe('follow-ups', () => {
   it('keeps a field draft on screen when a refetch of the list fails', async () => {
     let failing = false
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -994,7 +994,7 @@ describe('review 204 follow-ups', () => {
   })
 })
 
-describe('EventTypesTab owners in one request (PLAN-42)', () => {
+describe('EventTypesTab owners in one request', () => {
   it('asks once for the project, and reads a type without rows as open', async () => {
     const SIGNUP = eventType({ id: 'type-2', name: 'signup', display_name: 'Signup', order: 1 })
     const owner = {

@@ -81,7 +81,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
   const queryClient = useQueryClient()
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  // Problems are marked once Accept was pressed, not while typing (AU-4).
+  // Problems are marked once Accept was pressed, not while typing.
   const [submitted, setSubmitted] = useState(false)
 
   const previewQuery = useQuery({
@@ -108,7 +108,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
       // The API already set the session cookie and answered with the account.
       // Writing it straight into the session query is what lands the user in
       // the app: a refetch left the session "anonymous" until /auth/me came
-      // back, long enough for the sign-in screen to flash (SHELL-17).
+      // back, long enough for the sign-in screen to flash.
       queryClient.setQueryData<AuthUser | null>(AUTH_QUERY_KEY, user)
       void navigate('/', { replace: true })
     },
@@ -139,7 +139,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
 
   return (
     // The sign-in page's shell — accent wash, the product mark, one card — so
-    // the first screen a teammate ever sees is recognisably tripl (SH-32).
+    // the first screen a teammate ever sees is recognisably tripl.
     <div
       className="min-h-screen text-fg"
       style={{
@@ -264,7 +264,7 @@ export default function InvitePage({ signedIn }: { signedIn?: InviteSignedInAcco
                   <strong>{roleLabel}</strong>. Set a password to finish.
                 </p>
                 {/* What the role means, since "Editor" alone does not say
-                    (SH-32; website/docs/use/concepts.md, Roles). */}
+                    (website/docs/use/concepts.md, Roles). */}
                 {roleBlurb && (
                   <p className="text-body-sm text-fg-tertiary">
                     {`${roleLabel} ${roleBlurb}`}

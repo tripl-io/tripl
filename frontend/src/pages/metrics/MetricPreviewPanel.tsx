@@ -8,7 +8,7 @@ interface MetricPreviewPanelProps {
   unit: string
   /**
    * `sql` names the columns the query projected and reads an empty result as a
-   * query problem; `series` is a fact or event metric's dry run (MT-9), which
+   * query problem; `series` is a fact or event metric's dry run, which
    * has no columns of its own to name.
    */
   variant?: 'sql' | 'series'
@@ -30,7 +30,7 @@ const SINGLE_GUIDANCE = {
  * missing columns, warehouse errors) arrive as a 200 with `error` set and
  * render in the standard danger style; a successful run renders a chart that
  * follows the panel's width, the value range, and a mono summary line — or
- * says what an empty or one-point result most likely means (MET-44).
+ * says what an empty or one-point result most likely means.
  */
 export function MetricPreviewPanel({ result, color, unit, variant = 'sql' }: MetricPreviewPanelProps) {
   if (result.error) {

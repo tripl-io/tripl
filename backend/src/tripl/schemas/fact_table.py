@@ -312,7 +312,7 @@ class FactTableListItem(BaseModel):
     timestamp_column: str
     created_at: datetime
     updated_at: datetime
-    # Catalog rollups (MT-30), so the list can fill its "Used by" and "Columns"
+    # Catalog rollups, so the list can fill its "Used by" and "Columns"
     # cells without fetching every fact table's detail. Defaulted: they are
     # merged in after ``model_validate`` reads the ORM row.
     metric_count: int = 0

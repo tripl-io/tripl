@@ -182,7 +182,7 @@ describe('friendlyScanError', () => {
   })
 
   // The rules used to match bare substrings, so a message that merely NAMED a
-  // column like these got a confident, wrong diagnosis (DATA-20).
+  // column like these got a confident, wrong diagnosis.
   it('does not diagnose a timeout or a connect failure from a column name', () => {
     for (const raw of [
       'Column session_timeout has an unsupported type',

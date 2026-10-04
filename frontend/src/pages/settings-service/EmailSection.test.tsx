@@ -202,7 +202,7 @@ describe('Email settings — test send', () => {
     expect(screen.queryByText(/SAVED/)).toBeNull()
   })
 
-  it('holds the test send until an SMTP host is saved (ST-32)', () => {
+  it('holds the test send until an SMTP host is saved', () => {
     renderSection(settingsFixture({ smtp_host: '' }))
 
     expect(screen.getByRole('heading', { name: 'Send a test email' })).toBeInTheDocument()
@@ -210,7 +210,7 @@ describe('Email settings — test send', () => {
     expect(screen.getByText('Set an SMTP host and save first.')).toBeInTheDocument()
   })
 
-  it('holds the test send until a From address is saved too (ST-24)', () => {
+  it('holds the test send until a From address is saved too', () => {
     renderSection(settingsFixture({ smtp_from_address: '' }))
 
     expect(screen.getByRole('button', { name: /send test email/i })).toBeDisabled()

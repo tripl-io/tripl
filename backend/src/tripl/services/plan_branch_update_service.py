@@ -1,4 +1,4 @@
-"""Update a plan branch from main: a three-way merge of main INTO the branch (PL-8).
+"""Update a plan branch from main: a three-way merge of main INTO the branch.
 
 Before this, a branch opened a minute before an unrelated edit to main read
 "behind" for the rest of its life, and the only advice the product had was

@@ -1,4 +1,4 @@
-"""The writes of "Update from main" (PL-8), split out of ``plan_branch_update_service``.
+"""The writes of "Update from main", split out of ``plan_branch_update_service``.
 
 ``_plan_branch_three_way`` decides WHAT to write — a list of ``Op`` — and this
 module writes it onto the branch's rows in the order that keeps every identity

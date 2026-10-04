@@ -201,7 +201,7 @@ export function formatInProjectZone(iso: string, timeZone: string | undefined): 
 
 /** A one-line description of a cron expression, for the card and the form. */
 // `M H * * 1-5`: the common custom cron the cadence editor has no mode for,
-// named in words on every surface that describes a schedule (AL-24).
+// named in words on every surface that describes a schedule.
 const WEEKDAYS_CRON = /^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+1-5$/
 
 function describeWeekdaysCron(cron: string): string | null {

@@ -13,7 +13,7 @@ afterEach(() => {
   document.documentElement.style.colorScheme = ''
 })
 
-describe('ThemeProvider color-scheme (DS-14)', () => {
+describe('ThemeProvider color-scheme', () => {
   it('sets the root color-scheme to the app theme, not the OS one', () => {
     const { getByTestId, unmount } = render(
       <ThemeProvider defaultTheme="light" storageKey="theme-test-light">
@@ -54,7 +54,7 @@ describe('ThemeProvider accent', () => {
   it.each([
     ['amber', 'indigo'],
     ['rose', 'magenta'],
-  ])('moves a stored retired accent %s to %s (DS-8)', (retired, replacement) => {
+  ])('moves a stored retired accent %s to %s', (retired, replacement) => {
     localStorage.setItem('theme-test-accent-accent', retired)
     render(
       <ThemeProvider defaultTheme="light" storageKey="theme-test-accent">

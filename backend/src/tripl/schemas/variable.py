@@ -145,7 +145,7 @@ class VariableUpdate(BaseModel):
 
 
 class VariableEventRef(BaseModel):
-    """One event a variable was observed in, with the id a link needs (AU-29)."""
+    """One event a variable was observed in, with the id a link needs."""
 
     id: uuid.UUID
     name: str

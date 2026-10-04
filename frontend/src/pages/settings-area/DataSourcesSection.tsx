@@ -18,7 +18,7 @@ export default function DataSourcesSection() {
         description="Warehouse connections your scans read from. Each connection carries its own credentials and can be used by scans in any project."
       />
       <Suspense
-        // The roster's shape under the header, not a 14px "Loading…" (#237 ST-35).
+        // The roster's shape under the header, not a 14px "Loading…" (#237).
         fallback={<SectionSkeleton variant="list" label="Loading data sources…" />}
       >
         <DataSourcesPage />

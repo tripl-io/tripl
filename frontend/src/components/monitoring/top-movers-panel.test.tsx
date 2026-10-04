@@ -98,7 +98,7 @@ describe('TopMoversPanel', () => {
     expect(screen.queryByText(/%$/)).not.toBeInTheDocument()
   })
 
-  it('keys the row timeline on the range length, not the moving live window (MON-3)', async () => {
+  it('keys the row timeline on the range length, not the moving live window', async () => {
     vi.mocked(eventMetricsApi.getTopMovers).mockResolvedValue([mover()])
     const fetchTimeline = vi.mocked(eventMetricsApi.getBreakdownTimeline)
     fetchTimeline.mockReset()
@@ -141,7 +141,7 @@ describe('TopMoversPanel', () => {
     await new Promise(resolve => setTimeout(resolve, 20))
     await waitFor(() => expect(fetchTimeline).toHaveBeenCalledTimes(1))
   })
-  it('colours a spike as danger and a drop as warning, like every other signal surface (MON-19)', async () => {
+  it('colours a spike as danger and a drop as warning, like every other signal surface', async () => {
     vi.mocked(eventMetricsApi.getTopMovers).mockResolvedValue([
       mover(),
       mover({
@@ -158,7 +158,7 @@ describe('TopMoversPanel', () => {
     expect(screen.getByText('-80').closest('[data-tone]')).toHaveAttribute('data-tone', 'warning')
   })
 
-  it('shows an error with a retry instead of vanishing when the request fails (MON-30)', async () => {
+  it('shows an error with a retry instead of vanishing when the request fails', async () => {
     const fetchMovers = vi.mocked(eventMetricsApi.getTopMovers)
     fetchMovers.mockReset()
     fetchMovers.mockRejectedValueOnce(new Error('upstream timeout'))
@@ -223,7 +223,7 @@ describe('TopMoversPanel', () => {
     expect(screen.getByText('+140%')).toBeInTheDocument()
   })
 
-  it('charts the drilldown with the shared chart and marks the anomaly bucket (MON-20)', async () => {
+  it('charts the drilldown with the shared chart and marks the anomaly bucket', async () => {
     vi.mocked(eventMetricsApi.getTopMovers).mockResolvedValue([mover()])
     const fetchTimeline = vi.mocked(eventMetricsApi.getBreakdownTimeline)
     fetchTimeline.mockReset()
@@ -249,7 +249,7 @@ describe('TopMoversPanel', () => {
     expect(chart).toHaveAccessibleDescription(/3 data points\. 1 anomal/)
   })
 
-  // DS-26: the drilldown handed the chart a plain string, so a one-event
+  // the drilldown handed the chart a plain string, so a one-event
   // bucket's tooltip read "1 events (platform=ios)".
   it('agrees the drilldown noun with a one-event bucket', async () => {
     vi.mocked(eventMetricsApi.getTopMovers).mockResolvedValue([mover()])
@@ -276,7 +276,7 @@ describe('TopMoversPanel', () => {
     expect(formatSeriesValue(3, noun!)).toBe('3 events (platform=ios)')
   })
 
-  it('says so inline when the drilldown timeline fails (MON-20)', async () => {
+  it('says so inline when the drilldown timeline fails', async () => {
     vi.mocked(eventMetricsApi.getTopMovers).mockResolvedValue([mover()])
     const fetchTimeline = vi.mocked(eventMetricsApi.getBreakdownTimeline)
     fetchTimeline.mockReset()

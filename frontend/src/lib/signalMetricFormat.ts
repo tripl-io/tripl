@@ -12,7 +12,7 @@ import type { MonitoringSignal } from '@/types'
  * A signal's "actual vs expected", in the metric's own unit.
  *
  * Catalog-metric signals are not counts: a percent metric read "0.043 vs 0.12"
- * here while its detail page said "4.3 % vs 12 %" (MON-34). The unit rides on
+ * here while its detail page said "4.3 % vs 12 %". The unit rides on
  * the signal when the server sends one (`unit`, metric scope only); without it
  * the values keep the count formatting every event scope uses.
  */

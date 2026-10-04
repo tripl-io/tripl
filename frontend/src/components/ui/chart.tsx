@@ -62,7 +62,7 @@ import { signalDirectionColor } from '@/lib/statusLexicon'
 import { windowPaddingBuckets } from '@/components/ui/chart-window'
 
 /**
- * The default colour of a single-series chart (DS-27): the first categorical
+ * The default colour of a single-series chart: the first categorical
  * slot, a fixed hue that does not follow the user's accent. "Volume over time"
  * used to be drawn in the accent on one page, teal on another and violet on a
  * third. Anomalies are marked with danger dots and bands, never by recolouring
@@ -110,7 +110,7 @@ interface MetricsChartProps {
    */
   sigmaThreshold?: number
   /**
-   * Clamp the confidence and forecast bands at zero (MON-21). A count cannot be
+   * Clamp the confidence and forecast bands at zero. A count cannot be
    * negative, but `expected - k·σ` can, and the band then dragged the axis
    * below zero on every quiet scope. Defaults to on for count series — no
    * `valueFormatter` — and off for catalog metrics, which may be signed.
@@ -119,12 +119,12 @@ interface MetricsChartProps {
   /**
    * The window the reader asked for. The x-axis is padded with empty buckets
    * out to it, so a series that starts late in a 30-day range is drawn at its
-   * real position rather than stretched edge-to-edge (MON-22).
+   * real position rather than stretched edge-to-edge.
    */
   from?: string
   to?: string
   /**
-   * Rolled-up buckets the data does not fully cover (MO-5). A 30-day chart in
+   * Rolled-up buckets the data does not fully cover. A 30-day chart in
    * days starts mid-day and ends at "now", so its first and last buckets hold
    * a fraction of a day and drew as cliffs. They are drawn dashed with a
    * hollow point and named in the tooltip instead. `first` is the instant the
@@ -132,7 +132,7 @@ interface MetricsChartProps {
    * the last one.
    */
   partial?: PartialWindow
-  /** Draw the legend under the plot (MO-1): only the marks the chart has. */
+  /** Draw the legend under the plot: only the marks the chart has. */
   legend?: boolean
 }
 
@@ -156,8 +156,7 @@ interface MetricsMultiSeriesChartProps {
     color?: string
     /**
      * SVG dash pattern. The palette has eight hues, so a ninth series reuses
-     * the first one's colour and needs a second cue to stay distinguishable
-     * (MON-29).
+     * the first one's colour and needs a second cue to stay distinguishable.
      */
     dash?: string
     isHighlighted?: boolean
@@ -178,7 +177,7 @@ interface MetricsMultiSeriesChartProps {
   valueFormatter?: (value: number) => string
   /** See MetricsChartProps.tooltipFormatter. */
   tooltipFormatter?: (value: number) => string
-  /** See MetricsChartProps.from / .to (MON-22). */
+  /** See MetricsChartProps.from / .to. */
   from?: string
   to?: string
 }
@@ -210,7 +209,7 @@ function collectMultiSeriesYValues(
 /**
  * X-axis tick props for a bucket axis. A sub-day series spanning two days or
  * more gets one tick per local day, labelled with the date alone; anything
- * shorter keeps recharts' spacing and the full bucket label (LIVE-27).
+ * shorter keeps recharts' spacing and the full bucket label.
  * `preserveStartEnd` keeps the first day when the axis is too narrow for every
  * tick — the default `preserveEnd` dropped it at 768px.
  */
@@ -308,7 +307,7 @@ interface ChartDataPoint {
   forecast_band?: [number, number]
   forecast_error?: [number, number]
   is_forecast?: boolean
-  /** The value drawn solid; null on a partial bucket (MO-5). */
+  /** The value drawn solid; null on a partial bucket. */
   solid_count?: number | null
   /** The dashed stub into a partial bucket: the partial point and its neighbour. */
   partial_count?: number | null
@@ -320,7 +319,7 @@ interface ChartDataPoint {
  * Below this many points a line is drawn straight between the measurements,
  * with a small dot on each: monotone smoothing over a handful of daily or
  * weekly buckets invented a trend between them and hid where the real points
- * were (MO-6).
+ * were.
  */
 const SMOOTH_MIN_POINTS = 60
 const POINT_DOTS_MAX_POINTS = 30
@@ -331,7 +330,7 @@ function curveFor(pointCount: number): CurveType {
   return pointCount > SMOOTH_MIN_POINTS ? 'monotone' : 'linear'
 }
 
-/** Flag the partial first/last buckets and split the series around them (MO-5). */
+/** Flag the partial first/last buckets and split the series around them. */
 function markPartialBuckets(points: ChartDataPoint[], partial: PartialWindow) {
   for (const point of points) point.solid_count = point.count
   const first = points[0]
@@ -393,7 +392,7 @@ export function buildChartData(
   const k = Number.isFinite(sigmaThreshold) && sigmaThreshold > 0
     ? sigmaThreshold
     : DEFAULT_SIGMA_THRESHOLD
-  // A count's band stops at zero (MON-21); a signed metric's does not.
+  // A count's band stops at zero; a signed metric's does not.
   const floor = (value: number) => (nonNegative ? Math.max(0, value) : value)
   const points: ChartDataPoint[] = data.map(point => {
     const baseline = bandSource(point)
@@ -411,7 +410,7 @@ export function buildChartData(
     }
   })
   // The normal range as a whisker on the expected point wherever the area
-  // cannot paint it: a bucket whose neighbours carry no band (MO-1). With
+  // cannot paint it: a bucket whose neighbours carry no band. With
   // stored baselines most scored buckets form a run the area fills; a flagged
   // bucket keeps its whisker regardless, so its range reads at a glance.
   points.forEach((point, index) => {
@@ -425,7 +424,7 @@ export function buildChartData(
 
   // The forecast is its own hollow point with a whisker for its range, not a
   // dashed line from the last actual: drawn from a spike, that line fell
-  // steeply at the right edge and read as "then it crashed" (MO-7).
+  // steeply at the right edge and read as "then it crashed".
   if (points.length > 0) {
     for (const point of forecast) {
       const offset = k * point.stddev
@@ -447,7 +446,7 @@ export function buildChartData(
   return points
 }
 
-/** Empty padding rows, typed for whichever row shape the chart uses (MON-22). */
+/** Empty padding rows, typed for whichever row shape the chart uses. */
 function padRows<Row extends { bucket: string }>(
   rows: Row[],
   window: { from?: string; to?: string },
@@ -478,7 +477,7 @@ export function padChartData(
 }
 
 /**
- * The anomaly line of a tooltip: which way it moved and how far (MON-17). The
+ * The anomaly line of a tooltip: which way it moved and how far. The
  * dot was the only mark, in one red for spikes and drops alike, and hovering it
  * said nothing the plain line did not.
  */
@@ -520,7 +519,7 @@ export function CustomTooltip({
   valueFormatter?: (value: number) => string
   tooltipFormatter?: (value: number) => string
   /**
-   * Accepted for callers; the tooltip no longer prints "±Nσ band" (MO-38).
+   * Accepted for callers; the tooltip no longer prints "±Nσ band".
    * The legend names the band's width instead.
    */
   sigmaThreshold?: number
@@ -548,7 +547,7 @@ export function CustomTooltip({
     )
   }
 
-  // A padding bucket out at the window's edge (MON-22): no value, not zero.
+  // A padding bucket out at the window's edge: no value, not zero.
   if (point.count == null && point.expected_count == null) {
     return (
       <div className="rounded-card border bg-popover text-popover-foreground px-3 py-2 shadow-md">
@@ -561,7 +560,7 @@ export function CustomTooltip({
   const expectedCount = point.expected_count
   const count = point.count ?? 0
   // A flagged value that rounds onto its own band edge ("37, normal 27–37")
-  // read as inside the band; one more decimal separates them (MO-38).
+  // read as inside the band; one more decimal separates them.
   const extraDigit = !valueFormatter && point.band != null
     && point.band.some(edge => Math.round(edge) === Math.round(count) && edge !== count)
   const formatPlain = (value: number) =>
@@ -571,7 +570,7 @@ export function CustomTooltip({
   const formatSecondary = (value: number) => (valueFormatter ? valueFormatter(value) : formatPlain(value))
   const partialNote = partialBucketNote(point, granularity)
 
-  // Three lines at most (MO-38): the bucket, the value, what was expected with
+  // Three lines at most: the bucket, the value, what was expected with
   // its normal range, and for a flagged bucket which way and how far.
   return (
     <div className="rounded-card border bg-popover text-popover-foreground px-3 py-2 shadow-md">
@@ -627,7 +626,7 @@ function VerdictTooltipLine({ verdict }: { verdict: SignalVerdict }) {
 
 /**
  * The tooltip's bucket label. A sub-day bucket is an instant in the viewer's
- * zone, so it names the zone ("Sep 22, 06:00 PM GMT+3", MO-38); calendar
+ * zone, so it names the zone ("Sep 22, 06:00 PM GMT+3"); calendar
  * buckets are UTC days and keep the plain label.
  */
 function formatTooltipHeading(bucket: string, granularity: MetricsGranularity): string {
@@ -641,7 +640,7 @@ function formatTooltipHeading(bucket: string, granularity: MetricsGranularity): 
   return zone ? `${text} ${zone}` : text
 }
 
-/** "27–37" with the unit once, at the end: "3–7%", not "3%–7%" (MO-38). */
+/** "27–37" with the unit once, at the end: "3–7%", not "3%–7%". */
 function formatValueRange(
   [low, high]: [number, number],
   format: ((value: number) => string) | undefined,
@@ -672,7 +671,7 @@ function partialBucketNote(point: ChartDataPoint, granularity: MetricsGranularit
 
 /**
  * A flagged bucket in words: which way it moved and by how much against the
- * expectation ("▲ Spike, +16% above expected"), not a z-score (MO-38 / MO-2).
+ * expectation ("▲ Spike, +16% above expected"), not a z-score.
  * The z-score stays only when there is no expectation to compare against.
  */
 function AnomalyEffectLine({
@@ -801,7 +800,7 @@ function snapAnnotationsToBuckets(
   // inside the requested window (`windowEnd`, i.e. "now" for live ranges)
   // lands on the newest bucket: the form defaults to "now", and with
   // collection lag that instant is hours past the last bucket, so "mark the
-  // deploy I just did" silently drew nothing (MO-8).
+  // deploy I just did" silently drew nothing.
   const buckets = data.map(point => ({
     bucket: point.bucket,
     time: new Date(point.bucket).getTime(),
@@ -1085,7 +1084,7 @@ export function MetricsChart({
         )}
         {/* Humanized like every other bucket in this summary, and separated:
             the raw ISO instants used to run together
-            ("2026-09-24T10:00:00Z: Deploy2026-…", DS-25). */}
+            ("2026-09-24T10:00:00Z: Deploy2026-…"). */}
         {snappedAnnotations.length > 0 && (
           <>
             {' '}
@@ -1179,7 +1178,7 @@ export function MetricsChart({
               the detector scored stores its baseline), and a
               hollow point with its normal-range whisker where a bucket carries
               one alone — a flagged bucket, or history scored before baselines
-              were stored (MO-1). */}
+              were stored. */}
           <Line
             type={curve}
             dataKey="expected_count"
@@ -1221,7 +1220,7 @@ export function MetricsChart({
             pointDots: data.length <= POINT_DOTS_MAX_POINTS,
           })}
           {/* A partial first/last bucket: dashed, with a hollow point, so a
-              day that is only half over does not read as a drop (MO-5). */}
+              day that is only half over does not read as a drop. */}
           {hasPartial && chartStyle !== 'bar' && (
             <Line
               type="linear"
@@ -1263,7 +1262,7 @@ export function MetricsChart({
             />
           )}
           {/* Forecast: a hollow point with a whisker for its likely range, in
-              a neutral ink, not a line from the last actual (MO-7). */}
+              a neutral ink, not a line from the last actual. */}
           <Line
             type="linear"
             dataKey="forecast_expected"
@@ -1280,7 +1279,7 @@ export function MetricsChart({
           {snappedAnnotations.map(annotation => {
             // Inside the plot, on the side with room: `top` drew the label
             // above the plot area, where the right edge clipped a label on
-            // the newest bucket ("injected dem…", LIVE-22). A line in the
+            // the newest bucket ("injected dem…"). A line in the
             // right half puts its label to its left, and vice versa.
             const rightHalf = (bucketIndex.get(annotation.bucket) ?? 0) > (chartData.length - 1) / 2
             const position = rightHalf ? 'insideTopRight' : 'insideTopLeft'
@@ -1346,7 +1345,7 @@ export function MetricsChart({
 }
 
 /**
- * What each mark on a volume chart means (MO-1), listing only the marks this
+ * What each mark on a volume chart means, listing only the marks this
  * chart draws: "— Actual · - - Expected · ┃ Normal range (±4σ) · ▲ Anomaly".
  */
 // Exported for unit tests only.
@@ -1437,7 +1436,7 @@ export function MetricsMultiSeriesChart({
   to,
 }: MetricsMultiSeriesChartProps) {
   // On a phone the finger sits on the plot and the tooltip beside it covered
-  // the y-axis: pin it to the top edge instead, free to leave the plot (MO-29).
+  // the y-axis: pin it to the top edge instead, free to leave the plot.
   const coarsePointer = useMediaQuery(COARSE_POINTER_QUERY)
   const chartSeries = useMemo(
     () => series
@@ -1457,7 +1456,7 @@ export function MetricsMultiSeriesChart({
         const row = rows.get(point.bucket) ?? { bucket: point.bucket }
         row[item.key] = point.count
         row[`${item.key}__anomaly`] = point.is_anomaly
-        // Read back by the tooltip's anomaly line (MON-17).
+        // Read back by the tooltip's anomaly line.
         if (point.anomaly_direction) row[`${item.key}__direction`] = point.anomaly_direction
         if (point.z_score != null) row[`${item.key}__z`] = point.z_score
         rows.set(point.bucket, row)
@@ -1490,7 +1489,7 @@ export function MetricsMultiSeriesChart({
       role="img"
       aria-label={`${seriesNounPlural(seriesLabel)} breakdown over time`}
       // role="img" makes its children presentational, so the summary is only
-      // read through this reference (DS-25).
+      // read through this reference.
       aria-describedby={descId}
       className={cn('w-full', className)}
       style={{ height }}
@@ -1551,8 +1550,7 @@ export function MetricsMultiSeriesChart({
               strokeOpacity={item.isHighlighted ? 1 : 0.82}
               strokeDasharray={item.dash}
               // Static, like the main volume series: animating up to eight
-              // lines of a few hundred points each janked every range change
-              // (MON-23).
+              // lines of a few hundred points each janked every range change.
               isAnimationActive={false}
               // The dot renderer runs once per point, so a series with nothing
               // flagged skips it entirely instead of drawing empty fragments.
@@ -1603,11 +1601,11 @@ export function renderCountSeries({
   chartColor: string
   gradientId: string
   mini: boolean
-  /** `linear` for a coarse or sparse series (MO-6). */
+  /** `linear` for a coarse or sparse series. */
   curve?: CurveType
-  /** `solid_count` when a partial bucket is split off onto its own dashed line (MO-5). */
+  /** `solid_count` when a partial bucket is split off onto its own dashed line. */
   dataKey?: 'count' | 'solid_count'
-  /** A small dot on every measured point of a sparse series (MO-6). */
+  /** A small dot on every measured point of a sparse series. */
   pointDots?: boolean
 }) {
   const anomalyDot = (props: { cx?: number | null; cy?: number | null; payload?: ChartDataPoint }) => {
@@ -1628,7 +1626,7 @@ export function renderCountSeries({
   }
 
   if (chartStyle === 'bar') {
-    // Bars keep every bucket: a partial one is drawn faded instead (MO-5).
+    // Bars keep every bucket: a partial one is drawn faded instead.
     return (
       <Bar
         dataKey="count"
@@ -1671,7 +1669,7 @@ export function renderCountSeries({
 /**
  * An anomaly's mark on the line: a triangle pointing the way it moved, in the
  * direction's colour — so a drop reads as a drop without colour, and a spike
- * and a drop are told apart at a glance (MON-17). A plain dot, as before, when
+ * and a drop are told apart at a glance. A plain dot, as before, when
  * the direction is unknown.
  */
 // Exported for unit tests only — recharts never paints in jsdom.
@@ -1781,7 +1779,7 @@ function AnomalyBar({
   }
   // Fill AND an outline in the direction's colour: a changed fill alone was the
   // only cue, and at a bar's width a red and an amber fill are hard to tell
-  // apart from the series colour (MON-17).
+  // apart from the series colour.
   const tone = payload.planned_event_id
     ? PLANNED_MARK_COLOR
     : payload.anomaly_direction
@@ -1817,7 +1815,7 @@ export function MiniMetricsChart({
   const gradientId = useId().replace(/:/g, '')
   const descId = useId()
   // Same gate as the full-size charts: a mini chart inside a collapsed card
-  // mounted recharts at -1×-1 and logged a warning on every render (DS-27).
+  // mounted recharts at -1×-1 and logged a warning on every render.
   const { ref: containerRef, ready: containerReady } = useChartContainerReady()
 
   if (!data.length) {

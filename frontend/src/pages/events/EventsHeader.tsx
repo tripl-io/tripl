@@ -29,7 +29,7 @@ export type EventTypeDrift = {
   coach?: boolean
 }
 
-// One sentence each (EV-25). The long form lived here as a five-line paragraph
+// One sentence each. The long form lived here as a five-line paragraph
 // about "incident rollup" and "Significant threshold". The point that matters:
 // this count covers the charted series (project total + event types), so it can
 // differ from the sidebar Anomalies badge in either direction.
@@ -73,7 +73,7 @@ function StatHelp({ help }: { help: string }) {
 }
 
 /**
- * Open schema drift, one badge per event type (EVT-33). The page header shows
+ * Open schema drift, one badge per event type. The page header shows
  * it; the embedded table (an event type's detail view), which has no header,
  * shows it above its toolbar.
  */
@@ -202,10 +202,10 @@ export function EventsHeader({
    * Open schema drift, once per event type. Drift belongs to the type, and the
    * backend copies the type's count onto every event of it, so a badge per row
    * repeated the same number down hundreds of rows and read as a per-event
-   * count (EVT-33).
+   * count.
    */
   typeDrifts?: EventTypeDrift[]
-  /** A project with no events: three zeroes teach nothing (EV-18). */
+  /** A project with no events: three zeroes teach nothing. */
   hideStats?: boolean
 }) {
   const openSignalCount = eventTypeSignals.size + (projectTotalSignal ? 1 : 0)
@@ -213,7 +213,7 @@ export function EventsHeader({
   const inReviewValue = inReviewPending ? (
     <StatValueSkeleton />
   ) : slug ? (
-    // The queue this number counts is one click away (EV-23).
+    // The queue this number counts is one click away.
     <Link
       to={projectPath(currentOrgSlug(), slug, '/events/review')}
       className="underline-offset-4 hover:underline"
@@ -236,7 +236,7 @@ export function EventsHeader({
       }
       // The page KPIs sit under the title in the one boxed strip, as on
       // Overview, Metrics and Anomalies, instead of right-aligned in the
-      // actions slot (DS-5). The strip wraps on a phone-width viewport.
+      // actions slot. The strip wraps on a phone-width viewport.
       stats={
         hideStats ? undefined : (
           <div className="flex flex-col gap-3">
@@ -249,11 +249,11 @@ export function EventsHeader({
               />
             )}
             {/* Pending values are a skeleton with no delta or tone: "0 · none"
-                before the queries settle was a false all-clear (DS-25 / EV-19). */}
+                before the queries settle was a false all-clear. */}
             <MiniStatStrip boxed>
               {/* The one place the count appears in the header: the heading used to
                   repeat it beside the h1, unformatted, while the footer formatted
-                  the same number (EVT-16). */}
+                  the same number. */}
               {columnFilter ? (
                 <MiniStat
                   label="Matching"
@@ -267,10 +267,10 @@ export function EventsHeader({
                 />
               )}
               {/* The help icon rides on the caption it explains: beside the whole
-                  stat it sat far from the label, next to the following stat
-                  (LIVE-23). "Open"/"none", not "live"/"quiet": "Live" is the
-                  lifecycle status of a shipped event, in green, one column over
-                  (EV-5 / DS-7). */}
+                  stat it sat far from the label, next to the following stat.
+                  "Open"/"none", not "live"/"quiet": "Live" is the
+                  lifecycle status of a shipped event, in green, one column over.
+                  */}
               {signalsPending ? (
                 <MiniStat
                   label="Open signals"
@@ -287,7 +287,7 @@ export function EventsHeader({
                   labelAddon={<StatHelp help={OPEN_SIGNALS_HELP} />}
                 />
               )}
-              {/* "In review", the one name for this count app-wide (JR-27). */}
+              {/* "In review", the one name for this count app-wide. */}
               <MiniStat
                 label="In review"
                 value={inReviewValue}

@@ -238,7 +238,7 @@ describe('CommandPalette', () => {
     // "Event type settings", "Meta field settings", "Relation settings",
     // "Variable settings" and "Monitoring settings".
     expect(screen.getByText('Event types')).toBeInTheDocument()
-    // Renamed for what it holds (#238 AU-10); the old name is a keyword.
+    // Renamed for what it holds (#238); the old name is a keyword.
     expect(screen.getByText('Meta fields')).toBeInTheDocument()
     expect(screen.getByText('Relations')).toBeInTheDocument()
     expect(screen.getByText('Properties')).toBeInTheDocument()
@@ -1247,7 +1247,7 @@ describe('CommandPalette keyword-first results', () => {
   })
 })
 
-describe('CommandPalette AI mode and scope (SHELL-26 / SHELL-27 / SHELL-28)', () => {
+describe('CommandPalette AI mode and scope', () => {
   function mockAiFetch() {
     return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
@@ -1342,7 +1342,7 @@ describe('CommandPalette AI mode and scope (SHELL-26 / SHELL-27 / SHELL-28)', ()
   })
 })
 
-describe('CommandPalette in the shell (SHELL-25 / SHELL-27)', () => {
+describe('CommandPalette in the shell', () => {
   it('searches the project the shell resolved even when the list does not show it', async () => {
     // A deep link to a project the list has not caught up with: Layout
     // confirmed it through the project endpoint and hands it down.
@@ -1432,7 +1432,7 @@ describe('CommandPalette in the shell (SHELL-25 / SHELL-27)', () => {
   })
 })
 
-describe('CommandPalette reach and noise (#238 JR-19 / SH-19 / JR-20)', () => {
+describe('CommandPalette reach and noise (#238)', () => {
   function mockDemo() {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)

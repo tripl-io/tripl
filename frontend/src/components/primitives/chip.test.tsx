@@ -4,7 +4,7 @@ import { Chip } from './chip'
 import { CodeToken } from './code-token'
 import { CountBadge } from './count-badge'
 
-describe('Chip taxonomy (DS-6)', () => {
+describe('Chip taxonomy', () => {
   it('draws a status as a soft tone pill', () => {
     render(<Chip tone="success">Live</Chip>)
     const chip = screen.getByText('Live')

@@ -13,13 +13,13 @@ import { factTableKey, factTablesKey } from '@/lib/queryKeys'
  * The slice of a loaded fact table one operand editor needs: its columns, the
  * identifier columns / named row filters that populate the dropdowns, and the
  * dialect + one-table schema its SQL filter editor highlights and completes
- * against (MET-30). A filter runs over the fact table's own output
+ * against. A filter runs over the fact table's own output
  * (`SELECT * FROM (<fact sql>) AS _filtered WHERE …`), so the fact table's
  * columns are the right completion set — not every table in the warehouse.
  */
 export interface FactTableDetail {
   columns: FactTableColumn[]
-  /** The column the table buckets by, never a breakdown (MT-16). */
+  /** The column the table buckets by, never a breakdown. */
   timestampColumn?: string
   identifierColumns: string[]
   rowFilters: string[]
@@ -68,7 +68,7 @@ export function useFactTableDetails(
   slug: string,
   draft: MetricDraft,
   dataSources: readonly DataSource[],
-  /** Load the list for any kind: the create form's kind step reads it (MT-3). */
+  /** Load the list for any kind: the create form's kind step reads it. */
   { loadList = false }: { loadList?: boolean } = {},
 ): FactTableDetails {
   const enabled = draft.kind === 'fact'

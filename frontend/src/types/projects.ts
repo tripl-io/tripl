@@ -20,7 +20,7 @@ export interface ProjectSummary {
   variable_count: number
   scan_count: number
   // Metric definitions in the project, any status: the "Define a key metric"
-  // onboarding step's done-state (JR-2). Always sent; optional so summaries
+  // onboarding step's done-state. Always sent; optional so summaries
   // built before it still type, and a missing count leaves that step out.
   metric_count?: number
   alert_destination_count: number
@@ -37,7 +37,7 @@ export interface ProjectSummary {
   // failures the single newest `latest_scan_job` misses.
   failing_scan_config_count: number
   // Enabled alert destinations whose latest delivery failed: the per-channel
-  // twin of `failing_scan_config_count`, for the Overview status line (MO-15).
+  // twin of `failing_scan_config_count`, for the Overview status line.
   // Always sent (default 0); optional so summaries built before it still type.
   failing_alert_destination_count?: number
   // Open property drifts (F23, #306): new, missing-required and retyped

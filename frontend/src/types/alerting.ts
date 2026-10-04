@@ -75,7 +75,7 @@ export interface AlertRule {
 }
 
 // `metric` matches a catalog metric's signal by its MetricDefinition id — a
-// catalog signal's scope_ref (JR-15). Every other signal passes it through.
+// catalog signal's scope_ref. Every other signal passes it through.
 export type AlertRuleFilterField = 'event_type' | 'event' | 'direction' | 'metric'
 export type AlertRuleFilterOperator = 'eq' | 'ne' | 'in' | 'not_in'
 
@@ -151,7 +151,7 @@ export interface AlertDestination {
  * and the channel's own message rather than a 5xx the UI would render as
  * "something went wrong on our side".
  */
-/** What kind of failure a test send's `error` describes (AL-30). */
+/** What kind of failure a test send's `error` describes. */
 export type DestinationTestErrorKind =
   | 'config'
   | 'policy'
@@ -168,14 +168,14 @@ export interface AlertDestinationTestResponse {
   error: string | null
   sent_at: string | null
   /** The failure's kind, and the status code when it is `http_status`, so the
-   * card reads a field rather than the exception text (AL-30). Optional:
+   * card reads a field rather than the exception text. Optional:
    * servers and fixtures before them send neither. */
   error_kind?: DestinationTestErrorKind | null
   http_status?: number | null
 }
 
 /**
- * `POST /projects/{slug}/alert-destinations/test` (AL-30): the destination
+ * `POST /projects/{slug}/alert-destinations/test`: the destination
  * dialog's settings, tested before they are saved. `destination_id` names the
  * saved destination an edit dialog is open on; a secret left blank then means
  * the stored one. Mirrors `AlertDestinationDraftTestRequest`.
@@ -376,8 +376,8 @@ export interface AlertDeliveryListResponse {
   items: AlertDelivery[]
   total: number
   /**
-   * Opaque keyset cursor for the page after this one; `null` on the last page
-   * (ALR-27). The server always sends it; a reader falls back to offset
+   * Opaque keyset cursor for the page after this one; `null` on the last page.
+   * The server always sends it; a reader falls back to offset
    * paging when it is null.
    */
   next_cursor: string | null
@@ -537,7 +537,7 @@ export interface AlertInboxBulkActionResponse {
   overrides_written: number | null
 }
 
-/** Incidents per effective status, over the whole window (AL-14). */
+/** Incidents per effective status, over the whole window. */
 export type AlertInboxStatusCounts = Record<AlertInboxStatus, number>
 
 export interface AlertInboxListResponse {
@@ -545,7 +545,7 @@ export interface AlertInboxListResponse {
   total: number
   /**
    * Incidents per status after every other filter and before the status one,
-   * so a status option can say what picking it would list (AL-14). Always
+   * so a status option can say what picking it would list. Always
    * sent; optional so fixtures written before it still type.
    */
   status_counts?: AlertInboxStatusCounts
@@ -623,7 +623,7 @@ export interface MonitorsSummaryResponse {
 }
 
 /**
- * One scope of a monitor that is firing now (MO-36).
+ * One scope of a monitor that is firing now.
  *
  * Chosen by the same horizon test as `firing_scope_count`, so the list and the
  * count cannot disagree. `scope_name`, `event_id` and `direction` come from the

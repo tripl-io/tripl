@@ -5,7 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { termAnchor } from '@/lib/glossary'
 import { TERM_HINTS, TermHint } from './term-hint'
 
-describe('TermHint (JR-31)', () => {
+describe('TermHint', () => {
   it('links the term to its row in the Concepts glossary', () => {
     render(
       <TooltipProvider>

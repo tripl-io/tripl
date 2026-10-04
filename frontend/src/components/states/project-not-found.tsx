@@ -7,7 +7,7 @@ import type { Project } from '@/types'
 const PROJECT_SHORTLIST = 5
 
 /**
- * `/p/<unknown>/…`: the address names no project the viewer can see (#237 SH-34).
+ * `/p/<unknown>/…`: the address names no project the viewer can see (#237).
  *
  * The project shell cannot render here (everything in it fans out requests for
  * the slug), and a bare centred 404 on a blank screen left someone who followed

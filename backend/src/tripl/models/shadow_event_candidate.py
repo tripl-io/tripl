@@ -61,8 +61,8 @@ class ShadowEventCandidate(UUIDMixin, Base):
     observed_count: Mapped[int] = mapped_column(BigInteger, default=0)
     # Up to ``SHADOW_SAMPLE_LIMIT`` property dicts (column -> value) from the rows
     # that produced this identity in the most recent collection window, so the
-    # shadow inbox can show what the event looks like before it is accepted
-    # (DA-32). Replaced, not merged, like ``observed_count``.
+    # shadow inbox can show what the event looks like before it is accepted.
+    # Replaced, not merged, like ``observed_count``.
     sample_properties: Mapped[list[dict[str, str]]] = mapped_column(
         JSON, default=list, server_default="[]"
     )

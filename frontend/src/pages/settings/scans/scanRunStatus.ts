@@ -5,7 +5,7 @@ import type { RunPillStatus, ScanJob } from '@/types'
 // alone (colorblind- and screen-reader-safe). Lives in its own module so the
 // component files that render the pill stay component-only (react-refresh).
 // The type itself is in types/scans.ts, so lib/ can use it without importing
-// this page module (DS-41); re-exported for the existing callers.
+// this page module; re-exported for the existing callers.
 export type { RunPillStatus }
 
 const JOB_STATUS_TO_PILL: Record<ScanJob['status'], RunPillStatus> = {

@@ -22,8 +22,8 @@ import { withChoice } from './conflictModel'
 /**
  * The backend's `ours` is main as it is now and `theirs` is this branch
  * (`plan_branch_conflicts.py`). Product users are not git users, so neither
- * word reaches the screen (PLAN-6). A stored choice names the resulting value,
- * so the same two words serve the merge and "Update from main" (PL-8).
+ * word reaches the screen. A stored choice names the resulting value,
+ * so the same two words serve the merge and "Update from main".
  */
 const CHOICE_LABEL: Record<ResolutionChoice, string> = {
   theirs: 'Keep this branch',
@@ -57,7 +57,7 @@ interface ConflictListProps {
  * Every overlap, grouped by entity type and parent ("Fields in checkout"),
  * each field with its three values and the two choices. Shared by the
  * Conflicts panel and the "Update from main" dialog, so a choice reads the
- * same in both (PL-8).
+ * same in both.
  */
 export function ConflictList({
   entities,
@@ -93,7 +93,7 @@ export function ConflictList({
               key={`${entity.entity_type}:${entity.name}`}
               className="rounded-card border p-3 border-border-subtle"
             >
-              {/* "Event type checkout", not the wire's `event_type: checkout` (PL-20). */}
+              {/* "Event type checkout", not the wire's `event_type: checkout`. */}
               <div className="mb-1 text-body-sm text-fg-tertiary">
                 {entityTypeTitle(entity.entity_type)}{' '}
                 <span className="mono font-medium text-fg">{entity.label || entity.name}</span>
@@ -129,7 +129,7 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
   const qc = useQueryClient()
   const canWrite = useCanWriteProject()
   // Two plan snapshots per call, and a landed branch has nothing left to
-  // resolve — so a merged or closed one never asks (PLAN-5).
+  // resolve — so a merged or closed one never asks.
   const open = branch.status !== 'merged' && branch.status !== 'closed'
   const conflictsKey = planBranchConflictsKey(slug, branch.id)
   const { data: conflicts } = useQuery({
@@ -148,7 +148,7 @@ export function ConflictsPanel({ slug, branch }: { slug: string; branch: PlanBra
   })
   const resolutionMut = useMutation({
     mutationKey: resolutionMutationKey,
-    // Rendered inline below, beside the choice that failed (PLAN-7).
+    // Rendered inline below, beside the choice that failed.
     meta: SILENT_ERROR_META,
     mutationFn: ({ entity_type, entity_name, field, choice }: ResolveVars) =>
       planBranchesApi.saveResolution(slug, branch.id, {
@@ -298,7 +298,7 @@ function ConflictFieldRow({
       ) : (
         // Stacked below `sm`: three monospace columns squeezed to ~100px each
         // on a phone. In time order, the two sides being chosen between last:
-        // main when the branch opened, main now, this branch (PL-20).
+        // main when the branch opened, main now, this branch.
         <div className="mono mt-1 grid grid-cols-1 gap-1 sm:grid-cols-3 sm:gap-2">
           <ConflictValue label="Was (when the branch opened)" value={field.base} />
           <ConflictValue label="Main now" value={field.ours} />

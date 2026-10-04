@@ -266,7 +266,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     expect(ring()).toBeNull()
   })
 
-  it('does not scroll towards an anchor with no layout (DEMO-10)', () => {
+  it('does not scroll towards an anchor with no layout', () => {
     // jsdom's default rect is 0x0: nothing sensible to scroll to.
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     renderMark(
@@ -278,7 +278,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     expect(scrollSpy).not.toHaveBeenCalled()
   })
 
-  it('stands down for an anchor that is mounted but not rendered (DEMO-10)', () => {
+  it('stands down for an anchor that is mounted but not rendered', () => {
     // A hidden tab panel keeps its controls mounted with no box; the card used
     // to open pinned to the page corner, pointing at nothing.
     stubAnchorRect(IN_VIEWPORT_RECT)
@@ -304,7 +304,7 @@ describe('ScenarioCoachMark — emphasizing the click target', () => {
     }
   })
 
-  it('follows the anchor as it is hidden and shown again, measured after each commit (DEMO-10)', () => {
+  it('follows the anchor as it is hidden and shown again, measured after each commit', () => {
     stubAnchorRect(IN_VIEWPORT_RECT)
     const original = Element.prototype.checkVisibility
     // Answers from the DOM, as the browser does — so a measure taken during
@@ -528,7 +528,7 @@ const rowMark = (
   </table>
 )
 
-describe('ScenarioCoachMark — the anchor is never remounted (DEMO-2)', () => {
+describe('ScenarioCoachMark — the anchor is never remounted', () => {
   it('mounts a docked anchor once, so focus and local state survive docking', () => {
     let mounts = 0
     // React 19 passes `ref` as a plain prop, so the mark's clone reaches the button.
@@ -659,7 +659,7 @@ describe('ScenarioCoachMark — the anchor is never remounted (DEMO-2)', () => {
   })
 })
 
-describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', () => {
+describe('ScenarioCoachMark — the docked card', () => {
   it('is portalled to <body>, never left as a <div> inside <tbody>', () => {
     renderMark(rowMark)
 
@@ -684,7 +684,7 @@ describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', ()
     expect(docked).toHaveAttribute('data-coach-edge', 'bottom')
   })
 
-  // LIVE-13: a control at the left of a table got its card at the far right.
+  // a control at the left of a table got its card at the far right.
   it('sits on the side of the screen its anchor is on', () => {
     stubAnchorRect({ top: 100, left: 20, width: 120, height: 30 })
     const left = renderMark(rowMark)
@@ -702,7 +702,7 @@ describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', ()
     )
   })
 
-  it('docks under the demo banner, not on its controls (#251 SH-5)', () => {
+  it('docks under the demo banner, not on its controls (#251)', () => {
     // The card used to sit at a fixed top-14, exactly over the banner's hide
     // hints / dismiss / tour / Reset / Delete: the controls that put it away.
     const banner = document.createElement('div')
@@ -738,7 +738,7 @@ describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', ()
     }
   })
 
-  it('docks every mark on a phone, clear of the page title (#251 DA-45)', () => {
+  it('docks every mark on a phone, clear of the page title (#251)', () => {
     stubAnchorRect(IN_VIEWPORT_RECT)
     vi.stubGlobal(
       'matchMedia',
@@ -763,7 +763,7 @@ describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', ()
     expect(docked).toHaveAttribute('data-coach-edge', 'bottom')
   })
 
-  it('stays a bottom sheet on a phone when the anchor is low on the screen (#251 DA-45)', () => {
+  it('stays a bottom sheet on a phone when the anchor is low on the screen (#251)', () => {
     // Docked at the top, the full-width card sat on the page title and its
     // Overview / Configuration tabs whenever the row's Run button was low.
     stubAnchorRect({ top: window.innerHeight - 60, left: 100, width: 120, height: 30 })
@@ -784,7 +784,7 @@ describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', ()
     expect(docked?.style.top).toBe('')
   })
 
-  it('follows the banner when it grows or lands late (#251 SH-5)', async () => {
+  it('follows the banner when it grows or lands late (#251)', async () => {
     // Opening the phone pill, the strip's chunk landing and a failure line all
     // move the banner's bottom edge without a resize or a scroll; on a hard
     // load the banner is not there at all when the card mounts.
@@ -858,7 +858,7 @@ describe('ScenarioCoachMark — the docked card (DEMO-1, DEMO-13 / LIVE-13)', ()
   })
 })
 
-describe('ScenarioCoachMark — tied to its control (DEMO-12)', () => {
+describe('ScenarioCoachMark — tied to its control', () => {
   it('describes the anchor with the step instruction', () => {
     renderMark(
       <ScenarioCoachMark step="live-loop/run-scan">
@@ -928,7 +928,7 @@ describe('ScenarioCoachMark — tied to its control (DEMO-12)', () => {
   })
 })
 
-describe('ScenarioCoachMark — clipped by its scroll container (DEMO-11)', () => {
+describe('ScenarioCoachMark — clipped by its scroll container', () => {
   function clippedMark() {
     return (
       <div data-testid="scroller" style={{ overflow: 'auto' }}>

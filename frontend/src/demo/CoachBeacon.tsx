@@ -7,7 +7,7 @@
  * nothing in the page shifts. `pointer-events: none` (in .coach-ring) keeps the
  * exact control clickable through the ring.
  *
- * Clipped to what can actually be seen of the anchor (DEMO-11): the viewport
+ * Clipped to what can actually be seen of the anchor: the viewport
  * and every scroll container around it. A row action scrolled out of an
  * `overflow-x-auto` table wrapper used to keep its ring floating over the page
  * beside the table, and a ring near the edge of a narrow screen ran past it.

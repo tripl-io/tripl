@@ -166,7 +166,7 @@ afterEach(() => {
 })
 
 describe('OverviewPage', () => {
-  it('names the nav group in the eyebrow, never the project (DS-2 / MO-40)', async () => {
+  it('names the nav group in the eyebrow, never the project', async () => {
     mockFetch()
     const { container } = renderOverview()
 
@@ -209,7 +209,7 @@ describe('OverviewPage', () => {
     expect(screen.getByText('last 24h')).toBeInTheDocument()
   })
 
-  it('heads the volume card with the last 24h against the day before, on a dated axis (MO-16)', async () => {
+  it('heads the volume card with the last 24h against the day before, on a dated axis', async () => {
     // "6,556 · latest bucket · 167 buckets" was one partial hour and internal
     // vocabulary; the flagged bucket behind the Open signals KPI was invisible.
     mockFetch({
@@ -352,12 +352,11 @@ describe('OverviewPage', () => {
     const label = await screen.findByText('feature_flag:flag_use:growthbook')
     // The column tracks the panel width instead of being pinned at w-40, so a
     // wide panel shows the whole name — capped narrower than before so the bar
-    // no longer starts mid-card, and full width (name above bar) on a phone
-    // (MO-25).
+    // no longer starts mid-card, and full width (name above bar) on a phone.
     expect(label.className).not.toMatch(/\bw-40\b/)
     expect(label.className).toContain('sm:w-[min(40%,16rem)]')
     expect(label.className).not.toContain('mono')
-    // Every row opens the event's monitoring page (MO-15).
+    // Every row opens the event's monitoring page.
     expect(label.closest('a')).toHaveAttribute('href', '/p/demo/monitoring/event/e2')
 
     // Every name still renders in full in the DOM (and in the row's a11y name),
@@ -369,7 +368,7 @@ describe('OverviewPage', () => {
     }
   })
 
-  it("shows each top event's share of the project's volume (MO-25)", async () => {
+  it("shows each top event's share of the project's volume", async () => {
     mockFetch({
       topEvents: [
         { event_id: 'e1', name: 'app_open', total_count: 600, window_total_count: 1000 },
@@ -666,7 +665,7 @@ describe('OverviewPage', () => {
   })
 })
 
-describe('OverviewPage — active signals panel (MON-15, MON-16, MON-34)', () => {
+describe('OverviewPage — active signals panel', () => {
   it('links to the full Anomalies list, with the count, from the capped panel', async () => {
     mockFetch({
       signals: Array.from({ length: 8 }, (_, index) => ({
@@ -717,7 +716,7 @@ describe('OverviewPage — active signals panel (MON-15, MON-16, MON-34)', () =>
   })
 })
 
-describe('OverviewPage — beside the activity rail (LIVE-10)', () => {
+describe('OverviewPage — beside the activity rail', () => {
   function renderWithRail({ inline = true }: { inline?: boolean } = {}) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     return render(
@@ -749,7 +748,7 @@ describe('OverviewPage — beside the activity rail (LIVE-10)', () => {
     renderWithRail()
 
     const rail = await screen.findByRole('complementary', { name: 'Activity feed' })
-    // The rail is "Activity"; "Recent activity" is only Overview's card (SH-8).
+    // The rail is "Activity"; "Recent activity" is only Overview's card.
     expect(within(rail).getByText('Activity')).toBeInTheDocument()
     await screen.findByRole('heading', { level: 1, name: 'Overview' })
     // The feed is in the rail, and not a second time in the page body.
@@ -825,12 +824,12 @@ function makeSource(overrides: {
   }
 }
 
-describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR-27)', () => {
+describe('OverviewPage — design review batches', () => {
   it('links the KPI tiles where the work is, under one review name', async () => {
     mockFetch()
     renderOverview()
 
-    // "In review", the status name used everywhere (JR-27), not "Needs review".
+    // "In review", the status name used everywhere, not "Needs review".
     const review = await screen.findByRole('link', { name: /^In review/ })
     expect(review).toHaveAttribute('href', '/p/demo/events/review')
     expect(screen.queryByText('Needs review')).not.toBeInTheDocument()
@@ -844,7 +843,7 @@ describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR
     )
   })
 
-  it('keeps the KPI figures neutral unless they are an exception (MO-17)', async () => {
+  it('keeps the KPI figures neutral unless they are an exception', async () => {
     mockFetch()
     renderOverview()
 
@@ -857,7 +856,7 @@ describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR
     expect(await within(signals).findByText('0')).not.toHaveAttribute('data-tone')
   })
 
-  it('answers "is everything OK?" in one line under the title (MO-15)', async () => {
+  it('answers "is everything OK?" in one line under the title', async () => {
     mockFetch({
       signals: [makeEventSignal('ev-1')],
       summary: {
@@ -885,7 +884,7 @@ describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR
     )
   })
 
-  it('shows a signal as a % change with the z-score on hover, and does not pulse it (MO-2, MO-18)', async () => {
+  it('shows a signal as a % change with the z-score on hover, and does not pulse it', async () => {
     // 300 vs 100 expected: +200%.
     mockFetch({ signals: [makeEventSignal('ev-1')] })
     const { container } = renderOverview()
@@ -901,7 +900,7 @@ describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR
     ).toHaveLength(1)
   })
 
-  it('shows one empty state instead of five empty panels in a blank project (MO-24)', async () => {
+  it('shows one empty state instead of five empty panels in a blank project', async () => {
     mockFetch({
       summary: { active_event_count: 0, implemented_event_count: 0, review_pending_event_count: 0 },
       sources: [],
@@ -921,7 +920,7 @@ describe('OverviewPage — design review batches (MO-15, MO-17, MO-24, MO-26, JR
     expect(screen.queryByText('Active signals')).not.toBeInTheDocument()
   })
 
-  it('names a synthetic source once, with its status as a chip, and links the row (MO-26)', async () => {
+  it('names a synthetic source once, with its status as a chip, and links the row', async () => {
     mockFetch({
       sources: [
         makeSource({ id: 's-demo', name: 'Demo warehouse', project_id: null }),

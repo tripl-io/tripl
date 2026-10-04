@@ -44,7 +44,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   const canRun = useCanWriteProject()
   const isOwner = useIsOwner()
   // The tab lives in `?tab=` so a reload lands where the reader was, instead of
-  // always on Overview (DATA-12). `replace`: flipping tabs is not history.
+  // always on Overview. `replace`: flipping tabs is not history.
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: DetailTab = searchParams.get('tab') === 'configuration' ? 'configuration' : 'overview'
   const showTab = (next: DetailTab) =>
@@ -61,7 +61,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   // edits are guarded here: on leaving the page, and on leaving the tab.
   const [configDirty, setConfigDirty] = useState(false)
   // Bumped by the form's Discard: remounting it from the saved config is the
-  // reset that cannot miss a field (#247 DA-26).
+  // reset that cannot miss a field (#247).
   const [configFormKey, setConfigFormKey] = useState(0)
   const [replayOpen, setReplayOpen] = useState(false)
   const unsaved = useUnsavedChangesGuard(configDirty)
@@ -90,7 +90,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   })
 
   const sc = scanConfigs.find(s => s.id === scanConfigId)
-  // The scheduler's own next due moment for a monitoring scan (i9mt.16 DA-5):
+  // The scheduler's own next due moment for a monitoring scan:
   // the header chip and the Overview's metrics card both read it.
   const metricsSchedule = useMetricsSchedule(slug, sc)
   usePageTitle(sc?.name)
@@ -141,7 +141,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
     )
   }
   // A deleted or unknown scan: the not-found state with the way back, not a
-  // grey sentence (#237 SH-33).
+  // grey sentence (#237).
   if (scansLoaded && !sc) {
     return (
       <EntityNotFound
@@ -171,7 +171,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
   return (
     <PageContainer className="space-y-4">
       {unsaved.dialog}
-      {/* The shared page header (DS-1): the scan's name is the page's h1 under
+      {/* The shared page header: the scan's name is the page's h1 under
           the "Govern · Scan" eyebrow, with its run status beside it. */}
       <PageHeader
         back={<BackLink onClick={goBack} />}
@@ -193,7 +193,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
                 this epic opened with. "Reads" is what concepts.md already uses
                 for the warehouse side. */}
             {/* The connection's name leads to it for the one role that can
-                manage connections (#248 DA-40). */}
+                manage connections (#248). */}
             <p className="m-0">
               Reads from{' '}
               {dataSource && isOwner ? (
@@ -216,15 +216,15 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
           </>
         }
         actions={
-          // Run is an editor's action, editing the configuration an owner's
-          // (DATA-6); the Configuration tab itself stays open to read.
+          // Run is an editor's action, editing the configuration an owner's;
+          // the Configuration tab itself stays open to read.
           (canRun || isOwner) && (
             <>
               {canRun && (
                 <ScenarioCoachMark step="live-loop/run-scan">
                   {/* Off while a run is already queued or running: a second
                       click only earned the backend's 409. The label says why;
-                      Stop is on the run's row (#247 DA-6). */}
+                      Stop is on the run's row (#247). */}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -238,7 +238,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
               )}
               {/* Backfill sits next to Run now, as the other way to start a
                   run, not in the Danger zone beside Delete: it re-reads
-                  history and deletes nothing (#247 DA-8). Owner-only, and only
+                  history and deletes nothing (#247). Owner-only, and only
                   for a scan that collects metrics. */}
               {isOwner && canReplay && (
                 <Button variant="outline" size="sm" onClick={() => setReplayOpen(true)}>
@@ -248,7 +248,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
               )}
               {isOwner && (
                 // Always outline: filled on the Configuration tab it outranked
-                // Save and only repeated the selected tab (#247 DA-25).
+                // Save and only repeated the selected tab (#247).
                 <Button
                   variant="outline"
                   size="sm"
@@ -276,7 +276,7 @@ export function ScanConfigDetail({ slug, scanConfigId }: { slug: string; scanCon
 
       <ScanBadges sc={sc} intervalLabel={INTERVAL_LABEL} nextRunAt={metricsSchedule?.nextRunAt ?? null} />
 
-      {/* The shared Radix tabs (DS-16 / AL-46): arrow-key roving and the
+      {/* The shared Radix tabs: arrow-key roving and the
           tab/tabpanel wiring come from the primitive instead of a hand-rolled
           tablist. The value stays URL-controlled, and a switch still goes
           through the unsaved-changes guard. Manual activation: arrows move

@@ -76,7 +76,7 @@ import { canWrite, isOwner as isOwnerRole, isPlatformAdmin as isPlatformAdminUse
  * and every static destination. Its own chunk, loaded on the first Ctrl+K or
  * trigger hover — the shell keeps only the shortcut and the open state
  * (command-palette.tsx), so no page load pays for a dialog most sessions
- * never open (#194 SHELL-4).
+ * never open (#194).
  */
 
 const SEARCH_TYPE_META: Record<
@@ -172,7 +172,7 @@ interface PaletteRow {
   /**
    * Other words a row answers to, matched by word prefix (not shown). The old
    * name of a renamed page ("Schema & fields"), or what a settings section
-   * holds ("timezone" for General) (#238 JR-19).
+   * holds ("timezone" for General) (#238).
    */
   keywords?: string[]
   icon: PaletteIcon
@@ -213,7 +213,7 @@ function matchesQuery(
   if (!needle) return true
   // Every word must land somewhere, in any order: "fact table" missed while
   // "revenue" found the Orders fact table, because the phrase was matched
-  // whole (#238 JR-19). Keywords match by word prefix only, so a one-letter
+  // whole (#238). Keywords match by word prefix only, so a one-letter
   // query does not light up every row with that letter inside a keyword.
   const keywordWords = keywords.flatMap(keyword => keyword.toLowerCase().split(/\s+/))
   return needle.split(/\s+/).every(
@@ -353,7 +353,7 @@ export default function CommandPalette({
   // clicks through `onOpenChange`; running a command, following an AI source or
   // pressing Ctrl+K again closes through the context directly, and the palette
   // itself stays mounted — so the next Ctrl+K reopened on the previous AI
-  // answer, with no search input (SHELL-26). Adjusted during render, like the
+  // answer, with no search input. Adjusted during render, like the
   // held search rows below, so no frame shows the old state.
   const [wasOpen, setWasOpen] = useState(open)
   if (wasOpen !== open) {
@@ -395,7 +395,7 @@ export default function CommandPalette({
 
   // Only the project in the address. Outside one (/workspace, a 404) this used
   // to fall back to projects[0], so knowledge results and AI answers came from
-  // whichever project sorted first, under a heading that named none (SHELL-27).
+  // whichever project sorted first, under a heading that named none.
   const searchSlug = activeProject?.slug ?? null
   const searchEnabled = open && !!searchSlug && debouncedQuery.length >= 2
   // Two answers per query, cheapest first. On production the
@@ -505,8 +505,8 @@ export default function CommandPalette({
     askMutation.reset()
   }, [askMutation])
 
-  // The search input unmounts in AI mode, which left focus on the dialog body
-  // (SHELL-28). Hand it to the way back; leaving AI mode remounts the input,
+  // The search input unmounts in AI mode, which left focus on the dialog body.
+  // Hand it to the way back; leaving AI mode remounts the input,
   // which focuses itself.
   useEffect(() => {
     if (aiQuestion) aiBackRef.current?.focus()
@@ -522,7 +522,7 @@ export default function CommandPalette({
   )
 
   // Tells the provider the close is a navigation, so the focus restore below
-  // lands on the new page's content rather than the opener (SHELL-25).
+  // lands on the new page's content rather than the opener.
   const goTo = useCallback(
     (path: string) =>
       runCommand(() => {
@@ -551,7 +551,7 @@ export default function CommandPalette({
   // them at all, since a row has to be data before a group can count how many of
   // them are left.
   //
-  // No path on screen (#238 SH-19 / JR-20): every row printed its raw route in
+  // No path on screen (#238): every row printed its raw route in
   // mono, which was noise, truncated labels at 390 and showed that Plan pages
   // sit under /settings/. The group heading says where a row lives.
   const navRow = (
@@ -574,7 +574,7 @@ export default function CommandPalette({
   // Workspace destinations: the portfolio, then every settings section the
   // role can open, built from the settings rail's own model so the palette
   // cannot drift from it. It used to list five rows, so "api key", "timezone"
-  // or "email" found nothing (#238 JR-19). Labels are the rail's (each with
+  // or "email" found nothing (#238). Labels are the rail's (each with
   // its own icon, not one sliders icon for all); the words people type for
   // what a section holds are keywords.
   const settingsRows: PaletteRow[] = [...WORKSPACE_GROUPS, ...PROJECT_GROUPS].flatMap(group =>
@@ -582,7 +582,7 @@ export default function CommandPalette({
       // The settings rail's own visibility rule: a Platform section is the
       // platform admin's alone, whatever the caller's organization role.
       .filter(item => itemVisible(item, isOwner, isPlatformAdmin))
-      // Project sections are bound to a project by the address (SHELL-20);
+      // Project sections are bound to a project by the address;
       // with none open there is nothing for them to configure.
       .filter(item => !item.path.startsWith('project/') || !!activeProject)
       .map(item => {
@@ -594,7 +594,7 @@ export default function CommandPalette({
           : (SETTINGS_LABEL[item.id] ?? item.label)
         // The rail's own keywords too, so the palette finds what the settings
         // palette finds ("dark mode", "delete project"), plus the extra words
-        // kept here (JR-19).
+        // kept here.
         const keywords = [...(item.keywords ?? []), ...(SETTINGS_KEYWORDS[item.id] ?? [])]
         return navRow(path, label, item.icon, keywords.length > 0 ? keywords : undefined)
       }),
@@ -636,7 +636,7 @@ export default function CommandPalette({
           SlidersHorizontal,
           ['sensitivity', 'threshold', 'monitoring'],
         ),
-        // The way back to a dismissed getting-started checklist (WS-35).
+        // The way back to a dismissed getting-started checklist.
         ...(isOnboardingDismissed(activeProject.slug, activeProject.id)
           ? [
               {
@@ -663,7 +663,7 @@ export default function CommandPalette({
     hint: project.slug,
     icon: Folder,
     active: project.slug === routeSlug,
-    // The same landing rule as the sidebar's switcher (SHELL-44).
+    // The same landing rule as the sidebar's switcher.
     onSelect: () => goTo(switchProjectPath(location.pathname, routeSlug, project.slug)),
   }))
 
@@ -682,7 +682,7 @@ export default function CommandPalette({
 
   // Switching branch swaps the data under the page without a navigation, so
   // it asks the page's unsaved-changes guard first and says the switch out
-  // loud — the same as the sidebar's branch switcher (PL-1).
+  // loud — the same as the sidebar's branch switcher.
   const switchBranch = (targetId: string | null, targetName: string) =>
     runCommand(() =>
       requestPageLeave(() => {
@@ -729,7 +729,7 @@ export default function CommandPalette({
           },
         ]
 
-  // Commands, not places (#238 JR-19): a common task can be started from the
+  // Commands, not places (#238): a common task can be started from the
   // keyboard. Create actions only for a role that can create. "New branch" and
   // "Invite member" open their forms (`?new=1`, `?invite=1`), not just the page
   // the form lives on.
@@ -770,7 +770,7 @@ export default function CommandPalette({
   // knowledge results while the rest are above them, and the reading order is
   // part of the design.
   const menuGroups = visibleStaticGroups(query, [
-    // The current project first, then the workspace (#238 SH-19): the list
+    // The current project first, then the workspace (#238): the list
     // used to open on Data sources, Members, Profile and Runtime.
     // Plan / Observe / Govern, in the sidebar's order and under the sidebar's
     // headings, so the palette reads as the same map of the product.
@@ -824,7 +824,7 @@ export default function CommandPalette({
         showCloseButton={false}
         // Anchored near the top, not centred: centring moved the input ~180px
         // every time the result count changed, and the eye lost the caret
-        // (#238 SH-19).
+        // (#238).
         className="top-[12vh] translate-y-0 overflow-hidden p-0 sm:max-w-[640px] gap-0"
         // Take over Radix's focus restore: it aims at whatever was focused when
         // the dialog mounted, which for a global Ctrl+K is usually <body>.
@@ -833,7 +833,7 @@ export default function CommandPalette({
           onRestoreFocus()
         }}
         // In AI mode Esc means "back to search", as the key hint beside the
-        // back button says; it used to close the whole palette (SHELL-28).
+        // back button says; it used to close the whole palette.
         onEscapeKeyDown={(event) => {
           if (!aiQuestion) return
           event.preventDefault()
@@ -977,7 +977,7 @@ export default function CommandPalette({
                 ) : knowledgeState === 'empty' ? (
                   // "Search results", not "Knowledge matching …": the heading
                   // style uppercases, so the query was SHOUTED back, and
-                  // "knowledge" is our word, not the reader's (#238 SH-20).
+                  // "knowledge" is our word, not the reader's (#238).
                   // The query sits in the line, in its own case.
                   <Group heading="Search results">
                     <div
@@ -1058,7 +1058,7 @@ export default function CommandPalette({
                               />
                             )
                             if (!group) return row
-                            // Folded server-side (#238 JR-20). Keyed by the
+                            // Folded server-side (#238). Keyed by the
                             // group, so an expanded group stays open when the
                             // full answer replaces the keyword-only one.
                             return (
@@ -1167,10 +1167,10 @@ function Item({
 }: PaletteRow & {
   description?: string
   semantic?: boolean
-  /** Folded variants behind this search row (#238 JR-20). */
+  /** Folded variants behind this search row (#238). */
   variants?: number
 }) {
-  // No "80%" badge (#238 JR-20): the exact event and eight scan variants all
+  // No "80%" badge (#238): the exact event and eight scan variants all
   // read 80%, so the list looked like duplicates, and the figure meant nothing
   // to a reader. The server's order already says which is best.
   return (

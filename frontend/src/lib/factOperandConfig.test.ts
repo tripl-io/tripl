@@ -6,7 +6,7 @@ import {
   readFactOperandConfig,
 } from './factOperandConfig'
 
-describe('readFactOperandConfig (MET-43)', () => {
+describe('readFactOperandConfig', () => {
   it('narrows every field of untrusted config JSON', () => {
     expect(
       readFactOperandConfig({

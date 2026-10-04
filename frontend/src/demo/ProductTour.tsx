@@ -12,7 +12,7 @@
  * keeps your place. Finishing — or opening the last step's surface — resets it,
  * so a completed tour starts fresh next time.
  *
- * And the tour does not vanish when it steps aside (#251 JR-22): "Open X" docks
+ * And the tour does not vanish when it steps aside (#251): "Open X" docks
  * it as a small card on X's page — "Step 4 of 11", X's name, Next — so the
  * reader walks the surfaces one Next at a time instead of reopening the dialog
  * from the banner after each one. The dock (`TourDock`, mounted by the banner on
@@ -22,10 +22,10 @@
  *
  * A footer index still lists every surface plus the metric building blocks so
  * they stay directly reachable without paging; using it leaves the stepper's
- * position alone. It sits behind a disclosure (DEMO-20): shown on every step it
+ * position alone. It sits behind a disclosure: shown on every step it
  * added sixteen links to every keyboard pass through the dialog.
  *
- * Paging is announced (DEMO-19): Next and Back swap the step in place while
+ * Paging is announced: Next and Back swap the step in place while
  * focus stays on the button, so a polite live region says where the reader
  * landed. The primary button is one element whose label changes (Next →
  * Finish), and Back is aria-disabled rather than disabled on the first step,
@@ -120,7 +120,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
   const isLast = index === steps.length - 1
 
   // Another tab (or the other copy of the tour on the Overview) moving the
-  // stored step: follow it rather than writing a stale position back (DEMO-16).
+  // stored step: follow it rather than writing a stale position back.
   useEffect(() => {
     const key = orgStorageKey(`${STORAGE_PREFIX}${slug}`)
     const onStorage = (event: StorageEvent) => {
@@ -150,7 +150,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
 
   /**
    * Opening the step's surface IS the step being done, so the tour advances and
-   * the dialog steps aside — into the dock on that surface (#251 JR-22), whose
+   * the dialog steps aside — into the dock on that surface (#251), whose
    * Next carries on from there. Reopened, the dialog waits on the next one.
    */
   const openStepSurface = () => {
@@ -162,7 +162,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
     }
   }
 
-  /** A step whose surface is the command palette opens it rather than a page (DEMO-18). */
+  /** A step whose surface is the command palette opens it rather than a page. */
   const runStepAction = () => {
     handingOffRef.current = true
     openStepSurface()
@@ -181,7 +181,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
     navigate(chapterEntry.to)
   }
 
-  /** Bring the welcome panel back — its own intent, no longer bundled with opening the tour (DEMO-26). */
+  /** Bring the welcome panel back — its own intent, no longer bundled with opening the tour. */
   const showWelcome = () => {
     setWelcomeDismissed(slug, false)
     onOpenChange(false)
@@ -214,7 +214,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
           {announcement}
         </p>
 
-        {/* Chapters first (#251 SH-3 / JR-23): they are the guided path, and
+        {/* Chapters first (#251): they are the guided path, and
             the slideshow below only names the surfaces. Reading about a surface
             is not the same as making it do something. Each chapter hands off to
             the coached scenario on one product area; click = start (or resume)
@@ -237,7 +237,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
           className="rounded-lg border p-4 bg-bg-sunken border-border-subtle"
         >
           {/* Named apart from the chapters above, so "tour" and "chapter" are
-              not two words for one thing (#251 JR-23). */}
+              not two words for one thing (#251). */}
           <p className="mb-2 micro-label text-fg-tertiary">
             Quick overview
           </p>
@@ -372,7 +372,7 @@ export function ProductTour({ slug, open, onOpenChange }: ProductTourProps) {
 }
 
 /**
- * The tour, docked on the surface its "Open X" led to (#251 JR-22).
+ * The tour, docked on the surface its "Open X" led to (#251).
  *
  * A hint, not a dialog, like the scenario's docked coach card: it takes no
  * focus and traps none. Bottom right, clear of the tweaks FAB (`bottom-[68px]`,

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 
 /**
  * A code value or identifier shown as a token: `ios`, `${platform}`,
- * `prod_monthly`, an enum value (DS-6). Square-ish (`rounded-sm`), sunken, mono
+ * `prod_monthly`, an enum value. Square-ish (`rounded-sm`), sunken, mono
  * at regular weight — it is data, not a status, so it is never a pill. Replaces
  * the hand-rolled `rounded border px-1.5 py-0.5 text-[10px]` pills.
  */

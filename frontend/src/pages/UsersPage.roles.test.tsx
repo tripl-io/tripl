@@ -114,7 +114,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('UsersPage — role changes (WS-19)', () => {
+describe('UsersPage — role changes', () => {
   it('asks before granting Owner, and does nothing when cancelled', async () => {
     const calls = mockApi()
     renderUsersPage()
@@ -160,7 +160,7 @@ describe('UsersPage — role changes (WS-19)', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
-  // ST-3: an instant-apply control says it applied, on the row.
+  // an instant-apply control says it applied, on the row.
   it('confirms an applied role change on the row', async () => {
     mockApi()
     renderUsersPage()
@@ -190,13 +190,13 @@ describe('UsersPage — role changes (WS-19)', () => {
   })
 })
 
-describe('UsersPage — invite links (WS-21, WS-22)', () => {
+describe('UsersPage — invite links', () => {
   async function mint(email: string) {
     fireEvent.change(await screen.findByLabelText('Email'), { target: { value: email } })
     fireEvent.click(screen.getByRole('button', { name: 'Create invite link' }))
   }
 
-  // AU-4: the email rule is said inline, not by the browser's bubble.
+  // the email rule is said inline, not by the browser's bubble.
   it('says an address is malformed inline and sends nothing', async () => {
     const calls = mockApi()
     renderUsersPage()

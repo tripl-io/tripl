@@ -14,7 +14,7 @@ import type {
 import { AuthContext, type AuthContextValue } from '@/components/auth-context'
 import MetricsPage, { type MetricsTab } from './MetricsPage'
 
-/** The catalog's filters are FilterSelect chips (DS-15), not native selects. */
+/** The catalog's filters are FilterSelect chips, not native selects. */
 async function pickFilter(label: string, option: string) {
   fireEvent.click(screen.getByRole('combobox', { name: new RegExp(`^${label} filter`) }))
   fireEvent.click(await screen.findByRole('option', { name: option }))
@@ -226,7 +226,7 @@ function viewerAuth(): AuthContextValue {
   return personaAuth('viewer')
 }
 
-describe('MetricsPage — a viewer reads the catalog without write controls (MET-6)', () => {
+describe('MetricsPage — a viewer reads the catalog without write controls', () => {
   it('hides New, the select boxes, the reorder handles and the row menu', async () => {
     mockList({
       items: [
@@ -244,7 +244,7 @@ describe('MetricsPage — a viewer reads the catalog without write controls (MET
     expect(screen.queryByRole('checkbox', { name: 'Select Checkout conversion' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reorder Checkout conversion' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Actions for Checkout conversion' })).not.toBeInTheDocument()
-    // Nor the empty tracks those controls sat in (MT-29).
+    // Nor the empty tracks those controls sat in.
     expect(screen.queryByRole('columnheader', { name: 'Reorder' })).not.toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument()
   })
@@ -303,8 +303,7 @@ describe('MetricsPage', () => {
 
     renderMetrics()
 
-    // Route links in a named nav, not a tablist that never behaved like one
-    // (DS-35 / MET-38).
+    // Route links in a named nav, not a tablist that never behaved like one.
     const sections = await screen.findByRole('navigation', { name: 'Metrics sections' })
     expect(screen.queryByRole('tablist')).toBeNull()
     const catalogTab = within(sections).getByRole('link', { name: 'Catalog' })
@@ -432,7 +431,7 @@ describe('MetricsPage', () => {
       expect(await screen.findByText('2 selected')).toBeInTheDocument()
     })
 
-    it('shows a partial selection as mixed, and clears it from there (EV-26)', async () => {
+    it('shows a partial selection as mixed, and clears it from there', async () => {
       mockList({
         items: [
           makeItem({ id: 'm-1', display_name: 'Checkout conversion' }),
@@ -545,7 +544,7 @@ describe('MetricsPage', () => {
       expect(await screen.findByTestId('edit-route')).toHaveTextContent('m-copy')
     })
 
-    it('duplicates a legacy fact metric with its named filter and a narrowed config (MET-43)', async () => {
+    it('duplicates a legacy fact metric with its named filter and a narrowed config', async () => {
       mockList({
         items: [makeItem({ id: 'm-1', name: 'orders', display_name: 'Orders' })],
         total: 1,
@@ -814,7 +813,7 @@ describe('MetricsPage', () => {
       expect(link).toHaveAttribute('title', 'Purchase conversion')
     })
 
-    it('titles the Trend column header with the real collection count (MT-34)', async () => {
+    it('titles the Trend column header with the real collection count', async () => {
       mockList({ items: [makeItem({ id: 'm-1', spark: [1, 2, 3, 4, 5, 6, 7, 8] })], total: 1 })
 
       renderMetrics()
@@ -881,7 +880,7 @@ describe('MetricsPage', () => {
       expect(links[0]).toHaveAttribute('href', '/p/demo/metrics/fact-tables/new')
     })
 
-    it('hints what a fact table is beside the header only on the Fact tables tab (JR-31)', async () => {
+    it('hints what a fact table is beside the header only on the Fact tables tab', async () => {
       mockFactTables({ items: [], total: 0 })
 
       renderMetrics('fact-tables')

@@ -27,8 +27,8 @@ interface DestinationsSectionProps {
   onDeleteDestination: (destination: AlertDestination) => void
   /**
    * The destination whose delete is in flight, if any. Its control is inert
-   * until the request settles, so a second confirm cannot fire a second DELETE
-   * (ALR-6). Optional: absent means nothing is being deleted.
+   * until the request settles, so a second confirm cannot fire a second DELETE.
+   * Optional: absent means nothing is being deleted.
    */
   deletingDestinationId?: string | null
 }
@@ -67,7 +67,7 @@ export function DestinationsSection({
   )
   // One flat list in channel-catalogue order: each card carries its own
   // channel icon and name now, so a "Slack ①" subheading over a single card
-  // was a heading for nothing (AL-26).
+  // was a heading for nothing.
   const channelDestinations = useMemo(
     () =>
       CHANNEL_META.flatMap(({ channel }) =>
@@ -96,8 +96,8 @@ export function DestinationsSection({
     </p>
   )
 
-  // The section's primary action, top-right like Monitors' "Add rule"
-  // (AL-26): adding a channel used to mean finding the dashed strip at the
+  // The section's primary action, top-right like Monitors' "Add rule":
+  // adding a channel used to mean finding the dashed strip at the
   // bottom of the list.
   const addDestinationMenu = canWrite && !isDemo && (
     <DropdownMenu>

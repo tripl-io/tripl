@@ -36,8 +36,8 @@ function AlertDialogContent({
         className={cn(
           // Inset 1rem from the screen edge with rounded corners on phones too,
           // and capped at 90vh with its own scroll so a long message never
-          // pushes the buttons off-screen (DS-39). bg-popover: one step up the
-          // elevation ladder, above the cards under it (DS-10).
+          // pushes the buttons off-screen. bg-popover: one step up the
+          // elevation ladder, above the cards under it.
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed left-[50%] top-[50%] z-(--z-modal) grid w-[calc(100%-2rem)] max-w-lg max-h-[90vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 rounded-card border p-6 shadow-lg duration-200",
           className
         )}
@@ -102,7 +102,7 @@ function AlertDialogAction({
   return (
     <AlertDialogPrimitive.Action
       // A real variant rather than colour classes laid over the default one,
-      // so a destructive confirm also gets the destructive focus ring (DS-29).
+      // so a destructive confirm also gets the destructive focus ring.
       className={cn(buttonVariants({ variant }), className)}
       {...props}
     />

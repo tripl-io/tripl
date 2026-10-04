@@ -13,8 +13,8 @@ import type { DataSource } from '@/types'
  * project's synthetic warehouse, for one — and `DataSourceResponse.project_id`
  * exists so project surfaces can leave those out (backend
  * schemas/data_source.py). Without the filter the New scan picker offered
- * another project's warehouse, and "no data sources" checks counted it
- * (DATA-15). Same rule as the Overview's Source-health rail.
+ * another project's warehouse, and "no data sources" checks counted it.
+ * Same rule as the Overview's Source-health rail.
  *
  * Outside the app shell there is no active project, and the list is unfiltered.
  */
@@ -29,7 +29,7 @@ export function filterProjectDataSources(
 /**
  * The workspace data-source query, scoped to the active project. `data` stays
  * undefined until the list has loaded, so a caller can tell "none" from "not
- * yet" (DATA-16) through `isSuccess`.
+ * yet" through `isSuccess`.
  */
 export function useProjectDataSources() {
   const projectId = useContext(ActiveProjectContext)?.id

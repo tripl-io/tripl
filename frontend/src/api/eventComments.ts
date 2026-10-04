@@ -10,7 +10,7 @@ import { api } from './client'
  *
  * On the shared client, not raw `fetch`: that kept a private copy of error
  * unwrapping and lost the 401 re-auth prompt, the `X-Request-ID` a support
- * reference needs, and `ApiError` (EVT-28).
+ * reference needs, and `ApiError`.
  */
 export const eventCommentsApi = {
   list: (slug: string, eventId: string): Promise<EventPhotoComment[]> =>

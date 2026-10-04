@@ -258,7 +258,7 @@ async def get_photo_limits(
 
     The rest of this router is for settings admins; these values are not, because it is
     an editor's upload they refuse and the browser should say so before the
-    upload rather than after (EVT-28). The caller's organization's limits
+    upload rather than after. The caller's organization's limits
     (F20 PR11), resolved like the rest of the legacy route; the operator's when
     it resolves none. ``/orgs/{org}/settings/photo-limits`` names one.
     """
@@ -281,7 +281,7 @@ async def get_row_limit_defaults(
 
     Admin-only like the rest of this router would hide the real numbers from the
     editors who fill in a scan's Limits, so the form hard-coded the shipped
-    defaults instead (B15). Two integers, nothing about the connection.
+    defaults instead. Two integers, nothing about the connection.
 
     The caller's organization's caps (F20 PR9), resolved like the rest of the
     legacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.
@@ -296,7 +296,7 @@ async def get_row_limit_defaults(
 
 @router.get("/ai/defaults", response_model=AiPromptDefaultsResponse)
 async def get_ai_prompt_defaults(_current_user: SettingsAdminUserDep) -> AiPromptDefaultsResponse:
-    """The built-in AI system prompts, for each prompt's "Restore default" (ST-30)."""
+    """The built-in AI system prompts, for each prompt's "Restore default"."""
     return AiPromptDefaultsResponse(**app_settings_service.ai_prompt_defaults())
 
 

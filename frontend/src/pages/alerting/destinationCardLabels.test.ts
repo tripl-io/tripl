@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { describeTestFailure, destinationScheduleLabel } from './destinationCardLabels'
 
-describe('destinationScheduleLabel (AL-24)', () => {
+describe('destinationScheduleLabel', () => {
   it('names the weekday cron and folds in what is held', () => {
     expect(destinationScheduleLabel('0 9 * * 1-5', 'UTC', 3)).toBe(
       'Weekdays at 09:00 UTC · 3 held for next digest',
@@ -14,7 +14,7 @@ describe('destinationScheduleLabel (AL-24)', () => {
   })
 })
 
-describe('describeTestFailure (AL-30)', () => {
+describe('describeTestFailure', () => {
   it('turns a proxy refusal into a sentence and keeps the raw text', () => {
     expect(describeTestFailure('<urlopen error Tunnel connection failed: 403 Forbidden>')).toEqual({
       summary: "Couldn't reach the URL: a network proxy blocked the request.",
@@ -36,7 +36,7 @@ describe('describeTestFailure (AL-30)', () => {
   })
 })
 
-describe('describeTestFailure with the server classification (AL-30)', () => {
+describe('describeTestFailure with the server classification', () => {
   it("reads the status code off the response, whatever the message's wording", () => {
     expect(
       describeTestFailure('HTTP 403 from https://api.telegram.org: Forbidden', {

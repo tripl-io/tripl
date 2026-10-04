@@ -41,13 +41,13 @@ const PLAN_COVERAGE_HELP =
 // The gap list is computed over a deliberately NARROWER population than the
 // "Active events" stat above it: only implemented/live events that are old
 // enough to have had a chance to emit can be "missing data".
-// Said for the user, in an info tip beside the panel subtitle (DA-31): the
+// Said for the user, in an info tip beside the panel subtitle: the
 // full-width line it used to be explained a cross-page discrepancy nobody had
 // asked about and took four lines on a phone.
 const GAP_BASIS_HELP = `Implemented events older than ${DEAD_DAYS} days that sent no data in the last ${DEAD_DAYS} days.`
 
 // Every status that counts as active but not implemented: the coverage bar's
-// remainder. Linked as an Events filter so "which ones?" has an answer (DA-30).
+// remainder. Linked as an Events filter so "which ones?" has an answer.
 const NOT_IMPLEMENTED_STATUSES = ['draft', 'in_review', 'ready_for_dev', 'deprecated'] as const
 
 function notImplementedEventsPath(slug: string): string {
@@ -127,7 +127,7 @@ export default function CoveragePage() {
                 label="Plan coverage"
                 value={summary ? formatPlanCoverage(implemented, active) : <StatValueSkeleton />}
                 // The shared thresholds (they take a percent), so this tile and
-                // Reconciliation cannot drift apart (DATA-45).
+                // Reconciliation cannot drift apart.
                 tone={summary && active > 0 ? coverageTone(coverageRatio * 100) : 'neutral'}
                 labelAddon={<Info className="h-3 w-3 shrink-0" aria-hidden />}
               />
@@ -141,7 +141,7 @@ export default function CoveragePage() {
               value={summary ? formatNumber(implemented) : <StatValueSkeleton />}
             />
             {/* "In review", the one name for the status count everywhere
-                (#238 JR-27); it was "Awaiting review" here only. */}
+                (#238); it was "Awaiting review" here only. */}
             <MiniStat
               label="In review"
               value={summary ? formatNumber(summary.review_pending_event_count) : <StatValueSkeleton />}
@@ -262,7 +262,7 @@ function CoverageBar({
   inReview: number
   /**
    * The headline's own formatting (`formatPlanCoverage`). `Math.round` here
-   * announced 322 of 323 as "100% of active events are implemented" (DATA-45).
+   * announced 322 of 323 as "100% of active events are implemented".
    */
   coverageLabel: string
 }) {
@@ -270,7 +270,7 @@ function CoverageBar({
   const implementedPct = total > 0 ? (implemented / total) * 100 : 0
   // In review is a subset of the remainder; the rest are drafts, events ready
   // for development and deprecated ones. Said under the bar so the tiles and
-  // the bar add up at a glance (DA-30).
+  // the bar add up at a glance.
   const inReviewShare = Math.min(inReview, notImplemented)
   const otherShare = notImplemented - inReviewShare
   const notImplementedCount = (
@@ -294,7 +294,7 @@ function CoverageBar({
           implemented
         </span>
         {/* "Which ones?" answered: the remainder opens the Events list
-            filtered to exactly those statuses (DA-30). */}
+            filtered to exactly those statuses. */}
         {slug && notImplemented > 0 ? (
           <Link
             to={notImplementedEventsPath(slug)}
@@ -347,12 +347,12 @@ function InfoTip({ help }: { help: string }) {
   )
 }
 
-// Same drill-down and name rendering as Reconciliation's dead-event rows
-// (DATA-46): the two lists show the same events one page apart.
+// Same drill-down and name rendering as Reconciliation's dead-event rows:
+// the two lists show the same events one page apart.
 function GapRow({ item, slug }: { item: DeadEvent; slug: string | undefined }) {
   const label = eventNameLabel(item.name)
   return (
-    // Row height follows the Density setting (DS-9).
+    // Row height follows the Density setting.
     <div className="flex min-h-(--row-h) items-center gap-3 px-(--panel-pad) py-1">
       <ShieldX className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
       {slug ? (

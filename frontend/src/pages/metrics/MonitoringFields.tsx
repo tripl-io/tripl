@@ -22,7 +22,7 @@ interface MonitoringFieldsProps {
  * toggle renders for them.
  *
  * The dimensions are optional and most metrics need none, so they sit behind
- * a collapsed "Breakdowns and dimensions" row that says what is set (MT-5).
+ * a collapsed "Breakdowns and dimensions" row that says what is set.
  * A metric that already has some opens with them shown.
  */
 export function MonitoringFields({ draft, patch, columnChoices, columnSource }: MonitoringFieldsProps) {
@@ -30,7 +30,7 @@ export function MonitoringFields({ draft, patch, columnChoices, columnSource }: 
   // Columns ticked that this metric's source does not return — typically kept
   // from another kind, or from before the query changed. Still sent, and would
   // fail at collection, so they are named rather than rendered as mystery
-  // chips (MET-19). Only once there is a list to compare against.
+  // chips. Only once there is a list to compare against.
   const known = new Set(columnChoices)
   const unknown =
     columnChoices.length > 0 ? draft.breakdownColumns.filter(column => !known.has(column)) : []

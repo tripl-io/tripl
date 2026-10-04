@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 type PageHeaderProps = {
   title: ReactNode
   /**
-   * Small uppercase label above the title. One rule (DS-2 / SH-12 / MO-40):
+   * Small uppercase label above the title. One rule:
    * on a list or dashboard page it is the sidebar nav group ("Plan",
    * "Observe", "Govern", "Settings", "Help & reference"); on a detail or
    * create page it is the group and the parent collection ("Observe · Metric",
@@ -22,7 +22,7 @@ type PageHeaderProps = {
   /**
    * The page's KPI row, under the title block: a `MiniStatStrip` (usually
    * `boxed`). One place for page stats instead of the header's right slot on
-   * one page and a loose row of tiles on the next (DS-5).
+   * one page and a loose row of tiles on the next.
    */
   stats?: ReactNode
   /** Above everything, e.g. a back link. */
@@ -31,7 +31,7 @@ type PageHeaderProps = {
 }
 
 /**
- * The one page header (DS-19 / LIVE-11 / DS-1): one type scale for the
+ * The one page header: one type scale for the
  * eyebrow, the title and the description, so moving between pages, create
  * forms and detail views no longer jumps between 21, 19, 18 and 16px titles.
  *

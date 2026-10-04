@@ -1,12 +1,12 @@
 """Scan and data-source follow-ups (lane F7).
 
-* i9mt.16 DA-4 — a catalog run reports the warehouse rows behind its breakdown
+* A catalog run reports the warehouse rows behind its breakdown
   (``catalog_rows_scanned``), not only the grouped combinations.
-* i9mt.16 DA-5 — ``GET /scans/{id}`` carries ``last_metrics_run_at`` and
+* ``GET /scans/{id}`` carries ``last_metrics_run_at`` and
   ``next_metrics_run_at`` from the scheduler's own due check.
-* i9mt.17 DA-32 — the metrics collector keeps up to five sample property dicts
+* The metrics collector keeps up to five sample property dicts
   per shadow event candidate, and the shadow inbox serves them.
-* i9mt.21 DA-40 — a data source lists the scans that read it, with links.
+* A data source lists the scans that read it, with links.
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def _analysis(rows: list[tuple[object, ...]]) -> BreakdownAnalysis:
 
 
 # --------------------------------------------------------------------------- #
-# DA-4: warehouse rows behind a catalog run's combinations
+# warehouse rows behind a catalog run's combinations
 # --------------------------------------------------------------------------- #
 
 
@@ -80,7 +80,7 @@ def test_warehouse_rows_of_an_empty_breakdown_are_zero() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# DA-32: sample properties on shadow events
+# sample properties on shadow events
 # --------------------------------------------------------------------------- #
 
 
@@ -241,7 +241,7 @@ async def test_shadow_inbox_serves_the_sample_properties(client: AsyncClient) ->
 
 
 # --------------------------------------------------------------------------- #
-# DA-5: the next metrics run on the scan read
+# the next metrics run on the scan read
 # --------------------------------------------------------------------------- #
 
 
@@ -314,7 +314,7 @@ async def test_a_catalog_only_scan_has_no_next_metrics_run(client: AsyncClient) 
 
 
 # --------------------------------------------------------------------------- #
-# DA-40: the scans that read a data source
+# the scans that read a data source
 # --------------------------------------------------------------------------- #
 
 

@@ -461,7 +461,7 @@ describe('aggregateMetricPoints', () => {
   })
 })
 
-describe('aggregateMetricPoints rollup mode (MON-2 / MET-12)', () => {
+describe('aggregateMetricPoints rollup mode', () => {
   // 24 hourly readings of an 8 % conversion rate, stored as the fraction 0.08.
   const hourlyRatio = Array.from({ length: 24 }, (_, hour) =>
     point({
@@ -511,7 +511,7 @@ describe('aggregateMetricPoints rollup mode (MON-2 / MET-12)', () => {
   })
 })
 
-describe('granularity point cap (MON-23)', () => {
+describe('granularity point cap', () => {
   it('orders granularities by bucket width', () => {
     expect(coarserGranularity('hour', 'day')).toBe('day')
     expect(coarserGranularity('week', '6h')).toBe('week')

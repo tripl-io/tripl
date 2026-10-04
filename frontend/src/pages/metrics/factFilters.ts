@@ -30,7 +30,7 @@ export type FactConditionPayload = FactConditionConfig
  *
  * A condition holds `value` for scalar operators and `values` for `in` /
  * `not in`. The list used to be one comma-split string, so a value containing
- * a comma ("Smith, John") could not be matched at all (MET-32).
+ * a comma ("Smith, John") could not be matched at all.
  */
 export type FactFilter =
   | { id: string; kind: 'named'; name: string }
@@ -147,7 +147,7 @@ export function stripRedundantOuterParens(sql: string): string {
  * parenthesised groups joined by a top-level AND is split, so a user's own
  * `(x OR y) AND z` stays one row — splitting it would be harmless (every row is
  * ANDed anyway) but would rewrite what they typed. Two SQL filters used to come
- * back from a save as one merged row (MET-31).
+ * back from a save as one merged row.
  *
  * This is the lenient scan (any case, any whitespace around AND); the editor
  * loads through {@link sqlFiltersFromStored}, which splits only what joining
@@ -198,7 +198,7 @@ function joinSqlFragments(fragments: readonly string[]): string {
  * redundant outer paren pair — stays ONE row, verbatim. Rewriting it on load
  * would send a different `filter_sql` on the next save although the user never
  * touched the filter, and the backend deletes a metric's collected history on
- * any definition change (MET-1).
+ * any definition change.
  */
 export function sqlFiltersFromStored(filterSql: string | null): string[] {
   const stored = (filterSql ?? '').trim()
@@ -227,7 +227,7 @@ export function sqlFiltersFromStored(filterSql: string | null): string[] {
  * (see `stored` on {@link FactFilter}).
  *
  * Incomplete rows are skipped here, but only because {@link filterRowErrors}
- * refuses to let a form save while one exists (MET-3): a row dropped at this
+ * refuses to let a form save while one exists: a row dropped at this
  * point would save the metric less filtered than the editor showed.
  */
 export function filtersToPayload(
@@ -308,7 +308,7 @@ function parseConditionScalar(
  * Why each incomplete row cannot be saved, keyed by filter id. A named filter
  * with no name, a condition with no column or no value, or an empty SQL
  * fragment used to be dropped by {@link filtersToPayload} without a word, so
- * the metric saved UNFILTERED while the editor still showed the row (MET-3).
+ * the metric saved UNFILTERED while the editor still showed the row.
  */
 export function filterRowErrors(filters: readonly FactFilter[]): Record<string, string> {
   const errors: Record<string, string> = {}

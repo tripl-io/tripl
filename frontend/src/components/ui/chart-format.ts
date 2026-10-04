@@ -6,7 +6,7 @@ import type { MetricsGranularity } from '@/lib/metrics'
 import { APP_LOCALE, formatCompactNumber, formatNumber } from '@/lib/format'
 import { pluralize } from '@/lib/plural'
 
-// Time-zone policy for bucket labels (DS-24 / MON-5), mirrored next to
+// Time-zone policy for bucket labels, mirrored next to
 // `formatDateTime` in lib/datetime.ts:
 //
 //  - Day, week and month buckets are CALENDAR buckets the server cut in UTC
@@ -67,7 +67,7 @@ export function formatDayTick(dateStr: string): string {
 
 const DAY_MS = 86_400_000
 // Below two days an hourly axis is read by the hour; from two days on, the
-// reader wants to find a day, so the ticks move to day boundaries (LIVE-27).
+// reader wants to find a day, so the ticks move to day boundaries.
 const DAY_TICK_MIN_SPAN_MS = 2 * DAY_MS
 const MAX_DAY_TICKS = 8
 
@@ -76,7 +76,7 @@ const MAX_DAY_TICKS = 8
  * first bucket of each LOCAL calendar day, thinned to at most `maxTicks`.
  * Recharts' own spacing put a 7-day hourly chart's ticks every ~21 hours
  * ("Sep 20, 01 AM", "Sep 20, 10 PM", "Sep 21, 07 PM"), long labels that
- * crowded each other and never landed on a day (LIVE-27).
+ * crowded each other and never landed on a day.
  *
  * Returns null when the default ticks should stay: a calendar granularity, a
  * span under two days, or no day boundary inside the data. `buckets` must be in
@@ -151,7 +151,7 @@ export function formatTooltipLabel(dateStr: string, granularity: MetricsGranular
 /**
  * What a chart's values count. A plain string is printed as written (callers
  * pass units like "%" or "events (p95)"); the pair form agrees with the number,
- * so a one-event bucket reads "1 event", not "1 events" (DS-26).
+ * so a one-event bucket reads "1 event", not "1 events".
  */
 export type SeriesNoun = string | { singular: string; plural: string }
 
@@ -181,7 +181,7 @@ export function formatSeriesValue(value: number, noun: SeriesNoun): string {
 }
 
 /**
- * The categorical palette for multi-series charts (DS-23 / MON-36), one list
+ * The categorical palette for multi-series charts, one list
  * for the chart and the monitoring tabs that pin series to slots.
  *
  * Each slot reads a `--series-N` theme token when the theme defines one. The

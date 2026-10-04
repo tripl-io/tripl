@@ -78,7 +78,7 @@ def _event_group_rule_columns(config: ScanConfig) -> set[str]:
             # nothing else — every consumer only ever tests membership against
             # real column names. NOT reserving a real dotted column hands it back
             # to ``catalog_sync``, which auto-creates its FieldDefinition, and the
-            # merge then paints the rule's own regex into it: jfm3.57 again, on a
+            # merge then paints the rule's own regex into it: the same bug again, on a
             # column the scan groups BY. So an ambiguous dotted name reserves. What
             # this half must never do is INVENT a name — it passes a condition field
             # through or drops it whole, and the base reduction lives in the

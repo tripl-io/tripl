@@ -40,7 +40,7 @@ function makeSummary(overrides: Partial<ProjectSummary> = {}): ProjectSummary {
   }
 }
 
-describe('OnboardingReturnBar (#250 JR-3)', () => {
+describe('OnboardingReturnBar (#250)', () => {
   it('names the step and leads back to the checklist on the project home', () => {
     renderAt('/p/shop/scans?onboarding=scan&step=2-of-5')
 

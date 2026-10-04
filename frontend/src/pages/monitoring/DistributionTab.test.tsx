@@ -28,7 +28,7 @@ vi.mock('@/api/eventMetrics', () => ({
   },
 }))
 
-describe('DistributionTab (MO-27)', () => {
+describe('DistributionTab', () => {
   it('lays the four stats out as a 2×2 grid on a phone', async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(

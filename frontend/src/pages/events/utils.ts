@@ -339,8 +339,7 @@ export function getSignalTone(signal: MonitoringSignal) {
       compact: 'text-destructive',
       regular: 'bg-destructive text-destructive-foreground',
       // Outline, not solid red: solid red means "this destroys something",
-      // and "View signal" only navigates. The icon carries the danger tone
-      // (DS-20).
+      // and "View signal" only navigates. The icon carries the danger tone.
       button: 'outline' as const,
       buttonClassName: '',
       iconClassName: 'text-danger',
@@ -420,13 +419,13 @@ export function deriveRowSignalFromMetrics(
   }
 }
 
-// --- Glitchy / templated event-name + value rendering helpers (UX-9, UX-21) ---
+// --- Glitchy / templated event-name + value rendering helpers ---
 
 const TEMPLATE_TOKEN_SPLIT = /(\$\{[^}{]*\})/g
 const TEMPLATE_TOKEN_MATCH = /^\$\{[^}{]*\}$/
 
 // The name-segment split lives in lib/ now, so components/event-name.tsx no
-// longer imports this page module (DS-41); re-exported for the page's callers.
+// longer imports this page module; re-exported for the page's callers.
 export { NAME_SEGMENT_SEPARATOR, splitEventName, type NameSegment } from '@/lib/eventNameSegments'
 
 export type ValuePart = { text: string; token: boolean; known?: boolean }
@@ -564,8 +563,8 @@ export function nameFormatBaseColumns(fmt: string | null | undefined): Set<strin
 /**
  * The table's active filters the metrics endpoint cannot apply (it takes type,
  * search, status and tag only), by the label the toolbar gives them. The chart
- * names them rather than pass off an unfiltered series as the table's
- * (EVT-20). Lives here so TabMetricsCard.tsx exports only components.
+ * names them rather than pass off an unfiltered series as the table's.
+ * Lives here so TabMetricsCard.tsx exports only components.
  */
 export function unappliedChartFilters({
   filterSilentDays,

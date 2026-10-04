@@ -564,7 +564,7 @@ describe('AlertDeliveryRow items table', () => {
 
   it.each([
     'https://tripl.example.com/p/demo/alerting/delivery-1?item=event:x',
-    // Stored before the page moved out of /settings (#238 JR-25).
+    // Stored before the page moved out of /settings (#238).
     'https://tripl.example.com/p/demo/settings/alerting/delivery-1?item=event:x',
   ])('does not offer a link back to the page the reader is already on (%s)', async (detailsPath) => {
     expandRow({
@@ -809,8 +809,7 @@ describe('AlertDeliveryRow per-item anchor', () => {
 
 // The full error lived only in a `title` on the truncated cell — invisible on
 // touch and to most screen readers — and the expanded row never showed it, so
-// on a phone nobody could read why a delivery failed before pressing Retry
-// (ALR-33).
+// on a phone nobody could read why a delivery failed before pressing Retry.
 describe('AlertDeliveryRow — why it failed, in full', () => {
   it('puts the whole error message first in the expanded row', async () => {
     const message = 'Slack returned 404 channel_not_found: the webhook points at an archived channel'
@@ -830,7 +829,7 @@ describe('AlertDeliveryRow — why it failed, in full', () => {
 })
 
 // `{open && detail && …}` rendered nothing while the detail loaded and nothing
-// forever when it failed — the chevron turned over an empty row (ALR-34).
+// forever when it failed — the chevron turned over an empty row.
 describe('AlertDeliveryRow — the expanded row while its detail is not there', () => {
   it('says it is loading', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => {}))
@@ -869,7 +868,7 @@ describe('AlertDeliveryRow — the expanded row while its detail is not there', 
 
 // One click re-posted to Slack, Jira or Linear — for the trackers, a new issue —
 // and the only feedback was the badge changing, on a row that could then move
-// off a Status=Failed page entirely (ALR-35).
+// off a Status=Failed page entirely.
 describe('AlertDeliveryRow — a retry says what it did', () => {
   function mockRetry() {
     return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -913,7 +912,7 @@ describe('AlertDeliveryRow — a retry says what it did', () => {
   })
 
   // The retry endpoint only re-queues, so the outcome is looked up once the
-  // worker has had a go (ALR-35).
+  // worker has had a go.
   function mockRetryThen(outcomes: AlertDeliveryDetail[]) {
     let looks = 0
     return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -995,7 +994,7 @@ describe('AlertDeliveryRow — a retry says what it did', () => {
 })
 
 // The expanded detail printed `variable_value_drift`, a channel in capitals,
-// and "1 items" (ALR-48).
+// and "1 items".
 describe('AlertDeliveryRow — words, not enums', () => {
   it('names the channel the way the destination picker does', () => {
     renderRow(mockDelivery({ channel: 'slack' }))
@@ -1021,7 +1020,7 @@ describe('AlertDeliveryRow — words, not enums', () => {
 })
 
 // The status cell stacked "sent" over a "Local · simulated" pill, which put
-// the row's baseline off its neighbours' (AL-20).
+// the row's baseline off its neighbours'.
 describe('AlertDeliveryRow — the status cell holds only the status', () => {
   it('marks a simulated send under the destination, not beside the status', () => {
     renderRow(mockDelivery({ status: 'sent', error_message: null, is_local: true, is_simulated: true }))

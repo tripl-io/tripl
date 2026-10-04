@@ -16,7 +16,7 @@ interface IntervalFieldProps {
  * Collection-interval row shared by SQL and fact metrics. It also accounts for
  * `replay_chunk_interval`, which this form never edits but always re-sends: a
  * chunk finer than the interval is a 422 naming a field the user cannot see,
- * so the form drops it when the interval passes it and says so here (MET-10).
+ * so the form drops it when the interval passes it and says so here.
  */
 export function IntervalField({
   id,

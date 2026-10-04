@@ -100,7 +100,7 @@ describe('WorkspaceWelcome', () => {
     expect(link).toHaveAttribute('href', 'https://vladenisov.github.io/tripl/')
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noreferrer')
-    // WS-46: a link that leaves the app says so in its name.
+    // a link that leaves the app says so in its name.
     expect(link).toHaveAccessibleName('Read the concepts (opens in a new tab)')
   })
 })

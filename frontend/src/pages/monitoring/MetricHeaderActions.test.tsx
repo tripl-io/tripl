@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('MetricHeaderActions — a draft can be activated where it is read (MT-1 / JR-16)', () => {
+describe('MetricHeaderActions — a draft can be activated where it is read', () => {
   it('activates a draft metric in one click', async () => {
     vi.mocked(metricsCatalogApi.update).mockResolvedValue(
       {} as Awaited<ReturnType<typeof metricsCatalogApi.update>>,

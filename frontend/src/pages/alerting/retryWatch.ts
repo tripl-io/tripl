@@ -20,7 +20,7 @@ const DEFAULT_ATTEMPTS = 30
 
 /**
  * Follow a re-queued delivery until the worker has tried it, then say how that
- * went (ALR-35). The retry endpoint only re-queues, so "Retry queued" is all
+ * went. The retry endpoint only re-queues, so "Retry queued" is all
  * its response can promise; the outcome — delivered, or "Still failing: <why>"
  * — arrives later, and without this the reader had to reopen the row to learn
  * the retry had failed again.

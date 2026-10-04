@@ -5,8 +5,8 @@ import { useIsOwner } from '@/lib/permissions'
  *
  * The sanitiser keeps `technical` for exactly this expander, but it only
  * existed on the projects dashboard: on the scan's own pages an unmapped error
- * collapsed to "Scan failed." and the owner had nothing to debug it with
- * (DATA-19). Owner-only because the raw text can name hosts, ports and drivers.
+ * collapsed to "Scan failed." and the owner had nothing to debug it with.
+ * Owner-only because the raw text can name hosts, ports and drivers.
  */
 export function ScanErrorTechnicalDetails({ technical }: { technical: string | undefined }) {
   const isOwner = useIsOwner()

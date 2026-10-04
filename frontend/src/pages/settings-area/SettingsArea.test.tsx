@@ -103,13 +103,13 @@ describe('SettingsArea project binding', () => {
     renderArea('project/general')
 
     expect(await screen.findByRole('heading', { name: 'Pick a project' })).toBeInTheDocument()
-    // The page still says which page it is (#237 ST-36).
+    // The page still says which page it is (#237).
     expect(screen.getByRole('heading', { level: 1, name: 'General' })).toBeInTheDocument()
     // Never silently binds to whichever project happened to sort first: the
     // projects are offered as choices, not applied.
     expect(screen.getByRole('button', { name: /Acme Android/ })).toBeInTheDocument()
     // The way back falls back to the workspace, not to /p/acme-android, and
-    // says so instead of promising a project (ST-4).
+    // says so instead of promising a project.
     expect(screen.getByRole('link', { name: 'Back to workspace' })).toHaveAttribute(
       'href',
       '/workspace',
@@ -173,7 +173,7 @@ describe('SettingsArea project binding', () => {
     expect(screen.queryByText('Acme Android')).not.toBeInTheDocument()
   })
 
-  it('binds the project named in the address over another tab\'s last visit (SHELL-20)', async () => {
+  it('binds the project named in the address over another tab\'s last visit', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
     // Another tab has since visited acme-ios; this one came from acme-android.
     window.localStorage.setItem(LAST_SLUG_STORAGE_KEY, 'acme-ios')
@@ -246,7 +246,7 @@ describe('SettingsArea project binding', () => {
     expect(screen.queryByText(/no project on this workspace yet/i)).toBeNull()
   })
 
-  it('retries the project list in place instead of asking for a reload (WS-32)', async () => {
+  it('retries the project list in place instead of asking for a reload', async () => {
     const list = vi.spyOn(projectsApi, 'list').mockRejectedValue(new Error('boom'))
 
     renderArea('project/general')
@@ -257,7 +257,7 @@ describe('SettingsArea project binding', () => {
     expect(screen.queryByText(/Reload the page/i)).toBeNull()
   })
 
-  it('reports a failed project list once on a section that is not project-scoped (fj5g.6)', async () => {
+  it('reports a failed project list once on a section that is not project-scoped', async () => {
     // The list is silent app-wide because Layout owns its error card, and these
     // routes mount outside Layout: without this the failure went unreported.
     vi.spyOn(projectsApi, 'list').mockRejectedValue(new Error('boom'))
@@ -282,7 +282,7 @@ describe('SettingsArea project binding', () => {
   })
 })
 
-describe('SettingsArea follows a slug rename (WS-8)', () => {
+describe('SettingsArea follows a slug rename', () => {
   function mockRenamableProjects() {
     let current = projects
     vi.spyOn(projectsApi, 'list').mockImplementation(async () => current)
@@ -351,7 +351,7 @@ describe('SettingsArea follows a slug rename (WS-8)', () => {
   })
 })
 
-describe('SettingsArea owner-only sections (#237 ST-17 / ST-36)', () => {
+describe('SettingsArea owner-only sections (#237)', () => {
   it('titles the page and explains the owner gate with a way out', async () => {
     vi.spyOn(projectsApi, 'list').mockResolvedValue(projects)
     const owner = ownerAuthValue()

@@ -2,7 +2,7 @@
  * The metric editor's form state as one plain object, plus the pure helpers
  * around it: hydrate it from a stored definition, validate it, and derive the
  * internal name. Kept out of the component so every rule here is unit-tested
- * without rendering a form (MET-42).
+ * without rendering a form.
  */
 
 import {
@@ -38,8 +38,8 @@ export const METRIC_COLOR_SWATCHES: readonly { value: string; label: string }[] 
 
 /**
  * The first swatch no existing metric uses, so metrics made from scratch are
- * told apart in the catalog and in overlays instead of all being indigo
- * (MT-35). Once every swatch is taken it cycles by count.
+ * told apart in the catalog and in overlays instead of all being indigo.
+ * Once every swatch is taken it cycles by count.
  */
 export function nextMetricColor(usedColors: Iterable<string>): string {
   const used = new Set<string>()
@@ -86,7 +86,7 @@ export interface MetricDraft {
   unit: string
   color: string
   anomalyDetection: boolean
-  /** Who answers for the metric; '' for nobody (MT-25). */
+  /** Who answers for the metric; '' for nobody. */
   ownerId: string
   breakdownColumns: string[]
   appVersionColumn: string
@@ -98,7 +98,7 @@ export interface MetricDraft {
    * Set through the API or the demo, never through this form, and re-sent as
    * stored. Null while the interval is coarser than it, and back once the
    * interval is not — the backend refuses a chunk finer than the interval, and
-   * the user could not see the field the 422 named (MET-10).
+   * the user could not see the field the 422 named.
    */
   replayChunkInterval: MetricScanInterval | null
   // SQL
@@ -159,7 +159,7 @@ export function savedDimensions(
 /**
  * The kind a new metric starts on: the one that needs no SQL and no fact
  * table. SQL used to be first and preselected, the most technical choice
- * made for everyone (MT-3).
+ * made for everyone.
  */
 export const NEW_METRIC_KIND: MetricKind = 'event_composition'
 
@@ -292,7 +292,7 @@ export function validateDraft(draft: MetricDraft, isNew: boolean): Record<string
       errs['metric-denominator'] = 'A denominator event is required for a ratio metric.'
     }
   }
-  // The name card sits below the definition (MT-2), so its errors come last.
+  // The name card sits below the definition, so its errors come last.
   if (!draft.displayName.trim()) errs['metric-display-name'] = 'Display name is required.'
   if (isNew && !draft.name.trim()) errs['metric-name'] = 'Internal name is required.'
   return errs
@@ -310,7 +310,7 @@ function escapeRegExp(text: string): string {
  * Columns of the schema tables a SQL query names, de-duplicated in schema
  * order and capped. The breakdown picker and the column inputs used to offer
  * every column of every table in the warehouse — thousands of checkboxes on a
- * real one, most of which the query never projects (MET-17). A table counts as
+ * real one, most of which the query never projects. A table counts as
  * named when its name, or the part after its database qualifier, appears in
  * the SQL as a whole word.
  */

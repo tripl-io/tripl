@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { NAME_SEGMENT_SEPARATOR, splitEventName } from './eventNameSegments'
 
-// The shared EventName component reads these from lib/, not from a page module
-// (DS-41); the behaviour is the one pages/events/utils.ts had.
+// The shared EventName component reads these from lib/, not from a page module;
+// the behaviour is the one pages/events/utils.ts had.
 describe('splitEventName', () => {
   it('splits on a colon', () => {
     expect(NAME_SEGMENT_SEPARATOR).toBe(':')

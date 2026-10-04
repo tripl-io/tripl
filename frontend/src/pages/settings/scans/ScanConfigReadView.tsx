@@ -27,7 +27,7 @@ function limit(value: number | null) {
 }
 
 /**
- * A scan's configuration for someone who cannot change it (i9mt.12). The tab
+ * A scan's configuration for someone who cannot change it. The tab
  * used to render the whole edit form inside a disabled fieldset — live
  * borders, pickers, preview buttons and author hints — for a reader who can
  * only read. This is the same definition as a description list; the caller

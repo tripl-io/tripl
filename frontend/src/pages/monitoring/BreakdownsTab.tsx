@@ -163,7 +163,7 @@ export function BreakdownsTab({
           </SelectContent>
         </Select>
         {/* The window this chart covers, set here too: it used to follow the
-            Volume tab's controls without saying so (MO-29). */}
+            Volume tab's controls without saying so. */}
         <MetricsRangeControls
           rangeDays={rangeDays}
           granularity={granularity}
@@ -175,7 +175,7 @@ export function BreakdownsTab({
       <CardContent>
         {query.isError ? (
           // Not "No breakdown groups yet" — that told the reader to go
-          // configure something that was already configured (MON-8).
+          // configure something that was already configured.
           <ErrorState
             compact
             title="Could not load breakdowns"
@@ -244,7 +244,7 @@ export function BreakdownsTab({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {latestParityAnomalies.map(({ series, anomaly }) => (
-                    // A status flag in the one pill idiom (DS-6): a drop in the
+                    // A status flag in the one pill idiom: a drop in the
                     // danger tone, a spike in the warning tone.
                     <Chip
                       key={`${series.breakdown_value}-${anomaly.bucket}`}

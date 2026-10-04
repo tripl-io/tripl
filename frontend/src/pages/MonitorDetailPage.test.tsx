@@ -193,7 +193,7 @@ const expectedMutePresetName = (ruleName: string, presetLabel: string) =>
   `Mute ${ruleName} for ${presetLabel}`
 const expectedUnmuteName = (ruleName: string) => `Unmute ${ruleName}`
 
-/** The durations sit behind the header's "Mute" menu (MO-35). */
+/** The durations sit behind the header's "Mute" menu. */
 async function openMuteMenu() {
   fireEvent.keyDown(await screen.findByRole('button', { name: 'Mute' }), { key: 'Enter' })
   return screen.findByRole('menu')
@@ -210,7 +210,7 @@ describe('MonitorDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'payment_failed spike' })).toBeInTheDocument()
     // Condition config: the direction in words beside a coloured arrow, not a
-    // black text triangle (MO-37).
+    // black text triangle.
     expect(screen.getByText('Spike')).toBeInTheDocument()
     expect(screen.queryByText(/▲/)).toBeNull()
     expect(screen.getByText('≥ 50% change')).toBeInTheDocument()
@@ -226,12 +226,12 @@ describe('MonitorDetailPage', () => {
       screen.getByText('Scan failed: could not connect to the data source.'),
     ).toBeInTheDocument()
     // The eyebrow names the nav group and the collection, in place of the
-    // separate "Monitors" back link above the header (DS-2 / MO-40).
+    // separate "Monitors" back link above the header.
     expect(screen.getByText('Observe · Alert rule')).toHaveAttribute('data-slot', 'page-eyebrow')
     expect(screen.queryByRole('link', { name: 'Monitors' })).not.toBeInTheDocument()
   })
 
-  it('offers a viewer no mute or retry, and says who can (MON-6)', async () => {
+  it('offers a viewer no mute or retry, and says who can', async () => {
     mockApi()
 
     renderDetail(VIEWER)
@@ -477,7 +477,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.queryByRole('menuitem', { name: expectedMutePresetName(RULE, '1h') })).toBeNull()
   })
 
-  it('says "still firing" beside the last-fired time instead of contradicting it (LIVE-18)', async () => {
+  it('says "still firing" beside the last-fired time instead of contradicting it', async () => {
     mockApi()
     renderDetail()
 
@@ -486,7 +486,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.queryByText('now')).not.toBeInTheDocument()
   })
 
-  it('says how many of the watched scopes are firing, once (MON-42, MO-36)', async () => {
+  it('says how many of the watched scopes are firing, once', async () => {
     mockApi()
     renderDetail()
 
@@ -497,7 +497,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.queryByText('1 firing')).toBeNull()
   })
 
-  it('lists which scopes are firing now, each linking to its drilldown (MO-36)', async () => {
+  it('lists which scopes are firing now, each linking to its drilldown', async () => {
     mockApi({
       monitor: {
         ...BASE_MONITOR,
@@ -548,7 +548,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.queryByRole('heading', { name: 'Firing now' })).toBeNull()
   })
 
-  it('opens a delivery\'s matched scopes, each linking to its chart (MO-36)', async () => {
+  it('opens a delivery\'s matched scopes, each linking to its chart', async () => {
     mockApi()
     renderDetail()
 
@@ -563,7 +563,7 @@ describe('MonitorDetailPage', () => {
     )
   })
 
-  it('puts the state beside the title and mute among the header actions (MO-35)', async () => {
+  it('puts the state beside the title and mute among the header actions', async () => {
     mockApi()
     renderDetail()
 
@@ -573,7 +573,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByRole('button', { name: 'Mute' })).toBeInTheDocument()
   })
 
-  it('refreshes the Monitors list summary after a mute (MON-31)', async () => {
+  it('refreshes the Monitors list summary after a mute', async () => {
     mockApi()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -594,7 +594,7 @@ describe('MonitorDetailPage', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: alertDeliveriesAnyKey('demo') })
   })
 
-  it('refreshes the Inbox and delivery probes after a successful retry (MON-31)', async () => {
+  it('refreshes the Inbox and delivery probes after a successful retry', async () => {
     mockApi()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
@@ -610,7 +610,7 @@ describe('MonitorDetailPage', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['monitors-summary', 'demo'] })
   })
 
-  it('says a failed retry failed, on the row, instead of silently re-arming the button (MON-31)', async () => {
+  it('says a failed retry failed, on the row, instead of silently re-arming the button', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
       const method = init?.method ?? 'GET'
@@ -631,7 +631,7 @@ describe('MonitorDetailPage', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 
-  it('refreshes the monitor itself after a successful retry, so "Last delivery" is current (MON-31)', async () => {
+  it('refreshes the monitor itself after a successful retry, so "Last delivery" is current', async () => {
     const fetchMock = mockApi()
     renderDetail()
 
@@ -645,7 +645,7 @@ describe('MonitorDetailPage', () => {
     })
   })
 
-  it('says a deleted rule is not found, with a way back instead of a retry (SH-33)', async () => {
+  it('says a deleted rule is not found, with a way back instead of a retry', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = String(input)
       if (url.includes('/alert-deliveries')) return jsonResponse(HISTORY)
@@ -654,7 +654,7 @@ describe('MonitorDetailPage', () => {
 
     renderDetail()
 
-    // "Alert rule", not "Monitor": one name for one object (JR-28).
+    // "Alert rule", not "Monitor": one name for one object.
     expect(await screen.findByText('Alert rule not found')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to alert rules' })).toHaveAttribute(
       'href',
@@ -809,8 +809,8 @@ describe('MonitorDetailPage inert scopes', () => {
   })
 })
 
-// LIVE-11: the monitor detail used the kit's page head, a second title scale.
-describe('MonitorDetailPage — the shared page header (LIVE-11)', () => {
+// the monitor detail used the kit's page head, a second title scale.
+describe('MonitorDetailPage — the shared page header', () => {
   it('renders the same title element as the other Observe pages', async () => {
     mockApi()
     renderDetail()

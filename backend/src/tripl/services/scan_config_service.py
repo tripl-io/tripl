@@ -1,4 +1,4 @@
-"""Read-side extras for scan configs: metrics schedule (DA-5) and freshness (#269).
+"""Read-side extras for scan configs: metrics schedule and freshness (#269).
 
 ``scan_service`` owns the config CRUD; this module answers "when did metrics
 collection last run for this scan, and when is it next due" for the scan detail

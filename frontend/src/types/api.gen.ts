@@ -681,7 +681,7 @@ export interface paths {
         put?: never;
         /**
          * Test Unsaved Data Source Connection
-         * @description Test a connection before it is saved (DATA-30).
+         * @description Test a connection before it is saved.
          *
          *     The create gate (org owner/admin, browser session) and the create body's validation,
          *     host format included; nothing is stored and no stored secret is read. Always
@@ -1918,7 +1918,7 @@ export interface paths {
         put?: never;
         /**
          * Test Alert Destination Draft
-         * @description Send the test message through settings that are not saved yet (AL-30).
+         * @description Send the test message through settings that are not saved yet.
          *
          *     The destination dialog's "Send test": an unsaved destination, or an edit
          *     in progress, where ``destination_id`` lends the stored secrets the form
@@ -2339,7 +2339,7 @@ export interface paths {
         put?: never;
         /**
          * Query Signal Series
-         * @description Row sparklines for many open signals in one request (MO-19). POST for
+         * @description Row sparklines for many open signals in one request. POST for
          *     the same reason as ``/signals/query``: the batch outgrows a query string.
          */
         post: operations["query_signal_series_api_v1_projects__slug__anomalies_signals_series_post"];
@@ -2804,7 +2804,7 @@ export interface paths {
          * @description Owner-only: clear every anomaly (+ breakdown) in the project's period.
          *
          *     Destructive and irreversible. Derived monitoring signals disappear with the
-         *     anomalies they are computed from. ``dry_run`` only counts (ST-39).
+         *     anomalies they are computed from. ``dry_run`` only counts.
          */
         post: operations["reset_anomalies_api_v1_projects__slug__danger_reset_anomalies_post"];
         delete?: never;
@@ -2826,7 +2826,7 @@ export interface paths {
          * Reset Drifts
          * @description Owner-only: clear every schema + distribution drift in the project's period.
          *
-         *     Destructive and irreversible. ``dry_run`` only counts (ST-39).
+         *     Destructive and irreversible. ``dry_run`` only counts.
          */
         post: operations["reset_drifts_api_v1_projects__slug__danger_reset_drifts_post"];
         delete?: never;
@@ -4352,7 +4352,7 @@ export interface paths {
         };
         /**
          * Get Meta Field Usage
-         * @description Values and events a delete of this field would clear (AU-37).
+         * @description Values and events a delete of this field would clear.
          */
         get: operations["get_meta_field_usage_api_v1_projects__slug__meta_fields__meta_field_id__usage_get"];
         put?: never;
@@ -4590,7 +4590,7 @@ export interface paths {
          * @description Return a saved fact metric's primary dependency-batch SQL without running it.
          *
          *     Same gate as ``GET /{metric_id}``: anyone who can read the metric. The SQL is
-         *     compiled from config that read already returns (MET-41) and nothing executes.
+         *     compiled from config that read already returns and nothing executes.
          */
         get: operations["get_metric_generated_sql_api_v1_projects__slug__metrics__metric_id__generated_sql_get"];
         put?: never;
@@ -5202,7 +5202,7 @@ export interface paths {
         put?: never;
         /**
          * Batch Shadow Events
-         * @description Accept or dismiss many inbox rows in one request (DATA-39).
+         * @description Accept or dismiss many inbox rows in one request.
          *
          *     Each row is handled and audited exactly as its single route would, and a
          *     refused row is reported in ``results`` without stopping the rest.
@@ -6237,7 +6237,7 @@ export interface paths {
         };
         /**
          * Get Ai Prompt Defaults
-         * @description The built-in AI system prompts, for each prompt's "Restore default" (ST-30).
+         * @description The built-in AI system prompts, for each prompt's "Restore default".
          */
         get: operations["get_ai_prompt_defaults_api_v1_settings_ai_defaults_get"];
         put?: never;
@@ -6301,7 +6301,7 @@ export interface paths {
          *
          *     The rest of this router is for settings admins; these values are not, because it is
          *     an editor's upload they refuse and the browser should say so before the
-         *     upload rather than after (EVT-28). The caller's organization's limits
+         *     upload rather than after. The caller's organization's limits
          *     (F20 PR11), resolved like the rest of the legacy route; the operator's when
          *     it resolves none. ``/orgs/{org}/settings/photo-limits`` names one.
          */
@@ -6327,7 +6327,7 @@ export interface paths {
          *
          *     Admin-only like the rest of this router would hide the real numbers from the
          *     editors who fill in a scan's Limits, so the form hard-coded the shipped
-         *     defaults instead (B15). Two integers, nothing about the connection.
+         *     defaults instead. Two integers, nothing about the connection.
          *
          *     The caller's organization's caps (F20 PR9), resolved like the rest of the
          *     legacy route; ``/orgs/{org}/settings/row-limits`` names one explicitly.
@@ -6567,7 +6567,7 @@ export interface components {
         };
         /**
          * AiPromptDefaultsResponse
-         * @description The built-in system prompts, whatever is stored over them (ST-30).
+         * @description The built-in system prompts, whatever is stored over them.
          *
          *     A "Restore default" link fills the editor from these; saving ``null`` for
          *     the field clears the override and has the same effect server-side.
@@ -6917,7 +6917,7 @@ export interface components {
         };
         /**
          * AlertDestinationDraftTestRequest
-         * @description A destination's settings as the dialog holds them, to test before saving (AL-30).
+         * @description A destination's settings as the dialog holds them, to test before saving.
          *
          *     Setting up Slack used to take Create, close, find the card, then Test — and
          *     a wrong webhook was a stored destination by the time anyone learned it.
@@ -7346,7 +7346,7 @@ export interface components {
         AlertInboxStatus: "open" | "acknowledged" | "resolved" | "muted" | "false_positive";
         /**
          * AlertInboxStatusCounts
-         * @description Incidents per effective status over the whole window (AL-14).
+         * @description Incidents per effective status over the whole window.
          *
          *     Counted after the non-status filters and before the status one, so a chip
          *     reads what choosing it would list, without loading every page.
@@ -8937,7 +8937,7 @@ export interface components {
          *     changed it: ``base``/``ours``/``theirs`` are then ``"present"`` or
          *     ``"absent"``. ``dependents`` counts, for an event type main deleted, the
          *     fields, events and relations this branch added or edited under it — what
-         *     taking main's side removes with it (PL-8).
+         *     taking main's side removes with it.
          */
         ConflictField: {
             /** Base */
@@ -9019,7 +9019,7 @@ export interface components {
         DBType: "clickhouse" | "postgres" | "bigquery" | "synthetic";
         /**
          * DataSourceConnectionTest
-         * @description An unsaved data-source config to test a connection with (DATA-30).
+         * @description An unsaved data-source config to test a connection with.
          *
          *     The create body, validated the same way (host format included), so a form
          *     can test exactly what Create would store. ``name`` is optional because the
@@ -9161,7 +9161,7 @@ export interface components {
         };
         /**
          * DataSourceScanRef
-         * @description One scan reading a data source, enough to link to it (DA-40).
+         * @description One scan reading a data source, enough to link to it.
          */
         DataSourceScanRef: {
             /**
@@ -9302,7 +9302,7 @@ export interface components {
          *     the provision then deletes itself instead of promoting.
          *
          *     When it is false there was nothing to stop, and ``state`` says which of two
-         *     very different things that means (DEMO-28): ``finished`` — a demo of this
+         *     very different things that means: ``finished`` — a demo of this
          *     user's became ready moments ago, so it WILL be in their projects list and
          *     the caller should say so — or ``none`` — no recent demo exists, the create
          *     never got far enough (or failed on its own), and the caller must not promise
@@ -9391,7 +9391,7 @@ export interface components {
          *     Both bounds are optional; omitting both clears the whole project.
          *
          *     ``dry_run`` returns the counts the reset WOULD delete and deletes nothing, so
-         *     the confirm dialog can name them (ST-39). It defaults to false, unlike
+         *     the confirm dialog can name them. It defaults to false, unlike
          *     ``VariableRetirementRequest``: this body predates it, and a client that
          *     omits it has always meant "delete".
          */
@@ -11052,7 +11052,7 @@ export interface components {
         };
         /**
          * EventIdentityHolder
-         * @description An event that already answers to a looked-up identity (EVT-37).
+         * @description An event that already answers to a looked-up identity.
          *
          *     ``identity`` is the name that was asked about; ``name`` is the holder's own
          *     name, which differs when a scanned event has since been renamed.
@@ -12970,7 +12970,7 @@ export interface components {
         };
         /**
          * MetaFieldUsageResponse
-         * @description What deleting a meta field would take with it (AU-37).
+         * @description What deleting a meta field would take with it.
          *
          *     ``value_count`` is every non-empty stored value (a multi-value field holds
          *     several per event); ``event_count`` is the events holding at least one.
@@ -13782,7 +13782,7 @@ export interface components {
         };
         /**
          * MonitorFiringScope
-         * @description One scope of a monitor that is firing now (MO-36).
+         * @description One scope of a monitor that is firing now.
          *
          *     Chosen by the same horizon test as ``firing_scope_count``, so the list and
          *     the count cannot disagree. ``scope_name``, ``event_id`` and ``direction``
@@ -14886,7 +14886,7 @@ export interface components {
          * @description What the upload endpoint will take, for the browser to say so up front.
          *
          *     ``photo_max_size_mb`` is an owner setting; every signed-in user may read it,
-         *     because an editor's upload is what it refuses (EVT-28). Both values are the
+         *     because an editor's upload is what it refuses. Both values are the
          *     organization's (F20 PR11): its own cap, never above the operator's, and its
          *     allow-list, never wider than the operator's.
          */
@@ -15206,7 +15206,7 @@ export interface components {
         };
         /**
          * PlanRevisionKind
-         * @description What produced a revision (PL-21).
+         * @description What produced a revision.
          *
          *     ``snapshot`` is a user-taken one (``POST /plan-revisions``); ``branch_base``
          *     is the merge base captured when a branch opens; ``merge`` is the live plan
@@ -16636,7 +16636,7 @@ export interface components {
         };
         /**
          * RelationUpdate
-         * @description Editing a relation in place (AU-13); every field optional, none nullable.
+         * @description Editing a relation in place; every field optional, none nullable.
          *
          *     An end is re-checked against the project branch whenever either of its ids
          *     changes, with the stored id standing in for the one not sent.
@@ -16796,7 +16796,7 @@ export interface components {
          * @description The instance's effective row caps for a scan with no limit of its own.
          *
          *     Readable by every signed-in user, unlike the rest of ``/settings``: the scan
-         *     form's Limits hints quote them to whoever is filling it in (B15).
+         *     form's Limits hints quote them to whoever is filling it in.
          */
         RowLimitDefaultsResponse: {
             /** Metrics Row Limit Default */
@@ -16978,7 +16978,7 @@ export interface components {
         };
         /**
          * ScanConfigDetailResponse
-         * @description One scan config with its metrics schedule (DA-5).
+         * @description One scan config with its metrics schedule.
          *
          *     Only ``GET /scans/{id}`` computes these, so they are not on the list rows.
          *     ``last_metrics_run_at`` is when the newest scheduled metrics collection
@@ -17051,7 +17051,7 @@ export interface components {
             metrics_row_limit: number | null;
             /**
              * Monitoring Enabled
-             * @description Whether the scheduler collects metrics for this scan (MO-23).
+             * @description Whether the scheduler collects metrics for this scan.
              *
              *     Derived, never stored: the beat schedule and every monitoring read path
              *     select on ``interval IS NOT NULL``, so this is that test said out loud
@@ -17185,7 +17185,7 @@ export interface components {
             metrics_row_limit: number | null;
             /**
              * Monitoring Enabled
-             * @description Whether the scheduler collects metrics for this scan (MO-23).
+             * @description Whether the scheduler collects metrics for this scan.
              *
              *     Derived, never stored: the beat schedule and every monitoring read path
              *     select on ``interval IS NOT NULL``, so this is that test said out loud
@@ -17844,7 +17844,7 @@ export interface components {
         };
         /**
          * SearchVariant
-         * @description One folded member of a :class:`SearchVariantGroup` (JR-20).
+         * @description One folded member of a :class:`SearchVariantGroup`.
          *
          *     Deliberately slim — enough to render and open the event, not a second full
          *     :class:`SearchResult`: a group of 40 scan variants would otherwise carry 40
@@ -17880,7 +17880,7 @@ export interface components {
         };
         /**
          * SearchVariantGroup
-         * @description Event hits folded under their best-ranked member (JR-20).
+         * @description Event hits folded under their best-ranked member.
          *
          *     Events of ONE event type whose names differ only in the value substituted
          *     for ONE naming-rule placeholder — the scan's ``event_name_format``, or the
@@ -18092,7 +18092,7 @@ export interface components {
         };
         /**
          * ShadowEventBatchRequest
-         * @description Accept or dismiss many inbox rows in one request (DATA-39).
+         * @description Accept or dismiss many inbox rows in one request.
          */
         ShadowEventBatchRequest: {
             /**
@@ -18278,7 +18278,7 @@ export interface components {
         };
         /**
          * SignalSeriesScope
-         * @description One open signal whose recent series a row sparkline draws (MO-19).
+         * @description One open signal whose recent series a row sparkline draws.
          */
         SignalSeriesScope: {
             /**
@@ -19094,7 +19094,7 @@ export interface components {
         };
         /**
          * VariableEventRef
-         * @description One event a variable was observed in, with the id a link needs (AU-29).
+         * @description One event a variable was observed in, with the id a link needs.
          */
         VariableEventRef: {
             /**

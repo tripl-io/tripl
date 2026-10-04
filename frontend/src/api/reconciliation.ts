@@ -15,7 +15,7 @@ export interface ShadowEvent {
   status: ShadowEventStatus
   accepted_event_id: string | null
   /**
-   * A few rows the collector saw for this identity (DA-32). Optional so a
+   * A few rows the collector saw for this identity. Optional so a
    * response from an older server still renders.
    */
   sample_properties?: Record<string, string>[]
@@ -141,7 +141,7 @@ export const reconciliationApi = {
     ),
 
   /**
-   * Accept or dismiss many rows in one request (DATA-39). Each row succeeds or
+   * Accept or dismiss many rows in one request. Each row succeeds or
    * fails on its own; `results` says which, in the order sent.
    */
   batchShadowEvents: (

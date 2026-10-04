@@ -57,7 +57,7 @@ export function NotFoundState({
           and the portfolio stays as the secondary way out. */}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
         {/* Button, not links hand-painted in the accent: those skipped the
-            primitive's hover, focus ring and dark-mode fill (DS-14, AU-7). */}
+            primitive's hover, focus ring and dark-mode fill. */}
         {project && (
           <Button asChild size="lg">
             <Link to={projectHomePath(project.slug)}>Back to {project.name}</Link>

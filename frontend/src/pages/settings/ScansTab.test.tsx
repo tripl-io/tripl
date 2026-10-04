@@ -271,7 +271,7 @@ afterEach(() => {
 })
 
 describe('ScansTab', () => {
-  it('offers an editor Run now but no scan authoring (DATA-6)', async () => {
+  it('offers an editor Run now but no scan authoring', async () => {
     setupFetch()
     renderTab('member')
 
@@ -280,7 +280,7 @@ describe('ScansTab', () => {
     expect(screen.queryByRole('button', { name: /New scan/ })).not.toBeInTheDocument()
   })
 
-  it('offers a viewer neither authoring nor runs (DATA-6)', async () => {
+  it('offers a viewer neither authoring nor runs', async () => {
     setupFetchWithJobs([failedJob('job-f1', '2026-01-01T00:00:00Z')])
     renderTab('viewer')
 
@@ -307,8 +307,8 @@ describe('ScansTab', () => {
     // The KPI tile: the label sits directly over the config count.
     expect(scansSurfaces).toContain('Scans1')
     // The list panel is "All scans", an h2 under the page's h1 "Scans" — two
-    // same-named headings at one level gave the page no single title (DS-16,
-    // DA-10). Its title
+    // same-named headings at one level gave the page no single title.
+    // Its title
     // sits directly over its count subtitle, and the count agrees with its
     // noun. This fixture has ONE scan on purpose — the state every project is
     // in the moment it finishes the onboarding checklist's "Run a scan" step —
@@ -323,9 +323,9 @@ describe('ScansTab', () => {
     // "Monitoring" is both the KPI label and this row's mode badge.
     expect(screen.getAllByText('Monitoring')).toHaveLength(2)
     // Warehouse rows only; catalog runs' grouped combinations are a different
-    // unit and stay out of the figure (#247 DA-4).
+    // unit and stay out of the figure (#247).
     expect(screen.getByText('Warehouse rows · 24h')).toBeInTheDocument()
-    // The aggregate the strip was missing: scans whose latest run failed (DA-11).
+    // The aggregate the strip was missing: scans whose latest run failed.
     expect(screen.getByText('Failing').parentElement?.textContent).toBe('Failing0')
     // Rows lead with a human summary (source · cadence); the raw SQL is demoted
     // to a faint secondary line rather than its own prominent column.
@@ -496,7 +496,7 @@ describe('ScansTab', () => {
     const label = await screen.findByText('Warehouse rows · 24h')
     await waitFor(() => expect(label.parentElement?.textContent).toBe('Warehouse rows · 24h1.5K'))
     expect(label.parentElement?.textContent).not.toContain('+')
-    // The catalog runs' combinations are named beside it, not added in (DA-4).
+    // The catalog runs' combinations are named beside it, not added in.
     expect(label.closest('[title]')).toHaveAttribute(
       'title',
       'Warehouse rows read by runs in the last 24 hours. Catalog runs that report no warehouse rows also read back 153 column combinations.',
@@ -633,7 +633,7 @@ describe('ScansTab', () => {
     expect(navigateMock).toHaveBeenCalledWith('/p/demo/scans/scan-1')
   })
 
-  it('opens the create page on its own route, so Back and reload keep it (DATA-13)', async () => {
+  it('opens the create page on its own route, so Back and reload keep it', async () => {
     setupFetch()
     renderTab()
 
@@ -688,7 +688,7 @@ describe('ScansTab', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Main scan' } })
     fireEvent.change(screen.getByLabelText('Data source'), { target: { value: 'ds-1' } })
     // The SQL editor is a lazy chunk. Its placeholder is the example as an SQL
-    // comment (MT-6), so match the example inside it.
+    // comment, so match the example inside it.
     fireEvent.change(await screen.findByPlaceholderText(/SELECT \* FROM analytics\.events/), {
       target: { value: 'SELECT * FROM analytics.events' },
     })
@@ -854,7 +854,7 @@ describe('ScansTab — coached demo scenario', () => {
 })
 
 describe('ScansTab — data layer and feedback (batch 4)', () => {
-  it('asks each scan for the head of its history, not 50 full jobs (DATA-17)', async () => {
+  it('asks each scan for the head of its history, not 50 full jobs', async () => {
     setupFetch()
     renderTab()
 
@@ -866,7 +866,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     )
   })
 
-  it('keeps counting a failing streak while a retry is queued (DATA-18)', async () => {
+  it('keeps counting a failing streak while a retry is queued', async () => {
     // The server's count looks past the queued retry; the list must still
     // collapse the failures behind it into the tagged row.
     setupFetchWithJobs(
@@ -890,7 +890,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     expect(await screen.findByText(/failed last 3 runs/)).toBeInTheDocument()
   })
 
-  it('says a Run now failed, and for which scan (DATA-5)', async () => {
+  it('says a Run now failed, and for which scan', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/api/v1/data-sources')) return mockJsonResponse([dataSource])
@@ -915,7 +915,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     )
   })
 
-  it('does not claim "No data sources" before the list has loaded (DATA-16)', async () => {
+  it('does not claim "No data sources" before the list has loaded', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       // The data-source list never answers: a cold load.
@@ -933,7 +933,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     expect(screen.getByRole('button', { name: /New scan/ })).not.toBeDisabled()
   })
 
-  it('says why New scan is off as visible text, not a hidden title (#237 DA-9)', async () => {
+  it('says why New scan is off as visible text, not a hidden title (#237)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/api/v1/data-sources')) return mockJsonResponse([])
@@ -963,7 +963,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     })
   }
 
-  it('shows one empty state, and no tiles, in a project with no data source (#247 DA-28)', async () => {
+  it('shows one empty state, and no tiles, in a project with no data source (#247)', async () => {
     setupEmptyProject([])
     renderTab()
 
@@ -982,7 +982,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     expect(screen.queryByRole('button', { name: /New scan/ })).not.toBeInTheDocument()
   })
 
-  it('offers New scan from the empty state once a data source exists (#247 DA-28)', async () => {
+  it('offers New scan from the empty state once a data source exists (#247)', async () => {
     setupEmptyProject([dataSource])
     renderTab()
 
@@ -1020,7 +1020,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     expect(screen.queryByRole('button', { name: /New scan/ })).not.toBeInTheDocument()
   })
 
-  it('tells a viewer of an empty project who creates scans, with no button (#247 DA-28)', async () => {
+  it('tells a viewer of an empty project who creates scans, with no button (#247)', async () => {
     setupEmptyProject([dataSource])
     renderTab('viewer')
 
@@ -1029,7 +1029,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     expect(screen.queryByRole('button', { name: /New scan/ })).not.toBeInTheDocument()
   })
 
-  it('tones the Failing tile when a scan is failing (#247 DA-11)', async () => {
+  it('tones the Failing tile when a scan is failing (#247)', async () => {
     setupFetchWithJobs([failedJob('job-f1', '2026-01-01T00:00:00Z')], undefined, { failing_streak: 1 })
     renderTab()
 
@@ -1038,7 +1038,7 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     )
   })
 
-  it('fills Recent runs past two rows when there is only one scan (#247 DA-24)', async () => {
+  it('fills Recent runs past two rows when there is only one scan (#247)', async () => {
     const completed = (id: string, ts: string, rows: number) => ({
       id,
       scan_config_id: 'scan-1',
@@ -1058,14 +1058,14 @@ describe('ScansTab — data layer and feedback (batch 4)', () => {
     ])
     renderTab()
 
-    // All four runs, with the catalog figure named for what it is (DA-4).
+    // All four runs, with the catalog figure named for what it is.
     expect(await screen.findByText('153 combos')).toBeInTheDocument()
     expect(screen.getByText('1 combo')).toBeInTheDocument()
     expect(screen.getByText('2 combos')).toBeInTheDocument()
     expect(screen.getByText('3 combos')).toBeInTheDocument()
   })
 
-  it('offers Run again only on the latest failure, not one a success followed (#247 DA-22)', async () => {
+  it('offers Run again only on the latest failure, not one a success followed (#247)', async () => {
     setupFetchWithJobs([
       {
         id: 'job-ok',

@@ -72,7 +72,7 @@ function PlatformPresencePanel({ slug, scanConfigId }: { slug: string; scanConfi
   })
 
   // Say how many events the matrix covers, so one row reads as "one event
-  // so far", not as a truncated table (#247 DA-19).
+  // so far", not as a truncated table (#247).
   const seenEverywhere = data
     ? data.items.filter(item => data.platforms.every(platform => item.present_platforms.includes(platform))).length
     : 0
@@ -87,7 +87,7 @@ function PlatformPresencePanel({ slug, scanConfigId }: { slug: string; scanConfi
     body = <SectionSkeleton variant="rows" rows={2} label="Loading platform presence…" />
   } else if (isError) {
     // Without this branch a failed fetch fell through to "No platform column
-    // configured" — false for a scan that has one (DATA-21).
+    // configured" — false for a scan that has one.
     body = (
       <div className="p-4">
         <ErrorState
@@ -171,7 +171,7 @@ export function ScanDetail({
   scanConfig: ScanConfig
   eventTypes: EventType[]
   dataSource?: DataSource | null
-  /** The server's metrics schedule (i9mt.16); the job list stands in without it. */
+  /** The server's metrics schedule; the job list stands in without it. */
   metricsSchedule?: MetricsSchedule | null
 }) {
   const qc = useQueryClient()
@@ -227,7 +227,7 @@ export function ScanDetail({
     onMutate: () => setApplyGroupsMessage(''),
     onSuccess: (job) => {
       // Point at the run it queued too, not only say so: its row is
-      // highlighted in Recent runs (#247 DA-18).
+      // highlighted in Recent runs (#247).
       setApplyGroupsMessage('Group apply queued.')
       setHighlightedJobId(job.id)
       invalidateRuns()
@@ -242,7 +242,7 @@ export function ScanDetail({
     onSuccess: invalidateRuns,
   })
   // Stop sits one small icon away from Expand, and a stopped run is not
-  // resumed — only started again — so it asks first (DATA-24).
+  // resumed — only started again — so it asks first.
   const requestCancel = async (jobId: string) => {
     const ok = await confirm({
       title: 'Stop this run?',
@@ -269,7 +269,7 @@ export function ScanDetail({
   const lastEvents = lastJob?.result_summary?.events_created ?? null
   const mode = scanModeOf(scanConfig)
   // The newest METRICS run, not the newest run: a catalog Run now on top of the
-  // list left this card "—" on every monitoring scan (#247 DA-5).
+  // list left this card "—" on every monitoring scan (#247).
   // The next run is the scheduler's own due check when the server sent it.
   const freshness = metricsFreshness(jobs, scanConfig.interval, undefined, metricsSchedule)
   const lastMetricsJob = freshness.job
@@ -283,7 +283,7 @@ export function ScanDetail({
       ? `${formatRelativeTime(freshness.lastAt)}${freshness.nextAt != null ? ` · next ${formatDueIn(freshness.nextAt)}` : ''}`
       : 'no collection yet'
   // Retry belongs to the failure that is still current: on an old failure that
-  // later runs succeeded past it, it read as something left to fix (#247 DA-22).
+  // later runs succeeded past it, it read as something left to fix (#247).
   const latestSettledId = jobs.find(j => j.status !== 'pending' && j.status !== 'running')?.id ?? null
   const platformColumn = scanConfig.platform_column ?? null
   const groupRuleCount = scanConfig.event_group_rules.length
@@ -333,12 +333,12 @@ export function ScanDetail({
   return (
     <div className="flex flex-col gap-4">
       {dialog}
-      {/* The one page-KPI strip (DS-5): figures in sans + tabular digits, not
-          18px mono tiles (DA-23 / DS-17). */}
+      {/* The one page-KPI strip: figures in sans + tabular digits, not
+          18px mono tiles. */}
       <MiniStatStrip boxed>
         {/* An active run is "Running", not "just now": the relative time of a
-            run still in progress read as a finished one (DA-23). */}
-        {/* Before the runs answer, a skeleton, not "never" and "—" (#237 DS-25). */}
+            run still in progress read as a finished one. */}
+        {/* Before the runs answer, a skeleton, not "never" and "—" (#237). */}
         <MiniStat
           label="Last run"
           value={
@@ -354,7 +354,7 @@ export function ScanDetail({
         {/* "Scanned", with the unit on the figure: a catalog run reads back
             distinct column combinations (grouped in the warehouse), a metrics
             run warehouse rows, and "Rows read 153" was off by ~180× from the
-            dry run's row count (#247 DA-4). The title says which cap applied. */}
+            dry run's row count (#247). The title says which cap applied. */}
         <div title={jobRowsReadTitle(lastJob)}>
           <MiniStat label="Scanned · last run" value={isLoading ? <StatValueSkeleton /> : formatJobScanned(lastScanned)} />
         </div>
@@ -363,7 +363,7 @@ export function ScanDetail({
             metric, and "Metrics" is the name of a different surface (Observe ›
             Metrics, the user-defined catalog). The figure is the newest
             collection's, with when it landed and when the next is due; amber
-            once the series is two intervals behind (#247 DA-5). */}
+            once the series is two intervals behind (#247). */}
         <MiniStat
           label="Metric points"
           value={
@@ -442,7 +442,7 @@ export function ScanDetail({
           />
           {/* With no platform column the presence matrix below has nothing to
               show, so the fact is one line here instead of a full-width panel
-              that said only "No platform column configured" (#247 DA-19). */}
+              that said only "No platform column configured" (#247). */}
           {!platformColumn && (
             <KV
               label="Platform column"
@@ -457,7 +457,7 @@ export function ScanDetail({
             />
           )}
           {/* Apply groups sits on the rules it applies, not 400px below in the
-              Recent runs header, and only when there are rules (#247 DA-18). */}
+              Recent runs header, and only when there are rules (#247). */}
           <KV
             label="Event group rules"
             value={
@@ -486,7 +486,7 @@ export function ScanDetail({
             </p>
           )}
           {/* Always mounted, so the live region exists before it has anything
-              to say; padded only once it does (DATA-22). */}
+              to say; padded only once it does. */}
           <p
             role="status"
             aria-live="polite"
@@ -502,7 +502,7 @@ export function ScanDetail({
             label="Values limit"
             // Unset keeps every value, and the form's placeholder calls that
             // "Unlimited": one word on both screens, not a "default" that
-            // names no value (#247 DA-15).
+            // names no value (#247).
             value={scanConfig.metric_breakdown_values_limit ?? <span className="text-fg-tertiary">Unlimited</span>}
             mono
           />
@@ -513,7 +513,7 @@ export function ScanDetail({
       </div>
 
       {/* Platform presence matrix — only for a scan that has a platform
-          column; without one, Event mapping says so in a line (#247 DA-19). */}
+          column; without one, Event mapping says so in a line (#247). */}
       {platformColumn && <PlatformPresencePanel slug={slug} scanConfigId={scanConfig.id} />}
 
       {/* Recent runs */}
@@ -613,8 +613,7 @@ export function ScanDetail({
 // Columns a phone can do without; the row keeps when, rows read and status.
 const LOW_VALUE_COLUMN = 'hidden md:table-cell'
 
-// 24px suits a mouse; a finger gets 32px, since Stop sits right beside Expand
-// (DATA-24).
+// 24px suits a mouse; a finger gets 32px, since Stop sits right beside Expand.
 const RUN_CONTROL_SIZE = 'size-6 pointer-coarse:size-8'
 
 function JobRow({
@@ -675,7 +674,7 @@ function JobRow({
           would be worse than the hint going unheard. */}
       <ScenarioCoachMark step="live-loop/watch-scan" when={watched}>
         {/* The whole row opens the run report, not only the 24px chevron at the
-            far edge (#247 DA-21). The chevron stays the keyboard control; a
+            far edge (#247). The chevron stays the keyboard control; a
             click on any button in the row (Stop, Retry, the chevron itself) is
             left to that button. */}
         <TableRow
@@ -692,17 +691,17 @@ function JobRow({
         >
           <TableCell className="px-4 text-body-sm text-fg-secondary">
             {/* A queued run has no start yet; its queue time says more than a
-                dash, and it is what the scans list shows for it (DATA-23). */}
+                dash, and it is what the scans list shows for it. */}
             {job.started_at
               ? formatRelativeTime(job.started_at)
               : `queued ${formatRelativeTime(job.created_at)}`}
           </TableCell>
           {/* Durations and counts are figures: sans with tabular digits, not
-              mono (DS-17). */}
+              mono. */}
           <TableCell className={`tnum px-4 text-right text-caption ${LOW_VALUE_COLUMN} text-fg-tertiary`}>{duration}</TableCell>
           {/* A catalog run and a metrics run count different populations
               under different caps: the unit rides on the figure ("153 combos",
-              "4,428 rows"), the cap in the title (#247 DA-4). */}
+              "4,428 rows"), the cap in the title (#247). */}
           <TableCell className="tnum whitespace-nowrap px-4 text-right text-caption" title={jobRowsReadTitle(job)}>
             {formatJobScanned(scanned)}
           </TableCell>
@@ -713,7 +712,7 @@ function JobRow({
             <RunStatusPill status={runPillStatus(job.status)} title={failedMessage ?? undefined} />
             {/* Why it failed, readable in the table rather than only in a hover
                 title or after expanding the row, as the Scans list does
-                (#247 DA-20). */}
+                (#247). */}
             {failedMessage && (
               <span className="mt-0.5 block max-w-64 truncate text-caption text-danger">
                 {failedMessage}
@@ -760,7 +759,7 @@ function JobRow({
         </TableRow>
       </ScenarioCoachMark>
       {/* Only a replay has chunk progress to show; for every other run this row
-          was an empty 8px strip under the run (DATA-22). */}
+          was an empty 8px strip under the run. */}
       {job.result_summary?.mode === 'metrics_replay' && (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={6} className="p-0">

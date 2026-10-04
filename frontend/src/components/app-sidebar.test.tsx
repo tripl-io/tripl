@@ -230,13 +230,13 @@ describe('AppSidebar', () => {
     }
     expect(screen.getByRole('link', { name: 'Page view' })).toHaveAttribute('href', '/p/demo/events/page_view')
     expect(screen.getByRole('link', { name: 'Track click' })).toHaveAttribute('href', '/p/demo/events/track_click')
-    // Event types is a plain leaf to its page, with no gear (#238 SH-38).
+    // Event types is a plain leaf to its page, with no gear (#238).
     const eventTypes = screen.getByRole('link', { name: /^Event types/ })
     expect(eventTypes).toHaveAttribute('href', '/p/demo/event-types')
     expect(eventTypes.querySelectorAll('svg')).toHaveLength(1)
     expect(container).toBeInTheDocument()
     // Footer: project settings point at the full-takeover area and name THIS
-    // project in the address (SHELL-20).
+    // project in the address.
     expect(screen.getByRole('link', { name: 'Project settings' })).toHaveAttribute(
       'href',
       '/settings/project/general?project=demo',
@@ -266,14 +266,14 @@ describe('AppSidebar', () => {
     const eventTypeLink = await screen.findByRole('link', { name: 'Page view' })
     expect(eventTypeLink).toHaveClass('bg-sidebar-active')
     expect(eventTypeLink).toHaveAttribute('aria-current', 'page')
-    // Events matches the same /events prefix but is not the page (SHELL-45);
-    // it stays lit as the section the type filter belongs to (#238 SH-9).
+    // Events matches the same /events prefix but is not the page;
+    // it stays lit as the section the type filter belongs to (#238).
     const events = screen.getByRole('link', { name: /^Events/ })
     expect(events).not.toHaveAttribute('aria-current')
     expect(events.querySelector('svg')).toHaveStyle({ color: 'var(--accent)' })
   })
 
-  it('announces the current page with aria-current (SHELL-24)', async () => {
+  it('announces the current page with aria-current', async () => {
     mockProjectsFetch()
 
     renderSidebar('/p/demo/events')
@@ -282,7 +282,7 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('link', { name: /Anomalies/ })).not.toHaveAttribute('aria-current')
   })
 
-  it('keeps the switchers, project links and account menu when collapsed (SHELL-23)', async () => {
+  it('keeps the switchers, project links and account menu when collapsed', async () => {
     mockProjectsFetch()
     localStorage.setItem('tripl-sidebar-collapsed', '1')
 
@@ -305,7 +305,7 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('menuitem', { name: 'Appearance' })).toBeInTheDocument()
   })
 
-  it('drops the Plan counts, which are main\'s, while a branch is active (SH-11)', async () => {
+  it('drops the Plan counts, which are main\'s, while a branch is active', async () => {
     mockProjectsFetch()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
@@ -389,7 +389,7 @@ describe('AppSidebar', () => {
     expect(anomalies).toHaveClass('bg-sidebar-active')
   })
 
-  it('keeps nav icons neutral and paints only the open-incident count red (DS-28)', async () => {
+  it('keeps nav icons neutral and paints only the open-incident count red', async () => {
     mockProjectsFetch()
 
     renderSidebar('/p/demo/events')
@@ -450,7 +450,7 @@ describe('AppSidebar', () => {
 })
 
 describe('AppSidebar shell review (#238)', () => {
-  it('opens the account menu from the user row, with Profile and Sign out (SH-39)', async () => {
+  it('opens the account menu from the user row, with Profile and Sign out', async () => {
     mockProjectsFetch()
     renderSidebar('/p/demo/events')
     await screen.findByText('Events')
@@ -470,7 +470,7 @@ describe('AppSidebar shell review (#238)', () => {
     expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
   })
 
-  it('pins Project settings in the footer, outside the scrolling nav (SH-10)', async () => {
+  it('pins Project settings in the footer, outside the scrolling nav', async () => {
     mockProjectsFetch()
     renderSidebar('/p/demo/events')
     await screen.findByText('Events')
@@ -479,7 +479,7 @@ describe('AppSidebar shell review (#238)', () => {
     expect(settings.parentElement).toBe(concepts.parentElement)
   })
 
-  it('closes, rather than collapses, when rendered as the drawer (SH-13)', async () => {
+  it('closes, rather than collapses, when rendered as the drawer', async () => {
     mockProjectsFetch()
     const onClose = vi.fn()
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -502,7 +502,7 @@ describe('AppSidebar shell review (#238)', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('offers New project in the switcher to someone who can create one (SH-15)', async () => {
+  it('offers New project in the switcher to someone who can create one', async () => {
     mockProjectsFetch()
     renderSidebar('/p/demo/events')
     await screen.findByText('Events')

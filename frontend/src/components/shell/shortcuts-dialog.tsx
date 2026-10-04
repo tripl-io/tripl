@@ -12,7 +12,7 @@ import { commandPaletteShortcutLabel } from '@/lib/platform'
 import { GO_TO_SHORTCUTS } from './shell-shortcuts'
 
 /**
- * The `?` sheet (JR-21): every key the app answers to, in one place. There
+ * The `?` sheet: every key the app answers to, in one place. There
  * was no shortcut help at all, so `/` and Ctrl K were found by accident.
  * Loaded on the first `?`, never on a page load.
  */

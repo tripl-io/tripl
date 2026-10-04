@@ -4,7 +4,7 @@ import { ColumnCheckboxPicker } from './column-checkbox-picker'
 
 const many = Array.from({ length: 20 }, (_, i) => `col_${String(i).padStart(2, '0')}`)
 
-describe('ColumnCheckboxPicker (MT-16)', () => {
+describe('ColumnCheckboxPicker', () => {
   it('shows a short list whole, with no filter input', () => {
     render(<ColumnCheckboxPicker columns={['platform', 'country']} value={[]} onChange={vi.fn()} />)
 

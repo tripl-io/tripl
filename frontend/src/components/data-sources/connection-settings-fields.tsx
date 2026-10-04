@@ -19,8 +19,7 @@ import {
 } from './connection-settings'
 import { examplePlaceholder } from '@/components/forms/placeholders'
 
-// Instructions, not a PEM header that reads as content already pasted in
-// (DA-37).
+// Instructions, not a PEM header that reads as content already pasted in.
 const PEM_CERT_PLACEHOLDER = 'Paste the PEM block, from -----BEGIN CERTIFICATE-----'
 const PEM_KEY_PLACEHOLDER = 'Paste the PEM block, from -----BEGIN PRIVATE KEY-----'
 
@@ -48,7 +47,7 @@ export function ConnectionSettingsFields({
   sslkeySet = false,
   pemErrors = {},
 }: ConnectionSettingsFieldsProps) {
-  // Every PEM textarea: no spellcheck or autofill (DATA-29), and its inline
+  // Every PEM textarea: no spellcheck or autofill, and its inline
   // format error wired to it.
   const pemProps = (field: PemField) => ({
     ...SECRET_INPUT_PROPS,

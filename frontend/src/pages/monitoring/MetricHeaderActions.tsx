@@ -21,9 +21,9 @@ import type { MetricCollect } from './useMetricCollect'
 /**
  * Collect now / Edit / "…" for a catalog metric's drilldown header, the event
  * hero's pattern: Delete lives in the overflow menu instead of sitting red
- * beside the everyday actions (MO-34). The row wraps: at 375px the buttons are
+ * beside the everyday actions. The row wraps: at 375px the buttons are
  * wider than the column, and without a wrap the last one was pushed off-screen
- * and the whole page panned sideways (MON-10 / LIVE-2).
+ * and the whole page panned sideways.
  */
 export function MetricHeaderActions({
   slug,
@@ -73,8 +73,8 @@ export function MetricHeaderActions({
   }
 
   // A draft is never collected on schedule or monitored, and nothing on this
-  // page could change that: the way out sat in the editor's Status select
-  // (MT-1 / JR-16). One click makes it active.
+  // page could change that: the way out sat in the editor's Status select.
+  // One click makes it active.
   const isDraft = metricDefinition?.status === 'draft'
   const activateMut = useMutation({
     // Its own toast below, with the reason.
@@ -155,7 +155,7 @@ export function MetricHeaderActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={6} className="w-[180px]">
-          {/* The rule form, opened already scoped to this metric (JR-16). */}
+          {/* The rule form, opened already scoped to this metric. */}
           <DropdownMenuItem
             onSelect={() =>
               navigate(

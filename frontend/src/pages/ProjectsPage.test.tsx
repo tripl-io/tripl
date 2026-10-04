@@ -166,17 +166,17 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Spike on Page View')).toBeInTheDocument()
     expect(screen.queryByText('spike')).not.toBeInTheDocument()
     // H1: the dashboard signal count never speaks of "active". It is the open
-    // signal count, so it says "open" like the rest of the card (WS-43).
+    // signal count, so it says "open" like the rest of the card.
     expect(screen.getByText('2 open')).toBeInTheDocument()
     expect(screen.queryByText('2 recent')).not.toBeInTheDocument()
     expect(screen.queryByText('2 active')).not.toBeInTheDocument()
     expect(screen.getByText('Open signal')).toBeInTheDocument()
     expect(screen.getByText('Open project')).toBeInTheDocument()
 
-    // UX-10: create-actions live in the header action area, not the stat strip.
+    // create-actions live in the header action area, not the stat strip.
     expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Generate demo project/i })).toBeInTheDocument()
-    // UX-10: each STATE metric is shown exactly once — no duplicated stat tiers.
+    // each STATE metric is shown exactly once — no duplicated stat tiers.
     expect(screen.getAllByText('Projects')).toHaveLength(1)
     expect(screen.getAllByText('Coverage')).toHaveLength(1)
     expect(screen.getByText('Data sources')).toBeInTheDocument()
@@ -186,7 +186,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('Automation')).not.toBeInTheDocument()
     expect(screen.getByText('in 1 of 1 project')).toBeInTheDocument()
     expect(screen.queryByText('1 covered')).not.toBeInTheDocument()
-    // UX-10: action-needed metrics each appear once, distinct from STATE metrics.
+    // action-needed metrics each appear once, distinct from STATE metrics.
     expect(screen.getByText('In review', { selector: 'dt' })).toBeInTheDocument()
     // Settled vocabulary: an execution is a "run" on every web-UI surface, and
     // /projects is the first screen after login.
@@ -245,7 +245,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByRole('button', { name: /Delete Alpha/i })).not.toBeInTheDocument()
   })
 
-  it('enters a project at its home, from the title or the Open button (JR-1, JR-34)', async () => {
+  it('enters a project at its home, from the title or the Open button', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
@@ -254,7 +254,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('link', { name: /Open project/ })).toHaveAttribute('href', '/p/beta/overview')
   })
 
-  it('keeps the card to one row of facts, with the rest under Details (SH-25)', async () => {
+  it('keeps the card to one row of facts, with the rest under Details', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
@@ -270,7 +270,7 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('1 scan configured')).not.toBeInTheDocument()
   })
 
-  it('counts open incidents on the card, not alert destinations (SH-26)', async () => {
+  it('counts open incidents on the card, not alert destinations', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
@@ -282,7 +282,7 @@ describe('ProjectsPage', () => {
     expect(tile).toHaveTextContent('0')
   })
 
-  it('gives an empty project one setup line instead of a row of zeros (SH-25, JR-34)', async () => {
+  it('gives an empty project one setup line instead of a row of zeros', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url =
         typeof input === 'string'
@@ -411,10 +411,10 @@ describe('ProjectsPage', () => {
     // counting projects it does not open.
     expect(screen.getByText('1 in Beta')).toBeInTheDocument()
     expect(screen.queryByText('across 1 project')).not.toBeInTheDocument()
-    // The compact row names the last run instead of the configured count (SH-25).
+    // The compact row names the last run instead of the configured count.
     expect(screen.getByText('Failed').closest('[data-slot="chip"]')).toHaveAttribute('data-tone', 'danger')
     expect(screen.getByText('1 open signal')).toBeInTheDocument()
-    // UX-10: the monitoring-signal metric lives once now, as an action-needed
+    // the monitoring-signal metric lives once now, as an action-needed
     // stat — no separate Automation banner repeating the count.
     expect(screen.getByText('Signals')).toBeInTheDocument()
     // H1: open-signal copy drops "active" — the dashboard counts open signals.
@@ -452,21 +452,21 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText(/HTTPSConnectionPool/)).not.toBeInTheDocument()
   })
 
-  it('leads the project card with one attention color and calms the rest (UX-23)', async () => {
+  it('leads the project card with one attention color and calms the rest', async () => {
     mockSingleProject()
 
     renderProjectsPage('owner')
 
     expect(await screen.findByText('Beta')).toBeInTheDocument()
     // Live monitoring signals are the needs-attention lead → saturated danger.
-    // (Chip is class-based since DS-6, so the tone is read off data-tone.)
+    // (Chip is class-based now, so the tone is read off data-tone.)
     const chipOf = (text: string) => screen.getByText(text).closest('[data-slot="chip"]')
     expect(chipOf('1 open signal')).toHaveAttribute('data-tone', 'danger')
     // The review queue renders calm/muted so it does not compete.
     expect(chipOf('1 in review')).toHaveAttribute('data-tone', 'neutral')
   })
 
-  it('surfaces the latest scan result with rows scanned (UX-18)', async () => {
+  it('surfaces the latest scan result with rows scanned', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url =
         typeof input === 'string'
@@ -681,7 +681,7 @@ describe('ProjectsPage', () => {
     expect(rowsLine.textContent?.replace(/[^0-9]/g, '')).toBe('12345')
   })
 
-  it('names a catalog run\'s figure as column combinations, not warehouse rows (#247 DA-4)', async () => {
+  it('names a catalog run\'s figure as column combinations, not warehouse rows (#247)', async () => {
     // A catalog run reports only scan_rows_processed: the rows of its GROUP BY
     // breakdown, i.e. distinct column combinations. The scan page prints "153
     // combos" for this run; the card must not call the same 153 warehouse rows.
@@ -1053,7 +1053,7 @@ describe('ProjectsPage', () => {
   })
 
   it('leaves a failed project list to the shell, and does not call it an empty workspace', async () => {
-    // Layout's "Backend is unavailable" card reports this failure (fj5g.6);
+    // Layout's "Backend is unavailable" card reports this failure;
     // the page's own card said it a second time. See Layout.test.tsx for the
     // two rendered together.
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
@@ -1256,7 +1256,7 @@ describe('ProjectsPage', () => {
   })
 })
 
-describe('ProjectsPage ?new=1 (#238 SH-15)', () => {
+describe('ProjectsPage ?new=1 (#238)', () => {
   it('opens the create dialog when the switcher sends the user here to create one', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url

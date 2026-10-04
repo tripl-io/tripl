@@ -61,7 +61,7 @@ vi.mock('@/components/tweaks-panel', () => ({
 const demoChrome = vi.hoisted(() => ({ fail: false }))
 
 vi.mock('@/demo/DemoBanner', () => ({
-  // Renders its `scenario` slot, as the real banner does inside its row (LIVE-9).
+  // Renders its `scenario` slot, as the real banner does inside its row.
   DemoBanner: ({ scenario }: { scenario?: ReactNode }) => {
     if (demoChrome.fail) {
       throw new TypeError('Failed to fetch dynamically imported module: /assets/DemoBanner-abc.js')
@@ -287,7 +287,7 @@ describe('Layout breadcrumbs', () => {
     // The placeholder the crumb resolver used to emit when no project was in
     // scope. It read as an untranslated template leaking into production.
     expect(screen.queryByText('project')).toBeNull()
-    // Named as the sidebar and the page's own heading name it (LIVE-34).
+    // Named as the sidebar and the page's own heading name it.
     expect(screen.getByRole('banner')).toHaveTextContent('All projects')
   })
 
@@ -332,7 +332,7 @@ describe('Layout suspended organization (F20)', () => {
   })
 })
 
-describe('Layout backend unavailable (fj5g.6)', () => {
+describe('Layout backend unavailable', () => {
   it('shows the card once and no toast on top of it when the project list fails', async () => {
     const toastError = vi.spyOn(toast, 'error')
     // A second reader of the list, as the sidebar and the palette are in the
@@ -380,7 +380,7 @@ describe('Layout backend unavailable (fj5g.6)', () => {
   })
 })
 
-describe('Layout page title (LIVE-34)', () => {
+describe('Layout page title', () => {
   function NamedDetail({ name }: { name?: string }) {
     usePageTitle(name)
     return <div>Detail body</div>
@@ -397,7 +397,7 @@ describe('Layout page title (LIVE-34)', () => {
     expect(within(banner).queryByText('Detail')).toBeNull()
   })
 
-  it('leaves the entity crumb blank until the entity has loaded (JR-33)', async () => {
+  it('leaves the entity crumb blank until the entity has loaded', async () => {
     renderLayout('/p/demo/monitoring/metric/m-1', undefined, undefined, {
       page: <NamedDetail />,
     })
@@ -413,7 +413,7 @@ describe('Layout page title (LIVE-34)', () => {
   })
 })
 
-describe('Layout detail crumbs from the entity (MO-13)', () => {
+describe('Layout detail crumbs from the entity', () => {
   function NamedDetail({ name }: { name?: string }) {
     usePageTitle(name)
     return <div>Detail body</div>
@@ -456,7 +456,7 @@ describe('Layout detail crumbs from the entity (MO-13)', () => {
   })
 })
 
-describe('Layout metric editor crumbs (MT-31)', () => {
+describe('Layout metric editor crumbs', () => {
   it('names the new-metric editor under Metrics', async () => {
     renderLayout('/p/demo/metrics/new', '/p/:slug/metrics/new', 'Metric form body')
     await screen.findByText('Metric form body')
@@ -514,7 +514,7 @@ describe('Layout unknown project', () => {
     await waitFor(() => expect(localStorage.getItem('tripl-last-project-slug')).toBeNull())
   })
 
-  it('offers a retry, not a 404, when the server cannot confirm the slug (SHELL-46)', async () => {
+  it('offers a retry, not a 404, when the server cannot confirm the slug', async () => {
     renderLayout('/p/seeding-demo/overview', '/p/:slug/overview', 'Live activity body', {
       // A 503 says nothing about whether the project exists.
       mocks: () =>
@@ -532,7 +532,7 @@ describe('Layout unknown project', () => {
     expect(await screen.findByText('Live activity body')).toBeInTheDocument()
   })
 
-  it('renders the shell from the project endpoint without waiting for the list (SHELL-41)', async () => {
+  it('renders the shell from the project endpoint without waiting for the list', async () => {
     renderLayout('/p/demo/overview', '/p/:slug/overview', 'Live activity body', {
       mocks: () => {
         // The list (with its summaries) never answers; the project endpoint does.
@@ -647,7 +647,7 @@ describe('Layout demo chrome failure', () => {
   })
 })
 
-describe('Layout mobile navigation drawer (SHELL-21)', () => {
+describe('Layout mobile navigation drawer', () => {
   it('keeps the off-canvas sidebar out of the tab order until it is opened', async () => {
     mockMatchMedia(false)
     const { container } = renderLayout('/p/demo/events', '/p/:slug/events', 'Events body')
@@ -698,7 +698,7 @@ describe('Layout mobile navigation drawer (SHELL-21)', () => {
 })
 
 describe('Layout landmarks and route changes', () => {
-  it('puts the top bar in a banner outside <main> (SHELL-47)', async () => {
+  it('puts the top bar in a banner outside <main>', async () => {
     renderLayout('/p/demo/events', '/p/:slug/events', 'Events body')
     await screen.findByText('Events body')
 
@@ -708,7 +708,7 @@ describe('Layout landmarks and route changes', () => {
     expect(main.contains(screen.getByRole('banner'))).toBe(false)
   })
 
-  it('moves focus to the content after navigating from the sidebar (SHELL-25)', async () => {
+  it('moves focus to the content after navigating from the sidebar', async () => {
     mockMatchMedia(true)
     renderLayout('/p/demo/events', '/p/:slug/*', 'Page body')
     await screen.findByText('Page body')
@@ -720,7 +720,7 @@ describe('Layout landmarks and route changes', () => {
     await vi.waitFor(() => expect(screen.getByRole('main')).toHaveFocus())
   })
 
-  it('hides the activity rail on the not-found page (LIVE-35)', async () => {
+  it('hides the activity rail on the not-found page', async () => {
     mockMatchMedia(true)
     localStorage.setItem('tripl-activity-open', '1')
     renderLayout('/p/demo/nowhere', '/p/:slug/*', '', { page: <NotFoundPage /> })

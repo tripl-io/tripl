@@ -6,7 +6,7 @@ export const isValidBinding = (value: string) => BINDING_PATTERN.test(value)
 export const INVALID_BINDING_MESSAGE =
   'Invalid path — use letters/digits/underscores with dots, e.g. page_data.extra.variant'
 
-/** The name rule, said in words instead of a `pattern` bubble (AU-4). */
+/** The name rule, said in words instead of a `pattern` bubble. */
 export const VARIABLE_NAME_RULE_MESSAGE = 'Use lowercase letters, digits and _; start with a letter.'
 const VARIABLE_NAME_PATTERN = /^[a-z][a-z0-9_]*$/
 export const isValidVariableName = (value: string) => VARIABLE_NAME_PATTERN.test(value)

@@ -116,7 +116,7 @@ function setupFetch(runCalls: { method: string; url: string }[] = []) {
     }
     // The scenario's own watch polls one job by id.
     if (url.includes('/scans/scan-1/jobs/')) return mockJsonResponse(job('job-new', 'running'))
-    // Before the POST nothing is running, or Run now would be off (#247 DA-6);
+    // Before the POST nothing is running, or Run now would be off (#247);
     // after it, the user's run heads the feed above the tick's own job.
     if (url.includes('/scans/scan-1/jobs')) {
       return mockJsonResponse(
@@ -147,7 +147,7 @@ function renderDetail(project: Project, auth: AuthContextValue | null = null) {
   )
 }
 
-describe('ScanConfigDetail — role gating (DATA-6)', () => {
+describe('ScanConfigDetail — role gating', () => {
   it('lets an editor run the scan but shows the configuration read-only', async () => {
     setupFetch()
     renderDetail(demoProject({ is_demo: false }), {
@@ -226,7 +226,7 @@ describe('ScanConfigDetail — header status wording', () => {
   })
 })
 
-describe('ScanConfigDetail — a scan that does not exist (#237 SH-33)', () => {
+describe('ScanConfigDetail — a scan that does not exist (#237)', () => {
   it('says "Scan not found" with the way back to Scans, not an error', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -244,7 +244,7 @@ describe('ScanConfigDetail — a scan that does not exist (#237 SH-33)', () => {
   })
 })
 
-describe('ScanConfigDetail — Run now while a run is in flight (#247 DA-6)', () => {
+describe('ScanConfigDetail — Run now while a run is in flight (#247)', () => {
   it('turns Run now off and says Running… while the latest run is active', async () => {
     const runCalls: { method: string; url: string }[] = []
     setupFetch(runCalls)
@@ -302,7 +302,7 @@ describe('ScanConfigDetail — coached demo scenario', () => {
   })
 })
 
-describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
+describe('ScanConfigDetail — unsaved configuration edits', () => {
   const owner: AuthContextValue = {
     user: {
       id: 'owner-1',
@@ -336,7 +336,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     )
   }
 
-  it('jumps between the ends of the tab strip with End and Home (DS-35)', async () => {
+  it('jumps between the ends of the tab strip with End and Home', async () => {
     setupFetch()
     renderAt(`/p/${SLUG}/scans/scan-1`)
 
@@ -414,7 +414,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Typed during save' } })
     answerSave(mockJsonResponse({ ...saveable, name: 'Sent name' }))
     // The save answered, but the form no longer holds what it sent: "Saved."
-    // would be a claim about text that is not on screen (DATA-14).
+    // would be a claim about text that is not on screen.
     expect(await screen.findByText('Unsaved changes.')).toBeInTheDocument()
     expect(screen.queryByText('Saved.')).not.toBeInTheDocument()
 
@@ -424,7 +424,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     ).toBeInTheDocument()
   })
 
-  it('has one Save for the whole form, and says Saved. only until the next edit (DATA-14)', async () => {
+  it('has one Save for the whole form, and says Saved. only until the next edit', async () => {
     const saveable = { ...scanConfig, event_type_column: 'event_name' }
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
@@ -442,7 +442,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
 
     const name = await screen.findByLabelText('Name')
     // Nothing to save yet, so no Save bar: a disabled Save in an empty grey
-    // strip read as a dead footer (#247 DA-26).
+    // strip read as a dead footer (#247).
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
 
     fireEvent.change(name, { target: { value: 'Renamed' } })
@@ -455,7 +455,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     expect(screen.getByText('Unsaved changes.')).toBeInTheDocument()
   })
 
-  it('discards edits back to the saved configuration (#247 DA-26)', async () => {
+  it('discards edits back to the saved configuration (#247)', async () => {
     const saveable = { ...scanConfig, event_type_column: 'event_name' }
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -476,7 +476,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
   })
 
-  it('opens Replay from the header as a dialog, not from the Danger zone (#247 DA-8)', async () => {
+  it('opens Replay from the header as a dialog, not from the Danger zone (#247)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
       if (url.endsWith('/projects/demo/scans')) return mockJsonResponse([scanConfig])
@@ -493,7 +493,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     expect(await screen.findByRole('dialog', { name: 'Replay a past period' })).toBeInTheDocument()
   })
 
-  it('takes a deleted scan out of the cached list before leaving (DATA-4)', async () => {
+  it('takes a deleted scan out of the cached list before leaving', async () => {
     let deleted = false
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
@@ -532,7 +532,7 @@ describe('ScanConfigDetail — unsaved configuration edits (DATA-12)', () => {
     expect(queryClient.getQueryData(['scanJobs', SLUG, 'scan-1'])).toBeUndefined()
   })
 
-  it('puts the scheduler\'s next metrics run in the header (i9mt.16 DA-5)', async () => {
+  it('puts the scheduler\'s next metrics run in the header', async () => {
     const nextRunAt = new Date(Date.now() + 3 * 24 * 3_600_000 + 60_000).toISOString()
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)

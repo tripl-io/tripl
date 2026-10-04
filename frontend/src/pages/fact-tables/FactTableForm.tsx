@@ -57,7 +57,7 @@ import { useDebouncedRerun } from '@/pages/metrics/useDebouncedRerun'
 import { uid } from '@/lib/uid'
 // The shared settings field row and error wiring: the metric and fact-table
 // editors report validation the same way — inline under the field, linked from
-// the summary, focus moved to the first one (MET-35).
+// the summary, focus moved to the first one.
 import {
   errorAria,
   fieldErrorId,
@@ -142,7 +142,7 @@ interface Introspection {
 /**
  * Identity of the input a column list was introspected from. The columns are
  * only true for the source + SQL they came from; any change to either makes
- * them a guess (MET-9).
+ * them a guess.
  */
 function introspectionKey(dataSourceId: string, sql: string): string {
   return JSON.stringify([dataSourceId, sql.trim()])
@@ -194,17 +194,17 @@ const rowFilterFieldId = (filterId: string, part: 'name' | 'sql') =>
  */
 export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTableFormProps) {
   const qc = useQueryClient()
-  // Fact-table writes and previews are editor-only (MET-6).
+  // Fact-table writes and previews are editor-only.
   const canWrite = useCanWriteProject()
   const isNew = !factTable
   const { confirm, dialog: confirmDialog } = useConfirm()
   // The top bar names the edited table after "Fact tables", as the heading
-  // does (MT-31).
+  // does.
   usePageTitle(factTable ? editPageTitle(factTable.display_name) : null)
 
   const [displayName, setDisplayName] = useState(factTable?.display_name ?? '')
   const [name, setName] = useState(factTable?.name ?? '')
-  // Same pre-fill as the metric form (MET-34): the internal name follows the
+  // Same pre-fill as the metric form: the internal name follows the
   // display name until the user types into it directly.
   const [nameEdited, setNameEdited] = useState(false)
   // Stands in for a display name with no Latin letters to derive from; minted
@@ -221,7 +221,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
   }
   const [description, setDescription] = useState(factTable?.description ?? '')
   // A new table takes the first palette colour no listed table uses, as a new
-  // metric does (MT-35).
+  // metric does.
   const [color, setColor] = useState(
     () =>
       factTable?.color
@@ -233,7 +233,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
   const [sql, setSql] = useState(factTable?.sql ?? '')
   const [timestampColumn, setTimestampColumn] = useState(factTable?.timestamp_column ?? '')
   // The column a preview filled the empty timestamp in with, said beside it
-  // until the author changes it (MT-19).
+  // until the author changes it.
   const [detectedTimestamp, setDetectedTimestamp] = useState<string | null>(null)
   const onTimestampChange = (value: string) => {
     setDetectedTimestamp(null)
@@ -340,7 +340,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
   // read is not retried on a timer, only after the next edit or click.
   const [attemptedFor, setAttemptedFor] = useState<string | null>(null)
   // Set by the first Preview click: from then on an edit to the SQL or the
-  // source re-reads the columns by itself once typing pauses (MT-19). Never
+  // source re-reads the columns by itself once typing pauses. Never
   // before it — each read runs the query against the warehouse.
   const [autoPreview, setAutoPreview] = useState(false)
 
@@ -388,7 +388,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
       if (mismatch) errs['fact-timestamp'] = mismatch
     }
     // A half-filled row used to be dropped on save without a word, so a metric
-    // naming that filter lost it (MET-3). Only an entirely blank row is dropped.
+    // naming that filter lost it. Only an entirely blank row is dropped.
     rowFilters.forEach((filter, index) => {
       const hasName = !!filter.name.trim()
       const hasSql = !!filter.sql.trim()
@@ -443,7 +443,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
   }
 
   // Every input a save would send, as one comparable string; the first render's
-  // value is the baseline (MET-5). Row filters drop their client-side ids,
+  // value is the baseline. Row filters drop their client-side ids,
   // which are fresh on every mount.
   const draftSnapshot = JSON.stringify({
     displayName, name, description, color, dataSourceId, sql, timestampColumn,
@@ -472,7 +472,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
 
   const deleteMut = useMutation({
     // Rendered inline: a 409 names the metrics that still read this table, and
-    // that list is the whole point of the message (MET-36).
+    // that list is the whole point of the message.
     meta: SILENT_ERROR_META,
     mutationFn: (id: string) => factTablesApi.remove(slug, id),
     onSuccess: () => {
@@ -533,7 +533,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
     }
     // Columns are what every fact metric on this table picks its measure,
     // breakdown and condition columns from. Saving without a preview stored
-    // none, and editing the SQL after one stored the old list (MET-9), so a
+    // none, and editing the SQL after one stored the old list, so a
     // save whose columns do not describe this source + SQL introspects first.
     let introspection: Introspection = { columns, identifierColumns }
     if (!columnsAreCurrent) {
@@ -557,7 +557,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
   }
 
   // The backend's suggestions the picks do not match yet, offered as one click
-  // instead of a line repeating what the ticked boxes already show (MT-20).
+  // instead of a line repeating what the ticked boxes already show.
   const unusedSuggestions = identifierCandidates.filter(
     candidate =>
       !identifierColumns.includes(candidate) && columns.some(column => column.name === candidate),
@@ -595,10 +595,10 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
       {unsaved.dialog}
       {confirmDialog}
       {/* The metric editor's width and heading, so the two sibling editors
-          read as one family (MET-35); the shell pads the page (DS-3). */}
+          read as one family; the shell pads the page. */}
       <PageContainer width="narrow">
       {/* `noValidate`: rules are checked in `validate` and named inline, never
-          by a browser bubble (AU-4). */}
+          by a browser bubble. */}
       <form
         noValidate
         onSubmit={e => {
@@ -617,7 +617,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
         <PageHeader
           className="mb-[18px]"
           eyebrow="Observe · Fact table"
-          // The edited table is named, so two open editors are told apart (MT-31).
+          // The edited table is named, so two open editors are told apart.
           title={
             factTable
               ? `${canWrite ? 'Edit' : 'Fact table'} · ${factTable.display_name}`
@@ -651,7 +651,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
               label="Internal name"
               // After creation this row holds the name as text, not a control:
               // `false` names it as a group instead of pointing the label at a
-              // generated id nothing carries (MET-35).
+              // generated id nothing carries.
               htmlFor={isNew ? 'fact-name' : false}
               required={isNew}
               hint={isNew ? 'Stable identifier used by fact metrics.' : "Can't be changed after creation."}
@@ -683,8 +683,8 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
                 placeholder="What does this fact table represent?"
               />
             </Field>
-            {/* Palette swatches plus a custom picker, as on the metric form
-                (MT-35). No single control for a <label>: the row names the group. */}
+            {/* Palette swatches plus a custom picker, as on the metric form.
+                No single control for a <label>: the row names the group. */}
             <Field label="Color" htmlFor={false} last>
               <ColorSwatches value={color} onChange={setColor} inputId="fact-color" />
             </Field>
@@ -721,7 +721,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
                 ariaLabel="Fact table SQL"
                 value={sql}
                 onChange={setSql}
-                // Visibly a comment, never a query already in the editor (MT-6).
+                // Visibly a comment, never a query already in the editor.
                 placeholder={sqlPlaceholder('A read-only SELECT over one table or view, e.g.', 'SELECT id, user_id, amount, created_at FROM orders')}
                 dialect={selectedDataSource?.db_type}
                 tables={sqlSchemaData?.tables}
@@ -773,7 +773,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
               {columns.length > 0 && (
                 <div className="mt-4">
                   {/* A header row says what the box marks: it is not "include
-                      this column", it is "count this one distinct" (MT-20). */}
+                      this column", it is "count this one distinct". */}
                   <div
                     aria-hidden="true"
                     className="mb-2 grid grid-cols-[minmax(0,1fr)_auto_72px] items-center gap-3 px-3 micro-label text-fg-tertiary"
@@ -829,7 +829,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
               )}
             </div>
             {/* After the preview that discovers the columns, not before it in
-                the Source card, where it was free text asked too early (MT-19). */}
+                the Source card, where it was free text asked too early. */}
             <Field
               label="Timestamp column"
               htmlFor="fact-timestamp"
@@ -867,7 +867,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
               ) : (
                 <>
                   {/* What each input holds: once filled, nothing said which was
-                      the reusable name and which the condition (MT-22). The
+                      the reusable name and which the condition. The
                       inputs carry the same words in their names. */}
                   <div
                     aria-hidden="true"
@@ -885,7 +885,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
                         <li key={filter.id}>
                           {/* A phone gets name + remove on one line and the SQL
                               condition full width under them: side by side, the
-                              condition was under 80px wide at 375px (MET-20). */}
+                              condition was under 80px wide at 375px. */}
                           <div className="grid grid-cols-[minmax(0,1fr)_32px] items-start gap-2 sm:grid-cols-[180px_minmax(0,1fr)_32px]">
                             <div className="min-w-0">
                               <TextInput
@@ -900,7 +900,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
                             <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
                               {/* A WHERE fragment over this table: highlighted and
                                   completed against its columns, with no gutter or
-                                  Format button per row (MT-22). */}
+                                  Format button per row. */}
                               <SqlEditor
                                 id={sqlId}
                                 ariaLabel={`Row filter ${index + 1} SQL condition`}
@@ -998,14 +998,14 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
         )}
 
         {/* Sticky, so Save and the reason it is blocked stay on screen on a
-            long form (MT-4). The status jumps to the first flagged field. */}
+            long form. The status jumps to the first flagged field. */}
         <SaveBar
           status={attentionSummary(errorEntries.length)}
           statusTone="danger"
           onStatusClick={errorEntries[0] ? () => focusField(errorEntries[0]![0]) : undefined}
         >
           {canWrite && factTable && (
-            // Bare red, as destructive actions on a detail page are (DS-20).
+            // Bare red, as destructive actions on a detail page are.
             <Button
               type="button"
               variant="danger"
@@ -1014,7 +1014,7 @@ export function FactTableForm({ slug, factTable, dataSources, onClose }: FactTab
               }}
               disabled={busy}
               // On a phone Save leads, then Cancel, and this sits apart at the
-              // foot instead of between them (MT-36).
+              // foot instead of between them.
               className="max-sm:order-3 max-sm:mt-2 max-sm:w-full"
             >
               {deleteMut.isPending ? (
@@ -1074,11 +1074,11 @@ export default function FactTableEditPage() {
     enabled: !!slug && !!factTableId,
   })
 
-  // "New fact table" has nothing for a viewer to read (#237 MT-28).
+  // "New fact table" has nothing for a viewer to read (#237).
   if (!canWrite && isNew && slug) return <Navigate to={projectPath(currentOrgSlug(), slug, '/metrics/fact-tables')} replace />
 
   // A deleted or unknown fact table is "not found" with the way back; only a
-  // real failure keeps the retry (#237 SH-33).
+  // real failure keeps the retry (#237).
   const loadError = dataSourcesQuery.error ?? factTableQuery.error
   if (loadError) {
     return (

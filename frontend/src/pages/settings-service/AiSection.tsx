@@ -48,7 +48,7 @@ export function AiSection({
    */
   platformAdmin: boolean
 }) {
-  // The built-in prompts behind each "Restore default" (ST-30). Silent: without
+  // The built-in prompts behind each "Restore default". Silent: without
   // them the links simply do not appear.
   const defaultsQuery = useQuery({
     queryKey: aiPromptDefaultsKey(),
@@ -74,7 +74,7 @@ export function AiSection({
   })
   // The test reads the SAVED settings, so it is the saved switch that decides
   // whether it can pass: pressed with AI off it could only answer "AI is
-  // disabled or no API key is configured" (ST-26). The key flag already
+  // disabled or no API key is configured". The key flag already
   // counts the OPENAI_API_KEY fallback, so it is the key the test would use.
   const testBlocker = !settings.ai.ai_enabled
     ? 'AI is off in the saved settings. Turn it on and save first.'
@@ -92,7 +92,7 @@ export function AiSection({
           onChange={value => setField('ai', 'ai_enabled', value)}
         />
         {/* Still editable — preparing a config before switching it on is
-            valid — but visibly idle while the switch is off (ST-26). */}
+            valid — but visibly idle while the switch is off. */}
         <InactiveGroup inactive={!form.ai.ai_enabled} reason="Not used while AI is off.">
         <OperatorFields locked={!platformAdmin}>
         <AiProviderPicker
@@ -233,7 +233,7 @@ export function AiSection({
           stacked
         >
           {/* Prose, so the body font, and a box that grows with it: four
-              fixed lines cut a prompt mid-line (ST-30). */}
+              fixed lines cut a prompt mid-line. */}
           <TextArea
             value={form.ai.describe_system_prompt}
             onChange={value => setField('ai', 'describe_system_prompt', value)}
@@ -293,8 +293,8 @@ export function AiSection({
           labelRight={
             <SourceBadge source={sourceFor(settings, 'ai', 'search_embedding_base_url')} />
           }
-          // One line and a "Why?", not an eight-line essay beside one value
-          // (ST-30); the value is text, not a dashed input that cannot move.
+          // One line and a "Why?", not an eight-line essay beside one value;
+          // the value is text, not a dashed input that cannot move.
           hint={
             <EnvOnlyHint variable="SEARCH_EMBEDDING_BASE_URL">
               Every indexed event name, description and field value is POSTed here. The vectors
@@ -389,7 +389,7 @@ export function AiSection({
   )
 }
 
-/** "Env-only: VAR. Changing it needs a re-embed." with the reasoning folded away (ST-30). */
+/** "Env-only: VAR. Changing it needs a re-embed." with the reasoning folded away. */
 function EnvOnlyHint({ variable, children }: { variable: string; children: ReactNode }) {
   return (
     <>
@@ -412,7 +412,7 @@ function EnvOnlyValue({ value }: { value: string }) {
 }
 
 /**
- * "Restore default" beside a prompt that differs from the built-in one (ST-30).
+ * "Restore default" beside a prompt that differs from the built-in one.
  * It fills the editor; Save stores it like any other edit.
  */
 function RestoreDefault({

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { initialsOf } from './initials'
 import { UserAvatar } from './user-avatar'
 
-describe('initialsOf (DS-32)', () => {
+describe('initialsOf', () => {
   it('takes the first letters of the first two words', () => {
     expect(initialsOf('John Smith Doe')).toBe('JS')
     expect(initialsOf('  ada   lovelace ')).toBe('AL')
@@ -21,7 +21,7 @@ describe('initialsOf (DS-32)', () => {
   })
 })
 
-describe('UserAvatar (DS-32 / WS-38)', () => {
+describe('UserAvatar', () => {
   it('always paints the AA-pinned --avatar-bg token', () => {
     const { container } = render(<UserAvatar name="Ada Lovelace" size={40} />)
     const avatar = container.firstElementChild as HTMLElement

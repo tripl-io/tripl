@@ -50,7 +50,7 @@ export type CancelOutcome =
   /**
    * The server never saw a provision to stop, or the cancel itself could not be
    * delivered: whether a demo exists is unknown, so the user is sent to the list
-   * rather than told it "will appear" (DEMO-28).
+   * rather than told it "will appear".
    */
   | 'unknown'
 
@@ -85,7 +85,7 @@ function isCancelledElsewhere(error: unknown): boolean {
 
 /**
  * Reads the server's cancel answer. `cancelled: false` covers both "had
- * already finished" and "never started" (DEMO-28); the server says which in
+ * already finished" and "never started"; the server says which in
  * `state` (`finished` when a demo of this user's became ready moments ago,
  * `none` otherwise), and only `finished` lets the UI promise the demo will
  * appear. An answer without it — an older server — names no outcome it
@@ -142,7 +142,7 @@ export function useDemoProvisioning(options?: {
   const cancelRequestedRef = useRef(false)
   const mountedRef = useRef(true)
   // Bumped by start() and reset(). Closing the dialog while a cancel or the
-  // aborted create is still settling (DEMO-6) used to let that late answer
+  // aborted create is still settling used to let that late answer
   // reopen it — "cancelled", or a 408 read as "Demo generation failed" —
   // after the user had dismissed it.
   const runRef = useRef(0)
@@ -181,7 +181,7 @@ export function useDemoProvisioning(options?: {
       }
       if (outcome.kind === 'failed') {
         setError(outcome.error)
-        // A failure is not proof that nothing was created (DEMO-5): a dropped
+        // A failure is not proof that nothing was created: a dropped
         // connection or a timeout can hide a create the server finished, and a
         // 409 says the list this tab holds is out of date. Refresh it.
         void queryClient.invalidateQueries({ queryKey: projectsKey() })
@@ -216,7 +216,7 @@ export function useDemoProvisioning(options?: {
   // Animate through the expected phases while the request is blocking. There is
   // no server-side stage feed, so this is a timed best-effort narration — the
   // dialog labels it as an estimate rather than asserting completed work.
-  // The same hook drives the reset dialog (DEMO-22), and it
+  // The same hook drives the reset dialog, and it
   // starts over at phase 0 every time a create begins.
   const phaseIndex = useEstimatedPhase(isPending)
 

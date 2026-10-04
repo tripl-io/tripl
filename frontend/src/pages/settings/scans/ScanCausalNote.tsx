@@ -35,7 +35,7 @@ import { type ScanFormMode, scanModeOf } from './scanMode'
 /**
  * Only what the mode radio above it does not already say. The radio
  * descriptions carry the consequence of each mode, and restating it here made
- * four sentences of one idea before the Name field (#247 DA-13). What the
+ * four sentences of one idea before the Name field (#247). What the
  * monitoring radio lacks is WHEN points arrive and WHERE their output shows up;
  * Catalog only has nothing to add, so it gets no note.
  */

@@ -81,7 +81,7 @@ describe('BigQuery key file input', () => {
       expect(onChange).toHaveBeenCalledWith({ secret: '{"type":"service_account"}' }),
     )
     expect(screen.queryByText(/Could not read that file/)).not.toBeInTheDocument()
-    // The loaded file is named beside the styled upload button (DA-44).
+    // The loaded file is named beside the styled upload button.
     expect(screen.getByText('key.json')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Upload key file…' })).toBeInTheDocument()
   })
@@ -118,7 +118,7 @@ describe('Create dialog core fields', () => {
     )
   }
 
-  // DA-37: `localhost`, `default` and eight dots read as a filled-in form.
+  // `localhost`, `default` and eight dots read as a filled-in form.
   it('uses example placeholders that cannot pass for values', () => {
     renderCreate()
 
@@ -128,7 +128,7 @@ describe('Create dialog core fields', () => {
     expect(screen.getByLabelText('Password')).toHaveAttribute('placeholder', 'Password')
   })
 
-  // AU-4: every empty required field is flagged inline, not by a browser bubble.
+  // every empty required field is flagged inline, not by a browser bubble.
   it('flags each missing required field inline', () => {
     renderCreate(
       connectionCoreMissing('clickhouse', { ...EMPTY_CONNECTION_CORE_FORM, port: 0 }, 'create', 'Required'),

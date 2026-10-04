@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils'
  * The settings pages' header: the shared `PageHeader` with the settings
  * rhythm (a 28px gap before the first card). It used to draw its own 21px
  * title and 13px description while `PageHead` drew 22px / 12px, two
- * "canonical" headers that disagreed (DS-19).
+ * "canonical" headers that disagreed.
  */
 export function SHeader({
   eyebrow,
@@ -50,7 +50,7 @@ export function SHeader({
   description,
   actions,
 }: {
-  /** The nav group, e.g. "Settings" (DS-2). */
+  /** The nav group, e.g. "Settings". */
   eyebrow?: string
   title: string
   description?: string
@@ -69,7 +69,7 @@ export function SHeader({
 
 // ───────── Section card ─────────
 /**
- * A settings section: the `Panel` geometry (DS-4 / MO-10) with an optional
+ * A settings section: the `Panel` geometry with an optional
  * icon well, a description under the title and a sunken footer. Same radius
  * (`rounded-card`), header padding (`px-4 py-3`), 12.5px semibold title and
  * 16px side gutter as `Panel` and `ui/Card`; it used to be `rounded-xl` with an
@@ -93,7 +93,7 @@ export function SCard({
   tone?: 'danger'
   /**
    * 2 by default: settings cards are the first level under each settings
-   * page's h1. 3 for a card nested under another heading (DS-16).
+   * page's h1. 3 for a card nested under another heading.
    */
   headingLevel?: 2 | 3
 }) {
@@ -128,7 +128,7 @@ export function SCard({
             {/* h2, not h3, by default: settings cards are the first level
                 under each settings page's h1, so h3 made the outline read
                 1 → 3. No heading at all for a card with only a
-                description — it used to emit an empty <h2> (DS-16). */}
+                description — it used to emit an empty <h2>. */}
             {title && (
               <Heading
                 id={headingId}
@@ -186,13 +186,13 @@ export function Field({
   /**
    * Marks the row required: a visual asterisk beside the label, and
    * `aria-required` on the control the label names — the part a screen reader
-   * uses, where a bare red "*" was colour-only and read as "star" (DS-17).
+   * uses, where a bare red "*" was colour-only and read as "star".
    */
   required?: boolean
   /**
    * The row's validation message. Rendered under the control, announced as it
    * appears, and tied to the control through `aria-describedby` plus
-   * `aria-invalid` (DS-17). The five page-level wrappers that grew around this
+   * `aria-invalid`. The five page-level wrappers that grew around this
    * Field to show errors did none of the three.
    */
   error?: ReactNode
@@ -369,7 +369,7 @@ export function InfoRow({
   return (
     // Stacks below 560px like `Field`: a fixed 200px caption left a phone
     // ~100px for the value, so scan and destination names truncated to a few
-    // letters (MON-32). A string value that still truncates carries a `title`.
+    // letters. A string value that still truncates carries a `title`.
     <FormRow
       labelWidth={200}
       caption={
@@ -417,7 +417,7 @@ export function Toggle({
       style={{
         // Off is `--input`, the 3:1 form-control token ui/switch uses too:
         // --border-strong measured ~1.6:1 (light) and ~1.3:1 (dark) on the
-        // card, so an off toggle barely read as a control (DS-8). On is the
+        // card, so an off toggle barely read as a control. On is the
         // bright --accent, as in ui/switch: --accent-solid would sit at the
         // off track's lightness in dark (see theme-contrast.test.ts).
         background: value ? 'var(--accent)' : 'var(--input)',
@@ -579,7 +579,7 @@ export function TextArea({
   /**
    * Grow with the text from `rows` lines up to 8, then scroll. A fixed box cut
    * a longer description through the middle of a line and read as broken
-   * rather than scrollable (ST-37). Browsers without `field-sizing` keep the
+   * rather than scrollable. Browsers without `field-sizing` keep the
    * fixed `rows` height.
    */
   autoGrow?: boolean
@@ -643,7 +643,7 @@ function renderOption(o: SelectOption) {
 /**
  * The kit's native `<select>`. Named for what it is: `ui/select` exports a
  * `Select` too (the Radix listbox), and the shared name invited importing the
- * wrong one (DS-9). Pages use this rather than a raw `<select>` — Oxlint
+ * wrong one. Pages use this rather than a raw `<select>` — Oxlint
  * enforces it for `src/pages/**` (tripl/no-raw-select, .oxlintrc.json).
  *
  * `options` render first, then each of `groups` as an `<optgroup>`; a
@@ -674,7 +674,7 @@ export function NativeSelect({
    * `compact` (default) caps the select at 280px, for short enums beside a
    * button or in a toolbar. `fill` takes the whole control column of a form
    * row, so its right edge lines up with the text inputs above and below and
-   * a long option label is not cut mid-word (ST-27).
+   * a long option label is not cut mid-word.
    */
   width?: 'compact' | 'fill'
   /** `sm` is 28px with caption text from `md` up, to sit beside `size="sm"` buttons. */
@@ -770,7 +770,7 @@ export function RadioCards({
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
   // One Tab stop for the whole group, on the checked card (or the first), and
   // arrow keys move the choice — the radio-group pattern. Every card used to be
-  // its own Tab stop with no arrow-key roving (DS-35).
+  // its own Tab stop with no arrow-key roving.
   const checkedIndex = options.findIndex((o) => o.value === value)
   const tabStop = checkedIndex >= 0 ? checkedIndex : 0
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -832,7 +832,7 @@ export function RadioCards({
               <span
                 className="mt-px flex size-4 shrink-0 items-center justify-center rounded-full"
                 // The ring is the control's indicator, so it answers to the
-                // 3:1 form-control token like every other field edge (DS-8).
+                // 3:1 form-control token like every other field edge.
                 style={{
                   border: `1.5px solid ${active ? 'var(--accent)' : 'var(--input)'}`,
                 }}
@@ -875,7 +875,7 @@ export function RadioCards({
 
 // ───────── Page header ─────────
 
-/** `PageHeader` under its older kit name; `right` is its `actions` slot (DS-19). */
+/** `PageHeader` under its older kit name; `right` is its `actions` slot. */
 export function PageHead({
   eyebrow,
   title,
@@ -900,10 +900,10 @@ export type PanelSubtitleTone = 'success' | 'warning' | 'danger' | 'info' | 'neu
  * right slot). A tone tints the header (danger/warning soft). The one Panel:
  * the local replicas in BranchesTab, ReconciliationPage, EventTypesTab and the
  * scan screens had drifted (radius, padding, and a header that did not wrap on
- * phones) and are gone (DS-15). `className` / `bodyClassName` cover what they
+ * phones) and are gone. `className` / `bodyClassName` cover what they
  * customised; a panel with neither title nor right slot drops the header.
  *
- * The one section card (DS-4 / MO-10): `ui/Card` and `SCard` share its
+ * The one section card: `ui/Card` and `SCard` share its
  * geometry. Title 12.5px semibold, subtitle 11.5px; `footer` adds the sunken
  * action bar `SCard` has.
  */
@@ -922,7 +922,7 @@ export function Panel({
   /**
    * The section heading. A node, not only a string, so a page whose panel IS
    * the entity can name it in its own style (the branch detail shows the
-   * branch name as a mono heading, #243 PL-17).
+   * branch name as a mono heading, #243).
    */
   title?: ReactNode
   subtitle?: ReactNode
@@ -962,7 +962,7 @@ export function Panel({
           <div className="min-w-0 flex-1 basis-40">
             {/* A real heading, naming the section: panel pages had nothing
                 between the h1 and the content, so heading navigation skipped
-                every panel and each <section> was unnamed (DS-16). */}
+                every panel and each <section> was unnamed. */}
             {title && (
               <Heading id={headingId} className="m-0 text-body-sm font-semibold" style={{ color: titleColor }}>
                 {title}
@@ -1001,7 +1001,7 @@ export function Panel({
 // ───────── Save bar ─────────
 
 /**
- * The one save model for a settings page (ST-3): a bar pinned to the top of
+ * The one save model for a settings page: a bar pinned to the top of
  * the scrolling pane with Discard and Save changes, so every page with a
  * draft saves the same way. It is Instance settings' bar, lifted out so Project
  * General can drop its per-card footer Save buttons and use it too.

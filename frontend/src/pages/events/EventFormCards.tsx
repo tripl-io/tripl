@@ -1,6 +1,6 @@
 /**
  * The sections of the single-event form below Details, split out of
- * `EventForm.tsx` along the seams the form already had (EVT-30). State stays
+ * `EventForm.tsx` along the seams the form already had. State stays
  * with the form — a save reads all of it — and each card renders one part.
  */
 import type { Event as TEvent, FieldDefinition, MetaFieldDefinition, Variable } from '@/types'
@@ -53,7 +53,7 @@ export function TagsBreakdownsCard({
   return (
     <SurfCard
       title="Tags & breakdowns"
-      // What each half is for, which the form never said (AU-22).
+      // What each half is for, which the form never said.
       subtitle="Tags are labels for finding events in the list; breakdowns decide which columns metrics are split by."
     >
       <EvField label="Tags" htmlFor="form-tags" hint="Press Enter or comma to add. Anything left typed is added on save.">
@@ -61,7 +61,7 @@ export function TagsBreakdownsCard({
           <div className="mb-2 flex flex-wrap gap-[6px]">
             {tags.map(t => (
               // Taller on a phone, with a 28px remove target: an 11px icon in a
-              // 22px chip could not be hit with a finger (AU-39).
+              // 22px chip could not be hit with a finger.
               <span
                 key={t}
                 className="inline-flex h-[22px] items-center gap-[5px] rounded-full pl-[9px] pr-[6px] text-caption max-sm:h-8 bg-surface-hover"
@@ -90,7 +90,7 @@ export function TagsBreakdownsCard({
               onCommitTag()
             }
           }}
-          // A chip typed and then left used to vanish on save (EVT-26).
+          // A chip typed and then left used to vanish on save.
           onBlur={() => { if (tagInput.trim()) onCommitTag() }}
           placeholder="Type tag + Enter"
         />
@@ -102,7 +102,7 @@ export function TagsBreakdownsCard({
         hint="Warehouse columns to roll metrics up by. Click a column to toggle it; type any other below."
         last
       >
-        {/* Toggles, and drawn as toggles (AU-23): outlined grey pills with
+        {/* Toggles, and drawn as toggles: outlined grey pills with
             nothing on them read as read-only tags or examples until one turned
             teal. A leading check when on and a plus when off say "click me". */}
         <div className="flex flex-wrap gap-[6px]" role="group" aria-label="Suggested breakdown columns">
@@ -198,7 +198,7 @@ export function FieldValuesCard({
     <SurfCard
       title="Field values"
       subtitle={
-        // What these are and where they come from (AU-22): the columns a scan
+        // What these are and where they come from: the columns a scan
         // matches the event on, defined by the type, and that `${` opens the
         // variable list — which was only discoverable by typing it.
         <>
@@ -322,7 +322,7 @@ export function MetaFieldsCard({
   return (
     <SurfCard
       title="Meta fields"
-      // How these differ from the type's field values (AU-22, JR-30): the
+      // How these differ from the type's field values: the
       // same project-wide set on every event, for people rather than scans.
       subtitle={
         <>

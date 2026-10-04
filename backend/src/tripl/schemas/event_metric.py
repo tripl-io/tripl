@@ -207,21 +207,21 @@ class MetricSignalResponse(BaseModel):
     # Display unit of a ``metric``-scope signal's catalog metric (``"%"``,
     # ``"ms"``…) so the client can print "4.2 %" rather than a bare number.
     # NULL for every other scope, for a unitless metric and for one whose
-    # definition is gone (MON-34).
+    # definition is gone.
     unit: str | None = None
     # When the detector wrote this anomaly — distinct from ``bucket``, which is
     # when the anomalous period STARTED. Lets a list say "detected 3m ago" next
-    # to a bucket that began an hour earlier (MON-40). NULL only on a path that
+    # to a bucket that began an hour earlier. NULL only on a path that
     # did not build the signal from a stored anomaly row.
     detected_at: datetime | None = None
     # The Alerting Inbox incident (correlation group) this signal was routed
     # into, and its effective status there, so the Anomalies row can link to
-    # the incident card (JR-6). Both NULL when no rule delivered it. Filled on
+    # the incident card. Both NULL when no rule delivered it. Filled on
     # the EXPANDED list only, and after the signals cache: triage changes an
     # incident's status without touching any signal.
     incident_id: uuid.UUID | None = None
     incident_status: AlertInboxStatus | None = None
-    # Triage of a signal NO rule routed to an incident (MO-4 / JR-5); a signal
+    # Triage of a signal NO rule routed to an incident; a signal
     # with ``incident_id`` is triaged in the inbox and never carries these.
     # Filled after the signals cache, like the incident fields, so a click shows
     # up on the next fetch. ``muted`` is the live state (a lapsed mute reads
@@ -359,8 +359,8 @@ class EventMetricsResponse(BaseModel):
     next_collection_at: datetime | None = None
     # The Events tab's series only (``scope == "events_total"``): its volume over
     # the 7 days ending at the requested upper bound (or now) and the 7 before,
-    # independent of the chart's range, for "612K in 7d · +4% vs prior week"
-    # (EV-21). NULL on every other scope.
+    # independent of the chart's range, for "612K in 7d · +4% vs prior week".
+    # NULL on every other scope.
     week_total: int | None = None
     prior_week_total: int | None = None
     data: list[EventMetricPoint]
@@ -623,7 +623,7 @@ SIGNAL_SERIES_MAX_SCOPES = 500
 
 
 class SignalSeriesScope(BaseModel):
-    """One open signal whose recent series a row sparkline draws (MO-19)."""
+    """One open signal whose recent series a row sparkline draws."""
 
     scan_config_id: uuid.UUID
     scope_type: MetricScopeType
@@ -668,7 +668,7 @@ class TopEventResponse(BaseModel):
     event_type_id: uuid.UUID
     total_count: int
     # The PROJECT's volume over the same window — identical on every row — so a
-    # row can show its event's share without a second request (MO-25). Counted
+    # row can show its event's share without a second request. Counted
     # the project-total way (type-level rows only; see
     # ``metrics_service.get_top_events_by_volume``), so unmatched traffic is in
     # the denominator and the shares need not add up to 100%.

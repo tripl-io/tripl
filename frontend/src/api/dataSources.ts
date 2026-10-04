@@ -53,7 +53,7 @@ export const dataSourcesApi = {
     api.post<DataSourceTestResult>(`/data-sources/${id}/test`, {}),
 
   /**
-   * Test a config that has not been saved (DATA-30). Owner-only, like create;
+   * Test a config that has not been saved. Owner-only, like create;
    * nothing is stored, and every secret the probe needs is in this body.
    */
   testDraft: (data: Omit<DataSourceCreatePayload, 'name'> & { name?: string }) =>

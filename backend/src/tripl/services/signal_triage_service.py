@@ -1,4 +1,4 @@
-"""Triage for open signals that no alert rule routed to an incident (MO-4 / JR-5).
+"""Triage for open signals that no alert rule routed to an incident.
 
 Three verdicts, all undoable:
 

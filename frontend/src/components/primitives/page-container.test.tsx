@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PageContainer } from './page-container'
 
-// DS-3 / MO-9: detail pages padded themselves inside the shell's padding.
+// Detail pages padded themselves inside the shell's padding.
 describe('PageContainer', () => {
   it('adds the list-page rhythm and no padding or centring of its own', () => {
     render(<PageContainer data-testid="page">Body</PageContainer>)

@@ -42,7 +42,7 @@ interface DemoProvisioningDialogProps {
 }
 
 /**
- * A create the server refused before seeding anything (DEMO-5): a 403 (demo
+ * A create the server refused before seeding anything: a 403 (demo
  * provisioning switched off on this server, or a role that may not create), or
  * a 409 for a creator already at the demo limit. Neither was rolled back —
  * nothing started — and asking again gets the same answer, so neither may
@@ -61,7 +61,7 @@ function refusalOf(error: unknown): Refusal | null {
 }
 
 /**
- * A failure that says nothing about what the server did (DEMO-5): the backend
+ * A failure that says nothing about what the server did: the backend
  * could not be reached (the client maps a network error to 503), or a gateway
  * gave up on it (502/504) while the app behind may still be seeding. Only the
  * app's own 500 is its rollback — anything here may well have left a demo
@@ -133,7 +133,7 @@ function copyFor(
       }
     }
     // The server found nothing still seeding — the create may never have
-    // reached it, or may have just finished (DEMO-28). Say only that: the
+    // reached it, or may have just finished. Say only that: the
     // likelier case is a finished demo, so a title claiming it "stopped" told
     // the user the opposite of what happened.
     return {
@@ -222,7 +222,7 @@ export function DemoProvisioningDialog({
             <p>{errorMessage}</p>
             {requestId ? (
               // --fg-subtle, not --fg-faint: faint falls below AA on the
-              // tinted --danger-soft fill (DEMO-24).
+              // tinted --danger-soft fill.
               <p className="font-mono text-caption text-fg-tertiary">
                 Reference: {requestId}
               </p>

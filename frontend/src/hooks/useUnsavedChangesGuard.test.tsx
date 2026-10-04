@@ -56,7 +56,7 @@ describe('useUnsavedChangesGuard', () => {
 
     const dialog = await screen.findByRole('alertdialog', { name: 'Leave without saving?' })
     expect(dialog).toBeInTheDocument()
-    // The safe answer is the default (AU-42): Enter keeps the draft.
+    // The safe answer is the default: Enter keeps the draft.
     await waitFor(() => expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveFocus())
     expect(screen.getByRole('button', { name: 'Discard changes' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))

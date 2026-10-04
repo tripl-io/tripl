@@ -1,4 +1,4 @@
-"""Opaque keyset cursors for the alert inbox and the delivery lists (ALR-27).
+"""Opaque keyset cursors for the alert inbox and the delivery lists.
 
 Offset paging over a list that refetches every minute can SKIP a row: when an
 incident on page 1 sorts down past the page seam between the first request and

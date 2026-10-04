@@ -60,7 +60,7 @@ afterEach(() => {
 })
 
 describe('ActivityPanel', () => {
-  it('keeps the loaded feed when a later refresh fails (SHELL-40)', async () => {
+  it('keeps the loaded feed when a later refresh fails', async () => {
     let fail = false
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -83,7 +83,7 @@ describe('ActivityPanel', () => {
     expect(screen.queryByText('Activity unavailable')).toBeNull()
   })
 
-  it('keeps relative times counting without a refetch (SHELL-40)', async () => {
+  it('keeps relative times counting without a refetch', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date', 'setInterval', 'clearInterval'] })
     try {
       vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
@@ -173,7 +173,7 @@ describe('ActivityPanel', () => {
 
     renderActivityPanel('demo')
 
-    // Named as the top-bar toggle names it (#238 SH-8).
+    // Named as the top-bar toggle names it (#238).
     expect(await screen.findByText('Activity')).toBeInTheDocument()
     // The old copy sold the rail as a live/streaming feed; make sure it is gone.
     expect(screen.queryByText('live')).not.toBeInTheDocument()
@@ -279,7 +279,7 @@ describe('ActivityPanel', () => {
 })
 
 
-describe('ActivityPanel copy and controls (#238 SH-22)', () => {
+describe('ActivityPanel copy and controls (#238)', () => {
   function eventItem(id: string, title: string, occurredAt: string) {
     return { ...implementedEvent(id, occurredAt), id: `event:${id}`, title }
   }

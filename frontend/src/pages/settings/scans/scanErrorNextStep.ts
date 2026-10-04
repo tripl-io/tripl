@@ -2,7 +2,7 @@
  * What to do about a failed run, keyed off the friendly message
  * `friendlyScanError` already produced. The diagnosis used to end the story:
  * a timeout said the source "did not respond in time" and offered none of the
- * three things that fix one (#247 DA-20).
+ * three things that fix one (#247).
  */
 export interface ScanErrorNextStep {
   /** One sentence naming the fix. */

@@ -14,7 +14,7 @@ afterEach(() => {
   localStorage.clear()
 })
 
-describe('useSavedViews delete (DS-28)', () => {
+describe('useSavedViews delete', () => {
   it('asks before deleting and keeps the view when the answer is no', async () => {
     saveEventsSavedView('demo', { name: 'Checkout', tab: 'all', params: 'q=checkout' })
     const confirm = vi.fn().mockResolvedValue(false)

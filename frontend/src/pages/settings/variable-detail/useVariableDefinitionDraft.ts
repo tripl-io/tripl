@@ -18,7 +18,7 @@ import { invalidValuesFor, valueRuleFor } from '../variableValueValidation'
  * The definition draft of ONE variable — name, type, description, documented
  * values and bindings — with its Save.
  *
- * Shared by the quick-edit dialog and the variable page (AU-26), so the two
+ * Shared by the quick-edit dialog and the variable page, so the two
  * cannot disagree on what a valid edit is. The drafts are seeded once from
  * `variable`; mount the caller keyed by the variable id so a different variable
  * starts on a fresh draft.
@@ -53,14 +53,13 @@ export function useVariableDefinitionDraft({
   const [description, setDescription] = useState(variable.description)
   const [allowedValues, setAllowedValues] = useState<string[]>(variable.allowed_values ?? [])
   const [bindings, setBindings] = useState<string[]>(variable.bindings ?? [])
-  // Inline, after Save was pressed, instead of `required` / `pattern` bubbles
-  // (AU-4).
+  // Inline, after Save was pressed, instead of `required` / `pattern` bubbles.
   const [submitted, setSubmitted] = useState(false)
 
   const valueRule = valueRuleFor(type)
   // Values already documented are not re-checked by the chip input when the
-  // type changes, so the form names the ones the chosen type would refuse
-  // (PLAN-24). Saving is held only when THIS edit changed the type: a legacy
+  // type changes, so the form names the ones the chosen type would refuse.
+  // Saving is held only when THIS edit changed the type: a legacy
   // variable whose values never matched can still have its description fixed.
   const invalidValues = invalidValuesFor(type, allowedValues)
   const typeChangeBlocked = invalidValues.length > 0 && type !== variable.variable_type
@@ -104,7 +103,7 @@ export function useVariableDefinitionDraft({
       qc.invalidateQueries({ queryKey: variablesKey(slug, branchId) })
       // A rename re-points every stored `${old}` to `${new}` on the backend
       // (variable_service), so the events table and event detail would keep
-      // showing the old token until their cache aged out (PLAN-32).
+      // showing the old token until their cache aged out.
       if (name !== variable.name) {
         qc.invalidateQueries({ queryKey: projectEventsKey(slug) })
         qc.invalidateQueries({ queryKey: projectEventKey(slug) })

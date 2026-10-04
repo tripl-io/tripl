@@ -278,7 +278,7 @@ async def request_demo_cancel(
     enough — so the caller can say so instead of implying a rollback that did
     not happen.
 
-    ``state`` tells those two apart (DEMO-28): ``finished`` when a demo of this
+    ``state`` tells those two apart: ``finished`` when a demo of this
     user's became ready within :data:`DEMO_CANCEL_FINISHED_WINDOW`, so the UI can
     promise it is in the list, and ``none`` otherwise.
     """

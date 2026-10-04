@@ -29,7 +29,7 @@ describe('BulkActionBar select-all-matching', () => {
     expect(onSelectAllMatching).toHaveBeenCalledTimes(1)
   })
 
-  it('offers "all matching" without a count when the count is not known (EVT-2)', () => {
+  it('offers "all matching" without a count when the count is not known', () => {
     // A client-side column filter narrows rows the server total still counts,
     // so "Select all 5000" over 12 visible rows was the wrong number.
     const onSelectAllMatching = vi.fn()

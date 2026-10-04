@@ -51,7 +51,7 @@ interface UpdateFromMainDialogProps {
 }
 
 /**
- * "Update from main" (PL-8): a three-way merge of main INTO the branch. Says
+ * "Update from main": a three-way merge of main INTO the branch. Says
  * what main brings, asks for a side on every overlap, and sends the choices
  * with the update in one call — nothing is written until every overlap has
  * one.

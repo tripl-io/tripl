@@ -64,7 +64,7 @@ describe('InvitePage', () => {
     // The invitation grants an organization role (F20 PR4: owner | admin |
     // member); what a member may do in each project lives on the project row.
     expect(screen.getByText('Member')).toBeInTheDocument()
-    // The role is explained, not just named (SH-32).
+    // The role is explained, not just named.
     expect(
       screen.getByText(
         'Member sees the projects they are added to, as an editor or a viewer of each.',
@@ -90,7 +90,7 @@ describe('InvitePage', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/invalid, expired, or already used/i)
-    // The title stops inviting, and the way out is a real button (SH-32).
+    // The title stops inviting, and the way out is a real button.
     expect(
       screen.getByRole('heading', { level: 1, name: 'This invite link no longer works' }),
     ).toBeInTheDocument()
@@ -157,7 +157,7 @@ describe('InvitePage', () => {
             }),
           )
         }
-        // No /auth/me: the accept response IS the session (SHELL-17).
+        // No /auth/me: the accept response IS the session.
         return Promise.reject(new Error(`Unexpected request: ${url}`))
       },
     )
@@ -187,7 +187,7 @@ describe('InvitePage', () => {
       role: 'member',
     })
   })
-  it('marks a missing password under the field instead of a browser bubble (AU-4)', async () => {
+  it('marks a missing password under the field instead of a browser bubble', async () => {
     const accepted = vi.fn()
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
@@ -215,7 +215,7 @@ describe('InvitePage', () => {
     expect(accepted).not.toHaveBeenCalled()
   })
 
-  it('lets the new user check the password they typed (SH-31)', async () => {
+  it('lets the new user check the password they typed', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
       if (url.includes(`/auth/invitations/${TOKEN}`)) {

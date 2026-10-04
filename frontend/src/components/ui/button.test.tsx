@@ -5,7 +5,7 @@ import { Button } from './button'
 // jsdom resolves no Tailwind, so the disabled look can only be read off the
 // classes the variant emits; theme-contrast.test.ts holds the inks it names
 // to AA on the surfaces it names.
-describe('Button disabled look (LIVE-32)', () => {
+describe('Button disabled look', () => {
   it('turns a disabled primary button neutral instead of fading it', () => {
     render(<Button disabled>Save</Button>)
 
@@ -26,7 +26,7 @@ describe('Button disabled look (LIVE-32)', () => {
   })
 })
 
-// The app's control scale (DS-14 / AU-7, DS-23): read off the classes too.
+// The app's control scale: read off the classes too.
 describe('Button sizes', () => {
   it('defaults to a 32px, 12.5px control on the shared control radius', () => {
     render(<Button>Save</Button>)

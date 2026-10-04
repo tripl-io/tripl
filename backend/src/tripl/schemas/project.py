@@ -163,7 +163,7 @@ class DetectionResetPeriod(BaseModel):
     Both bounds are optional; omitting both clears the whole project.
 
     ``dry_run`` returns the counts the reset WOULD delete and deletes nothing, so
-    the confirm dialog can name them (ST-39). It defaults to false, unlike
+    the confirm dialog can name them. It defaults to false, unlike
     ``VariableRetirementRequest``: this body predates it, and a client that
     omits it has always meant "delete".
     """
@@ -180,7 +180,7 @@ class DemoCancelResponse(BaseModel):
     the provision then deletes itself instead of promoting.
 
     When it is false there was nothing to stop, and ``state`` says which of two
-    very different things that means (DEMO-28): ``finished`` — a demo of this
+    very different things that means: ``finished`` — a demo of this
     user's became ready moments ago, so it WILL be in their projects list and
     the caller should say so — or ``none`` — no recent demo exists, the create
     never got far enough (or failed on its own), and the caller must not promise
@@ -270,7 +270,7 @@ class ProjectSummary(BaseModel):
     variable_count: int = 0
     scan_count: int = 0
     # Metric definitions in the project, any status. Drives the "Define a key
-    # metric" onboarding step's done-state (JR-2). Metrics are not plan
+    # metric" onboarding step's done-state. Metrics are not plan
     # entities, so a ``?branch=`` read does not change it.
     metric_count: int = 0
     alert_destination_count: int = 0
@@ -302,7 +302,7 @@ class ProjectSummary(BaseModel):
     failing_scan_config_count: int = 0
     # Enabled alert destinations whose *latest* delivery failed — the
     # per-channel twin of ``failing_scan_config_count``, so the Overview status
-    # line can name a broken channel next to failing scans (MO-15).
+    # line can name a broken channel next to failing scans.
     failing_alert_destination_count: int = 0
     latest_scan_job: ProjectLatestScanJob | None = None
     latest_signal: ProjectLatestSignal | None = None

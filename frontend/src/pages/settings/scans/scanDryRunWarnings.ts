@@ -32,7 +32,7 @@ export interface NameExplosion {
  * The default setup (a wide SELECT, events named from a column) made the dry
  * run answer "Would create 153 events", every one a pipe-joined dump of the
  * remaining columns, in the same neutral tone as a good answer, and one Run now
- * added all 153 to the plan (#247 DA-1). Null when the answer looks sane.
+ * added all 153 to the plan (#247). Null when the answer looks sane.
  */
 export function dryRunNameExplosion(dryRun: ScanDryRunResponse | null): NameExplosion | null {
   if (!dryRun || dryRun.sampled_rows === 0) return null

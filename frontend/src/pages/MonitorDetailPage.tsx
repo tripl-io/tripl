@@ -52,7 +52,7 @@ import { currentOrgSlug, projectPath } from '@/lib/navigation'
 export default function MonitorDetailPage() {
   const { slug, monitorId } = useParams<{ slug: string; monitorId: string }>()
   const queryClient = useQueryClient()
-  // Mute and retry are editor actions (MON-6); a viewer reads the history.
+  // Mute and retry are editor actions; a viewer reads the history.
   const canWrite = useCanWriteProject()
 
   const monitorKey = useMemo(() => monitorDetailKey(slug, monitorId), [slug, monitorId])
@@ -76,7 +76,7 @@ export default function MonitorDetailPage() {
 
   // The Monitors list, its summary and the destination card's rule all read
   // the same muted_until from their own queries, so writing only this page's
-  // cache left them showing the old state until their next refetch (MON-31).
+  // cache left them showing the old state until their next refetch.
   // Same helper the Monitors-list mute uses (MonitorsSection).
   const onMuteChanged = (data: MonitorDetail) => {
     queryClient.setQueryData(monitorKey, data)
@@ -93,7 +93,7 @@ export default function MonitorDetailPage() {
     onSuccess: onMuteChanged,
   })
   const retryMut = useMutation({
-    // The failed row says why, right under its Retry button (MON-31).
+    // The failed row says why, right under its Retry button.
     meta: SILENT_ERROR_META,
     mutationFn: (deliveryId: string) => alertingApi.retryDelivery(slug!, deliveryId),
     onSuccess: () => {
@@ -122,7 +122,7 @@ export default function MonitorDetailPage() {
   const rulesListPath = projectPath(currentOrgSlug(), slug, '/alerting?section=monitors')
 
   if (monitorQuery.isError) {
-    // A rule that does not exist is not a failure to retry (#237 SH-33): a
+    // A rule that does not exist is not a failure to retry (#237): a
     // deleted rule's link from an old alert lands on "not found" and a way back.
     return (
       <PageContainer>
@@ -152,15 +152,15 @@ export default function MonitorDetailPage() {
 
   return (
     // The eyebrow names the nav group and the collection, as on every Observe
-    // detail page, instead of a separate back link above the header (DS-2 /
-    // MO-40); the top bar's breadcrumb is the way back.
+    // detail page, instead of a separate back link above the header;
+    // the top bar's breadcrumb is the way back.
     <PageContainer>
       <PageHeader
         eyebrow="Observe · Alert rule"
         title={monitor.rule_name}
         // The state belongs to the title, not to a line of its own between the
-        // title and the stats (MO-35). No pulsing dot: the chip says it, and
-        // "Last fired · still firing" below is the one place that moves (MO-18).
+        // title and the stats. No pulsing dot: the chip says it, and
+        // "Last fired · still firing" below is the one place that moves.
         titleAddon={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             <Chip tone={statusTone} size="sm">
@@ -195,7 +195,7 @@ export default function MonitorDetailPage() {
               <Button asChild variant="outline" size="sm">
                 <Link
                   // A monitor IS an alert rule, and rules are edited in the
-                  // Rules section of Alerting (JR-28). The section
+                  // Rules section of Alerting. The section
                   // has to be named: without it the link lands on the incident
                   // Inbox, which is the default, and "Edit rule" opens triage.
                   to={rulesListPath}
@@ -269,7 +269,7 @@ function ActionButton({
   disabled?: boolean
 }) {
   return (
-    // The Button primitive's outline look, hover and focus ring (DS-14), not a
+    // The Button primitive's outline look, hover and focus ring, not a
     // hand-painted copy of it.
     <Button
       type="button"
@@ -346,7 +346,7 @@ function MuteControl({
       />
     )
   }
-  // A header action, "Mute ▾", next to "Edit rule" (MO-35) — the three
+  // A header action, "Mute ▾", next to "Edit rule" — the three
   // presets used to float on a line of their own under the title.
   return (
     <DropdownMenu>
@@ -388,7 +388,7 @@ function RecencyStrip({ monitor }: { monitor: MonitorDetail }) {
         tone={isFiring ? 'danger' : 'neutral'}
         pulse={isFiring}
         // "1h ago · now" contradicted itself: the value is when it last fired,
-        // and the delta only says the state has not cleared since (LIVE-18).
+        // and the delta only says the state has not cleared since.
         delta={isFiring ? 'still firing' : undefined}
       />
       <MiniStat
@@ -403,9 +403,9 @@ function RecencyStrip({ monitor }: { monitor: MonitorDetail }) {
       />
       <MiniStat label="Deliveries" value={formatNumber(monitor.total_deliveries)} />
       {/* The tone used to be set with no delta, and MiniStat paints the tone
-          on the delta only — so the emphasis never rendered (MON-42). The
+          on the delta only — so the emphasis never rendered. The
           delta now says what the tone is about. */}
-      {/* "4 of 4", once: "4 · 4 firing" said the number twice (MO-36). */}
+      {/* "4 of 4", once: "4 · 4 firing" said the number twice. */}
       <MiniStat
         label="Firing scopes"
         value={`${formatNumber(monitor.firing_scope_count)} of ${formatNumber(monitor.active_scope_count)}`}
@@ -417,7 +417,7 @@ function RecencyStrip({ monitor }: { monitor: MonitorDetail }) {
 }
 
 /**
- * Which scopes are firing now, each linking to its drilldown (MO-36).
+ * Which scopes are firing now, each linking to its drilldown.
  *
  * The strip above only counts them; this says which. Not rendered when nothing
  * fires — and `?? []` at the call site keeps a response that predates the field
@@ -481,7 +481,7 @@ function FiringScopeRow({ slug, scope }: { slug?: string; scope: MonitorFiringSc
 
 /**
  * Spike and drop with the arrows the rest of the module draws, in their
- * direction colours — not black text triangles (MO-37).
+ * direction colours — not black text triangles.
  */
 function DirectionValue({ monitor }: { monitor: MonitorDetail }) {
   if (!monitor.notify_on_spike && !monitor.notify_on_drop) return <>—</>
@@ -529,7 +529,7 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
   // Grouped as the rule editor groups them — volume changes, then "Also alert
   // on" (drift detectors, release regressions, source freshness)
   // — and named in the editor's words, so one scope is not
-  // "Distribution" there and "Distribution drifts" here (MO-37, AL-38).
+  // "Distribution" there and "Distribution drifts" here.
   const groups = RULE_SIGNAL_GROUPS.map((group) => ({
     id: group.id,
     label: group.id === 'volume' ? 'Volume' : group.label,
@@ -578,7 +578,7 @@ function ConfigPanel({ slug, monitor }: { slug?: string; monitor: MonitorDetail 
         mono={false}
         last
       />
-      {/* Stacks below `sm`, like the InfoRows above it (MON-32). */}
+      {/* Stacks below `sm`, like the InfoRows above it. */}
       <FormRow
         labelWidth={200}
         captionClassName="@min-[560px]:pt-1"
@@ -649,8 +649,8 @@ function DestinationPanel({ slug, monitor }: { slug?: string; monitor: MonitorDe
         }
       >
         <span className="flex min-w-0 items-center gap-2">
-          {/* The channel kind is a category tag: an outline chip (DS-6), in
-              words rather than the raw `demo_sink` type (AL-11). */}
+          {/* The channel kind is a category tag: an outline chip, in
+              words rather than the raw `demo_sink` type. */}
           <Chip variant="outline" size="xs">
             {channelLabel(monitor.destination_type)}
           </Chip>
@@ -757,7 +757,7 @@ function DeliveryRow({
   retrying: boolean
   retryError: string | null
 }) {
-  // "4 matched" opens the four scopes, each linking to its chart (MO-36): the
+  // "4 matched" opens the four scopes, each linking to its chart: the
   // alert used to be a dead end between the message and the anomaly.
   const [expanded, setExpanded] = useState(false)
   const scopesId = `delivery-scopes-${delivery.id}`
@@ -771,7 +771,7 @@ function DeliveryRow({
           {channelLabel(delivery.channel)}
         </Chip>
         <span className="min-w-0 flex-1 truncate text-body-sm font-medium">{delivery.scan_name}</span>
-        {/* A count and a relative time: sans with tabular digits (DS-17). */}
+        {/* A count and a relative time: sans with tabular digits. */}
         {delivery.matched_count > 0 ? (
           <button
             type="button"
@@ -811,7 +811,7 @@ function DeliveryRow({
         </p>
       )}
       {/* A failed retry used to hand the button back as "Retry" with no word
-          about what happened (MON-31). */}
+          about what happened. */}
       {retryError && !retrying && (
         <p role="alert" className="mt-1.5 text-caption text-danger">
           Retry failed: {retryError}
@@ -822,7 +822,7 @@ function DeliveryRow({
   )
 }
 
-/** The scopes one delivery matched, each linking to its drilldown (MO-36). */
+/** The scopes one delivery matched, each linking to its drilldown. */
 function DeliveryScopes({ id, slug, deliveryId }: { id: string; slug: string; deliveryId: string }) {
   // The same key the delivery log's expanded row reads, so a delivery opened
   // there costs no second request here.

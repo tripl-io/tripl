@@ -45,7 +45,7 @@ describe('KeyedRoute', () => {
   })
 
   it('is what makes the difference: an unkeyed route element keeps the state', () => {
-    // Pins the router behaviour the wrapper exists for (MON-1), so the test
+    // Pins the router behaviour the wrapper exists for, so the test
     // above cannot pass for a reason that has nothing to do with the key.
     renderAt(<Detail />)
 

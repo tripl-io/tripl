@@ -174,7 +174,7 @@ describe('ReleaseRegressionPanel', () => {
     expect(screen.queryByText(/No events regressed/i)).not.toBeInTheDocument()
   })
 
-  it('says the list is scan-wide, links each row and labels the count (MON-41)', async () => {
+  it('says the list is scan-wide, links each row and labels the count', async () => {
     vi.mocked(eventMetricsApi.getReleaseRegressions).mockResolvedValue({
       scan_config_id: 'scan-1',
       app_version_column: 'app_version',
@@ -220,7 +220,7 @@ describe('ReleaseRegressionPanel', () => {
     expect(await screen.findByText(/Fewer than two released versions/i)).toBeInTheDocument()
     expect(screen.getByText(/baseline release has no volume/i)).toBeInTheDocument()
   })
-  it('reports a failed request as an error, not as "no comparison has run" (MON-30)', async () => {
+  it('reports a failed request as an error, not as "no comparison has run"', async () => {
     const fetchRegressions = vi.mocked(eventMetricsApi.getReleaseRegressions)
     fetchRegressions.mockReset()
     fetchRegressions.mockRejectedValueOnce(new Error('upstream timeout'))

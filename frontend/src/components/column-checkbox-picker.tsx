@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 
 /**
  * Up to this many columns the grid shows them all, with no inner scroll box
- * and its half-visible last row; past it a filter input narrows them (MT-16).
+ * and its half-visible last row; past it a filter input narrows them.
  */
 const FILTER_THRESHOLD = 18
 

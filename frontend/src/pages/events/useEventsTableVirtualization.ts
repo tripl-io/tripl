@@ -12,7 +12,7 @@ const VIRTUAL_THRESHOLD = 100
  * `--row-h` per density class (index.css). The estimate has to follow the
  * density the theme applies: a fixed 36px was 30% too tall under the default
  * compact density, so the spacers mis-mapped the scrollbar and the next-page
- * trigger fired early (EVT-17). Rows are still measured once rendered — an
+ * trigger fired early. Rows are still measured once rendered — an
  * expanded JSON cell makes one several times taller — this only sizes the rows
  * not rendered yet.
  */
@@ -51,7 +51,7 @@ function readPhoneCards(): boolean {
  * field/meta filter the loaded page can hold zero matches while later pages
  * hold many, so the sweep keeps going regardless of how many rows matched so
  * far; stopping at an empty page showed "No events match" over a catalog that
- * had them (EVT-4).
+ * had them.
  */
 export function shouldFetchNextPage({
   hasNextPage,
@@ -225,7 +225,7 @@ export function useEventsTableVirtualization({
 
   // The rows actually inside the scroll viewport, for the footer's "Showing
   // X–Y". `virtualItems` also holds the overscan rows either side, so the range
-  // read off them was up to 24 rows wider than what was on screen (EVT-16).
+  // read off them was up to 24 rows wider than what was on screen.
   const scrollOffset = rowVirtualizer.scrollOffset ?? 0
   const viewportHeight = rowVirtualizer.scrollRect?.height ?? 0
   const onScreen = virtualItems.filter(

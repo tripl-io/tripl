@@ -41,8 +41,8 @@ interface UploadItem {
 /**
  * Why a dropped or picked file is not uploaded at all, or null to upload it.
  *
- * `maxSizeMb` is the instance's own `photo_max_size_mb`, read from the server
- * (EVT-28): a fixed 10 MB here refused files an instance had been configured to
+ * `maxSizeMb` is the instance's own `photo_max_size_mb`, read from the server:
+ * a fixed 10 MB here refused files an instance had been configured to
  * take. Until it has loaded (or if it cannot be read) size is left to the
  * server's 413. `allowedMime` is the organization's own list (F20 PR11); a
  * type outside it would only come back as a 415.
@@ -91,7 +91,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
   const [opened, setOpened] = useState<EventPhoto | null>(null)
   const [dragOver, setDragOver] = useState(false)
   // The Figma URL row opens on demand: shown up front it was one of three
-  // competing ways to add something to an empty section (EV-33).
+  // competing ways to add something to an empty section.
   const [figmaOpen, setFigmaOpen] = useState(false)
   const [figmaUrl, setFigmaUrl] = useState('')
   const [figmaTitle, setFigmaTitle] = useState('')
@@ -120,7 +120,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
   // Files upload side by side, each with its own progress and outcome. They
   // used to go one after another inside one mutation: no progress, and when the
   // third of five failed the first two were stored but stayed off screen until
-  // a reload, because only a fully successful run refreshed the list (EVT-28).
+  // a reload, because only a fully successful run refreshed the list.
   const patchUpload = (key: string, patch: Partial<UploadItem>) =>
     setUploads(items => items.map(item => (item.key === key ? { ...item, ...patch } : item)))
 
@@ -211,7 +211,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
   return (
     <Card>
       {/* The Card's own p-4 body and the section-title scale (12.5px
-          semibold), not a p-6 body under an 18px title (DS-4, MO-9). */}
+          semibold), not a p-6 body under an 18px title. */}
       <CardContent>
         <div className={`${isEmpty ? 'mb-2' : 'mb-4'} flex flex-wrap items-center justify-between gap-3`}>
           <div className="flex items-center gap-2">
@@ -310,7 +310,7 @@ export default function EventPhotosSection({ slug, eventId }: Props) {
             handleFiles(event.dataTransfer.files)
           }}
           // The drop target shows itself only while something is dragged over
-          // it: a 400px dashed box around nothing was the empty state (EV-33).
+          // it: a 400px dashed box around nothing was the empty state.
           className={`rounded-card border-2 border-dashed transition-colors ${
             dragOver ? 'border-primary bg-primary/5 p-4' : 'border-transparent'
           } ${isEmpty && !dragOver ? 'py-1' : ''}`}
@@ -426,7 +426,7 @@ function PhotoTile({
   return (
     <div className="group relative overflow-hidden rounded-md border bg-muted">
       {/* Named outright: an image with no filename renders alt="" and left
-          the tile's only button with no name at all (EVT-51). */}
+          the tile's only button with no name at all. */}
       <button
         type="button"
         onClick={onOpen}
@@ -456,7 +456,7 @@ function PhotoTile({
         {onDelete && (
           <IconButton
             // The row-level destructive look, not the solid red kept for a
-            // confirm dialog's button (DS-20). The page surface behind it keeps
+            // confirm dialog's button. The page surface behind it keeps
             // the red icon legible over the photo's dark gradient.
             variant="danger"
             label="Delete photo"
@@ -508,7 +508,7 @@ function PhotoViewer({
           />
         )}
         {/* No close button of its own: DialogContent already renders a labelled
-            one, and a second, unlabelled X beside it read as "button" (EVT-51). */}
+            one, and a second, unlabelled X beside it read as "button". */}
         <div className="flex items-center justify-between gap-2 px-2 pt-2 text-body-sm text-fg-tertiary">
           <span className="truncate">
             {photo.original_filename}

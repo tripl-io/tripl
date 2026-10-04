@@ -2,8 +2,8 @@
  * The getting-started checklist's "dismissed" flag, per project.
  *
  * Keyed on the project id when the caller has it: a slug can be renamed, and
- * the old slug key then no longer matched, so a dismissed checklist came back
- * (WS-35). The slug key is still read, so a dismissal made before this change
+ * the old slug key then no longer matched, so a dismissed checklist came back.
+ * The slug key is still read, so a dismissal made before this change
  * holds, and is what callers without an id use.
  */
 

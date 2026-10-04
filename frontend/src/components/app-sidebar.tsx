@@ -127,7 +127,7 @@ function usePersistLastSlug(slug: string | undefined): void {
 /**
  * True while the nav scroller has more below its fold. Drives a bottom fade,
  * the only hint that the list scrolls: without it the last items simply were
- * not there at 1440×900 (#238 SH-10).
+ * not there at 1440×900 (#238).
  */
 function useMoreBelow(el: HTMLElement | null): boolean {
   const [moreBelow, setMoreBelow] = useState(false)
@@ -155,7 +155,7 @@ export function AppSidebar({
   /**
    * Rendered as the off-canvas drawer (below lg). The drawer closes instead of
    * collapsing: a collapsed drawer was a useless 52px rail over a blurred page
-   * that then persisted to desktop (#238 SH-13).
+   * that then persisted to desktop (#238).
    */
   drawer?: boolean
   onCloseDrawer?: () => void
@@ -173,7 +173,7 @@ export function AppSidebar({
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null)
   const moreBelow = useMoreBelow(scroller)
   // The Appearance popover hangs from the footer's palette button, whether it
-  // was opened there or from the account menu (SH-24).
+  // was opened there or from the account menu.
   const appearanceRef = useRef<HTMLButtonElement | null>(null)
 
   const projectsQuery = useQuery(projectsQueryOptions())
@@ -192,7 +192,7 @@ export function AppSidebar({
   // The Plan counts come from the project summary, which is main's. On a
   // branch the Events page lists the branch's rows, so "Events 12" beside a
   // list of 13 was a claim about a different plan: the counts step aside
-  // while a branch is active (#243 SH-11 / JR-13).
+  // while a branch is active (#243).
   const onBranch = branchId !== null
   const navGroups: NavGroup[] = slug
     ? buildNavGroups(slug, project?.summary).map((group) => ({
@@ -213,7 +213,7 @@ export function AppSidebar({
   const userLabel = auth.user?.name ?? auth.user?.email ?? 'Signed in'
   const conceptsActive = !!slug && currentPath === projectPath(currentOrgSlug(), slug, '/concepts')
   // Switching project keeps the surface being compared when the new project
-  // has it, and otherwise lands on the project's one home (SHELL-44).
+  // has it, and otherwise lands on the project's one home.
   const pickProject = (picked: Project) =>
     navigate(switchProjectPath(currentPath, slug, picked.slug))
   const signOut = () => {
@@ -319,7 +319,7 @@ export function AppSidebar({
       )}
 
       {/* Command / search — the one palette entry point from lg up; the top
-          bar's magnifier is hidden there (#238 SH-21). */}
+          bar's magnifier is hidden there (#238). */}
       <div className="px-3 pb-2.5">
         <button
           type="button"
@@ -367,7 +367,7 @@ export function AppSidebar({
       {/* Pinned footer: Project settings and Concepts, then the account menu.
           Project settings used to be the LAST row of the scrolling nav, below
           the fold on the commonest laptop once a project had event types
-          (#238 SH-10). */}
+          (#238). */}
       <div className="px-3 py-3 border-t border-border-subtle">
         {slug && (
           <div className="mb-2 flex flex-col gap-px">
@@ -401,7 +401,7 @@ export function AppSidebar({
         )}
         <div className="flex items-center gap-1">
           {/* The whole user row is the account menu, as on the collapsed rail
-              (#238 SH-39). Three unlabeled 28px icons sat here, the gear beside
+              (#238). Three unlabeled 28px icons sat here, the gear beside
               the name read as "my profile", and Sign out was one pixel-row from
               the others with nothing in between. */}
           <DropdownMenu>
@@ -439,7 +439,7 @@ export function AppSidebar({
           </DropdownMenu>
           {/* Appearance stays one click away: it is the one account control
               people reach for often. It used to be a disc fixed over the
-              bottom-right corner of every page (SHELL-35). */}
+              bottom-right corner of every page. */}
           <button
             ref={appearanceRef}
             type="button"

@@ -2,7 +2,7 @@ import type { ComponentProps } from "react"
 import { cn } from "@/lib/utils"
 
 /**
- * A count on a nav item, tab or bell (DS-6). Solid red only when `urgent`
+ * A count on a nav item, tab or bell. Solid red only when `urgent`
  * (unread alerts, open signals); every other count is a quiet neutral pill,
  * so red keeps meaning "look now". Sans + tabular figures, never mono.
  * `max` caps the figure ("9+"); the full number belongs in the owner's

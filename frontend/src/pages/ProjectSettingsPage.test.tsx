@@ -75,7 +75,7 @@ async function clickFirstScanNewScan() {
 
 /**
  * The routes App.tsx mounts this page on: every Plan, Observe and Govern
- * surface at `/p/:slug/<surface>[/:itemId]` (#238 JR-25), then the
+ * surface at `/p/:slug/<surface>[/:itemId]` (#238), then the
  * `/settings/:tab` family that keeps detection and redirects the rest.
  */
 function projectSettingsRoutes() {
@@ -121,7 +121,7 @@ describe('ProjectSettingsPage', () => {
     expect(await screen.findByText('Takeover general')).toBeInTheDocument()
   })
 
-  it('redirects an old /settings/<surface> link to the top-level route, keeping its anchors (JR-25)', async () => {
+  it('redirects an old /settings/<surface> link to the top-level route, keeping its anchors', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockJsonResponse({}))
 
     function Probe() {
@@ -145,7 +145,7 @@ describe('ProjectSettingsPage', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows a page skeleton while the surface loads and no "settings" signpost (#238 JR-25)', async () => {
+  it('shows a page skeleton while the surface loads and no "settings" signpost (#238)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockJsonResponse([]))
 
     const queryClient = new QueryClient({
@@ -801,7 +801,7 @@ describe('ProjectSettingsPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Add rule/ }))
 
     const dialog = await screen.findByRole('dialog')
-    // The templates are collapsed by default (AL-1).
+    // The templates are collapsed by default.
     fireEvent.click(within(dialog).getByRole('button', { name: /Customize message/ }))
     const templateField = within(dialog)
       .getAllByRole('combobox')
@@ -821,7 +821,7 @@ describe('ProjectSettingsPage', () => {
   })
 
   it('starts the alerting tab fresh when the project changes', async () => {
-    // ALR-37: the route element is reused across `:slug`, so an open rule
+    // the route element is reused across `:slug`, so an open rule
     // dialog (and filters, drafts) from project A carried into project B.
     vi.spyOn(globalThis, 'fetch').mockImplementation(async input => {
       const url = String(input)
@@ -1222,7 +1222,7 @@ describe('ProjectSettingsPage', () => {
     expect(await screen.findByText('Link: https://tracker.example.com/issues/${value}')).toBeInTheDocument()
   })
 
-  it('titles the meta-fields page to match the "Meta fields" sidebar entry (AU-10)', async () => {
+  it('titles the meta-fields page to match the "Meta fields" sidebar entry', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.endsWith('/api/v1/projects/demo/meta-fields') && (!init || !init.method || init.method === 'GET')) {
@@ -1402,7 +1402,7 @@ describe('ProjectSettingsPage', () => {
     )
 
     // A project with no scans shows ONE empty state, and its "New scan" is the
-    // way in (#247 DA-28): the header button only renders while the list is
+    // way in (#247): the header button only renders while the list is
     // still loading, so a reference to it goes stale once the list answers.
     await clickFirstScanNewScan()
 

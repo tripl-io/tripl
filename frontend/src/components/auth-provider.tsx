@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
   // The account whose session ran out while the app was open. While set, the
   // shell stays mounted as that user under a sign-in dialog instead of
-  // redirecting to /auth and throwing away unsaved input (SHELL-15).
+  // redirecting to /auth and throwing away unsaved input.
   const [expiredUser, setExpiredUser] = useState<AuthUser | null>(null)
   // Requests still in flight when the user signs out answer 401 once the
   // cookie is gone; that is the sign-out working, not a session running out.

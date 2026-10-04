@@ -32,7 +32,7 @@ const RENAME_DIFF: PlanBranchDiffSummary = {
 }
 
 // The badges used to cost one 2-3.5 s diff per branch; the list endpoint now
-// carries the counts (PLAN-3).
+// carries the counts.
 describe('rowBadgeCounts', () => {
   it('reads each open branch its counts from the list', () => {
     const items = [

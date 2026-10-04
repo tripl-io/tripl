@@ -9,12 +9,12 @@ import { GRANULARITY_OPTIONS, granularityFitsRange, type MetricsGranularity } fr
 /**
  * Range + granularity for a drilldown chart. Granularities that would draw more
  * than the per-series point cap over the selected range are disabled rather
- * than offered (MON-23); the page clamps a sticky pick the same way. The
+ * than offered; the page clamps a sticky pick the same way. The
  * series' native collection granularity is always offered, and an option
- * that is not says why beside its label (MO-31).
+ * that is not says why beside its label.
  *
  * Both controls share one 32px height and the 12.5px control text, so the pair
- * no longer reads as two sizes side by side (MO-31).
+ * no longer reads as two sizes side by side.
  */
 export function MetricsRangeControls({
   rangeDays,
@@ -68,8 +68,8 @@ export function MetricsRangeControls({
 
 /**
  * A chart card's header bar: the title on its own row on a phone, the controls
- * wrapping beneath it, side by side from `sm` up (MON-11, LIVE-26). It is the
- * card's `CardHeader` (the shared section-card geometry, DS-4 / MO-10), so the
+ * wrapping beneath it, side by side from `sm` up. It is the
+ * card's `CardHeader` (the shared section-card geometry), so the
  * chart goes in a `CardContent` after it. Pass the title as
  * `<CardTitle as="h2">`.
  */

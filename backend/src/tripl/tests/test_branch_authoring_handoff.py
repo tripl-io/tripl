@@ -54,7 +54,7 @@ async def _forget_identity(event_id: str, *, name: str) -> None:
         )
 
 
-# --------------------------------------------------------------------- kjhi.1
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -176,7 +176,7 @@ async def test_diff_warns_about_branch_events_with_no_scan_identity(client: Asyn
     ]
 
 
-# --------------------------------------------------------------------- kjhi.3
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -262,7 +262,7 @@ def test_a_base_snapshot_without_title_reads_as_an_empty_title() -> None:
     assert compute_plan_diff_entries(old, new) == []
 
 
-# --------------------------------------------------------------------- kjhi.4
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -348,7 +348,7 @@ def test_diff_does_not_read_an_authored_flag_flip_as_a_change() -> None:
     )
 
 
-# --------------------------------------------------------------------- kjhi.5
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -407,7 +407,7 @@ async def test_meta_value_pasted_as_a_full_link_is_stored_as_its_key(client: Asy
     assert stored == "https://elsewhere.example/PROJ-1"
 
 
-# --------------------------------------------------------------------- kjhi.7
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -448,7 +448,7 @@ async def test_event_reads_answer_across_branches_and_say_where_the_row_lives(
     assert seen_from_branch.json()["branch_id"] == main_branch_id
 
 
-# --------------------------------------------------------------------- kjhi.9
+# ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio

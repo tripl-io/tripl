@@ -7,7 +7,7 @@ import type {
   SettingsTestResponse,
 } from '@/types'
 
-/** The built-in AI system prompts, for "Restore default" (ST-30). */
+/** The built-in AI system prompts, for "Restore default". */
 export type AiPromptDefaults = components['schemas']['AiPromptDefaultsResponse']
 
 /** The row caps a scan falls back to, readable by any member of the organization. */

@@ -76,7 +76,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         {/* One provider for the whole app, so `ui/tooltip` works on any page
             instead of throwing outside the two Events screens that mounted
-            their own — which is why `title=` stood in for it (DS-12). Radix
+            their own — which is why `title=` stood in for it. Radix
             tooltip already ships in the first-load chunk with the sidebar. */}
         <TooltipProvider delayDuration={300}>
           <RouterProvider router={router} />

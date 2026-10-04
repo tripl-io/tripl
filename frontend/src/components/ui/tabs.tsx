@@ -24,10 +24,10 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
  * accent underline on the active tab, as the hand-rolled tablists on the scan,
  * event-type and alerting screens draw it. Those can move onto this primitive
  * (and its arrow-key roving and tabpanel wiring) without changing how they
- * look (DS-35).
+ * look.
  *
  * `variant="segmented"` draws the same Radix tabs as the app's one segmented
- * control (DS-16 / AL-46): use it when a small strip switches panels in place
+ * control: use it when a small strip switches panels in place
  * (Inbox / Rules / Delivery log inside a card). For a range or view toggle
  * that has no tabpanel, use <SegmentedControl>.
  */
@@ -68,7 +68,7 @@ function TabsTrigger({
 }: React.ComponentProps<typeof TabsPrimitive.Trigger> & {
   /**
    * A count after the label ("Inbox 1"), so the strip itself reads as a
-   * triage signal (AL-46). Announced as part of the tab's name.
+   * triage signal. Announced as part of the tab's name.
    */
   count?: number
   /** Solid red count: open incidents, failed deliveries. */
@@ -109,7 +109,7 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
       data-slot="tabs-content"
       // Radix gives the panel tabIndex=0, so it is a Tab stop and needs its own
       // indicator: the global :focus-visible outline sits in @layer base and
-      // loses to `outline-none` (DS-2).
+      // loses to `outline-none`.
       className={cn(
         "flex-1 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
         className

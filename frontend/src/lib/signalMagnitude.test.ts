@@ -70,7 +70,7 @@ describe('relativeEffect', () => {
   })
 
   it('leaves out signals a triage verdict hid, so the bell and Overview match the badge', () => {
-    // Muted or marked expected (MO-4 / JR-5): the backend's badge count skips
+    // Muted or marked expected: the backend's badge count skips
     // them, so every client count must too. Acknowledged ones stay.
     const hidden = signal({ scope_ref: 'muted', relative_effect: 3, hidden: true, muted: true })
     const acknowledged = signal({
@@ -115,7 +115,7 @@ describe('relativeEffect', () => {
   })
 })
 
-describe('magnitude words and labels (MO-3, JR-31)', () => {
+describe('magnitude words and labels', () => {
   it('puts the threshold in the filter label, in the % the rows show', () => {
     expect(MAGNITUDE_PRESETS.map(magnitudePresetLabel)).toEqual([
       'All',

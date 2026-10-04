@@ -152,7 +152,7 @@ async def create_data_source(
 async def test_unsaved_data_source_connection(
     data: DataSourceConnectionTest,
 ) -> DataSourceConnectionTestResponse:
-    """Test a connection before it is saved (DATA-30).
+    """Test a connection before it is saved.
 
     The create gate (org owner/admin, browser session) and the create body's validation,
     host format included; nothing is stored and no stored secret is read. Always

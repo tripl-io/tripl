@@ -557,7 +557,7 @@ async def search_project(
     window_overflowed = False
     if group_variants:
         window_overflowed = len(items) > candidate_limit
-        # Rank the WHOLE window, fold, and only then trim (JR-20): folding after
+        # Rank the WHOLE window, fold, and only then trim: folding after
         # the trim would let a group of eight fill eight of twelve rows and then
         # shrink the page to five, and the members past the page would never be
         # counted. Ranking is a sort and confidence a per-row stamp, so running
@@ -759,7 +759,7 @@ def group_event_variants(
     event_types: Mapping[uuid.UUID, uuid.UUID],
     name_formats: Iterable[str],
 ) -> list[SearchResult]:
-    """Fold event hits that are variants of one another under the best-ranked one (JR-20).
+    """Fold event hits that are variants of one another under the best-ranked one.
 
     Two events are variants when they share an event type and their names,
     read back through the same naming rule, differ in the value of exactly ONE

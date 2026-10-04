@@ -67,7 +67,7 @@ afterEach(() => {
 })
 
 describe('UsersPage', () => {
-  it('tells a non-owner once, in the shared read-only notice, why roles are locked (#237 ST-17)', async () => {
+  it('tells a non-owner once, in the shared read-only notice, why roles are locked (#237)', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(jsonResponse([])))
 
     renderUsersPage({ ...OWNER, user: OWNER.user && { ...OWNER.user, role: 'member' } })
@@ -137,7 +137,7 @@ describe('UsersPage', () => {
     expect(revoked).toEqual([])
   })
 
-  it('splits the page into titled settings cards with counts (ST-14, ST-40)', async () => {
+  it('splits the page into titled settings cards with counts', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL) => {
       const url = urlOf(input)
       if (url.endsWith('/api/v1/users')) {
@@ -166,8 +166,8 @@ describe('UsersPage', () => {
     expect(screen.getByText('1 pending')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument()
     expect(await screen.findByText('2 people')).toBeInTheDocument()
-    // The page's main action is the primary button (ST-15), and the
-    // instance-registration aside is gone (ST-14).
+    // The page's main action is the primary button, and the
+    // instance-registration aside is gone.
     expect(screen.getByRole('button', { name: 'Create invite link' })).toHaveClass('bg-accent-solid')
     expect(screen.queryByText(/self-service registration/)).toBeNull()
   })

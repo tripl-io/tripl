@@ -64,7 +64,7 @@ export function ScanPreviewPanel({
    */
   eventTargetMissing: boolean
   onRecheck: () => void
-  /** Opens the naming control the dry run's flood warning names (#247 DA-1). */
+  /** Opens the naming control the dry run's flood warning names (#247). */
   onFixNaming?: (target: NamingFixTarget) => void
 }) {
   const [rowsOpen, setRowsOpen] = useState(false)
@@ -92,7 +92,7 @@ export function ScanPreviewPanel({
         <div className="flex flex-wrap items-center gap-2">
           <p className="m-0 flex-1 text-body-sm text-fg-tertiary">{NOT_CHECKED_YET_TEXT}</p>
           {/* Names what it does: "Check" read as "validate the SQL"
-              (#247 DA-14). */}
+              (#247). */}
           <Button type="button" variant="outline" size="sm" onClick={onRecheck}>
             Show what this scan would create
           </Button>

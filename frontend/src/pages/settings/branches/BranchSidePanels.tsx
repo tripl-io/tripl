@@ -28,7 +28,7 @@ import { TICKET_POLL_MS, TICKET_POLL_WINDOW_MS } from './branchQueryKeys'
  * the ticket after the merge response, so the first fetch usually finds
  * nothing; with the tracker enabled the panel then says the ticket is on its
  * way and polls for it for a bounded window rather than caching the empty
- * answer (PLAN-10).
+ * answer.
  */
 export function ImplementationTicketsPanel({
   slug,
@@ -115,7 +115,7 @@ export function CommentsPanel({
   //
   // A plain card, as on the event page's Discussion, not a Panel: the Panel's
   // "Comments / 1" header sat right above the thread's own "Comments (1)"
-  // heading, two titles with the inner one larger (PL-18).
+  // heading, two titles with the inner one larger.
   return (
     <section aria-label="Comments" className="rounded-card border border-border bg-surface">
       {/* A DOM element under the mark: the coach anchors on the ref it clones

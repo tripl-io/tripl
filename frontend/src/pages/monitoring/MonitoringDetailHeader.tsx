@@ -20,7 +20,7 @@ import { MetricHeaderActions } from './MetricHeaderActions'
 import type { MetricCollect } from './useMetricCollect'
 
 /**
- * The header's status chip for the latest signal (MO-12): which way, how far
+ * The header's status chip for the latest signal: which way, how far
  * and when ("Spike · +82% at Sep 25, 6:00 PM"), not "Latest scan spike
  * anomaly".
  */
@@ -99,8 +99,8 @@ export function MonitoringDetailHeader({
               {identity}
             </span>
           )}
-          {/* No type badge: on an event-type page it repeated the title
-              (MO-12). The type's colour is a dot beside it instead. */}
+          {/* No type badge: on an event-type page it repeated the title.
+              The type's colour is a dot beside it instead. */}
           {scope === 'event_type' && eventType && (
             <span
               aria-hidden="true"
@@ -111,7 +111,7 @@ export function MonitoringDetailHeader({
           )}
           {scope === 'project_total' && (metrics?.scan_config_name || metrics?.scan_config_id) && (
             // The scan's name, as the Overview names it; the raw id only
-            // on hover (MO-12).
+            // on hover.
             <span
               className="text-body text-fg-secondary"
               title={metrics.scan_config_id ?? undefined}
@@ -130,7 +130,7 @@ export function MonitoringDetailHeader({
               {signalChipLabel(latestSignal)}
             </Chip>
           )}
-          {/* Not a dead end (MO-4): the signal's incident, with its Ack /
+          {/* Not a dead end: the signal's incident, with its Ack /
               Mute / Resolve, lives in the alert inbox. */}
           {latestSignal && slug && (
             <Button variant="link" size="sm" className="h-auto p-0 text-caption" asChild>

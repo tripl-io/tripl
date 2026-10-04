@@ -395,7 +395,7 @@ async def reset_anomalies(
     """Owner-only: clear every anomaly (+ breakdown) in the project's period.
 
     Destructive and irreversible. Derived monitoring signals disappear with the
-    anomalies they are computed from. ``dry_run`` only counts (ST-39).
+    anomalies they are computed from. ``dry_run`` only counts.
     """
     project = await project_lookup.resolve_project(session, slug)
     counts = await detection_reset_service.reset_project_anomalies(
@@ -428,7 +428,7 @@ async def reset_drifts(
 ) -> DriftResetCounts:
     """Owner-only: clear every schema + distribution drift in the project's period.
 
-    Destructive and irreversible. ``dry_run`` only counts (ST-39).
+    Destructive and irreversible. ``dry_run`` only counts.
     """
     project = await project_lookup.resolve_project(session, slug)
     counts = await detection_reset_service.reset_project_drifts(

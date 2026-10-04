@@ -86,7 +86,7 @@ function errorResponse(status: number): Response {
   } as unknown as Response
 }
 
-describe('scansApi polling — a blip is not an answer (DATA-3)', () => {
+describe('scansApi polling — a blip is not an answer', () => {
   afterEach(() => {
     vi.useRealTimers()
   })

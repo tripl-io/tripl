@@ -20,7 +20,7 @@ export const relationsApi = {
       withBranch(`/projects/${slug}/relations`, branchId),
       data,
     ),
-  // Edit in place (AU-13); an end is re-checked server-side when it moves.
+  // Edit in place; an end is re-checked server-side when it moves.
   update: (
     slug: string,
     id: string,

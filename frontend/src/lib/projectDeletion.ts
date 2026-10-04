@@ -5,8 +5,8 @@ import type { ConfirmOptions } from '@/hooks/useConfirm'
  * card's menu on the workspace page and the danger zone in Project settings ›
  * General. They used to word it differently, and the workspace copy only said
  * "event types and events" go, which undersold the heaviest action in the
- * product (WS-10). The slug has to be typed before Delete arms, and the delete
- * runs inside the dialog so a refusal shows there (WS-9).
+ * product. The slug has to be typed before Delete arms, and the delete
+ * runs inside the dialog so a refusal shows there.
  */
 export function deleteProjectConfirmation(
   project: { name: string; slug: string },

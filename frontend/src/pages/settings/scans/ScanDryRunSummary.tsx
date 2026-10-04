@@ -165,7 +165,7 @@ function NameFormatErrors({ errors }: { errors: string[] }) {
 }
 
 /**
- * The coaching callout for a draft that would swamp the plan (#247 DA-1). Same
+ * The coaching callout for a draft that would swamp the plan (#247). Same
  * box as the name-format errors, in warning rather than danger: the draft still
  * saves and runs; it just probably is not what its author meant. The bold terms
  * open the control that fixes it, where the caller can.
@@ -367,7 +367,7 @@ function FieldList({ fields }: { fields: ScanDryRunResponse['fields'] }) {
   const shown = fields.slice(0, MAX_LISTED)
   // A field belongs to an event type, and a draft spanning several repeats the
   // same names once per type: without the type the list read "event_name /
-  // button_id / … / event_name" as a bug or as double counting (#247 DA-2).
+  // button_id / … / event_name" as a bug or as double counting (#247).
   const showEventType = new Set(fields.map(field => field.event_type)).size > 1
   return (
     <>

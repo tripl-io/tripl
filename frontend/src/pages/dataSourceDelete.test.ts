@@ -8,7 +8,7 @@ import {
 
 const SOURCE = { name: 'Warehouse' } as DataSource
 
-describe('dataSourceDeleteMessage (DA-40)', () => {
+describe('dataSourceDeleteMessage', () => {
   it('counts the scans and runs that go with the source', () => {
     expect(dataSourceDeleteMessage({ ...SOURCE, scan_count: 1, scan_run_count: 12 })).toBe(
       'Delete "Warehouse"? 1 scan and 12 runs will be removed with it.',
@@ -28,7 +28,7 @@ describe('dataSourceDeleteMessage (DA-40)', () => {
   })
 })
 
-describe('dataSourceDeleteMessage names a few scans (DA-40)', () => {
+describe('dataSourceDeleteMessage names a few scans', () => {
   const scan = (id: string, name: string) => ({ id, name, project_slug: 'app', project_name: 'App' })
 
   it('names the one scan and its runs', () => {
@@ -55,7 +55,7 @@ describe('dataSourceDeleteMessage names a few scans (DA-40)', () => {
   })
 })
 
-describe('dataSourceDeleteRequireText (DA-40)', () => {
+describe('dataSourceDeleteRequireText', () => {
   it('asks for the name when scans read the source', () => {
     expect(dataSourceDeleteRequireText({ ...SOURCE, scan_count: 2 })).toBe('Warehouse')
   })

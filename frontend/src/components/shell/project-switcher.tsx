@@ -14,7 +14,7 @@ import type { Project } from '@/types'
 import { ICON_BUTTON_CLASS } from './sidebar-style'
 import { workspacePath } from '@/lib/navigation'
 
-/** Above this many projects the switcher gets a filter field (#238 SH-15). */
+/** Above this many projects the switcher gets a filter field (#238). */
 const PROJECT_FILTER_THRESHOLD = 6
 
 /** The project's letter tile: the same one on the trigger and on every row. */
@@ -35,7 +35,7 @@ function ProjectTile({ name, size = 'md' }: { name: string | undefined; size?: '
 }
 
 /**
- * The project switcher (#238 SH-15): each row carries the project's letter
+ * The project switcher (#238): each row carries the project's letter
  * tile (every row used to be the same folder icon) and a flask for demos; a
  * filter field appears once the list is long; "New project" sits above "View
  * all projects" for anyone who can create one. On the workspace, with nothing

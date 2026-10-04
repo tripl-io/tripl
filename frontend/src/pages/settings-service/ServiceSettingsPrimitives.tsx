@@ -51,14 +51,14 @@ const SOURCE_BADGE: Record<
  *
  * A value at its built-in default carries no badge at all: on a fresh instance
  * every one of ~40 rows wore a grey "Default" pill, which said nothing and hid
- * the rare rows that matter (ST-25). The page's legend says what an unbadged
+ * the rare rows that matter. The page's legend says what an unbadged
  * row means, including that "at the default" and "delivered, but equal to the
  * default" cannot be told apart from here.
  */
 export function SourceBadge({ source }: { source: SettingSource }) {
   if (source === 'default') return null
   const { label, tone, variant, title } = SOURCE_BADGE[source]
-  // The badge taxonomy's pill (DS-6): the size comes from `size`.
+  // The badge taxonomy's pill: the size comes from `size`.
   return (
     <Chip tone={tone} variant={variant} size="xs" title={title}>
       {label}
@@ -87,8 +87,8 @@ export function StatusBadge({ active, label }: { active: boolean; label: string 
 }
 
 /**
- * The rows that depend on a master switch, de-emphasised while it is off
- * (ST-26). They stay editable — preparing a config before switching it on is
+ * The rows that depend on a master switch, de-emphasised while it is off.
+ * They stay editable — preparing a config before switching it on is
  * valid — but with every field looking live, "Test AI" and the HSTS max age
  * read as working while their switch said otherwise. `data-inactive` lets a
  * test (or a style) find the state without reading opacity.
@@ -249,7 +249,7 @@ export function ResetSectionCard({
   const label = SECTION_LABELS[section]
   // Nothing stored, nothing to clear: no card. On a fresh instance a full card
   // holding a disabled button ended all six pages, as tall as Runtime's
-  // settings themselves (ST-29); red with a live button before that, it taught
+  // settings themselves; red with a live button before that, it taught
   // people to ignore the one colour kept for real consequences.
   if (overrides === 0) return null
   return (
