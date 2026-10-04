@@ -385,11 +385,16 @@ def test_orphan_sweep_refuses_when_no_row_references_the_backend(tmp_path, monke
     import os
     import time
 
-    from tripl.config import settings
+    from tripl.services import photo_storage_service
+    from tripl.storage import photo_storage
     from tripl.worker.tasks import maintenance
 
-    monkeypatch.setattr(settings, "photo_local_dir", str(tmp_path))
-    monkeypatch.setattr(settings, "gcs_photo_bucket", "")
+    # Patch the settings object each module holds: a test that swaps
+    # ``tripl.config.settings`` leaves the modules on the original one.
+    for holder in (maintenance, photo_storage, photo_storage_service):
+        monkeypatch.setattr(holder.settings, "photo_local_dir", str(tmp_path))
+        monkeypatch.setattr(holder.settings, "gcs_photo_bucket", "")
+        monkeypatch.setattr(holder.settings, "photo_orphan_sweep_grace_hours", 24)
     # The local driver is cached by name: one built by an earlier test still
     # points at that test's directory.
     reset_photo_storage()
