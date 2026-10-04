@@ -3,7 +3,8 @@ name: CLA
 # Every pull request author signs the Contributor License Agreement (CLA.md)
 # once, by commenting on the pull request. Signatures are kept in
 # signatures/cla.json on the unprotected `cla-signatures` branch, never on
-# main. The maintainer and bots are allowlisted.
+# main. The maintainer and bots are allowlisted, and so is `claude`: the
+# account GitHub maps the Co-Authored-By trailer of AI-assisted commits to.
 #
 # pull_request_target runs in the base repository's context so it can comment
 # and set the status on forks' pull requests. It never checks out or runs the
@@ -37,7 +38,7 @@ jobs:
           path-to-signatures: signatures/cla.json
           path-to-document: https://github.com/vladenisov/tripl/blob/main/CLA.md
           branch: cla-signatures
-          allowlist: vladenisov,dependabot[bot],github-actions[bot],copilot*,*[bot]
+          allowlist: vladenisov,claude,dependabot[bot],github-actions[bot],copilot*,*[bot]
           lock-pullrequest-aftermerge: false
           custom-notsigned-prcomment: >-
             Thank you for the contribution! Before it can be merged, please read the
