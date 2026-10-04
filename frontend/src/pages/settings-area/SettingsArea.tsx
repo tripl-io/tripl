@@ -17,9 +17,7 @@ import { activeOrgRole, isOwner as isOwnerRole, isPlatformAdmin } from '@/lib/pe
 import { orgStorageKey } from '@/lib/activeOrg'
 import { ORG_SECTION_PATHS, orgSectionForPath } from './org-settings/orgSettingsModel'
 import { ORG_TRACKERS_PATH } from './org-settings/orgTrackersModel'
-import { ORG_SSO_PATH } from './org-settings/orgSsoModel'
-import { ORG_SCIM_PATH } from './org-settings/orgScimModel'
-import { ORG_AUDIT_WEBHOOK_PATH } from './org-settings/auditExportModel'
+import { extensionSettingsSection, extensionSettingsSections } from '@/extensions'
 
 const ProjectGeneralSection = lazyWithReload(() => import('./ProjectGeneralSection'))
 const PlanRulesSection = lazyWithReload(() => import('./PlanRulesSection'))
@@ -36,9 +34,6 @@ const WorkspaceAuditSection = lazyWithReload(() => import('./WorkspaceAuditSecti
 const OrgSettingsSection = lazyWithReload(() => import('./OrgSettingsSection'))
 const OrgTrackersSection = lazyWithReload(() => import('./OrgTrackersSection'))
 const OrgGroupsSection = lazyWithReload(() => import('./OrgGroupsSection'))
-const OrgSsoSection = lazyWithReload(() => import('./OrgSsoSection'))
-const OrgScimSection = lazyWithReload(() => import('./OrgScimSection'))
-const OrgAuditWebhookSection = lazyWithReload(() => import('./OrgAuditWebhookSection'))
 // The platform console (F20): its own chunks, fetched by platform admins alone.
 const PlatformOrgsSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgsSection'))
 const PlatformOrgDetailSection = lazyWithReload(() => import('@/pages/platform/PlatformOrgDetailSection'))
@@ -244,9 +239,7 @@ const ACCOUNT_SECTIONS: ReadonlySet<string> = new Set([
   'security',
   ...Object.values(ORG_SECTION_PATHS),
   ORG_TRACKERS_PATH,
-  ORG_SSO_PATH,
-  ORG_SCIM_PATH,
-  ORG_AUDIT_WEBHOOK_PATH,
+  ...extensionSettingsSections.map((extension) => extension.item.path),
 ])
 
 function renderSection({
@@ -292,32 +285,15 @@ function renderSection({
     // The Jira/Linear defaults its projects inherit (F20 PR12): the same gate.
     return isOwner ? <OrgTrackersSection /> : <OwnerOnly section={section} />
   }
-  if (section === ORG_SSO_PATH) {
-    // How the organization signs in (F20): its owners alone, not its admins.
-    return isOrgOwner ? (
-      <OrgSsoSection />
-    ) : (
-      <OrgOwnerOnly section={section} reason="single sign-on: it decides how everyone in the organization signs in" />
-    )
-  }
-  if (section === ORG_AUDIT_WEBHOOK_PATH) {
-    // Where the organization's audit trail is sent (F20): its owners alone.
-    return isOrgOwner ? (
-      <OrgAuditWebhookSection />
-    ) : (
-      <OrgOwnerOnly section={section} reason="the audit webhook: it sends the organization's whole audit trail elsewhere" />
-    )
-  }
-  if (section === ORG_SCIM_PATH) {
-    // Who the identity provider may add and remove (F20): owners alone too.
-    return isOrgOwner ? (
-      <OrgScimSection />
-    ) : (
-      <OrgOwnerOnly
-        section={section}
-        reason="provisioning: it decides who your identity provider adds to and removes from the organization"
-      />
-    )
+  const extensionSection = extensionSettingsSection(section)
+  if (extensionSection) {
+    // An extension's page (single sign-on, provisioning, the audit webhook):
+    // `orgOwner` is the organization's owners alone, not its admins.
+    const { Component, access, deniedReason } = extensionSection
+    if (access === 'orgOwner') {
+      return isOrgOwner ? <Component /> : <OrgOwnerOnly section={section} reason={deniedReason ?? 'this page'} />
+    }
+    return isOwner ? <Component /> : <OwnerOnly section={section} />
   }
   // One route serves every organization section; an unknown one is not a
   // project section to guess at.
@@ -472,8 +448,8 @@ function PlatformOnly({ section }: { section: string }) {
 
 /**
  * A section only an organization OWNER may open (not an admin), opened by
- * anyone else: single sign-on and the audit webhook (F20). `reason` names the
- * section and why it is an owner's.
+ * anyone else: an extension's `orgOwner` section (single sign-on, provisioning,
+ * the audit webhook). `reason` names the section and why it is an owner's.
  */
 function OrgOwnerOnly({ section, reason }: { section: string; reason: string }) {
   return (

@@ -90,10 +90,33 @@ server that has no extensions. Routers are mounted when the app is built, so an
 override changes hook dispatch but not the set of routes.
 `backend/src/tripl/tests/test_extensions.py` has examples.
 
+## Frontend extensions
+
+The web app has a matching registry in `frontend/src/extensions`. A frontend
+extension is a `FrontendExtension` object (`frontend/src/extensions/types.ts`);
+the app renders what it lists without knowing what it is:
+
+| Field | What the app does with it |
+|---|---|
+| `routes` | Mounts each as a top-level route outside the app shell, lazily loaded. |
+| `settingsSections` | Adds a rail item to a Settings group (after the item named by `after`) and opens its page at the item's path. `access` decides who may open it: `orgOwner` (owners only) or `owner` (owners and admins). |
+| `authPanels` | Offers a button under the password form on the sign-in page, which opens the panel. |
+| `shellGates` | Called with the app shell's request errors; a gate returns a screen to show instead of the shell, or `null`. |
+
+Extensions beyond the bundled one come from the `@tripl/extensions` module, a
+build-time alias. By default it points to `src/extensions/none.ts`, which lists
+none. A build that sets `TRIPL_EXTENSIONS_ENTRY` to the path of another module
+gets that module's default export, a `FrontendExtension[]`, instead.
+
+A refusal's fields beside `detail` (a `GateRefused`'s `extra`) reach the
+frontend as `ApiError.extra`, so a shell gate can read them, for example
+`sso_start`.
+
 ## The bundled extension
 
 Single sign-on, SCIM provisioning and the audit webhook still live in this
-repository. They are registered as a bundled extension,
-`tripl._bundled_enterprise`, and their models are in the bundled model list.
-The core reaches them only through the hooks above. When they move to a
-separately installed package, only that module and its imports move with them.
+repository. They are registered as a bundled extension: on the backend
+`tripl._bundled_enterprise`, with its models in the bundled model list; in the
+web app `frontend/src/extensions/bundled`. The core reaches them only through
+the hooks and the registry above. When they move to a separately installed
+package, only those modules and their imports move with them.

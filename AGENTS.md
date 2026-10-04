@@ -188,6 +188,7 @@ Backend layers:
 
 Frontend layers:
 - `frontend/src/App.tsx`: route table.
+- `frontend/src/extensions/`: frontend extension registry (routes, settings sections, sign-in panels, shell gates). The SSO, SCIM and audit-webhook UI is registered in `extensions/bundled/` and reached only through it ([extension points](website/docs/develop/extension-points.md)).
 - `frontend/src/pages`: screen-level UI.
 - `frontend/src/api`: typed HTTP client wrappers.
 - `frontend/src/components`: layout and shared UI.
