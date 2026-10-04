@@ -115,6 +115,20 @@ def register(
             "tag in production so a re-run cannot move you"
         ),
     )
+    parser.add_argument(
+        "--edition",
+        dest="edition",
+        choices=sorted(files.EDITION_IMAGES),
+        # None rather than "community", for the same provenance reason as
+        # --version: only a typed edition is reported back when .env keeps
+        # another image.
+        default=None,
+        help=(
+            "which image .env pins as TRIPL_IMAGE (default: community). The enterprise "
+            "image is private: run `docker login ghcr.io` with your subscription's "
+            "credentials first"
+        ),
+    )
     add_wait_flag(parser)
     parser.add_argument(
         "--no-start",
@@ -338,12 +352,15 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
     refuse_source_checkout(directory, "install")
     requested_url = normalize_base_url(str(args.app_url), FLAG_APP_URL)
     requested_version = files.DEFAULT_VERSION if args.version is None else str(args.version)
+    requested_image = (
+        files.DEFAULT_IMAGE if args.edition is None else files.EDITION_IMAGES[str(args.edition)]
+    )
 
     values = secrets.generate(secrets.default_rng())
     writes = files.plan_writes(
         directory,
         app_base_url=requested_url,
-        image=files.DEFAULT_IMAGE,
+        image=requested_image,
         version=requested_version,
         generated_at=generated_at,
         values=values,
@@ -356,11 +373,15 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
     settings = files.plan_settings(
         directory,
         app_base_url=requested_url,
-        image=files.DEFAULT_IMAGE,
+        image=requested_image,
         version=requested_version,
-        # --app-url is required, so it is always a real request. --version is
-        # one only when it was typed; TRIPL_IMAGE has no flag at all.
-        explicit=("APP_BASE_URL", *((files.VERSION_KEY,) if args.version is not None else ())),
+        # --app-url is required, so it is always a real request. --version and
+        # --edition (TRIPL_IMAGE) are one only when they were typed.
+        explicit=(
+            "APP_BASE_URL",
+            *((files.VERSION_KEY,) if args.version is not None else ()),
+            *(("TRIPL_IMAGE",) if args.edition is not None else ()),
+        ),
     )
     effective = {setting.name: setting.effective for setting in settings}
     app_base_url = effective["APP_BASE_URL"].rstrip("/")
@@ -396,6 +417,14 @@ def run_install(args: argparse.Namespace, config: Config) -> int:
             f"tripl: note: TRIPL_VERSION={files.DEFAULT_VERSION} follows every release. In "
             "production pin a released tag (`--version 1.5.0`) so a re-run cannot move you "
             "onto an image you have not read the notes for.",
+            file=sys.stderr,
+        )
+    if plan.image == files.ENTERPRISE_IMAGE:
+        # Not checked here: the CLI holds no registry credentials, and a pull
+        # without them fails in `docker compose pull` with Docker's own words.
+        print(
+            f"tripl: note: {files.ENTERPRISE_IMAGE} is private. Run `docker login ghcr.io` "
+            "with the credentials that came with your subscription before the pull.",
             file=sys.stderr,
         )
     if plan.insecure_scheme:

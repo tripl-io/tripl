@@ -890,3 +890,52 @@ def test_the_default_runner_is_the_real_one() -> None:
     from tripl_cli.install.shell import subprocess_runner
 
     assert install_cmd.default_runner() is subprocess_runner
+
+
+# --- editions -----------------------------------------------------------------
+
+
+def test_the_enterprise_edition_pins_the_private_image_and_says_to_log_in(
+    install_dir: Path, fake_runner: FakeRunner, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert (
+        main(argv(install_dir, "--edition", "enterprise", "--version", "1.5.0", "--no-start")) == 0
+    )
+
+    parsed = files.parse_env((install_dir / ".env").read_text(encoding="utf-8"))
+    assert parsed["TRIPL_IMAGE"] == files.ENTERPRISE_IMAGE
+    captured = capsys.readouterr()
+    assert f"{files.ENTERPRISE_IMAGE}:1.5.0" in captured.out
+    assert "docker login ghcr.io" in captured.err
+
+
+def test_the_default_edition_is_community_and_needs_no_login(
+    install_dir: Path, fake_runner: FakeRunner, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(argv(install_dir, "--no-start")) == 0
+
+    parsed = files.parse_env((install_dir / ".env").read_text(encoding="utf-8"))
+    assert parsed["TRIPL_IMAGE"] == files.DEFAULT_IMAGE
+    assert "docker login" not in capsys.readouterr().err
+
+
+def test_an_edition_on_a_provisioned_directory_is_reported_as_not_applied(
+    install_dir: Path, fake_runner: FakeRunner, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(argv(install_dir, "--no-start")) == 0
+    capsys.readouterr()
+
+    assert main(argv(install_dir, "--edition", "enterprise", "--no-start")) == 0
+
+    parsed = files.parse_env((install_dir / ".env").read_text(encoding="utf-8"))
+    assert parsed["TRIPL_IMAGE"] == files.DEFAULT_IMAGE
+    assert "TRIPL_IMAGE" in capsys.readouterr().err
+
+
+def test_an_unknown_edition_is_refused(
+    install_dir: Path, fake_runner: FakeRunner, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        main(argv(install_dir, "--edition", "gold"))
+    assert exit_info.value.code == 2
+    assert listing(install_dir) == set()

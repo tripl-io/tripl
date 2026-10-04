@@ -2664,8 +2664,8 @@ the file permissions done for you instead of copied out of a code block.
 ```
 usage: tripl install [-h] [--url URL] [--api-key KEY] [--config PATH]
                      --app-url URL [--dir PATH] [--version TAG]
-                     [--wait SECONDS] [--no-start] [--force] [--dry-run]
-                     [--yes] [--json]
+                     [--edition {community,enterprise}] [--wait SECONDS]
+                     [--no-start] [--force] [--dry-run] [--yes] [--json]
 ```
 
 | Flag | Meaning |
@@ -2673,6 +2673,7 @@ usage: tripl install [-h] [--url URL] [--api-key KEY] [--config PATH]
 | `--app-url URL` | **Required, no default.** The public origin of the instance you are creating, e.g. `https://tripl.example.com`. Becomes `APP_BASE_URL`, which drives CORS and cookies. A trailing `/` or a pasted `/api/v1` is trimmed. |
 | `--dir PATH` | Where the stack lives. Default `./tripl`; always **reported absolute**, whatever you typed. |
 | `--version TAG` | Image tag to pin in `.env`. Default `latest`. Must look like a Docker tag — a letter, digit or underscore followed by up to 127 of `[A-Za-z0-9._-]`. |
+| `--edition NAME` | Which image `.env` pins as `TRIPL_IMAGE`: `community` (the default, `ghcr.io/vladenisov/tripl`) or `enterprise` (`ghcr.io/vladenisov/tripl-enterprise`). The Enterprise image is private, so run `docker login ghcr.io` with the credentials that come with your subscription before `install` pulls it; `install` prints that reminder and holds no credentials itself. Like `--version`, it does not change an existing `.env`. |
 | `--wait SECONDS` | How long to poll `/health` before giving up. Default `300`, range `0`–`3600`. **`0` skips waiting entirely** — it does not mean "probe once". |
 | `--no-start` | Write the files and run nothing. Also skips the Docker probe, so it works on a machine with no Docker at all. |
 | `--force` | Replace a `compose.yaml` or `rabbitmq.conf` that differs from the packaged one. **Never reaches `.env`.** |
@@ -2803,7 +2804,7 @@ Seven variables, and that is the whole file. It is **not** a copy of
 | Variable | How it is produced |
 |----------|--------------------|
 | `APP_BASE_URL` | Your `--app-url`, normalised. |
-| `TRIPL_IMAGE` | `ghcr.io/vladenisov/tripl`. |
+| `TRIPL_IMAGE` | `ghcr.io/vladenisov/tripl`, or `ghcr.io/vladenisov/tripl-enterprise` with `--edition enterprise`. |
 | `TRIPL_VERSION` | Your `--version`, default `latest`. |
 | `ENCRYPTION_KEY` | 32 random bytes, url-safe base64 — 44 characters. This is exactly what a **Fernet** key is, which is what the backend builds from it at startup. |
 | `SECRET_KEY` | `secrets.token_urlsafe(48)` — 64 url-safe characters. |
