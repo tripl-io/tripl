@@ -92,7 +92,7 @@ def _check_url(slug: str) -> str:
 @pytest.mark.asyncio
 async def test_demo_near_duplicate_warns_with_a_working_link(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 202, resp.text
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:

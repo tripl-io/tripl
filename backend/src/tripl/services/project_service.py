@@ -762,6 +762,10 @@ def _should_touch_demo_access(project: Project) -> bool:
     """
     if not project.is_demo:
         return False
+    # A shell still seeding on the worker is polled, not used, and its row
+    # belongs to the seed's transaction until it is promoted.
+    if project.generation_status != ProjectGenerationStatus.ready.value:
+        return False
     last = project.demo_last_accessed_at
     if last is None:
         return True

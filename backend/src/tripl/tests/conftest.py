@@ -1,5 +1,9 @@
+import asyncio
+import contextlib
+import contextvars
 import smtplib
 import socket
+import uuid
 from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 
@@ -65,6 +69,7 @@ from tripl.middleware.rate_limit import (  # noqa: E402
     status_rate_limiter,
     verify_email_rate_limiter,
 )
+from tripl.middleware.request_id import bound_request_id  # noqa: E402
 from tripl.models import Base  # noqa: E402
 from tripl.models.data_source import TestStatus  # noqa: E402
 from tripl.models.organization import DEFAULT_ORG_ID, DEFAULT_ORG_SLUG  # noqa: E402
@@ -245,6 +250,32 @@ def _hermetic_getaddrinfo(host: object, *args: object, **kwargs: object) -> obje
         if any(name == s or name.endswith("." + s) for s in _HERMETIC_DNS_SUFFIXES):
             return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (HERMETIC_DNS_ADDRESS, 0))]
     return _real_getaddrinfo(host, *args, **kwargs)  # type: ignore[arg-type]
+
+
+@pytest.fixture(autouse=True)
+def _seed_demos_inline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run a demo's worker seed inline, so ``POST /projects/demo`` returns it ready.
+
+    Production hands phase 2 to Celery (``worker/tasks/demo_provision.py``).
+    Here it runs on its own session and in a FRESH context — no organization or
+    branch bound, only the request id the task carries — which is what the
+    worker sees, so a seed step that leans on request state fails here too.
+    """
+    from tripl.services import demo_service
+
+    async def _inline(caller: AsyncSession, project_id: uuid.UUID, request_id: str | None) -> None:
+        # The caller's engine, not the test one: some tests seed into a
+        # database of their own.
+        factory = async_sessionmaker(caller.bind, expire_on_commit=False)
+
+        async def _seed() -> None:
+            with bound_request_id(request_id) if request_id else contextlib.nullcontext():
+                async with factory() as session:
+                    await demo_service.finish_demo_provision(session, project_id)
+
+        await asyncio.create_task(_seed(), context=contextvars.Context())
+
+    monkeypatch.setattr(demo_service, "enqueue_demo_seed", _inline)
 
 
 @pytest.fixture(autouse=True)

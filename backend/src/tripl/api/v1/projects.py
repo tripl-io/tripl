@@ -227,26 +227,19 @@ async def create_project(
 @router.post(
     "/demo",
     response_model=ProjectResponse,
-    status_code=201,
+    status_code=202,
 )
 async def create_demo_project(
     session: SessionDep, request: Request, current_user: EditorUserDep
 ) -> ProjectResponse:
+    """Start a demo: the response is its ``seeding`` shell; the worker seeds it.
+
+    Poll ``GET /projects/{slug}`` until ``generation_status`` reads ``ready``
+    (or ``failed``). The ``project.create`` audit row is filed by the worker
+    once the demo is ready, so a cancelled or failed demo leaves none.
+    """
     _require_demo_enabled()
     project = await demo_service.create_demo_project(session, created_by=current_user.id)
-    # A demo is a project, and generating one is a person's decision — so it files
-    # the same action a hand-made project does. The recipe's own backfilled rows
-    # are the ones marked ``demo_seed``; this one is not, because it describes
-    # something a user really did.
-    await _record_lifecycle(
-        session,
-        current_user,
-        "project.create",
-        project_id=project.id,
-        name=project.name,
-        slug=project.slug,
-        payload={"is_demo": True},
-    )
     return await _one_for_caller(session, request, current_user, project)
 
 

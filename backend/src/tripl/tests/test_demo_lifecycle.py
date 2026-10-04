@@ -28,7 +28,7 @@ async def _project_for_slug(session: AsyncSession, slug: str) -> Project:
 @pytest.mark.asyncio
 async def test_demo_has_explicit_identity(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     data = resp.json()
 
     # Identity is explicit metadata, not slug/host/name convention.
@@ -118,7 +118,9 @@ async def test_injected_seed_failure_leaves_no_visible_demo(
     monkeypatch.setattr(demo_service, "_seed_demo_content", _boom)
 
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 500
+    # The seed runs on the worker: the request itself was accepted.
+    assert resp.status_code == 202
+    assert resp.json()["generation_status"] == "failed"
 
     # The failed demo is hidden from the normal project list...
     list_resp = await client.get("/api/v1/projects")
@@ -158,9 +160,14 @@ async def test_provision_failure_logs_traceback_and_request_id(
 
     monkeypatch.setattr(demo_service, "_seed_demo_content", _boom)
 
+    request_id = "demo-seed-correlation-1"
     with caplog.at_level(logging.WARNING, logger="tripl.services.demo_service"):
-        resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 500
+        resp = await client.post(
+            "/api/v1/projects/demo", headers={settings.request_id_header: request_id}
+        )
+    # The seed runs on the worker: the request itself was accepted.
+    assert resp.status_code == 202
+    assert resp.json()["generation_status"] == "failed"
 
     failures = [
         r for r in caplog.records if demo_service.DEMO_PROVISION_FAILED_EVENT in r.getMessage()
@@ -169,7 +176,8 @@ async def test_provision_failure_logs_traceback_and_request_id(
     record = failures[0]
     assert record.exc_info is not None  # full traceback attached for debugging
     message = record.getMessage()
-    assert "request_id=" in message  # correlatable with the client's report
+    # The seed ran on the worker, yet the line names the request that started it.
+    assert f"request_id={request_id}" in message
     assert "injected seed failure" in message  # underlying detail surfaced
 
 
@@ -324,3 +332,64 @@ async def test_ordinary_project_cannot_select_synthetic_source(client: AsyncClie
         json=payload,
     )
     assert own.status_code == 201, own.text
+
+
+@pytest.mark.asyncio
+async def test_unreachable_worker_marks_the_shell_failed(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No broker means no seed: the shell must not sit in ``seeding`` forever.
+    async def _no_broker(*args: object, **kwargs: object) -> None:
+        raise ConnectionError("broker down")
+
+    monkeypatch.setattr(demo_service, "enqueue_demo_seed", _no_broker)
+
+    resp = await client.post("/api/v1/projects/demo")
+    assert resp.status_code == 503
+
+    async with TestSessionLocal() as session:
+        demos = (
+            (await session.execute(select(Project).where(Project.is_demo.is_(True))))
+            .scalars()
+            .all()
+        )
+        assert len(demos) == 1
+        assert demos[0].generation_status == "failed"
+        assert demos[0].generation_error
+
+
+async def _event_type_count(project_id: uuid.UUID) -> int:
+    async with TestSessionLocal() as session:
+        rows = await session.execute(select(EventType.id).where(EventType.project_id == project_id))
+        return len(rows.all())
+
+
+@pytest.mark.asyncio
+async def test_a_redelivered_seed_task_changes_nothing(client: AsyncClient) -> None:
+    # Celery may deliver a task twice; the second run must find no seeding shell.
+    resp = await client.post("/api/v1/projects/demo")
+    assert resp.json()["generation_status"] == "ready"
+    project_id = uuid.UUID(resp.json()["id"])
+    before = await _event_type_count(project_id)
+    assert before > 0
+
+    async with TestSessionLocal() as session:
+        outcome = await demo_service.finish_demo_provision(session, project_id)
+
+    assert outcome == "skipped"
+    assert await _event_type_count(project_id) == before
+
+
+def test_seed_task_binds_the_creating_request_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tripl.middleware.request_id import current_request_id
+    from tripl.worker.tasks import demo_provision
+
+    seen: list[str | None] = []
+
+    async def _fake_run(callback: object) -> None:
+        seen.append(current_request_id())
+
+    monkeypatch.setattr(demo_provision, "run_with_async_worker_session", _fake_run)
+    demo_provision.seed_demo_project(str(uuid.uuid4()), "req-123")
+    demo_provision.seed_demo_project(str(uuid.uuid4()))
+    assert seen == ["req-123", None]

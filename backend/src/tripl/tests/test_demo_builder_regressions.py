@@ -308,7 +308,7 @@ async def test_demo_cpu_work_runs_off_the_event_loop(
     monkeypatch.setattr(monitoring, "compute_psi", recording("psi", monitoring.compute_psi))
     monkeypatch.setattr(catalog, "build_adapter", recording("adapter", catalog.build_adapter))
 
-    assert (await client.post("/api/v1/projects/demo")).status_code == 201
+    assert (await client.post("/api/v1/projects/demo")).status_code == 202
 
     for key, threads in seen.items():
         assert threads, f"{key} never ran"

@@ -196,7 +196,7 @@ async def test_the_demo_files_its_authored_objects_in_their_routes_own_shape(
       ``api/v1/event_type_owners.py`` passes ``""``.
     """
     created = await client.post("/api/v1/projects/demo")
-    assert created.status_code == 201, created.text
+    assert created.status_code == 202, created.text
     slug = created.json()["slug"]
 
     types = await client.get(f"/api/v1/projects/{slug}/event-types")

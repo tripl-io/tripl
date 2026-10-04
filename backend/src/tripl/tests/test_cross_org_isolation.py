@@ -1384,7 +1384,7 @@ async def test_org_a_ids_in_bodies_of_org_b_are_refused_or_ignored(world: World)
 async def test_a_demo_seeded_in_org_a_files_its_audit_trail_in_org_a(world: World) -> None:
     """Every ``demo_seed`` row is A's; neither B's nor the default org's feed shows it."""
     created = await world.a.owner.post(f"{API}/orgs/{ORG_A}/projects/demo")
-    assert created.status_code == 201, created.text
+    assert created.status_code == 202, created.text
     demo_slug = created.json()["slug"]
 
     async with TestSessionLocal() as session:

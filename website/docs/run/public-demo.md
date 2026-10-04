@@ -38,6 +38,10 @@ RATE_LIMIT_TRUST_FORWARDED_FOR=true   # only when the proxy sets X-Forwarded-For
 
 Keep `DEMO_ENABLED` and `DEMO_RUNTIME_ENABLED` at their default (`true`): the
 first lets a visitor generate a demo project, the second keeps its data fresh.
+A demo project is seeded by the `celery-worker` service, not by the API: generating
+one queues a job of a few CPU-seconds and the browser waits for it. A burst of
+sign-ups therefore lengthens the wait for a demo rather than slowing the app,
+and `celery-worker` must be running for a demo to appear.
 
 ## Google client
 

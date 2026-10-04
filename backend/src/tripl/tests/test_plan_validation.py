@@ -672,7 +672,7 @@ async def test_validate_route_event_overrides_are_loaded(client: AsyncClient) ->
 async def test_demo_payload_missing_a_required_field_is_an_error(client: AsyncClient) -> None:
     """The issue's Done-when: a demo payload without a required field fails."""
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 202, resp.text
     slug = resp.json()["slug"]
     checked = await client.post(
         f"/api/v1/projects/{slug}/plan/validate",

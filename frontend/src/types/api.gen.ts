@@ -1680,7 +1680,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Demo Project */
+        /**
+         * Create Demo Project
+         * @description Start a demo: the response is its ``seeding`` shell; the worker seeds it.
+         *
+         *     Poll ``GET /projects/{slug}`` until ``generation_status`` reads ``ready``
+         *     (or ``failed``). The ``project.create`` audit row is filed by the worker
+         *     once the demo is ready, so a cancelled or failed demo leaves none.
+         */
         post: operations["create_demo_project_api_v1_projects_demo_post"];
         delete?: never;
         options?: never;
@@ -22418,7 +22425,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            201: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

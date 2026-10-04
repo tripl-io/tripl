@@ -37568,9 +37568,10 @@
     },
     "/api/v1/projects/demo": {
       "post": {
+        "description": "Start a demo: the response is its ``seeding`` shell; the worker seeds it.\n\nPoll ``GET /projects/{slug}`` until ``generation_status`` reads ``ready``\n(or ``failed``). The ``project.create`` audit row is filed by the worker\nonce the demo is ready, so a cancelled or failed demo leaves none.",
         "operationId": "create_demo_project_api_v1_projects_demo_post",
         "responses": {
-          "201": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {

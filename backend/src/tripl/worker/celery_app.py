@@ -301,6 +301,7 @@ import tripl.worker.tasks.alert_flush  # noqa: F401, E402
 import tripl.worker.tasks.alert_owner_notify  # noqa: F401, E402
 import tripl.worker.tasks.alerts  # noqa: F401, E402
 import tripl.worker.tasks.audit_webhook  # noqa: F401, E402
+import tripl.worker.tasks.demo_provision  # noqa: F401, E402
 import tripl.worker.tasks.demo_runtime  # noqa: F401, E402
 import tripl.worker.tasks.docs_translate  # noqa: F401, E402
 import tripl.worker.tasks.health  # noqa: F401, E402

@@ -341,7 +341,7 @@ def _url(slug: str) -> str:
 
 async def _demo(client: AsyncClient) -> str:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201, resp.text
+    assert resp.status_code == 202, resp.text
     slug = resp.json()["slug"]
     assert isinstance(slug, str)
     return slug
