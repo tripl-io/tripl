@@ -26,7 +26,7 @@ from tripl.worker.tasks.scan import _scan_with_grouping
 
 async def _demo_slug(client: AsyncClient) -> str:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     return resp.json()["slug"]
 
 

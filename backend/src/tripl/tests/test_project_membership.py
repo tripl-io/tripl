@@ -765,7 +765,7 @@ async def test_demo_create_and_reset_keep_the_members(actors: Actors) -> None:
     """The reset purges the row (and its memberships by cascade) and seeds a new
     one under the same slug; whoever could see the demo before can see it after."""
     demo = await actors.owner.post("/api/v1/projects/demo")
-    assert demo.status_code == 201, demo.text
+    assert demo.status_code == 202, demo.text
     slug = demo.json()["slug"]
     assert await _membership(slug, actors.ids["owner"]) is not None
 
@@ -792,7 +792,7 @@ async def test_demo_create_and_reset_keep_the_members(actors: Actors) -> None:
 @pytest.mark.asyncio
 async def test_an_editors_demo_is_theirs_alone(actors: Actors) -> None:
     demo = await actors.editor.post("/api/v1/projects/demo")
-    assert demo.status_code == 201, demo.text
+    assert demo.status_code == 202, demo.text
     slug = demo.json()["slug"]
     assert slug in await _slugs(actors.editor)
     assert slug not in await _slugs(actors.stranger)
@@ -833,7 +833,7 @@ async def test_deleting_or_resetting_a_project_drops_its_realtime_keys(
     assert dropped == [uuid.UUID(project["id"])]
 
     demo = await actors.owner.post("/api/v1/projects/demo")
-    assert demo.status_code == 201, demo.text
+    assert demo.status_code == 202, demo.text
     reset = await actors.owner.post(f"/api/v1/projects/demo/{demo.json()['slug']}/reset")
     assert reset.status_code == 200, reset.text
     assert dropped[-1] == uuid.UUID(demo.json()["id"])
@@ -946,7 +946,7 @@ async def test_the_event_stream_guard_ends_the_owners_stream_after_a_demo_reset(
     from tripl.api.v1.events_stream import membership_guard
 
     demo = await actors.owner.post("/api/v1/projects/demo")
-    assert demo.status_code == 201, demo.text
+    assert demo.status_code == 202, demo.text
     slug = demo.json()["slug"]
     old_id = uuid.UUID(demo.json()["id"])
     clock = _Clock()

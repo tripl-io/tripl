@@ -112,7 +112,7 @@ def test_dataset_stays_within_row_budget_with_the_spike_at_its_peak() -> None:
 @pytest.mark.asyncio
 async def test_demo_source_serves_the_spike_it_seeded(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:

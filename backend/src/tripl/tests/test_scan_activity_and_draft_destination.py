@@ -69,7 +69,7 @@ async def test_scan_activity_counts_catalog_warehouse_rows_as_warehouse_rows(
 @pytest.mark.asyncio
 async def test_demo_shadow_candidate_carries_samples(client: AsyncClient) -> None:
     created = await client.post("/api/v1/projects/demo")
-    assert created.status_code == 201
+    assert created.status_code == 202
     slug = created.json()["slug"]
 
     resp = await client.get(f"/api/v1/projects/{slug}/reconciliation/shadow-events")

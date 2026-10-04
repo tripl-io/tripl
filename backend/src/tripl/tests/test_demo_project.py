@@ -57,9 +57,9 @@ async def _scan_config_id_for_project(
 
 
 @pytest.mark.asyncio
-async def test_create_demo_project_returns_201(client: AsyncClient) -> None:
+async def test_create_demo_project_returns_202(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     data = resp.json()
     assert data["slug"].startswith("demo-")
     assert len(data["slug"]) == len("demo-") + 6
@@ -68,7 +68,7 @@ async def test_create_demo_project_returns_201(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_demo_project_has_events(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     events_resp = await client.get(f"/api/v1/projects/{slug}/events")
@@ -90,7 +90,7 @@ async def test_demo_events_first_seen_matches_history_window(client: AsyncClient
     # history_start stamp left the Overview 14-day "active events" sparkline a
     # flat zero; the provisioning instant made everything first seen "just now".
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     events_resp = await client.get(f"/api/v1/projects/{slug}/events")
@@ -142,7 +142,7 @@ def test_demo_event_first_seen_stagger_is_deterministic() -> None:
 @pytest.mark.asyncio
 async def test_demo_project_has_metrics(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     metrics_resp = await client.get(f"/api/v1/projects/{slug}/metrics/total")
@@ -154,7 +154,7 @@ async def test_demo_project_has_metrics(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_demo_project_has_metrics_catalog(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     # Metrics catalog: at least the four seeded definitions, covering all kinds.
@@ -179,7 +179,7 @@ async def test_demo_project_has_metrics_catalog(client: AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_demo_project_has_fact_table_with_named_filter(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     list_resp = await client.get(f"/api/v1/projects/{slug}/fact-tables")
@@ -205,7 +205,7 @@ async def test_demo_data_source_is_tested_healthy(client: AsyncClient) -> None:
     the source stays project-scoped so the Overview rail can filter it per project.
     """
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:
@@ -230,7 +230,7 @@ async def test_demo_fact_table_preview_serves_synthetic_orders(client: AsyncClie
     and their bucketed column types with no network/filesystem access.
     """
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     fact_tables = (await client.get(f"/api/v1/projects/{slug}/fact-tables")).json()["items"]
@@ -271,8 +271,8 @@ async def test_demo_fact_table_preview_serves_synthetic_orders(client: AsyncClie
 async def test_create_demo_project_twice_unique_slugs(client: AsyncClient) -> None:
     resp1 = await client.post("/api/v1/projects/demo")
     resp2 = await client.post("/api/v1/projects/demo")
-    assert resp1.status_code == 201
-    assert resp2.status_code == 201
+    assert resp1.status_code == 202
+    assert resp2.status_code == 202
     assert resp1.json()["slug"] != resp2.json()["slug"]
 
 
@@ -291,7 +291,7 @@ async def test_delete_demo_project_cascades(client: AsyncClient) -> None:
     # A demo project is data-rich (event types, events, fields, metrics,
     # signals, drifts, scan configs). Deleting it must succeed and remove it.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     del_resp = await client.delete(f"/api/v1/projects/{slug}")
@@ -305,7 +305,7 @@ async def test_demo_project_seeds_enabled_anomaly_settings(client: AsyncClient) 
     # a matching project-level ProjectAnomalySettings row is ALSO enabled, so the
     # seeder must persist one or detection would silently never run.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:
@@ -331,7 +331,7 @@ async def test_demo_project_anomalies_match_seeded_series(client: AsyncClient) -
     # series: the detector ran over exactly the stored counts, so an anomaly's
     # bucket must exist in the series and its actual/expected must be drawn from it.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:
@@ -395,7 +395,7 @@ async def test_demo_project_distribution_drift_is_real_psi(client: AsyncClient) 
     # Drift rows are computed by the real compute_psi over a genuinely shifting
     # platform mix, so PSI varies across buckets and each band matches the score.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:
@@ -445,7 +445,7 @@ async def test_demo_recipe_version_is_pinned_to_4(client: AsyncClient) -> None:
     # The literal is deliberate: bumping the recipe must be a conscious edit here
     # too, so a stale demo (recipe < 4) is never mistaken for the current shape.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     assert resp.json()["demo_recipe_version"] == "4"
 
 
@@ -466,7 +466,7 @@ async def test_demo_branch_diff_is_exactly_one_modified_event(client: AsyncClien
     # deep-copied onto it and exactly one event description is edited, so the
     # diff (the merge preview's content) is non-empty and precisely scoped.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     branches = (await client.get(f"/api/v1/projects/{slug}/branches")).json()["items"]
@@ -517,7 +517,7 @@ async def test_demo_seeds_one_open_variable_value_drift(client: AsyncClient) -> 
     # loader and the replay twin require one to be set — the replay HAS read
     # variable-value drifts since the replay learned to load them.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:
@@ -634,7 +634,7 @@ async def test_reset_purges_branch_plan_entities_and_drift(client: AsyncClient) 
     # Reset drops the old demo in full — including the branch-side plan copy and
     # the variable-value drift — and re-seeds the same shape under a fresh id.
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     async with TestSessionLocal() as session:
@@ -1053,7 +1053,7 @@ async def test_cancelled_provision_deletes_its_shell_instead_of_promoting(
 async def test_demo_creation_is_capped_per_creator(client: AsyncClient) -> None:
     """The (N+1)-th demo is refused with a message that points at reset/delete."""
     for _ in range(demo_service.MAX_DEMOS_PER_CREATOR):
-        assert (await client.post("/api/v1/projects/demo")).status_code == 201
+        assert (await client.post("/api/v1/projects/demo")).status_code == 202
 
     resp = await client.post("/api/v1/projects/demo")
     assert resp.status_code == 409
@@ -1103,7 +1103,7 @@ async def test_stale_failed_shells_are_swept_on_the_next_create(client: AsyncCli
         session.add_all([old, recent])
         await session.commit()
 
-    assert (await client.post("/api/v1/projects/demo")).status_code == 201
+    assert (await client.post("/api/v1/projects/demo")).status_code == 202
 
     async with TestSessionLocal() as session:
         slugs = set(
@@ -1386,7 +1386,7 @@ async def test_a_shell_abandoned_mid_seed_never_locks_out_the_creator(
         )
         await session.commit()
 
-    assert (await client.post("/api/v1/projects/demo")).status_code == 201
+    assert (await client.post("/api/v1/projects/demo")).status_code == 202
 
     async with TestSessionLocal() as session:
         left = (
@@ -1411,7 +1411,7 @@ async def test_every_seeded_scan_config_survives_a_patch_of_itself(client: Async
     seeder and the write path fails here rather than in front of an evaluator.
     """
     demo = await client.post("/api/v1/projects/demo")
-    assert demo.status_code == 201
+    assert demo.status_code == 202
     slug = demo.json()["slug"]
 
     scans = await client.get(f"/api/v1/projects/{slug}/scans")

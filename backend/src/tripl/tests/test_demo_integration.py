@@ -34,7 +34,10 @@ async def test_provisioning_rollback_leaves_nothing_visible(
         raise RuntimeError("injected seed failure")
 
     monkeypatch.setattr(demo_service, "_seed_demo_content", _boom)
-    assert (await client.post("/api/v1/projects/demo")).status_code == 500
+    created = await client.post("/api/v1/projects/demo")
+    # The seed runs on the worker: the request itself was accepted.
+    assert created.status_code == 202
+    assert created.json()["generation_status"] == "failed"
 
     # Not in the normal list, and no seeded content leaked.
     assert await _slugs_in_list(client) == set()

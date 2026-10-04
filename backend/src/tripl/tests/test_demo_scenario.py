@@ -53,7 +53,7 @@ def _events_by_name(items: list[dict]) -> dict[str, dict]:
 @pytest.mark.asyncio
 async def test_new_examples_are_api_visible(client: AsyncClient) -> None:
     resp = await client.post("/api/v1/projects/demo")
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     slug = resp.json()["slug"]
 
     # --- events + meta VALUES ------------------------------------------------
